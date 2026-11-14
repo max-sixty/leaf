@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Forks in Leaf</title>
+    <meta
+      name="description"
+      content="How Leaf answers thread messages in Claude Code with forks of the session's conversation: the working line, who holds a message, who acts, what the main thread hears when a fork ends, follow-ups, and which parts are built and which planned."
+    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <style>
+      /* A part of the design that isn't built yet draws dashed, in every diagram. */
+      .pele-node.planned :is(rect, polygon, path, circle) {
+        stroke-dasharray: 5 4;
+      }
+      .pele-node.planned {
+        opacity: 0.85;
+      }
+      .pele-edge.planned path {
+        stroke-dasharray: 5 4;
+      }
+      /* A flag keeps its spelling on one line. */
+      .nowrap {
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body class="site-page">
+    <main class="layout-sidebar">
+      <aside id="forks-route">
+        <div class="layout-track">
+          <lf-toc id="forks-contents"></lf-toc>
+        </div>
+      </aside>
+      <div class="layout-column">
+        <nav class="sitenav" aria-label="Site"></nav>
+
+        <header id="top">
+          <p class="eyebrow">how it works</p>
+          <h1>Forks</h1>
+          <p class="lede" id="lede">
+            In Claude Code, Leaf hands the user's thread messages to forks: copies of
+            the session's conversation that run beside the session. A fork posts the
+            agent's first words in the thread within a few seconds, whether the session
+            is busy or idle, and a fork with the session's tools can do a small task and
+            answer it while the session carries on with its own work.
+          </p>
+          <p id="lede-status">
+            Today the first words come from a fork in every Claude Code session, unless
+            <code class="nowrap">LEAF_FORK_REPLIES=off</code> is set. A fork that does
+            the work, and takes its thread's later messages, is built, and acts only
+            with <code class="nowrap">LEAF_FORK_WORK=on</code> in Claude Code's
+            environment; the rest of the design is planned. Each part below says which,
+            and <a href="#status">What's built and what's planned</a> lists them.
+          </p>
+          <p id="lede-contracts">
+            This page is the design's reference, for people and for agents. It explains
+            the mechanism. The exact rules live in the
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session-lifetime.md#turns-and-generations"
+              >session lifetime contract</a
+            >
+            and in the module headers listed under
+            <a href="#sources">Where each rule is written</a>. The research and
+            measurements behind the design are in
+            <a href="https://github.com/max-sixty/leaf/blob/main/notes/fork-replies.md"
+              ><code>notes/fork-replies.md</code></a
+            >.
+          </p>
+        </header>
+
+        <section id="terms" class="layout-flow">
+          <h2>Names on this page</h2>
+          <dl id="terms-list">
+            <dt id="term-main-thread">Main thread</dt>
+            <dd>
+              The session's own conversation, the one the user talks to, as opposed to
+              the forks and subagents made from it.
+            </dd>
+            <dt id="term-line-fork">Line fork</dt>
+            <dd>
+              A fork made with <code>$.model.fork</code>, which resends the main
+              thread's last request with one question from Leaf and returns text in 2 to
+              3 s. It can't call tools. It writes the working line and sorts the
+              message.
+            </dd>
+            <dt id="term-working-fork">Working fork</dt>
+            <dd>
+              A background subagent with the main thread's transcript, model and tools
+              (<code>$.agent.spawn</code> with <code>subagentType: "fork"</code>), named
+              <code>leaf-&lt;thread&gt;</code> after the thread it works on. It does
+              that thread's work and answers it.
+            </dd>
+            <dt id="term-working-line">Working line</dt>
+            <dd>
+              The agent's progress message in a thread, saying what it will do about the
+              message, such as “reading the reconnect traces”. It stands until the
+              agent's answer replaces it.
+            </dd>
+            <dt id="term-waiting">Waiting messages</dt>
+            <dd>
+              The user's messages in a thread since the agent's last answer there. The
+              newest one owes the thread's answer.
+            </dd>
+            <dt id="term-kept-back">Kept back</dt>
+            <dd>
+              A new thread message Leaf withholds from the main thread while a line fork
+              writes its working line and sorts it, until 30 s after the thread's newest
+              message, so a message that follows restarts the wait.
+            </dd>
+            <dt id="term-holds">Holds</dt>
+            <dd>
+              A turn holds a thread's messages from the moment it takes the thread, by
+              picking up its messages or answering it, until another turn does.
+              <a href="#holding">Who holds a message</a> gives the exact rule.
+            </dd>
+            <dt id="term-take">Take</dt>
+            <dd>
+              The line fork's judgment that a working fork should do the work
+              (<code>take</code>), and the act that gives the thread to one: a turn Leaf
+              opens for the fork picks the thread's messages up.
+            </dd>
+            <dt id="term-hand-over">Hand over, hand back</dt>
+            <dd>
+              Leaf hands a kept-back message over to the main thread, as the line fork's
+              <code>hand_over</code> judgment asks or when keeping it back ends. A
+              working fork hands its thread back to the main thread, with
+              <code>HAND BACK:</code> or by ending unanswered (<code>hand_back</code>).
+            </dd>
+            <dt id="term-pages-follower">Pages follower</dt>
+            <dd>
+              The background process Leaf's hooks module runs for a session that holds a
+              page. It lists the messages Leaf keeps back, and the module asks a line
+              fork about each. While it runs it holds the session's fork lane, a lock
+              whose recorded start tells Leaf since when the follower has been running
+              (<code>forks.take_lane</code>), so the code says “lane” where this page
+              says the follower is running.
+            </dd>
+            <dt id="term-turn">Turn</dt>
+            <dd>
+              A span of an agent's work that Leaf's records name. The main thread works
+              in its turns, and each run of a working fork is a turn of its own.
+            </dd>
+            <dt id="term-delivery">Delivery</dt>
+            <dd>
+              How Leaf hands messages to a turn: their text and thread, and for the
+              message that owes an answer, the reply reference its
+              <code>leaf thread reply</code> names. A delivery too large for a hook goes
+              by pointer, and the agent's <code>leaf delivery ack</code> records it.
+            </dd>
+            <dt id="term-pickup">Pickup</dt>
+            <dd>
+              The event in the page log that records a turn taking messages in. It names
+              the session and the turn.
+            </dd>
+            <dt id="term-start">Start</dt>
+            <dd>
+              The record that the agent is at work on one message or to-do, written by
+              <code>leaf task start</code> or by a progress reply the agent posts. It
+              names its turn and stops counting when the turn ends.
+            </dd>
+            <dt id="term-clerk">Clerk's line</dt>
+            <dd>
+              A line Leaf queues for the main thread, which it reads at its next tool
+              boundary or prompt. A line telling it of a to-do a fork opened wakes an
+              idle session.
+            </dd>
+            <dt id="term-to-do">To-do</dt>
+            <dd>
+              Work the agent owes on a thread until it ends it, opened with
+              <code>leaf thread reply --todo</code>. A to-do is the obligation a
+              significant task becomes.
+            </dd>
+          </dl>
+        </section>
+
+        <section id="path" class="layout-flow">
+          <h2>The path of one thread message</h2>
+          <p id="path-kept">
+            When the user writes in a thread, none of whose waiting messages has reached
+            the main thread or been handed to it, all of them arrived while the
+            session's pages follower was running, and no running fork's turn took the
+            thread, Leaf keeps the new message back from the main thread and asks a line
+            fork for the working line. From then until the agent answers, the message
+            reads
+            <a href="/how-it-works/#stages-working">On it</a>. The line fork reads the
+            message against the conversation, writes the working line, and sorts the
+            message by who should do the work. Leaf posts the line as the agent's and
+            sends the message where the sort says. If no line comes within
+            <code>forks.BOUND_S</code>, 30 s, Leaf gives the message to the main thread
+            anyway, and it does so at once when the line fork fails, when the newest
+            message owes no reply, or when the pages follower stops.
+          </p>
+          <figure id="path-figure" class="diagram-figure">
+            <lf-diagram id="path-diagram" data-height="609" parts="all">
+              <pre>
+flowchart TD
+  accTitle: The path of one thread message
+  accDescr: The user writes in a thread. Leaf keeps the message back from the main thread, and it reads On it. A line fork writes the working line and sorts the message. A small task goes to a working fork, which answers in the thread, and the main thread hears what it did. A significant task becomes a to-do, which is planned. Input the main thread needs now goes to the main thread.
+  msg["The user writes in a thread"]
+  kept["Leaf keeps it back; it reads On it"]
+  line["A line fork writes the working line and sorts the message"]
+  fork["A working fork"]
+  answer["It answers in the thread"]
+  told["The main thread hears what it did"]
+  todo["A to-do"]
+  main["The main thread"]
+  msg --&gt; kept --&gt; line
+  line -- small --&gt; fork --&gt; answer --&gt; told
+  line -- significant --&gt; todo
+  line -- "needed now" --&gt; main
+  class todo planned
+</pre>
+            </lf-diagram>
+            <figcaption id="path-caption">
+              <strong>One message, three ways.</strong> The dashed box is planned: today
+              significant work goes to the main thread, as input it needs now does. A
+              message Leaf stops keeping back for any other reason goes to the main
+              thread too. A working fork takes a message only with
+              <code class="nowrap">LEAF_FORK_WORK=on</code>.
+            </figcaption>
+          </figure>
+
+          <p id="path-record">
+            Keeping a message back is the one state of a thread that Leaf reads partly
+            from outside the page log. A hand-over goes in the session's
+            <code>forks</code> file (<code>forks.HANDED</code>), and whether the pages
+            follower runs comes from its lease. Every reader asks one function which
+            messages Leaf keeps back (<code>forks.kept_back</code>), so none disagrees.
+            The log can't hold this state: keeping back also ends when the follower
+            stops, which nothing writes, so a live lease decides it whatever the log
+            says. A lost hand-over record only has the follower hand the message over
+            again at its next look. Which turn holds a message is different: every
+            reader has to agree on it, it outlives the fork, and it decides whose writes
+            stand, so a take is a pickup in the log, and an answer is a reply there that
+            names its turn. Moving hand-overs into the log too would add an event to
+            nearly every thread message in a Claude Code session, and change the
+            protocol, while the lease still decided when keeping back ends.
+          </p>
+
+          <section id="sorting" class="layout-flow">
+            <h3>How the line fork sorts a message</h3>
+            <table id="sorting-table">
+              <thead>
+                <tr>
+                  <th>The message</th>
+                  <th>Where it goes</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="sort-small">
+                  <th scope="row">
+                    Small: a question or task a fork can finish beside the main thread,
+                    such as a lookup, research that writes only its own scratch files,
+                    or a dispatch to another session
+                  </th>
+                  <td>A working fork, which answers it</td>
+                  <td>
+                    <small class="tag ok">built</small> judged <code>take</code>; acted
+                    on only with the flag
+                  </td>
+                </tr>
+                <tr id="sort-significant">
+                  <th scope="row">
+                    Significant: work on the session's files, branch, page or pull
+                    requests, or research long enough to need progress of its own
+                  </th>
+                  <td>A to-do on the thread, which the main thread schedules</td>
+                  <td>
+                    <small class="tag">planned</small> judged <code>hand_over</code>
+                    today, but research that writes only its own scratch files is judged
+                    <code>take</code>
+                  </td>
+                </tr>
+                <tr id="sort-now">
+                  <th scope="row">
+                    Needed now: the user's answer to a question the main thread asked,
+                    or steering its current work
+                  </th>
+                  <td>The main thread, at its next tool boundary, or woken if idle</td>
+                  <td>
+                    <small class="tag ok">built</small> judged <code>hand_over</code>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="sorting-today">
+              Today the line fork judges two ways (<code>forks.ANSWER</code>).
+              <code>take</code> means a fork with the session's tools could do the work
+              start to finish beside the main thread: it needs nothing the main thread
+              is changing or about to change (its files and branch, the page's source,
+              its pull requests), settles no question the main thread is weighing, and
+              waits on nothing the session is running. <code>hand_over</code> means the
+              work belongs with the main thread. Leaf records each judgment in the
+              page's diagnostics (<code>fork_outcome</code>). Without the flag, Leaf
+              posts the line and gives every message to the main thread.
+            </p>
+            <p id="sorting-planned">
+              The planned sort splits <code>hand_over</code> in two. Input the main
+              thread needs now can't wait as a to-do, since it changes the work the
+              to-do would wait behind. Research sits on the line between small and
+              significant: a fork can do it, but when it runs for minutes it needs
+              progress lines of its own, so the line fork decides by the message. A
+              working fork that finds a task bigger than it looked can still make it a
+              to-do (<a href="#obligations">To-dos</a>).
+            </p>
+          </section>
+
+          <section id="take" class="layout-flow">
+            <h3>A working fork takes a message</h3>
+            <p id="take-steps">
+              When the line fork judges <code>take</code>, Leaf posts the working line,
+              then in one transaction under the page's lock opens a turn for a working
+              fork and records that turn's pickup of the thread's waiting messages, with
+              a delivery made for it (<code>forks._take</code>). The message goes
+              straight from kept back to held by the fork's turn, with no moment in
+              which neither has it. Leaf's hooks module then spawns the working fork
+              with that delivery, or resumes the fork that answered the thread before
+              (<a href="#follow-ups">Follow-ups and flurries</a>), and tells Leaf which
+              agent runs the turn (<code>forks.started</code>), which until then no
+              agent runs (<a href="#acting-starting"
+                >Who a <code>leaf</code> command acts as</a
+              >). The fork works with the session's tools and answers with its own
+              <code>leaf thread reply</code>, using the reply reference its delivery
+              names.
+              <span class="tag ok">built</span>
+              <span class="tag">only with the flag</span>
+            </p>
+            <figure id="take-figure" class="diagram-figure">
+              <lf-diagram id="take-sequence" data-height="520" parts="all">
+                <pre>
+sequenceDiagram
+  accTitle: A working fork takes a message and answers it
+  accDescr: The user writes. Leaf keeps the message back while a line fork writes the working line and judges take. Leaf posts the line, opens a turn for a working fork, records its pickup and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
+  participant U as User
+  participant L as Leaf
+  participant W as Working fork
+  participant M as Main
+  U-&gt;&gt;L: message
+  Note over L: line fork: the line, take
+  L-&gt;&gt;U: working line
+  L-&gt;&gt;W: turn, pickup, spawn
+  L--&gt;&gt;M: a fork has it
+  U-&gt;&gt;L: another message
+  L-&gt;&gt;W: at a tool boundary
+  W-&gt;&gt;L: leaf thread reply
+  L-&gt;&gt;U: the answer
+  W-&gt;&gt;L: run ends
+  L--&gt;&gt;M: what it did
+</pre>
+              </lf-diagram>
+              <figcaption id="take-caption">
+                <strong>A take, in order.</strong> Leaf here is its Python and its hooks
+                module together, and Main is the main thread. Dashed arrows are the
+                clerk's lines, which wait for the main thread's next tool boundary or
+                prompt.
+              </figcaption>
+            </figure>
+          </section>
+        </section>
+
+        <section id="holding" class="layout-flow">
+          <h2>Who holds a message</h2>
+          <p id="holding-turns">
+            Leaf ties work to the turn it runs in: a pickup, a start or an agent's reply
+            names a turn, and a pickup or a start stops counting when that turn ends.
+            The main thread works in its own turns, and Leaf keeps a turn for each run
+            of a working fork in the session's agent-turns record
+            (<code>state.AGENT_TURNS</code>). A fork's turn opens at the take, before
+            Claude Code starts or resumes the fork, and closes when the hooks module
+            reports that the fork's run ended. It also lapses when nothing has renewed
+            it within the working grace, 15 minutes; the fork's tool boundaries renew
+            it. <span class="tag ok">built</span>
+            <span class="tag">only with the flag</span>
+          </p>
+          <p id="holding-newest">
+            A turn holds a thread from the moment it takes it until another turn does,
+            whether it is the main thread's turn or a fork's. A pickup takes a thread,
+            and so does an answer:
+          </p>
+          <ul id="holding-cases">
+            <li id="holding-waiting">
+              Of the turns that picked up any of a thread's waiting messages, the one
+              with the newest pickup holds all of them.
+            </li>
+            <li id="holding-unpicked">
+              A message no turn has picked up yet is held by the turn that last took its
+              thread, by a pickup or an answer, if that turn is a running fork's. So a
+              running fork keeps its thread's further messages even after it has
+              answered, and the main thread gets them once its own answer took the
+              thread over.
+            </li>
+            <li id="holding-answered">
+              An answered message is held by the turn that answered it, which the reply
+              names.
+            </li>
+          </ul>
+          <p id="holding-readers">
+            Every reader of received input asks one function which turn holds each
+            message (<code>holding.holding_turns</code>): delivery, the hooks, the
+            page's activity reading, keeping a thread back for a line fork and the end
+            of a fork's run. A fork's turn keeps the main thread off the messages it
+            holds only while it runs, that is while it is open and renewed. Once it
+            closes or lapses, those messages are the main thread's to answer, though the
+            closed turn still holds what it picked up until another turn picks it up.
+          </p>
+          <figure id="holding-figure" class="diagram-figure">
+            <lf-diagram id="holding-diagram" data-height="450" parts="all">
+              <pre>
+flowchart TD
+  accTitle: Who has a thread's waiting messages
+  accDescr: A new message is kept back for the line fork. A take gives it to a fork's turn, through the fork's pickup; a hand-over, a failed fork or the 30 s bound gives it to the main thread. If the fork's turn closes or lapses with a message still waiting, the main thread owes it. The fork's reply answers it, and so does the main thread's, whether the main thread owes it or answers over the running fork.
+  kept["Kept back for the line fork"]
+  fork["A running fork turn holds it"]
+  main["The main thread owes it"]
+  done["Answered"]
+  kept -- take --&gt; fork
+  kept -- "hand_over,&lt;br/&gt;failure, 30 s" --&gt; main
+  fork -- "turn closes&lt;br/&gt;or lapses" --&gt; main
+  fork -- "fork&lt;br/&gt;replies" --&gt; done
+  fork -- "main thread&lt;br/&gt;answers over it" --&gt; done
+  main -- "main thread&lt;br/&gt;replies" --&gt; done
+</pre>
+            </lf-diagram>
+            <figcaption id="holding-caption">
+              <strong>A thread's waiting messages, by who has them.</strong> A further
+              message joins whichever state its thread is in, and goes to a running fork
+              even once it has answered; a message in a thread the main thread already
+              owes goes straight to it. Leaf also gives kept-back messages to the main
+              thread when the newest owes no reply or the pages follower stops.
+            </figcaption>
+          </figure>
+
+          <section id="holding-rule" class="layout-flow">
+            <h3>One rule for a fork's writes</h3>
+            <p id="holding-rule-text">
+              A fork's turn may act only on the messages it holds or that no turn holds.
+              One function checks each of its writes as the write is made
+              (<code>holding.refuse_unheld</code>): its pickups, which are its take, its
+              tool boundaries and its acknowledgement of a delivery handed to it by
+              pointer; its replies, including a message in the thread that answers
+              nothing, which counts against the thread's latest messages; and its
+              starts. An answered message is held by the turn that answered it, so a
+              fork may repeat its own answer, but may not answer again a message the
+              main thread answered, even with the reply reference the fork's delivery
+              gave it.
+            </p>
+          </section>
+
+          <section id="takeover" class="layout-flow">
+            <h3>When the main thread takes a thread over</h3>
+            <p id="takeover-waits">
+              While a fork's turn runs, the main thread isn't given the messages the
+              fork holds. Its deliveries leave them out
+              (<code>forks.kept_from_main</code>), its Stop hook and watch neither keep
+              its turn from ending over them nor remind it of them
+              (<code>activity.agent_holds</code>), and its own pickups leave them out
+              (<code>holding.pickable</code>). While the fork's turn runs, the thread's
+              further messages go to the fork, before and after it answers.
+            </p>
+            <p id="takeover-answer">
+              The main thread is sovereign all the same: it can answer a message the
+              fork holds. Its answer takes the thread over at once, as a pickup would
+              once the fork's turn ended, and the fork's later reply, start or message
+              in that thread is refused. The thread's next message then goes to the main
+              thread while the fork still runs.
+            </p>
+            <p id="takeover-after">
+              Once the fork's turn closes or lapses, a message it left waiting is the
+              main thread's input: the main thread's next delivery hands it over with a
+              reply reference of its own. The main thread's pickup of it is then the
+              newest, so it takes the thread over, and the fork's later pickup, reply or
+              start on that thread is refused.
+            </p>
+          </section>
+        </section>
+
+        <section id="acting" class="layout-flow">
+          <h2>Who a <code>leaf</code> command acts as</h2>
+          <p id="acting-environment">
+            A working fork's shell commands run in the session's environment, so a
+            <code>leaf</code> command it runs looks like one of the main thread's.
+            Leaf's PreToolUse hook in <code>hooks.json</code>, which Claude Code runs
+            before every agent's Bash call that runs <code>leaf</code>, tells them apart
+            by the agent id in the hook's payload. For an agent the session has run a
+            turn for, open or ended (<code>state.agent_known</code>), it rewrites the
+            command to put <code>--agent-id</code> and the agent's id after its leading
+            <code>leaf</code> (<code>hooks.agent_command</code>). The command still
+            begins with <code>leaf</code>, so a permission rule allowing
+            <code>leaf</code> commands still matches it. The mark decides the writes
+            that name a turn: a reply, a start, a pickup and an acknowledgement. Any
+            other <code>leaf</code> command, such as a page check, runs as the
+            session's, marked or not.
+            <span class="tag ok">built</span>
+            <span class="tag">only with the flag</span>
+          </p>
+          <figure id="acting-figure" class="diagram-figure">
+            <lf-diagram id="acting-flow" data-height="705" parts="all">
+              <pre>
+flowchart TD
+  accTitle: Who a leaf command acts as
+  accDescr: A Bash call that runs leaf, from an agent that runs no open turn while a turn Leaf opened awaits its agent, is denied with the instruction to run it again. Otherwise, from an agent the session ran no turn for, it acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
+  bash["A Bash call runs leaf"]
+  waits("Does it run no turn, while a new turn awaits its agent?")
+  again["Denied: run it again"]
+  known("Did the session run a turn for this agent?")
+  main["It acts as the main thread"]
+  leads("Is leaf its first word, and its only leaf?")
+  denied["Denied: run each leaf command alone"]
+  open("Marked with --agent-id. Is the agent's turn open?")
+  inturn["Its replies and starts act in that turn, on what it holds"]
+  refused["Every command it runs is refused: the turn has ended"]
+  bash --&gt; waits
+  waits -- yes --&gt; again
+  waits -- no --&gt; known
+  known -- yes --&gt; leads
+  known -- no --&gt; main
+  leads -- no --&gt; denied
+  leads -- yes --&gt; open
+  open -- yes --&gt; inturn
+  open -- no --&gt; refused
+</pre>
+            </lf-diagram>
+          </figure>
+          <table id="actors">
+            <caption>
+              The three actors a
+              <code>leaf</code>
+              command can run as, where the session holds the page.
+            </caption>
+            <thead>
+              <tr>
+                <th>Actor</th>
+                <th>The command</th>
+                <th>What it may do</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="actor-main">
+                <th scope="row">The main thread</th>
+                <td>names no agent</td>
+                <td>act on anything the session owes, in the main thread's turn</td>
+              </tr>
+              <tr id="actor-open">
+                <th scope="row">An agent with an open turn</th>
+                <td>is marked, and the agent's turn is open</td>
+                <td>
+                  reply, start and acknowledge in its own turn, on the messages it holds
+                  or no turn holds (<a href="#holding-rule"
+                    >One rule for a fork's writes</a
+                  >)
+                </td>
+              </tr>
+              <tr id="actor-ended">
+                <th scope="row">An agent whose turn ended</th>
+                <td>is marked, and the agent has no open turn</td>
+                <td>
+                  nothing: every command it runs is refused (<code
+                    >state.<wbr />acting_agent_turn</code
+                  >)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p id="acting-unmarked">
+            A subagent the session ran no turn for, such as one of the main thread's own
+            workers, isn't marked and acts as the main thread. The mark follows the
+            agent rather than its turn, so every command of a fork still running after
+            its turn ended is refused rather than taken for the main thread's.
+          </p>
+          <p id="acting-starting">
+            A new fork runs before Leaf knows its agent id. The turn Leaf opens at the
+            take stays unnamed until the hooks module, once Claude Code has spawned the
+            fork, tells Leaf which agent runs it, and the hook's payload names neither
+            the turn nor the name the fork was spawned with. So while a turn of the
+            session awaits its agent (<code>state.unnamed_agent_turns</code>), the hook
+            denies the <code>leaf</code> command of any agent that runs no open turn,
+            with the instruction to run it again, since unmarked, a new fork's command
+            would act as the main thread. A worker of the main thread that runs a
+            <code>leaf</code> command in that second or so is asked to run it again too.
+            A resumed fork's agent id Leaf already knows, so it runs its new turn from
+            the moment Leaf opens it. Where any step of starting a fork fails, the
+            module ends its turn; a turn left unnamed otherwise, as by a reload of the
+            module mid-start, stops counting once it lapses.
+          </p>
+          <p id="acting-compound">
+            A marked agent's Bash call with the word <code>leaf</code> anywhere but as
+            its first word is denied with the instruction to run each
+            <code>leaf</code> command on its own, as in
+            <code>cd x &amp;&amp; leaf …</code>, <code>if …; then leaf …</code>,
+            <code>"$(true; leaf …)"</code> or <code>bash -c 'leaf …'</code>. Unmarked,
+            such a command would act as the main thread, and a mark spliced into it
+            could land inside quoted text. The rule reads words rather than Bash's
+            grammar, so it also denies a call that only names <code>leaf</code>, as a
+            search, an inline <code>python -c</code> or a reply's text naming a
+            <code>leaf</code> command does; the denial says to write such text or code
+            to a file with the Write tool and pass the file, and to search with the Grep
+            tool. A script that runs <code>leaf</code> is out of its reach.
+          </p>
+          <p id="acting-module">
+            The marking lives in <code>hooks.json</code> rather than Leaf's hooks
+            module, because Claude Code runs none of a plugin's
+            <code>tool.call</code> hooks for an agent that plugin spawned (measured at
+            Claude Code 2.1.322), so the module can't see a fork's tool calls. The
+            PostToolBatch hook in <code>hooks.json</code> names the fork too: at each of
+            the fork's tool boundaries it renews the fork's turn and hands it the
+            thread's further messages (<code>hook_transport.carry_agent_turn</code>),
+            and it hands the fork nothing else of the main thread's.
+          </p>
+        </section>
+
+        <section id="ending" class="layout-flow">
+          <h2>When a fork's run ends</h2>
+          <p id="ending-judged">
+            As a working fork's run ends, the hooks module tells Leaf
+            (<code>forks.ended</code>), which closes the fork's turn and judges each
+            thread by the messages that turn picked up itself and by what the turn
+            wrote: its replies name it, so Leaf never credits the fork with an answer or
+            a to-do another turn wrote. The judgment says who owes the thread next. A
+            message the user took back counts for nothing. Leaf's clerk tells the main
+            thread of every outcome except <code>taken_over</code>, since the turn that
+            took the thread over already has it.
+            <span class="tag ok">built</span>
+            <span class="tag">only with the flag</span>
+          </p>
+          <figure id="ending-figure" class="diagram-figure">
+            <lf-diagram id="ending-flow" data-height="629" parts="all">
+              <pre>
+flowchart TD
+  accTitle: How Leaf judges a thread when a fork's run ends
+  accDescr: When a fork's run ends, Leaf closes its turn. If a message it picked up still waits and its closed turn still holds the thread, the outcome is hand_back. If another turn holds one of them or answered it, taken_over. Otherwise the fork answered every one: todo where a reply of its own opened a to-do on the thread that is still open, else answer.
+  ends["The run ends; Leaf closes the fork's turn"]
+  q1("Is a message it picked up still waiting, held by its closed turn?")
+  q2("Does another turn hold one of them, or did another turn answer one?")
+  q3("Did a reply of its own open a to-do on the thread that is still open?")
+  hand["hand_back"]
+  taken["taken_over"]
+  todo["todo"]
+  answer["answer"]
+  ends --&gt; q1
+  q1 -- yes --&gt; hand
+  q1 -- no --&gt; q2
+  q2 -- yes --&gt; taken
+  q2 -- no --&gt; q3
+  q3 -- yes --&gt; todo
+  q3 -- no --&gt; answer
+</pre>
+            </lf-diagram>
+          </figure>
+          <table id="endings">
+            <caption>
+              Each outcome
+              <code>forks.ended</code>
+              gives a thread, and what the main thread hears of it.
+            </caption>
+            <thead>
+              <tr>
+                <th>Outcome</th>
+                <th>When</th>
+                <th>The main thread hears</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="ending-answer">
+                <th scope="row"><code>answer</code></th>
+                <td>The fork's own replies answered every message it picked up.</td>
+                <td>
+                  That the fork answered, so it can read the answer and correct it where
+                  what it knows shows it wrong; and that the thread owes nothing, where
+                  nothing waits in it and no to-do on it is open. A message the user
+                  wrote since, which the fork never picked up, Leaf passes on as any new
+                  message.
+                </td>
+              </tr>
+              <tr id="ending-todo">
+                <th scope="row"><code>todo</code></th>
+                <td>
+                  As for <code>answer</code>, and a reply of the fork's own opened a
+                  to-do on the thread that is still open, usually its answer.
+                </td>
+                <td>
+                  That the fork answered and opened the to-do, named with its text,
+                  which the main thread now owes and schedules. If the session is idle,
+                  Leaf wakes it.
+                </td>
+              </tr>
+              <tr id="ending-hand-back">
+                <th scope="row"><code>hand_back</code></th>
+                <td>
+                  A message it picked up still waits, and the closed turn still holds
+                  the thread: the fork gave it back with <code>HAND BACK:</code> and a
+                  reason, failed, or ended without answering.
+                </td>
+                <td>
+                  That the fork gave the thread back, and why, and the user's waiting
+                  messages themselves, as new input at its next tool boundary or prompt
+                  (<code>holding.<wbr />left_by_agent_turns</code>). If the session is
+                  idle, Leaf wakes it.
+                </td>
+              </tr>
+              <tr id="ending-taken-over">
+                <th scope="row"><code>taken_over</code></th>
+                <td>
+                  Another turn picked the thread up since the fork did, or answered one
+                  of the messages the fork picked up, as the main thread can while the
+                  fork runs.
+                </td>
+                <td>
+                  Nothing: the turn that took the thread over has it. The page's
+                  diagnostics name that turn.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <section id="telling" class="layout-flow">
+            <h3>How a fork tells the main thread</h3>
+            <p id="telling-clerk">
+              Claude Code tells the main thread nothing of a fork a hooks module spawns:
+              no row in its transcript, and no notification or wake when its first run
+              ends. So Leaf tells it, in lines its clerk queues: one as a fork takes a
+              thread, naming the fork so the main thread can SendMessage it, and one as
+              the fork's run ends. A line waits for the main thread's next tool boundary
+              or prompt; a take's line still waiting as the fork's run ends leaves the
+              queue, since the end's line says where the thread stands. Where the run
+              leaves the main thread owing something, the answer to a thread the fork
+              gave back or a to-do the fork opened, Leaf also wakes an idle session for
+              it. The end of a resumed run is different: Claude Code notifies the main
+              thread of it, which starts a turn on an idle session, and that turn reads
+              the queued lines.
+              <span class="tag ok">built</span>
+              <span class="tag">only with the flag</span>
+            </p>
+            <p id="telling-decided">
+              The user chose the clerk's line on 2026-11-11, over the fork's own
+              SendMessage to <code>main</code>. Leaf writes the line from the log, so it
+              also covers a fork that failed or was stopped before it could write, and
+              Leaf's own wake comes only when the main thread owes something, after a
+              first run and a resumed one alike, though Claude Code still wakes it at
+              every resumed run's end. A fork's SendMessage would name the fork as its
+              sender and could say what the fork did beyond the outcomes above, but it
+              would wake the main thread for every answer, and add a second report to a
+              resumed run's notification.
+            </p>
+            <p id="telling-probes">
+              In a probe, a fork's SendMessage arrived as an agent message and started a
+              turn on an idle main session 60 ms later. Claude Code offers no third way:
+              a hooks module can start a fork only with <code>$.agent.spawn</code>,
+              whose first run never notifies the main thread, since the module's call to
+              the Agent tool is refused (2.1.322). A resumed run's notification wakes an
+              idle main thread whichever way tells it; in two live runs that woken turn
+              took 23 s and 28 s over 4 and 5 model requests, and checked the forks'
+              answers.
+            </p>
+          </section>
+        </section>
+
+        <section id="follow-ups" class="layout-flow">
+          <h2>Follow-ups and flurries</h2>
+          <p id="follow-ups-one-fork">
+            Leaf gives a thread's work to one working fork where it can, so a flurry of
+            messages in one thread usually makes one worker, and a thread never has two.
+            While a fork's turn runs, the thread's further messages go to it, before and
+            after it answers, and once its run has ended, a message the line fork judges
+            <code>take</code> goes to the same fork, resumed. Otherwise a further
+            message goes wherever its thread already is.
+            <span class="tag ok">built</span>
+            <span class="tag">only with the flag</span>
+          </p>
+          <figure id="follow-ups-figure" class="diagram-figure">
+            <lf-diagram id="follow-up-flow" data-height="719" parts="all">
+              <pre>
+flowchart TD
+  accTitle: Where a further message in a thread goes
+  accDescr: If a running fork turn holds the thread, by its pickup or its answer, that fork takes the message at its next tool boundary. Otherwise, if the main thread owes the thread, or its answer took the thread from a fork that still runs, it takes the message as any input. Otherwise the message is kept back for the line fork, which sorts it. On a take, if a fork gave the thread's last answer and its turn has closed, that fork is resumed in a new turn; otherwise a new working fork takes it.
+  more["A further message in a thread"]
+  q1("Does a running fork turn hold the thread, by its pickup or its answer?")
+  a1["That fork, at its next tool boundary"]
+  q2("Does the main thread owe the thread, or did its answer take it from a fork that still runs?")
+  a2["The main thread, as any input"]
+  kept["Kept back for the line fork, which sorts it"]
+  q3("On a take: did a fork whose turn has closed answer it last?")
+  a3["That fork, resumed in a new turn"]
+  a4["A new working fork"]
+  more --&gt; q1
+  q1 -- yes --&gt; a1
+  q1 -- no --&gt; q2
+  q2 -- no --&gt; kept --&gt; q3
+  q2 -- yes --&gt; a2
+  q3 -- yes --&gt; a3
+  q3 -- no --&gt; a4
+</pre>
+            </lf-diagram>
+            <figcaption id="follow-ups-caption">
+              <strong>A further message follows its thread.</strong> A message the line
+              fork judges <code>hand_over</code> goes to the main thread, as any new
+              message does.
+            </figcaption>
+          </figure>
+          <ul id="follow-ups-parts">
+            <li id="follow-up-running">
+              While a fork's turn runs, the user's further messages in its thread reach
+              it at its next tool boundary, inline, or by pointer when they are too
+              large for the hook, which the fork's own
+              <code>leaf delivery ack</code> records into its turn. That holds after the
+              fork has answered too: its turn holds the thread until another turn takes
+              it, and Leaf keeps nothing back for a second fork in a thread a running
+              fork took, by a pickup or an answer
+              (<code>holding.running_threads</code>). A message that arrives as the
+              fork's run ends, after its last tool boundary, is kept back once the turn
+              has closed, and goes to the same fork, resumed: no receipt passes a
+              message no turn has taken in, so it is still waiting for its first
+              delivery when the turn closes.
+            </li>
+            <li id="follow-up-same-fork">
+              A message the line fork judges <code>take</code>, in a thread whose last
+              answer names a fork's turn that has since closed in the session's present
+              generation, goes to that fork again (<code>forks._resumable</code>). Leaf
+              opens the new turn and records its pickup, as a first take does, and the
+              hooks module resumes the fork by its agent id, then tells Leaf it runs the
+              turn. Leaf's message resuming it (<code>forks.resume_prompt</code>)
+              carries the thread's delivery and tells the fork to read
+              <code>leaf page state</code> before it answers, since its transcript lacks
+              what the rest of the session did on the page meanwhile. The fork can
+              SendMessage the main thread to ask about it.
+            </li>
+            <li id="follow-up-new-fork">
+              A thread the main thread answered last gets a new fork, once the fork it
+              took the thread from has ended, and so does one whose fork ran in an
+              earlier generation. A thread whose fork Claude Code can't resume goes to
+              the main thread instead: the module ends the turn Leaf opened, which gives
+              the thread back. A message the main thread writes in the thread unasked,
+              such as a correction of the fork's answer, answers nothing, so the thread
+              stays the fork's.
+            </li>
+            <li id="follow-up-threads">
+              Messages in different threads start a fork each, side by side.
+            </li>
+            <li id="follow-up-standing">
+              <span class="tag">planned fallback</span>
+              If a fork per thread proves wasteful, one standing fork per session would
+              take every small message in turn: cheaper, but slower when messages in
+              several threads arrive together.
+            </li>
+          </ul>
+        </section>
+
+        <section id="coordinator" class="layout-flow">
+          <h2>The main thread as coordinator</h2>
+          <p id="coordinator-role">
+            The main thread stays in charge of the session's work. It hears by name as
+            each fork takes a thread, and can steer the fork, or ask it to stop, with
+            SendMessage, or answer the thread itself, which takes the thread from the
+            fork (<a href="#takeover-answer">When the main thread takes a thread over</a
+            >). It takes its to-dos in the order it judges, and runs work bigger than a
+            message in subagents, as the shipped skill's
+            <a
+              href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/SKILL.md#stay-responsive"
+              >Stay responsive</a
+            >
+            already asks. A fork is to change neither the session's files nor its plan:
+            the line fork gives a fork only work that needs nothing the main thread is
+            changing, and the working fork's task tells it to change nothing the main
+            thread is changing or about to change. Nothing else enforces it.
+          </p>
+          <figure id="coordinator-figure" class="diagram-figure">
+            <lf-diagram id="coordinator-diagram" data-height="450" parts="all">
+              <pre>
+flowchart TD
+  accTitle: The main thread coordinates forks, to-dos and subagents
+  accDescr: Working forks tell the main thread what each did, and the main thread can steer them or ask them to stop. A fork can turn work that proved bigger than it looked into a to-do. The main thread schedules to-dos and runs work bigger than a message in subagents.
+  forks["Working forks, one per thread"]
+  main["The main thread"]
+  todos["To-dos on threads"]
+  subagents["Subagents"]
+  forks -- "what each did" --&gt; main
+  main -- "steer, or&lt;br/&gt;ask to stop" --&gt; forks
+  forks -- "bigger than&lt;br/&gt;it looked" --&gt; todos
+  todos -- scheduled --&gt; main
+  main -- "work bigger&lt;br/&gt;than a message" --&gt; subagents
+</pre>
+            </lf-diagram>
+          </figure>
+
+          <section id="obligations" class="layout-flow">
+            <h3>To-dos</h3>
+            <p id="obligations-fork">
+              <span class="tag ok">built</span>
+              <span class="tag">only with the flag</span>
+              A working fork that finds the work bigger than a message, such as a change
+              to the session's files, branch, page or pull requests, or research long
+              enough to need progress of its own, does what it can without those
+              changes, answers with what it found, and opens a to-do on the thread with
+              <code>leaf thread reply --todo</code>, as the main thread does. Its task
+              (<code>forks.work_prompt</code>) offers that beside
+              <code>HAND BACK:</code>, which it keeps for a message the main thread has
+              to act on now: an answer to a question the main thread asked, steering its
+              current work, or a question it is weighing. The to-do is the session's and
+              stays open after the fork's turn ends, while the fork's start on it stops
+              counting with the turn. The main thread hears that the fork opened it, and
+              an idle session is woken for it (the <code>todo</code> outcome above).
+            </p>
+            <p id="obligations-significant">
+              <span class="tag">planned</span>
+              A message the line fork sorts as significant becomes a to-do on its thread
+              that the agent owes until it ends it, so the main thread takes it in its
+              own order instead of being interrupted by it. Such a message has no
+              working fork, and who opens its to-do is still to be designed.
+            </p>
+          </section>
+        </section>
+
+        <section id="status" class="layout-flow">
+          <h2>What's built and what's planned</h2>
+          <table id="status-table">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="status-line">
+                <th scope="row">
+                  <a href="#path">Keeping a message back, and the working line</a>
+                </th>
+                <td>
+                  <small class="tag ok">built</small> in every Claude Code session
+                </td>
+              </tr>
+              <tr id="status-judgment">
+                <th scope="row">
+                  <a href="#sorting">The line fork's judgment</a>, <code>take</code> or
+                  <code>hand_over</code>
+                </th>
+                <td>
+                  <small class="tag ok">built</small> recorded, acted on only with the
+                  flag
+                </td>
+              </tr>
+              <tr id="status-turns">
+                <th scope="row">
+                  <a href="#take">A working fork in a turn of its own</a>: the take,
+                  <a href="#acting">marking its commands</a>, further messages at its
+                  tool boundaries, and <a href="#ending">its end</a>
+                </th>
+                <td><small class="tag ok">built</small> acts only with the flag</td>
+              </tr>
+              <tr id="status-fork-todo">
+                <th scope="row">
+                  <a href="#obligations">A to-do a working fork opens</a>
+                </th>
+                <td><small class="tag ok">built</small> with the flag</td>
+              </tr>
+              <tr id="status-clerk">
+                <th scope="row">
+                  <a href="#telling">Telling the main thread in the clerk's lines</a>
+                </th>
+                <td><small class="tag ok">built</small> with the flag</td>
+              </tr>
+              <tr id="status-same-fork">
+                <th scope="row">
+                  <a href="#follow-up-same-fork"
+                    >The same fork for a thread's follow-ups</a
+                  >
+                </th>
+                <td><small class="tag ok">built</small> with the flag</td>
+              </tr>
+              <tr id="status-sorting">
+                <th scope="row">
+                  <a href="#sorting-planned">Sorting three ways</a>: small, significant,
+                  needed now
+                </th>
+                <td><small class="tag">planned</small></td>
+              </tr>
+              <tr id="status-significant">
+                <th scope="row">
+                  <a href="#obligations-significant">A to-do for significant work</a>
+                </th>
+                <td><small class="tag">planned</small></td>
+              </tr>
+              <tr id="status-standing">
+                <th scope="row">
+                  <a href="#follow-up-standing">One standing fork per session</a>
+                </th>
+                <td>
+                  <small class="tag">planned fallback</small> if a fork per thread
+                  proves wasteful
+                </td>
+              </tr>
+              <tr id="status-measured">
+                <th scope="row">
+                  <a
+                    href="https://github.com/max-sixty/leaf/blob/main/notes/fork-replies.md#steps"
+                    >Measuring forks</a
+                  >
+                  before they become the default: decision, outcome and coherence evals
+                </th>
+                <td><small class="tag">planned</small></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="sources" class="layout-flow">
+          <h2>Where each rule is written</h2>
+          <ul id="sources-list">
+            <li id="source-lifetime">
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session-lifetime.md#turns-and-generations"
+                >Session lifetime, “Turns and generations”</a
+              >: the main thread's turns and generations, the agent turns beside them,
+              and who holds a message.
+            </li>
+            <li id="source-holding">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/holding.py"
+                ><code>src/leaf/holding.py</code></a
+              >: which turn of a session holds each thread message, the main thread's or
+              an agent's, and what a turn may do about one another turn holds;
+              <code>holding_turns</code>, <code>refuse_unheld</code>,
+              <code>authorize</code> and <code>pickable</code> hold the rules.
+            </li>
+            <li id="source-forks">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
+                ><code>src/leaf/forks.py</code></a
+              >: its header holds the states a thread moves through and why the line
+              fork runs as it does; <code>_take</code> and <code>ended</code> hold the
+              rules this page names for a working fork's take and end.
+            </li>
+            <li id="source-clerk">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
+                ><code>src/leaf/clerk.py</code></a
+              >: <code>queue</code> and <code>waking</code>, the clerk's lines and which
+              of them wake an idle session; and
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/session.py"
+                ><code>src/leaf/session.py</code></a
+              >: <code>watch_between_turns</code>, what the watch wakes the session for.
+            </li>
+            <li id="source-state">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
+                ><code>src/leaf/state.py</code></a
+              >: <code>AGENT_TURNS</code>, <code>agent_known</code>,
+              <code>unnamed_agent_turns</code> and <code>acting_agent_turn</code>, the
+              record of agent turns and the actor a command runs as.
+            </li>
+            <li id="source-hooks">
+              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hooks.py"
+                ><code>src/leaf/hooks.py</code></a
+              >: <code>agent_command</code> and <code>leaf_words</code>, the marking,
+              the denial while a turn awaits its agent and the refusal of a compound
+              command; and
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hook_transport.py"
+                ><code>src/leaf/hook_transport.py</code></a
+              >: <code>carry_agent_turn</code>, a fork's tool boundary.
+            </li>
+            <li id="source-module">
+              <a href="https://github.com/max-sixty/leaf/blob/main/hooks/claude-code.ts"
+                ><code>hooks/claude-code.ts</code></a
+              >: <code>lineFork</code>, <code>workFork</code> and the
+              <code>turn.complete</code> hook, which make the forks and report a working
+              fork's end.
+            </li>
+            <li id="source-note">
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/notes/fork-replies.md"
+                ><code>notes/fork-replies.md</code></a
+              >: what Claude Code lets a hooks module fork, measured; how well the line
+              fork judges; forks on real pages; and the build steps.
+            </li>
+          </ul>
+        </section>
+
+        <footer class="site-footer" id="colophon">
+          <p id="links">
+            <a href="/">Home</a> · <a href="/examples/">Examples</a> ·
+            <a href="/how-it-works/">How it works</a> ·
+            <a href="/extending/">Extending</a> ·
+            <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+            <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE"
+              >MIT license</a
+            >
+          </p>
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

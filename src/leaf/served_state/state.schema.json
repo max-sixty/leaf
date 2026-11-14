@@ -248,6 +248,19 @@
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
         },
+        "agent_turns": {
+          "description": "The turns of the agents the claimant's session runs beside its main thread, such as a fork that took a thread's work, by turn id: when each was last renewed, and when it closed or null while it is open (`presence.agent_turn_stamps`).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "renewed": { "type": "string" },
+              "closed": { "type": ["string", "null"] }
+            },
+            "required": ["renewed", "closed"],
+            "additionalProperties": false
+          }
+        },
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
@@ -352,6 +365,7 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "agent_turns",
         "input_wakes",
         "fork_lane",
         "session_cwd",

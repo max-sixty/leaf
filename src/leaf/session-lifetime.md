@@ -102,7 +102,8 @@ through the failure answer `thread.fail_answer` writes.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
-`activity.turn_obligations`, the blocking ones the open turn has not started. A start
+`activity.turn_obligations`, the blocking ones the open turn has not started and no
+agent turn holds (below). A start
 is the agent's answer for now, and it does not carry into the next turn. Only the
 records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.
@@ -120,6 +121,34 @@ other reader, of the record or of a claim's view of it, asks `state.turn_open`,
 record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
 background job's, outlive the harness instance.
+
+A session can run agents beside its main thread, such as a fork of its conversation
+that took a thread's work (`forks.py`), and each run of one is a turn of its own, in
+the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as a fork takes
+a thread, before the harness starts or resumes the agent, and names it with the
+agent's harness id once the harness has started or resumed it. The agent's tool
+boundary renews it, and it closes as the harness says the
+run ended, or with the session's generation or instance. A pickup, a start or a reply
+names it as it names the main thread's turn: the page's served reading carries the
+claimant's agent turns (`agent_turns`), and the fold believes one running while it is
+open and renewed within the working grace (`activity.running_agent_turns`).
+
+Which turn holds each thread message, the main thread's or an agent's, is one reading
+every reader asks (`holding.py`, whose header states the rule): the newest pickup of a
+thread's waiting messages holds them, an answer takes its thread as a pickup does, and
+a running agent turn that last took a thread holds the messages the user writes in it
+until another turn picks them up. A message a running agent turn holds is in hand for
+that turn: the main thread's hooks neither hold its turn over it, remind it of it, nor
+take it in again (`activity.agent_holds`), and its deliveries leave it out
+(`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
+the main thread's input, which its next delivery hands over with a reference of its own
+(`holding.left_by_agent_turns`), and the main thread's pickup of it takes the thread
+over; the main thread's answer
+takes the thread over at once, even while the agent's turn runs. An agent's turn may
+pick up, answer or start on only the messages it holds or no turn holds, and post in a
+thread only where it holds the thread's latest messages or no turn does, so a fork can
+repeat its own answer but is refused each of these on a thread another turn took
+(`holding.refuse_unheld`).
 
 Where nothing answers for the declaration, activity reports the page `unheld`. A page
 with a persistent service spends most of its life unheld, and picks up again when a
@@ -170,10 +199,10 @@ Every watcher watches every page the session holds, and every transport hands ov
 same envelope (`../../skills/leaf/references/event-batches.md`, "One envelope on every
 transport"). What a watcher delivers is `delivery.deliverable`, which includes the
 updates a page's previous owner received and left unanswered. It leaves out the
-waiting messages of a thread a fork of a Claude Code session's conversation is
-deciding on, while that session's pages follower holds its forks lane
-(`sessions/<session>.fork-lane`), until the thread is handed over, by the fork
-once it has posted its line or by the follower once the hold runs out, which
+waiting messages Leaf keeps back while a line fork of a Claude Code session's
+conversation writes its line, while that session's pages follower holds its forks
+lane (`sessions/<session>.fork-lane`), until the thread is handed over, by the line
+fork once it has posted its line or by the follower once its bound runs out, which
 `sessions/<session>.forks` records (`forks.py`).
 
 ### The hook
@@ -196,6 +225,11 @@ tool-boundary and Stop hooks hand into a turn:
   of it (`Harness.fits_hook_context`) and, for Claude Code and Pi, the hook records it
   before its deadline. Otherwise it hands over a pointer the agent confirms with
   `leaf delivery ack`.
+- Under Claude Code, the prompt and tool-boundary hooks also carry the lines Leaf
+  queued for the session's next step in `sessions/<session>.clerk`, and take each off
+  the queue once printed (`clerk.py`). A line that tells the session of work it now
+  owes, such as a to-do a working fork opened, wakes it: the watch wakes for it once
+  the turn has closed, following that file itself since no page's reading stamps it.
 
 `delivery.py` owns receipt: when each harness's hook output counts as read, and how a
 handover the turn never confirmed becomes input again. Session death is neither
@@ -221,7 +255,9 @@ the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
 input, once per ending of its turn (`presence.nudge_unwatched`). For a message a fork
-holds, its hand-over nudges in admission's place (`forks.py`). An interrupted turn
+holds, its hand-over nudges in admission's place, and so does a working fork's end for
+what it leaves the session owing, a thread given back or a to-do it opened
+(`forks.py`). An interrupted turn
 runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn

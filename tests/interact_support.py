@@ -3016,6 +3016,8 @@ def _interaction_prompt_evidence(page, value):
                 if key in {"ts", "created_at"}
                 else "<attempt>"
                 if key == "attempt"
+                else "<turn>"
+                if key == "turn" and isinstance(child, str)
                 else "<claim-session>"
                 if key == "claim" and child is not None
                 else stable(child)

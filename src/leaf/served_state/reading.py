@@ -36,7 +36,7 @@ from ..schema import (
     USER_VIEWS_LOCK,
 )
 from ..service import claim_path, page_claim
-from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
+from ..state import AGENT_TURNS, EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -99,9 +99,10 @@ def page_roots(page_dir: Path) -> set[Path]:
 
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
-    claimant session's lifecycle and forks' hand-overs (`forks.HANDED`), which
-    change what is deliverable, and each bound file. A watcher subscribes to these
-    by path, and follows a new set when the claim or the grants change."""
+    claimant session's lifecycle and its agents' turns (`state.AGENT_TURNS`), and
+    forks' hand-overs (`forks.HANDED`), which change what is deliverable, and each
+    bound file. A watcher subscribes to these by path, and follows a new set when
+    the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
 
@@ -112,6 +113,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
+        named.append(("$agents", session_file(claim["id"], AGENT_TURNS.kind).resolve()))
         named.append(("$forks", session_file(claim["id"], "forks").resolve()))
     return named + _bound(page_dir)
 

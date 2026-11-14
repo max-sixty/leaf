@@ -234,6 +234,9 @@ ignore_names = [
   "handlers",
   # urllib.request calls this HTTPRedirectHandler override by name.
   "redirect_request",
+  # shlex.shlex reads these lexer settings by name.
+  "whitespace",
+  "whitespace_split",
   # a reference held only so its page stays in the recent pages (samples.py)
   "parent_memory",
   # click, uvicorn, markdown-it

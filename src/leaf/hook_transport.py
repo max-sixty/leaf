@@ -117,9 +117,16 @@ says how long the line has stood. This was the user's choice (28 October 2026) o
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at
-the last turn's end, one line each (`clerk.queued`), and take them off the queue
-once printed (`clerk.heard`). Stop carries none: the clerk forks only after the
-turn has ended.
+the last turn's end, and what each fork that took a thread's work did with it
+(`forks.ended`), one line each (`clerk.queued`), and take them off the queue once
+printed (`clerk.heard`). Stop carries none: the clerk forks only after the turn has
+ended.
+
+A tool boundary of an agent the session runs beside its main thread, such as a fork
+that took a thread's work, carries only that agent's turn: the user's further
+messages in the threads it took (`carry_agent_turn`). Claude Code names the agent in
+the payload of a subagent's PostToolBatch, which every other subagent's skips
+(`state.worker_tool_batch`).
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook records its handover only before `CONFIRM_WITHIN`, well
@@ -440,6 +447,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
+    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
+    (`holding.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page
@@ -514,61 +523,69 @@ ATTENTION_OPENING = "Leaf needs attention:"
 POINTED = Record(
     "pointed",
     described(
-        "The pages whose input a hook handed a session's turn by pointer, in the "
-        "state home's `sessions/<digest>.pointed` (`state.session_file`).",
+        "The input a hook handed each of a session's turns by pointer, in the state "
+        "home's `sessions/<digest>.pointed` (`state.session_file`): by turn id, the "
+        "main thread's or an agent's, when that turn opened and each page directory "
+        "with the last log position pointed at. A turn that opens again, or ends, "
+        "leaves its entry behind.",
         object_schema(
             {
-                "turn": described("The turn the pointers were handed to.", STRING),
-                "opened": described(
-                    "When that turn last opened (`turn_opened`): a prompt that "
-                    "opens it again hands the input over anew.",
-                    STRING,
-                ),
-                "pages": described(
-                    "Each page directory, with the last log position pointed at.",
-                    {"type": "object", "additionalProperties": {"type": "integer"}},
-                ),
+                "turns": {
+                    "type": "object",
+                    "additionalProperties": object_schema(
+                        {
+                            "opened": STRING,
+                            "pages": {
+                                "type": "object",
+                                "additionalProperties": {"type": "integer"},
+                            },
+                        }
+                    ),
+                }
             }
         ),
     ),
-    since=24,
+    since=44,
 )
 
 
-def pointed(session_id: str, lifecycle: dict) -> dict[str, int]:
-    """The pages a hook pointed at since `lifecycle`'s turn last opened, each with
-    the last log position it pointed at."""
+def pointed(session_id: str, turn: str, opened: str) -> dict[str, int]:
+    """The pages a hook pointed the turn `turn`, which opened at `opened`, at, each
+    with the last log position it pointed at: none for a turn opened again since,
+    whose prompt hands the input over anew."""
     record = POINTED.read(session_file(session_id, POINTED.kind))
-    if record is None or (record["turn"], record["opened"]) != (
-        lifecycle["turn"],
-        lifecycle["turn_opened"],
-    ):
-        return {}
-    return dict(record["pages"])
+    entry = record["turns"].get(turn) if record else None
+    return dict(entry["pages"]) if entry and entry["opened"] == opened else {}
 
 
 def note_pointer(
-    session_id: str, lifecycle: dict, delivery: dict, *, deadline: float
+    session_id: str, turn: str, opened: str, pages: dict[str, int], *, deadline: float
 ) -> None:
-    """Note each page `delivery` carries input from as pointed at in the turn
-    `lifecycle` names, unless a newer lifecycle has replaced it. A session lock
-    still held at `deadline` leaves the note unwritten, since a hook that waited
-    on it could outlive its timeout and lose the pointer itself."""
+    """Note that the turn `turn`, which opened at `opened`, was pointed at each
+    page's input through the log position `pages` gives it, unless that turn has
+    since ended or opened again: the main thread's turn (`session_record`) or an
+    agent's open one (`state.open_agent_turns`). Entries of turns no longer current
+    go. A session lock still held at `deadline` leaves the note unwritten, since a
+    hook that waited on it could outlive its timeout and lose the pointer itself."""
+    from .state import open_agent_turns
+
+    path = session_file(session_id, POINTED.kind)
     try:
         with flocked(session_lock_path(session_id), deadline=deadline):
-            if session_record(session_id) != lifecycle:
+            current = {t: e["opened"] for t, e in open_agent_turns(session_id).items()}
+            if (lifecycle := session_record(session_id)) is not None:
+                current[lifecycle["turn"]] = lifecycle["turn_opened"]
+            if current.get(turn) != opened:
                 return
-            pages = pointed(session_id, lifecycle)
-            for batch in delivery["batches"]:
-                pages[batch["page"]] = batch["through_seq"]
-            POINTED.write(
-                session_file(session_id, POINTED.kind),
-                {
-                    "turn": lifecycle["turn"],
-                    "opened": lifecycle["turn_opened"],
-                    "pages": pages,
-                },
-            )
+            held = POINTED.read(path) or {"turns": {}}
+            turns = {
+                t: entry
+                for t, entry in held["turns"].items()
+                if current.get(t) == entry["opened"]
+            }
+            noted = turns.get(turn, {"pages": {}})["pages"]
+            turns[turn] = {"opened": opened, "pages": {**noted, **pages}}
+            POINTED.write(path, {"turns": turns})
     except TimeoutError:
         return
 
@@ -587,8 +604,9 @@ def carry_turn(
     could not serve again (`unserved`, `reconnect.serve_again`) into the one hook
     output its harness reads, recording a delivery it hands over inline by
     `CONFIRM_WITHIN` after `started`, the hook's `time.monotonic()` as it began."""
-    # What Leaf's clerk wrote or found since the agent last heard (`clerk.queued`),
-    # which the next prompt or tool boundary carries.
+    # What Leaf's clerk wrote or found, and what forks that took a thread's work did,
+    # since the agent last heard (`clerk.queued`), which the next prompt or tool
+    # boundary carries.
     told = queued(sid) if event in {"UserPromptSubmit", "PostToolBatch"} else []
     due = event == "PostToolBatch" and status_check_due(sid)
     if event == "PostToolBatch" and not told and not due and not new_input(sid):
@@ -605,7 +623,11 @@ def carry_turn(
     carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
         event == "Stop" and not harness.later_turn_takes_input()
     )
-    through = pointed(sid, expected) if event == "PostToolBatch" and expected else {}
+    through = (
+        pointed(sid, expected["turn"], expected["turn_opened"])
+        if event == "PostToolBatch" and expected
+        else {}
+    )
     batches = (
         [
             plan.batch
@@ -704,7 +726,16 @@ def carry_turn(
             message = inline(recorded)
         else:
             if expected:
-                note_pointer(sid, expected, delivery, deadline=deadline)
+                note_pointer(
+                    sid,
+                    expected["turn"],
+                    expected["turn_opened"],
+                    {
+                        batch["page"]: batch["through_seq"]
+                        for batch in delivery["batches"]
+                    },
+                    deadline=deadline,
+                )
             message = "\n".join(
                 [
                     pointer_opening(delivery),
@@ -716,3 +747,72 @@ def carry_turn(
         assert event is not None
         print(json.dumps(harness.hook_context(event, message)), flush=True)
         heard(sid, told)
+
+
+def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) -> None:
+    """At a tool boundary of an agent the session runs beside its main thread, which
+    the hook's payload names `agent` (Claude Code's PostToolBatch in a subagent):
+    renew the agent's turn (`state.renew_agent_turn`), and hand it the user's
+    further messages in the threads it took (`holding.to_carry`), as a
+    tool boundary of the main thread hands it new input. The delivery goes inline
+    and is recorded as opened in the agent's turn with its receipt
+    (`delivery.receive_one`). One too large for the hook's context, or not recorded
+    by `CONFIRM_WITHIN`, goes by pointer, as the main thread's does, and the agent's
+    own `leaf delivery ack` records it into its turn (`delivery.receive_delivery`);
+    its later boundaries hand nothing it carries again (`note_pointer`).
+    Nothing else of the main thread's, its input, debt, reminders or the clerk's
+    lines, reaches an agent."""
+    from .delivery import current_responses
+    from .holding import to_carry
+    from .state import agent_turns, renew_agent_turn
+
+    turn = renew_agent_turn(sid, agent)
+    if turn is None:
+        return
+    opened = agent_turns(sid)[turn]["opened"]
+    through = pointed(sid, turn, opened)
+    batches = []
+    for page_dir in owned_pages(sid):
+        try:
+            with PageTransaction(page_dir) as page:
+                claim = page.active_claim
+                if claim is None or claim["id"] != sid:
+                    continue
+                if inputs := [
+                    event
+                    for event in to_carry(page, turn)
+                    if event["seq"] > through.get(str(page_dir), 0)
+                ]:
+                    batches.append(
+                        batch_data(
+                            page_dir,
+                            page,
+                            inputs,
+                            responses=current_responses(page_dir, page.events),
+                        )
+                    )
+        except FileNotFoundError:
+            continue
+    if not batches:
+        return
+    delivery = freeze_delivery(batches)
+    message = "\n".join([INLINE_OPENING, json.dumps(delivery, ensure_ascii=False)])
+    deadline = started + CONFIRM_WITHIN
+    recorded = (
+        receive_held(delivery, sid, None, deadline=deadline, agent_turn=turn)
+        if harness.fits_hook_context(message) and time.monotonic() < deadline
+        else []
+    )
+    if recorded:
+        inline = {**delivery, "batches": recorded}
+        message = "\n".join([INLINE_OPENING, json.dumps(inline, ensure_ascii=False)])
+    else:
+        note_pointer(
+            sid,
+            turn,
+            opened,
+            {batch["page"]: batch["through_seq"] for batch in delivery["batches"]},
+            deadline=deadline,
+        )
+        message = delivery_pointer_prompt(delivery["id"])
+    print(json.dumps(harness.hook_context("PostToolBatch", message)), flush=True)

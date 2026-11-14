@@ -7,7 +7,7 @@ observations.jsonl.
 
 Each `leaf` command records how long it took in every page it acted on, one
 `leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
-share of an agent's reply on any harness. A command acts on the pages it names: an
+share of an agent's reply on any harness, and whether Leaf refused it. A command acts on the pages it names: an
 initialized page as a `PAGE` argument (`cli.resolve_dir`; `page init`, which
 creates or re-initializes one, records nothing), an answer reference's page
 (`delivery.response_address`), or the pages a delivery it reads or acknowledges
@@ -18,9 +18,14 @@ names a page and then waits, as `leaf wait PAGE` does, records its own work as i
 starts waiting. Harness hooks name no command pages; their time shows as delivery in the
 page's pickup receipts. A harness's watch between turns records instead when it
 started and how it ended (`record_watch`), so a pickup that waited with nothing
-waking the session says whether a watch ran and could read the page. A command's time runs from its launcher's start, `bin/leaf`'s uv
-included, to its exit; one the sandbox bridge runs for Claude Code is timed from
-the bridge's start of it.
+waking the session says whether a watch ran and could read the page. A command's
+time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one the
+sandbox bridge runs for Claude Code is timed from the bridge's start of it.
+
+Claude Code's hooks record in each page the session holds what no command's record
+shows: an agent's `leaf` call the PreToolUse hook denied, which never ran
+(`record_denial`), and whether the session's pages follower keeps threads back for
+line forks (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
@@ -96,9 +101,13 @@ def launched() -> float:
     return process.create_time()
 
 
-def record_command(command: str) -> None:
+def record_command(
+    command: str, *, agent: str | None = None, refused: str | None = None
+) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, once: a later call records nothing. A diagnostic
+    harness session that ran it, the agent of the session it ran as (`agent`,
+    `leaf --agent-id`), and the error it ended with where Leaf refused it
+    (`refused`, what `cli.LeafGroup` printed), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
@@ -121,6 +130,8 @@ def record_command(command: str) -> None:
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
+            **({"agent": agent} if agent else {}),
+            **({"refused": refused} if refused is not None else {}),
             "context": session_context(session),
         }
     except (OSError, psutil.Error):
@@ -152,6 +163,50 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
         "protocol": kernel_protocol(),
         "ended": ended,
     }
+    _record_in(pages, record)
+
+
+def record_denial(
+    pages: list[Path], session: str, agent: str, command: str, reason: str
+) -> None:
+    """Record in each page a session holds that Leaf's PreToolUse hook denied the
+    Bash call `command` of the session's agent `agent`, with the `reason` the agent
+    read (`hooks.agent_command`). Dropped where the page can't be written, as
+    `record_command` is."""
+    record = {
+        "source": "cli",
+        "type": "command_denied",
+        "session": session,
+        "agent": agent,
+        "command": command,
+        "reason": reason,
+    }
+    _record_in(pages, record)
+
+
+def record_follower(
+    pages: list[Path], session: str, *, module: object, forks: bool, current: bool
+) -> None:
+    """Record in each page a Claude Code session's pages follower starts listing
+    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), the
+    digest the module loaded with (`module`), and whether that module is this
+    Leaf's (`current`, `session_runtime.module_current`): the follower keeps threads
+    back for line forks only where both hold. Dropped where the page can't be
+    written, as `record_command` is."""
+    record = {
+        "source": "cli",
+        "type": "follower",
+        "session": session,
+        "module": module,
+        "forks": forks,
+        "current": current,
+    }
+    _record_in(pages, record)
+
+
+def _record_in(pages: list[Path], record: dict) -> None:
+    """Append `record` to each page's diagnostics, dropped where a page can't be
+    written."""
     for page_dir in pages:
         with contextlib.suppress(OSError):
             append_interactions(page_dir, [record])

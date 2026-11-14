@@ -138,10 +138,12 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
         cli, ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"]
     )
     assert invalid.exit_code == 1
-    assert "timezone offset" in json.loads(invalid.stderr)["error"]
-    assert [
-        row["command"] for row in read_interactions(tmp_path, types=("leaf_command",))
-    ] == ["page interactions", "page interactions", "page interactions"]
+    refusal = json.loads(invalid.stderr)["error"]
+    assert "timezone offset" in refusal
+    commands = read_interactions(tmp_path, types=("leaf_command",))
+    assert [row["command"] for row in commands] == ["page interactions"] * 3
+    # A refused command's record says so, with the error the agent read.
+    assert [row.get("refused") for row in commands] == [None, None, refusal]
 
 
 def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_path):
@@ -193,7 +195,8 @@ def test_command_recording_includes_output_and_excludes_help(monkeypatch):
         cli_model, "_print_result", lambda result: sequence.append("output")
     )
     monkeypatch.setattr(
-        "leaf.interaction_log.record_command", lambda command: sequence.append(command)
+        "leaf.interaction_log.record_command",
+        lambda command, **_: sequence.append(command),
     )
     runner = CliRunner()
     assert runner.invoke(cli, ["hook", "--harness", "codex"], input="{}").exit_code == 0

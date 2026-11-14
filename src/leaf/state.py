@@ -19,6 +19,16 @@ readers ask these too, and activity folds the stamps as dated evidence. Every
 opening passes through `advance_turn`, which keeps the one rule the transitions
 share: a turn id the record holds closed never reopens.
 
+A session can also run agents beside its main thread, such as a fork of its
+conversation that took a thread's work (`forks.py`). Each run of one is a turn of its
+own (`AGENT_TURNS`), opened as the agent is given its work, before its harness
+starts or resumes it, named with the agent's harness id once the harness has started
+it, and closed as its harness says the run ended; it ends with its session's
+generation or instance too (`agent_turn_open`). A command the agent runs acts in that
+turn (`acting_turn`), so a pickup, start or reply it writes names the agent's turn: a
+pickup or start lapses with the agent's run rather than the main thread's, and a
+reply keeps saying which turn answered (`holding.py`).
+
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
@@ -756,6 +766,257 @@ def close_session_turn(
         return advance_turn(session_id, turn_id, running=False) is not None
 
 
+AGENT_TURNS = Record(
+    "agent-turns",
+    described(
+        "The turns of the agents a session runs beside its main thread, such as a "
+        "fork of its conversation that took a thread's work, in the state home's "
+        "`sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's "
+        "id in its harness (null until the harness starts it), the session "
+        "generation it opened in, when it opened and was last renewed, when it "
+        "closed, or null while it is open.",
+        object_schema(
+            {
+                "turns": {
+                    "type": "object",
+                    "additionalProperties": object_schema(
+                        {
+                            "agent": {"type": ["string", "null"]},
+                            "generation": STRING,
+                            "opened": TIME,
+                            "renewed": TIME,
+                            "closed": _TIME_OR_NONE,
+                        }
+                    ),
+                }
+            }
+        ),
+    ),
+    since=44,
+)
+# Where a `leaf` command names the agent of the session that runs it, by its harness's
+# agent id: `leaf --agent-id ID`, which Leaf's PreToolUse hook adds to the `leaf`
+# commands of an agent running a turn of the session's own (`hooks.agent_command`),
+# sets it in the command's process (`cli`), so the command acts in that turn
+# (`acting_turn`). A subagent's commands otherwise run in the session's own
+# environment, with nothing that names it (`harness.ClaudeCodeHarness`).
+AGENT_ID_VARIABLE = "LEAF_AGENT_ID"
+# How often at most an agent's tool boundary renews its turn (`renew_agent_turn`), well
+# inside the working grace a reader believes an unrenewed turn for
+# (`activity.running_agent_turns`).
+AGENT_RENEWAL = timedelta(minutes=1)
+
+
+def agent_turns(session_id: str) -> dict[str, dict]:
+    """The session's agent turns by id, open and closed (`AGENT_TURNS`)."""
+    record = AGENT_TURNS.read(session_file(session_id, AGENT_TURNS.kind))
+    return record["turns"] if record else {}
+
+
+def agent_turn_open(entry: dict, record: dict | None) -> bool:
+    """Whether the agent turn `entry` is open in the session lifecycle `record`: not
+    closed, and opened in the generation the session still lives in. An agent runs
+    inside its session's harness instance, so a turn of an ended generation has
+    ended with it, whatever its own record says."""
+    return (
+        entry["closed"] is None
+        and session_live(record)
+        and entry["generation"] == record["generation"]
+    )
+
+
+def open_agent_turns(session_id: str) -> dict[str, dict]:
+    """The session's open agent turns by id (`agent_turn_open`)."""
+    record = session_record(session_id)
+    return {
+        turn: entry
+        for turn, entry in agent_turns(session_id).items()
+        if agent_turn_open(entry, record)
+    }
+
+
+def agent_turn_stamps(claim: dict) -> dict[str, dict]:
+    """The agent turns of the session `claim` names, opened in the claim's
+    generation: by turn id, when each was last renewed and when it closed, or null
+    while it is open, which `activity.running_agent_turns` reads. The page's served
+    reading carries them for every reader of its claim (`presence`)."""
+    return {
+        turn: {"renewed": entry["renewed"], "closed": entry["closed"]}
+        for turn, entry in agent_turns(claim["id"]).items()
+        if entry["generation"] == claim["generation"]
+    }
+
+
+def agent_turn_of(session_id: str, agent: str) -> str | None:
+    """The open turn of the agent its harness names `agent`, or None."""
+    return next(
+        (
+            turn
+            for turn, entry in open_agent_turns(session_id).items()
+            if entry["agent"] == agent
+        ),
+        None,
+    )
+
+
+def agent_known(session_id: str, agent: str) -> bool:
+    """Whether the session has run a turn for the agent its harness names `agent`,
+    open or closed: the agents whose `leaf` commands are marked as theirs
+    (`hooks.agent_command`), so an ended one's are refused (`acting_agent_turn`)
+    rather than run as the main thread's."""
+    return any(entry["agent"] == agent for entry in agent_turns(session_id).values())
+
+
+def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
+    AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
+
+
+def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
+    """Open a turn for an agent the session is about to start or resume, and return
+    its id; None for a session that has ended. A resumed agent, whose id Leaf
+    already knows, runs the turn from its opening (`agent`); a new one's turn is
+    named once the harness has started it (`name_agent_turn`), and until then no
+    agent's `leaf` command can act in it or as the main thread
+    (`hooks.agent_command`). Each opening mints a new id, so a closed turn never
+    reopens."""
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if not session_live(record):
+            return None
+        turn = secrets.token_hex(8)
+        now = now_iso()
+        _write_agent_turns(
+            session_id,
+            {
+                **agent_turns(session_id),
+                turn: {
+                    "agent": agent,
+                    "generation": record["generation"],
+                    "opened": now,
+                    "renewed": now,
+                    "closed": None,
+                },
+            },
+        )
+        return turn
+
+
+def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
+    """Record that the agent its harness names `agent` runs the open turn `turn`,
+    which no agent runs yet; whether the turn was still open to name. A turn's agent
+    never changes once named."""
+    return _update_agent_turns(
+        session_id,
+        lambda id, entry: (
+            {**entry, "agent": agent}
+            if id == turn and entry["agent"] in (None, agent)
+            else None
+        ),
+    )
+
+
+def unnamed_agent_turns(session_id: str) -> dict[str, dict]:
+    """The session's open agent turns that no agent runs yet, by id: each opened for
+    an agent its harness is starting or resuming, until the harness says which agent
+    that is (`name_agent_turn`)."""
+    return {
+        turn: entry
+        for turn, entry in open_agent_turns(session_id).items()
+        if entry["agent"] is None
+    }
+
+
+def renew_agent_turn(session_id: str, agent: str) -> str | None:
+    """Renew the open turn of `agent`, as its tool boundary does, and return its id;
+    None where the agent runs no open turn. A renewal within `AGENT_RENEWAL` of the
+    last writes nothing, since each write moves every reading of the session's pages
+    (`served_state.reading.outside_inputs`)."""
+    with flocked(session_lock_path(session_id)):
+        turn = agent_turn_of(session_id, agent)
+        if turn is not None:
+            turns = agent_turns(session_id)
+            renewed = datetime.fromisoformat(turns[turn]["renewed"])
+            if datetime.now().astimezone() - renewed >= AGENT_RENEWAL:
+                turns[turn] = {**turns[turn], "renewed": now_iso()}
+                _write_agent_turns(session_id, turns)
+        return turn
+
+
+def close_agent_turns(
+    session_id: str, *, turn: str | None = None, agent: str | None = None
+) -> list[str]:
+    """Close the session's open agent turn `turn`, or, where no turn is named, every
+    open turn of `agent`, as the harness says the agent's run ended or never
+    started; the ids it closed. An end that names its turn closes only that one, so
+    a late end of an agent's earlier turn leaves the turn a resume opened for it
+    since. A turn no agent was named for yet, as when Leaf failed to record the
+    start of an agent that runs on, is named for `agent` as it closes, so the
+    agent's later `leaf` commands are refused as an ended agent's
+    (`acting_agent_turn`) rather than run as the main thread's."""
+    closed: list[str] = []
+    stamp = now_iso()
+
+    def close(id: str, entry: dict) -> dict | None:
+        if turn is not None:
+            ends = id == turn
+        else:
+            ends = agent is not None and entry["agent"] == agent
+        if not ends:
+            return None
+        closed.append(id)
+        named = agent if entry["agent"] is None else entry["agent"]
+        return {**entry, "agent": named, "closed": stamp}
+
+    _update_agent_turns(session_id, close)
+    return closed
+
+
+def _update_agent_turns(session_id: str, change) -> bool:
+    """Replace each open agent turn with what `change(id, entry)` returns for it,
+    leaving those it returns None for, under the session lock; whether any changed."""
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        turns = agent_turns(session_id)
+        changed = {
+            id: new
+            for id, entry in turns.items()
+            if agent_turn_open(entry, record) and (new := change(id, entry)) is not None
+        }
+        if changed:
+            _write_agent_turns(session_id, {**turns, **changed})
+        return bool(changed)
+
+
+def acting_agent_turn(session: str) -> str | None:
+    """The turn a command of `session` acts in as one of its agents: the open turn
+    of the agent the command names (`AGENT_ID_VARIABLE`); None for a command of the
+    main thread, which names none. A command that names an agent running no open
+    turn of the session's, as one marked while its turn was open may run after it
+    closed, is refused (`refusals.Refused`): it acts neither in a closed turn nor
+    with the main thread's authority."""
+    agent = os.environ.get(AGENT_ID_VARIABLE)
+    if not agent:
+        return None
+    turn = agent_turn_of(session, agent)
+    if turn is None:
+        from .refusals import Refused
+
+        raise Refused(
+            f"agent {agent}'s turn has ended, so it no longer acts on this "
+            "session's pages; end your turn"
+        )
+    return turn
+
+
+def acting_turn(claim: dict | None, session: str | None) -> str | None:
+    """The turn a command of `session` acts in on a page held by `claim`: its agent's
+    (`acting_agent_turn`, which refuses an agent whose turn has ended), and otherwise
+    the claim's turn; None for a command of a session that doesn't hold the page."""
+    if claim is None or session is None or claim["id"] != session:
+        return None
+    return acting_agent_turn(session) or claim["turn"]
+
+
 def end_session(session_id: str) -> None:
     """End one generation with no page discovery or page-lock acquisition.
 
@@ -844,6 +1105,16 @@ def end_harness_instance(session_id: str) -> None:
         if record and record["lifetime"] and "pid" not in record["lifetime"]:
             if not turn_closed(record):
                 advance_turn(session_id, record["turn"], running=False)
+            # The instance's agents ended with it.
+            if turns := agent_turns(session_id):
+                ended = now_iso()
+                _write_agent_turns(
+                    session_id,
+                    {
+                        id: {**entry, "closed": entry["closed"] or ended}
+                        for id, entry in turns.items()
+                    },
+                )
             session_file(session_id, HOOKS_SUFFIX).unlink(missing_ok=True)
             return
         _end_session(session_id)
@@ -936,11 +1207,16 @@ def drop_locator(session_id: str, name: str) -> None:
 
 def worker_tool_batch(harness: str, payload: dict) -> bool:
     """A Claude Code worker's batch names its parent's session but receives none
-    of that session's input. Both the standalone gate and the full hook skip it."""
+    of that session's input, unless the worker runs an agent turn of the session's
+    (`agent_turn_of`), whose boundary carries the input of the threads it took
+    (`hook_transport.carry_agent_turn`). Both the standalone gate and the full hook
+    skip the rest."""
+    agent = payload.get("agent_id")
     return (
         harness == "claude-code"
         and payload.get("hook_event_name") == "PostToolBatch"
-        and bool(payload.get("agent_id"))
+        and bool(agent)
+        and agent_turn_of(payload.get("session_id") or "", agent) is None
     )
 
 

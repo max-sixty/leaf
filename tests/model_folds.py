@@ -66,6 +66,7 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
+    "agent_turns": {},
     "input_wakes": False,
     "fork_lane": None,
     "session_cwd": None,

@@ -145,7 +145,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             {
                 "ts": "2026-10-14T12:00:06+00:00",
                 "source": "cli",
-                "type": "fork_reply",
+                "type": "fork_outcome",
                 "session": "session",
                 "thread": "first",
                 "inputs": ["second"],

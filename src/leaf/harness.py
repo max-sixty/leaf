@@ -390,7 +390,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`)."""
+    (`agent_id`, `state.worker_tool_batch`). Leaf's PreToolUse hook marks the `leaf`
+    commands of a fork Leaf gave a thread's work with its agent id, so they act in
+    that fork's own turn (`hooks.agent_command`)."""
 
     job: str | None = None
 

@@ -417,6 +417,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_opened": old,
         "turn_closed": None,
         "turn_takes_input": False,
+        "agent_turns": {},
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -1363,13 +1364,18 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "answer": {"kind": "reply", "ref": "t1"},
         "response": None,
         "delivery_seq": 1,
+        "delivery_session": "s1",
+        "delivery_turn": None,
+        "holder": None,
         "started_by": [],
     }
     state = {
         "activity": {"obligations": [obligation]},
         "cursor": 1,
         "claim_session": "s1",
+        "session_alive": True,
         "turn": None,
         "turn_closed": "2026-10-28T12:00:00+00:00",
+        "agent_turns": {},
     }
     assert activity_model.left_owed(state, lambda _: False) == [obligation]

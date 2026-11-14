@@ -376,18 +376,23 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     """Append the start taking `item` in hand with `text` as its line, written as
     `identity`, within `page`, an open `service.PageTransaction`; the record.
 
-    The start names the claimant's turn when the posting session holds the page, which
-    is what lets that turn end over the update it started (`activity.started_in_turn`)
-    and what ends the start's hold with the turn. Another session's start names none: a
+    The start names the turn the command acts in when the posting session holds the
+    page (`state.acting_turn`): the claimant's, or that of an agent the session runs
+    beside it, such as a fork that took a thread's work. That is what lets the turn end
+    over the update it started (`activity.started_in_turn`) and what ends the start's
+    hold with the turn. Another session's start names none: a
     Claude Code subagent runs as its parent's session, so workers leave starts to the
     session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
     start consumer reads either form through `start_reading`. A start on a page
     declared `idle` reopens it (`activity.declaration`)."""
     from .event_contracts import append_admitted
+    from .holding import authorize
+    from .state import acting_turn
 
-    claim = page.claim
-    turn = claim["turn"] if claim and claim["id"] == identity.get("session") else None
+    # A fork shows itself at work only on what its turn holds.
+    authorize(page, identity.get("session"), [item])
+    turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,
         {

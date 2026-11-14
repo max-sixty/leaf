@@ -128,7 +128,9 @@ session takes it.
 A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
 a user preview selected or one that claimed or re-vendored a page the session holds,
 or the copy Claude Code installed since the session loaded its own
-(`session_runtime.py`); page servers keep their own.
+(`session_runtime.py`). A page server keeps the Leaf that started it, and
+`server start` from another Leaf restarts it under that one at the same address
+(`hosting.start_page`).
 
 ## Watchers
 

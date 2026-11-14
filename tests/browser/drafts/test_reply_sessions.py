@@ -11,7 +11,9 @@ from render_cases_navigation import source_revision
 from render_harness import (
     DATUM_LINK,
     DATUM_LINK_WIDGETS,
+    LINK,
     LONG_PAGE,
+    datum_button,
     holding,
     leaf_page,
     open_page,
@@ -19,6 +21,7 @@ from render_harness import (
     scroll_settled,
     sending,
     stored_draft_text,
+    tab_to,
     take_browser_errors,
     told,
     write,
@@ -689,9 +692,8 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
             "Review files beside a reply",
             '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
             'view="file"></lf-diff>'
-            '<lf-datum-link id="files" for="patch" key=\'["tests.py","file"]\'>'
-            "</lf-datum-link>"
-            '<a id="after-files" href="#patch">Back to the patch</a>',
+            + LINK
+            + '<a id="after-files" href="#patch">Back to the patch</a>',
         ),
         layer_registry=DATUM_LINK,
         layer_widgets=DATUM_LINK_WIDGETS,
@@ -719,10 +721,8 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
     caret = reply.evaluate("node => node.selectionStart")
-    target = page.locator("#files button")
-    page.keyboard.press("Tab")
-    target.focus()
-    expect(target).to_be_focused()
+    target = datum_button(page, "tests.py")
+    tab_to(page, target)
     page.keyboard.press("Enter")
     wait_until_ready(page)
     expect(

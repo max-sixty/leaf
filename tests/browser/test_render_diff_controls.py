@@ -1,6 +1,5 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
-import json
 import re
 from html import escape
 from itertools import pairwise
@@ -281,7 +280,7 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
     # A related navigator must reveal the worktree around its destination too.
     summary.click()
     expect(row).not_to_have_attribute("open")
-    go_to_datum(page, '["app.py","new",1]')
+    go_to_datum(page, "app.py")
     expect(row).to_have_attribute("open", "")
     expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
     # A changed snapshot attribute rebuilds the rows; each keeps the reader's choice,
@@ -375,16 +374,12 @@ def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
     picked = lines.filter(has_text="lib.py new")
     expect(lines.filter(has_text="app.py new")).to_be_visible()
     expect(picked).to_be_hidden()
-    go_to_datum(page, '["lib.py","new",1]')
+    go_to_datum(page, "lib.py", keyboard=True)
     expect(picked).to_be_visible()
     page.wait_for_url(re.compile(r"#patch:"))
     page.reload()
     expect(picked).to_be_visible()
     expect(lines.filter(has_text="app.py new")).to_be_hidden()
-
-
-def file_key(path):
-    return json.dumps([path, "file"], separators=(",", ":"))
 
 
 @pytest.mark.parametrize("view", ["patch", "file"])
@@ -426,22 +421,31 @@ def test_datum_travel_opens_current_diff_files_and_keeps_a_selection_made_while_
     else:
         expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
         expect(folds.first).to_have_attribute("open", "")
-    go_to_datum(page, file_key("src/importer.py"))
+    go_to_datum(page, "src/importer.py")
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same file still has a route after its patch closes.
     folds.first.locator("summary").click()
-    go_to_datum(page, file_key("src/importer.py"))
+    go_to_datum(page, "src/importer.py")
     expect(folds.first).to_have_attribute("open", "")
-    go_to_datum(page, file_key("tests/importer.py"))
+    go_to_datum(page, "tests/importer.py", keyboard=True)
     expect(folds.last).to_have_attribute("open", "")
     expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    # The referrer reads the diff's published inventory: every file with its key.
+    files = page.locator("#files button")
+    expect(files).to_have_text(["src/importer.py", "tests/importer.py"])
+
+    def selected():
+        return page.locator('#files button[aria-current="true"]')
+
     if view == "file":
         expect(folds.first).not_to_be_visible()
         expect(folds.last).to_be_visible()
+        expect(selected()).to_have_text("tests/importer.py")
         folds.last.locator("summary").press("{")
         expect(folds.first).to_be_visible()
         expect(folds.last).not_to_be_visible()
+        expect(selected()).to_have_text("src/importer.py")
         # Preparing new evidence does not take ownership of a selection made while
         # that preparation is in flight. Hold one boundary to make the ordering exact.
         page.evaluate("""() => {
@@ -468,6 +472,7 @@ def test_datum_travel_opens_current_diff_files_and_keeps_a_selection_made_while_
         expect(folds.last.locator("pre")).to_contain_text("assert new_names")
         expect(folds.last).to_be_visible()
         expect(folds.first).not_to_be_visible()
+        expect(selected()).to_have_text("tests/importer.py")
     # A source update replaces the files the diff holds.
     data_model.cmd_data_set(
         serve.page_dir,
@@ -475,8 +480,12 @@ def test_datum_travel_opens_current_diff_files_and_keeps_a_selection_made_while_
         patch_manifest(patch("src/reader.py", "preserve_case = True")),
     )
     expect(folds).to_have_count(1)
-    go_to_datum(page, file_key("src/reader.py"))
+    expect(files).to_have_text(["src/reader.py"])
+    go_to_datum(page, "src/reader.py")
     expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+    # Clearing the input clears the published inventory too.
+    data_model.cmd_data_clear(serve.page_dir, "change")
+    expect(files).to_have_count(0)
 
 
 @pytest.mark.parametrize("scroller", ["pane", "document"])
@@ -570,21 +579,21 @@ def test_datum_travel_lands_at_the_file_start_after_reading_down(
         }""")
 
     scroll_into_file()
-    go_to_datum(page, file_key("second.md"))
+    go_to_datum(page, "second.md")
     expect(visible).to_contain_text("second.md")
     starts_below_header()
     # A file already selected still has a route back to the start after reading down.
     scroll_into_file()
-    go_to_datum(page, file_key("second.md"))
+    go_to_datum(page, "second.md")
     starts_below_header()
     # A much shorter file must reveal its first line too; its pinned heading alone is
     # not evidence that the beginning is visible.
     scroll_into_file()
-    go_to_datum(page, file_key("third.md"))
+    go_to_datum(page, "third.md")
     expect(visible).to_contain_text("third.md")
     starts_below_header()
     # A mode-only file has a commentable metadata row, without a textual body.
-    go_to_datum(page, file_key("z-mode.sh"))
+    go_to_datum(page, "z-mode.sh")
     metadata = page.locator("#patch .lf-diff-metadata:visible")
     expect(metadata).to_contain_text("z-mode.sh")
     expect(metadata).to_be_in_viewport(ratio=1)

@@ -411,5 +411,4 @@ def test_a_timeline_s_unavailable_arrow_reaches_no_command_around_it(browser, se
     )
     page.keyboard.press("ArrowRight")
     expect(rows.last).to_be_focused()
-    page.evaluate(NEXT_FRAME)
     assert page.evaluate("window.aroundRan") == 1

@@ -3797,8 +3797,8 @@ def test_a_shot_refuses_a_crop_outside_its_captures_and_recovers_when_it_is_corr
     and a pair has to share one width; each refusal draws as the shot's error, and the
     shot draws again once the data is corrected."""
     captures = {
-        name: solid_png(width, 200, (232, 226, 213))
-        for name, width in (("a", 320), ("b", 320), ("c", 150))
+        name: solid_png(width, 746, (232, 226, 213))
+        for name, width in (("a", 1800), ("b", 1800), ("c", 780))
     }
     src = {
         name: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
@@ -3819,18 +3819,22 @@ def test_a_shot_refuses_a_crop_outside_its_captures_and_recovers_when_it_is_corr
     shot = page.locator("#pair")
     expect(shot.locator("img")).to_have_count(2)
     expect(shot.locator(".lf-error")).to_have_count(0)
-    shot.evaluate("n => n.inspect({focus: {x: 20, y: 30, width: 100, height: 50}})")
+    # Captured at device scale 2, so 1800×746 pixels are 900×373 CSS pixels.
+    fits = "n => n.inspect({pixelRatio: 2, focus: {x: 120, y: 80, width: 640, height: 220}})"
+    shot.evaluate(fits)
     expect(shot.locator(".lf-error")).to_have_count(0)
-    outside = "n => n.inspect({focus: {x: 20, y: 180, width: 100, height: 50}})"
-    shot.evaluate(outside)
-    error = "focus 20,180 100×50 CSS px falls outside its captured images"
+    # The crop fits the bitmap but ends at CSS y=520, past the 373 the capture spans.
+    shot.evaluate(
+        "n => n.inspect({pixelRatio: 2, focus: {x: 120, y: 300, width: 640, height: 220}})"
+    )
+    error = "focus 120,300 640×220 CSS px falls outside its captured images"
     expect(shot.locator(".lf-error")).to_contain_text(error)
     consume_browser_errors(page, error)
-    shot.evaluate("n => n.inspect({focus: {x: 20, y: 30, width: 100, height: 50}})")
+    shot.evaluate(fits)
     expect(shot.locator(".lf-error")).to_have_count(0)
     expect(shot.locator("img")).to_have_count(2)
     shot.evaluate("(n, src) => n.setAttribute('after', src)", src["c"])
-    error = "before is 320px wide and after is 150px"
+    error = "before is 1800px wide and after is 780px"
     expect(shot.locator(".lf-error")).to_contain_text(error)
     consume_browser_errors(page, error)
     shot.evaluate("(n, src) => n.setAttribute('after', src)", src["b"])

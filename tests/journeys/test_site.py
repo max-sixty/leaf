@@ -752,6 +752,13 @@ def test_published_trace_evidence_loads_from_its_page(served_example, browser):
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
     )
     expect(images.first).to_have_js_property("complete", True)
+    first = images.first.get_attribute("data-lf-datum")
+    assert images.first.evaluate("image => image.naturalWidth") > 0
+    timeline = page.get_by_role("group", name="Recording timeline", exact=True).first
+    timeline.focus()
+    timeline.press("End")
+    expect(images.first).not_to_have_attribute("data-lf-datum", first)
+    expect(images.first).to_have_js_property("complete", True)
     assert images.first.evaluate("image => image.naturalWidth") > 0
 
 

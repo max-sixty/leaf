@@ -3503,36 +3503,46 @@ def at_rest(page):
     return findings
 
 
-# What a navigator does to a diff, without the navigator: a referrer whose button
-# travels to the datum its `key` names, in the widget its `for` names.
+# What a navigator does to a diff, without the navigator: a referrer that reads the
+# widget's published `files` output (or a `file-list` source), draws one button per
+# file, marks the current one, and travels to the file's key.
 DATUM_LINK = {
     "lf-datum-link": {
-        "description": "A button that travels to one datum of the widget it names.",
+        "description": "One button per file of the widget it names, travelling to its datum.",
         "type": "object",
         "properties": {
             "id": {"type": "string"},
+            "source": {"type": "string"},
             "for": {"type": "string"},
-            "key": {"type": "string"},
         },
-        "required": ["id", "for"],
+        "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
+        "x-data": {
+            "files": {
+                "contract": "file-list",
+                "source": "source",
+                "reference": "for",
+                "output": "files",
+                "property": "value",
+            }
+        },
         "x-refers": {"for": {}},
-        "x-example": '<lf-datum-link id="files" for="patch" key="a"></lf-datum-link>',
+        "x-upgrade": True,
+        "x-example": '<lf-datum-link id="files" for="patch"></lf-datum-link>',
     }
 }
 DATUM_LINK_WIDGETS = {
     "lf-datum-link.js": """
-import {navigateToDatum, once} from '/runtime/widget-api.js';
-customElements.define('lf-datum-link', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const button = document.createElement('button');
-    button.textContent = 'Go to file';
-    button.addEventListener('click', () =>
-      navigateToDatum(this, 'for', this.getAttribute('key'), {focus: false}));
-    this.append(button);
+import {LeafElement, html, navigateToDatum} from '/runtime/widget-api.js';
+customElements.define('lf-datum-link', class extends LeafElement {
+  static properties = {value: {attribute: false}};
+  render() {
+    const {files = [], current} = this.value ?? {};
+    return html`${files.map((file) => html`<button data-path=${file.path}
+      aria-current=${current === file.path ? 'true' : 'false'}
+      @click=${() => navigateToDatum(this, 'for', file.key,
+        {focus: false})}>${file.path}</button>`)}`;
   }
 });
 """
@@ -3540,10 +3550,28 @@ customElements.define('lf-datum-link', class extends HTMLElement {
 LINK = '<lf-datum-link id="files" for="patch"></lf-datum-link>'
 
 
-def go_to_datum(page, key):
-    """Press `#files`, a referrer that travels to `key` of the diff it names."""
-    page.locator("#files").evaluate(
-        "(node, key) => node.getAttribute('key') === key || node.setAttribute('key', key)",
-        key,
-    )
-    page.locator("#files button").click()
+def datum_button(page, path):
+    """The `#files` referrer's button for the file `path`."""
+    return page.locator(f'#files button[data-path="{path}"]')
+
+
+def tab_to(page, target, presses=60):
+    """Tab from where focus is until `target` holds it, without assigning focus."""
+    for _ in range(presses):
+        if target.evaluate("node => node.matches(':focus')"):
+            return
+        page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
+def go_to_datum(page, path, keyboard=False):
+    """Activate the referrer's button for `path`, which travels to that file of the
+    diff, and check the button still holds focus, since the referrer stays the
+    reader's input surface. `keyboard` reaches it by Tab and presses Enter."""
+    button = datum_button(page, path)
+    if keyboard:
+        tab_to(page, button)
+        page.keyboard.press("Enter")
+    else:
+        button.click()
+    expect(button).to_be_focused()

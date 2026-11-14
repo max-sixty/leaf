@@ -70,7 +70,9 @@
  * that `package.json` pins, which fails where Claude Code would refuse to load this
  * module, as it refuses a `$.env.get` whose name isn't a string literal. A refused
  * module leaves the session with no band, no clerk and no thread forks, and Claude
- * Code reports the refusal only in its debug log.
+ * Code reports the refusal only in its debug log, so the follower records the
+ * process it runs in and Leaf's Stop hook tells the user where none ran
+ * (`ClaudeCodeHarness.unloaded_module`).
  */
 
 import type {

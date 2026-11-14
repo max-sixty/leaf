@@ -3470,10 +3470,14 @@ function searchableWords() {
 function* findText(text, query) {
   const words = query.split(COLLAPSE).filter(Boolean);
   if (!words.length) return;
+  // A gap is whitespace and edges in any order, as one character class: a nested
+  // quantifier such as `(?:[ws]+|edge)+` tries every split of a whitespace run, so a
+  // word followed by a long run, and not by the next word, takes time exponential in
+  // the run's length.
   const pattern = new RegExp(
     words
       .map((w) => [...w].map(escape).join(`${EDGE}*`))
-      .join(`(?:${COLLAPSE.source}|${EDGE})+`),
+      .join(`[${COLLAPSE_CHARS}${EDGE}]+`),
     "giu",
   );
   const searchable = searchableWords();

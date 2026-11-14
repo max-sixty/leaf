@@ -139,8 +139,8 @@ def _example_pages(package):
     composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
     tags = own_tags(package)
     pages = [
-        (layout, SourceDocument(html), data)
-        for layout, html, data in example_pages(composition.vocabulary.registry, tags)
+        (layout, SourceDocument(html))
+        for layout, html in example_pages(composition.vocabulary.registry, tags)
         if layout == "column"
     ]
     if state := STATES.get(package.name):
@@ -152,7 +152,6 @@ def _example_pages(package):
                     "<!doctype html>\n<html lang='en'><head><title>States</title>"
                     f"</head><body>{opening}{state}{closing}</body></html>"
                 ),
-                {},
             )
         )
     return tags, pages

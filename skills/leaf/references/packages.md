@@ -277,15 +277,6 @@ widgets, once in a reading column and once in a workspace pane, and prints findi
 The command fails when the package check fails, the examples can't be drawn, or an
 exercised output violates its [declared data contract](package-data.md#widget-outputs).
 
-For a data-bound example, add `x-example-data` beside `x-example`, mapping each
-source id in that markup to its sample JSON value. For example,
-`"x-example-data": {"release-ci": {"main": "passing"}}` supplies the source in
-`<lf-builds id="builds" source="release-ci"></lf-builds>` when its contract accepts
-that value. Package checks validate these values against the bound contracts; a
-source without a sample stays unset. The render check supplies the values through
-ordinary bound data in both Layouts. Examples that reuse a source id render on
-separate pages, so each keeps its own values.
-
 The presentation checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.

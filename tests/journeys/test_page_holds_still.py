@@ -1711,6 +1711,20 @@ GROWN_AFTER_GLIDE = (
     "the glide; Chromium held it before #5397"
 )
 
+RESOLVE_IN_PANEL = (
+    "the panel's view grows from its top edge for the answer the user waits for and "
+    "carries Resolve 216px up from under the pointer resting on it, where a message's "
+    "pencil then stands"
+)
+RESOLVE_ON_CARD = (
+    "the card lifts beside its subject for the reply and carries Resolve 93-93.5px up "
+    "from under the pointer resting on it, where a reply's reaction press then stands"
+)
+RESOLVE_OVER_WORDS = (
+    "the card holds its foot under the words in its reply box, grows up for the reply "
+    "and carries Resolve 284-284.5px up from under the pointer resting on it"
+)
+
 # The cases the runtime fails today, with what each measured: a fix flips one to a
 # pass, and its strict mark then fails until its entry goes.
 MOVES_ON_MAIN = {
@@ -1734,6 +1748,21 @@ MOVES_ON_MAIN = {
     "shadow-pointer-deletions-firefox": DELETIONS,
     "dial-grown-after-glide-chromium": GROWN_AFTER_GLIDE,
     "dial-grown-after-glide-firefox": GROWN_AFTER_GLIDE,
+    **{
+        f"panel-{place}-asked-reply-below-{engine}": RESOLVE_IN_PANEL
+        for place in ("resolve", "writing-on-resolve")
+        for engine in ENGINES.values()
+    },
+    **{
+        f"card-resolve-{thread}-reply-below-{engine}": RESOLVE_ON_CARD
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
+    **{
+        f"card-writing-on-resolve-{thread}-reply-below-{engine}": RESOLVE_OVER_WORDS
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
 }
 
 

@@ -64,10 +64,7 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
   once, the rare path the user chose to let move what follows it (2026-11-04). An
   exception the user chose stays with its owner, as the floating panel's growth for an
-  answer the user waits for (`floating-panel.js`) does. No exception carries a control
-  the user is on, by focus or a resting pointer, in a box over the page, where no
-  scroll could put it back: that news waits behind the thread's control too
-  (`aimedControls` in `user-place.js`). Check:
+  answer the user waits for (`floating-panel.js`) does. Check:
   `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and
   `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
@@ -638,7 +635,6 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                       |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
-| The controls the user is on, by focus or a resting pointer                                            | `user-place.js` `aimedControls`                                                    |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |

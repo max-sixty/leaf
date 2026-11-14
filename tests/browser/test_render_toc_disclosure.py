@@ -248,7 +248,8 @@ def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
     browser, serve, body, head, folded
 ):
     """Only a sidebar the Layout narrows to the map's spine lets the map rest as that
-    spine and lay its labels over the body. A document's sidebar keeps a column's room
+    spine and lay its labels over the body. The prose stands centred in the window
+    beside an outline column too, whichever side of the body the aside stands on. A document's sidebar keeps a column's room
     for a status beside the map, where the narrowed sidebar would have crushed the
     status to a word a line, and for an aside after the body, where the labels would
     have spread past the window's edge; the outline stands open in that column. A
@@ -264,6 +265,11 @@ def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
         expect(toc.locator("summary")).to_be_visible()
         return
     assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
+    off_centre = page.evaluate(
+        "() => { const box = document.querySelector('#body p').getBoundingClientRect();"
+        " return Math.round((box.left + box.right) / 2 - innerWidth / 2); }"
+    )
+    assert abs(off_centre) <= 1, off_centre
     expect(toc.locator(".lf-toc-heading")).to_be_visible()
     expect(toc.get_by_role("link", name="Section 1", exact=True)).to_have_css(
         "opacity", "1"

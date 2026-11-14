@@ -777,10 +777,7 @@
    * whole flex item rather than a centred box, so its room is a length. The body's width
    * is what the flex row leaves it: the sidebar's, less the aside and the gap while the
    * aside stands beside it (the Layout's `--aside` is a length here), and the whole of
-   * it once the aside wraps. An aside after the body leaves the prose short of the
-   * centre by the aside and the gap, since the room before the prose counts the aside as
-   * standing before it; no page in the corpus sets one there. Until 14 November 2026 the
-   * prose stood at the body's start edge, as from #4724. Beside an outline column that
+   * it once the aside wraps. Until 14 November 2026 the prose stood at the body's start edge, as from #4724. Beside an outline column that
    * read as a route and its document, but once the contents map rested as a 56px spine
    * (#5772) it left the prose against the window's edge, half the window empty past it
    * and the panel centred off it. */
@@ -807,6 +804,11 @@
     --lf-free-end: calc(var(--lf-room-length) - var(--lf-room-before));
     padding-inline: var(--lf-room-before)
       calc(var(--lf-room-length) - var(--lf-room-before));
+  }
+  /* An aside after the body stands past the prose's end, so the prose centres in the
+   * whole Layout, short of the aside. */
+  .layout-sidebar:has(> .layout-column ~ aside) > .layout-column {
+    --lf-room-before: clamp(0px, (100cqi - var(--col)) / 2, var(--lf-room-length));
   }
   @property --lf-track-parent-width {
     syntax: "<length>";

@@ -94,7 +94,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   CSS geometry for annotations and never reallocates document space. The chrome opens
   over the page too, in the
   room the theme keeps at the page's foot (`--lf-foot-room`). Checks:
-  `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch. Owner:
+  `test_a_comment_leaves_its_block_as_the_page_wrote_it`, the shift watch, and the
+  render gate's `under-panel` for a page that loses the foot's room
+  (`src/leaf/render-checks/words.js`). Owner:
   `annotation-overlay/margin-placement.js`.
 - **A box floating over the page grows inside the window**, toward the edge that has
   room, and sending and later growth never scroll the page to make room. Owners:

@@ -38,11 +38,11 @@ them beside `presence`, whether anyone is there to take input (`activity`).
 Each surface words these fields and nothing else (`thread/workflow.js`,
 `activity-words.js`), so a difference a surface wants to show is either one of them or
 the agent's own line. The words on screen are more than the four states: a reason has
-its own, such as Stopped or Gone quiet. This replaced ten vocabularies on 2026-11-14: a delivery stage, a failure condition and its
-operation, a to-do's state, a plan step's, an obligation's status, a thread's
-attention, the page's activity kind, its counts by stage, the page's declaration and
-the harness's turn state each named some of the same facts, and `waiting` meant the
-user's turn on the page and the agent's in a thread.
+its own, such as Stopped or Gone quiet. This replaced ten vocabularies on 2026-11-14: a
+delivery stage, a failure condition and its operation, a to-do's state, a plan step's,
+an obligation's status, a thread's attention, the page's activity kind, its counts by
+stage, the page's declaration and the harness's turn state each named some of the same
+facts, and `waiting` meant the user's turn on the page and the agent's in a thread.
 """
 
 _STATE_RANK = {"done": 0, "waiting": 1, "blocked": 2, "running": 3}

@@ -11,6 +11,12 @@ later edits to the source checkout cannot change another copy's result. Installe
 Node dependencies are shared as inputs; generated test output belongs to its copy.
 Each copy is one process (`-n0`: the copies are the concurrency).
 
+Runs on one machine take turns, because `WORKERS` sizes the load of a run alone on it.
+A run snapshots the working tree and collects its tests straight away, then holds
+`LOCK` while its copies run, so a second run's copies wait for the first's to finish.
+Copies of overlapping runs would stack, and neither run's result would come from the
+load `WORKERS` sets.
+
 A load flake that a slower CI runner shows and this machine doesn't can need a slower
 CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
 slows every Chromium page the browser fixtures open (`tests/AGENTS.md`, "Races").
@@ -29,6 +35,7 @@ from pathlib import Path
 
 import click
 
+from leaf.state import flocked
 from leaf_dev import ROOT
 from leaf_dev.suite import checkout, collect, run, snapshot
 
@@ -37,6 +44,9 @@ WORKERS = 6
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
 OUT = ROOT / ".tmp" / "flake"
+# Held while a run's copies run. Every checkout and session on the machine shares it,
+# as they share the temporary directory each run's scratch checkouts live in.
+LOCK = Path(tempfile.gettempdir()) / "leaf-flake.lock"
 RESULTS = ("passed", "failed", "error", "skipped", "not run")
 
 
@@ -53,7 +63,8 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
 
     Runs SELECTION, pytest node ids from the working tree, as 18 copies six at a
     time, and prints each test's count per outcome and every failure's message; each
-    copy's output stays under .tmp/flake/. Exits 1 unless every copy of every test
+    copy's output stays under .tmp/flake/. A run started while another is running
+    waits for it to finish. Exits 1 unless every copy of every test
     passed.
     """
     OUT.mkdir(parents=True, exist_ok=True)
@@ -77,12 +88,13 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
             finally:
                 shutil.rmtree(target)
 
-        pool = ThreadPoolExecutor(WORKERS)
-        try:
-            copies = list(pool.map(copy, range(1, COPIES + 1)))
-        finally:
-            # On Ctrl-C, start no more copies; the running ones stop with it.
-            pool.shutdown(cancel_futures=True)
+        with flocked(LOCK):
+            pool = ThreadPoolExecutor(WORKERS)
+            try:
+                copies = list(pool.map(copy, range(1, COPIES + 1)))
+            finally:
+                # On Ctrl-C, start no more copies; the running ones stop with it.
+                pool.shutdown(cancel_futures=True)
 
     click.echo(f"| test | {' | '.join(RESULTS)} |\n|---|{'---|' * len(RESULTS)}")
     for item in items:

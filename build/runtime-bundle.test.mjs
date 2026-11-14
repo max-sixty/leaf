@@ -39,6 +39,7 @@ test("the kernel preserves native packages and shared state", async () => {
     "runtime/media.js":
       'export { state } from "./state.js"; export { rendered } from "./framework.js";',
     "runtime/layer-client.js": 'export { state } from "./state.js";',
+    "runtime/panel-stand-in.js": 'export { state } from "./state.js";',
     "runtime/annotation-overlay/index.js":
       'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
@@ -105,6 +106,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "runtime/check-api.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/panel-stand-in.js",
       "runtime/portable-api.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
@@ -119,6 +121,7 @@ test("the kernel preserves native packages and shared state", async () => {
       "runtime/framework/render.js",
       "runtime/layer-client.js",
       "runtime/media.js",
+      "runtime/panel-stand-in.js",
       "runtime/portable-api.js",
       "runtime/state.js",
       "runtime/vendor-bridge.js",

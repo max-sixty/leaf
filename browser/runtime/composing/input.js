@@ -95,7 +95,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
  * @property {(() => unknown) | null} [hintParts]
  * @property {() => unknown} [hintLead]
- * @property {() => string | BoxPress} [enters]
+ * @property {() => string | BoxPress | null} [enters]
  * @property {import("../keyboard/bindings.js").Cell<string> | null} [accessibleName]
  * @property {(value: string) => unknown} save
  * @property {Sender} send
@@ -356,6 +356,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // as the entering word and its key are, and pressed where they read, by a pointer
       // or a finger, since it stands where the box's own words do and goes when they go
       // (`pressAtRest`). A finger is shown its word alone, as no key is shown there.
+      // Null where no key enters the box at rest, so not even its key stands there, as
+      // while the page holds keys pressed before it loaded, which a key would only join.
       enters = () => "",
       accessibleName = null,
       save,
@@ -587,13 +589,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const status = dictationStatus();
       const offered = focusedHere.value || status ? "" : enters();
       const press = typeof offered === "string" ? null : offered;
-      const suffix = !advertising
-        ? ""
-        : focusedHere.value
-          ? sendKeys
-          : press
-            ? ""
-            : enteringHint.value;
+      const suffix =
+        !advertising || offered === null
+          ? ""
+          : focusedHere.value
+            ? sendKeys
+            : press
+              ? ""
+              : enteringHint.value;
       const pressKeys = press && advertising ? press.keys : [];
       const word = status || label();
       // Where Return sends a box that holds lines, the box says which key makes one,

@@ -116,6 +116,18 @@
     font: var(--font-compact);
     color: var(--ink);
   }
+  /* The panel's stand-in, drawn from these rules while the bootstrap holds keys
+     pressed before the panel has mounted, with their words in the field
+     (runtime/panel-stand-in.js; `.lf-fp-held`). It casts the ring and lift
+     the panel's surface would, which box-motion.js draws for the panel, and takes no
+     press. */
+  .lf-floating-panel[data-lf-stand-in] {
+    pointer-events: none;
+    filter: drop-shadow(var(--raise-2));
+    & .lf-fp-card {
+      box-shadow: 0 0 0 1px var(--lf-fp-ring);
+    }
+  }
   /* The card wears the surface's colour over the ground's own fill, which it matches
      at rest and inside every move, so what stands under the panel is under a box that
      paints for a contrast checker too, which reads no clipped layer.
@@ -307,6 +319,16 @@
     font: var(--font-small);
     white-space: nowrap;
   }
+  /* Keys held beside a draft (floating-panel.js, `heldWords`) leave the draft at least
+     half the field, their words cut short at the end. */
+  .lf-fp-mode:has(> .lf-held-key) {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lf-fp-mode-icon {
     display: none;
     width: 12px;
@@ -448,7 +470,8 @@
     > .lf-fp-response {
     display: block;
   }
-  .lf-fp-field .lf-compose-field > leaf-text {
+  .lf-fp-field .lf-compose-field > leaf-text,
+  .lf-fp-field .lf-compose-field > .lf-fp-held {
     flex: 1;
     min-width: 0;
     border: 0;
@@ -518,7 +541,8 @@
      them, that it goes elsewhere. The user chose the word on 5 November 2026, so every
      key in a box stands with its word, over the key alone they had chosen the day
      before, which a reader took for the inbox's shortcut beside it. */
-  .lf-fp-field leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text::part(placeholder),
+  .lf-fp-held {
     color: var(--lf-fp-quiet);
   }
   /* The word naming what entering the field does, after the agent's or Leaf's words

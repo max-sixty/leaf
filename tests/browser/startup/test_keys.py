@@ -83,16 +83,16 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
     if command == "unread":
         page.keyboard.press("g")
         page.keyboard.press("u")
-        expect(page.locator(".lf-held-keys kbd")).to_have_text("u")
+        expect(page.locator(".lf-held-key")).to_have_text("u")
     elif command == "version":
         page.keyboard.press("g")
         page.keyboard.press("Shift+V")
-        expect(page.locator(".lf-held-keys kbd")).to_have_text("V")
+        expect(page.locator(".lf-held-key")).to_have_text("V")
     else:
         page.locator("#target").click()
         page.keyboard.press("e")
         page.keyboard.press("1")
-        expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
+        expect(page.locator(".lf-held-key")).to_have_text(["e", "1"])
         assert not any(
             event["kind"] == "undo"
             or (event.get("token") == "keep" and event["id"] != "saved-reaction")
@@ -115,7 +115,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
             ("comment", None),
             ("undo", "saved-reaction"),
         ]
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
 @pytest.mark.parametrize("route", ["pointer", "digit"])
@@ -152,7 +152,7 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
         assert posts == []
     else:
         page.keyboard.press("1")
-        expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
+        expect(page.locator(".lf-held-key")).to_have_text("1")
         assert posts == []
     release()
     wait_until_ready(page)
@@ -193,14 +193,14 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     expect(second).to_have_attribute("aria-selected", "true")
     page.get_by_role("heading", name="Reading before history").click()
     page.keyboard.press("t")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    expect(page.locator(".lf-held-key")).to_have_text("t")
     for route in held:
         refuse(route)
     held.clear()
     page.unroute("**/api/state*")
     page.route("**/api/state*", refuse)
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
     # The notice comes down when the controller takes the queue; its next
     # presentation frame finishes releasing the offline hold.
     rendered(page)
@@ -212,7 +212,7 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     })""")
     page.keyboard.press("x")
     assert page.evaluate("window.offlineKeyArrived") is True
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
 def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, serve):
@@ -251,12 +251,16 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     page.locator("#target").click()
     page.keyboard.press("e")
     page.keyboard.press("1")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text(["e", "1"])
+    expect(page.locator(".lf-held-key")).to_have_text(["e", "1"])
     holding(page, held, 1, "the clock's retry of the malformed first read")
     rendered(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute(
         "placeholder", re.compile("^Couldn't show the latest — reload")
+    )
+    # The error takes the field's words, and the held keys stand in its mode chip.
+    expect(page.locator(".lf-fp-field .lf-fp-mode .lf-held-key")).to_have_text(
+        ["e", "1"]
     )
     assert (
         page.evaluate(
@@ -282,7 +286,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
 
 
 def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
-    """The notice says held keys run when the page is ready, so no clock lets them go:
+    """The words say held keys run when the page is ready, so no clock lets them go:
     a `t` held while the runtime takes half a minute to arrive still walks to the
     thread once the page presents."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -295,16 +299,16 @@ def test_held_keys_outlast_any_wait_for_the_runtime(browser, serve):
     expect(page.locator("#said")).to_be_attached()
     page.keyboard.press("t")
     page.clock.run_for(30_000)
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    expect(page.locator(".lf-held-key")).to_have_text("t")
     page.clock.resume()
     release()
     expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
 def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
     """A runtime that will never arrive takes nothing: once the page reports it could
-    not start, what was held is dropped, its notice goes, and later presses reach the
+    not start, what was held is dropped, its words go, and later presses reach the
     page as they come."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -317,7 +321,7 @@ def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
         " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
     )
     page.keyboard.press("t")
-    echo = page.locator(".lf-held-keys")
+    echo = page.locator(".lf-held-key")
     expect(echo).to_be_visible()
     assert page.evaluate("heard") == [], "the positive control: the press was held"
 
@@ -362,7 +366,7 @@ def test_a_document_the_runtime_gives_up_on_lets_its_held_keys_go(browser, serve
         " document.addEventListener('keydown', (e) => heard.push(e.key)); }"
     )
     page.keyboard.press("t")
-    echo = page.locator(".lf-held-keys")
+    echo = page.locator(".lf-held-key")
     expect(echo).to_be_visible()
 
     release()
@@ -379,31 +383,54 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     browser, serve, stage, touch
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
-    is held, shown as held, and replayed into the presented page — whether the runtime
-    had not loaded or had loaded and not yet read the log."""
+    is held, said in the floating panel's field, and replayed into the presented page —
+    whether the runtime had not loaded, when a stand-in for the panel's row says it
+    until the panel takes it over, or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
     page = browser.new_page(
         viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
     )
     watched(page)
-    held, release = _hold_startup(page, stage)
+    state, release_state = _hold_startup(page, "state")
+    if stage == "module":
+        module, release_module = _hold_startup(page, "module")
     page.goto(url, wait_until="commit")
-    holding(page, held, 1, f"the {stage} request")
-    if stage == "state":
+    if stage == "module":
+        holding(page, module, 1, "the module request")
+    else:
+        holding(page, state, 1, "the state request")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     expect(page.locator("#said")).to_be_visible()
 
     page.keyboard.press("t")
-    echo = page.locator(".lf-held-keys")
-    expect(echo).to_be_visible()
-    expect(echo).to_contain_text("Page still loading")
-    expect(echo.locator("kbd")).to_have_text("t")
-    bounds = echo.bounding_box()
+    panel = page.locator(".lf-floating-panel")
+    stand_in = page.locator(".lf-floating-panel[data-lf-stand-in]")
+    field = panel.locator(".lf-fp-field")
+    expect(field.locator(".lf-held-key")).to_have_text("t")
+    expect(field).to_contain_text("runs when the page is ready")
+    expect(panel).to_have_count(1)
+    expect(stand_in).to_have_count(1 if stage == "module" else 0)
+    bounds = field.bounding_box()
     assert bounds and bounds["y"] >= 0
     assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
+    if stage == "module":
+        # The panel takes the words over where the stand-in said them.
+        release_module()
+        holding(page, state, 1, "the state request")
+        expect(stand_in).to_have_count(0)
+        expect(panel).to_have_count(1)
+        expect(field.locator(".lf-held-key")).to_have_text("t")
+        expect(field.locator("leaf-text")).to_have_attribute("data-lf-says", "held")
+        moved = field.bounding_box()
+        assert moved and abs(moved["y"] - bounds["y"]) < 1, (bounds, moved)
+        # The stand-in adopted the runtime's own chrome sheet, and leaves it adopted once.
+        assert page.evaluate(
+            "() => new Set(document.adoptedStyleSheets).size"
+            " === document.adoptedStyleSheets.length"
+        )
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
-    release()
+    release_state()
     # A margin card on a wide window; the panel's thread on a phone.
     expect(
         page.locator(
@@ -411,7 +438,43 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="held-thread"]'
         )
     ).to_be_focused()
-    expect(echo).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
+
+
+def test_held_keys_stand_beside_a_saved_draft(browser, serve):
+    """A draft in the panel's field hides the words it says at rest, so keys held while
+    the page reloads stand in the field's mode chip beside the draft, which stays."""
+    url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
+    page = open_page(browser, url)
+    panel_field(page).click()
+    page.keyboard.type("Half a thought")
+    page.keyboard.press("Escape")
+    expect(panel_field(page)).not_to_be_focused()
+    held, release = _hold_startup(page, "state")
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the state request")
+    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+
+    page.keyboard.press("t")
+    chip = page.locator(".lf-fp-field .lf-fp-mode")
+    expect(chip.locator(".lf-held-key")).to_have_text("t")
+    expect(chip).to_contain_text("runs when the page is ready")
+    expect(panel_field(page)).to_have_js_property("value", "Half a thought")
+    # However many keys wait, the draft keeps half the field.
+    for _ in range(7):
+        page.keyboard.press("t")
+    expect(chip.locator(".lf-held-key")).to_have_count(8)
+    widths = page.evaluate(
+        """() => [document.querySelector('.lf-fp-field leaf-text'),
+                  document.querySelector('.lf-fp-field')]
+                 .map((node) => node.getBoundingClientRect().width)"""
+    )
+    assert widths[0] >= widths[1] * 0.45, widths
+
+    release()
+    expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
+    expect(chip).to_be_hidden()
+    expect(panel_field(page)).to_have_js_property("value", "Half a thought")
 
 
 def test_a_checkbox_keeps_page_keys_after_reveal(browser, serve):
@@ -455,10 +518,10 @@ def test_editors_and_select_typeahead_keep_letters_while_history_waits(browser, 
     page.locator("#pick").focus()
     page.keyboard.press("c")
     expect(page.locator("#pick")).to_have_value("cat")
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
     page.locator("#said").click()
     page.keyboard.press("t")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    expect(page.locator(".lf-held-key")).to_have_text("t")
     release()
     expect(page.locator('[data-lf-thread="held-thread"]').first).to_be_focused()
     expect(page.locator("#editor")).to_have_value("c")
@@ -479,11 +542,11 @@ def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     holding(page, held, 1, f"the {stage} request")
     expect(page.locator("#said")).to_be_visible()
     page.keyboard.press("t")
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
     release()
     wait_until_ready(page)
     expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
 
 
 def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
@@ -502,11 +565,11 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
     try:
-        expect(page.locator(".lf-held-keys kbd")).to_have_text(["g", "T"])
+        expect(page.locator(".lf-held-key")).to_have_text(["g", "T"])
     finally:
         release()
     wait_until_ready(page)
-    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    expect(page.locator(".lf-held-key")).to_have_count(0)
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", "threads")
     page.keyboard.press("t")
     expect(page.locator('[data-lf-thread="held-thread"]:focus')).to_have_count(0)
@@ -532,7 +595,7 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     holding(page, held, 1, "the runtime module")
     expect(page.locator("#said")).to_be_attached()
     page.keyboard.press("g")
-    expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
+    expect(page.locator(".lf-held-key")).to_have_text("g")
 
     release()
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
@@ -552,9 +615,7 @@ def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
     expect(page.locator("#said")).to_be_attached()
     for key in ["c", "h", "i", "Space", "x"]:
         page.keyboard.press(key)
-    expect(page.locator(".lf-held-keys kbd")).to_have_text(
-        ["c", "h", "i", "Space", "x"]
-    )
+    expect(page.locator(".lf-held-key")).to_have_text(["c", "h", "i", "Space", "x"])
 
     release()
     expect(page.locator("leaf-text:focus")).to_have_js_property("value", "hi x")
@@ -576,10 +637,10 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     expect(page.locator("#said")).to_be_attached()
     for key in ["c", "h", "i"]:
         page.keyboard.press(key)
-    echo = page.locator(".lf-held-keys")
-    expect(echo.locator("kbd")).to_have_text(["c", "h", "i"])
+    echo = page.locator(".lf-held-key")
+    expect(echo).to_have_text(["c", "h", "i"])
     page.keyboard.press("Shift")
-    expect(echo.locator("kbd")).to_have_count(3)
+    expect(echo).to_have_count(3)
 
     page.keyboard.press(ending)
     expect(echo).to_have_count(0)
@@ -601,7 +662,7 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
     page.goto(url, wait_until="commit")
     holding(page, held, 1, "the first state read")
     page.keyboard.press("t")
-    echo = page.locator(".lf-held-keys")
+    echo = page.locator(".lf-held-key")
     expect(echo).to_be_visible()
 
     if gesture == "Escape":

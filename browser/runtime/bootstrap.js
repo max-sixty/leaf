@@ -189,9 +189,20 @@
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
   //
+  // They are shown where the page says what it is doing, the floating panel's field,
+  // which says them in place of the status once the panel offers it as their seat
+  // (`lf-held-keys-seat`, floating-panel.js). The boot module's graph can take half a
+  // second to load on a loaded machine, and the panel stands only once it has, so until
+  // then the keys are shown in a stand-in for the panel's row (panel-stand-in.js),
+  // whose module evaluates without waiting for that graph. The panel takes the words
+  // over in place, and the stand-in goes as it does. A stand-in that cannot load leaves
+  // the words to the panel. The user asked on 10 November 2026 for the panel's look and
+  // field in place of the notice the keys had stood in, a second interface beside the
+  // panel, often standing beside it.
+  //
   // The hold ends when the runtime takes it, when the document reports it cannot start
   // (`recover`, and the runtime's own `letHeldKeysGo` where it gives the document up),
-  // or when the user lets go as above, and never on a clock. The notice says the keys
+  // or when the user lets go as above, and never on a clock. The words say the keys
   // run when the page is ready, and a healthy page can take any time to get there on
   // a loaded machine or a slow network. Rejected: ending the hold ten seconds in (#1213),
   // on the reading that a page not upgraded by then had faulted, which dropped the keys
@@ -217,38 +228,82 @@
     /** @type {(() => boolean) | null} */
     let keep = null;
     let beat = 0;
-    const echo = document.createElement("p");
-    echo.className = "lf-held-keys";
-    echo.setAttribute("data-lf-runtime", "");
-    echo.setAttribute("role", "status");
-    const show = () => {
-      const keys = held.map(({ key }) => {
-        const badge = document.createElement("kbd");
-        badge.className = "lf-key-badge";
-        badge.textContent = key === " " ? "Space" : key;
-        return badge;
-      });
-      echo.replaceChildren(
-        "Page still loading —",
-        ...keys,
-        keys.length === 1 ? "runs when it's ready" : "run when it's ready",
+    // The words shown, as text, or "" while none are.
+    let shown = "";
+    /** @type {((words: HeldWords | null) => void) | null} */
+    let seat = null;
+    /** @type {Promise<typeof import("./panel-stand-in.js")> | null} */
+    let standInModule = null;
+    /** @type {ReturnType<typeof import("./panel-stand-in.js").standInRow> | null} */
+    let standIn = null;
+    // What the held keys say, wherever they show: each key as its badge, then Leaf's
+    // words. The keys lead, so a narrow field that cuts the line short keeps them.
+    /** @returns {HeldWords} */
+    const words = () => [
+      ...held.flatMap(({ key }, at) => [
+        ...(at ? [" "] : []),
+        { key: key === " " ? "Space" : key },
+      ]),
+      held.length === 1
+        ? " runs when the page is ready"
+        : " run when the page is ready",
+    ];
+    const dropStandIn = () => {
+      standIn?.remove();
+      standIn = null;
+    };
+    // The stand-in's module evaluates the runtime's stylesheets, which read the sheets
+    // the document carries (stylesheets.js); one evaluated before the parser reached
+    // them would throw, and fail the boot module that imports it too. So it loads once
+    // the document is parsed, which is still before the boot module can run.
+    const drawStandIn = () => {
+      if (standIn || seat || !shown) return;
+      if (document.readyState === "loading") {
+        document.addEventListener("readystatechange", drawStandIn, { once: true });
+        return;
+      }
+      // The document's import map sends a rooted runtime path to this revision's own.
+      standInModule ??= import("/runtime/panel-stand-in.js");
+      standInModule.then(
+        ({ standInRow }) => {
+          // The words went, or the panel took them, while the module loaded.
+          if (standIn || seat || !shown) return;
+          standIn = standInRow();
+          standIn.say(words());
+        },
+        () => {},
       );
-      // After the body and the chrome's root, which it ties with (base.css,
-      // `.lf-held-keys`); before the body is parsed it would stand ahead of both.
-      if (!echo.isConnected && document.body) document.documentElement.append(echo);
+    };
+    // Words already shown are not shown again: the panel's field repaints for each, and
+    // each of its paints asks the keyboard owner to take the keys again
+    // (controller.js, `watchCommandAvailability`), which pauses on the same key.
+    const show = () => {
+      beat = 0;
+      const said = words();
+      const text = JSON.stringify(said);
+      if (text === shown) return;
+      shown = text;
+      if (seat) seat(said);
+      else if (standIn) standIn.say(said);
+      else drawStandIn();
+    };
+    const hide = () => {
+      clearTimeout(beat);
+      beat = 0;
+      shown = "";
+      seat?.(null);
+      dropStandIn();
     };
     const letGo = () => {
       held.length = 0;
-      clearTimeout(beat);
-      beat = 0;
-      echo.remove();
+      hide();
     };
     /** @param {KeyboardEvent} event */
     const queue = (event) => {
       if (event.repeat) return;
       held.push(event);
       if (taken) return;
-      if (echo.isConnected) show();
+      if (shown) show();
       else beat ||= setTimeout(show, 150);
     };
     /** @param {KeyboardEvent} event */
@@ -288,9 +343,10 @@
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
-    // The controller takes a run, so the notice comes down, but the hold stands until its
-    // owner has pressed the last key in it: a printed key pressed meanwhile joins the
-    // same run rather than running ahead of the keys pressed before it.
+    // The controller takes a run, but the hold stands until its owner has pressed the
+    // last key in it: a printed key pressed meanwhile joins the same run rather than
+    // running ahead of the keys pressed before it. Words already shown stand until the
+    // run is pressed or pauses on a key that must still wait, which they then name.
     /** @param {DocumentEventMap["lf-held-keys"]} event */
     const take = (event) => {
       ready = event.detail.ready;
@@ -301,7 +357,7 @@
       }
       taken = true;
       clearTimeout(beat);
-      echo.remove();
+      beat = 0;
       event.detail.keys = held;
       event.detail.pause = () => {
         taken = false;
@@ -310,13 +366,21 @@
       };
       event.detail.release = () => {
         taken = false;
+        hide();
         if (!keep?.()) stopHoldingKeys();
       };
+    };
+    /** @param {DocumentEventMap["lf-held-keys-seat"]} event */
+    const seated = (event) => {
+      dropStandIn();
+      seat = event.detail.show;
+      if (shown) seat(words());
     };
     stopHoldingKeys = () => {
       window.removeEventListener("keydown", hold, true);
       window.removeEventListener("pointerdown", pointed, true);
       document.removeEventListener("lf-held-keys", take);
+      document.removeEventListener("lf-held-keys-seat", seated);
       letGo();
     };
     window.addEventListener("keydown", hold, true);
@@ -324,6 +388,7 @@
     // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
+    document.addEventListener("lf-held-keys-seat", seated);
   }
 
   // A small public-site profile separates browser upgrade from the first state

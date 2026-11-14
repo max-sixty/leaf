@@ -70,6 +70,10 @@ interface LeafRootState {
   styles(node: ElementCSSInlineStyle): Set<string>;
 }
 
+/** What the keys the bootstrap holds while the page loads say: Leaf's words, with each
+ * key as its badge (`bootstrap.js`, `holdEarlyKeys`). */
+type HeldWords = readonly (string | { readonly key: string })[];
+
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
@@ -227,6 +231,9 @@ interface DocumentEventMap {
       | { keys: KeyboardEvent[]; pause(): void; release(): void }
     )
   >;
+  /** The floating panel's offer of its field to say the bootstrap's held keys in, null
+   * once none are shown (`bootstrap.js`, `floating-panel.js`). */
+  "lf-held-keys-seat": CustomEvent<{ show(words: HeldWords | null): void }>;
   /** A sample child's request to scroll the page along from its frame (`sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<

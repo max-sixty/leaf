@@ -1,7 +1,7 @@
 """Open a thread card in each configuration of `CASES`, and write a gallery of where
 each card stands and how it is shaped.
 
-    uv run leaf-dev placements [--case NAME]... [--base [REF]] [--browser ENGINE]
+    uv run leaf-dev placement cards [--case NAME]... [--base [REF]] [--browser ENGINE]
 
 A case is one configuration a reader meets: the subject the thread is on (words quoted
 in a block, or a whole block), the messages the thread holds, the route that opens its
@@ -13,15 +13,15 @@ such as the agent's answer arriving or a scroll, and the windows it opens in, th
 `fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
 sixteen-line paragraph, a heading, a list, a choice widget, and a section holding a
 table wider than the column. Add a case for a shape someone meets: a line in `CASES`,
-and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote lies
-within one text node of its block.
+and a block in `fixture()` and `SUBJECTS` if its subject isn't there yet. A quote is
+the first run of its words in its block's text (`browser.QUOTE_RANGE`).
 
 Each case is visited in each window on each arm through `leaf_dev.visits`, the loop
 `leaf-dev probe` runs, so a case reads what Leaf draws on its own: it sets only the
 page, the thread's words and the reader's input. `--base` adds the merge base with
 `main`, or REF, beside this working tree.
 
-Each run writes, under `.tmp/placements/run-*/`, `index.html`, a Leaf page source of
+Each run writes, under `.tmp/cards/run-*/`, `index.html`, a Leaf page source of
 the gallery, with its captures in `media/` under the names a page's media take
 (`leaf page media` adds them to another page under the same names); `gallery.html`,
 its sections alone, for a page that shows them among its own with `STYLE`;
@@ -43,7 +43,7 @@ measured in the tab:
 - how far the page scrolled from the input that opened the card, except where `m`
   travelled from the page's top.
 
-    uv run leaf-dev preview --source .tmp/placements/run-XXXX/index.html
+    uv run leaf-dev preview --source .tmp/cards/run-XXXX/index.html
 """
 
 import html
@@ -53,13 +53,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
-from PIL import Image, ImageDraw
 from playwright.sync_api import Page
 
 from leaf.event_log import read_events
-from leaf.media import media_name
 from leaf.render_checks import wait_until_ready
-from leaf_dev import ROOT
+from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
     base_option,
@@ -68,6 +66,7 @@ from leaf_dev.arms import (
     served_page,
 )
 from leaf_dev.browser import (
+    QUOTE_RANGE,
     WINDOWS,
     Window,
     engine_option,
@@ -79,7 +78,7 @@ from leaf_dev.browser import (
 from leaf_dev.states import OPEN_CARD, State, open_card
 from leaf_dev.visits import said, visits
 
-OUT = ROOT / ".tmp" / "placements"
+OUT = ROOT / ".tmp" / "cards"
 
 WIDE = Window((1728, 999), description="a 1728px by 999px window")
 MIDDLE = WINDOWS["macbook"]
@@ -273,15 +272,10 @@ def fixture() -> str:
         f"<td>{n * 3}% of traffic, with an error budget of {n % 5 + 1} minutes a week.</td></tr>\n"
         for n in range(1, 41)
     )
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<title>Placement fixture</title>
-<meta name="description" content="The page leaf-dev placements opens thread cards on.">
-</head>
-<body>
-<main class="layout-column">
-<h1 id="title">Moving to the new cluster</h1>
+    return gallery.page(
+        "Placement fixture",
+        "The page leaf-dev placement cards opens thread cards on.",
+        f"""<h1 id="title">Moving to the new cluster</h1>
 {before}<p id="p-short">The rollout starts on Monday.</p>
 <p id="p-medium">The migration moves each region's traffic to the new cluster in three
 steps. First we mirror reads and compare the answers; then we send a tenth of writes and
@@ -309,10 +303,8 @@ cost.</lf-option>
 {rows}</tbody>
 </table>
 </section>
-{after}</main>
-</body>
-</html>
-"""
+{after}""",
+    )
 
 
 def log_lines(case: Case) -> list[dict]:
@@ -334,20 +326,13 @@ def log_lines(case: Case) -> list[dict]:
 
 
 # Where the reader aims: the case's block, and a range over its quoted words.
-AIM = """([subject, quote]) => {
+AIM = f"""([subject, quote]) => {{
   const block = document.getElementById(subject);
-  if (!quote) return {block, range: null};
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const at = node.data.indexOf(quote);
-    if (at < 0) continue;
-    const range = document.createRange();
-    range.setStart(node, at);
-    range.setEnd(node, at + quote.length);
-    return {block, range};
-  }
-  throw new Error(`“${quote}” is in no text node of #${subject}`);
-}"""
+  if (!quote) return {{block, range: null}};
+  const range = ({QUOTE_RANGE})(block, quote);
+  if (!range) throw new Error(`“${{quote}}” is not in #${{subject}}`);
+  return {{block, range}};
+}}"""
 
 # What the tab shows once the card has opened, read with Leaf's own modules: the block
 # Leaf resolves the thread to and the rectangles of its quoted words, the card, and
@@ -655,23 +640,10 @@ ORANGE = (247, 103, 7)
 
 def outlined(shot: Path, reading: dict) -> bytes:
     """The capture with the subject's block outlined and its quoted words filled."""
-    image = Image.open(shot).convert("RGBA")
-    layer = Image.new("RGBA", image.size)
-    draw = ImageDraw.Draw(layer)
-    for words in reading["quote"]:
-        draw.rectangle(
-            [words["left"] - 1, words["top"], words["right"] + 1, words["bottom"]],
-            fill=(*ORANGE, 70),
-        )
-    block = reading["block"]
-    draw.rounded_rectangle(
-        [block["left"] - 4, block["top"] - 3, block["right"] + 4, block["bottom"] + 3],
-        radius=4,
-        outline=(*ORANGE, 255),
-        width=3,
-    )
     out = Path(shot).with_suffix(".outlined.png")
-    Image.alpha_composite(image, layer).convert("RGB").save(out)
+    gallery.marked(
+        shot, ORANGE, outlined=[reading["block"]], filled=reading["quote"]
+    ).save(out)
     return out.read_bytes()
 
 
@@ -737,20 +709,18 @@ def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
     """One figure: the case's capture on each arm, its configuration and result."""
     key = f"{case.name}-{window.size[0]}x{window.size[1]}"
     shots = {arm: got for arm, got in arms.items() if got.get("image")}
-    alt = {
-        arm: html.escape(f"{case.title}: {got['sentence']}", quote=True)
-        for arm, got in shots.items()
-    }
-    if set(shots) == {"base", "head"}:
-        picture = (
-            f'<lf-shot id="shot-{key}" before="{shots["base"]["image"]}"'
-            f' after="{shots["head"]["image"]}" alt="{alt["head"]}"></lf-shot>'
+    alt = {arm: f"{case.title}: {got['sentence']}" for arm, got in shots.items()}
+    shown = "head" if "head" in shots else next(iter(shots), None)
+    picture = (
+        ""
+        if shown is None
+        else gallery.shot(
+            f"shot-{key}",
+            alt[shown],
+            shots["base"]["image"] if shown == "head" and "base" in shots else None,
+            shots[shown]["image"],
         )
-    else:
-        picture = "".join(
-            f'<a href="{got["image"]}"><img src="{got["image"]}" alt="{alt[arm]}"></a>'
-            for arm, got in shots.items()
-        )
+    )
 
     def said_of(got: dict) -> str:
         if not got.get("image"):
@@ -780,7 +750,7 @@ STYLE = """<style>
 </style>"""
 
 
-def gallery(tiles: dict[Window, list[str]]) -> str:
+def window_sections(tiles: dict[Window, list[str]]) -> str:
     """The tiles, a section for each window, which a page holding `STYLE` shows."""
     return "\n".join(
         f'<section id="window-{window.size[0]}x{window.size[1]}" class="layout-flow">\n'
@@ -795,28 +765,21 @@ def gallery(tiles: dict[Window, list[str]]) -> str:
 
 def page(sections: str, arms, engine: str) -> str:
     commits = ", ".join(f"{arm} at {arm_.commit[:9]}" for arm, arm_ in arms.items())
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<title>Thread card placements</title>
-<meta name="description" content="Where Leaf stands a thread card, and how it shapes it, in each configuration of leaf-dev placements.">
-{STYLE}
-</head>
-<body>
-<main class="layout-column">
-<h1 id="title">Thread card placements</h1>
+    return gallery.page(
+        "Thread card placements",
+        "Where Leaf stands a thread card, and how it shapes it, in each configuration "
+        "of leaf-dev placement cards.",
+        f"""<h1 id="title">Thread card placements</h1>
 <p id="lede">Each capture is a thread card as Leaf draws it in {engine.capitalize()} ({commits}), with
 the block it keeps clear of outlined in orange and its quoted words filled. Regenerate
-with <code>uv run leaf-dev placements</code>; add a case to <code>CASES</code> in
-<code>dev/leaf_dev/commands/placements.py</code>.</p>
-{sections}
-</main>
-</body>
-</html>
-"""
+with <code>uv run leaf-dev placement cards</code>; add a case to <code>CASES</code> in
+<code>dev/leaf_dev/commands/placement/cards.py</code>.</p>
+{sections}""",
+        head=STYLE,
+    )
 
 
-@click.command()
+@click.command("cards")
 @click.option(
     "--case",
     "names",
@@ -895,11 +858,10 @@ def placements(names, engine, base) -> None:
                             )
                             found = findings(reading)
                             data = outlined(Path(visit.reading["shot"]), reading)
-                            name = media_name(data, ".png")
-                            (media / name).write_bytes(data)
+                            image = gallery.media(media, data)
                             sentence, tags = result(case, found, scrolled)
                             got[arm] = {
-                                "image": f"/media/{name}",
+                                "image": image,
                                 "sentence": sentence,
                                 "tags": tags,
                             }
@@ -907,7 +869,7 @@ def placements(names, engine, base) -> None:
                                 "reading": reading,
                                 "found": found,
                                 "opening_scrolled": scrolled,
-                                "image": f"media/{name}",
+                                "image": image.lstrip("/"),
                             }
                         readings.write(json.dumps(record) + "\n")
                         readings.flush()
@@ -916,7 +878,7 @@ def placements(names, engine, base) -> None:
                             + (record.get("failed") or json.dumps(record["found"]))
                         )
                 tiles.setdefault(window, []).append(tile(case, window, got))
-    sections = gallery(tiles)
+    sections = window_sections(tiles)
     (out / "gallery.html").write_text(sections)
     (out / "index.html").write_text(page(sections, arms, engine))
     click.echo(f"wrote {out / 'index.html'}")

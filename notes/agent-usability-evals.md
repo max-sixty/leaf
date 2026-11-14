@@ -71,8 +71,8 @@ Reproduce the recovered grading from this session's local result copies, which r
 references to the original saved pages:
 
 ```sh
-uv run leaf-dev eval --judge pair $(printf -- '--from %s ' .tmp/comparison/phase-aware-runs/*)
-uv run leaf-dev eval-report .tmp/comparison/report .tmp/eval/<judging-run> .tmp/comparison/phase-aware-runs/*
+uv run leaf-dev eval run --judge pair $(printf -- '--from %s ' .tmp/comparison/phase-aware-runs/*)
+uv run leaf-dev eval report .tmp/comparison/report .tmp/eval/<judging-run> .tmp/comparison/phase-aware-runs/*
 ```
 
 The audit is `.tmp/comparison/audit.json`; the original saved runs are under
@@ -92,10 +92,10 @@ check. A second, text-only turn sets each defect beside `page check` on the fina
 page, plain and with `--render`, and beside the checks the author ran itself.
 
 ```sh
-uv run leaf-dev eval 'page-reads-at-every-width*' --harness claude-code --repeat 3 -j 2
-uv run leaf-dev eval 'page-reads-at-every-width*' --harness codex --repeat 3 -j 2
-uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness claude-code --repeat 2 -j 2
-uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness codex --repeat 2 -j 2
+uv run leaf-dev eval run 'page-reads-at-every-width*' --harness claude-code --repeat 3 -j 2
+uv run leaf-dev eval run 'page-reads-at-every-width*' --harness codex --repeat 3 -j 2
+uv run leaf-dev eval run page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness claude-code --repeat 2 -j 2
+uv run leaf-dev eval run page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness codex --repeat 2 -j 2
 ```
 
 The runs authored 37 pages at main `e1ed34cec`: 19 on Claude Code with Opus 5.5
@@ -272,7 +272,7 @@ The four runs are under `.tmp/eval/` in this checkout:
 - `20261021-143958-54gvyi2w` — Leaf, `configuration-b7p94ayd`.
 
 `.tmp/ui-grinding/cycle/provenance-checked.json` retains runtime hashes, native
-model fields and phase paths. `eval-report` on those four runs regenerates the
+model fields and phase paths. `eval report` on those four runs regenerates the
 comparison; use the README's isolated copied-index recipe for rejudging without
 overwriting the original verdicts. The maintainer's `/hill-climb-ui` skill owns the
 improvement loop and experiment design, with command mechanics kept in the README.
@@ -310,8 +310,8 @@ in one turn; `dev/leaf_dev/draw_failures.py` reads the executor's final
 author ran, for findings that say a widget or the page's code failed to run or draw.
 
 ```sh
-uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
 ```
 
 The runs authored at `73222dc97` with the cases of `371e34337`: 70 pages on Claude Code
@@ -373,8 +373,8 @@ script misused `generatedElement`, and its plain check, which runs any page with
 script, caught it.
 
 ```sh
-uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
 ```
 
 Inferred, not measured: the thread results cover one request per widget, and the
@@ -398,7 +398,7 @@ Decision, made on this evidence:
 The thread-diagram context then ran on Codex beside the merge base:
 
 ```sh
-uv run leaf-dev eval widgets-draw-as-written/thread-diagram --harness codex --base --repeat 8 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/thread-diagram --harness codex --base --repeat 8 -j 2
 ```
 
 On the base, 4 of 8 diagram messages didn't draw (22–78%; 9 of 14 with the first
@@ -409,7 +409,7 @@ thread charts and diagrams, 6 of each per arm, all drew on both arms, and no mes
 was refused; mean author time was 1.1 minutes with the run and 1.4 without.
 
 ```sh
-uv run leaf-dev eval widgets-draw-as-written/thread-diagram widgets-draw-as-written/thread-chart --harness claude-code --base --repeat 6 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/thread-diagram widgets-draw-as-written/thread-chart --harness claude-code --base --repeat 6 -j 2
 ```
 
 An earlier run of similar cases, from the closed #3901 at `f00911ed1`, agrees and
@@ -499,8 +499,8 @@ line other live cases share, "Use headless browser tooling for your own inspecti
 and says only that the user will open the page.
 
 ```sh
-uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval document/render-after-handover document/render-after-handover-quick --harness codex --repeat 10 -j 2
+uv run leaf-dev eval run document/render-after-handover document/render-after-handover-quick --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run document/render-after-handover document/render-after-handover-quick --harness codex --repeat 10 -j 2
 ```
 
 | Context, harness           | Ran `--render` before handing over | Got a delivery: failures / advice only | Edited and checked again after it | Final page fails `--render` |
@@ -571,10 +571,10 @@ contract and its cost. These runs scored it against the merge base, where the dr
 `render` move posts the same findings as the page's `error`:
 
 ```sh
-uv run leaf-dev eval document/render-hidden-failure --harness claude-code --base --repeat 6 -j 2
-uv run leaf-dev eval document/render-hidden-failure --harness codex --base --repeat 6 -j 2
-uv run leaf-dev eval document/render-advice-with-comment --harness claude-code --base --repeat 4 -j 2
-uv run leaf-dev eval document/render-after-handover-quick --harness claude-code --base --repeat 10 -j 3
+uv run leaf-dev eval run document/render-hidden-failure --harness claude-code --base --repeat 6 -j 2
+uv run leaf-dev eval run document/render-hidden-failure --harness codex --base --repeat 6 -j 2
+uv run leaf-dev eval run document/render-advice-with-comment --harness claude-code --base --repeat 4 -j 2
+uv run leaf-dev eval run document/render-after-handover-quick --harness claude-code --base --repeat 10 -j 3
 ```
 
 | Case, harness                      | Arm  | Ran `--render` first | Failures delivered: fixed | Advice-only delivered: chart changed | Advice-only held, no further input | Final page fails | Median handover |
@@ -793,8 +793,8 @@ rubric for over-tiling and `page_defects.py`'s live judge. The workflow judges s
 1600×1000 and 900×600.
 
 ```sh
-uv run leaf-dev eval document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness claude-code --viewport desktop --viewport short --repeat 2 -j 2
-uv run leaf-dev eval document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness codex --viewport desktop --viewport short --repeat 2 -j 1
+uv run leaf-dev eval run document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness claude-code --viewport desktop --viewport short --repeat 2 -j 2
+uv run leaf-dev eval run document/live-status dashboard/write-up queue/hand-off dashboard/cold --harness codex --viewport desktop --viewport short --repeat 2 -j 1
 ```
 
 Main was `f00911ed1`: Opus 5.5 on Claude Code, Sol 6.1 on Codex, Sol judges. A
@@ -906,8 +906,8 @@ version, so content a revision adds takes the form the list gives its kind even 
 that changes the page's Layout. That wording was scored with `--base` paired arms:
 
 ```sh
-uv run leaf-dev eval dashboard/write-up queue/hand-off document/live-status exhibit-playground-stays-in-the-column --harness claude-code --viewport desktop --viewport short --base --repeat 2 -j 2
-uv run leaf-dev eval dashboard/write-up queue/hand-off --harness codex --viewport desktop --viewport short --base --repeat 1 -j 1
+uv run leaf-dev eval run dashboard/write-up queue/hand-off document/live-status exhibit-playground-stays-in-the-column --harness claude-code --viewport desktop --viewport short --base --repeat 2 -j 2
+uv run leaf-dev eval run dashboard/write-up queue/hand-off --harness codex --viewport desktop --viewport short --base --repeat 1 -j 1
 ```
 
 | Arm          | Harness     | Dashboard and queue built as parts | Live status built as parts | Judge passes, all three tasks |

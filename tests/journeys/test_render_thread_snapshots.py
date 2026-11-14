@@ -3,7 +3,7 @@
 Run
 ``uv run pytest -n0 tests/*/test_render_thread_snapshots.py``. Baselines are
 reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
-``leaf-dev thread-snapshots --help`` owns snapshot review and acceptance.
+``leaf-dev journey snapshots --help`` owns snapshot review and acceptance.
 """
 
 import json
@@ -15,13 +15,13 @@ from render_harness import consume_browser_errors, http_error_console, open_page
 from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
-from leaf_dev.commands.thread_snapshots import CASES, COMPARED, SnapshotRun
+from leaf_dev.commands.journey.snapshots import CASES, COMPARED, SnapshotRun
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
 
 
 # A colour scheme changes only pixels, so where no image is compared its cases would
 # repeat the light journey.
-# Paused except for `leaf-dev thread-snapshots capture`, which runs it with updating on.
+# Paused except for `leaf-dev journey snapshots capture`, which runs it with updating on.
 @pytest.mark.skipif(
     "not config.getoption('image_snapshot_update')",
     reason="paused: issue #4046, Resume the thread appearance gate",

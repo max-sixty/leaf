@@ -1,6 +1,6 @@
 """Seat comment pins on a catalogue of targets and show where each one stands.
 
-    uv run leaf-dev pins [--base [REF]]
+    uv run leaf-dev placement pins [--base [REF]]
 
 A case is a small piece of page, ordinary or pathological, with comments anchored in it
 (`CASES`). The catalogue is small, and its cases are the shapes that came to mind for a
@@ -35,12 +35,11 @@ from math import hypot
 from pathlib import Path
 
 import click
-from PIL import Image, ImageDraw
 
-from leaf.media import media_name
-from leaf_dev import ROOT
+from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, run_directory, serving_source
 from leaf_dev.browser import (
+    QUOTE_RANGE,
     WINDOWS,
     headless_shell,
     load,
@@ -412,24 +411,7 @@ READING = """async (anchors) => {
     return right - left > 2 && bottom - top > 2 ? {left, top, right, bottom} : null;
   };
   const boxes = (el, rects) => [...rects].map((r) => clipped(el, r)).filter(Boolean);
-  const quoted = (root, quote) => {
-    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    let text = '';
-    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
-      nodes.push([node, text.length]);
-      text += node.data;
-    }
-    const start = text.indexOf(quote);
-    const at = (offset) => {
-      const [node, base] = nodes.findLast(([, base]) => base <= offset);
-      return [node, offset - base];
-    };
-    const range = document.createRange();
-    range.setStart(...at(start));
-    range.setEnd(...at(start + quote.length));
-    return range;
-  };
+  const quoted = QUOTE_RANGE;
   const target = document.getElementById(anchors[0].section);
   const box = target.closest('.pin-case');
   // Near the window's top, with room above the case for a pin seated over it; a case taller
@@ -493,7 +475,7 @@ READING = """async (anchors) => {
     targets,
     pins,
   };
-}"""
+}""".replace("QUOTE_RANGE", QUOTE_RANGE)
 
 
 def read(page, case: Case) -> dict:
@@ -582,7 +564,6 @@ def unaccepted(case: Case, reading: dict, viewport: str) -> list[tuple[str, str]
 def frame(readings: list[dict]) -> tuple[int, int, int, int]:
     """The rectangle around a case and its pins in every reading of it, so each arm's
     crop of one case at one viewport covers the same place on the page."""
-    pad = 16
     rects = [
         rect
         for reading in readings
@@ -591,35 +572,23 @@ def frame(readings: list[dict]) -> tuple[int, int, int, int]:
             *(entry for pin in reading["pins"] for entry in pin["entries"]),
         )
     ]
-    return (
-        int(max(0, min(r["left"] for r in rects) - pad)),
-        int(max(0, min(r["top"] for r in rects) - pad)),
-        int(min(readings[0]["width"], max(r["right"] for r in rects) + pad)),
-        int(min(readings[0]["height"], max(r["bottom"] for r in rects) + pad)),
+    left, top, right, bottom = gallery.frame(
+        rects, 16, readings[0]["width"], readings[0]["height"]
     )
+    return int(left), int(top), int(right), int(bottom)
 
 
 def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
     """Crop one arm's screenshot of a case to `rect`, in CSS pixels, outlining its
     targets, and write it to `out` at the capture's SCALE."""
-    reading = seen["reading"]
-    image = Image.open(seen["shot"]).convert("RGB")
-    draw = ImageDraw.Draw(image)
-    for target in reading["targets"]:
-        for part in target["parts"]:
-            draw.rectangle(
-                tuple(
-                    SCALE * edge
-                    for edge in (
-                        part["left"],
-                        part["top"],
-                        part["right"],
-                        part["bottom"],
-                    )
-                ),
-                outline=(40, 110, 230),
-                width=SCALE,
-            )
+    image = gallery.marked(
+        seen["shot"],
+        (40, 110, 230),
+        outlined=[
+            part for target in seen["reading"]["targets"] for part in target["parts"]
+        ],
+        scale=SCALE,
+    )
     left, top, right, bottom = rect
     image.crop((SCALE * left, SCALE * top, SCALE * right, SCALE * bottom)).save(out)
     return out
@@ -643,13 +612,6 @@ def capture(browser, address: str, out: Path) -> dict:
                     "shot": shot,
                 }
     return result
-
-
-def _media(page_media: Path, image: Path) -> str:
-    data = image.read_bytes()
-    name = media_name(data, ".png")
-    (page_media / name).write_bytes(data)
-    return f"/media/{name}"
 
 
 def _fault_list(case: Case, viewport: str, found: list[tuple[str, str]]) -> str:
@@ -699,23 +661,21 @@ def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
             before = base[1][case.name][viewport] if base else None
             rect = frame([seen["reading"], *([before["reading"]] if before else [])])
             stem = out / f"{case.name}-{viewport}"
-            after_image = _media(media, crop(seen, rect, stem.with_suffix(".head.png")))
+            after = crop(seen, rect, stem.with_suffix(".head.png"))
+            before_image = None
             line = f"<p><strong>{viewport}</strong>: faults {_fault_list(case, viewport, seen['faults'])}"
             if before:
                 line += (
                     f"; on the base, {_fault_list(case, viewport, before['faults'])}"
                 )
-                picture = (
-                    f'<lf-shot id="{case.name}-{viewport}-shot" '
-                    f'alt="the {case.name} case at {viewport} width" '
-                    f'before="{_media(media, crop(before, rect, stem.with_suffix(".base.png")))}" '
-                    f'after="{after_image}"></lf-shot>'
-                )
-            else:
-                picture = (
-                    f'<img src="{after_image}" '
-                    f'alt="the {case.name} case at {viewport} width">'
-                )
+                base_crop = crop(before, rect, stem.with_suffix(".base.png"))
+                before_image = gallery.media(media, base_crop.read_bytes())
+            picture = gallery.shot(
+                f"{case.name}-{viewport}-shot",
+                f"the {case.name} case at {viewport} width",
+                before_image,
+                gallery.media(media, after.read_bytes()),
+            )
             rows.append(f"{line}</p>\n{picture}")
         sections.append(
             f'<section id="{case.name}">\n<h2>{case.name}</h2>\n'
@@ -726,14 +686,10 @@ def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
         )
     page = REPORT / "pins.html"
     page.write_text(
-        f"""<!doctype html>
-<html lang="en">
-<head>
-<title>Pin cases</title>
-</head>
-<body>
-<main class="layout-column">
-<header id="intro">
+        gallery.page(
+            "Pin cases",
+            "Where Leaf seats a comment's pin on each of a catalogue of targets.",
+            f"""<header id="intro">
 <h1>Pin cases</h1>
 <p>{len(CASES)} cases on this working tree{against}, at
 {" and ".join(f"{v} ({WINDOWS[v].size[0]}px)" for v in VIEWPORTS)}. Targets are
@@ -743,11 +699,8 @@ came to mind for a pin to sit on. Where a page shows a placement that looks wron
 add its shape here as a case.</p>
 {summary}
 </header>
-{chr(10).join(sections)}
-</main>
-</body>
-</html>
-""",
+{chr(10).join(sections)}""",
+        ),
         encoding="utf-8",
     )
     return page

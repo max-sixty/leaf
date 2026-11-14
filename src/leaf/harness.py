@@ -957,7 +957,7 @@ HARNESSES: dict[str, type[Harness]] = {
 AGENT_VARIABLE = "LEAF_AGENT"
 # Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
-# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# scrubs the set: a build that publishes pages (`leaf-dev site build`), an eval's child
 # (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(

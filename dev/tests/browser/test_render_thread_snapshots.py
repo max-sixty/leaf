@@ -6,7 +6,7 @@ import shutil
 
 import pytest
 
-from leaf_dev.commands.thread_snapshots import COMPARED
+from leaf_dev.commands.journey.snapshots import COMPARED
 
 
 @pytest.mark.skip(reason="paused: issue #4046, Resume the thread appearance gate")
@@ -18,8 +18,12 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
     from click.testing import CliRunner
 
     from leaf_dev import leaf_assets
-    from leaf_dev.commands import thread_snapshots
-    from leaf_dev.commands.thread_snapshots import accept, capture_files, render_profile
+    from leaf_dev.commands.journey import snapshots as thread_snapshots
+    from leaf_dev.commands.journey.snapshots import (
+        accept,
+        capture_files,
+        render_profile,
+    )
 
     profile = render_profile(browser.version)
     directory = tmp_path / "capture"

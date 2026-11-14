@@ -32,7 +32,7 @@
  * counts the panel marks, then the agent's status. It goes above whatever other
  * plugins draw there. Claude Code keeps an empty row between the band and the
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
- * `leaf-dev claude-code-session` runs a session that draws it from this tree.
+ * `leaf-dev journey session` runs a session that draws it from this tree.
  *
  * In the terminal a click on the link opens the page wherever the terminal runs,
  * SSH included. No escape sequence makes a terminal open a URL without a click,

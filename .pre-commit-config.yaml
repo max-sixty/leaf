@@ -41,9 +41,9 @@ repos:
       - id: record-types
         name: generated Python record types
         language: system
-        entry: uv run leaf-dev record-types --check
+        entry: uv run leaf-dev generate record-types --check
         pass_filenames: false
-        files: '^(src/leaf/|dev/leaf_dev/commands/record_types\.py$|pyproject\.toml$|uv\.lock$)'
+        files: '^(src/leaf/|dev/leaf_dev/commands/generate/record_types\.py$|pyproject\.toml$|uv\.lock$)'
       # Claude Code re-attaches only a skill's first 20,000 characters after a
       # compaction, so past that a session loses the skill's tail without knowing.
       # These are the skills long interactive sessions load.

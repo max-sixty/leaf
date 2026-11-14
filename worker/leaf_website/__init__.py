@@ -1362,7 +1362,7 @@ PageRoute = tuple[str, Path, str]
 def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
     """Read the build's page manifest into routes, longest root first.
 
-    `leaf-dev site` writes each directory relative to the build it describes and
+    `leaf-dev site build` writes each directory relative to the build it describes and
     derives each kind itself, so both are read as given.
     """
     return tuple(
@@ -1632,7 +1632,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
+    `leaf-dev journey run website-adapter` runs this adapter on a developer's machine and
     stops it exactly this way, where an unreaped App Server would outlive the run
     that started it and keep its memory.
 

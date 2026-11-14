@@ -1,8 +1,8 @@
 """Read retained Promptfoo runs: their samples, judgments and execution identity.
 
 A run's `results.json` is its record. `run_samples` reads every authored result in
-it, for `eval-report` and for `eval --from`, which grades those samples again. A
-test `eval --from` writes names the saved results it replays in `metadata.saved`; a
+it, for `eval report` and for `eval run --from`, which grades those samples again. A
+test `eval run --from` writes names the saved results it replays in `metadata.saved`; a
 pair or discovery test also names its kind in `metadata.judgment`, and `judgments`
 reads those, since they judge samples rather than being samples.
 
@@ -153,7 +153,7 @@ def run_samples(runs: tuple[Path, ...]) -> dict:
 
 
 def judgments(runs: tuple[Path, ...], kind: str) -> list[tuple[Path, dict, dict]]:
-    """The `eval --from` judgments of one kind in RUNS: each result with the run
+    """The `eval run --from` judgments of one kind in RUNS: each result with the run
     holding it and its one assertion's result, empty where no assertion ran."""
     return [
         (

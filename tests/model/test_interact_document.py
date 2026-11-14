@@ -1606,7 +1606,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    from leaf_dev.commands.corpus import sources
+    from leaf_dev.commands.generate.corpus import sources
 
     for path in sources():
         read(structure_model.SourceDocument(path.read_text()))

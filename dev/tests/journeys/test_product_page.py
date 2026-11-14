@@ -14,14 +14,14 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     # same nothing. This is `open_page`'s complaint about "Failed to load
     # resource" one file over — carry what failed into the failure.
     recorded = subprocess.run(
-        [sys.executable, "-m", "leaf_dev", "record-demo", "--output", output],
+        [sys.executable, "-m", "leaf_dev", "site", "demo", "--output", output],
         capture_output=True,
         text=True,
         check=False,
     )
 
     assert recorded.returncode == 0, (
-        f"leaf-dev record-demo exited {recorded.returncode}\n"
+        f"leaf-dev site demo exited {recorded.returncode}\n"
         f"{recorded.stdout}{recorded.stderr}".rstrip()
     )
     assert recorded.stdout.strip() == f"Recorded {output}"

@@ -30,7 +30,7 @@ from browser.margin import (
 )
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
-from leaf_dev.commands import pins as pin_cases
+from leaf_dev.commands.placement import pins as pin_cases
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -904,7 +904,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
 def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     browser, serve, viewport
 ):
-    """Every case of `leaf-dev pins`, ordinary and pathological, seats each pin by its
+    """Every case of `leaf-dev placement pins`, ordinary and pathological, seats each pin by its
     target over no words, control or media, inside the window and clear of the other
     pins, except where the case accepts a fault and says why. A placement the gallery
     shows wrong becomes a case there, and so a failure here."""

@@ -3,7 +3,7 @@
 Run
 ``uv run pytest -n0 tests/*/test_render_thread_snapshots.py``. Baselines are
 reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
-``leaf-dev thread-snapshots --help`` owns snapshot review and acceptance.
+``leaf-dev journey snapshots --help`` owns snapshot review and acceptance.
 """
 
 import sys

@@ -202,7 +202,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         harness.endpoint,
     ]
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
-    # run a closing `resolve` and never reply, which `leaf-dev journey website-adapter`
+    # run a closing `resolve` and never reply, which `leaf-dev journey run website-adapter`
     # caught. The hosted page's sentence comes from the steps App Server watches
     # instead, which the activity fold prefers over Leaf's own claim wording for
     # exactly this reason. The shared contract describes `leaf page open`, so what the
@@ -411,7 +411,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     """The stop signal reaches the App Server, not only the adapter that started it.
 
     `close` covers the ordinary return, and inside a container nothing else is
-    needed. On a host it is: `leaf-dev journey website-adapter` runs this adapter and
+    needed. On a host it is: `leaf-dev journey run website-adapter` runs this adapter and
     stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
     re-raising it, so the process dies before any `finally`. The App Server is in a
     session of its own, which is what makes it the one child that survives that —

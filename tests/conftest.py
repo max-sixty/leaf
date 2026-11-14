@@ -339,7 +339,7 @@ def pytest_runtest_call(item):
 # first tier, None, runs in every selection: a pull request, `wt merge`, and broad
 # discovery. A `main` test can land without running and runs on each push to main
 # (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite_profile.BUDGETS`
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite.profile.BUDGETS`
 # holds what a test in each directory may cost.
 TESTS = Path(__file__).parent
 TIERS = {

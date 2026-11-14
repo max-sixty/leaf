@@ -16,7 +16,7 @@ from datetime import datetime
 
 import click
 
-from leaf_dev.commands.journey import CASES, HARNESS_TARGETS, samples_path
+from leaf_dev.commands.journey.run import CASES, HARNESS_TARGETS, samples_path
 
 # The milestones the chart draws (`response_times.page_timings`), on the page
 # server's clock from the comment's admission.
@@ -46,7 +46,7 @@ def chart_target(sample: dict) -> str:
 
 def latest(samples: list[dict]) -> list[dict]:
     """The samples of the latest version each chart row's target ran in each case.
-    Samples kept before the journey read its milestones as `response-times` does
+    Samples kept before the journey read its milestones as `logs response-times` does
     (`milestones`) are left out."""
 
     def row(sample: dict) -> tuple[str, str]:
@@ -222,7 +222,7 @@ def chart_markup(rows: list[dict]) -> str:
     return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escaped}\n</pre></lf-chart>'
 
 
-@click.command()
+@click.command("chart")
 @click.option(
     "--replies",
     is_flag=True,
@@ -249,7 +249,7 @@ def journey_chart(replies: bool, since: datetime | None) -> None:
     if not chosen(samples, since):
         kept = f" kept since {since.isoformat()}" if since is not None else ""
         raise click.ClickException(
-            f"{path} holds no sample with milestones{kept}; run `leaf-dev journey`"
+            f"{path} holds no sample with milestones{kept}; run `leaf-dev journey run`"
         )
     print(
         reply_table(samples, since)

@@ -17,7 +17,7 @@ evidence").
 When a change adds or removes an example or changes its first screen, run
 `wt refresh-previews` from the repository root on macOS once the examples are ready,
 and again after merging `main` or any later fix that changes a first screen.
-`uv run leaf-dev record-demo` does the same for the README's recording and the site's
+`uv run leaf-dev site demo` does the same for the README's recording and the site's
 card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt setup`
 first in a new checkout; if Worktrunk asks to approve the project commands, ask the
 user to run `wt config approvals add`.
@@ -38,7 +38,7 @@ routes.
 
 `corpus.html` and its companions are ignored snapshots composed from the public
 examples, developer pages and regression fixtures. Preview, probe, benchmarks and the
-combined-page tests generate them on demand, and `leaf-dev corpus` builds one
+combined-page tests generate them on demand, and `leaf-dev generate corpus` builds one
 explicitly. Running corpus previews follow source edits as individual previews do, so
 edit the source pages, with no regeneration step before committing. Measure runtime
 cost on the corpus; a small fixture can establish a cause but not the cost.
@@ -86,12 +86,12 @@ its own timestamps to pin what it says.
 
 The images an `lf-shot` or a seeded message shows live under `examples/media/` in
 `max-sixty/leaf-assets`, named by content as `leaf page media` names them, and every
-builder of a page directory copies them in. `uv run leaf-dev publish-media FILE...`
+builder of a page directory copies them in. `uv run leaf-dev site media FILE...`
 adds media, moves the pin and prints the `/media/` path a page uses; commit the pin,
 not the image.
 
 Draw a before/after pair rather than capturing it: both images at one height, at twice
 the width the shot gets on the page, with the palette of the pairs already published.
 Keep a mock's generator in scratch. A generator of images that show Leaf itself, such
-as `leaf-dev record-demo`, is tracked, because a change to Leaf can make those images
+as `leaf-dev site demo`, is tracked, because a change to Leaf can make those images
 stale.

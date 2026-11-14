@@ -189,7 +189,7 @@ per-message effort reaches the model. Elsewhere, as on Vertex, a low fork wrote 
 whole conversation to the cache again (#5891, #5904), and the hooks module learned
 that per backend from each check's usage (#5892, #5907): a stored answer, a rewrite
 to learn it and another to check it again each week. On the 15 turn-end cases of
-`leaf-dev eval 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
+`leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
 answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
 output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements
 below are of that low fork.
@@ -212,7 +212,7 @@ wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
 fork runs off the turn's path, but the sooner it answers, the less often a turn
 opened meanwhile drops its asks (`basis`).
 
-`leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
+`leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
 constructed
 conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).

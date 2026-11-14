@@ -374,11 +374,11 @@ The TypeScript in `worker/src/`, the browser runtime's type check
 the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
-Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
+Worker's dry-run deploy, `leaf-dev site verify website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
 For a change that can alter browser startup, compare base and head: served
-previews for a runtime change, `leaf-dev verify-site website-worker` for site
+previews for a runtime change, `leaf-dev site verify website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's
 state), and compare the requests and bytes loaded before that last phase

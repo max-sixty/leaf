@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
-      # py-spy's sampling rate, which `leaf-dev suite-profile` reads to turn samples
+      # py-spy's sampling rate, which `leaf-dev suite profile` reads to turn samples
       # into minutes.
       PY_SPY_RATE: 2
 
@@ -112,7 +112,7 @@ jobs:
         # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
         # table of every process that ran meanwhile, and `stacks.txt` holds one line
         # per distinct stack and sample count, rooted at its process, for
-        # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
+        # `leaf-dev suite profile`, speedscope or flamegraph.pl. py-spy follows the
         # process tree from `uv run` once it has a child, and stops when it exits. Its
         # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
         # each worker's stack is still sampled 7,200 times an hour.
@@ -129,7 +129,7 @@ jobs:
           trap '' INT
           export PYTHONUNBUFFERED=1
           # Each worker charges its tests' CPU to a cgroup of its own under this one
-          # (`dev/leaf_dev/commands/suite_profile.py`). Owning it lets the workers make and join
+          # (`dev/leaf_dev/commands/suite/profile.py`). Owning it lets the workers make and join
           # theirs without root, and this shell joins it so pytest starts inside.
           export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
           sudo mkdir "$SUITE_PROFILE_CGROUP"
@@ -173,7 +173,7 @@ jobs:
       # interface changes interrupt Chrome's loopback requests in browser tests.
       - name: Build website
         if: github.event_name == 'pull_request'
-        run: uv run leaf-dev site
+        run: uv run leaf-dev site build
 
       # wait runs even when the build fails. Propagate both results and finish
       # Python's artifacts before Docker or the unconditional upload below.
@@ -199,12 +199,12 @@ jobs:
 
       - name: Measure the bundled release in a browser
         if: github.event_name == 'pull_request'
-        run: uv run leaf-dev verify-site website-worker
+        run: uv run leaf-dev site verify website-worker
 
       - name: Summarize where the suite's time went
         if: (success() || failure()) && hashFiles('.tmp/test-results/results.xml') != ''
         run: |
-          uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
+          uv run leaf-dev suite profile .tmp/test-results | tee .tmp/test-results/summary.txt
           { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload pytest results

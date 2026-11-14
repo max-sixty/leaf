@@ -1,6 +1,6 @@
 """Query recorded and visible first feedback from Leaf page logs.
 
-    leaf-dev response-times PAGE... [--since ISO] [--until ISO] [--json]
+    leaf-dev logs response-times PAGE... [--since ISO] [--until ISO] [--json]
 
 Each attention-bearing user message version is an input. Pickup, work starts and
 failure receipts are separate milestones. Progress, published provisional words and
@@ -47,7 +47,7 @@ turn's next tool boundary or its end, else `waiting`. This command reads a Claud
 Code session's transcript still in this machine's Claude Code projects
 (`transcript_of`), which times no request or first output, so the
 model's time stays unsplit; other harnesses' inputs carry no breakdown, and the
-summary's reply rows count them missing. `leaf-dev journey` reads the record of the
+summary's reply rows count them missing. `leaf-dev journey run` reads the record of the
 session it runs instead, on any harness (`journey.User.sample`).
 
 Each input whose opening session's record can be read also carries what its pickup
@@ -55,7 +55,7 @@ waited on (`pickup`, `reply_phases.pickup_wait`), and the summary's `opened_*` r
 sort those waits by cause, each over its own inputs, with the seconds they add up
 to. A survey of every page touched in a week:
 
-    leaf-dev response-times --since 2026-10-20T00:00-07:00 $(find
+    leaf-dev logs response-times --since 2026-10-20T00:00-07:00 $(find
         ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
         sed 's:/events.jsonl$::')
 

@@ -3,7 +3,7 @@ order: the user's messages, Leaf's holds and forks, what Leaf handed each sessio
 when, the session's turns and commands, and the agent's words on the page, with a line
 per message saying how long each step took after the user sent it.
 
-    leaf-dev timeline PAGE... [--message ID] [--since ISO] [--until ISO] [--calls] [--json]
+    leaf-dev logs timeline PAGE... [--message ID] [--since ISO] [--until ISO] [--calls] [--json]
 
 PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 `observations.jsonl`, as a journey's evidence directory does. The records it reads:
@@ -29,7 +29,7 @@ minutes on where it has none, its thread's events and everything the sessions di
 meanwhile. `--calls` adds every tool call and the agent's words in the terminal.
 
 The line per message comes from `response_times.page_timings`, so it times each step
-as `leaf-dev response-times` does: the fork and its outcome, the agent's first words
+as `leaf-dev logs response-times` does: the fork and its outcome, the agent's first words
 on the page, the session's pickup and what it waited on (`reply_phases.pickup_wait`),
 its start and its answer, each in seconds after the message was admitted.
 """
@@ -49,7 +49,7 @@ from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import now_iso
 from leaf.thread_context import thread_names
-from leaf_dev.commands.response_times import page_timings
+from leaf_dev.commands.logs.response_times import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,

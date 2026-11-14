@@ -147,7 +147,7 @@ Where no state reaches a surface the change touches, add one to `STATES`
 never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
-For a change to thread-card placement, also run `uv run leaf-dev placements --base`,
+For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
 a gallery of cards across subjects, messages, routes and windows, and add a case to its
 `CASES` for each new shape a reader meets.
 
@@ -169,14 +169,14 @@ or serve a scratch page.
 
 ## Run the agent journey
 
-`uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
+`uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
 real agent. Run it on each harness a change touches, such as a change to how that
 harness runs Leaf's hooks or sandbox; `references/agent-journey.md` names the target
 for each file, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
-`uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout,
+`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this checkout,
 in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
 the default shared source for a runtime change, pass `--authored` when the authored
 content changed, and pass `--user` only when the URLs go to the user.

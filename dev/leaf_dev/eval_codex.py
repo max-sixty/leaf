@@ -213,7 +213,7 @@ class CodexChild:
 
     Its turns take Leaf's App Server transport: the private server below sets
     `LEAF_CODEX_APP_SERVER` (`private_app_server`). The queue transport the desktop
-    app and IDE use runs under `leaf-dev journey codex-queue`.
+    app and IDE use runs under `leaf-dev journey run codex-queue`.
     """
 
     transport = "app-server"

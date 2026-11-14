@@ -1,5 +1,5 @@
 /*
- * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
+ * Browser-side observations for `leaf-dev site verify`, installed before each navigation.
  * Shared startup evidence is installed separately. Reply readings use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.
@@ -12,7 +12,7 @@
  * reply. The notice's change and the reply's arrival are both on the page's clock.
  *
  * The runtime records agent words coming into view itself (`reply_visible`,
- * runtime/thread/read.js), which `leaf-dev response-times` reads from the page's
+ * runtime/thread/read.js), which `leaf-dev logs response-times` reads from the page's
  * diagnostics, but it cannot stand in for this reading: it records nothing while a
  * thread holds the reply behind its notice, and a website's diagnostics stay in its
  * page's container, out of the journey's reach.

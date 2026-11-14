@@ -9,7 +9,7 @@ from render_harness import (
     watched,
 )
 
-from leaf_dev.commands.verify_site import observe_startup
+from leaf_dev.commands.site.verify import observe_startup
 from leaf_dev.visits import console_findings
 
 

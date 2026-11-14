@@ -45,7 +45,9 @@ from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.commands import preview
+from leaf_dev.commands.site import build as site
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 

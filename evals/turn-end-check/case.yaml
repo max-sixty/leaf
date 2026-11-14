@@ -1,6 +1,6 @@
 # The turn-end check (`src/leaf/clerk.py`), replayed on a short conversation written
 # for each decision its prompt asks about, each with a guardrail whose right answer
-# names nothing. Run every case with `uv run leaf-dev eval 'turn-end-check*'
+# names nothing. Run every case with `uv run leaf-dev eval run 'turn-end-check*'
 # --harness claude-code`; inputs, labels and rubrics are in
 # workflows/fork_eval.yaml.
 description: Turn-end check

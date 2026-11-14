@@ -232,7 +232,7 @@ def workflow_provider(
     return {
         "id": f"file://{ROOT / 'dev/leaf_dev/scenario_provider.py'}",
         "config": {
-            # `eval` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
+            # `eval run` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
             # providers can't read the user's settings; executors need it to find
             # the login (`claude_child`).
             "claude_config_dir": os.environ.get(
@@ -617,9 +617,7 @@ def run_name(scope: str, globs: tuple[str, ...]) -> str:
     return f"{branch} ({scope}): {' '.join(globs) or 'all tasks'}"
 
 
-@click.command(
-    context_settings={"ignore_unknown_options": True},
-)
+@click.command("run", context_settings={"ignore_unknown_options": True})
 @click.argument("args", metavar="[CASE]... [PROMPTFOO_OPTION]...", nargs=-1)
 @click.option(
     "--from",

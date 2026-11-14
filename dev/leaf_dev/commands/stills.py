@@ -81,13 +81,13 @@ from functools import partial
 from pathlib import Path
 
 import click
-from PIL import Image, ImageDraw
+from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from leaf.revision_artifact import resource_type
 from leaf.runtime_selection import read_runtime
-from leaf_dev import ROOT
+from leaf_dev import ROOT, gallery
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (
     Window,
@@ -486,24 +486,21 @@ def crop(
     head = Image.open(folder / "head.png").convert("RGB")
     framing = regions if framing is None else framing
     box = (
-        (
-            max(min(r["x"] for r in framing) - CROP_MARGIN, 0),
-            max(min(r["y"] for r in framing) - CROP_MARGIN, 0),
-            min(max(r["x"] + r["width"] for r in framing) + CROP_MARGIN, head.width),
-            min(max(r["y"] + r["height"] for r in framing) + CROP_MARGIN, head.height),
-        )
+        gallery.frame(map(gallery.edges, framing), CROP_MARGIN, head.width, head.height)
         if framing
         else (0, 0, head.width, head.height)
     )
     base.crop(box).save(folder / "base-crop.png")
     head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
-    draw = ImageDraw.Draw(faded)
-    for r in (r for r in regions if r["side"] == "after"):
-        draw.rectangle(
-            (r["x"] - 3, r["y"] - 3, r["x"] + r["width"] + 2, r["y"] + r["height"] + 2),
-            outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
-            width=2,
+    after = [r for r in regions if r["side"] == "after"]
+    for color, kind in (((220, 0, 0), True), ((40, 110, 230), False)):
+        faded = gallery.marked(
+            faded,
+            color,
+            outlined=[
+                gallery.edges(r) for r in after if (r["kind"] == "changed") == kind
+            ],
         )
     faded.crop(box).save(folder / "diff.png")
 

@@ -17,7 +17,7 @@ The pieces this runbook names:
 | `Dockerfile.website`                               | The container image                                                              |
 | `.github/workflows/publish-site.yaml`              | The only production deploy                                                       |
 
-`uv run leaf-dev site` builds the site into `.tmp/site`, with its edge assets in
+`uv run leaf-dev site build` builds the site into `.tmp/site`, with its edge assets in
 `.tmp/site-assets` and the prepared Leaf installation the image installs in
 `.tmp/site-install`.
 
@@ -86,15 +86,15 @@ To reproduce a deploy-gate failure, build the site and run the gate's checks thr
 the local Worker and container:
 
 ```sh
-uv run leaf-dev site
-uv run leaf-dev verify-site website-worker
-uv run leaf-dev journey website-worker
+uv run leaf-dev site build
+uv run leaf-dev site verify website-worker
+uv run leaf-dev journey run website-worker
 ```
 
-`verify-site website-worker` checks the release `leaf-dev site` built, as
-`publish-site` does before it deploys, and `journey website-worker` runs the agent
+`site verify website-worker` checks the release `leaf-dev site build` built, as
+`publish-site` does before it deploys, and `journey run website-worker` runs the agent
 journey that `publish-site` runs against <https://leaf.page/> after it deploys. Neither
-builds the site, so rerun `leaf-dev site` after a change.
+builds the site, so rerun `leaf-dev site build` after a change.
 
 When the agent's environment cannot access Docker, `verify-website` can run this
 build and local verifier on its GitHub runner, without deploying or running the
@@ -109,12 +109,12 @@ The `website-verification-<run>-<attempt>` artifact retains the Worker/container
 and any completed startup profile. The ordinary PR gate still runs the verifier;
 this dispatch supplies the same check when a reproduction needs its own runner.
 
-For a quicker check of the agent alone, `uv run leaf-dev journey website-adapter` runs
+For a quicker check of the agent alone, `uv run leaf-dev journey run website-adapter` runs
 one real agent turn against the adapter on this machine, without the Worker, container
 limits, credential proxy or Docker. It uses a temporary `CODEX_HOME` with the
 website's Codex config and shares the host's Codex login. It prints the container's
 records and keeps them, with the plugin install's output, under
-`.tmp/verify-site/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
+`.tmp/site-verify/run-*/` (`website-adapter.log`, `plugin-install.log`). In its JSON
 result, `sinceSendMs.responseVisible` is when the
 open Threads view first showed a non-empty agent reply; `milestones.answered` is
 when the container admitted that reply, not when the user could see it.
@@ -134,8 +134,8 @@ pnpm run deploy:dev
 
 The command needs `CLOUDFLARE_API_TOKEN` (see [Credentials](#credentials)). It builds
 the site with a release id derived from `HEAD` and the working tree, deploys only the
-`dev` environment, runs `leaf-dev verify-site` with `--wait 900` until that release
-answers, and then runs `leaf-dev journey` against it. Wrangler secrets do not carry
+`dev` environment, runs `leaf-dev site verify` with `--wait 900` until that release
+answers, and then runs `leaf-dev journey run` against it. Wrangler secrets do not carry
 across environments, so if the dev Worker has no `OPENAI_API_KEY` secret yet, pass it
 on the first deploy:
 
@@ -155,14 +155,14 @@ gh workflow run publish-site.yaml --repo max-sixty/leaf --ref main
 The workflow:
 
 - builds the site with a release id unique to the commit and run attempt;
-- runs `pnpm run check:worker` and `leaf-dev verify-site website-worker`;
+- runs `pnpm run check:worker` and `leaf-dev site verify website-worker`;
 - builds and pushes the container image, and pins it in `wrangler.toml` by its registry
   digest;
 - deploys the Worker with `--containers-rollout=immediate`;
-- runs `leaf-dev verify-site --release <id> --wait 900` against <https://leaf.page/>,
+- runs `leaf-dev site verify --release <id> --wait 900` against <https://leaf.page/>,
   which passes only once Chrome sees that release in the edge document, its module
   URLs, and a newly started private container, with no browser errors;
-- runs `leaf-dev journey https://leaf.page --release <id>`, which needs a hosted agent
+- runs `leaf-dev journey run https://leaf.page --release <id>`, which needs a hosted agent
   to answer a real turn with a reply and a published revision.
 
 Cloudflare activates the Worker before the new container image has rolled out. Until
@@ -220,12 +220,12 @@ curl -sI https://leaf.page/ | grep -i leaf-release
 To re-run the deploy's checks against what is live:
 
 ```sh
-uv run leaf-dev verify-site https://leaf.page --release <release>
-uv run leaf-dev journey https://leaf.page
+uv run leaf-dev site verify https://leaf.page --release <release>
+uv run leaf-dev journey run https://leaf.page
 ```
 
-`verify-site` with no `--release` requires the release of the local `.tmp/site` build,
-so pass the live one. `journey` without `--release` accepts whichever release the site
+`site verify` with no `--release` requires the release of the local `.tmp/site` build,
+so pass the live one. `journey run` without `--release` accepts whichever release the site
 serves; it runs a real hosted turn, which spends the production OpenAI key and counts
 against the rate limits below.
 
@@ -578,7 +578,7 @@ ask, which leaves the answer in force and lets the user answer again
 | `startup_failed` | Worker, or the container for a message it took up after a turn ended | The turn could not be started                    |
 | `turn_failed`    | Container                                                            | A turn it followed ended without an answer       |
 
-`leaf-dev journey`, the deploy's last check, fails on the first failure receipt.
+`leaf-dev journey run`, the deploy's last check, fails on the first failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
 30 seconds. The accepted event is durable; the running turn is not, and nothing

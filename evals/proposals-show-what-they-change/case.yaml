@@ -34,7 +34,7 @@ vars:
     version now, improved over time; (4) broader changes to Leaf to get it producing
     better outputs: review the judges' feedback and assess where they are correct."
 
-    The report is done: `leaf-dev eval-report` wrote it as its own Leaf page, with each
+    The report is done: `leaf-dev eval report` wrote it as its own Leaf page, with each
     pair's final screens side by side, at /report/. Now write the plan page, where each
     change you propose waits on the user's accept or reject. Your notes:
 

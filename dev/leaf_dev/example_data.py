@@ -48,7 +48,7 @@ SOURCE_DIRS = (*PUBLISHED_DIRS, Path("tests/fixtures/pages"))
 # page, but the corpus and the sweeps over authored pages leave them out.
 PRODUCT_DOCS = Path("docs")
 
-# `leaf-dev corpus` composes every authored page into this ignored path among the
+# `leaf-dev generate corpus` composes every authored page into this ignored path among the
 # worked examples, so it is a source a name picks but never an authored page.
 CORPUS = WORKED_EXAMPLES / "corpus.html"
 
@@ -87,7 +87,7 @@ def named_source(name: str, *, root: Path = ROOT) -> Path:
         names = sorted({path.stem for path in sources})
         raise ValueError(f"no source named {name}; available: {', '.join(names)}")
     if found[0] == root / CORPUS:
-        from leaf_dev.commands.corpus import generate
+        from leaf_dev.commands.generate.corpus import generate
 
         return generate(root)
     return found[0]

@@ -62,7 +62,7 @@ The other agents and Max's own sessions share this Mac (18 cores).
   one-minute load is above 36, wait a minute and check again (at most 10 minutes),
   then run anyway with `-n 2` or less. Don't use `taskpolicy -b` for browser tests:
   it throttles headless Chrome to about 10 fps and breaks timing.
-- Don't run `leaf-dev journey`, `leaf-dev eval` or CI dispatches unless your brief
+- Don't run `leaf-dev journey run`, `leaf-dev eval run` or CI dispatches unless your brief
   says to.
 - Format with the pre-commit hooks (`uv run pre-commit run --files <files>`), not a
   bare `ruff` or `npx prettier`.

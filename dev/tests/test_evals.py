@@ -18,7 +18,7 @@ from click.testing import CliRunner
 
 from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
-from leaf_dev.commands import eval as module
+from leaf_dev.commands.eval import run as module
 from leaf_dev.eval_codex import records_for
 from leaf_dev.eval_records import run_samples
 
@@ -569,7 +569,7 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     """Only the live judge is replaced: the tests, their replayed samples, page
     roles, evidence and the report's reading of both orders are real."""
     from leaf_dev import regrade
-    from leaf_dev.commands import eval_report
+    from leaf_dev.commands.eval import report as eval_report
 
     run = saved_run(tmp_path / "saved")
     base, head = (
@@ -672,7 +672,7 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     import turbohtml
     from PIL import Image
 
-    from leaf_dev.commands import eval_report
+    from leaf_dev.commands.eval import report as eval_report
 
     run = saved_run(tmp_path / "saved")
     for sample in ("document-base-0", "document-head-1"):

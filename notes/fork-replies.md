@@ -146,7 +146,7 @@ them.
 
 ## Forks on real pages
 
-From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev response-times`, whose
+From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev logs response-times`, whose
 `fork_*` and `delivered` rows read this). Forks ran on 40: they answered 6, with the
 agent's first words a median 10.6 s after sending; handed 27 to the session, a median
 3.2 s after sending; and failed on 7. The session's own first words on those 27 came a
@@ -165,7 +165,7 @@ so the hand-over's nudge woke it in about 2 s, and a failure cost only the answe
 might have given.
 
 From 6 to 9 November, under the fork that only writes the line, 19 thread messages on
-5 pages: 9 got the line, the 7 of them `response-times` times a median 2.4 s after
+5 pages: 9 got the line, the 7 of them `logs response-times` times a median 2.4 s after
 sending (1.9–5.3 s); 1 failed `nothing-to-fork`; 1 got an answer from a session still
 running the module it started with on 4 November; and 8, all on one session, got no
 line. That session's pages follower had run since 4 November from its worktree's
@@ -179,7 +179,7 @@ foreground poll, and the user saw the agent's first words after 64 s. Nothing re
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
 page now notes whether admission held each message and whether its lane was up
-(`fork_hold`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+(`fork_hold`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev logs timeline`
 reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a

@@ -2,7 +2,7 @@
 plugin and holds a served page, left running for a developer to look at what Leaf's
 hooks module draws there, such as the band above the prompt.
 
-    uv run leaf-dev claude-code-session [--stop]
+    uv run leaf-dev journey session [--stop]
 
 The session runs as the `claude-code` journey's does (`journey_claude_code`), under a
 throwaway home holding only the host's login and a state home of its own, but its
@@ -28,12 +28,12 @@ import click
 from leaf.server import running_server
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS
-from leaf_dev.commands.journey import Isolation, stop_left_running
+from leaf_dev.commands.journey.run import Isolation, stop_left_running
 from leaf_dev.journey_claude_code import ClaudeCode, claude_code_environment
 from leaf_dev.review_scenario import prepare
 
 # Where the running session is recorded, for the next run and `--stop`.
-RECORD = ROOT / ".tmp" / "claude-code-session.json"
+RECORD = ROOT / ".tmp" / "journey-session.json"
 
 
 def stop() -> None:
@@ -47,7 +47,7 @@ def stop() -> None:
     RECORD.unlink()
 
 
-@click.command(name="claude-code-session")
+@click.command("session")
 @click.option("--stop", "stopping", is_flag=True, help="End the running session.")
 def claude_code_session(stopping: bool) -> None:
     """Start a Claude Code session in tmux with this working tree as its live plugin,
@@ -64,7 +64,7 @@ def claude_code_session(stopping: bool) -> None:
     os.environ.clear()
     os.environ.update(env)
     prepare(ROOT, place.state, place.page)
-    cc = ClaudeCode(place, env, model=MODELS["claude-code-session"])
+    cc = ClaudeCode(place, env, model=MODELS["journey-session"])
     RECORD.parent.mkdir(exist_ok=True)
     RECORD.write_text(
         json.dumps({"pane": cc.pane, "root": str(root), "state": str(place.state)})

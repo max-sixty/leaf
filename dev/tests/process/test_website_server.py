@@ -40,7 +40,10 @@ from leaf.files import revision_path
 from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
 from leaf_dev import ROOT, startup
-from leaf_dev.commands import journey, journey_chart, refresh_previews, verify_site
+from leaf_dev.commands.journey import chart as journey_chart
+from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.site import previews as refresh_previews
+from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.reply_phases import turn_phases
 
 
@@ -580,7 +583,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
 
 
 def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples():
-    """`journey-chart` charts the samples the journey kept, so a later reading needs
+    """`journey chart` charts the samples the journey kept, so a later reading needs
     no transcription: each target's latest version only, each sign a sample saw."""
 
     def sample(target, version, titled, picked_up, progress, replied, **named):
@@ -1790,7 +1793,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     assert not Path(other["home"]).exists()
     assert not Path(other["site"]).exists()
     assert (
-        len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
+        len(list((root / ".tmp" / "site-verify").glob("run-*/website-adapter.log")))
         == 2
     )
     assert (host_home / "auth.json").read_text() == '{"test": "refreshed"}'

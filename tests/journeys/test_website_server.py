@@ -26,7 +26,7 @@ from leaf.leases import take_wait_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.commands import verify_site
+from leaf_dev.commands.site import verify as verify_site
 
 
 @pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])

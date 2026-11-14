@@ -359,7 +359,7 @@ compared, whether or not anything grew.
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
 `test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
 runs either moves to `tests/journeys/` or gets faster; a journey within the browser
 budget in both moves to `tests/browser/` when its boundary is one page. A single
 reading moves nothing, since one run's time includes contention. Open one pull

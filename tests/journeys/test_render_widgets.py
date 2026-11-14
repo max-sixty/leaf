@@ -404,8 +404,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     outline.
 
     Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
-    spine, so the prose starts beside the spine rather than a column's width away
-    (#5619). Section rows divide the available height according to the content they
+    spine rather than keeping a column's width (#5619), and the prose stands where a
+    column page's would. Section rows divide the available height according to the content they
     lead, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
     pointer. Outside the narrowed sidebar, the same links open through a native
@@ -487,16 +487,16 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the narrowed sidebar, and the prose starts just past it: the
-    # track's padding and the Layout's gap, where a column's width had stood blank
-    # (#5619).
-    body_start = page.locator("#route + .layout-column h1").evaluate(
-        "node => node.getBoundingClientRect().left"
-    )
-    assert 0 <= body_start - (toc_box["x"] + toc_box["width"]) <= 32, (
-        toc_box,
-        body_start,
-    )
+    # The map stands in the narrowed sidebar, which keeps no column's width (#5619),
+    # and the prose stands centred in the Layout, as a column page's does.
+    placed = page.locator("#route").evaluate("""aside => {
+      const layout = aside.parentElement.getBoundingClientRect();
+      const title = aside.nextElementSibling.querySelector('h1').getBoundingClientRect();
+      return {aside: aside.offsetWidth, prose: (title.left + title.right) / 2,
+              layout: (layout.left + layout.right) / 2};
+    }""")
+    assert placed["aside"] <= 64, placed
+    assert placed["prose"] == pytest.approx(placed["layout"], abs=1), placed
     assert nav_box["y"] == pytest.approx(toc_box["y"], abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
         toc_box["y"] + toc_box["height"], abs=1

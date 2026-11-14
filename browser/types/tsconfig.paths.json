@@ -97,9 +97,6 @@
       "/vendor/pierre-parser.esm.js": [
         "../../build/entries/pierre/parser.mjs"
       ],
-      "/vendor/pierre-trees.esm.js": [
-        "../../build/entries/trees/entry.mjs"
-      ],
       "/vendor/webawesome.esm.js": [
         "../../build/entries/webawesome/entry.mjs"
       ],
@@ -117,7 +114,6 @@
         "../../packages/diagram/vendor/*",
         "../../packages/diff/vendor/*",
         "../../packages/file-editor/vendor/*",
-        "../../packages/file-tree/vendor/*",
         "../../packages/monitoring/vendor/*",
         "../../packages/motion/vendor/*",
         "../../packages/playground/vendor/*",
@@ -133,7 +129,6 @@
         "../../packages/diagram/widgets/*",
         "../../packages/diff/widgets/*",
         "../../packages/file-editor/widgets/*",
-        "../../packages/file-tree/widgets/*",
         "../../packages/monitoring/widgets/*",
         "../../packages/motion/widgets/*",
         "../../packages/playground/widgets/*",

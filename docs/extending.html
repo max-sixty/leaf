@@ -1872,15 +1872,15 @@ flowchart TD
                 <pre>
 flowchart TD
   accTitle: A typed output connects independent widgets
-  accDescr: The author supplies a patch. The Diff widget publishes its changed files using the file-list contract. The page binds a File tree widget to that output, without either widget knowing the other's implementation.
+  accDescr: The author supplies a patch. The Diff widget publishes its changed files using the file-list contract. The page binds a consumer widget to that output, without either widget knowing the other's implementation.
   Patch["Author supplies a patch"] --> Diff["Diff widget"]
-  Diff -->|files: file-list| Tree["File tree widget"]
+  Diff -->|files: file-list| Tree["Consumer widget"]
 </pre>
               </lf-diagram>
               <figcaption id="package-shared-contract">
                 The page connects these widgets with <code>for="release-patch"</code>.
                 The producer and consumer agree on the <code>file-list</code> value’s
-                shape. The file tree can also read a stored source with that contract. A
+                shape. A consumer can also read a stored source with that contract. A
                 published output is a browser-local derivation, not a decision in the
                 page’s log.
               </figcaption>
@@ -2473,18 +2473,6 @@ flowchart TD
                 <strong>File editor</strong>
                 <span
                   >Edit an explicitly bound local text file with automatic saving.</span
-                >
-                <em>Read instructions</em>
-              </a>
-              <a
-                class="package-card"
-                data-package="file-tree"
-                href="https://github.com/max-sixty/leaf/blob/main/packages/file-tree/instructions/author.md"
-              >
-                <strong>File tree</strong>
-                <span
-                  >Navigate a file hierarchy from a file list or a diff's
-                  inventory.</span
                 >
                 <em>Read instructions</em>
               </a>

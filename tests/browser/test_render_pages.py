@@ -3629,7 +3629,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
 ):
     """In a declared shadow tree the default face reaches a bare control, and yields to
     the rules the widget adopts, those of a library it layers inside `lf-base`
-    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    included. It outranked them there, which set such a library's rows, buttons it
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
     declaration["x-shadow"] = True

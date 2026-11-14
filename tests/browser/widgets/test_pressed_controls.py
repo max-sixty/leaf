@@ -129,7 +129,7 @@ STATES = {
 
 # The packages with widgets whose worked examples show no control to press, by
 # directory, so a sweep that finds none anywhere else has lost its controls.
-UNPRESSABLE = {"diagram", "file-tree", "motion"}
+UNPRESSABLE = {"diagram", "motion"}
 
 # The widgets whose presses once flickered, which the sweep must reach sending.
 REACHED = {"lf-playground", "lf-options", "lf-suggestion"}

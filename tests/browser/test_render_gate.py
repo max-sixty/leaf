@@ -1395,8 +1395,6 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
 ):
     source = leaf_page(
         "Patch reading",
-        '<lf-pane id="files" label="Files"><header>Changed files</header>'
-        '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
         '<lf-pane id="code" label="Code"><header>Patch</header>'
         '<div><svg id="drawing" viewBox="0 0 240 40"><text x="0" y="24">'
         "UNCHANGED DRAWING</text></svg>"
@@ -1405,7 +1403,7 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
         "--- a/config.txt\n+++ b/config.txt\n@@ -1 +1 @@\n-old\n+new\n"
         "</pre></lf-diff></div><footer>Tests not run</footer></lf-pane>",
     )
-    page = open_page(browser, live_url(serve(source, packages=("diff", "file-tree"))))
+    page = open_page(browser, live_url(serve(source, packages=("diff",))))
     # The pane's prose, without its opaque children's rendered data, owns what its
     # change's card says of a revision.
     stamp_page(

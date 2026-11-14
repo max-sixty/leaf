@@ -50,7 +50,6 @@ The optional bundled packages are:
 | `diagram`     | `lf-diagram`, rendering Mermaid syntax with Pele.                                                                                                           |
 | `diff`        | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines, and `lf-worktree-diffs` for a set of worktree snapshots. |
 | `file-editor` | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                                                                          |
-| `file-tree`   | `lf-file-tree`, a searchable navigator for a file list or another widget’s typed file inventory, following its opaque datum keys.                           |
 | `playground`  | Controls with shared state, preview and output, and typed submission of the configuration.                                                                  |
 | `monitoring`  | Instructions for a release workspace: current state, checks, a run log and a rollback decision.                                                             |
 | `motion`      | `lf-motion`, shared playback and scrubbing for authored animations and video comparisons.                                                                   |

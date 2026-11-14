@@ -289,33 +289,6 @@ test("an element with id=process leaves syntax highlighting working", () => {
   assert.equal(run.stdout, "x = 1\n\n");
 });
 
-test("Trees search hides every nonmatch and restores an empty query", async () => {
-  // Exercise the actual shipped dependency, including its build adaptations.
-  const bundle = outputs.get("packages/file-tree/vendor/pierre-trees.esm.js");
-  const { FileTree } = await import(
-    `data:text/javascript;base64,${bundle.toString("base64")}`
-  );
-  const tree = new FileTree({
-    paths: ["README.md", "src/main.py"],
-    initialExpansion: "open",
-    search: true,
-  });
-  try {
-    const visible = () =>
-      tree.getVisibleRows(0, tree.getVisibleCount() - 1).map(({ path }) => path);
-    const unfiltered = visible();
-    tree.setSearch("main");
-    assert.deepEqual(visible(), ["src/", "src/main.py"]);
-    tree.setSearch("not-a-file");
-    assert.deepEqual(tree.getSearchMatchingPaths(), []);
-    assert.deepEqual(visible(), []);
-    tree.setSearch("");
-    assert.deepEqual(visible(), unfiltered);
-  } finally {
-    tree.cleanUp();
-  }
-});
-
 test("notices name the packages whose code reached an output", () => {
   const metafile = {
     inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },

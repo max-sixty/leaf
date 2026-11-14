@@ -959,11 +959,16 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         failure="the follow-up's turn never closed",
     )
     if not resumes:
-        [gave] = [
-            note
-            for note in read_interactions(page_dir, types=("fork_outcome",))
-            if note.get("step") == "end" and more["id"] in note["inputs"]
-        ]
+        # Leaf closes the turn before it notes the end, so wait for the note.
+        [gave] = wait_for(
+            lambda: [
+                note
+                for note in read_interactions(page_dir, types=("fork_outcome",))
+                if note.get("step") == "end" and more["id"] in note["inputs"]
+            ],
+            bool,
+            failure="Leaf never noted the follow-up's end",
+        )
         assert gave["outcome"] == "hand_back", gave
         assert "could not be resumed" in gave["why"], gave
     driven.settle()

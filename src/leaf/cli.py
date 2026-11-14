@@ -270,12 +270,23 @@ class LeafGroup(click.Group):
 def _refuse_an_ended_agent() -> None:
     """Refuse a command marked with an agent of the session whose turn has ended,
     whatever the command (`state.acting_agent_turn`), so a fork resumed or running
-    late acts neither in its closed turn nor as the main thread."""
+    late acts neither in its closed turn nor as the main thread. The command names no
+    page yet, so its refused record goes to each page the session holds, as a denied
+    call's does (`interaction_log.record_denial`)."""
     from leaf.harness import session_harness
+    from leaf.interaction_log import acting_on
+    from leaf.refusals import Refused
+    from leaf.service import owned_pages
     from leaf.state import acting_agent_turn
 
-    if (harness := session_harness()) is not None:
+    if (harness := session_harness()) is None:
+        return
+    try:
         acting_agent_turn(harness.session)
+    except Refused:
+        for page_dir in owned_pages(harness.session):
+            acting_on(page_dir)
+        raise
 
 
 def _acting_agent(ctx: click.Context, _param: click.Parameter, value) -> None:

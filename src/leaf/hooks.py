@@ -253,15 +253,16 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     so it also denies a call that only names `leaf`, and the denial says how to post
     text that names a `leaf` command and how to search for the word.
 
-    A fork runs before Leaf learns its agent id: the turn Leaf opened for it stays
-    unnamed until the module, once `$.agent.spawn` or its resume returns, says which
-    agent runs it (`forks.started`), and the payload names neither the spawn's name
-    nor the turn. So while an agent turn of the session awaits its agent
+    A new fork runs before Leaf learns its agent id: the turn Leaf opened for it
+    stays unnamed until the module, once `$.agent.spawn` returns, says which agent
+    runs it (`forks.started`), and the payload names neither the spawn's name nor
+    the turn. So while an agent turn of the session awaits its agent
     (`state.unnamed_agent_turns`), the `leaf` command of any agent running no open
     turn is denied with the instruction to run it again, as Leaf can't yet tell a
-    starting fork's command, which would act as the main thread's or be refused as
-    an ended fork's, from a worker's. A turn left unnamed stops counting once it
-    lapses, as every reader of agent turns believes it (`activity.running_agent_turns`)."""
+    starting fork's command, which would act as the main thread's, from a worker's.
+    A resumed fork's turn is named as Leaf opens it (`forks._take`). A turn left
+    unnamed stops counting once it lapses, as every reader of agent turns believes
+    it (`activity.running_agent_turns`)."""
     agent, given = payload.get("agent_id"), payload.get("tool_input")
     if not agent or not isinstance(given, dict) or "command" not in given:
         return None

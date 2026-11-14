@@ -43,14 +43,16 @@ A complete reading costs about 14 µs a node, timed around `read()` in a scratch
 copy of the watch while the gallery loads (November 2026); about 3,700 of the
 gallery's 5,913 nodes stand in its shut tabs and other skipped content.
 
-Most of the gallery's own time to ready is its 16 live samples arriving after it
-presents: the probe below reports the page presented at about 2.1 s and settled,
-every sample in, at about 8.2 s on an M-series Mac. Each sample frame loads a
-Leaf runtime of its own, and the page's readiness waits for the last.
+Each live sample's frame loads a Leaf runtime of its own, and the page's readiness
+waits for every sample that has started. Until November 2026 every sample started as
+it mounted, and the gallery's 17, 16 of them in shut tabs, took it from presenting at
+about 2.1 s to settling at about 8.2 s on an M-series Mac. A sample now starts only
+as it nears the window (`whenNear`, `browser/runtime/presentation.js`), so one
+starts and the gallery settles at about 1.8 s; the probe below reports both.
 
 ```sh
 uv run leaf-dev probe feature-gallery --motion reduce --viewport 1200x900 \
-  --js "() => ({settled: Math.round(performance.now()), samples: document.querySelectorAll('lf-sample iframe').length})"
+  --js "() => ({settled: Math.round(performance.now()), started: [...document.querySelectorAll('lf-sample iframe')].filter(frame => frame.hasAttribute('src')).length})"
 ```
 
 ## Gesture scroll judgement

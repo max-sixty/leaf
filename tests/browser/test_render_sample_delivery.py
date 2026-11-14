@@ -104,7 +104,8 @@ def test_a_page_cache_round_trip_keeps_the_sample_connected(browser, serve):
     """A persisted pagehide in the child is its containing page's, which the page cache
     brings back together with the child and their port: the host keeps the child's
     document and the child keeps watching where it stands. Playwright's browsers keep
-    no page cache, so the child is handed the events a cached round trip delivers."""
+    no page cache, so the child is handed the events a cached round trip delivers. The
+    sample stands below the window but near it, so it starts unseen."""
     page = open_page(
         browser,
         serve(
@@ -112,7 +113,7 @@ def test_a_page_cache_round_trip_keeps_the_sample_connected(browser, serve):
                 "Cached sample",
                 """
 <h1>Containing page</h1>
-<div style="height: 2000px"></div>
+<div style="height: 150vh"></div>
 <lf-sample id="practice" label="Practice">
   <template id="practice-source" data-sample><h1>Practice page</h1></template>
 </lf-sample>

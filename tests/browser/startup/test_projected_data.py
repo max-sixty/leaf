@@ -307,6 +307,10 @@ customElements.define('lf-feed', class extends LeafElement {
     page.locator("#title").click(click_count=3)
     expect(draft).to_be_visible()
     expect(draft).to_have_js_property("value", "")
+    # The title's box stands under it at the full measure, over the rows, so Escape
+    # puts it away before the row is aimed at again.
+    page.keyboard.press("Escape")
+    expect(draft).to_be_hidden()
     data_model.cmd_data_set(
         serve.page_dir,
         "deployments",

@@ -161,14 +161,16 @@ export {
   backgroundFlash,
   motion,
 } from "./motion.js";
-// A package's routes past presentation both declare the arrival, so a widget cannot
-// defer without the page knowing: `afterPresentation` waits for presentation and then
-// starts the work; `deferredArrival` counts work the widget has already started.
+// A package's routes past presentation all declare the arrival, so a widget cannot
+// defer without the page knowing: `afterPresentation` waits for presentation and
+// `whenNear` for the reader to near a node, then each starts the work;
+// `deferredArrival` counts work the widget has already started.
 export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyBlock } from "./code-copy.js";

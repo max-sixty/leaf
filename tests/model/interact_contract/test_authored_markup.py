@@ -130,6 +130,41 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
+def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
+    """An allocation means something only where the kernel's `$marks` say it does,
+    and delivery paints none elsewhere, so the page would show no sign of it: a width
+    on a question, which draws no box of its own, a width on `main`, which would size
+    the page, and a stated height on a block no module draws into. `page check` names
+    each so the author can move it. A width on the table inside the question, and a
+    height on a chart, mean what they say."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main data-width="wide">')
+        .replace(
+            '<div id="plan-choice-decision">',
+            '<lf-ask id="plan-choice-decision" data-width="available">',
+        )
+        .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
+        .replace(
+            "</lf-options>\n  </div>",
+            "</lf-options>\n"
+            '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
+            '<div id="sized" data-height="200">box</div>\n'
+            '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
+            "</lf-chart>\n  </lf-ask>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert [
+        (f.at, f.values["attr"], f.values["holds"], f.severity)
+        for f in found(findings, "inert-allocation")
+    ] == [
+        ("<main>", "data-width", "content", "advice"),
+        ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
+        ("<div id=sized>", "data-height", "declared", "advice"),
+    ]
+
+
 def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
     """`data-height` states the box of a widget that draws into one, in whole CSS
     pixels."""

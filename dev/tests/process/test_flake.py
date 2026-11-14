@@ -60,8 +60,6 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     monkeypatch.setattr(flake, "OUT", root / ".tmp" / "flake")
     monkeypatch.setattr(flake, "COPIES", 4)
     monkeypatch.setattr(flake, "WORKERS", 2)
-    # A real run elsewhere on the machine would hold the shared lock.
-    monkeypatch.setattr(flake, "LOCK", tmp_path / "flake.lock")
     monkeypatch.setenv(
         "PATH", str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]
     )

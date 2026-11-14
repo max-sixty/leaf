@@ -40,7 +40,7 @@ from PIL import Image
 from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
-from leaf_dev import LEAF_COMMAND
+from leaf_dev import LEAF_COMMAND, gallery
 from leaf_dev.arms import observed_sum
 from leaf_dev.eval_records import judgments, run_samples
 from leaf_dev.regrade import ASPECTS, saved_comparison
@@ -383,9 +383,11 @@ def comparison_screens(
     for name, (width, height) in common:
         images = [paths[width, height] for _, _, paths in captures]
         if aligned and all(images):
-            contents = (
-                f'<lf-shot id="{anchor}-{name}-shot" before="{images[0][0]}" after="{images[1][0]}" '
-                f'alt="Before and after at {width} × {height}"></lf-shot>'
+            contents = gallery.shot(
+                f"{anchor}-{name}-shot",
+                f"Before and after at {width} × {height}",
+                images[0][0],
+                images[1][0],
             )
             if actions:
                 contents += (

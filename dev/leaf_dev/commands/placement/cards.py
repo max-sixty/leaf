@@ -53,13 +53,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
-from PIL import Image, ImageDraw
 from playwright.sync_api import Page
 
 from leaf.event_log import read_events
-from leaf.media import media_name
 from leaf.render_checks import wait_until_ready
-from leaf_dev import ROOT
+from leaf_dev import ROOT, gallery
 from leaf_dev.arms import (
     PageClient,
     base_option,
@@ -655,23 +653,10 @@ ORANGE = (247, 103, 7)
 
 def outlined(shot: Path, reading: dict) -> bytes:
     """The capture with the subject's block outlined and its quoted words filled."""
-    image = Image.open(shot).convert("RGBA")
-    layer = Image.new("RGBA", image.size)
-    draw = ImageDraw.Draw(layer)
-    for words in reading["quote"]:
-        draw.rectangle(
-            [words["left"] - 1, words["top"], words["right"] + 1, words["bottom"]],
-            fill=(*ORANGE, 70),
-        )
-    block = reading["block"]
-    draw.rounded_rectangle(
-        [block["left"] - 4, block["top"] - 3, block["right"] + 4, block["bottom"] + 3],
-        radius=4,
-        outline=(*ORANGE, 255),
-        width=3,
-    )
     out = Path(shot).with_suffix(".outlined.png")
-    Image.alpha_composite(image, layer).convert("RGB").save(out)
+    gallery.marked(
+        shot, ORANGE, outlined=[reading["block"]], filled=reading["quote"]
+    ).save(out)
     return out.read_bytes()
 
 
@@ -737,20 +722,14 @@ def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
     """One figure: the case's capture on each arm, its configuration and result."""
     key = f"{case.name}-{window.size[0]}x{window.size[1]}"
     shots = {arm: got for arm, got in arms.items() if got.get("image")}
-    alt = {
-        arm: html.escape(f"{case.title}: {got['sentence']}", quote=True)
-        for arm, got in shots.items()
-    }
-    if set(shots) == {"base", "head"}:
-        picture = (
-            f'<lf-shot id="shot-{key}" before="{shots["base"]["image"]}"'
-            f' after="{shots["head"]["image"]}" alt="{alt["head"]}"></lf-shot>'
-        )
-    else:
-        picture = "".join(
-            f'<a href="{got["image"]}"><img src="{got["image"]}" alt="{alt[arm]}"></a>'
-            for arm, got in shots.items()
-        )
+    alt = {arm: f"{case.title}: {got['sentence']}" for arm, got in shots.items()}
+    shown = "head" if "head" in shots else next(iter(shots), None)
+    picture = shown and gallery.shot(
+        f"shot-{key}",
+        alt[shown],
+        shots["base"]["image"] if shown == "head" and "base" in shots else None,
+        shots[shown]["image"],
+    )
 
     def said_of(got: dict) -> str:
         if not got.get("image"):
@@ -780,7 +759,7 @@ STYLE = """<style>
 </style>"""
 
 
-def gallery(tiles: dict[Window, list[str]]) -> str:
+def window_sections(tiles: dict[Window, list[str]]) -> str:
     """The tiles, a section for each window, which a page holding `STYLE` shows."""
     return "\n".join(
         f'<section id="window-{window.size[0]}x{window.size[1]}" class="layout-flow">\n'
@@ -795,25 +774,18 @@ def gallery(tiles: dict[Window, list[str]]) -> str:
 
 def page(sections: str, arms, engine: str) -> str:
     commits = ", ".join(f"{arm} at {arm_.commit[:9]}" for arm, arm_ in arms.items())
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<title>Thread card placements</title>
-<meta name="description" content="Where Leaf stands a thread card, and how it shapes it, in each configuration of leaf-dev placement cards.">
-{STYLE}
-</head>
-<body>
-<main class="layout-column">
-<h1 id="title">Thread card placements</h1>
+    return gallery.page(
+        "Thread card placements",
+        "Where Leaf stands a thread card, and how it shapes it, in each configuration "
+        "of leaf-dev placement cards.",
+        f"""<h1 id="title">Thread card placements</h1>
 <p id="lede">Each capture is a thread card as Leaf draws it in {engine.capitalize()} ({commits}), with
 the block it keeps clear of outlined in orange and its quoted words filled. Regenerate
 with <code>uv run leaf-dev placement cards</code>; add a case to <code>CASES</code> in
 <code>dev/leaf_dev/commands/placement/cards.py</code>.</p>
-{sections}
-</main>
-</body>
-</html>
-"""
+{sections}""",
+        head=STYLE,
+    )
 
 
 @click.command("cards")
@@ -895,11 +867,10 @@ def placements(names, engine, base) -> None:
                             )
                             found = findings(reading)
                             data = outlined(Path(visit.reading["shot"]), reading)
-                            name = media_name(data, ".png")
-                            (media / name).write_bytes(data)
+                            image = gallery.media(media, data)
                             sentence, tags = result(case, found, scrolled)
                             got[arm] = {
-                                "image": f"/media/{name}",
+                                "image": image,
                                 "sentence": sentence,
                                 "tags": tags,
                             }
@@ -907,7 +878,7 @@ def placements(names, engine, base) -> None:
                                 "reading": reading,
                                 "found": found,
                                 "opening_scrolled": scrolled,
-                                "image": f"media/{name}",
+                                "image": image.lstrip("/"),
                             }
                         readings.write(json.dumps(record) + "\n")
                         readings.flush()
@@ -916,7 +887,7 @@ def placements(names, engine, base) -> None:
                             + (record.get("failed") or json.dumps(record["found"]))
                         )
                 tiles.setdefault(window, []).append(tile(case, window, got))
-    sections = gallery(tiles)
+    sections = window_sections(tiles)
     (out / "gallery.html").write_text(sections)
     (out / "index.html").write_text(page(sections, arms, engine))
     click.echo(f"wrote {out / 'index.html'}")

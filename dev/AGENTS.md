@@ -27,7 +27,8 @@ module
 here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
 Before writing a mechanism, read the headers of the modules beside `cli.py`: `arms.py`
 builds arms and isolated harness sessions, `page_fixtures.py` page directories, and
-`browser.py` the browser every command drives. What a page or an input costs is
+`browser.py` the browser every command drives, and `gallery.py` the Leaf page of
+captures a command writes to compare Leaf's drawing case by case. What a page or an input costs is
 measured by `leaf-dev bench`, so a new page, input or reading belongs in
 `commands/bench.py` (`COLLECTIONS`, `INPUTS`), whose header names what it reads.
 

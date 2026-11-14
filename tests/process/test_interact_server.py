@@ -2866,6 +2866,9 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     file invalidates it immediately, while a repeated quiet observation does not
     call the neighboring-page scan again.
     """
+    # The cache's two-second age would expire it on a slow machine; age isn't the
+    # subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     real_other_leaves = presence_model.other_leaves
     calls = 0
 
@@ -2956,6 +2959,9 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     neighbour_page(neighbor, title="Neighbor")
     own = server_rows_model.RowPublisher(page_dir, "own-server")
     own.refresh()
+    # Twenty rounds can outlast the cache's two-second age on a slow machine; age
+    # isn't the subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     calls = []
     read = presence_model.other_leaves
 

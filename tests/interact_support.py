@@ -57,12 +57,14 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
+from leaf import reconnect as reconnect_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
@@ -1732,6 +1734,18 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     servers")."""
     yield
     retire_test_services(tmp_path, isolated_session)
+
+
+@pytest.fixture(autouse=True)
+def _hook_bounds_take_the_suites_deadline(monkeypatch):
+    """A hook bounds the work it does by its harness's timeout: a page server's
+    start (`reconnect.SERVE_WITHIN`, 5 s) and the inline handover after it
+    (`hook_transport.CONFIRM_WITHIN`, 10 s from the hook's start). A start takes
+    about 1 s on an idle host and over 5 s on a loaded runner, so in process both
+    take `STATED_TIMEOUT`, and a test whose subject is a bound sets its own
+    (tests/AGENTS.md, "Results do not depend on execution speed")."""
+    monkeypatch.setattr(reconnect_model, "SERVE_WITHIN", STATED_TIMEOUT)
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", STATED_TIMEOUT)
 
 
 @pytest.fixture(autouse=True)

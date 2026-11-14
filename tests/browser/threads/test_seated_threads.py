@@ -474,6 +474,9 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    # The edit reveals its caret in the editor's next frame (editor-view.js), so the
+    # scroll away waits for it: made before it, the reveal brings the box back.
+    rendered(page)
     read = thread.locator(".lf-msg p", has_text="The second paragraph")
     page.evaluate(
         """([node, at]) => document.scrollingElement.scrollBy({

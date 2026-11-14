@@ -1,5 +1,38 @@
 # Page authoring
 
+## Show the subject
+
+Before writing a view's words, decide what it shows. Ask what the user would otherwise
+have to picture from a description, and put that thing on the page in its own form:
+
+- An existing interface is a screenshot, cropped or marked so the eye lands on the
+  point, and a visual change between two versions is an `lf-shot` before-and-after
+  pair (`authoring-evidence.md`, "Interactive and visual evidence").
+- A behavior, such as an interaction, a motion or a process over time, runs: in a live
+  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
+  package. An order of events between actors is an `lf-timeline`.
+- A proposal or mechanism nothing can show yet is drawn: where things sit, what
+  contains, calls or feeds what, how a state changes, today beside the proposal, and
+  alternatives in one frame at one scale.
+- Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
+  are an `lf-chart`, even when they compare the same measures across items. Label the
+  values the argument cites, and put exact values in a table below it when readers
+  need them.
+- Wording the user judges, such as code, a command or a message, is shown as the text
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
+
+A table or list whose rows say where things sit, how large they are or what connects
+to what should be a drawing. A drawing or chart makes its point through its geometry:
+where its marks sit, their sizes, and what contains or links them. One that only
+restates the words or numbers beside it, as boxes holding its sentences or a mark or
+bar per counted item, shows nothing. When the user has nothing to picture, as when
+they weigh a refactor's reasons and cost, leave the case in words and draw nothing.
+
+Use a table for looking up values, for mixed units that can't share an axis, or for
+comparisons with text-heavy cells. `authoring-evidence.md` says which element draws
+each kind of evidence, and how to draw a figure of your own.
+
 ## Develop the work
 
 Choose the material from what the reader needs to understand or decide about the
@@ -34,9 +67,6 @@ judge a design before it is implemented or tested; claims about real behavior
 still require evidence. Keep the distinction visible beside the demonstration.
 `authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
 operable Leaf examples.
-
-Use a drawing when its arrangement, connections or scale make the subject easier
-to understand.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes

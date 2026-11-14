@@ -57,7 +57,8 @@ import { whileConnected } from "./arrivals.js";
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
-import { renderingState } from "./rendering.js";
+import { holdRendering, renderingState } from "./rendering.js";
+import { nearObserver } from "./geometry.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
@@ -101,35 +102,26 @@ export async function whenArrived() {
  * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
-// How near the window `whenNear` starts work: within a window's height above or below
-// it, so a reader scrolling at a reading pace finds it done, while a jump, such as a
-// contents link or a tab, lands on it starting. A scroller inside the window, such as
-// a pane, grows by nothing, so work in it starts as its node shows there:
-// `scrollMargin`, which would grow it, reads differently in each engine
-// (notes/browser-support.md, "Intersection margins of nested scrollers"), and a node in
-// a cross-origin document, such as a sample's own sample, gets no margin at all.
-const NEAR = "100% 0px";
 /** @type {Set<() => void>} */
 const nearing = new Set();
 
-/** Run `start` once, when `node` comes within `NEAR` of the window, as an
- * IntersectionObserver reads it, counting what it returns as an arrival, as
- * `afterPresentation` does. The wait counts too, until the browser's first reading,
- * which it takes at its next rendering even in a frame off screen, has said whether
- * `start` runs, so work that reading starts is counted before the wait lands. Returns
- * the step that stops waiting.
- * @param {Element} node @param {() => unknown} start */
+/** Run `start` once, when `node` comes near the window as `nearObserver` reads it
+ * (geometry.js). What `start` returns, if anything, is the landing of work that moves
+ * what the reader sees: the page counts it as an arrival and as a finite preparation
+ * (rendering.js, `holdRendering`) until it settles, so a gesture whose rendering
+ * brought the node near owns what the landing moves (tests/shift_watch.js). The wait
+ * counts too, until the browser's first reading, which it takes at its next rendering
+ * even in a frame off screen, has said whether `start` runs, so work that reading
+ * starts is counted before the wait lands. Returns the step that stops waiting.
+ * @param {Element} node @param {() => PromiseLike<unknown> | void} start */
 export function whenNear(node, start) {
   /** @type {PromiseWithResolvers<void>} */
   const { promise: read, resolve: land } = Promise.withResolvers();
   deferredArrival(read);
-  const observer = new IntersectionObserver(
-    (entries) => {
-      if (entries.some(({ isIntersecting }) => isIntersecting)) run();
-      land();
-    },
-    { rootMargin: NEAR },
-  );
+  const observer = nearObserver((entries) => {
+    if (entries.some(({ isIntersecting }) => isIntersecting)) run();
+    land();
+  });
   const stop = () => {
     observer.disconnect();
     nearing.delete(run);
@@ -138,7 +130,14 @@ export function whenNear(node, start) {
   const run = () => {
     nearing.delete(run);
     observer.disconnect();
-    deferredArrival(Promise.resolve(start()));
+    const landing = start();
+    if (landing) {
+      const release = holdRendering();
+      deferredArrival(Promise.resolve(landing)).then(
+        () => release(),
+        () => release(),
+      );
+    }
     land();
   };
   nearing.add(run);

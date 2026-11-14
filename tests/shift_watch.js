@@ -92,7 +92,12 @@
 // preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
-// began one only when its declaration carries that input's exact callback source.
+// began one when its declaration carries that input's exact callback source, and when
+// the runtime declares one in an IntersectionObserver delivery while the input's
+// rendering is open and no news has landed: the delivery reports that rendering, which
+// brought the node near, as a tab, a link or a jump brings a live sample's frame near
+// the window and its page starts (presentation.js, `whenNear`). Its landing is the
+// frame fitting that page.
 // Native effects it began retain their sampled displacement within their subtree.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued
@@ -206,6 +211,22 @@
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
   const { listen, microtask: endOfTask } = window.lfWatchPlatform;
+  // Whether an IntersectionObserver delivery is running: the browser's report of the
+  // rendering before it, which no callback source carries (Each trusted gesture, above).
+  let reportingIntersections = 0;
+  const NativeIntersectionObserver = window.IntersectionObserver;
+  window.IntersectionObserver = class extends NativeIntersectionObserver {
+    constructor(callback, options) {
+      super(function (...args) {
+        reportingIntersections++;
+        try {
+          return callback.apply(this, args);
+        } finally {
+          reportingIntersections--;
+        }
+      }, options);
+    }
+  };
   // A native paint/task checkpoint retires only evidence it has judged. Execution
   // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
@@ -1884,7 +1905,11 @@
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
       const source = window.lfInputWork.current();
-      const owner = source && inputRenderings.get(source.event);
+      const owner = source
+        ? inputRenderings.get(source.event)
+        : reportingIntersections && open && !open.told
+          ? open
+          : null;
       if (owner) preparing.set(preparation, owner);
       return;
     }

@@ -30,16 +30,21 @@
  * from one to a page outside Leaf, whose load can land before the departure's notice,
  * so nothing is counted between. Work a child starts after it has arrived, such as
  * one of its own samples' Reset, is the child's to count. A resize of a child the
- * reader did not ask to load, one started by nearing the window, waits while it would
- * move what they see, the frame keeping its current height (`heldGrowth`), until they
- * look away, or until they click, type or press a key inside the child, which makes
- * every later resize of that document theirs, though not a wheel or touch that
- * scrolls past it; a resize after Reset or Return to page, or one of a frame the
- * reader saw as it mounted, is theirs and applies at once. A load that waited on its
- * server arrives as news, held the same way, whoever asked for it: after minutes of
- * waiting the reader may have moved on. The status line keeps its room through
- * loading, ready and failure, so the frame below it stays put; a failure's words that
- * run past it stand in a disclosure the reader opens over the frame.
+ * reader did not ask to load, one that started near the window but out of their
+ * sight, waits while it would move what they see, the frame keeping its current
+ * height (`heldGrowth`), until they look away, or until they click, type or press a
+ * key inside the child, which makes every later resize of that document theirs,
+ * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
+ * page, or one of a frame the reader saw as it mounted or as it started, as when a
+ * tab, a link or a jump brings it into view, is theirs and applies at once. The user
+ * chose on 14 November 2026 to fit a frame they bring into view to its page as soon
+ * as the page draws, over keeping its placeholder height until they look away or
+ * click into it, which left a short page standing in a blank frame. A load that
+ * waited on its server arrives as news, held the same way, whoever asked for it:
+ * after minutes of waiting the reader may have moved on. The status line keeps its
+ * room through loading, ready and failure, so the frame below it stays put; a
+ * failure's words that run past it stand in a disclosure the reader opens over the
+ * frame.
  * Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
@@ -110,8 +115,13 @@ export class Sample extends HTMLElement {
   #disclosure = null;
   /** @type {number | undefined} */
   #heightReading;
+  // Settles what `#start` returns: the frame's first fit to its child.
+  /** @type {(() => void) | null} */
+  #fitted = null;
   #fit = () => {
     this.#frame.style.height = `${this.#heightReading}px`;
+    this.#fitted?.();
+    this.#fitted = null;
   };
   #scheduleFit = frameFor(this, this.#fit);
   // Drops a resize `heldGrowth` holds.
@@ -185,28 +195,37 @@ export class Sample extends HTMLElement {
     if (!this.#pageView || this.#host || this.#mounting || this.#nearing) return;
     // A frame the reader sees as it mounts is part of what they are being shown, the
     // page arriving or a view they opened, such as a thread in the floating panel: it
-    // starts at once, and where its resize to its child would move what they see, that
-    // showing waits for it, so the resize is the showing's rather than news. A window
-    // keeps its height.
-    if (
-      !this.hasAttribute("window") &&
-      !isNativeLayer(this.#view) &&
-      growthIsSeen(this.#frame)
-    ) {
+    // starts at once, and that showing waits for its resize to its child.
+    if (this.#seen()) {
       this.#start(true, { present: true });
       return;
     }
+    // One the reader sees as it starts, brought into view by a tab, a link or a jump,
+    // is theirs too, and fits its page as soon as that draws; `whenNear` holds the fit
+    // as the landing of the gesture that brought it near. One that starts near the
+    // window but out of their sight arrives as news, and lands nothing they see.
     this.#nearing = whenNear(this.#frame, () => {
       this.#nearing = null;
-      this.#start(false);
+      const asked = this.#seen();
+      const fitted = this.#start(asked);
+      return asked ? fitted : undefined;
     });
   }
 
+  // Whether the frame's resize to its child would move what the reader sees now. A
+  // window keeps its height.
+  #seen() {
+    return (
+      !this.hasAttribute("window") &&
+      !isNativeLayer(this.#view) &&
+      growthIsSeen(this.#frame)
+    );
+  }
+
   // Start the child. Its resize on arrival applies at once where the reader `asked`
-  // for it, and otherwise waits while they see it (`#height`): a child started by
-  // nearing the window is news when it arrives, even where they brought it into view
-  // by a tab or a link, since the page showed its placeholder first.
-  /** @param {boolean} asked */
+  // for it, and otherwise waits while they see it (`#height`). Returns the frame's
+  // first fit to its child, or its readiness settling where it fits nothing then.
+  /** @param {boolean} asked @returns {Promise<unknown>} */
   #start(asked, { present = false } = {}) {
     this.#mounting = true;
     /** @type {PromiseWithResolvers<void>} */
@@ -278,6 +297,10 @@ export class Sample extends HTMLElement {
     this.#starting.resolve(following);
     const shown = following.catch(() => {});
     if (present) widgetController(this).present(Promise.race([shown, waiting]));
+    /** @type {PromiseWithResolvers<void>} */
+    const { promise: fitted, resolve: fit } = Promise.withResolvers();
+    this.#fitted = fit;
+    return Promise.race([fitted, shown]);
   }
 
   // Removal closes a modal Full view at once, so the view returns to its embedded

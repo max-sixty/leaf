@@ -16,7 +16,10 @@
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
    `column` is the passage's inline start when it quotes words;
-   without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
+   without one, the card's width ends at `clear`'s right edge. Under or over, a surface
+   stands at the measure (`--thread-card`), or the boundary's width where that is
+   narrower, so where that start would carry it past the boundary's right edge it
+   starts further left rather than narrowing (`place-under-or-over`). `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. A caller requesting
@@ -414,9 +417,10 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
     : "top";
 }
 
-// The minimum width chooses the side; the preferred measure caps message width and
-// decides whether clearing the margin row would sacrifice it. `commentPlacement`
-// reads both, so the comment box and its sent card share the same placement rule.
+// The minimum width chooses the side: a side whose room holds less stands nothing. The
+// measure is the width every surface takes where its room holds it (`size-width`), and
+// decides whether clearing the margin row would sacrifice it. `commentPlacement` reads
+// both, so the comment box and its sent card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -546,16 +550,12 @@ export function commentPlacement() {
       (past({ x: 1 }) ?? clear.right) - clear.left,
       clear.height,
     );
-    // The compact editor and its sent card share one start. Reserve the declared
-    // card footprint before a shorter editor's own width can put that start too far
-    // toward the boundary, where later typing or reopening would have to move it.
+    // The compact editor and its sent card share one start, which leaves the surface
+    // its whole width, the measure or the boundary's where that is narrower.
+    const span = Math.min(cardMeasure(), boundary.width);
     const inlineStart = unanchored
       ? boundary.left
-      : clamp(
-          column ?? box.right - minimumWidth,
-          boundary.left,
-          boundary.right - Math.min(minimumWidth, boundary.width),
-        );
+      : clamp(column ?? box.right - span, boundary.left, boundary.right - span);
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,

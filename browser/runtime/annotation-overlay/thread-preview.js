@@ -154,7 +154,6 @@ import { coarsePointer } from "../pointer.js";
 import {
   attachedEdge,
   cardMeasure,
-  cardMinimum,
   commentAttachment,
   commentReference,
   commentBoundary,
@@ -818,17 +817,17 @@ export function createThreadPreview({
               transcript: session.transcript,
             };
             if (fresh) session.width = null;
-            // A card that has stood keeps its width (`session.width`): its floor and
-            // cap are that width, or the room where the room is narrower.
+            // A card is as wide as the measure, or its room where the room is
+            // narrower, whatever its messages hold, so no message that arrives or is
+            // typed changes its width and moves its controls. One that Send opened or
+            // the user carried keeps that box's width (`session.width`) until its side
+            // is chosen again, or the room where the room is narrower.
             const room = Math.min(
               cardMeasure(),
               width,
               (session.width ?? Infinity) / scale.x,
             );
-            preview.style.setProperty(
-              "min-width",
-              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
-            );
+            preview.style.setProperty("min-width", layoutPx(room));
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
             // to the boundary's far edge, or the tallest it has stood since its line
@@ -891,7 +890,6 @@ export function createThreadPreview({
           keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
           return moved;
         }, anew);
-        session.width ??= preview.getBoundingClientRect().width;
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;
@@ -997,9 +995,9 @@ export function createThreadPreview({
       end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
-      // Send replaced, so the two are one rectangle, else the one it first stood at, or
-      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
-      // comment's card 13px wider than its box.
+      // Send replaced, so the two are one rectangle, or the one it was carried at
+      // (`placeThreadPreview`). Sized by itself, Firefox stood a one-line comment's card
+      // 13px wider than its box.
       itemView: null,
       width: origin?.box.width ?? null,
       scroller: pageScroller,
@@ -1058,7 +1056,7 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a card near its least width (`--thread-card-min`) already
+      // actions line, which on a card in a narrow room (`--thread-card-min`) already
       // leaves the message heads little room; " of " made it 12px wider, which on a
       // 311px card pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);

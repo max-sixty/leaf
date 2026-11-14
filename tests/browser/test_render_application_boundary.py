@@ -72,7 +72,6 @@ THREAD_READER_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
@@ -106,7 +105,6 @@ THREAD_FILTER_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
@@ -836,7 +834,6 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-shadow": True,
                 "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
@@ -1393,7 +1390,6 @@ THREAD_ACTIONS_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
 }
 
@@ -1719,7 +1715,6 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 "additionalProperties": False,
                 "x-content": "empty",
                 "x-shadow": True,
-                "x-upgrade": True,
             }
         },
         layer_widgets={
@@ -2103,7 +2098,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "additionalProperties": False,
         "x-content": "empty",
         "x-shadow": True,
-        "x-upgrade": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
     module = module.replace(

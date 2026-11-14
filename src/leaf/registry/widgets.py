@@ -5,12 +5,14 @@ from jsonschema.exceptions import SchemaError
 from leaf.schema import ATTRIBUTE_KEYS, EXTENSION_SCHEMA
 
 from .contract import (
+    MODULES,
     deciding_outcomes,
     deciding_verb,
     gathering,
     reference_relation_problem,
     registry_error,
     state_specs,
+    upgraded,
 )
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
@@ -97,7 +99,7 @@ def _validate_widget_relations(
         tag, entry, registry, declarations, data, path
     )
     awaits = _validate_widget_predicates(tag, entry, properties, path)
-    _validate_widget_interactions(tag, entry, properties, awaits, path)
+    _validate_widget_interactions(tag, entry, registry, properties, awaits, path)
     validate_widget_state_relations(tag, entry, declarations, path)
     validate_widget_record_contracts(
         tag, entry, properties, said, registry, declarations, path
@@ -224,8 +226,6 @@ def _validate_widget_structure(
                 key="x-visual.parts",
                 names=[part_attribute],
             )
-        if not entry["x-upgrade"]:
-            raise registry_error("visual-upgrade", path, tag)
     return properties, said
 
 
@@ -330,6 +330,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
 def _validate_widget_interactions(
     tag: str,
     entry: dict,
+    registry: dict,
     properties: dict,
     awaits: dict,
     path,
@@ -361,7 +362,10 @@ def _validate_widget_interactions(
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
-    needs_upgrade = [
+    # What only a module can do. A declaration of one without its module is a widget
+    # that reads as working and does nothing. Declarations validated apart from the
+    # files they compose with carry no `MODULES`, and there nothing can say.
+    needs_module = [
         key
         for key in (
             "x-state",
@@ -371,11 +375,14 @@ def _validate_widget_interactions(
             "x-thread-surface",
             "x-thread-seat",
             "x-history",
+            "x-patch",
         )
-        if entry.get(key) and not entry["x-upgrade"]
-    ]
-    if needs_upgrade:
-        raise registry_error("needs-upgrade", path, tag, keys=needs_upgrade)
+        if entry.get(key)
+    ] + (["x-visual"] if isinstance(entry.get("x-visual"), dict) else [])
+    if needs_module and MODULES in registry and not upgraded(registry, tag):
+        raise registry_error(
+            "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"
+        )
     # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.

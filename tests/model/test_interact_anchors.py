@@ -30,6 +30,7 @@ from interact_support import (
     state_json,
     suggested,
     thread_records,
+    with_modules,
 )
 
 from leaf import cli as cli_model
@@ -1961,10 +1962,13 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
-    registry = {
-        "lf-source": {"x-content": "data", "x-upgrade": True},
-        "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
-    }
+    registry = with_modules(
+        {
+            "lf-source": {"x-content": "data"},
+            "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
+        },
+        "lf-source",
+    )
     document = structure_model.SourceDocument(
         '<p>Before.</p><lf-source id="source"><pre>Hidden source '
         "<lf-remark>Still source.</lf-remark></pre>"

@@ -149,7 +149,7 @@ def _asked(context):
 def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     """The vocabulary is the layer's; the modules are this page's.
 
-    Every declared `x-upgrade` tag used to import on every page, so a triage board
+    Every tag with a module used to import on every page, so a triage board
     with no diff anywhere on it fetched Pierre's renderer, and that one module was
     more than half the bytes the page moved. The board page's own modules, the board,
     its grid and its activity feed, are the population: a page that asked for nothing

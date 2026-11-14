@@ -229,8 +229,8 @@ colours with the page's status.
 ## A widget
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
-that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an obligation on On Me. The merged registry's `$keys` entry defines each
+that say how Leaf treats the tag, such as its action verbs and whether it puts an
+obligation on On Me. The merged registry's `$keys` entry defines each
 key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
@@ -264,9 +264,13 @@ role on the page:
 | `x-views`          | `lf-tabs`                                                      |
 | `x-thread-surface` | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
 
-A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module,
-following [module-authoring.md](module-authoring.md). Helper modules sit beside the
-entry module, and third-party files go under `vendor/`. What declarations mean for user
+A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
+at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's
+presence is what makes the tag an upgraded widget: Leaf loads it only where a page's
+markup uses the tag, no declaration names it, and the composed registry lists each
+tag's module under `$modules`. Helper modules sit beside the
+entry module under names that aren't a declared tag's, and third-party files go under
+`vendor/`. What declarations mean for user
 state is in [package-data.md, "User state"](package-data.md#user-state).
 
 ## Seeing it

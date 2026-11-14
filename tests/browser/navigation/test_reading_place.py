@@ -217,7 +217,6 @@ ITEMS_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
@@ -232,7 +231,6 @@ ITEMS_LAYER = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-refers": {"for": {}},
-        "x-upgrade": True,
         "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }

@@ -183,7 +183,6 @@ PROGRESSIVE_REGISTRY = {
         "additionalProperties": False,
         "required": ["id"],
         "x-content": "markup",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-patch": "members",
     }

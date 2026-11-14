@@ -204,7 +204,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         ),
         (
             json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
-            "missing-module",
+            "needs-module",
             "<lf-local>",
         ),
     ],
@@ -251,19 +251,28 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-eps": _faulty(
                     "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
                 ),
+                # What only a module provides, with no module for the tag.
+                "lf-delta": _faulty("lf-delta", upgrade=True),
             },
-            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+            [
+                ("undeclared-attributes", "<lf-beta>"),
+                ("requires", "<lf-eps>"),
+                ("needs-module", "<lf-delta>"),
+            ],
         ),
-        # An example and a module, once the vocabulary holds.
+        # Each example, once the vocabulary holds.
         (
             {
                 "lf-gamma": _faulty(
                     "lf-gamma",
                     **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
                 ),
-                "lf-delta": _faulty("lf-delta", upgrade=True),
+                "lf-delta": _faulty(
+                    "lf-delta",
+                    **{"x-example": '<lf-delta id="d" tone="x">D</lf-delta>'},
+                ),
             },
-            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+            [("invalid-example", "<lf-gamma>"), ("invalid-example", "<lf-delta>")],
         ),
     ],
 )

@@ -2868,12 +2868,9 @@ def test_the_layer_composer_is_the_browser_module_population():
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, diagram]
     )
     widgets = composition.directory_files["widgets"]
-    upgraded = {
-        f"{tag}.js"
-        for tag, entry in composition.vocabulary.registry.items()
-        if tag.startswith("lf-") and entry["x-upgrade"]
-    }
+    upgraded = {f"{tag}.js" for tag in composition.vocabulary.registry["$modules"]}
 
+    assert {"lf-suggestion.js", "lf-options.js", "lf-diagram.js"} <= upgraded
     assert upgraded <= widgets.keys()
     assert "lf-diagram.js" in widgets
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
@@ -3285,7 +3282,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {"user-only": {"type": "string"}},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     project_entry = {
         "description": "project shape",
@@ -3293,7 +3289,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {"project-only": {"type": "string"}},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     project_only = {
         "description": "project-only shape",
@@ -3301,7 +3296,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
     (project_layer / "registry.json").write_text(
@@ -3987,7 +3981,6 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-upgrade"] = True
     registry["lf-unfinished"]["x-verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 

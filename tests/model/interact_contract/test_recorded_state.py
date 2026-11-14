@@ -13,6 +13,7 @@ from interact_support import (
     found,
     model_layer,
     refused_on,
+    with_modules,
 )
 
 from leaf import event_contracts as event_contracts_model
@@ -209,7 +210,7 @@ def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
         "enum": ["next", "forbidden"],
         "maxLength": 4,
     }
-    registry["lf-local"] = declaration
+    with_modules(registry, "lf-local")["lf-local"] = declaration
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
         '<lf-local id="local" value="next">Local</lf-local>', registry=registry
@@ -390,7 +391,7 @@ def _independent_member_records():
     """An unfamiliar package composes selection, positions and scalar member state."""
     registry = deepcopy(model_layer())
     for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card"):
-        registry[tag] = element_declaration(tag, upgrade=True)
+        with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
         registry[tag]["properties"]["restated"] = {"type": "boolean"}
         registry[tag].pop("x-example", None)
     board, zone, card = (
@@ -545,7 +546,7 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
         holder["x-state"] = {
             "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
         }
-        registry[tag] = holder
+        with_modules(registry, tag)[tag] = holder
     registry_validation.validate_registry(registry, "movable record compositions")
     page = ModelPage(
         '<lf-audit-board id="board"><lf-audit-left id="left">'
@@ -576,7 +577,8 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
 def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilities():
     registry = deepcopy(model_layer())
     child = registry["lf-option"]
-    child.update({"x-upgrade": True, "x-shadow": True, "x-visual": "whole"})
+    child.update({"x-shadow": True, "x-visual": "whole"})
+    with_modules(registry, "lf-option")
     registry_validation.validate_registry(registry, "presentation members")
     child["properties"].update(phase={"type": "string"}, restated={"type": "boolean"})
     child["x-state"] = {"phase": _value_verb("phase")}

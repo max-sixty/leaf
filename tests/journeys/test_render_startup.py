@@ -571,7 +571,6 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-example": '<lf-probe id="probe"></lf-probe>',
     }

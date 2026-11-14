@@ -54,6 +54,7 @@ from interact_support import (
     stamp,
     state_json,
     vendored_at_another_protocol,
+    with_modules,
     write_revision,
 )
 
@@ -746,10 +747,11 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
-    registry = {
-        "lf-shell": {"x-upgrade": True, "x-verbatim": True},
-        "lf-piece": {"x-upgrade": True, "x-verbatim": True},
-    }
+    registry = with_modules(
+        {"lf-shell": {"x-verbatim": True}, "lf-piece": {"x-verbatim": True}},
+        "lf-shell",
+        "lf-piece",
+    )
     plain = passages_model.page_passages(
         structure_model.SourceDocument(
             '<lf-shell id="shell"><p>set<em>up</em></p>'
@@ -890,14 +892,16 @@ def test_option_markdown_file_words_match_browser_cases(case):
 
 def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     """Authored and replayed Markdown share anchors without losing their source value."""
-    registry: dict[str, dict] = {
-        "lf-draft": {
-            "x-content": "data",
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-text-format": "markdown",
-        }
-    }
+    registry: dict[str, dict] = with_modules(
+        {
+            "lf-draft": {
+                "x-content": "data",
+                "x-verbatim": True,
+                "x-text-format": "markdown",
+            }
+        },
+        "lf-draft",
+    )
     source = "**Keep** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
     doc = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{source}</pre></lf-draft></main>'
@@ -1647,7 +1651,6 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
     declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
@@ -3836,7 +3839,6 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "type": "object",
             "properties": {},
             "x-content": "markup",
-            "x-upgrade": False,
             "x-owners": ["lf-column"],
         }
 
@@ -4297,7 +4299,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 
     registry: dict[str, dict] = {
         "lf-draft": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "edit": {
@@ -4307,6 +4308,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             },
         }
     }
+    with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
     frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
 
@@ -4367,7 +4369,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 def test_projected_verbatim_includes_generated_children():
     registry = {
         "lf-list": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "add": {
@@ -4385,8 +4386,9 @@ def test_projected_verbatim_includes_generated_children():
                 }
             },
         },
-        "lf-item": {"x-upgrade": False},
+        "lf-item": {},
     }
+    with_modules(registry, "lf-list")
     markup = '<lf-list id="list">Authored item.</lf-list>'
     event: dict[str, dict | str | int] = {
         "kind": "action",

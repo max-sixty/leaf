@@ -239,7 +239,6 @@ def test_reduced_motion_reaches_declared_shadow_stages(
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     registry = {
         tag: {
@@ -360,7 +359,6 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
     shadow = {

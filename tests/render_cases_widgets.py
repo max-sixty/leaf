@@ -78,7 +78,6 @@ PAGE_DECLARATION = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",
@@ -185,7 +184,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
@@ -255,7 +253,6 @@ SHADOW_VISUAL_LAYER = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',

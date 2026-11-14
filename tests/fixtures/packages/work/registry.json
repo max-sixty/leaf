@@ -87,7 +87,6 @@
     },
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": false,
     "x-space": "wide"
   },
   "lf-test-worker": {
@@ -115,7 +114,6 @@
         }
       }
     },
-    "x-upgrade": true,
     "x-state": {
       "state": {
         "writer": "agent",
@@ -135,8 +133,7 @@
       "id": { "type": "string" }
     },
     "additionalProperties": false,
-    "x-content": "members",
-    "x-upgrade": true
+    "x-content": "members"
   },
   "lf-test-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
@@ -157,7 +154,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
     "x-refers": {
       "readings": {
         "via": "$work.widgets",
@@ -205,7 +201,6 @@
     "additionalProperties": false,
     "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
     "x-content": "markup",
-    "x-upgrade": true,
     "x-thread-seat": {
       "when": {
         "talk": [true]
@@ -241,7 +236,6 @@
         "property": "value"
       }
     },
-    "x-upgrade": true,
     "x-space": "wide"
   },
   "$work": {
@@ -288,7 +282,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": false
+    "x-content": "empty"
   }
 }

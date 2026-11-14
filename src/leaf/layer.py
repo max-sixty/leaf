@@ -930,8 +930,7 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
-    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
-    refusing a registry that marks a widget upgraded whose module no input holds.
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`).
 
     Its registry is merged and stamped but not validated. `page init` validated the
     selection, and every Leaf that serves, exports or checks the page validates it
@@ -941,17 +940,6 @@ def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
 
     incoming = stamp_composition(merged_registry(roots)[0])
     widgets = frozenset(composed_dir_files(roots, "widgets"))
-    missing_modules = sorted(
-        tag
-        for tag, entry in incoming.items()
-        if is_element_name(tag) and entry["x-upgrade"] and f"{tag}.js" not in widgets
-    )
-    if missing_modules:
-        raise Refused(
-            "the incoming registry marks widgets as upgraded but their modules "
-            "are missing:\n"
-            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
-        )
     return LayerVocabulary(incoming, widgets, composed_instructions(roots))
 
 

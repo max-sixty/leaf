@@ -786,7 +786,6 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                         "property": "value",
                     }
                 },
-                "x-upgrade": True,
                 "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
             }
         },

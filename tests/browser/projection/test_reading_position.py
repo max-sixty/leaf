@@ -844,7 +844,6 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-example": (
             '<lf-owned-scroll id="example">'
             "<div data-scroll-body><button>Control</button></div>"

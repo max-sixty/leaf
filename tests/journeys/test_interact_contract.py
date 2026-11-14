@@ -210,7 +210,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "restated": {"type": "boolean"},
             }
             entry["x-state"] = verbs
-            entry["x-upgrade"] = True
             (widgets / f"{tag}.js").write_text("export default class {}\n")
         if arrangement == "recording-column-position":
             registry["lf-column"]["x-state"]["move"] = {

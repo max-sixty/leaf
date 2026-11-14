@@ -96,14 +96,9 @@ export function invalidPaints() {
 // every tag the page simply does not contain. `document`, not the page, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const missingUpgrades = (declarations) =>
-  Object.entries(declarations)
-    .filter(
-      ([tag, entry]) =>
-        entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
-    )
-    .map(([tag]) => tag);
+/** @param {readonly string[]} modules the tags a module upgrades */
+export const missingUpgrades = (modules) =>
+  modules.filter((tag) => document.querySelector(tag) && !customElements.get(tag));
 // visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */

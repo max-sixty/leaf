@@ -520,7 +520,6 @@ DRAWING_CONTROL_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }

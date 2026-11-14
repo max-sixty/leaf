@@ -129,7 +129,6 @@ OFFLINE_REGISTRY = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",

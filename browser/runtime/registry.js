@@ -130,11 +130,17 @@ export const elementsDeclaring = (root, key, { direct = false } = {}) => {
 // they carry, so the twelfth widget is covered by its declaration alone — the alternative
 // keeps working perfectly on the widget it was taught and silently does nothing for the
 // next one.
-/** @param {(entry: WidgetDeclaration) => unknown} holds */
+/** @param {(entry: WidgetDeclaration, tag: string) => unknown} holds */
 export const tagsDeclaring = (holds) =>
   elementDeclarations()
-    .filter(([, entry]) => holds(entry))
+    .filter(([tag, entry]) => holds(entry, tag))
     .map(([tag]) => tag);
+
+// Whether a module upgrades a tag. Composition derives `$modules` from the files it
+// composes (Python's `registry.contract.MODULES`): a module at `widgets/<tag>.js` is
+// what makes a tag an upgraded widget, and no declaration says so.
+/** @param {string} tag @returns {boolean} */
+export const upgrades = (tag) => Object.hasOwn(registry.$modules ?? {}, tag);
 
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each

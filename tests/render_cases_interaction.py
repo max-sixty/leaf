@@ -1345,7 +1345,6 @@ SEATED_OBLIGATION_ENTRY = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-state": {
         "settle": {
             "detail": {

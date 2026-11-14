@@ -67,6 +67,39 @@ def element_declarations(registry: dict) -> dict:
     return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
+# The path of each element's module, by tag, in a composed vocabulary. Composition
+# derives it from the files it composes (`registry.layer.merged_registry`,
+# `registry.page.compose_page_registry`), so no declaration says whether a module
+# upgrades its element: the module's presence at `widgets/<tag>.js` does.
+MODULES = "$modules"
+
+
+def upgraded(registry: dict, tag: str) -> bool:
+    """Whether a module upgrades `tag` in the browser (`MODULES`)."""
+    return tag in registry.get(MODULES, ())
+
+
+def module_paths(registry: dict, available, *directories: str) -> dict[str, str]:
+    """`MODULES` for a vocabulary: each declared element whose `<tag>.js` stands in
+    one of `directories`, the earliest directory winning, among the `available`
+    paths."""
+    return {
+        tag: path
+        for tag in registry
+        if is_element_name(tag)
+        and (
+            path := next(
+                (
+                    candidate
+                    for directory in directories
+                    if (candidate := f"{directory}/{tag}.js") in available
+                ),
+                None,
+            )
+        )
+    }
+
+
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     registry's `$events`: the event kind's `handling` clauses, then the `answering`

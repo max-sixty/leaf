@@ -80,7 +80,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "required": ["id", "phase"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-state": {
             "phase": {
                 "unit": "widget",

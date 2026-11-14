@@ -125,8 +125,7 @@
     "x-content": "members",
     "x-refers": {
       "overview": {}
-    },
-    "x-upgrade": true
+    }
   },
   "lf-atlas-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
@@ -165,7 +164,6 @@
     "additionalProperties": false,
     "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
     "x-content": "markup",
-    "x-upgrade": true,
     "x-thread-seat": {
       "when": {
         "talk": [true]
@@ -208,7 +206,6 @@
         }
       }
     },
-    "x-upgrade": true,
     "x-state": {
       "state": {
         "writer": "agent",
@@ -238,7 +235,6 @@
         "property": "value"
       }
     },
-    "x-upgrade": true,
     "x-space": "wide"
   }
 }

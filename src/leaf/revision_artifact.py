@@ -60,7 +60,7 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
-from leaf.registry.contract import is_element_name
+from leaf.registry.contract import MODULES
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
 from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
@@ -914,11 +914,7 @@ def _capture_artifact(
     # revision captures only what its page owns: `page/`, its declarations among it,
     # and what its document names. Its manifest names the layer's selection.
     if widget_sources is None:
-        widget_sources = {
-            tag: f"widgets/{tag}.js"
-            for tag, entry in registry.items()
-            if is_element_name(tag) and entry.get("x-upgrade")
-        }
+        widget_sources = registry.get(MODULES, {})
     for source in widget_sources.values():
         if source.startswith("page/"):
             capture.add("/" + source)

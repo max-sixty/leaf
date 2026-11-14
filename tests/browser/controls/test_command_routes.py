@@ -119,7 +119,6 @@ KEYBOARD_HINT_REGISTRY = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
         "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
     }

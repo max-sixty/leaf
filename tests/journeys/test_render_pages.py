@@ -509,7 +509,6 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
         "additionalProperties": False,
         "x-content": "markup",
         "x-space": "available",
-        "x-upgrade": False,
         "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
     }
     source = leaf_page(

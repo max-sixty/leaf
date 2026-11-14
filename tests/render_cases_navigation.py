@@ -1014,7 +1014,6 @@ def data_projection_page(serve):
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }
     contract = {

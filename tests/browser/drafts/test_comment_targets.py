@@ -562,7 +562,6 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                         "property": "value",
                     }
                 },
-                "x-upgrade": True,
                 "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }
         },

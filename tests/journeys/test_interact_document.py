@@ -282,7 +282,6 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
         "properties": {},
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": False,
         "x-owners": ["lf-option", "lf-card"],
     }
     declare_on_page(page_dir, lambda registry: registry.__setitem__("lf-label", label))

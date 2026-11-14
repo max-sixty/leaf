@@ -607,7 +607,6 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                     "required": ["id"],
                     "additionalProperties": False,
                     "x-content": "markup",
-                    "x-upgrade": False,
                 }
             }
         )

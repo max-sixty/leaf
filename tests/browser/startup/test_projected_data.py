@@ -157,7 +157,6 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
     }
     contract = {
@@ -449,7 +448,6 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
@@ -924,7 +922,6 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "required": ["id", "source"],
             "additionalProperties": False,
             "x-content": "empty",
-            "x-upgrade": True,
             "x-data": {
                 "data": {"contract": contract, "source": "source", "property": "value"}
             },

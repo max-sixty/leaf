@@ -9,7 +9,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-example": "<h1>Why checkout latency doubled</h1>\n<p class=\"lede\">A cache key change on Tuesday sent every checkout to the database.</p>\n<lf-dial id=\"depth\"></lf-dial>\n<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The 4.2 release added the currency to the cart cache key, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy, and p99 rose from 180 ms to 410 ms.</p>\n  <details>\n    <summary>The key, before and after</summary>\n    <pre>cart:{user}  →  cart:{user}:{currency}</pre>\n  </details>\n</section>"
   },
   ".gist": {

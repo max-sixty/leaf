@@ -607,7 +607,6 @@ ZONE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
 }
 

@@ -422,7 +422,6 @@ EXTENSION_SCHEMA = {
             "propertyNames": {"pattern": f"^{HTML_NAME}$"},
             "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         },
-        "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {
             "oneOf": [
@@ -477,21 +476,16 @@ EXTENSION_SCHEMA = {
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
-    "required": ["x-content", "x-upgrade"],
+    "required": ["x-content"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
         "x-shows": ["x-owners", "x-refers"],
     },
-    # An upgraded container can retain authored children, native markup included.
+    # A container can retain authored children, native markup included.
     "if": {"required": ["x-patch"]},
-    "then": {
-        "properties": {
-            "x-content": {"enum": ["members", "markup"]},
-            "x-upgrade": {"const": True},
-        }
-    },
+    "then": {"properties": {"x-content": {"enum": ["members", "markup"]}}},
     "additionalProperties": False,
 }
 # Selector idioms share author-facing extension fields with widgets, but cannot

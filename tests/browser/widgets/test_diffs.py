@@ -29,6 +29,7 @@ from render_harness import (
     leaf_page,
     long_press,
     open_page,
+    page_registry,
     resized,
     said,
     scroll_settled,
@@ -47,6 +48,7 @@ from browser.widgets import (
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
@@ -1065,6 +1067,43 @@ def test_a_diff_revision_leaves_a_line_thread_where_it_stands(request, serve, en
         """frame => [frame.closest('.lf-diff-thread-outlet') === window.lfOutlet,
           frame.contentWindow?.lfKept, window.lfFrameLoads]"""
     ) == [True, True, 0]
+
+
+def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve):
+    """Message markup in a thread a diff seats in its shadow tree wears the rules its
+    packages' defaults.css gives it in the document, so a choice there draws as option
+    cards rather than run-together text, and the part the runtime gives it to anchor
+    from the document is no attribute the render check refuses."""
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        patch_manifest(
+            "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+            "@@ -1,3 +1,3 @@\n one\n-old\n+new\n three\n"
+        ),
+    )
+    root = panel_comment(
+        serve.page_dir, "Why?", {"section": "patch", "datum": '["a.py","new",2]'}
+    )
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "Which should it be?",
+        '<lf-options id="mount" choose><lf-option id="mount-steel">'
+        '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
+        '</lf-option><lf-option id="mount-plastic"><strong>Go back to plastic'
+        "</strong> Lighter.</lf-option></lf-options>",
+    )
+    page = open_page(browser, url)
+    rendered(page)
+    group = page.locator("lf-diff .lf-diff-thread-outlet lf-options")
+    expect(group).to_have_css("display", "grid")
+    expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
+    assert (
+        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        == []
+    )
 
 
 @pytest.mark.parametrize("manifest, changes_kind", [(False, True), (True, False)])

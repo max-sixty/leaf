@@ -38,6 +38,8 @@ import { pageUpgraded } from "../page-paint.js";
 import { runtime } from "../context.js";
 import { UPGRADE, PRESENTATION } from "../presentation.js";
 import { readLeavingKeys } from "../field-keys.js";
+import { readKeyDefaults } from "../role-button-press.js";
+import { chromeRoot } from "../chrome.js";
 // A document the runtime gives up on before it upgrades, because it reloads or waits on
 // a server serving another layer, ends bootstrap's hold: nothing in it will run what
 // was held, so those keys are dropped and later ones reach the page as they come.
@@ -65,6 +67,11 @@ export function mountKeyboard({
     if (handled && event.defaultPrevented) event.stopPropagation();
     return handled;
   };
+  const armed = () => goToSequenceActive() || reactArmed();
+  const disarm = () => {
+    setGoToSequence(false);
+    setReact(false);
+  };
   /** @param {KeyboardEvent} ev */
   const press = (ev) => {
     if (ev.isComposing) return;
@@ -76,9 +83,8 @@ export function mountKeyboard({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if ((goToSequenceActive() || reactArmed()) && !MODIFIER_KEYS.includes(ev.key)) {
-      setGoToSequence(false);
-      setReact(false);
+    if (armed() && !MODIFIER_KEYS.includes(ev.key)) {
+      disarm();
       run(ev);
     }
   };
@@ -94,10 +100,30 @@ export function mountKeyboard({
     if (controlNavigationKeys(at).includes(ev.key)) ev.preventDefault();
     return true;
   };
-  // Page shortcut characters need Leaf's scope resolution before a nested
-  // library can use them for typeahead. Other keys keep the control's own
-  // handling first, including search's Enter and Escape steps, but a key that lets go
-  // stops here, ahead of them, so every key reads from where the user is.
+  // Leaf reads each key once, at the first of the listeners below to reach it, so where
+  // it reads a key decides whether Leaf or the page answers it first. In capture, before
+  // any listener of the page's: a printed letter, which Leaf's page commands take ahead
+  // of a nested library's typeahead; a key that lets go, which stops there so every key
+  // reads from where the user is; a key pressed with nothing focused, where the nearest
+  // thing to the user is what Leaf holds over the whole page, such as Design mode or a
+  // selection; and, while Go-to or reactions are armed, a key they answer, since they own
+  // the keyboard. Any other key disarms them there and keeps its ordinary meaning, read
+  // below. At the chrome's root, a key aimed into Leaf's chrome, after the chrome's own
+  // controls and before the page's listeners on `html`, the document and the window,
+  // which hear it only if Leaf leaves it. Every other key is read as its default action,
+  // after every listener the page has (role-button-press.js, `readKeyDefaults`), and a
+  // key whose default page code prevented is the page's, so Leaf takes no step for it.
+  // Read any earlier, it would act at wherever page code had moved focus, such as the
+  // trigger a menu hands focus back to, or step focus off the trigger of a tooltip that
+  // hears Escape on the document.
+  /** @type {WeakSet<KeyboardEvent>} */
+  const read = new WeakSet();
+  /** @param {KeyboardEvent} ev */
+  const readAt = (ev) => {
+    if (read.has(ev)) return;
+    read.add(ev);
+    press(ev);
+  };
   document.addEventListener(
     "keydown",
     (ev) => {
@@ -106,39 +132,26 @@ export function mountKeyboard({
         letGo();
         ev.stopPropagation();
       }
-      if (away || ev.key.length === 1) press(ev);
+      if (away || ev.key.length === 1 || ev.target === document.body) readAt(ev);
+      else if (armed()) {
+        if (run(ev)) read.add(ev);
+        else if (!MODIFIER_KEYS.includes(ev.key)) disarm();
+      }
     },
     { capture: true },
   );
-  /** @param {KeyboardEvent} ev */
-  const afterControl = (ev) => {
-    if (ev.key.length !== 1) press(ev);
-  };
-  // A key aimed inside `body` whose default is already prevented when it reaches here
-  // is the page's, as role-button-press.js reads a press. Read again here, it would act
-  // at wherever page code had moved focus, such as the trigger a page's menu hands
-  // focus back to. Leaf's chrome stands outside `body`, and a mode armed over the page
-  // with nothing focused reads keys aimed at `body` itself, so those stay Leaf's
-  // whatever a page listener prevents.
-  document.addEventListener("keydown", (ev) => {
-    const { target } = ev;
-    const pages =
-      ev.defaultPrevented &&
-      target instanceof Node &&
-      target !== document.body &&
-      document.body.contains(target);
-    if (!pages) afterControl(ev);
-  });
+  chromeRoot.addEventListener("keydown", readAt);
   // A key typed in a Leaf field stops at the field (field-keys.js), so this
   // pass reads it there.
   readLeavingKeys((ev) => {
-    if (ev.type === "keydown") afterControl(ev);
+    if (ev.type === "keydown") readAt(ev);
+  });
+  readKeyDefaults((ev) => {
+    if (!ev.defaultPrevented) readAt(ev);
   });
   document.addEventListener("lf-keyboard-preference", () => {
     paintKeys();
-    if (quickShortcuts()) return;
-    setGoToSequence(false);
-    setReact(false);
+    if (!quickShortcuts()) disarm();
   });
   let pressingHeld = false;
   // Upgrade opens commands about the shown document. A command needing private

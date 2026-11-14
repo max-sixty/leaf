@@ -36,10 +36,12 @@ default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
-in capture. Leaf reads printed letters before the page's listeners, and other keys when
-they reach its listener on `document`. A key aimed inside `body` whose default is
-already prevented by then is the page's, and Leaf takes no step for it
-(`controller.js`).
+in capture. Leaf reads before the page's listeners a printed letter, a key pressed with
+nothing focused, and, while Go-to or reactions are armed, every key they answer. It
+reads a key aimed into its chrome at the chrome's root, before the page's listeners
+outside it, and every other key as the key's default action, after every listener the
+page has. A key whose default page code prevented is the page's, and Leaf takes no step
+for it (`controller.js`).
 
 ## Escape
 

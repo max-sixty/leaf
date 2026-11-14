@@ -58,6 +58,10 @@ The effective registry is validated only where it differs from the active revisi
 captured copy. A layer's sheets and modules are validated wherever a Leaf composes
 its files (`layer-registry.md` says where).
 
+An authored `commandfor` is checked as a reference is, and its custom command against
+the `x-commands` its target's tag declares (`instances.invoker_errors`), since the
+browser reports nothing for a button that reaches no handler.
+
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its

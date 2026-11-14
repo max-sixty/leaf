@@ -335,10 +335,11 @@ EXTENSION_SCHEMA = {
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
+        # Each output's name is the element property holding it (data.js).
         "x-output": {
             "type": "object",
             "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "propertyNames": {"pattern": "^[a-z][A-Za-z0-9]*$"},
             "additionalProperties": {
                 "type": "object",
                 "properties": {

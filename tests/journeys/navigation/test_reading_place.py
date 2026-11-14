@@ -75,9 +75,10 @@ OUTCOME = """() => {
   };
 }"""
 
-# The page's scroll as each key arrives, ahead of Leaf's own handling of it.
-AT_EACH_KEY = """() => addEventListener("keydown", () => { globalThis.__lfAtKey = scrollY; },
-  {capture: true})"""
+# The page's scroll as each key arrives, recorded before any of the page's own listeners
+# hear it.
+AT_EACH_KEY = """addEventListener("keydown", () => { globalThis.__lfAtKey = scrollY; },
+  {capture: true});"""
 
 
 # Daily, by the user's choice (2026-11-14): each case fits the browser tier's budget,
@@ -102,12 +103,13 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
 
     def run(at_once):
         page = open_page(
-            browser, serve(PLACES_PAGE, anchored=[("p41", "Paragraph 41.")])
+            browser,
+            serve(PLACES_PAGE, anchored=[("p41", "Paragraph 41.")]),
+            init_script=AT_EACH_KEY,
         )
         page.locator("#p20 a").focus()
         scroll_settled(page)
         rendered(page)
-        page.evaluate(AT_EACH_KEY)
         with held_frames(page):
             for key in glide.split():
                 page.keyboard.press(key)

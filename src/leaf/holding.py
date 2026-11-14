@@ -214,8 +214,9 @@ def holder(
     takes it), `closed` or `lapsed` (`activity.agent_turn_state`). Any other turn, or
     none, is `{"kind": "main"}`, the session's main thread, which has whatever no
     agent's turn holds."""
-    # TODO(2026-11-14): name a worker subagent's turn by its own kind here once a
-    # worker that starts on a to-do runs a turn of its own (`state.acting_turn`).
+    # TODO(2026-11-14): the shipped instructions no longer keep a worker subagent off
+    # the page, and its `leaf` commands act as the main thread. If workers come to act
+    # on pages, give each a turn of its own (`state.acting_turn`) and name it here.
     from .activity import agent_turn_state
 
     if turn not in stamps:

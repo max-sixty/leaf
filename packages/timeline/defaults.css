@@ -119,7 +119,9 @@ lf-event::before {
   --lf-timeline-tone: var(--muted);
 }
 /* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
-   the chart's ground, so the line passes behind words rather than through them. */
+   the chart's ground, so the line passes behind words rather than through them. A
+   label's stroke stands at its event's moment, so a label too long for the room
+   beside its mark ends its words at the ruler's edge (`timelineLayout`). */
 .lf-timeline-label {
   inset-block-start: calc(
     (var(--lf-timeline-rows) - 1 - var(--lf-timeline-row-index, 0)) *
@@ -128,13 +130,14 @@ lf-event::before {
   z-index: 2;
   box-sizing: border-box;
   block-size: calc(var(--lf-timeline-row) - 4px);
-  display: flex;
-  align-items: center;
+  /* A block box centres its line, and ends its words in an ellipsis, which a flex
+     box's anonymous item can't. */
+  align-content: center;
   padding-inline: 5px;
   border-inline-start: 2px solid var(--lf-timeline-tone);
   background: var(--lf-timeline-ground);
   color: var(--lf-timeline-tone);
-  max-inline-size: 100%;
+  max-inline-size: calc(100% - var(--lf-axis-x));
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -143,13 +146,9 @@ lf-event::before {
 }
 .lf-timeline-label[data-lf-place="flip"] {
   translate: -100% 0;
+  max-inline-size: var(--lf-axis-x);
   border-inline-start: 0;
   border-inline-end: 2px solid var(--lf-timeline-tone);
-}
-/* Too long to read either way from its mark: against the axis end. */
-.lf-timeline-label[data-lf-place="end"] {
-  left: auto;
-  right: 0;
 }
 .lf-timeline-event[data-lf-state="current"] .lf-timeline-label {
   font-weight: 600;

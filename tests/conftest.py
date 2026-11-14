@@ -82,13 +82,20 @@ def pytest_configure(config):
     signal.signal(signal.SIGINT, signal.default_int_handler)
 
 
-# What a test may change in the process running it, and only through `monkeypatch`,
-# which puts it back when the test ends.
-_PROCESS_STATE = pytest.StashKey[tuple[dict[str, str], str]]()
+_PROCESS_STATE = pytest.StashKey[dict]()
 
 
 def _process_state():
-    return dict(os.environ), os.getcwd()
+    """What a test may change in the process running it only through `monkeypatch`,
+    which puts it back when the test ends."""
+    return {
+        "environment": dict(os.environ),
+        "working directory": os.getcwd(),
+        **{
+            f"{number.name} handler": signal.getsignal(number)
+            for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        },
+    }
 
 
 @pytest.hookimpl(wrapper=True)
@@ -99,29 +106,26 @@ def pytest_runtest_setup(item):
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_teardown(item):
-    """Fail a test that leaves the environment or working directory other than it found
-    them, once every fixture it used has ended.
+    """Fail a test that leaves the process other than it found it, once every fixture
+    it used has ended.
 
-    A test, a fixture or the product code they call that writes `os.environ` or
-    changes directory for the process changes them for every later test in the worker,
-    which then passes or fails on the order the run took. Nothing resets
-    them between tests, so a test sets them through `monkeypatch`, and code a test calls
-    in process leaves them to its process's entry point (tests/AGENTS.md,
-    "Fixtures")."""
+    A test, a fixture or the product code they call that writes `os.environ`, changes
+    directory or takes a signal changes it for every later test in the worker, which
+    then passes or fails on the order the run took. Nothing puts the process back
+    between tests, so a test changes it through `monkeypatch`, and code a test calls in
+    process leaves it to its process's entry point (tests/AGENTS.md, "Fixtures")."""
     result = yield
-    (environment, directory), (now, here) = item.stash[_PROCESS_STATE], _process_state()
-    changed = sorted(
-        name
-        for name in environment.keys() | now.keys()
-        if environment.get(name) != now.get(name)
-    )
+    before, after = item.stash[_PROCESS_STATE], _process_state()
+    changed = [
+        f"{fact} ({', '.join(sorted(k for k in was.keys() | now.keys() if was.get(k) != now.get(k)))})"
+        if isinstance(was, dict)
+        else fact
+        for fact, was, now in ((fact, before[fact], after[fact]) for fact in before)
+        if was != now
+    ]
     assert not changed, (
-        f"the test left the environment changed: {', '.join(changed)}. A test sets a "
-        "variable through monkeypatch, and code it calls in process sets none"
-    )
-    assert here == directory, (
-        f"the test left the process in {here}, not {directory}. A test changes "
-        "directory through monkeypatch.chdir, and code it calls in process changes none"
+        f"the test left the process changed: {'; '.join(changed)}. A test changes it "
+        "through monkeypatch, and code it calls in process changes none"
     )
     return result
 
@@ -618,6 +622,16 @@ def isolated_session(tmp_path_factory, monkeypatch):
         leases_model.mark_hooks(session)
         leases_model.mark_module(session, os.getpid())
     return cleanup_model.state_home()
+
+
+@pytest.fixture(autouse=True)
+def commands_leave_the_workers_signals(monkeypatch):
+    """A command a test runs in process, as `CliRunner` does, is its process's entry
+    point, and takes SIGTERM and SIGHUP so it unwinds on them
+    (`leases.release_on_termination`). In process that would be the worker's
+    disposition for every later test, so the command leaves it alone; a test of how a
+    command ends on a signal runs it as a process (`test_claims`)."""
+    monkeypatch.setattr(leases_model, "release_on_termination", lambda: None)
 
 
 @pytest.fixture(autouse=True)

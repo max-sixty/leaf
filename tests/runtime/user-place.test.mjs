@@ -1,8 +1,8 @@
 /* The user's place in a scroller, and the one hold that keeps it across a change.
 
    Asked over boxes this file states, since happy-dom lays nothing out: focus is where
-   the user is while they see it, a stuck header included, or while a glide carries them
-   to it, and not once they scrolled it away; a hold puts the node it read
+   the user is while they see it where the glides under way leave it, a stuck header
+   included, and not once they scrolled it away; a hold puts the node it read
    back where it stood, or its stand-in where the change hid it, paying only for what
    the browser's own anchoring left. The user's place across a reading is the first the
    change moved of those they named, a field they type in before a resting pointer and
@@ -59,7 +59,7 @@ function laidOut() {
   };
 }
 
-test("focus is where the user is while they see it or a glide carries them to it", () => {
+test("focus is where the user is while they see it where the glides leave it", () => {
   const { scroller, item, scrollTo } = laidOut();
   const [first, second] = [item("a", 1000), item("b", 1250)];
   first.tabIndex = 0;
@@ -85,11 +85,17 @@ test("focus is where the user is while they see it or a glide carries them to it
   assert.equal(focusPlace(), first, "a glide to focus didn't carry the user there");
   stopGlide(scroller);
   assert.equal(focusPlace(), null);
-  // A glide carrying focus out of view, as `g g` does, lets go of it once it has left.
-  scrollTo(1500);
+  // A glide carrying focus out of view, as `g g` does, lets go of it as it sets off,
+  // though it is still on screen, since a key pressed then acts where the glide lands.
+  scrollTo(1000);
   glideTo(scroller, 4000);
   assert.equal(focusPlace(), null, "a glide carrying focus away kept it the place");
   stopGlide(scroller);
+  // One that moves it but leaves it on screen keeps it.
+  glideTo(scroller, 850);
+  assert.equal(focusPlace(), first, "a glide leaving focus in view let go of it");
+  stopGlide(scroller);
+  scrollTo(3000);
   // Nor is a key pressed while a card it moved slides from where it stood, though a box
   // clips it meanwhile; an endless animation, as the sheen's, a fade, a slide held paused
   // and one on a pseudo-element bring the user nowhere.
@@ -139,6 +145,10 @@ test("focus is where the user is while they see it or a glide carries them to it
     heading,
     "a stuck heading in view was not where the user is",
   );
+  // A glide leaves it stuck where it stands.
+  glideTo(scroller, 4000);
+  assert.equal(focusPlace(), heading, "a glide carried a stuck heading away");
+  stopGlide(scroller);
   scroller.remove();
 });
 

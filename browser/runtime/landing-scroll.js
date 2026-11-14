@@ -91,7 +91,6 @@ import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
 import {
   clippedPlace,
   fixedInWindow,
-  inFront,
   landingBand,
   placeBox,
   placeHolder,
@@ -101,7 +100,7 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { atLayoutPrecision } from "./keeps.js";
-import { glideTravel, scrollersOf } from "./scroll-containers.js";
+import { glideTravel, scrollersOf, seenGlided } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import {
   glideTo,
@@ -286,31 +285,6 @@ function seesWhole(seen, box, want, room) {
   );
 }
 
-// `seen`, what the user sees of `shown`, moved by the distance the glides under way
-// have still to scroll the boxes carrying it (scroll-containers.js, `glideTravel`), and
-// cut where they leave the outermost box that glides and those around it (geometry.js,
-// `seenRect`); null where no glide carries it. The cuts of the boxes inside that one are
-// read as they stand now, which holds unless one of them glides too. A destination in a
-// box Leaf anchors stands in no box the anchor's glide moves, so the window alone cuts
-// it there (`inFront`).
-/** @param {Destination} shown @param {Box} seen */
-function seenAhead(shown, seen) {
-  const travel = glideTravel(shown);
-  const holder = placeHolder(shown);
-  if (!travel || !holder) return null;
-  const moved = {
-    left: seen.left + travel.x,
-    right: seen.right + travel.x,
-    top: seen.top + travel.y,
-    bottom: seen.bottom + travel.y,
-  };
-  if (!renderedUnder(holder, travel.outer))
-    return { travel, seen: inFront(moved, holder) };
-  const inside = document.createRange();
-  inside.selectNodeContents(travel.outer);
-  return { travel, seen: seenRect(inside, new Map(), moved) };
-}
-
 // Whether the user is on `where` or inside it, so it wears its ring and is measured out
 // to the ring's room (see the header).
 /** @param {Destination} where */
@@ -332,13 +306,16 @@ export function alreadyShown(where, { block = "nearest" } = {}) {
   // they can scroll, and one at its start or centre with its opening at the band's top.
   if (box.height > room.height && !landsStill(where, block)) return false;
   if (box.width > room.width && seen.right - seen.left < room.width) return false;
-  const ahead = seenAhead(shown, seen);
-  if (!ahead) return true;
-  const { x, y } = ahead.travel;
+  // What the user will see of it where the glides under way leave it
+  // (scroll-containers.js, `seenGlided`).
+  const travel = glideTravel(shown);
+  if (!travel) return true;
+  const ahead = seenGlided(shown, seen, travel);
+  const { x, y } = travel;
   return Boolean(
-    ahead.seen &&
+    ahead &&
     seesWhole(
-      ahead.seen,
+      ahead,
       box,
       {
         left: want.left + x,
@@ -433,10 +410,14 @@ export function landedBox(where) {
   return new DOMRect(rect.x, rect.y - moved, rect.width, rect.height);
 }
 
-/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior */
+// Returns the boxes the landing leaves where they stand.
+/** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior @returns {Element[]} */
 function scrollIntoReadingBand(where, holder, block, behavior, kept = false) {
+  const still = [];
   for (const { box, local, moved } of readingBandMoves(where, holder, block).moves)
     if (Math.abs(moved) >= 1) land(box, { top: local }, behavior, kept);
+    else still.push(box);
+  return still;
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry
@@ -480,7 +461,15 @@ export function scrollIntoView(
   // made (tests/shift_watch.js, "Scrolls a gesture makes").
   for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
     if (by.left || by.top) land(box, by, "instant", kept);
-  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior, kept);
+  if (!targetScroller) return;
+  const still = scrollIntoReadingBand(aligned, holder, block, behavior, kept);
+  // A nearest landing that leaves a box where it stands keeps the destination there, so
+  // a glide still carrying it stops: Tab pressed as `g g` sets off reaches a control the
+  // glide is carrying away, which `alreadyShown` reads where the glide leaves it and the
+  // landing finds in view. A walk's or travel's landing at its start or centre leaves a
+  // glide alone, and so does a row growing under keystrokes (`keepInBand`), so a
+  // keystroke leaves a transcript gliding to its end.
+  if (block === "nearest") for (const box of still) stopGlide(box);
 }
 
 // The moves the walk before a destination's reading region makes (`scrollIntoView`),

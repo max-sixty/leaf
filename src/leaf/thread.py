@@ -535,15 +535,17 @@ def post_reply(
 
         # A fork may answer only what its turn holds, and write in no thread
         # another turn took, and an ended one nothing; it asks first, so a refused
-        # fork is never handed another turn's answer as the repeat of its own.
+        # fork is never handed another turn's answer as the repeat of its own. The
+        # main thread writes anywhere, and hears of a running fork it writes beside.
         responds = address.get("responds")
-        authorize(
+        beside = authorize(
             page,
             posting_identity.get("session"),
             [responds] if responds else [],
             thread=None
             if responds or not address.get("parent")
             else thread_names(page.events).get(address["parent"]),
+            answers=not ephemeral,
         )
         if attempt is not None and (
             repeated := _repeated_reply(
@@ -586,6 +588,8 @@ def post_reply(
             detach=detach,
             title=title,
         )
+    if beside is not None:
+        note(beside)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))

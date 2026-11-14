@@ -63,6 +63,7 @@ modules rely on.
 from datetime import datetime
 from typing import NamedTuple
 
+from .findings import Finding
 from .registry.kernel import kinds_declaring
 from .service import PageTransaction
 from .state import agent_turn_stamps
@@ -317,24 +318,55 @@ def authorize(
     session: str | None,
     input_ids: list[str],
     thread: str | None = None,
-) -> None:
+    *,
+    answers: bool = False,
+) -> Finding | None:
     """Refuse a write a command of `session` makes about the messages `input_ids` on
     `page`, a reply to one or a start on one, or a message in `thread` that answers
     none, where its actor may not make it: an agent whose turn has ended
     (`state.acting_agent_turn`), or an agent's turn acting on a message another turn
     holds (`refuse_unheld`). A message that answers none is held to the thread's round
-    (`round_of`), so a fork can't write in a thread another turn took from it. The main
-    thread acts on whatever its session owes, and its answer takes the thread from any
-    turn that held it; a session that doesn't hold the page is no agent's."""
+    (`round_of`), so a fork can't write in a thread another turn took from it; a
+    session that doesn't hold the page is no agent's.
+
+    The main thread acts on whatever its session owes, and its answer (`answers`)
+    takes the thread from any turn that held it. A command no agent id marks acts as
+    the main thread, whoever ran it: the main thread itself, a fork's script, a
+    worker or the user's terminal (`state.acting_turn`). The user chose on 2026-11-14
+    that such a command goes through rather than being refused, and says beside its
+    result which fork it acted beside: the note this returns (`fork-holds-thread`),
+    where a running fork holds the write's thread, by the holder `leaf page state`
+    gives the thread (`last_taken`, `holder`)."""
     from .state import acting_agent_turn
 
     claim = page.claim
     if session is None or claim is None or claim["id"] != session:
-        return
+        return None
     if (turn := acting_agent_turn(session)) is not None:
         if thread is not None and not input_ids:
             input_ids = round_of(page.events, thread)
         refuse_unheld(page.events, session, turn, input_ids, running_turns(claim))
+        return None
+    stamps = agent_turn_stamps(claim)
+    if not stamps:
+        return None
+    from .thread_context import thread_names
+
+    names = thread_names(page.events)
+    threads = (
+        [thread] if thread is not None else [names[i] for i in input_ids if i in names]
+    )
+    running = running_turns(claim)
+    took = last_taken(page.events, session)
+    for name in threads:
+        held = holder(took.get(name), name, stamps, running)
+        if held["kind"] == "fork" and held["state"] == "running":
+            return Finding(
+                "fork-holds-thread",
+                values={"fork": held["name"], "answers": answers},
+                severity="advice",
+            )
+    return None
 
 
 def round_of(events: list[dict], thread: str) -> list[str]:

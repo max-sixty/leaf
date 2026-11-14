@@ -627,14 +627,16 @@ def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
 
 
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
-    claimed, lane, monkeypatch
+    claimed, lane, monkeypatch, capsys
 ):
     """The main thread is sovereign: its answer to a message a running fork holds
     takes the thread over at once, with whatever answer reference it uses, since
-    the answer names the turn that posted it. The fork's later reply with that
-    reference is refused rather than handed the main thread's answer as the repeat
-    of its own, and so are its start on the message and a message of its own in
-    the thread that answers nothing. Its end reports the thread
+    the answer names the turn that posted it. A command acting as the main thread
+    goes through on the fork's thread and says beside its result which fork it
+    acted beside, and, for an answer, that it took the thread. The fork's later
+    reply with that reference is refused rather than handed the main thread's answer
+    as the repeat of its own, and so are its start on the message and a message of
+    its own in the thread that answers nothing. Its end reports the thread
     taken over, which the main thread isn't told of, and the thread's next message
     goes to a new fork rather than to that one, resumed."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
@@ -642,8 +644,15 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
     clerk_model.heard("s1", clerk_model.queued("s1"))
+    capsys.readouterr()
+    fork = f"fork leaf-{asked['id']}"
+    assert todos_model.cmd_start(claimed, asked["id"], "checking the cache")
+    beside = capsys.readouterr().err
+    assert f"{fork} is answering this thread" in beside, beside
     ref = answer_ref(claimed, asked["id"])
     answer = thread_model.post_response(ref, "Yes, for an hour.", asks_back=False)
+    took = capsys.readouterr().err
+    assert f"{fork} was answering this thread" in took, took
     claim = service_model.page_claim(claimed)
     assert answer is not None and claim is not None
     assert answer["turn"] == claim["turn"]

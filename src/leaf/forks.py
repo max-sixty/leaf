@@ -41,8 +41,7 @@ five repeats. Neither effort thought on the recorded messages, so their output a
 time matched there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the
 eval's short conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s
 where a line took a median 1 s, and low over none, for 0.85 times xhigh's time
-(0.75–0.95). So low removes the occasional line xhigh spends seconds thinking over,
-and the line's time no longer depends on the session's effort.
+(0.75–0.95). So low removed the occasional line xhigh spent seconds thinking over.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages

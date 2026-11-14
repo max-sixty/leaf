@@ -11,7 +11,6 @@
 // reads and what the module's processes inherit over the driver's own. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
-// line `{"advance": <ms>}` moves `$.clock` on by that much. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
 // prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
@@ -33,8 +32,6 @@ const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
-// How far `{"advance"}` lines have moved `$.clock` past the real one.
-let advanced = 0;
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -118,7 +115,7 @@ const $ = {
     get: async (name) => options.env?.[name],
   },
   clock: {
-    now: async () => Date.now() + advanced,
+    now: async () => Date.now(),
   },
   ui: {
     // A line for Claude Code's debug log prints as `{"debug": <text>}`.
@@ -240,11 +237,7 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press, advance } = JSON.parse(line);
-  if (advance !== undefined) {
-    advanced += advance;
-    continue;
-  }
+  const { emit, e, flush, press } = JSON.parse(line);
   if (press !== undefined) {
     drawn(press).props.onPress({ element: press, surface: "terminal" });
     continue;

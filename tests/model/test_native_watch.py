@@ -263,8 +263,7 @@ def test_a_directory_arriving_deep_in_a_page_tree_joins_its_subscription(
     """No page subscription watches a tree, so directories made deep in `page/`, or
     moved there from outside the page, move the page's reading, which is what sends
     its owner to subscribe again, and that subscription hears a file written in the
-    innermost one. On Linux watchdog's recursive watch of `page/` would never watch
-    a directory moved in."""
+    innermost one."""
     from leaf.served_state.reading import page_reading
 
     shallow = page_dir / "page" / "modules"
@@ -298,6 +297,9 @@ def test_a_process_follows_every_page_through_one_observer(tmp_path, native):
     pages = [tmp_path / name for name in ("first", "second", "third")]
     for page in pages:
         (page / "page" / "nested").mkdir(parents=True)
+    # Counted before this test's observer exists: each watchdog observer holds an
+    # instance of its own, so one another test left running counts here too.
+    held = _inotify_instances() if Path("/proc/self/fd").is_dir() else 0
     first, _generation = page_changes(pages[0])
     while first.wait(first.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
         pass
@@ -311,7 +313,7 @@ def test_a_process_follows_every_page_through_one_observer(tmp_path, native):
         key for changes in (first, second, third) for key in changes.roots.items()
     }
     if Path("/proc/self/fd").is_dir():
-        assert _inotify_instances() == 1
+        assert _inotify_instances() == held + 1
     for changes in (second, third):
         while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
             pass

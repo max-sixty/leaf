@@ -35,6 +35,13 @@
   inherits: true;
   initial-value: 520ms;
 }
+/* Registered as a length so it computes to one, which the comment placement reads back
+   to stand a thread card clear of a region's mark (comment-placement.js, `subjectGap`). */
+@property --focus-region-room {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 8px;
+}
 :root {
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
@@ -116,6 +123,11 @@
      washed by its linked passage's hover (--mark-hover), where it reads 4.6:1 in
      either scheme. */
   --muted: light-dark(#676257, #b1aa9d);
+  /* A step dimmer than --muted, for words that stand in for what isn't there yet: an
+     empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
+     as dim as WCAG AA's 4.5:1 lets text be on the page's paper in the light scheme,
+     where it reads 4.8:1; the 48% the panel's status first wore read 3.1:1. */
+  --quiet: color-mix(in srgb, var(--ink) 62%, transparent);
   --rule: light-dark(#e7e3d9, #34312b);
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the

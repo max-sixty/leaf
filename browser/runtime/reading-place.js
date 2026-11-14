@@ -72,7 +72,7 @@ import {
   stuckBox,
   drawsText,
 } from "./geometry.js";
-import { skipped, skipper } from "./shadow-tree.js";
+import { drawn, skipped, skipper } from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,
@@ -80,10 +80,11 @@ import {
   inChrome,
   pageBlocks,
   pageDocument,
-  pageText,
+  pageRuns,
   quoteFrom,
   rangeOf,
   readingFrom,
+  readingParts,
   segmentsBox,
 } from "./passages.js";
 import {
@@ -133,8 +134,7 @@ import { pointerAt } from "./pointer.js";
  * [DRAWN_PLACE]?: {node: WeakRef<Element>, through: number}
  * } & ({quote: string, quoteTop: number} | {quote?: never, quoteTop?: never}) &
  * ({section: string, sectionTop: number | null} | {section?: null, sectionTop?: null})} ReadingPlace
- * @typedef {{segments: Segment[], boxes: DOMRect[]}} DrawnRun
- * @typedef {{block: Element | null, segments: Segment[]}} BlockRun */
+ * @typedef {{segments: Segment[], boxes: DOMRect[]}} DrawnRun */
 
 // A live focused place belongs to this DOM, not a serialized history record. Its
 // symbol keeps that node out of JSON; the ordinary passage reading remains the
@@ -192,15 +192,30 @@ const QUOTABLE = 24;
 // The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a
 // declared shadow root renders authored words at its host's place in reading order, and
 // those words are pointable and resolvable through the same reading, so version
-// continuity must be able to choose the same blocks as landmarks.
+// continuity must be able to choose the same blocks as landmarks. Each is a block the
+// user may see, so a part of the reading that can't show any (`mayShow`) is not read for
+// them: a place costs the documents in view, not those in closed tabs or further down.
 /** @param {Element | null} [root] */
 export const textBlocks = (root = pageDocument()) =>
-  pageBlocks().filter((block) => under(block, root));
+  pageBlocks(mayShow).filter((block) => under(block, root));
+// Whether a part of the page's reading (passages.js, `pageRuns`) may show words in the
+// window: drawn (`drawn`), or with a drawn child, as an element whose display is
+// `contents` has no box and shows through its children; and with a box that reaches the
+// window, or none of its own. A part the page skips, as in a closed tab, is asked
+// nothing more: asking its box or its style has the browser style everything it holds,
+// 240 ms for the 29 closed documents of #4781's page in Chromium.
+/** @param {Element} part */
+export const mayShow = (part) => {
+  if (!drawn(part) && ![...part.children].some(drawn)) return false;
+  const { top, right, bottom, left, width, height } = part.getBoundingClientRect();
+  return (
+    !(width || height) ||
+    (bottom > 0 && top < innerHeight && right > 0 && left < innerWidth)
+  );
+};
 
 // Source blocks include concealed words, since an anchor can reveal them. A reading
 // place instead requires words the browser draws (geometry.js, `drawsText`).
-/** @type {WeakMap<import("./passages.js").PageReading, BlockRun[]>} */
-const blockRuns = new WeakMap();
 // The browser can bound a block's text in one Range read, including positioned
 // children outside its own box. A Range cannot cross shadow roots or read skipped
 // contents without forcing their layout; those blocks keep the per-segment reading.
@@ -218,24 +233,12 @@ const textEnvelope = (block, segments, range) => {
 // the native text envelope can rule a block out before individual tokens are measured.
 /** @param {Element[]} blocks @param {Pick<Box, "top" | "bottom"> | null} [within] @returns {Generator<[Element, DOMRect, DrawnRun[]]>} */
 function* renderedBlocks(blocks, within = null) {
-  const reading = pageText();
-  let groups = blockRuns.get(reading);
-  if (!groups) {
-    groups = [];
-    for (const segment of reading.segments) {
-      let group = groups.at(-1);
-      if (!group || group.block !== segment.block)
-        groups.push((group = { block: segment.block, segments: [] }));
-      group.segments.push(segment);
-    }
-    blockRuns.set(reading, groups);
-  }
   // A datum can split its parent's words. Keep the parent's later continuation after
   // that datum, rather than collecting both sides under the parent's first occurrence.
   const allowed = new Set(blocks);
   const drawn = new Map();
   const range = document.createRange();
-  for (const { block, segments } of groups) {
+  for (const { block, segments } of pageRuns(mayShow)) {
     if (!block || !allowed.has(block)) continue;
     // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
@@ -292,10 +295,10 @@ function* renderedBlocks(blocks, within = null) {
   }
 }
 
-// The page block a node stands in.
+// The page block a node stands in, among those the user may see.
 /** @param {Node} node */
 function passageBlock(node) {
-  const blocks = pageBlocks();
+  const blocks = pageBlocks(mayShow);
   for (
     let at = node instanceof Element ? node : node.parentElement;
     at;
@@ -558,11 +561,14 @@ function scrollsAlone(node, box) {
 // names it: the page's topmost element under that point, past anything Leaf draws over
 // the page. A drawing is widened to the largest box around it that holds no text
 // block, so a chart is its host rather than a mark it drew, and a picture whose caption
-// is a block of its own is the picture.
+// is a block of its own is the picture. A part of the page's reading holds words wherever
+// it stands, shown or not, so a box holding one holds text.
 /** @param {Element} body @param {Element} box @param {number} x @param {number} edge @param {Element[]} blocks */
 function drawnAt(body, box, x, edge, blocks) {
+  const parts = readingParts();
   const holdsText = (/** @type {Element} */ element) =>
-    blocks.some((block) => under(block, element));
+    blocks.some((block) => under(block, element)) ||
+    parts.some((part) => under(part, element));
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
     if (hit === body || !under(hit, body) || effectiveScroller(hit) !== box)

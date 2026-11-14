@@ -1,4 +1,6 @@
-"Comment marks, Go-to addresses, keyboard navigation, the feature gallery's\njourneys through its tabs and the core surfaces, and the keys each element names as\nthe user moves through the examples."
+"""Where navigation leaves the user: a comparison result's comment destination, the PR
+walkthrough's inline diff thread, a thread card that leaves and returns with its anchor,
+and addressed and external links."""
 
 import re
 
@@ -461,6 +463,3 @@ def test_an_external_link_says_and_opens_where_it_goes(
     tab = opened_tab(page, destination, external.click)
     expect(tab).to_have_url(f"{other_url}/")
     expect(page).to_have_url(url.split("?", 1)[0])
-
-
-import pytest

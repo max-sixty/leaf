@@ -145,8 +145,11 @@ brackets are a `clip-path` Leaf sets on the box, so a rule of yours that sets it
 `clip-path` replaces them. The declaration does not inherit.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
-holding its radio and words, declares `--lf-wears-ring: 1` beside the ring, so Leaf
-scrolls that box rather than the control into view with room for its ring.
+holding its radio and words, reads the box's `data-lf-control-focus-visible`, which Leaf
+writes on the box the control names with `--lf-focus-box`
+([module-input.md, "Focus and layers"](module-input.md#focus-and-layers)). It declares
+`--lf-wears-ring: 1` beside the ring, so Leaf scrolls that box rather than the control
+into view with room for its ring.
 
 Where the positioned content a box holds would paint over its own ring, as a scroller's
 positioned lines do, Leaf can draw the ring one band inside the box's edge on a later

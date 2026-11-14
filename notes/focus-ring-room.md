@@ -16,7 +16,7 @@ Two written rules disagree about this. The choice between them waits on the user
 (#4125), who judged focus rings too central for another per-case patch (2026-10-25).
 
 - The `browser/runtime/chrome.css` header says every scroll region a ringed box can land
-  in reserves `--focus-ring-room`. A sidebar page's `.layout-track`
+  in pads its edges by the room of the widest ring it holds. A sidebar page's `.layout-track`
   (`browser/layouts.css`) does, with `--focus-region-room` on every side.
 - `browser/styles/tokens.css`, "Where it stands", says a box that clips a mark standing
   outside its target cuts it. `browser/AGENTS.md` says no rule pads or widens a block to
@@ -100,7 +100,7 @@ Save the page as `.tmp/bound.html`:
           <summary id="fold">A summary</summary>
           <p>Inside.</p>
         </details>
-        <p><input id="native" class="field" aria-label="A field" /></p>
+        <p><input id="native" class="lf-field" aria-label="A field" /></p>
         <lf-diff id="patch">
           <pre>
 diff --git a/one.py b/one.py

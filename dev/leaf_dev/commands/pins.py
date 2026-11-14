@@ -97,7 +97,7 @@ def _cards(prefix: str, count: int) -> str:
         f'<section id="{prefix}{i}" style="border:1px solid var(--rule);'
         'background:var(--card);margin:0;height:44px">'
         '<div style="background:var(--chip);height:44px">'
-        f'<button class="button" style="float:right">Action</button></div></section>'
+        f'<button class="lf-btn" style="float:right">Action</button></div></section>'
         for i in range(count)
     )
 
@@ -249,7 +249,7 @@ CASES = (
         "A full-width row with its buttons at the right edge.",
         '<div id="toolbar-row" style="display:flex;gap:8px;align-items:center">'
         "<strong>Filters</strong><span style='flex:1'></span>"
-        '<button class="button">Reset</button><button class="button">Apply</button>'
+        '<button class="lf-btn">Reset</button><button class="lf-btn">Apply</button>'
         "</div>",
         ({"section": "toolbar-row"},),
     ),
@@ -346,7 +346,7 @@ CASES = (
         "A target made wholly of buttons, edge to edge, right under a paragraph.",
         f'<p style="margin:0">{WORDS} {MORE}</p>'
         '<div id="keypad-d" style="display:grid;grid-template-columns:repeat(4,1fr)">'
-        + "".join(f'<button class="button">{key}</button>' for key in "123456789*0#")
+        + "".join(f'<button class="lf-btn">{key}</button>' for key in "123456789*0#")
         + "</div>",
         ({"section": "keypad-d"},),
     ),

@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import threading
+import urllib.request
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +27,7 @@ from leaf.codex import AppServerRequestRejected, delivery_records
 from leaf.event_log import read_events
 from leaf.hosting import LeafHTTPServer
 from leaf.refusals import Refused
+from leaf.registry.storage import layer_record
 from leaf.state import session_record
 from leaf.thread import post_reply
 from process.website_server import (
@@ -718,6 +720,35 @@ def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):
 
         assert answer == {"status": "started", "thread": "already-started-thread"}
         assert agent_harness.attached == []
+
+
+def test_a_prewarm_composes_the_page_layer(page_dir, tmp_path, monkeypatch):
+    """The Worker asks for it when a visitor focuses a text box, so their write finds
+    the layer composed."""
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    composed = []
+    monkeypatch.setattr(
+        website_server, "selected", lambda record, page: composed.append((record, page))
+    )
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    with running_http_server(httpd):
+        request = urllib.request.Request(
+            f"{root}/examples/decision/_leaf/agent/prewarm",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request) as response:
+            assert response.status == 204
+
+    page = published.resolve()
+    assert composed == [(layer_record(page), page)]
 
 
 @pytest.mark.parametrize("replacement", ["generation", "prompt"])

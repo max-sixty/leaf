@@ -380,6 +380,14 @@ graph LR
 </pre></lf-diagram>
 """,
 )
+# A drawing that can't narrow to a desktop column: a row of six calls side by side,
+# named by identifiers no wrapping shortens, in a top-down layout, which Pele doesn't
+# turn. Where a drawing still outgrows its box, it scrolls there.
+FAN_OUT = """\
+flowchart TD
+  Gate[handle_request] --> A[read_session_cookie] &amp; B[check_request_origin] &amp; C[verify_signed_token]
+  Gate --> D[load_session_record] &amp; E[apply_rate_limit] &amp; F[write_audit_entry]
+"""
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
 # against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
 # assertions turn on is the width each declares rather than that both are widgets.
@@ -402,6 +410,16 @@ graph LR
   <lf-column id="d2" label="Doing"></lf-column>
   <lf-column id="d3" label="Done"></lf-column>
 </lf-board>
+""",
+)
+# A drawing no layout fits in a 760px window, so its box scrolls and takes a tab stop of
+# its own.
+SCROLLING_DIAGRAM_PAGE = leaf_page(
+    "scrolling diagram",
+    f"""
+<h1 id="t">Calls</h1>
+<lf-diagram id="flow"><pre>
+{FAN_OUT}</pre></lf-diagram>
 """,
 )
 # What a diagram is doing with the width it was given, beside what the board on the same
@@ -616,7 +634,7 @@ CHART_IN_A_MESSAGE_PAGE = leaf_page(
 # so this is the ordinary case rather than a corner.
 DIAGRAM_AND_RAIL_PAGE = leaf_page(
     "diagram and rail",
-    """
+    f"""
 <h1 id="t">Sessions</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -629,14 +647,7 @@ graph LR
   F --> H
 </pre></lf-diagram>
 <lf-diagram id="flow"><pre>
-graph LR
-  R[request] --> C{cookie valid?}
-  C -->|yes| S[read session from Redis]
-  S -->|hit| H[handle]
-  S -->|miss/outage| F[verify signed fallback]
-  F --> H
-  C -->|no| L[login]
-</pre></lf-diagram>
+{FAN_OUT}</pre></lf-diagram>
 """,
 )
 
@@ -1122,14 +1133,6 @@ RAIL_BANDS = """() => {
 }"""
 
 
-# A drawing that can't narrow to a desktop column: a row of six calls side by side,
-# named by identifiers no wrapping shortens, in a top-down layout, which Pele doesn't
-# turn. Where a drawing still outgrows its box, it scrolls there.
-FAN_OUT = """\
-flowchart TD
-  Gate[handle_request] --> A[read_session_cookie] &amp; B[check_request_origin] &amp; C[verify_signed_token]
-  Gate --> D[load_session_record] &amp; E[apply_rate_limit] &amp; F[write_audit_entry]
-"""
 # A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
 # leave, the graph is drawn wider than the frame's own inset, and no room the page has
 # can be given to it — so scrolling is the layer's honest answer. Beside it a line of

@@ -6,9 +6,9 @@ Replay starts both at the beginning; pause/resume and seeking affect both.
 
 The existing toolbar draft is:
   <div id="playback" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
-    <button class="button" id="replay">Replay all</button>
-    <button class="button" id="pause">Pause all</button>
-    <label>Speed <select class="field" id="speed"><option>1×</option></select></label>
+    <button class="lf-btn" id="replay">Replay all</button>
+    <button class="lf-btn" id="pause">Pause all</button>
+    <label>Speed <select class="lf-field" id="speed"><option>1×</option></select></label>
     <span id="status" role="status">Ready to compare.</span>
   </div>
   <input id="timeline" type="range" min="0" max="1200" value="0" aria-label="Timeline">

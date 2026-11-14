@@ -10,8 +10,10 @@ The adapter also runs the hosted agent. The Worker posts each accepted event tha
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
 thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
 while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
-repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
-installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
+repeated start for the same event starts nothing new. Earlier, when the visitor focuses
+a text box, the Worker posts `/_leaf/agent/prewarm`, and the adapter composes the
+page's layer while they type, so their write doesn't wait for it. Codex has the
+prepared Leaf plugin installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
 (`hosted-agent.md`) adds only the session's environment and scope. Each turn is bound to its delivery id, sent as
 `clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
 carries at most one plain reply, which streams into its thread and is committed through
@@ -76,7 +78,7 @@ from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, layer_record, selected
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
@@ -179,6 +181,7 @@ FAILURE_RECEIPTS = {
 CONTAINER_FAILURE = "turn_failed"
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
+AGENT_PREWARM_PATH = "/_leaf/agent/prewarm"
 STARTUP_REPORT_PATH = "/api/performance"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The private diagnostic milestones consumed by hosted reply evaluations. Their
@@ -1483,7 +1486,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
-    # The two routes below are for the Worker, which refuses every `/_leaf/` path from
+    # The routes below are for the Worker, which refuses every `/_leaf/` path from
     # outside and sends the event its own admission returned. The container's own agent
     # can reach them too, but what it posts lands in this visitor's page, which it can
     # already write, so they read the body as given.
@@ -1506,11 +1509,24 @@ class WebsitePageEndpoint(PageEndpoint):
             return self._json({"status": "settled"})
         return self._json({"status": "appended", "event": accepted["id"]})
 
+    # The Worker posts here when the visitor focuses a text box, so the write they are
+    # about to send finds the page's layer composed: this process keeps a composition
+    # (`layer.selected_layer`), and on one vCPU composing it takes about 0.9 s, which
+    # would otherwise come out of that write. Only a focus asks for it, so a write with
+    # no focus before it, such as a first click, doesn't share the CPU with composing.
+    def _prewarm_agent(self) -> Response:
+        started = time.monotonic()
+        if (record := layer_record(self.page_dir)) is not None:
+            selected(record, self.page_dir)
+        log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
+        return self._content(204, "application/json", b"")
+
     POST_ROUTES: Mapping[str, PostRoute] = {
         **PageEndpoint.POST_ROUTES,
         STARTUP_REPORT_PATH: PostRoute(_acknowledge_startup_report),
         AGENT_START_PATH: PostRoute(_start_agent, (PageEndpoint._body_gate,)),
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
+        AGENT_PREWARM_PATH: PostRoute(_prewarm_agent),
     }
 
     def _released_resource(self) -> Response | None:

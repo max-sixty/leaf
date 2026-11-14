@@ -57,6 +57,21 @@ export function finishMoving() {
   return motion.length;
 }
 
+// Whether the motion `finiteMotion` reads has ended within each element a selector
+// names, shadow trees included; a selector naming nothing reads as at rest. A test reads
+// one surface's geometry once that surface rests, while motion elsewhere runs on.
+export const restingIn = (/** @type {string[]} */ ...selectors) => {
+  const roots = selectors.flatMap((selector) => document.querySelector(selector) ?? []);
+  return !finiteMotion().some((animation) => {
+    const effect = animation.effect;
+    /** @type {Node | null} */
+    let node = effect instanceof KeyframeEffect ? effect.target : null;
+    while (node && !roots.some((root) => root === node))
+      node = node.parentNode ?? (node instanceof ShadowRoot ? node.host : null);
+    return node !== null;
+  });
+};
+
 // The page is settled once nothing is moving: no finite animation, and no scroll in
 // flight, such as a landing's glide, which is no animation and moves every box it
 // scrolls.

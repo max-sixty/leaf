@@ -1054,8 +1054,34 @@ class LocalWorker:
         check(
             container in self.containers(), "refusing to stop another run's container"
         )
+        stopping = int(time.time())
         docker_command("stop", "--time", "1", container)
-        check(container not in self.containers(), "the page container did not stop")
+        if container in self.containers():
+            # `docker stop` returned after the container exited, so a listed
+            # container is either still exiting or was started again under the
+            # same id. Its state and lifecycle events since the stop tell which.
+            state = docker_command(
+                "inspect",
+                "--format",
+                "{{json .State}} restarts={{.RestartCount}}"
+                " policy={{json .HostConfig.RestartPolicy}}",
+                container,
+            )
+            events = docker_command(
+                "events",
+                "--since",
+                str(stopping),
+                "--until",
+                str(int(time.time()) + 1),
+                "--filter",
+                f"container={container}",
+                "--format",
+                "{{.TimeNano}} {{.Action}}",
+            )
+            raise RuntimeError(
+                f"the page container did not stop (stop requested at {stopping}):\n"
+                f"{state.strip()}\nevents since the stop:\n{events.strip() or 'none'}"
+            )
         wait_for_host_network()
 
 

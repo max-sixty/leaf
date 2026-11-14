@@ -10,22 +10,42 @@
    than a line under them: Chromium rechecks a highlight's text decoration across the
    whole page on every click and keystroke. Hiding the annotations (`o`) empties the
    durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
-   rule here depends on it. */
-::highlight(lf-mark) {
+   rule here depends on it.
+
+   The rules style each highlight on the root and on each shadow stage's host, and every
+   element below, in shadow trees too, inherits that style. A mark therefore takes its
+   colours where a rule matches, on the root or on the nearest shadow host. A widget
+   that sets `--mark` on its host recolours the marks inside it, while a `--mark` set
+   on a section of the page doesn't. A region with its own `color-scheme` gets the
+   root's half of each `light-dark()` token, so words marked in a dark panel on a light
+   page wear the light page's ink. A rule matching every element cost a seventh of a
+   large page's load in Chromium, which resolves a highlight's style for each element a
+   rule matches. In an engine without highlight inheritance, the runtime widens the
+   rules to every element by putting `*` in place of `:root` and `:host`
+   (stylesheets.js, `markSheet`), and there each element reads its own tokens and
+   scheme. Each rule names the two in a selector list rather than nesting under
+   `:root, :host`, which reads as `:is(:root, :host)` and, on a plain page, cost
+   Chromium a fifth of the style time that styling every element added. */
+:root::highlight(lf-mark),
+:host::highlight(lf-mark) {
   background-color: var(--mark);
   color: var(--mark-ink-text);
 }
-::highlight(lf-mark-hover) {
+:root::highlight(lf-mark-hover),
+:host::highlight(lf-mark-hover) {
   background-color: var(--mark-hover);
 }
-::highlight(lf-mark-here) {
+:root::highlight(lf-mark-here),
+:host::highlight(lf-mark-here) {
   background-color: var(--mark-strong);
 }
-::highlight(lf-pending) {
+:root::highlight(lf-pending),
+:host::highlight(lf-pending) {
   background-color: var(--mark-pending);
   color: var(--mark-pending-text);
 }
-::highlight(lf-react) {
+:root::highlight(lf-react),
+:host::highlight(lf-react) {
   background-color: var(--react);
   color: var(--mark-ink-text);
 }

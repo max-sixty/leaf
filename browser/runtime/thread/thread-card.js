@@ -102,7 +102,7 @@ import {
   threadSummary,
 } from "./messages.js";
 import { generatedElement, offeredAction } from "../widget-elements.js";
-import { measure } from "../shown-box.js";
+import { contentsBox, measure } from "../shown-box.js";
 import { keeps, keepsHidden, layoutPx, roomPx } from "../keeps.js";
 import { commandsOn } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -113,7 +113,6 @@ import {
   threadHoldsDraft,
 } from "./replies.js";
 import {
-  followsEnd,
   moveScrollerBy,
   SCROLL_SLACK,
   scrollLimit,
@@ -425,10 +424,7 @@ export function threadReading(thread, surface, commands) {
 // whole one's rounds.
 /** @param {Element | null | undefined} node */
 function wordsWidth(node) {
-  if (!node) return 0;
-  const range = document.createRange();
-  range.selectNodeContents(node);
-  return range.getBoundingClientRect().width;
+  return node ? contentsBox(node).width : 0;
 }
 
 /** @typedef {Omit<ThreadReading, "settlement"> & {
@@ -476,10 +472,11 @@ const lastTurn = (model) =>
      around the boxes the thread draws its notice and settlement in, and which the thread
      stands after its messages, where it shares their heads' track
      (annotation-chrome.css) and the notice takes only the room the heads leave
-     (`#fitLineNews`); and `endNewsMoves()`, whether news at the thread's end, which
+     (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which
      grows the floating card at the edge it does not hold, would move what the user is
      on (thread-preview.js, `heldEdge`), and since the card stands itself, a landing in
-     it scrolls nothing into view.
+     it scrolls nothing into view; and `standsAtEnd()`, whether the reader stands at the
+     end the card's transcript follows, as its keeper says (scrolling.js, `followEnd`).
    The thread draws each part apart in a box of its own (`apart`), which the container
    places in the place it names before the thread draws it, as it places the thread's
    box in its outlet. The reply's options are read as the box is made, once for the
@@ -504,6 +501,7 @@ const lastTurn = (model) =>
 /** @typedef {{
  * line?: (apart: ThreadView["apart"]) => HTMLElement,
  * endNewsMoves?: () => boolean,
+ * standsAtEnd?: () => boolean,
  * }} CardOutlets */
 /** @typedef {ThreadOutlets & CardOutlets & {reader?: "page" | "primary"}} ViewOutlets */
 
@@ -717,15 +715,19 @@ export class ThreadView {
     // News shows at once only where it changes the thread's end and the card says growth
     // there moves nothing the user is on (`endNewsMoves`). A change to the last message
     // is such news where it is a reply still streaming, or where the transcript, at its
-    // cap and scrolled to its end, follows it there (thread-preview.js). Anything else
+    // cap, follows it there, as its keeper does for a reader it says stands at the end
+    // (`CardOutlets`, `standsAtEnd`). The transcript's offset doesn't say that: a turn
+    // that grew in this task, as its picture loaded, has carried the end past the
+    // reader before the keeper's next reading takes them there. Anything else
     // would move the messages being read, so it waits. A settlement keeps the editor it
     // interrupts, as every thread keeps its reply box.
-    const { endNewsMoves } = this.#outlets;
+    const { endNewsMoves, standsAtEnd } = this.#outlets;
     if (endNewsMoves) {
       if (news.settled) return false;
       const last = this.#model?.messages.at(-1);
       const list = this.#transcript.node;
-      const follows = list.scrollHeight > list.clientHeight + 0.5 && followsEnd(list);
+      const follows =
+        list.scrollHeight > list.clientHeight + 0.5 && Boolean(standsAtEnd?.());
       const atEnd =
         (!news.appended || appendedAtEnd) &&
         !news.summaries &&

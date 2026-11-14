@@ -250,6 +250,14 @@ browser's `:focus-visible`, and keyboard routes request visible focus, so a
 pointer-focused control can reveal its actions without a keyboard ring; text editors
 show their entry cue. The same names without `data-` are public shadow parts.
 
+A box that shows the focus of a control inside it, as a row rings its checkbox, is
+named by the control: declare `--lf-focus-box` in the control's rule, as a selector,
+such as `.row > input { --lf-focus-box: .row; }`. Leaf marks the nearest box around
+the focused control that matches it `data-lf-control-focus`, and
+`data-lf-control-focus-visible` while the focus is visible, so the box's rule reads its
+own attributes. Don't ask with `:has()` where focus is, by a mark or by `:focus`: in
+Chromium that makes every focus move restyle the page.
+
 ### Layers
 
 A widget opening its own layer, such as a list over its contents, calls

@@ -1469,7 +1469,6 @@ export function createMarginProjection({
       syncReadingRelation(host.marker, primaryReading(host.lfEntry));
     for (const button of readingMarginEntries.values())
       syncReadingRelation(button, button.lfChoice);
-    paintKeys();
   }
 
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element | null} control @param {string | null} [threadItem] @param {Pick<Parameters<ShowPreview>[0], "origin" | "accompanies" | "forced">} [options] */
@@ -1503,9 +1502,6 @@ export function createMarginProjection({
       },
     });
     previewChanged();
-    // The card's messages were drawn from this gesture, outside any paint that follows
-    // their ages; drawing the margin again reads them where it follows them.
-    renderAnnotations.refresh();
     return positioned;
   }
 
@@ -1539,7 +1535,6 @@ export function createMarginProjection({
     const at = focused();
     const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
-    paintKeys();
   }
   // A card a window narrowed past the room for the rail gives its thread to where every
   // route now opens it (`showPreview`), the floating panel, and a user in it goes along:

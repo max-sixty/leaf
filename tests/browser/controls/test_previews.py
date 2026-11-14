@@ -4149,7 +4149,7 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
 # and a frame with a field in it.
 REACHED = {
     "code": (
-        '<pre id="region" class="scroll" style="width: 400px; height: 120px;'
+        '<pre id="region" class="lf-scroll" style="width: 400px; height: 120px;'
         ' overflow: auto; margin: 4px 0 0"><code>'
         + "total = sum(item.price * item.quantity for item in all_items_with_a_long"
         "_collection_name_that_runs_past_the_box)\n" * 8 + "</code></pre>"

@@ -68,19 +68,20 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   }
   /* A pane's lane and the frames a sticky header cuts are stacking contexts of their own
      (their clips make them so), so each rises with the row the pointer or the keyboard
-     is on. */
+     is on. They hold nothing but rows, so focus within one is focus on a row. */
   .lf-margin-lane:has(
-    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    .lf-margin-cluster:hover,
     [data-lf-kinds~="on-me"][data-lf-target-selected]
   ),
   .lf-margin-cut:has(
-    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    .lf-margin-cluster:hover,
     [data-lf-kinds~="on-me"][data-lf-target-selected]
   ),
   .lf-margin-carrier:has(
-    .lf-margin-cluster:is(:hover, [data-lf-focus-within]),
+    .lf-margin-cluster:hover,
     [data-lf-kinds~="on-me"][data-lf-target-selected]
-  ) {
+  ),
+  :is(.lf-margin-lane, .lf-margin-cut, .lf-margin-carrier)[data-lf-focus-within] {
     z-index: var(--lf-z-margin-raised);
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
@@ -173,8 +174,12 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     outline: none;
     --lf-wears-ring: 0;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"])
-    .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+  /* The box shows its field's focus on the field, and on its ground and edge below. */
+  .lf-fab-bar leaf-text.lf-fab-input {
+    --lf-focus-box: .lf-fab-bar;
+  }
+  .lf-fab-bar:not([data-lf-presentation="inline"])[data-lf-control-focus-visible]
+    .lf-compose-field {
     outline: var(--focus-ring);
     --lf-wears-ring: 1;
   }
@@ -212,7 +217,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     pointer-events: none;
   }
   /* The focus ring stands outside the field in place of its border. */
-  .lf-fab-bar:has(leaf-text.lf-fab-input[data-lf-focus-visible]) > .lf-fab-ground {
+  .lf-fab-bar[data-lf-control-focus-visible] > .lf-fab-ground {
     --lf-box-ring: var(--card);
   }
   /* Attached images hang off the box on the side away from its passage, outside its
@@ -261,8 +266,10 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     pointer-events: auto;
   }
   /* thread-preview.js writes the width and height cap the card's placement gives it
-     (comment-placement.js); these are the fallbacks for a card no placement has sized
-     yet, so only they are held to the viewport. The selected thread's transcript is
+     (comment-placement.js) as the card's own `min-width`, `max-width` and `max-height`,
+     never as custom properties, which every element in the card would inherit, so each
+     fit would restyle the whole card; these are the bounds for a card no placement has
+     sized yet, so only they are held to the viewport. The selected thread's transcript is
      the card's reading scroller; metadata and reply stand outside it. Anchored to what
      it is about, it moves with the words (floating.js), and passes under the floating
      panel the way they do. Its insets are its placement's alone:
@@ -277,9 +284,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     /* As wide as its thread, between the bounds its placement gives it
        (thread-preview.js, `placeThreadPreview`). */
     width: max-content;
-    min-width: var(--lf-thread-min-width, 0);
-    max-width: var(--lf-thread-width, min(var(--thread-card), calc(100vw - 16px)));
-    max-height: var(--lf-thread-max-height, calc(100vh - var(--lf-head-room) - 16px));
+    min-width: 0;
+    max-width: min(var(--thread-card), calc(100vw - 16px));
+    max-height: calc(100vh - var(--lf-head-room) - 16px);
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -341,10 +348,10 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      still the thread's focus; the card's face only carries it, and its surface while the
      card moves. A message holding focus, as Next On Me leaves the reply it lands on,
      rings the card too (below), since the keys it answers act on its thread. */
-  .lf-margin-preview-card:has(
-    .lf-page-thread[data-lf-focus-visible],
-    .lf-page-thread .lf-msg[data-lf-focus-visible]
-  ) {
+  .lf-margin-preview-card :is(.lf-page-thread, .lf-page-thread .lf-msg) {
+    --lf-focus-box: .lf-margin-preview-card;
+  }
+  .lf-margin-preview-card[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     --lf-ring-at: var(--focus-ring-inset);
   }
@@ -401,7 +408,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     z-index: 1;
   }
   .lf-fab-bar:is(:has(> .lf-surface-grip:hover), [data-lf-carried]):not(
-      :has(.lf-fab-input[data-lf-focus])
+      [data-lf-control-focus]
     )
     > .lf-fab-ground
     > .lf-box-ring {
@@ -672,7 +679,12 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   }
   .lf-margin-thread .lf-page-thread::after {
     /* Share the transcript's grid track without reserving reading space. The
-       author stays crisp while words fade into its moving lower edge. */
+       author stays crisp while words fade into its moving lower edge. Its place
+       (`--lf-thread-fade-top`, `--lf-thread-fade-height`, thread-preview.js) inherits,
+       so each write restyles the thread's elements: registered as not inheriting and
+       taken with `inherit`, it stays at its first value in WebKit
+       (notes/browser-support.md, "A non-inheriting property taken with `inherit` in
+       WebKit"). */
     content: "";
     position: absolute;
     inset: var(--lf-thread-fade-top, 0px) 0 auto;
@@ -688,8 +700,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
        a focused message control's ring. */
     z-index: 0;
   }
-  .lf-margin-thread
-    .lf-page-thread:has(> .lf-thread-transcript[data-lf-focus-within])::after {
+  .lf-margin-thread .lf-page-thread[data-lf-transcript-focus]::after {
     display: none;
   }
   @media (forced-colors: active) {

@@ -1,6 +1,7 @@
 /* Native evidence closure folds its pixels while CSS retires its controls.
    Every opening is instant, including a reopen during an unfinished fold, and so is a
-   closing from the keyboard on the fold's summary. The fold states its duration and
+   closing from the keyboard on the fold's summary, whose focus the summary names its
+   fold to show (`--lf-focus-box`, base.css). The fold states its duration and
    its content reads it, because a `:has()` before `::details-content` made every focus
    move restyle the whole page in Chromium
    (test_a_has_leads_only_to_a_subject_naming_an_element). The duration doesn't
@@ -16,7 +17,10 @@
       interpolate-size: allow-keywords;
       --lf-fold-time: var(--lf-motion-fold);
     }
-    :is(.lf-diff-fold, .lf-call-group):has(> summary[data-lf-focus-visible]) {
+    :is(.lf-diff-fold, .lf-call-group) > summary {
+      --lf-focus-box: .lf-diff-fold, .lf-call-group;
+    }
+    :is(.lf-diff-fold, .lf-call-group)[data-lf-control-focus-visible] {
       --lf-fold-time: 0s;
     }
     :is(.lf-diff-fold, .lf-call-group)::details-content {

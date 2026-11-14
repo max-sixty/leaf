@@ -281,7 +281,9 @@ For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="lf-scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
-descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
+descendants. Leaf fits media to its container (below), so an image or SVG meant to
+scroll in the box needs `max-width: none`. For a box that scrolls vertically, see
+`page-layout.md`, "Bounds and widths".
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf

@@ -106,7 +106,24 @@
    * The room the floating panel's row keeps at the window's foot (`--lf-foot-room`,
    * base.css) is the open part's own end rather than the body's, since the part is what
    * reads to the page's end. So the part, the rule beside it and the column all reach
-   * the window's foot, and no band stands below them that belongs to neither. */
+   * the window's foot, and no band stands below them that belongs to neither.
+   *
+   * What the page writes before the parts is whatever `main` holds besides the parts'
+   * holder, which the authoring contract keeps to the page's header (page-layout.md,
+   * "A page of parts"). Each child of `main` asks `main` whether it holds the parts, by
+   * a style query on `--lf-holds-parts`, which `main` states and which doesn't inherit.
+   * Asked by a `:has()` on `main`, the question would restyle the whole document on
+   * every write; asked by each child of `main` of its later siblings, as `:has(~ …)`,
+   * it made Chromium walk every earlier sibling of the focused block on each focus
+   * move and restyle them
+   * (test_a_has_reads_no_sibling_of_an_element_most_selectors_reach). No class or tag
+   * narrows the subject, so the browser tests the rule against every element;
+   * `:where(main > *)` comes first so that an element outside `main` fails at once. */
+  @property --lf-holds-parts {
+    syntax: "<integer>";
+    inherits: false;
+    initial-value: 0;
+  }
   @media screen {
     html[data-lf-interactive]
       body:has(
@@ -128,6 +145,7 @@
         > [data-lf-views="parts"]
       ) {
       --lf-parts-list: 15rem;
+      --lf-holds-parts: 1;
       display: grid;
       grid-template-columns: var(--lf-parts-list) minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr);
@@ -135,36 +153,24 @@
       box-sizing: border-box;
       min-block-size: calc(100dvh - var(--lf-head-room));
     }
-    /* What the page writes before the parts, named from itself rather than by a `:has()`
-     * on `main`, which would restyle the whole document on every write: what stands
-     * before the parts' holder. No class or tag narrows the subject, so the browser
-     * tests the rule against every element, checking the subject's conditions in the
-     * order they are written. `:where(main > *)` comes first so that an element outside
-     * `main` fails at once. The sibling conditions read every later or earlier sibling,
-     * and tested first on each line of an 18,000-line text document, they spent 40 s
-     * restyling it. */
-    html[data-lf-interactive]
-      body
-      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > :where(main > *):has(~ [data-lf-views="parts"]):not(
-        [data-lf-views="parts"],
-        [data-lf-views="parts"] ~ *
-      ) {
-      grid-column: 1;
-      grid-row: 1;
-      anchor-name: --lf-parts-title;
-      position: fixed;
-      top: var(--lf-top);
-      box-sizing: border-box;
-      inline-size: var(--lf-parts-list);
-      max-block-size: calc(100dvh - var(--lf-head-room) - 8rem);
-      overflow-y: auto;
-      --lf-holds-height: 1;
-      margin: 0;
-      /* Room for a focus ring at its foot, where it scrolls, taken from the list's top
-       * (the package theme). */
-      padding: var(--sp-4) 20px var(--focus-ring-room);
-      --lf-parts-title: 1;
+    @container style(--lf-holds-parts: 1) {
+      :where(main > *):not([data-lf-views="parts"]) {
+        grid-column: 1;
+        grid-row: 1;
+        anchor-name: --lf-parts-title;
+        position: fixed;
+        top: var(--lf-top);
+        box-sizing: border-box;
+        inline-size: var(--lf-parts-list);
+        max-block-size: calc(100dvh - var(--lf-head-room) - 8rem);
+        overflow-y: auto;
+        --lf-holds-height: 1;
+        margin: 0;
+        /* Room for a focus ring at its foot, where it scrolls, taken from the list's
+         * top (the package theme). */
+        padding: var(--sp-4) 20px var(--focus-ring-room);
+        --lf-parts-title: 1;
+      }
     }
     html[data-lf-interactive]
       body
@@ -224,13 +230,12 @@
         grid-template-rows: none;
         min-block-size: 0;
       }
-      html[data-lf-interactive]
-        body
-        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :where(main > *):has(~ [data-lf-views="parts"]):not(
-          [data-lf-views="parts"],
-          [data-lf-views="parts"] ~ *
-        ),
+      @container style(--lf-holds-parts: 1) {
+        :where(main > *):not([data-lf-views="parts"]) {
+          grid-column: 1;
+          grid-row: auto;
+        }
+      }
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
@@ -245,18 +250,14 @@
         grid-row: auto;
       }
       /* The title scrolls away; the list sticks over the part (the package theme). */
-      html[data-lf-interactive]
-        body
-        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > :where(main > *):has(~ [data-lf-views="parts"]):not(
-          [data-lf-views="parts"],
-          [data-lf-views="parts"] ~ *
-        ) {
-        position: static;
-        inline-size: auto;
-        max-block-size: none;
-        overflow-y: visible;
-        padding-block-end: 0;
+      @container style(--lf-holds-parts: 1) {
+        :where(main > *):not([data-lf-views="parts"]) {
+          position: static;
+          inline-size: auto;
+          max-block-size: none;
+          overflow-y: visible;
+          padding-block-end: 0;
+        }
       }
       html[data-lf-interactive]
         body
@@ -327,27 +328,32 @@
    * none. The lengths inherit, since WebKit left one passed down with `inherit` stale
    * after a resize (notes/browser-support.md).
    *
-   * The column computes its room in two properties that don't inherit
-   * (`--lf-room-start`, `--lf-room-end`), so every unit in it resolves on the column:
-   * the shell's `cqi`, and a page's `--col` or `--col-pad` stated in `ch` or `em`,
-   * in the column's font. It passes the result down in `--lf-free-*`, registered `*`,
-   * as an expression of lengths and a percentage that each reader resolves against
-   * its own containing block. Inherited and registered `<length-percentage>`, the room counted
-   * as changed on every restyle of the column in Chromium 158 though its value was the
-   * same, so each restyle of the column, as when focus marks it on the user's return
-   * to a passage, restyled every box under it (notes/browser-support.md). */
+   * The column resolves every length in its room on itself, in registered `<length>`
+   * properties that don't inherit, so each unit resolves there: the shell's `cqi`, and
+   * a page's `--col` or `--col-pad` stated in `ch` or `em`, in the column's font.
+   * `--lf-room-length` is the column's slot for that length: the shell less the
+   * column's gutters for a centred column, and the room at its end beside a sidebar
+   * (below). `--lf-room-note` is the note's share of it where a note column stands
+   * beside the prose. The column states each side's room from them in `--lf-free-*`,
+   * registered `*`, as an expression of lengths and a percentage that each reader
+   * resolves against its own containing block. Registered `<length-percentage>`, a
+   * room mixing a length with a percentage counted as changed on every restyle of the
+   * column in Chromium 158 though its value was the same, inheriting or not, so each
+   * restyle of the column, as when focus marks it on the user's return to a passage
+   * or a `:has()` on it is asked again as focus moves, restyled every box under it
+   * (notes/browser-support.md). */
   @property --lf-shell-width {
     syntax: "<length>";
     inherits: true;
     initial-value: 0px;
   }
-  @property --lf-room-start {
-    syntax: "<length-percentage>";
+  @property --lf-room-length {
+    syntax: "<length>";
     inherits: false;
     initial-value: 0px;
   }
-  @property --lf-room-end {
-    syntax: "<length-percentage>";
+  @property --lf-room-note {
+    syntax: "<length>";
     inherits: false;
     initial-value: 0px;
   }
@@ -398,10 +404,9 @@
     main > [data-lf-views="parts"] > * > *
   ).layout-column {
     --lf-shell-width: 100cqi;
-    --lf-room-start: max(0px, (var(--lf-shell-width) - 100%) / 2 - var(--col-pad));
-    --lf-room-end: var(--lf-room-start);
-    --lf-free-start: var(--lf-room-start);
-    --lf-free-end: var(--lf-room-end);
+    --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--col-pad));
+    --lf-free-start: max(0px, (var(--lf-room-length) - var(--lf-room-note) - 100%) / 2);
+    --lf-free-end: var(--lf-free-start);
     /* An authored note column centers the prose and note together when both fit.
      * Narrower columns keep centered prose and wrap the note. The author chooses
      * this axis on its owner; notes inside another column never choose it. */
@@ -419,22 +424,11 @@
             2
         )
         auto;
-      --lf-room-start: max(
-        0px,
-        (
-            var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--note) *
-              clamp(
-                0,
-                sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
-                1
-              )
-          ) /
-          2
+      --lf-room-note: calc(
+        var(--note) *
+          clamp(0, sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1, 1)
       );
-      --lf-room-end: max(
-        0px,
-        var(--lf-shell-width) - 2 * var(--col-pad) - 100% - var(--lf-room-start)
-      );
+      --lf-free-end: max(0px, var(--lf-room-length) - 100% - var(--lf-free-start));
     }
   }
   .layout-flow {
@@ -713,7 +707,8 @@
    * Beside the body, such an aside stretches along it, and growth in the body never
    * moves its top. An aside after the body keeps anchoring: stacked under it, the
    * aside's top moves with what grows above, and beside it, the body comes first. */
-  .layout-sidebar > aside:has(~ :not(header, footer, aside)) {
+  .layout-sidebar
+    > aside:where(.layout-sidebar > *):has(~ :not(header, footer, aside)) {
     overflow-anchor: none;
   }
   @container not style(--aside: auto) {
@@ -782,13 +777,14 @@
     margin: 0;
     padding: 0;
     --lf-wide-page: 0;
-    --lf-room-end: max(
+    /* A length throughout, resolved in the column's slot for it (above). */
+    --lf-room-length: max(
       0px,
       100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
         clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
     );
-    --lf-free-end: var(--lf-room-end);
-    padding-inline-end: var(--lf-room-end);
+    --lf-free-end: var(--lf-room-length);
+    padding-inline-end: var(--lf-room-length);
   }
   @property --lf-track-parent-width {
     syntax: "<length>";

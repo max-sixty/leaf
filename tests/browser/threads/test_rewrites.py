@@ -690,7 +690,9 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
     thread whose words the user left as they were, in a thread card. A rewrite left open
     in Feed stayed open when another message's rewrite opened in another reader, since
     each reader put aside only its own."""
-    page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
+    page, workspace, message = _rewrite_surface(
+        browser, serve, "feed", size=(1408, 900), thanks=True
+    )
     mine = message.get_attribute("data-lf-event")
     marker = page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker')
 

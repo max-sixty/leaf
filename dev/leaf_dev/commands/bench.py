@@ -29,7 +29,8 @@ option to click, reads none of that input, and the report names it as missing.
   write to the file it changes, to the first frame that paints its result (`painted`);
   for a gesture, also to the arrival of its POST's answer (`answered`) and to the
   frame that presents the server's reading of its event (`shown`), which root
-  `AGENTS.md` holds to BUDGET_MS. Each counts the requests and bytes it caused
+  `AGENTS.md` holds to BUDGET_MS. Each frame is timed as it is laid out, just before
+  it paints (`leaf_dev.painted`). Each counts the requests and bytes it caused
   (`Traffic`).
 - `server` times the server's paths on each generated page in this process, with no
   browser, on this checkout only (`leaf_dev.server_paths`).
@@ -327,10 +328,27 @@ def ask(g: int, options: int = 4) -> str:
     )
 
 
+# One file's patch, sixteen lines with four changed, which `lf-diff` draws with a
+# comment control on each line.
+PATCH = (
+    '<lf-diff id="patch"><pre>\n'
+    "diff --git a/steps.py b/steps.py\n--- a/steps.py\n+++ b/steps.py\n"
+    "@@ -1,16 +1,16 @@\n"
+    + "".join(
+        f"-step_{g} = {g}\n+step_{g} = {g} + 1\n"
+        if g % 4 == 3
+        else f" step_{g} = {g}\n"
+        for g in range(16)
+    )
+    + "</pre></lf-diff>"
+)
+
+
 def ask_sections(n: int) -> str:
-    """`n` sections, each an `ask`, so widgets, obligations on the user, headings and
-    margin pins all grow with `n`."""
-    return page("Questions", "".join(ask(g) for g in range(1, n + 1)))
+    """`PATCH`, then `n` sections, each an `ask`, so widgets, obligations on the user,
+    headings and margin pins all grow with `n`. A comment box opened on a line of the
+    patch stands in the page's flow, so opening it moves every section and pin below."""
+    return page("Questions", PATCH + "".join(ask(g) for g in range(1, n + 1)))
 
 
 def board_sections(boards: int, cards: int, done: int = 0) -> str:
@@ -942,6 +960,25 @@ def write_comment(tab: Tab, nth: int = 0) -> Goals:
     }
 
 
+def aim_at_line(tab: Tab) -> Goals:
+    """Put away the comment box an earlier sample opened, and rest the mouse over the
+    comment control of one of `PATCH`'s lines, another line each sample."""
+    tab.page.keyboard.press("Escape")
+    until(
+        tab.page,
+        "() => !document.getElementById('patch').shadowRoot.querySelector('.lf-fab-bar')",
+        "the diff's comment box never closed",
+    )
+    tab.page.mouse.move(4, 4)
+    control = tab.page.locator("#patch .lf-diff-line-comment").nth(2 + 3 * tab.sample)
+    control.scroll_into_view_if_needed()
+    box = control.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(600)
+    return {"painted": ("composer", "patch")}
+
+
 def send(tab: Tab) -> None:
     tab.page.keyboard.press("ControlOrMeta+Enter")
 
@@ -1120,6 +1157,7 @@ INPUTS: dict[str, Input] = {
         agent_stamp, ready=name_revision, paints=True, after=600, needs="h1"
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
+    "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
     "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
@@ -1326,7 +1364,7 @@ def cpu_pass(
             """Wait for two quiet half seconds in a row, or QUIET_TRIES, and return
             the page's CPU per ms over the last two: what it spends with no input
             once the work a load leaves behind has run, such as the view checks the
-            runtime reads after the page settles, which walk the whole page."""
+            runtime reads after the page settles, which walk what the page draws."""
             spent: list[float] = []
             while len(spent) < 2 or (
                 max(spent[-2:]) >= QUIET_MS and len(spent) < QUIET_TRIES
@@ -1451,8 +1489,9 @@ def paint_pass(
 def measure(
     tab: Tab, traffic: Traffic, name: str, goals: Goals, profiles: Path | None
 ) -> dict:
-    """Arm the frame sampler for `goals`, make input `name`, and read when each goal was
-    first painted, the long frames up to the last, and the trips the input caused."""
+    """Arm the frame sampler for `goals`, make input `name`, and read when the frame
+    that first painted each goal was laid out, the long frames up to the last, and the
+    trips the input caused."""
     page = tab.page
     page.evaluate(
         "goals => window.__leafBench.arm(goals)",

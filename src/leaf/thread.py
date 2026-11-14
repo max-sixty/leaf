@@ -361,6 +361,39 @@ def open_thread(
     return append_admitted(page, event)[0]
 
 
+def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -> dict:
+    """The agent's message asking `question`, a question an agent message asked in
+    words (`message:<id>`, or the bare id), again in its thread in `page`, an open
+    transaction, as `leaf thread reply <page> <message> --obligation <question>`
+    posts it: the question stands open on this message under its own id, and like
+    any spoken reply it reopens the thread if it was resolved. Refused where the
+    thread owes the user a reply, or `question` names no question asked there."""
+    message = question.removeprefix("message:")
+    addressed = _resolve_obligation(
+        page, {"parent": message}, REFUSE, identity["session"], False, None
+    )
+    assert addressed is not None
+    return _compose_and_append(
+        page,
+        addressed,
+        identity,
+        body,
+        "",
+        attempt=None,
+        failure=None,
+        validate_source=False,
+        todo=None,
+        asks_back=False,
+        explicit_obligation=[f"message:{message}"],
+        ephemeral=False,
+        quote="",
+        section="",
+        part="",
+        detach=False,
+        title=None,
+    )[0]
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [
@@ -777,13 +810,17 @@ def _compose_and_append(
     relocating = moving or detach
     if relocating and opening.get("holds"):
         raise Rejected([Finding("held-anchor", values={"thread": thread_id})])
-    current_thread = (
-        build_threads(events, active_enclosing(page_dir)).get(thread_id)
-        if detach
-        else None
-    )
-    if detach and (current_thread is None or current_thread["anchor"] is None):
-        raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
+    if detach:
+        current_thread = build_threads(events, active_enclosing(page_dir)).get(
+            thread_id
+        )
+        if current_thread is None:
+            raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
+        if current_thread["anchor"] is None:
+            # Already where --detach would put it: activating the edit that removed
+            # the passage, which any tab's poll may do first, detached it. The reply
+            # lands without a transition, so the thread keeps the anchor it left.
+            detach = relocating = False
     reply_revision = None
     prospective_anchor = None
     source_events = events

@@ -139,12 +139,19 @@ children too, and children that set the property again a level further. A plain
 length, a plain percentage, or the same expression registered `*`, restyled the
 element alone. On 2026-11-10, a class on a column page's `main` that changed
 nothing restyled 246 elements at 10 sections, and 6 with the room set to a
-constant; focus marking `main` as the user landed on a passage did the same. So
-the column computes its room in properties that don't inherit (`--lf-room-start`,
-`--lf-room-end`, `browser/layouts.css`) and passes it to its children in
-`--lf-free-start` and its kin, registered `*`. Firefox and WebKit were not
-checked. Recheck by registering `--lf-free-*` `<length-percentage>` again:
-`test_resolving_a_thread_restyles_what_focus_marks` in
+constant; focus marking `main` as the user landed on a passage did the same.
+
+It holds for a property that doesn't inherit too, where the element also states
+a length in container units: on 2026-11-11, with the column's room in
+non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, a
+`:has()` asked again of `main` as focus moved restyled every element under it:
+7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
+So the column resolves the lengths in its room in registered `<length>`
+properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
+states the room from them, percentage and all, only in `--lf-free-start` and its
+kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
+`--lf-free-start` `<length-percentage>` again:
+`test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 
 ### Contents spine lens
@@ -462,19 +469,24 @@ window's width, a breakout may move by an offset again. In Leaf,
 `test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
 breakouts and fail if the page then scrolls sideways.
 
-### An inherited length after a container resize in WebKit
+### A non-inheriting property taken with `inherit` in WebKit
 
-A registered custom property that does not inherit, computed from `100cqi` on the
-column and passed to a child with `inherit`, kept the child's first value in
-Playwright WebKit 27.2 after the window resized: the column's own value followed
-the resize, but an `available` block sized from the child's copy stayed 1392px wide
-at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
-property updates in every child. So the column's room (`--lf-free-start`,
-`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
-flow sets it back to zero. Recheck with
+A child or `::after` that takes a registered custom property declared
+`inherits: false` with `inherit` keeps its first value in Playwright WebKit 27.2
+when only that property changes on its parent; Chromium 158.0.8127.18 and
+Firefox 159.0 restyle it (2026-11-12, a parent's `--len` set from 10px to 30px
+left a child's and an `::after`'s `height: var(--len)` at 10px). On 2026-10-31
+the same engine kept a child's copy of the column's room through a window resize:
+an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
+windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
+`browser/layouts.css`) inherits, and a box outside the column's flow sets it back
+to zero; and a thread card's fade (`--lf-thread-fade-top`,
+`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
+restyles every element in the thread. Recheck with a page holding that pair of
+rules in `leaf-dev probe --browser webkit`, then with
 `test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
-`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
-properties non-inheriting and passing them down with `inherit`.
+`tests/browser/test_render_pages.py` under `webkit_browser` after making the
+column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 

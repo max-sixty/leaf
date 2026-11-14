@@ -1214,8 +1214,8 @@ flowchart TD
                   >turn-end check</a
                 >
                 with Leaf's rule for what goes On Me, as the agent reads it, and for
-                each page its text as the user reads it, its On Me, the questions
-                already answered or withdrawn, and the items it shows under way. The
+                each page its text as the user reads it, its On Me, the questions On Me
+                no longer holds with their ids, and the items it shows under way. The
                 fork names:
               </p>
               <ul id="fork-checks">
@@ -1240,21 +1240,25 @@ flowchart TD
                 Among asks, the fork leaves out what an On Me item already holds, what
                 the user has answered since, and what the agent will settle itself. For
                 each ask it gives a thread title, a message of a few sentences that the
-                user can answer without the chat, and the words of the passage it
-                concerns, if one does. A step the user is to take is asked the same way:
-                the message says what to do, and asks for a reply only for what the user
-                alone can report, such as what a build showed them, or where the agent's
-                next step waits on it, since the reply tells the agent to go on. Leaf
-                skips an ask whose title a question the agent asked already has.
+                user can answer without the chat, the words of the passage it concerns,
+                if one does, and the id of a question it asks again, if any, such as a
+                step the user took that didn't work. A step the user is to take is asked
+                the same way: the message says what to do, and asks for a reply only for
+                what the user alone can report, such as what a build showed them, or
+                where the agent's next step waits on it, since the reply tells the agent
+                to go on. Leaf skips an ask whose title a question the agent asked
+                already has.
               </p>
               <p id="fork-writes">
-                Leaf opens each remaining ask as a thread, its message written as the
-                agent's with an obligation, as
-                <code>leaf thread create --obligation</code> writes one. Each stands on
-                that passage, or on the page as a whole where the fork named none or the
-                page doesn't show its words once. It stays On Me until the user replies
-                or settles it with a reaction, and nothing on the page marks where it
-                came from.
+                Leaf writes each remaining ask as the agent's message with an
+                obligation. A question asked again goes in its thread under its id, as
+                <code>leaf thread reply --obligation &lt;id&gt;</code> asks it, and
+                reopens the thread if the user closed it. Any other opens a thread of
+                its own, as <code>leaf thread create --obligation</code> does, on that
+                passage, or on the page as a whole where the fork named none or the page
+                doesn't show its words once. Each stays On Me until the user replies or
+                settles it with a reaction, and nothing on the page marks where it came
+                from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the

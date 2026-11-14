@@ -60,6 +60,7 @@ const browserGlobals = Object.fromEntries(
     "DOMPoint",
     "DOMRect",
     "Document",
+    "DocumentTimeline",
     "Element",
     "ErrorEvent",
     "Event",

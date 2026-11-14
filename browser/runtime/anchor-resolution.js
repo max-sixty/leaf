@@ -221,12 +221,13 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualSelector = () =>
-  [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+const declaredVisualTags = () => tagsDeclaring((entry) => entry["x-visual"]);
+const declaredVisualSelector = () => declaredVisualTags().join(",");
 
-const genericVisualSelector = "svg, img, figure";
-export const visualSelector = () =>
-  [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+const GENERIC_VISUALS = ["svg", "img", "figure"];
+const genericVisualSelector = GENERIC_VISUALS.join(", ");
+// The tags a picture's element has: a widget that declares `x-visual`, or a plain one.
+export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
 /** @param {Element} element @param {string} selector */
 const outermostAcross = (element, selector) => {

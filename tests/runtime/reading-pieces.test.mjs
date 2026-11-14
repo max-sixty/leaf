@@ -18,6 +18,7 @@ import {
   pageText,
   quoteFrom,
   quotesChanged,
+  readingElements,
   readingParts,
   says,
   segmentsIn,
@@ -115,15 +116,35 @@ const assertPieces = (what) => {
       says(element),
       `${what}: #${element.id}'s words`,
     );
+  // Every element of the page with one of the tags, outside chrome, each once, the
+  // parts' among them. By identity: two elements alike are deeply equal.
+  const all = elements();
+  const found = readingElements(TAGS);
+  assert.equal(new Set(found).size, found.length, `${what}: each element once`);
+  assert.ok(
+    found.every((element) => all.includes(element)),
+    `${what}: no element outside the page`,
+  );
+  assert.deepEqual(
+    all.map((element) => found.includes(element)),
+    all.map(
+      (element) => TAGS.includes(element.localName) && !element.closest(".lf-ui"),
+    ),
+    `${what}: the elements with those tags`,
+  );
 };
+// What `readingElements` is asked for: elements in the frame and in parts, those a
+// slot shows, and the parts' own roots.
+const TAGS = ["p", "b", "em", "figure", "h1", "h2", "h3", "h4", "div"];
 
-// Every element the outline can be asked about, in the light tree and in declared ones.
-const elements = () => [
-  ...document.body.querySelectorAll("*"),
-  ...[...document.querySelectorAll("lf-staged")].flatMap((host) => [
-    ...host.shadowRoot.querySelectorAll("*"),
-  ]),
-];
+// Every element the outline can be asked about, in the light tree and in declared ones,
+// those declared inside another included.
+const elements = (root = document.body) =>
+  [...root.querySelectorAll("*")].flatMap((element) =>
+    element.localName === "lf-staged"
+      ? [element, ...elements(element.shadowRoot)]
+      : [element],
+  );
 // What the outline says of each element, the chain of what stands over it included.
 const outlineOf = () => {
   const { outline, at, over, above } = documentOutline(document.body);
@@ -148,6 +169,7 @@ const readEverything = () => {
   for (const root of readingParts()) pageText(root);
   for (const element of document.querySelectorAll("[id]")) elementReading(element);
   outlineOf();
+  readingElements(TAGS);
 };
 
 const by = (id) => document.getElementById(id);
@@ -253,6 +275,30 @@ test("the frame holds the page's words outside its parts, and each part its own"
       : [];
   for (const element of main.querySelectorAll("*"))
     assert.deepEqual(chain(over.get(element)), chain(walked.over.get(element)));
+  // The elements that match, in the order the page reads them, as its outline is.
+  const headings = readingElements(["h1", "h2", "h3", "h4"]);
+  assert.equal(headings.length, outline.length);
+  assert.ok(headings.every((heading, at) => heading === outline[at]));
+});
+
+// The walk reads a declared tree in place of its host's light children, and those its
+// slots show where the slots stand, so a part's elements come in that order, and a
+// child no slot shows is none of them.
+test("a part's elements are those the walk reaches, in its order", () => {
+  freshVocabulary();
+  document.body.innerHTML =
+    "<main>" +
+    datum("a", '<lf-staged id="inner"></lf-staged><p id="after">After</p>') +
+    "</main>";
+  const inner = document.getElementById("inner");
+  const staged = document.createElement("template");
+  staged.innerHTML = '<p id="drawn">Drawn <slot></slot></p>';
+  shadowStage(inner, [...staged.content.childNodes]);
+  inner.innerHTML = '<b id="shown">Shown</b><b id="unshown" slot="nowhere">Unshown</b>';
+  assert.deepEqual(
+    readingElements(["p", "b"]).map((element) => element.id),
+    ["drawn", "shown", "after"],
+  );
 });
 
 test("a part's headings join the outline where no heading comes before them", () => {
@@ -332,6 +378,7 @@ test("a change inside one part leaves the other parts unread", () => {
     assert.match(pageText(document.getElementById("a")).raw, /Alpha edited/);
     pageText();
     documentOutline(document.body);
+    readingElements(TAGS);
   } finally {
     Element.prototype.matches = matches;
   }

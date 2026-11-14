@@ -57,6 +57,15 @@
    Asked for inside a pass, it runs in the next frame's; asked for outside one, it is
    `nextRender`, and no frame paints first.
 
+   `afterOwedFrame` is for a long task that arrives on its own, such as adopting the
+   server's reading, while a frame the page asked for has not painted yet, as the one a
+   gesture's task asks for to paint what the gesture drew. After a long task the browser
+   may run an arriving task before that frame, which then paints the gesture's result
+   only once the arriving task is done, so the task waits for the frame instead (root
+   AGENTS.md, "Responsiveness"). It waits only for the one frame already asked for, and
+   not at all where none is or the document draws no frames. A task that would have
+   fitted before that frame then paints in the next one instead.
+
    Work toward a resting state is counted; a playback loop is not. A loop through
    `nextFrame` holds the page unsettled for as long as it runs, which is right for a
    glide that lands in a moment and wrong for a film that plays until the user stops it,
@@ -205,9 +214,31 @@ export function cancelRender(id) {
   }
 }
 
+// Those waiting for the frame asked for when they asked to paint (`afterOwedFrame`).
+/** @type {(() => void)[]} */
+let owedFrame = [];
+function paintedOwed() {
+  const waiting = owedFrame;
+  owedFrame = [];
+  for (const painted of waiting) painted();
+}
+
+/** Resolve once the frame the page has asked for has painted, or at once where it has
+ * asked for none or draws no frames.
+ * @returns {Promise<void>} */
+export function afterOwedFrame() {
+  if (!frame || !rendered()) return Promise.resolve();
+  return new Promise((painted) => owedFrame.push(painted));
+}
+document.addEventListener("visibilitychange", () => {
+  if (!rendered()) paintedOwed();
+});
+
 /** @param {number} time */
 async function pass(time) {
   frame = 0;
+  // A task queued from the frame's callbacks runs once the frame has painted.
+  if (owedFrame.length) setTimeout(paintedOwed);
   for (let round = 0; queued.size && round < ROUNDS; round++) {
     running = queued;
     queued = new Map();
@@ -381,5 +412,6 @@ export function afterSettling(settled) {
 // Nothing has been heard yet: the page is unsettled until its first quiet update.
 onFrameVisibility((visibility) => {
   if (visibility?.visible) unsettle();
+  else paintedOwed();
 });
 unsettle();

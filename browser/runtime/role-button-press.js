@@ -45,24 +45,10 @@ let readDefault = null;
 export const readKeyDefaults = (read) => {
   readDefault = read;
 };
-// The window hears a key twice, first in capture and last in bubble, and the browser
-// copies its list of listeners afresh for each. Adding the listener again in capture
-// moves it behind every listener a page has added to the window since.
-/** @param {"keydown" | "keyup"} type @param {(event: KeyboardEvent) => void} listener */
-const last = (type, listener) => {
-  window.addEventListener(
-    type,
-    () => {
-      window.removeEventListener(type, listener);
-      window.addEventListener(type, listener);
-    },
-    { capture: true },
-  );
-  window.addEventListener(type, listener);
-};
 /** @type {HTMLElement | null} */
 let spaceOn = null;
-last("keydown", (ev) => {
+/** @param {KeyboardEvent} ev */
+const pressKey = (ev) => {
   readDefault?.(ev);
   const offer = offerPressed(ev);
   if (!offer || ev.defaultPrevented || ev.isComposing) return;
@@ -72,10 +58,27 @@ last("keydown", (ev) => {
     ev.preventDefault();
     spaceOn = offer;
   }
-});
-last("keyup", (ev) => {
+};
+/** @param {KeyboardEvent} ev */
+const releaseSpace = (ev) => {
   if (ev.key !== " ") return;
   const offer = spaceOn;
   spaceOn = null;
   if (offer && offer === offerPressed(ev) && !ev.defaultPrevented) offer.click();
+};
+// The window hears a key twice, first in capture and last in bubble, and the browser
+// copies its list of listeners afresh for each. Adding a listener again in capture
+// moves it behind every listener a page has added to the window since.
+/** @param {"keydown" | "keyup"} type @param {(event: KeyboardEvent) => void} listener */
+const behind = (type, listener) => {
+  window.removeEventListener(type, listener);
+  window.addEventListener(type, listener);
+};
+window.addEventListener("keydown", () => behind("keydown", pressKey), {
+  capture: true,
 });
+window.addEventListener("keydown", pressKey);
+window.addEventListener("keyup", () => behind("keyup", releaseSpace), {
+  capture: true,
+});
+window.addEventListener("keyup", releaseSpace);

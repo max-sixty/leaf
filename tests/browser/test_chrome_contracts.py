@@ -499,7 +499,7 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
 
     with subtests.test("a caret at a line's end paints inside the field"):
         # The caret after a line's last character stands at the very end of the text
-        # column: in a box that grows with its words, and in a narrow allocation.
+        # column: in the box at the full measure, and in a narrow allocation.
         # Firefox paints the caret a pixel wide from that offset onward, pulled inside
         # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
         # clipping its words at the column's end hid it, and it read as gone under Send.
@@ -514,9 +514,9 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
         rendered(page)
         wrapped = box.bounding_box()
         hold_motion(page)
-        # The box grows with its words, so the caret after the last word ends its column,
-        # and the lines the words give up move the box. The first line's words are those
-        # each platform's fonts fit.
+        # The first line's words are those each platform's fonts fit in the box's
+        # column, so the caret after the last word ends it, and the lines the words give
+        # up move the box.
         first_line = field.evaluate(FIRST_LINE)
         assert first_line, wrapped
         page.keyboard.press("ControlOrMeta+a")
@@ -527,7 +527,8 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
             arg=least["height"] + 0.5,
         )
         one_line = box.bounding_box()
-        assert least["width"] < one_line["width"] < wrapped["width"], (
+        # The box neither narrows to its words nor widens as they arrive.
+        assert least["width"] == one_line["width"] == wrapped["width"], (
             least,
             one_line,
             wrapped,

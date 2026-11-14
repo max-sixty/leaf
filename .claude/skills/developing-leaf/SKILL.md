@@ -315,7 +315,8 @@ To find out what happened to one message, on a real page or in a journey's evide
 directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
 whether Leaf kept it back for a line fork, what the line fork judged, when Leaf handed the message over, and
-what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`).
+what the session was doing meanwhile (`dev/leaf_dev/commands/timeline.py`). Its header
+also says whether each of the session's working forks is running, closed or lapsed now.
 
 ## Compare checkout versions
 

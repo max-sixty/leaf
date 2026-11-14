@@ -8,11 +8,15 @@
 
    A failed fetch is an offline answer: the authored page and local comments remain
    useful, while Decisions await the complete reading their actions need. Fixed status
-   chrome reports the loss; a request still in flight remains loading. A successful
-   response with malformed state is not an offline answer. A live server's error is no
-   state either, but the status names it as the server's fault. Parsing or rendering
-   errors pass to the recovery boundary and leave the candidate sequence unresolved;
-   authored content stays readable while state-dependent controls remain unavailable. */
+   chrome reports the loss; a request still in flight remains loading. A read in flight
+   waits for its answer, however slow, until a news look fails, the page's sign that the
+   server no longer stands behind its reads: every read still out then ends as a lost
+   request (`abandonReads`). A hang bound covers what the looks don't
+   (`STATE_READ_TIMEOUT_MS`). A successful response with malformed state is not an
+   offline answer. A live server's error is no state either, but the status names it as
+   the server's fault. Parsing or rendering errors pass to the recovery boundary and
+   leave the candidate sequence unresolved; authored content stays readable while
+   state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
@@ -39,19 +43,22 @@ import {
 // waits on a frame and on whatever a module does during one — and an ear that waited
 // for that would stop hearing. The page would then go silent for a reason none of its
 // news is about, which is a wedge rather than a delay: nothing else would ever ask.
-/** @param {number} bound @returns {Promise<{state: import("./layer-client.js").CompletedState | null, fault: string | null}>} */
-async function readState(bound) {
+/** @returns {Promise<{state: import("./layer-client.js").CompletedState | null, fault: string | null}>} */
+async function readState() {
   countTraffic("asked");
   try {
     if (offlineInteractive) return { state: await offlineState(), fault: null };
-    const signal = globalThis.AbortSignal.timeout(bound);
+    const signal = globalThis.AbortSignal.any([
+      globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
+      abandonment.signal,
+    ]);
     const held = heldReading();
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
         headers: layerHeaders(heldHeaders(held)),
-        // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
-        // never answers cannot own the page's single read slot forever.
+        // Coalescing bounds concurrency; this bounds its other dimension. A server
+        // that stops answering cannot own the page's single read slot.
         signal,
       });
     } catch {
@@ -92,10 +99,22 @@ async function readState(bound) {
   }
 }
 
+// What every state read in flight listens to besides its own bound.
+let abandonment = new AbortController();
+
+// End every state read in flight as a lost request, and give the reads after a fresh
+// signal. A news look that heard nothing calls this. Only a read that completes with
+// nothing tells the page status the server is unreachable, and a read still in flight
+// holds the page's one read slot, so without this a failed look could only queue a
+// read behind one that a gone server will never answer.
+function abandonReads() {
+  abandonment.abort();
+  abandonment = new AbortController();
+}
+
 // A read whose rejection is observed here rather than wherever it is finally awaited.
-/** @param {number} bound */
-function buffer(bound) {
-  return readState(bound).catch((error) => ({ error }));
+function buffer() {
+  return readState().catch((error) => ({ error }));
 }
 
 // Start the page's first read without leaving a rejection unobserved while widget
@@ -104,7 +123,7 @@ function buffer(bound) {
 // startup fault; buffering changes when the network work runs, not what its answer
 // means. Initial presentation waits for this answer, or its bounded offline result.
 export function beginRead() {
-  return buffer(FIRST_READ_TIMEOUT_MS);
+  return buffer();
 }
 
 // Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
@@ -163,10 +182,8 @@ export function createStateFeed({
 
   // A read and its application together, for the callers that want to be told when the
   // page has taken the answer in: the buffered first read, and a version activation,
-  // which asks for the state it is
-  // about to show. The activation opens its own read from a page a user is already
-  // using, so it takes an ordinary read's bound rather than the first read's.
-  async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
+  // which asks for the state it is about to show.
+  async function readAndApply(read = buffer()) {
     const answer = await read;
     if ("error" in answer) throw answer.error;
     const { state, fault } = answer;
@@ -251,7 +268,7 @@ export function createStateFeed({
     const askOnce = async () => {
       const returned = readingReturn();
       try {
-        const { state, fault } = await readState(STATE_READ_TIMEOUT_MS);
+        const { state, fault } = await readState();
         if (state) {
           applyingReads += 1;
           void receiveState(state)
@@ -337,7 +354,7 @@ export function createStateFeed({
             headers: layerHeaders(),
             signal: globalThis.AbortSignal.any([
               interval.signal,
-              globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
+              globalThis.AbortSignal.timeout(NEWS_TIMEOUT_MS),
             ]),
           });
           if (listening !== interval) return;
@@ -360,6 +377,7 @@ export function createStateFeed({
           }
         } catch {
           if (listening !== interval) return;
+          abandonReads();
           item();
           delay = TICK_MS;
         }
@@ -430,21 +448,21 @@ const TICK_MS = 2000;
 // the next; request duration adds to the interval. Quiet checks do not rebuild.
 const LOOK_MS = 250;
 
-// The interface is usable at upgrade while the first reading finishes. Bound its
-// network slot outside the hosted deploy gate's 120-second revision wait, rather than
-// aborting a live container's answer while the gate is still waiting for it. An expired
-// read is a completed offline answer and releases the slot for a retry.
-const FIRST_READ_TIMEOUT_MS = 120_000;
+// How long a state read may go unanswered before it ends on time alone, as a completed
+// offline answer that releases the slot for a retry. While the page looks for news, a
+// failed look ends a read first, so this bound decides only for a read that hangs while
+// the looks are answered, and for reads no look stands beside: the first, since the
+// looks begin once it presents, and a read out while the page isn't looking, because it
+// is hidden or a passive leaf.page session. The first read sets the value: the interface
+// is usable at upgrade while it finishes, so its network slot is bounded outside the
+// hosted deploy gate's 120-second revision wait, rather than aborting a live
+// container's answer while the gate is still waiting for it.
+const STATE_READ_TIMEOUT_MS = 120_000;
 
-// How long every read after that may take. These have no wait beside them, and the
-// page status's one honesty mechanism about the server runs through a read that *completed*
-// with nothing: its `unreachable` reach is the only path to OFFLINE_LINE, and a read still
-// in flight holds the slot, so freshness or a clock tick only queues a trailing read
-// behind it. This bound is therefore the whole time a user watching a live page can be
-// shown a reading the server has stopped standing behind, which is a user's timescale
-// rather than the gate's. On expiry readState produces the same offline answer as any
-// lost request, and the shared retry clock asks again.
-const STATE_READ_TIMEOUT_MS = 10_000;
+// How long a news look may go unanswered. A dead server fails the next look at once and
+// a hung one fails it here; either failure abandons every state read in flight, so the
+// page says it is offline on a user's timescale while a slow, live server's read goes on.
+const NEWS_TIMEOUT_MS = 10_000;
 
 // A read nothing answered.
 const NOTHING = Object.freeze({ state: null, fault: null });

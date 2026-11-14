@@ -6157,7 +6157,7 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 @pytest.mark.parametrize(
     ("source", "words"),
-    [("pages", "window The workspace"), ("how-it-works", "there The quote")],
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
 )
 def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
     engine, source, words, request, serve

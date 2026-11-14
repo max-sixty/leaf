@@ -377,6 +377,23 @@ editor also revealed its frame without a JavaScript reveal call.
 Reproduce by focusing the parent, then invoking native focus or reveal from a
 child message handler; separately type into an offscreen focused child editor.
 
+### Percentage scroll margins in Chromium
+
+What Leaf calls near the window (`browser/runtime/geometry.js`, `nearObserver`), which
+decides where anchored controls stand in layout and when a live sample's page starts
+(`whenNear`), is an IntersectionObserver with `rootMargin: "100%"` and a
+`scrollMargin` in pixels. A percentage there misreads in Chromium: on 2026-11-11, on a
+Leaf column page with a sample frame about 3,800px down a 900px window, HeadlessChrome
+158.0.8127.18 (Playwright 1.65.0) read the frame as intersecting under
+`rootMargin: "100% 0px"` with `scrollMargin: "100% 0px"`, though under either alone it
+did not and the reported root ended at 1,800px. With `scrollMargin: "600px"` it read the
+frame correctly. Playwright Firefox 159.0 read every form correctly but grew the window
+by the scroll margin as well as the root margin, so the window reaches 1,500px further
+there than in Chromium. Plain test pages, even with the body as an inline-size
+container, read the percentage correctly in both. Recheck by observing `#far iframe`
+with each option in `uv run leaf-dev probe` of a page that places `<lf-sample id="far">`
+under a 400vh spacer, in both engines.
+
 ### A selection written during focus in WebKit
 
 Playwright WebKit 26.6 revealed an editor's selection written inside its

@@ -55,7 +55,6 @@ SITE_NAV = (
     ("/", "leaf"),
     ("/examples/", "Examples"),
     ("/using/", "Using"),
-    ("/pages/", "Pages"),
     ("/how-it-works/", "How it works"),
     ("/extending/", "Extending"),
     ("https://github.com/max-sixty/leaf", "GitHub"),

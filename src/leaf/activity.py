@@ -363,12 +363,16 @@ def running_agent_turns(
     since an agent whose run ended unseen leaves its turn open."""
     if not alive:
         return set()
-    return {
-        turn
-        for turn, stamp in stamps.items()
-        if stamp["closed"] is None
-        and now < datetime.fromisoformat(stamp["renewed"]) + WORKING_GRACE
-    }
+    return {turn for turn, stamp in stamps.items() if now < agent_turn_end(stamp)}
+
+
+def agent_turn_end(stamp: dict) -> datetime:
+    """When an agent turn ended by its stamp (`state.agent_turn_stamps`): its close,
+    or, while it is open, its last renewal plus the working grace, when it lapses
+    unless something renews it."""
+    if stamp["closed"] is not None:
+        return datetime.fromisoformat(stamp["closed"])
+    return datetime.fromisoformat(stamp["renewed"]) + WORKING_GRACE
 
 
 def agent_holds(obligation: dict, state: dict) -> bool:
@@ -378,7 +382,7 @@ def agent_holds(obligation: dict, state: dict) -> bool:
     took a thread's work. The main thread neither holds its turn over it, is
     reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
     until that turn ends; once it does, an update still owed is the main thread's
-    like any it received."""
+    input, which its next delivery hands over (`holding.left_by_agent_turns`)."""
     return obligation["holder"] in running_agent_turns(
         state["agent_turns"],
         state["session_alive"] is True,

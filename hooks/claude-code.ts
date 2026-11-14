@@ -705,7 +705,10 @@ async function changeForks(
  * of the conversation, named so the main thread can reach it, and tell Leaf which
  * agent runs that turn (`forks.started`). A fork that can't be resumed or fails to
  * start, or a step of this that fails, ends that turn at once, which gives the
- * thread to the main thread (`forks.ended`). */
+ * thread to the main thread (`forks.ended`). The end names the agent wherever one
+ * started, so an agent that runs on after Leaf failed to record its start has its
+ * `leaf` commands refused rather than run as the main thread's
+ * (`state.close_agent_turns`). */
 async function workFork(
   $: EngineInterface,
   session: string,
@@ -718,43 +721,54 @@ async function workFork(
     resume?: string;
   },
 ) {
+  let agent = given.resume;
   try {
-    if (given.resume === undefined) await spawnFork($, session, kept, given);
-    else {
+    if (given.resume !== undefined) {
       const failed = await resumeFork($, given.resume, given.prompt, given.turn);
       if (failed !== undefined)
-        await forkStep($, session, { ended: { turn: given.turn, failed } });
+        await forkStep($, session, { ended: { agent, turn: given.turn, failed } });
+      return;
     }
+    const spawned = await spawnFork($, given);
+    agent = spawned.agentId;
+    await forkStep(
+      $,
+      session,
+      spawned.ended === undefined
+        ? { thread: kept, started: { turn: given.turn, agent } }
+        : { ended: { agent, turn: given.turn, ...spawned.ended } },
+    );
   } catch (error) {
     // No run of a fork whose start went unrecorded would end its turn, which would
     // keep the main thread off the thread and ask every agent's `leaf` command to
     // run again until the turn lapses (`hooks.agent_command`).
     await forkStep($, session, {
-      ended: { turn: given.turn, failed: `Leaf's step failed: ${error}` },
+      ended: { agent, turn: given.turn, failed: `Leaf's step failed: ${error}` },
     }).catch(() => undefined);
   }
 }
 
-/** Spawn a fork of the conversation for the turn Leaf opened, and tell Leaf which
- * agent runs it (`workFork`). */
+/** Spawn a fork of the conversation for the turn Leaf opened (`workFork`): the
+ * agent it started, if any, and how its run ended where it failed to start or
+ * ended before the module registered it. */
 async function spawnFork(
   $: EngineInterface,
-  session: string,
-  kept: KeptBack,
   given: { agent: string; prompt: string; text: string; turn: string },
-) {
+): Promise<{
+  agentId?: string;
+  ended?: { answer: string } | { failed: string };
+}> {
   let agentId: string | undefined;
-  let early: { answer: string } | { failed: string } | undefined;
   spawning += 1;
   try {
-    const spawned = await $.agent.spawn({
+    ({ agentId } = await $.agent.spawn({
       prompt: given.prompt,
       subagentType: "fork",
       name: given.agent,
       description: `Leaf: ${given.text}`,
-    });
-    agentId = spawned.agentId;
-    if (agentId === undefined) throw new Error("no agent started");
+    }));
+    if (agentId === undefined)
+      return { ended: { failed: "the fork did not start: no agent started" } };
     const id = agentId;
     const started = await $.clock.now();
     await changeForks($, (forks) => ({
@@ -762,28 +776,20 @@ async function spawnFork(
       [id]: { started, turn: given.turn },
     }));
     // A run that ended before the fork was registered ends its turn now.
-    early = endedEarly.get(id);
+    const early = endedEarly.get(id);
     if (early !== undefined)
       await changeForks($, ({ [id]: _ended, ...forks }) => forks);
+    return { agentId, ended: early };
   } catch (error) {
-    await forkStep($, session, {
-      ended: { turn: given.turn, failed: `the fork did not start: ${error}` },
-    });
-    return;
+    const failed =
+      agentId === undefined
+        ? `the fork did not start: ${error}`
+        : `Leaf could not register the fork: ${error}`;
+    return { agentId, ended: { failed } };
   } finally {
     spawning -= 1;
     if (spawning === 0) endedEarly.clear();
   }
-  if (early !== undefined) {
-    await forkStep($, session, {
-      ended: { agent: agentId, turn: given.turn, ...early },
-    });
-    return;
-  }
-  await forkStep($, session, {
-    thread: kept,
-    started: { turn: given.turn, agent: agentId },
-  });
 }
 
 /** Resume the fork `agentId` with Leaf's message, as `$.session.send` resumes a

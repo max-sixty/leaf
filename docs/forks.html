@@ -467,10 +467,10 @@ flowchart TD
             </p>
             <p id="takeover-after">
               Once the fork's turn closes or lapses, a message it left waiting is the
-              main thread's like any it received, with the reply reference the fork's
-              delivery gave it. The main thread's pickup of it is then the newest, so it
-              takes the thread over, and the fork's later pickup, reply or start on that
-              thread is refused.
+              main thread's input: the main thread's next delivery hands it over with a
+              reply reference of its own. The main thread's pickup of it is then the
+              newest, so it takes the thread over, and the fork's later pickup, reply or
+              start on that thread is refused.
             </p>
           </section>
         </section>

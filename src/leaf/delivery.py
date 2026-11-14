@@ -1178,9 +1178,10 @@ def deliverable(
     owed = unreferenced(page, obligations) if received else []
     if received and (left := left_by_agent_turns(page)):
         # What a fork's turn picked up and then left owed, giving its thread back or
-        # ending without answering, is the main thread's input now.
-        known = {event["id"] for event in owed}
-        owed += [event for event in page.events if event["id"] in left - known]
+        # ending without answering, is the main thread's input now; a message
+        # already pending or owed goes once.
+        left -= {event["id"] for event in [*owed, *pending]}
+        owed += [event for event in page.events if event["id"] in left]
     if pending or owed:
         from .forks import kept_from_main
 

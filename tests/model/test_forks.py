@@ -11,7 +11,7 @@ import shlex
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Condition, Event, Thread
 from types import SimpleNamespace
@@ -1269,6 +1269,40 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     assert joins == ["answer", "taken_over"]
 
 
+def test_a_message_sent_after_a_forks_turn_ended_is_noted_as_unanswered(
+    claimed, lane, monkeypatch
+):
+    """A message the user writes in a fork's thread after the fork's turn ended is
+    one the turn never had: where its line fork gives no answer within the bound,
+    the page's diagnostics say that, not that the fork's turn left it."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "Yes, for a minute.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    forks_model.ended("s1", agent="agent-1", turn=None, answer="Done.", failed=None)
+    # The user writes a minute after the turn closed.
+    turns = state_model.agent_turns("s1")
+    a_minute_ago = datetime.now().astimezone() - timedelta(minutes=1)
+    turns[taken["turn"]]["closed"] = a_minute_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    later = said(claimed, "And for how long?", parent=asked["id"])
+    assert kept_back(claimed) == [(asked["id"], (later["id"],))]
+    assert forks_model.look("s1", claimed, now=float("inf")) == []
+    [handed] = [
+        row
+        for row in read_interactions(claimed, types=("fork_outcome",))
+        if row.get("outcome") == "hand_over"
+    ]
+    assert handed["why"] == f"no answer within {forks_model.BOUND_S:g} s"
+
+
 def hook_answer(capsys, command: str, agent: str, tool_use: str) -> dict | None:
     """What Claude Code's PreToolUse hook answers for `agent`'s Bash call, its
     `hookSpecificOutput`, or None where it leaves the call as it came."""
@@ -1320,6 +1354,24 @@ def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
     [command] = read_interactions(claimed, types=("leaf_command",))
     assert "agent-1's turn has ended" in command["refused"]
     assert hook_answer(capsys, reply, "agent-9", "u2") is None
+
+    # A fork that runs on after Leaf failed to record its start: the module's end
+    # of its turn names it, so its command is the fork's, and refused.
+    other, unnamed = taken_by_a_fork(claimed, "How many shards does staging have?")
+    forks_model.ended(
+        "s1",
+        agent="agent-2",
+        turn=unnamed["turn"],
+        answer=None,
+        failed="Leaf's step failed: exited with code 1",
+    )
+    late = f"leaf thread reply {answer_ref(claimed, other['id'])} --done --text Two"
+    answer = hook_answer(capsys, late, "agent-2", "u3")
+    assert answer is not None
+    ran = CliRunner().invoke(
+        cli_model.cli, shlex.split(answer["updatedInput"]["command"])[1:]
+    )
+    assert "agent-2's turn has ended" in ran.output, ran.output
 
 
 def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
@@ -1449,9 +1501,10 @@ def test_a_fork_turn_that_ends_unanswered_gives_its_thread_to_the_main_thread(
     claimed, lane
 ):
     """A fork that gives the thread back, fails to start, or goes unheard for the
-    working grace leaves the thread's answer owed by the main thread, as any update
-    it received is, with the answer reference the fork's delivery gave it; and the
-    main thread hears which fork gave which thread back, and why."""
+    working grace leaves the thread's answer owed by the main thread, under the
+    answer reference the fork's delivery gave it until the main thread's next
+    delivery hands the message over; and the main thread hears which fork gave which
+    thread back, and why."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1518,6 +1571,26 @@ def test_a_failed_fork_gives_the_thread_to_the_session_bare(claimed, lane):
         event["kind"] == "reply" for event in events_model.read_events(claimed)
     )
     assert forked(claimed) == []
+
+
+def test_a_thread_a_fork_gave_back_goes_to_the_main_thread_once(claimed, lane):
+    """A thread a fork gave back is the main thread's input, and so is the further
+    message the user wrote while the fork ran, which its turn held and never carried:
+    the main thread's next delivery hands over each of them once."""
+    asked, taken = taken_by_a_fork(claimed, "Stop editing the header.")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    more = said(claimed, "And keep the old layout.", parent=asked["id"])
+    assert deliverable(claimed) == []
+    forks_model.ended(
+        "s1",
+        agent="agent-1",
+        turn=None,
+        answer=f"{forks_model.HAND_BACK} the header is the session's to change.",
+        failed=None,
+    )
+    assert deliverable(claimed) == [asked["id"], more["id"]]
 
 
 def test_a_hold_ends_with_its_bound_or_its_lane(claimed, lane, monkeypatch):

@@ -857,7 +857,8 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
 ):
     """A fork the module spawned whose agent Leaf couldn't record, as when Leaf's
     process fails, ends the turn Leaf opened for it, so the main thread gets the
-    thread back at once rather than once the turn lapses."""
+    thread back at once rather than once the turn lapses; the end names the agent,
+    which runs on, so its later `leaf` commands are refused as an ended fork's."""
     driven = ClaudeCode(
         spawn,
         "cc-unrecorded",
@@ -891,6 +892,7 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
         ),
     )
     assert state_model.open_agent_turns("cc-unrecorded") == {}
+    assert state_model.agent_known("cc-unrecorded", "agent-1")
     [gave] = [
         note
         for note in read_interactions(page_dir, types=("fork_outcome",))

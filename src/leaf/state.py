@@ -940,7 +940,13 @@ def close_agent_turns(
     session_id: str, *, turn: str | None = None, agent: str | None = None
 ) -> list[str]:
     """Close the session's open agent turns that are `turn` or `agent`'s, as the
-    harness says the agent's run ended or never started; the ids it closed."""
+    harness says the agent's run ended or never started; the ids it closed. A turn
+    no agent was named for yet, as when Leaf failed to record the start of an agent
+    that runs on, is named for `agent` first, so its later `leaf` commands are
+    refused as an ended agent's (`acting_agent_turn`) rather than run as the main
+    thread's."""
+    if turn is not None and agent is not None:
+        name_agent_turn(session_id, turn, agent)
     closed: list[str] = []
 
     def matches(id: str, entry: dict) -> bool:

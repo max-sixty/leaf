@@ -141,8 +141,9 @@ until another turn picks them up. A message a running agent turn holds is in han
 that turn: the main thread's hooks neither hold its turn over it, remind it of it, nor
 take it in again (`activity.agent_holds`), and its deliveries leave it out
 (`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
-the main thread's like any it received, with the reference the agent's delivery gave
-it, and the main thread's pickup of it takes the thread over; the main thread's answer
+the main thread's input, which its next delivery hands over with a reference of its own
+(`holding.left_by_agent_turns`), and the main thread's pickup of it takes the thread
+over; the main thread's answer
 takes the thread over at once, even while the agent's turn runs. An agent's turn may
 pick up, answer or start on only the messages it holds or no turn holds, and post in a
 thread only where it holds the thread's latest messages or no turn does, so a fork can

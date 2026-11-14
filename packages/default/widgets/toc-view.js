@@ -1,7 +1,7 @@
 import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
- * section's marks (toc-marks.js): a mark for its open threads and one for its On me
+ * section's marks (toc-marks.js): a mark for its open threads and one for its On Me
  * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
  * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
  * start row's go on the outline's head too, its toggle or its label, which stands where

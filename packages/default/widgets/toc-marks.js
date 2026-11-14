@@ -1,17 +1,17 @@
-/* Where the page's open threads, its On me items and, while the changes view is on, its
+/* Where the page's open threads, its On Me items and, while the changes view is on, its
  * changes stand along the contents: how many of each the section each row leads holds.
  *
- * A row's section is what its heading heads, by the one rule On me groups its items by
+ * A row's section is what its heading heads, by the one rule On Me groups its items by
  * and a link's preview names a place by (`partOver`): an item belongs to the first row
  * met climbing from its element through the parts over it. So a paragraph under a
  * heading the outline leaves out, past `max-level`, counts in the row above that
- * heading, and On me's bands and the contents agree on where an item stands. An element
+ * heading, and On Me's bands and the contents agree on where an item stands. An element
  * a row goes to (its `destination`), such as a section a thread is about as a whole,
  * belongs to that row, and anything above the first section's heading to the start
  * row. Items outside the document the outline covers count nowhere.
  *
  * Threads are the open ones, each at the element its anchor names, as a heading's link
- * preview counts them. On me items are the obligations waiting on the user that the
+ * preview counts them. On Me items are the obligations waiting on the user that the
  * outline's document holds, by the rule every count of a region's obligations reads
  * (`obligationsIn`), each at the widget that asks it; a question answered in words
  * stands nowhere on the page, so it counts here only as its thread. A change counts once

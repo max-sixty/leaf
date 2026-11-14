@@ -257,7 +257,7 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On me groups its items by it and a link's preview names a place by it, so a
+`null`. On Me groups its items by it and a link's preview names a place by it, so a
 module that counts items per heading, where no element holds the heading's section,
 climbs it from each item's element to the first heading it counts, as `lf-toc` does.
 

@@ -3454,7 +3454,7 @@ export function createFloatingPanel({
     const card = key ? view?.querySelector(".lf-fp-on-item[data-lf-walked]") : null;
     if (card) scrollIntoView(card, { block: "nearest", within: view });
   }
-  // The stop the walk reached stands at its ringed card while the panel hides it: On me
+  // The stop the walk reached stands at its ringed card while the panel hides it: On Me
   // stays open over the stop it lists (`clearFor`), and a stop at the page's foot can't
   // be scrolled clear of it, so the card is where the user sees where they are, and a
   // key pressed there acts at the stop rather than letting it go (user-place.js,

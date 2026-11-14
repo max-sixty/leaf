@@ -44,7 +44,7 @@ import { sectionMarks } from "./toc-marks.js";
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
- * Each row also marks where the page's open threads, its On me items and, while the
+ * Each row also marks where the page's open threads, its On Me items and, while the
  * changes view is on, its changes stand (toc-marks.js), and its link previews how many
  * of each its section holds. The element is a `LeafElement` for this alone: its
  * `render()` reads those readings, so it draws again exactly when they change, in the

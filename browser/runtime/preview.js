@@ -171,7 +171,7 @@
      placement standing in for one (`step`), the cause its mover gives (focus.js,
      `focusDestination`): Tab is the keyboard's pointing, a step to the next control
      the user may press. Leaving the target hides it. Focus any command places shows
-     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On me item's
+     nothing: a walk or an arrow key landing (`move`), as `m` lands on an On Me item's
      margin entry, a surface placing focus as it opens, as the Page Map's first row,
      and focus handed back as a surface closes or as Escape backs the user out
      (`return`). What the user asked a command for is the place it lands on, already in

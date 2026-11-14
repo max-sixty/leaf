@@ -92,7 +92,7 @@ import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On Me
 // card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
 // matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */

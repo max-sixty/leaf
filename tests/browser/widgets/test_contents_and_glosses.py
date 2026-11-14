@@ -1304,7 +1304,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
 ):
     """The runbook fixture holds open threads on its lede and under four headings, a
     resolved one under a fifth, a question waiting on the user in two sections, and an
-    earlier version. Each row of its contents marks its section's open threads and On me
+    earlier version. Each row of its contents marks its section's open threads and On Me
     items in the gutter before its words, beside the map's spine or the column outline's
     rule, and its link previews how many, which a screen reader hears where Tab lands on
     it; what stands before the first section is the map's title row's, and in the column,

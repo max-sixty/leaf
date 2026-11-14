@@ -204,7 +204,7 @@ A row is *withheld* while no part of its target shows in its region, as inside a
 In a document's sidebar holding nothing else, under a mouse, it shows the **contents
 spine** instead, which spreads the headings over the document's height, and the
 sidebar narrows to it. Each row's **section marks** say whether its
-section holds open threads, On me items and, while the changes view is on, changes;
+section holds open threads, On Me items and, while the changes view is on, changes;
 its link's preview counts them.
 
 ## Keyboard interactions

@@ -114,35 +114,6 @@ test("focus, contextual hints and errors leave unrelated composition readings al
   failure.clear();
 });
 
-test("dictation and send trade the same field seat as its draft changes", async (t) => {
-  const previous = globalThis.SpeechRecognition;
-  globalThis.SpeechRecognition = class {};
-  t.after(() => {
-    globalThis.SpeechRecognition = previous;
-  });
-  const { row, input, field, sync, button } = composer(t);
-  const microphone = row.querySelector(".lf-compose-dictate");
-  assert.equal(microphone.hidden, true);
-  assert.equal(button.hidden, false);
-  sync.load("");
-  await field.updateComplete;
-  assert.equal(microphone.hidden, false);
-  assert.equal(button.hidden, true);
-  assert.equal(
-    field.querySelector(".lf-compose-field").hasAttribute("data-lf-words"),
-    false,
-  );
-  input.value = "A new thought";
-  input.dispatchEvent(new Event("input"));
-  await field.updateComplete;
-  assert.equal(microphone.hidden, true);
-  assert.equal(button.hidden, false);
-  assert.equal(
-    field.querySelector(".lf-compose-field").hasAttribute("data-lf-words"),
-    true,
-  );
-});
-
 test("a rewrite's generated save control shares its action row with retained discard, and turns to Delete once emptied", async (t) => {
   const actions = document.createElement("span");
   const discard = document.createElement("button");

@@ -130,9 +130,8 @@ holding it. The hold reads and its release presses nothing, while a tap still pr
 until 5 November 2026 the release pressed, so a finger couldn't read without acting
 short of sliding off, which on touch often scrolls instead (`preview.js`).
 
-The comment field has one primary action, Dictate while empty and Send once it has
-words. Suggest and reactions share an anchored Other responses picker, reached by the
-⋯ beside Dictate while the field is empty, Tab from the field outside a list item
+The comment field has one primary action, Send. Suggest and reactions share an anchored
+Other responses picker, reached by the ⋯ beside Send while the field is empty, Tab from the field outside a list item
 (in one, Tab nests the item, `nestItems` in `composing/field-editor.js`), or the
 contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.

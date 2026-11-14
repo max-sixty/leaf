@@ -2271,14 +2271,14 @@ def test_a_press_wears_its_role_s_face_alone():
     is; so is a press a selector names by a tag other than `button` or a custom
     element, such as the margin's `span.lf-margin-marker`.
 
-    Before this check a sheet could restyle a press it placed: Send and Dictate drew
-    a disc of their own in response.css, a margin entry's face lived in base.css, the
+    Before this check a sheet could restyle a press it placed: Send drew
+    a disc of its own in response.css, a margin entry's face lived in base.css, the
     floating panel and a package each inked a row or a word their own way. A runtime
     census of computed looks, grouped by face, grew with every state it sampled; keyed
     by role, the question has one answer per role and needs no browser."""
     faces, placed = _role_classes()
     assert {"lf-icon-action", "lf-btn", "lf-row"} <= faces, faces
-    assert {"lf-compose-dictate", "lf-fp-tab"} <= placed, (
+    assert {"lf-compose-submit", "lf-fp-tab"} <= placed, (
         "the dressings reading has stopped finding builders' classes"
     )
     sheets = [

@@ -2,7 +2,7 @@
  * Presentation owners allocate and position this control, in the document or a
  * declared shadow tree; they do not restate its typography, focus or face. */
 /* A symbol's face (controls.css, `.lf-icon-action`), which the composer's own Send
-   and Dictate share, and its action inset are tokens (styles/tokens.css). Its hit box
+   takes, and its action inset, are tokens (styles/tokens.css). Its hit box
    is the face or the aim floor where that is larger (the box is that wide, and its
    reach stands out to it above and below, surfaces.css), and an empty composer field
    stands the face inside its action inset on either side. Both are stated at the
@@ -24,8 +24,7 @@ leaf-composition-field {
 :root,
 .lf-compose-field,
 .lf-icon-action,
-.lf-compose-submit,
-.lf-compose-dictate {
+.lf-compose-submit {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--aim-floor));
 }
 :root,
@@ -314,19 +313,14 @@ leaf-composition-field {
 .lf-action-icon {
   pointer-events: none;
 }
-/* Send stands in the field's end corner, and Dictate in its place while it shows. They,
-   Other responses beside them, and a thread's Resolve and Reopen are symbols whose
-   state shows on a disc (controls.css, `data-lf-disc`). */
-:is(.lf-compose-submit, .lf-compose-dictate) {
+/* Send stands in the field's end corner. It, Other responses beside it, and a thread's
+   Resolve and Reopen are symbols whose state shows on a disc (controls.css,
+   `data-lf-disc`). */
+.lf-compose-submit {
   position: absolute;
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-inset);
   inset-block-end: var(--lf-compose-action-inset);
-}
-/* The microphone's slash marks a dictation that failed, so any microphone not on a failed
-   press draws without it. */
-:not([data-lf-dictation="failed"]) > svg[data-lf-icon="microphone"] .lf-mic-slash {
-  display: none;
 }
 /* Reopen standing in Resolve's place is the same glyph drawn done, on every surface
    that seats a thread, at its end. */

@@ -44,8 +44,6 @@ const ICONS = {
   // A map's locate mark, for the way from a thread to where its words stand.
   locate:
     '<circle cx="8" cy="8" r="4"/><path d="M8 1.75v2.5M8 11.75v2.5M1.75 8h2.5M11.75 8h2.5"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/>',
-  microphone:
-    '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
   pause: '<path d="M5 3v10M11 3v10"/>',
   play: '<path d="m5 3 7 5-7 5z"/>',
@@ -121,7 +119,6 @@ export const ACTIONS = {
   copy: { name: "Copy", icon: "copy" },
   "copy-link": { name: "Copy link", icon: "link" },
   delete: { name: "Delete", icon: "delete" },
-  dictate: { name: "Dictate", icon: "microphone" },
   discard: { name: "Discard", icon: "undo" },
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },

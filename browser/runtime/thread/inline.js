@@ -167,8 +167,8 @@ class ThreadSeat {
     );
     const wanted = new Set(shown.threads.map((thread) => thread.key));
     // A thread leaving the seat releases the reply being written in it before its card
-    // goes, so the editor goes on where the thread now stands (replies.js), still
-    // listening if the user was dictating; the card retires only what stays with it.
+    // goes, so the editor goes on where the thread now stands (replies.js); the card
+    // retires only what stays with it.
     for (const [key, view] of this.#views)
       if (!wanted.has(key)) {
         releaseReplies(view.node);

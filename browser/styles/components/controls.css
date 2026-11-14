@@ -830,7 +830,7 @@ wa-copy-button.lf-icon-action {
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
-   shows its state on its disc, such as Dictate listening, keeps its box clear (the
+   shows its state on its disc, such as a toggle on, keeps its box clear (the
    disc, below). */
 :is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
   border-color: var(--accent);
@@ -839,15 +839,15 @@ wa-copy-button.lf-icon-action {
 }
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
    own ink, whose state shows on a disc behind it, a square of the face (its
-   `::before`), while its box stays clear: the composer's Send and Dictate, the passage
+   `::before`), while its box stays clear: the composer's Send, the passage
    composer's Other responses, and a thread's Resolve and Reopen. The disc is clear at
    rest and takes its tint under a pointer or visible focus, or while what the press
-   opens shows, as a symbol's chip does; a toggle on (Dictate listening) shows it in
+   opens shows, as a symbol's chip does; a toggle on shows it in
    the accent. Its ink is its tone (`data-lf-tone`): the quiet ink by default
-   (Dictate, Other responses), the accent for the composer's commit (Send), the full
+   (Other responses), the accent for the composer's commit (Send), the full
    ink (Resolve), the ok tone with its tint for a thread settled (Reopen, drawn done at
    rest, so the press shows on hover as a deeper disc), and the danger tone for a
-   dictation that failed. Resolve's disc under the pointer is the chip, so a hovered
+   failed action. Resolve's disc under the pointer is the chip, so a hovered
    Resolve never looks already done. A press disabled keeps the quiet ink.
 
    A disc stands on the ground its holder gives it (`--lf-disc-ground`), none by

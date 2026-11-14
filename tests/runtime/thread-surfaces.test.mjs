@@ -20,7 +20,6 @@ const wireInput = () =>
     value: () => "",
     button: null,
     load() {},
-    cancelDictation() {},
   });
 
 test("a surface widget whose constructor threw is not waited for", async () => {

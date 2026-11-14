@@ -19,7 +19,7 @@
      accent (`data-lf-tone="accent"`). A disc (`data-lf-disc`) is drawn in its
      action's own ink (`data-lf-tone`: `accent`, `ink`, `positive` or `negative`) and
      shows its state on a disc behind the glyph rather than a chip, as the composer's
-     Send and Dictate and a thread's Resolve and Reopen do.
+     Send and a thread's Resolve and Reopen do.
    - `word`: a press that says what it does in words, quiet as a symbol is. A toggle
      is a word whose `aria-pressed` the theme draws as selected.
    - `commit`: the one press on a surface that commits the user's work, framed in the

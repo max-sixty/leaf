@@ -19,8 +19,9 @@
    A hint code is generated from a caller-owned alphabet. Replacing one leaf with all of
    its children keeps the result prefix-free while leaving most targets on one letter;
    only the tail branches when a scene contains more targets than the alphabet. The
-   placement pass spreads colliding chips apart, but only to seats where each still
-   reads as its own target's (`seatHints`): a chip standing beside another target names
+   placement pass spreads colliding chips apart, side by side further apart than a
+   code's own keycaps, but only to seats where each still reads as its own target's
+   (`seatHints`): a chip standing beside another target names
    that one, and its press would act on the wrong thing. In a list of rows shorter than
    a chip, every other row's corner chip steps out a column, level with its row, so every
    row keeps a chip where there is room beside the list. A chip with no seat at all is
@@ -293,6 +294,13 @@ export function seatHints(
   // paints one, so it has that space to itself. Seated to the gap alone both cleared by
   // coincidence, the gap and the band both being 2px.
   const clear = Math.max(gap, band);
+  // Side by side, two chips stand `apart`, well clear of the 1px between one code's own
+  // keycaps (`.lf-binding-sequence`, chrome.css), so a row of two-letter chips reads as
+  // codes: touching, `na` and `nd` read as `n a n d`. Stacked chips keep only `clear`,
+  // since a code reads across. Until 14 November 2026 chips could touch side by side.
+  const apart = 6;
+  /** @param {HintBox} box @returns {HintBox} */
+  const widened = (box) => ({ ...box, left: box.left - apart, right: box.right + apart });
   const edgeLeft = viewport.left + band;
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
@@ -438,7 +446,7 @@ export function seatHints(
     const barriersAcross = (seat) => [
       ...fixedBarriers.filter((other) => overlapsAcross(other, seat)),
       ...[...placed.values()].flatMap((box) =>
-        box && overlapsAcross(box, seat) ? [box] : [],
+        box && overlapsAcross(widened(box), seat) ? [widened(box)] : [],
       ),
     ];
     const barriers = barriersAcross(seated);
@@ -475,7 +483,7 @@ export function seatHints(
     /** @returns {HintBox | null} */
     const levelled = () => {
       for (const step of [0, 1, 2]) {
-        const left = seated.left - step * (column + clear);
+        const left = seated.left - step * (column + apart);
         if (left < edgeLeft) break;
         const seat = movedTo(seated, left, seated.top);
         if (

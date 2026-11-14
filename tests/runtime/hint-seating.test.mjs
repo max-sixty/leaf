@@ -85,7 +85,7 @@ test("a crowded column levels each chip with its row and steps every other one o
   );
   assert.deepEqual(
     seated.map(({ face, box }) => [box.left, middle(box) === middle(face.target)]),
-    rows.map((_, at) => [at % 2 ? 68 : 90, true]),
+    rows.map((_, at) => [at % 2 ? 64 : 90, true]),
   );
   assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
 });
@@ -102,7 +102,7 @@ test("a crowded column whose codes grow a letter keeps both columns' left edges"
   );
   assert.deepEqual(
     seated.map(({ box }) => box.left),
-    rows.map((_, at) => (at % 2 ? 53 : 85)),
+    rows.map((_, at) => (at % 2 ? 49 : 85)),
   );
   assert.deepEqual(overlapping(seated.map(({ box }) => box)), []);
 });
@@ -223,6 +223,29 @@ test("a before chip stands level with its target's first line, so each row in a 
   );
 });
 
+test("chips side by side stand further apart than a code's own keycaps", () => {
+  // A film's slots each as wide as a two-letter chip, whose seats above them would touch:
+  // touching, `na` and `nd` read as `n a n d`.
+  const slots = Array.from({ length: 8 }, (_, at) => box(100 + 30 * at, 100, 30, 60));
+  const seated = seatHints(
+    slots.map((target) => ({
+      start: box(target.left, target.top, 30, 16),
+      target,
+      placement: "above",
+    })),
+    { band: 2, viewport },
+  );
+  const shown = seated.flatMap(({ box }) => (box ? [box] : []));
+  assert.ok(shown.length > 1);
+  for (const one of shown)
+    for (const other of shown)
+      if (one !== other && one.top < other.bottom && other.top < one.bottom)
+        assert.ok(
+          one.right + 6 <= other.left || other.right + 6 <= one.left,
+          `${one.left}–${one.right} and ${other.left}–${other.right} stand side by side`,
+        );
+});
+
 test("a before chip that would stand on a neighbouring target stands above its own", () => {
   const buttons = [box(100, 100, 100, 30), box(205, 100, 100, 30)];
   const before = (targets) =>
@@ -258,7 +281,8 @@ test("a before chip that would stand on a neighbouring target stands above its o
   ]);
   assert.deepEqual(edge[1], { left: 978, top: 100 });
   // A target around its own is no neighbour: the first slot of a film keeps its seat
-  // before the film's edge, and the next slot's chip stands above it.
+  // before the film's edge, below the film's own chip rather than touching it, and the
+  // next slot's chip stands above it.
   const film = box(100, 100, 300, 60);
   const slots = [box(110, 110, 30, 40), box(145, 110, 30, 40)];
   assert.deepEqual(
@@ -271,7 +295,7 @@ test("a before chip that would stand on a neighbouring target stands above its o
     ),
     [
       { left: 68, top: 108 },
-      { left: 88, top: 118 },
+      { left: 88, top: 126 },
       { left: 145, top: 92 },
     ],
   );

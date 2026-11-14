@@ -236,6 +236,13 @@ class Harness:
         over the input a `nudge` could still deliver."""
         return True
 
+    def unloaded_module(self) -> dict | None:
+        """The hook output telling the user that the harness didn't load Leaf's own
+        module into the process this hook runs under, which a Stop ending the turn
+        of a session holding a page prints (`hooks.cmd_hook`); None where the
+        harness has no such module, loaded it, or the user has been told."""
+        return None
+
     @classmethod
     def run_ack(cls, command: str) -> str:
         """How the reader of this session's printed delivery runs `command`, which
@@ -548,6 +555,33 @@ class ClaudeCodeHarness(EnvironmentHarness):
         hook runs, and the hook outlives it (measured at 2.1.286: retired at 61
         minutes, the hook still running)."""
         return pid_alive(int(os.environ["CLAUDE_PID"]))
+
+    def unloaded_module(self) -> dict | None:
+        """Claude Code refuses to load a hooks module it can't validate and says so
+        only in its debug log (measured at 2.1.325, for a `$.env.get` of a variable
+        name), so the user sees no more than Leaf's line above the prompt gone.
+        `hooks/claude-code.ts` starts its pages follower once the session holds a
+        page, after the `leaf` command that claims one and as each turn starts, and
+        the follower records the process it runs in (`leases.mark_module`). At a
+        Stop in a session holding a page, a record naming another process means the
+        module isn't running in this one; only a turn ending within the second the
+        follower of its own first claim takes to start would read wrong. The notice
+        records this process, so the user hears it once per process, and a module
+        loaded later, as `/reload-plugins` loads one, records it again."""
+        from .leases import mark_module, module_process
+        from .state import PLUGIN_ROOT
+
+        pid = self.process_pid()
+        if pid is None or module_process(self.session) == pid:
+            return None
+        mark_module(self.session, pid)
+        return {
+            "systemMessage": "Leaf: Claude Code didn't load Leaf's hooks module in "
+            "this session, so Leaf's line above the prompt is gone, and so is the "
+            "work Leaf does from this conversation, such as the working line on "
+            f"thread messages. `claude plugin validate {PLUGIN_ROOT}` says why; once "
+            "a Leaf update fixes it, /reload-plugins loads it."
+        }
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."

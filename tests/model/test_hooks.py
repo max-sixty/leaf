@@ -176,6 +176,34 @@ def test_the_follower_hears_a_completion_as_it_is_asked():
     assert woke, "the request woke nothing"
 
 
+def test_a_stop_tells_the_user_once_where_claude_code_left_the_module_unloaded(
+    claimed, monkeypatch, capsys
+):
+    """Claude Code refuses a hooks module it can't validate and says so only in its
+    debug log, so the user saw no more than the line above the prompt gone. Only
+    the module starts a pages follower, which records its process, so a Stop in a
+    session holding a page tells the user once in a process no follower ran in,
+    as after a resume into a process that refused the module."""
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    # A process before this one, which the session was resumed out of.
+    leases_model.mark_module("s1", 1)
+    hooks_model.cmd_hook("claude-code", stop)
+    notice = json.loads(capsys.readouterr().out)["systemMessage"]
+    assert "didn't load Leaf's hooks module" in notice
+    assert f"claude plugin validate {cleanup_model.PLUGIN_ROOT}" in notice
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+
+    # A follower started in this process, as the module starts one, records it.
+    leases_model.mark_module("s1", 1)
+    with monkeypatch.context() as patched:
+        patched.setattr(hooks_model, "owned_pages", lambda _sid: [])
+        hooks_model.cmd_pages({"session_id": "s1"})
+    capsys.readouterr()
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+
+
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
     """A `working` claim is written by a model's turn, and a turn can end at any token
     without running anything — so nothing writes its close, and the page was left to

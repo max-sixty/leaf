@@ -74,16 +74,11 @@ import {
   shownWindow,
   stuckBox,
 } from "./geometry.js";
-import {
-  chosenSince,
-  pageScroller,
-  placeKept,
-  scrollChoices,
-  scrollGoal,
-} from "./scrolling.js";
+import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling.js";
 import {
   carriersOf,
   edgeAt,
+  glideGap,
   holderOf,
   returnTo,
   scrollersOf,
@@ -122,10 +117,16 @@ const boxStoodAt = (node) => {
 
 // The focused node while it is where the user is: while any of it, or the box it stands
 // at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
-// way is still carrying them to it (`carried`), since a walk focuses its stop before
-// gliding there and a key pressed on the way is meant for the stop, as a key a board's
-// card moves on is meant for the card while it slides from where it stood, clipped
-// meanwhile by a board that shrank. A user who scrolled away from the control they stand on is reading
+// way is still carrying them to it, since a walk focuses its stop before gliding there
+// and a key pressed on the way is meant for the stop, as a key a board's card moves on
+// is meant for the card while it slides from where it stood, clipped meanwhile by a
+// board that shrank. A glide carries them to the node while it carries the node toward
+// the window or into it (scroll-containers.js, `glideGap`), so a glide carrying focus
+// out of view, as `g g` does from a control mid-page, lets go of it once it has left,
+// and a `c` pressed as the page nears its top acts there. Toward, not into: the box of
+// a card the walk is gliding in trails its placement, and read where the glide would
+// carry it, it could stand a pixel past the window the walk is bringing it into. Rejected: counting every glide that
+// carries focus, which took the page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
@@ -143,10 +144,9 @@ export function focusPlace() {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
   if (box && seenRect(box, new Map())) return node;
-  const boxes = [...carriersOf(node)];
-  const [list] = boxes;
+  const [list] = scrollersOf(node);
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  if (seenRect(shown, new Map()) || glidesToward(node) || slides(node)) return node;
   const stuck = stuckBox(node);
   const left =
     stuck &&
@@ -166,13 +166,17 @@ watchScrollEnds(() => {
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
-// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
+// Whether a glide under way carries `node` toward the window or into it.
+/** @param {Element} node */
+const glidesToward = (node) => {
+  const gap = glideGap(node);
+  return Boolean(gap && (gap.after === 0 || gap.after < gap.now));
+};
+// Whether a finite animation moves a box holding `node`, as the slide a moved card makes
+// from where it stood to where layout put it. The sheen's endless one, a fade, one held
 // paused and one on a box's pseudo-element bring the user nowhere.
-/** @param {Element} node @param {Element[]} boxes */
-const carried = (node, boxes) =>
-  boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
+/** @param {Element} node */
+const slides = (node) =>
   document.getAnimations().some((animation) => {
     const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
     return (

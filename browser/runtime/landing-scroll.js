@@ -50,8 +50,8 @@
  * of a diff they have read down, still lands its opening. Its edges are compared at
  * layout precision (keeps.js, `atLayoutPrecision`): a box a landing put flush at an
  * edge reads back a float's rounding past it in Firefox, and a reading that counted it
- * unseen would land it again and enter travel's history. A box a motion under way is
- * carrying (scrolling.js, `scrollGoal`) is shown only where it is seen both where it
+ * unseen would land it again and enter travel's history. A box a glide under way is
+ * carrying (scroll-containers.js, `glideTravel`) is shown only where it is seen both where it
  * stands and where that motion will leave it, as a key pressed while the page moves
  * acts as if the motion had landed: `Shift+m` just after `m` finds the obligation `m`
  * is leaving already gone. Only a box growing under the user's keystrokes skips the
@@ -91,6 +91,7 @@ import { deepFocus, onCurrentLocation, ringBox } from "./focus.js";
 import {
   clippedPlace,
   fixedInWindow,
+  inFront,
   landingBand,
   placeBox,
   placeHolder,
@@ -100,7 +101,7 @@ import {
   visibleBand,
 } from "./geometry.js";
 import { atLayoutPrecision } from "./keeps.js";
-import { scrollersOf } from "./scroll-containers.js";
+import { glideTravel, scrollersOf } from "./scroll-containers.js";
 import { PAGE_PAINT_ATTRIBUTE, locationStandsDown } from "./page-paint.js";
 import {
   glideTo,
@@ -108,7 +109,6 @@ import {
   pageScroller,
   placeKept,
   reachable,
-  scrollGoal,
   startScroll,
   stopGlide,
 } from "./scrolling.js";
@@ -286,33 +286,29 @@ function seesWhole(seen, box, want, room) {
   );
 }
 
-// What the user will see of `seen` once the motions under way in the regions scrolling
-// `shown` land (scrolling.js, `scrollGoal`), and how far they carry it, or null where no
-// motion is under way. The boxes inside the outermost region that moves ride with the
-// destination, so their cuts stand; that region and those around it read it where the
-// motions leave it (geometry.js, `seenRect`).
+// `seen`, what the user sees of `shown`, moved by the distance the glides under way
+// have still to scroll the boxes carrying it (scroll-containers.js, `glideTravel`), and
+// cut where they leave the outermost box that glides and those around it (geometry.js,
+// `seenRect`); null where no glide carries it. The cuts of the boxes inside that one are
+// read as they stand now, which holds unless one of them glides too. A destination in a
+// box Leaf anchors stands in no box the anchor's glide moves, so the window alone cuts
+// it there (`inFront`).
 /** @param {Destination} shown @param {Box} seen */
 function seenAhead(shown, seen) {
-  let carried = 0;
-  /** @type {Element | null} */
-  let outer = null;
-  for (const box of scrollersOf(placeHolder(shown))) {
-    const left = scrollGoal(box) - box.scrollTop;
-    if (!left) continue;
-    carried += left * scrollAxes(box).y.y;
-    outer = box;
-  }
-  if (!outer) return null;
-  const inside = document.createRange();
-  inside.selectNodeContents(outer);
-  return {
-    carried,
-    seen: seenRect(inside, new Map(), {
-      ...seen,
-      top: seen.top - carried,
-      bottom: seen.bottom - carried,
-    }),
+  const travel = glideTravel(shown);
+  const holder = placeHolder(shown);
+  if (!travel || !holder) return null;
+  const moved = {
+    left: seen.left + travel.x,
+    right: seen.right + travel.x,
+    top: seen.top + travel.y,
+    bottom: seen.bottom + travel.y,
   };
+  if (!renderedUnder(holder, travel.outer))
+    return { travel, seen: inFront(moved, holder) };
+  const inside = document.createRange();
+  inside.selectNodeContents(travel.outer);
+  return { travel, seen: seenRect(inside, new Map(), moved) };
 }
 
 // Whether the user is on `where` or inside it, so it wears its ring and is measured out
@@ -338,13 +334,18 @@ export function alreadyShown(where, { block = "nearest" } = {}) {
   if (box.width > room.width && seen.right - seen.left < room.width) return false;
   const ahead = seenAhead(shown, seen);
   if (!ahead) return true;
-  const by = ahead.carried;
+  const { x, y } = ahead.travel;
   return Boolean(
     ahead.seen &&
     seesWhole(
       ahead.seen,
       box,
-      { ...want, top: want.top - by, bottom: want.bottom - by },
+      {
+        left: want.left + x,
+        right: want.right + x,
+        top: want.top + y,
+        bottom: want.bottom + y,
+      },
       room,
     ),
   );

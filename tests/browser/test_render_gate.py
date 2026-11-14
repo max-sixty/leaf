@@ -4323,6 +4323,50 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     ], f"a cover between the page's first and last words went unreported: {covered}"
 
 
+@pytest.mark.parametrize(
+    ("style", "under"),
+    [
+        ("", []),
+        ("body { padding: 0 }", ["<p id=last>"]),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0 }"
+            " main { height: 100%; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+    ],
+    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
+)
+def test_words_the_panel_covers_at_the_page_s_end_are_reported(
+    browser, serve, style, under
+):
+    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
+    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
+    with nothing at its end, leaves them under the panel however far the user scrolls.
+    The gate reads the page from its top, as it reads the rest, and places each word
+    where it stands with every scroller holding it at its end: the document for the
+    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
+    is reported there, and nothing above it."""
+    source = leaf_page(
+        "end",
+        "<h1>The end of the page</h1>"
+        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
+        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
+        head=f"<style>{style}</style>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+    page.close()
+    under_panel = [f for f in found if f["code"] == "under-panel"]
+    assert [f["at"] for f in under_panel] == under, found
+    # The author reads the record as words naming the element it found.
+    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
+
+
 # A sidenote beside a section of prose and tiles, the content a strip crushing the
 # column would push out of it.
 COMPARE_NOTE_PAGE = leaf_page(

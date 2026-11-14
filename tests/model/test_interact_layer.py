@@ -4969,9 +4969,11 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     types in a loop counts as written.
 
     Each allowed one is named here. The dispatcher has a capture listener for
-    shortcut characters, before nested libraries' typeahead, and for a key that lets go
-    of focus the user can't see, and a bubble listener for other keys, after controls'
-    own handling; both use the same register.
+    shortcut characters, before nested libraries' typeahead, for a key that lets go
+    of focus the user can't see, for a key pressed with nothing focused and for an
+    armed Go-to's keys, and a listener on the chrome's root for a key aimed into
+    Leaf's chrome; it reads every other key as a default action, in
+    role-button-press.js's listener; all of them use the same register.
     The aim latch is not a binding at all: holding ⌥ arms nothing and answers no
     press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
@@ -4986,7 +4988,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     (preview.js). The
     interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. A span Leaf offers as
     a button takes a button's Enter and Space as their default action
-    (role-button-press.js), on any page; the register names that press as native
+    (role-button-press.js), on any page, in a listener that a second, in capture, moves
+    behind the window's other listeners as each key arrives; the register names that press as native
     activation (keyboard/text-entry.js), as it does a <button>'s, so no surface promises
     a key it misses. Another is how every
     drift this register replaced began — a
@@ -5012,7 +5015,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "interaction-log.js": 1,
         "block-controls.js": 1,
         "preview.js": 1,
-        "role-button-press.js": 1,
+        "role-button-press.js": 2,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

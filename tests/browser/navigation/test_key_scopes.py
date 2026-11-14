@@ -732,12 +732,21 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
 
 def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
-    """A page's own menu that answers Escape or Enter on its item, preventing the key's
-    default and handing focus back to its trigger, keeps the user there: Leaf takes no
-    step of its own for that key. Leaf's dispatcher used to read the key again at the
-    document, at the trigger the menu had just focused, so Escape stepped the user off
-    it to the document and Enter pressed the trigger again, reopening the menu. UI SDK's
-    menu and select behave this way, as most popup libraries do."""
+    """A key a page's own code answers, preventing its default, keeps the user where
+    that code left them: Leaf takes no step of its own for it, wherever the page
+    listens. A menu that answers Escape or Enter on its item and hands focus back to
+    its trigger used to have Leaf read the key again at the trigger, so Escape stepped
+    the user off it to the document and Enter pressed it again, reopening the menu. A
+    tooltip that hears Escape on the window from the moment it shows, as Headless UI's
+    dialog does, or on the document, as UI SDK's and Web Awesome's popups do, came after
+    Leaf's listener there, so Escape stepped focus off its trigger instead of putting
+    the tooltip away.
+
+    Go-to owns the keyboard while it is armed, so its Escape comes first and leaves the
+    menu open for the next. With nothing focused, Leaf's mode over the whole page is
+    nearest the user, so Escape leaves Design mode before a page listener that
+    prevents every Escape hears it, and that listener hears only the next Escape,
+    which Leaf leaves."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -768,10 +777,34 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         event.preventDefault();
         close();
       });
-      document.querySelector('main').append(trigger, menu);
+      const info = document.createElement('button');
+      info.id = 'info';
+      info.textContent = 'Why';
+      info.setAttribute('aria-describedby', 'tip');
+      const tip = document.createElement('div');
+      tip.id = 'tip';
+      tip.popover = 'manual';
+      tip.setAttribute('role', 'tooltip');
+      tip.textContent = 'Because the gutters drain first.';
+      const dismiss = (event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        hide();
+      };
+      const hide = () => {
+        window.removeEventListener('keydown', dismiss);
+        tip.hidePopover();
+      };
+      info.addEventListener('focus', () => {
+        tip.showPopover();
+        window.addEventListener('keydown', dismiss);
+      });
+      info.addEventListener('blur', () => { if (tip.matches(':popover-open')) hide(); });
+      document.querySelector('main').append(trigger, menu, info, tip);
     }""")
     trigger = page.locator("#menu-trigger")
     menu = page.locator("#menu")
+    body = page.locator("body")
 
     for key in ("Escape", "Enter"):
         trigger.click()
@@ -781,6 +814,39 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
         expect(trigger).to_be_focused()
         expect(trigger).to_have_attribute("aria-expanded", "false")
     assert page.evaluate("() => window.chosen") == ["rename"]
+
+    page.locator("#info").click()
+    expect(page.locator("#tip")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#tip")).to_be_hidden()
+    expect(page.locator("#info")).to_be_focused()
+
+    trigger.click()
+    page.keyboard.press("g")
+    expect(body).to_have_attribute("data-lf-go-to-active", "")
+    page.keyboard.press("Escape")
+    expect(body).not_to_have_attribute("data-lf-go-to-active", "")
+    expect(menu).to_be_visible()
+    expect(page.locator("#rename")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(trigger).to_be_focused()
+
+    page.evaluate("""() => {
+      window.escapes = 0;
+      window.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        window.escapes += 1;
+      });
+      document.activeElement.blur();
+    }""")
+    page.keyboard.press("l")
+    expect(body).to_have_attribute("data-lf-design-mode", "")
+    page.keyboard.press("Escape")
+    expect(body).not_to_have_attribute("data-lf-design-mode", "")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => window.escapes") == 1
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(

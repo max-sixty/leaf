@@ -48,23 +48,34 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   for keys, Escape, positioning and component state.
 - **Page code.** A page can load its web components today with
   `<script type="module" src="https://ui-sdk.dev/web@0.1.0-beta.1.js">`, online only.
-  Its select, tabs, menu and dialog worked inside Leaf, typeahead included, once
-  Leaf's keyboard stopped acting on keys a page had already handled
-  (`browser/runtime/keyboard/controller.js`). Escape on a tooltip's focused trigger
-  still drops focus to the body, because UI SDK hears that Escape on `document`, after
-  Leaf's listener there. Their values reach the event log only
-  where page code passes them to a playground contributor or a widget controller.
+  Its select, tabs, menu, dialog and tooltip work inside Leaf, since Leaf reads keys
+  other than printed letters after the page's own listeners and takes no step for one
+  they prevented (`browser/runtime/keyboard/controller.js`). Leaf reads printed letters
+  first, so typeahead reaches only the letters Leaf binds to nothing: in an open menu,
+  `a` moves to Archive, but `d` scrolls the page rather than moving to Duplicate. Their
+  values reach the event log only where page code passes them to a playground
+  contributor or a widget controller.
   Each component's entry measures 13–53 KB gzipped on its own, by the repository's
   `size-budget.json`.
 - **`checkPattern`** (`@ui-sdk/core/testing`, marked experimental). Run on eight
   examples through `leaf-dev probe --journey` (`/developing-leaf`'s
-  `references/external-ui-skills.md` has the command), it found four defects in controls Leaf draws: `lf-tabs` gives its tablist no
-  accessible name; the margin's `role="toolbar"` holds up to 15 tab stops, and
-  ArrowRight, ArrowDown, Home and End from its first entry moved nothing; the
-  playground's choice cards put Enlarge buttons inside a `radiogroup`; and Pierre's
-  file tree puts its search field inside `role="tree"`. It also reported problems
-  that weren't there. It presses keys with synthetic events, which don't move focus
+  `references/external-ui-skills.md` has the command), it found four defects in
+  controls Leaf draws: `lf-tabs` gave its tablist no accessible name; the margin's
+  `role="toolbar"` held up to 15 tab stops, and ArrowRight, ArrowDown, Home and End
+  from its first entry moved nothing; the playground's choice cards put Enlarge buttons
+  inside a `radiogroup`; and Pierre's file tree puts its search field inside
+  `role="tree"`, which axe-core reports as `aria-required-children` on `@pierre/trees`
+  1.0.0. The first three are fixed (#5948). It also reported problems that weren't
+  there. It presses keys with synthetic events, which don't move focus
   between native radios; it reads `aria-controls` as an attribute and misses a
   reference set through `ariaControlsElements`; and it reads focus from
-  `document.activeElement`, which stops at a shadow host. Those false reports keep it
-  out of `page check`.
+  `document.activeElement`, which stops at a shadow host. A role on an element in a
+  shadow root whose items are slotted, as Web Awesome's radio group is, reads as
+  owning none of them, and Web Awesome's slider and select ignore its synthetic keys.
+  Those false reports keep it out of `page check`.
+- **Against Web Awesome** (measured 2026-11-14). Leaf's vendored Web Awesome 3.14.0
+  and UI SDK 0.1.0-beta.1, side by side on a plain page in Chromium and Firefox: the
+  radio group, button radio group, slider, select and tooltip behave the same under
+  real keys, expose the same accessibility tree, and axe-core reports no violation in
+  either. Leaf keeps Web Awesome for its controls, since replacing it would change no
+  behavior.

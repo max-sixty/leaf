@@ -33,14 +33,15 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   a page widget whose controller records it (`module-state.md`, "The widget
   controller"). State the script keeps itself, in memory or `localStorage`, never
   reaches the log.
-- Leaf takes printed letter keys before the page's listeners, for its own walks and
-  commands, and handles other keys, such as Escape, on `document` once they bubble
-  there. A key typed into a Leaf comment box, draft editor or search box stops at that
-  box, so the page's listeners never hear it bubble. Give the interface keys of its
-  own by declaring them as an element's `lfCommands` (`module-input.md`, "Commands
-  and keyboard routes"), or handle arrows, Enter and Escape on the page's own
-  elements, which hear them first. Preventing a key's default there keeps Leaf from
-  acting on it too.
+- Leaf takes these keys before the page's listeners: printed letters, for its own walks
+  and commands; a key pressed with nothing focused; and, while its Go-to or reaction
+  keys are armed, every key they answer. It handles other keys, such as Escape on a page
+  element, as their default action, after every listener the page has. A key typed
+  into a Leaf comment box, draft editor or search box stops at that box, so the page's
+  listeners never hear it bubble. Give the interface keys of its own by declaring them
+  as an element's `lfCommands` (`module-input.md`, "Commands and keyboard routes"), or
+  handle arrows, Enter and Escape on the page's own elements, which hear them first.
+  Preventing a key's default there keeps Leaf from acting on it too.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
   attached. Listen on `body`, which survives revisions, or set up again when

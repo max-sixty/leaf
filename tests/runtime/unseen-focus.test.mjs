@@ -70,11 +70,14 @@ test("a key at a control the user scrolled away from lets go of it first", () =>
     widget.focus();
     press(widget, "Enter");
     assert.deepEqual(heard, ["widget Escape", "page Escape"]);
-    press(document.body, "Enter");
-    assert.deepEqual(heard.slice(2), ["page Enter"]);
     // Back in view, the control is no longer where the user is.
     standAt(widget, 0);
     press(document.body, "2");
+    // Focused there again, the same key reaches the widget's listener and the page's
+    // before Leaf's command.
+    widget.focus();
+    press(widget, "Enter");
+    assert.deepEqual(heard.slice(-2), ["widget Enter", "page Enter"]);
     // The browser moves a radio's choice at the control the key was aimed at, wherever
     // focus has gone, so the let-go withholds it.
     radio.focus();

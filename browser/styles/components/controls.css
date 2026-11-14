@@ -1635,7 +1635,8 @@ textarea.lf-field {
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
    unread dot wears, as the user chose on 31 October over the danger ink, which read
-   as an error. The
+   as an error. One whose words say a warning (`data-lf-tone="warn"`) takes the
+   warning's ink. The
    four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
    pointer) until the user chose this one on 28 October. Words a press says in a
@@ -1654,6 +1655,9 @@ textarea.lf-field {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+}
+:where(button).lf-inline-action[data-lf-tone="warn"] {
+  color: var(--warn-ink);
 }
 /* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
    does at the floating panel field's end, wears their face, as the word and key that

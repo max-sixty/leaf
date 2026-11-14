@@ -33,7 +33,8 @@
    - `inline`: a press read as part of the line of words it stands in, such as a
      thread's held news or a quote's Full quote, drawn as words in the accent at the
      line's size with no frame. One that announces news waiting says so with
-     `data-lf-news` and keeps the accent the unread dot wears. One standing among
+     `data-lf-news` and keeps the accent the unread dot wears, and one whose words say
+     a warning with `data-lf-tone="warn"` takes the warning's ink. One standing among
      a box's empty words (`data-lf-hint`), as a passing notice's Undo does at the
      floating panel field's end, wears those words' dim face, as the word and key that
      enter the box do (composing/input.js, `pressAtRest`).

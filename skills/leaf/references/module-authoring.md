@@ -430,7 +430,7 @@ face, symbol and name to an existing node. The roles are:
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol at a corner of the thing it acts on, naming its `action`.
 - `"inline"`, a press read as part of its line of words, such as a quote's "Full
-  quote", drawn in the accent.
+  quote", drawn in the accent; one saying a warning takes `data-lf-tone="warn"`.
 - `"row"`, one row of a list or menu, washed under the pointer or the keys; the row the
   list stands on, such as a timeline's step, takes `aria-current`, drawn in the accent.
 - `"answer"`, one of a question's answers; the chosen one takes `aria-pressed="true"`.

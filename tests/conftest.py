@@ -53,10 +53,9 @@ FAILING_HARNESS_PROGRAMS = Path(__file__).parent / "fixtures" / "programs" / "fa
 def pytest_configure(config):
     """Set the conditions every test in this process runs under, before any of them.
 
-    This is the run's entry point, and the only place the suite changes the process
-    for the whole run, through a `MonkeyPatch` the run undoes when it ends. A test
-    changes the process only through its own `monkeypatch` and leaves it as it found
-    it (`pytest_runtest_teardown`).
+    The run's entry point sets its environment and signal handlers here, through a
+    `MonkeyPatch` the run undoes when it ends. A test changes them only through its own
+    `monkeypatch`, and leaves them as it found them (`pytest_runtest_teardown`).
 
     - The failing harness programs go first on PATH.
     - The run is a host, and names its browser the way one does, through
@@ -116,13 +115,12 @@ def pytest_runtest_teardown(item):
     process leaves it to its process's entry point (tests/AGENTS.md, "Fixtures")."""
     result = yield
     before, after = item.stash[_PROCESS_STATE], _process_state()
-    changed = [
-        f"{fact} ({', '.join(sorted(k for k in was.keys() | now.keys() if was.get(k) != now.get(k)))})"
-        if isinstance(was, dict)
-        else fact
-        for fact, was, now in ((fact, before[fact], after[fact]) for fact in before)
-        if was != now
-    ]
+    was, now = before.pop("environment"), after.pop("environment")
+    variables = sorted(
+        name for name in was.keys() | now.keys() if was.get(name) != now.get(name)
+    )
+    changed = [f"environment ({', '.join(variables)})"] if variables else []
+    changed += [fact for fact in before if before[fact] != after[fact]]
     assert not changed, (
         f"the test left the process changed: {'; '.join(changed)}. A test changes it "
         "through monkeypatch, and code it calls in process changes none"

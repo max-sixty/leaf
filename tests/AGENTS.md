@@ -208,12 +208,14 @@ browser says drew it (`ring_rules`, `render_cases_layout.py`).
 Every test runs under `isolated_session` (its docstring says what it isolates); don't
 move `HOME`. A test changes the process it runs in, such as an environment variable,
 the working directory or a module's attribute, only through `monkeypatch` or a fixture
-built on it (`sessionless`), which puts it back when the test ends, and gives a
-subprocess another environment as its `env` (`codex_env`). Code a test calls in process
-changes nothing process-wide; only an entry point does, such as a container's `main` or
-the suite's `pytest_configure`. So nothing resets the process between tests, and
-`pytest_runtest_teardown` (`conftest.py`) fails a test that leaves its environment,
-directory or signal handlers changed.
+built on it (`sessionless`), and `monkeypatch` puts it back when the test ends. A
+subprocess that needs another environment gets it as its `env` (`codex_env`). Code a
+test calls in process changes nothing process-wide. Only an entry point does, such as a
+container's `main` or the suite's `pytest_configure`, and where a test runs a command's
+entry point in process, a fixture keeps its change out of the worker
+(`commands_leave_the_workers_signals`). Nothing resets the process between tests, and
+`pytest_runtest_teardown` (`conftest.py`) fails a test that leaves the environment, the
+working directory or a signal handler changed.
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and

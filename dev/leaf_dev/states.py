@@ -2526,12 +2526,6 @@ def page_end(page: Page) -> None:
     page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
 
 
-def visual_review_inspection(page: Page) -> None:
-    """Capture the artifact inspection popover beside the selected comparison."""
-    page.locator(".lf-vr-case:not([hidden]) .lf-vr-inspect").click()
-    page.mouse.move(0, 0)
-
-
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
     page.get_by_role("tab", name="Comment on the reader").click()
@@ -2929,11 +2923,6 @@ STATES = (
         region=".lf-fp-opened",
     ),
     State("image-preview", "feature-gallery", image_preview),
-    State(
-        "visual-review-inspection",
-        "visual-review-gallery",
-        visual_review_inspection,
-    ),
     State("diff-long-lines", "diff-thread-gallery", diff_long_lines),
     State(
         "diff-author-notes",

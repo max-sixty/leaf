@@ -29,7 +29,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import (
     painted,
-    source_revision,
 )
 from render_harness import (
     EXAMPLE_PACKAGES,
@@ -37,27 +36,20 @@ from render_harness import (
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    consume_browser_errors,
-    example_media,
     expect_obligations_answered,
     holding,
-    leaf_page,
     names,
     open_page,
     page_registry,
     panel_field,
     panel_view,
-    resized,
-    root_overflow,
     round_trip,
     sending,
     stamp_page,
     ticked,
-    told,
 )
 
 from leaf import cli as cli_model
-from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
@@ -66,7 +58,6 @@ from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf_dev.browser import PANEL_THREAD
@@ -76,225 +67,6 @@ pytestmark = pytest.mark.shifts_unsurveyed
 from browser.threads import open_panel_thread
 
 from journeys import first_thread_head
-
-
-def test_visual_review_guides_one_typed_still_run(browser, serve):
-    authored = leaf_page(
-        "visual review run",
-        """
-<h1 id="title">Visual review</h1>
-<p id="claim">The candidate makes run status visible without changing navigation.</p>
-<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>
-""",
-    )
-    media = {
-        "/media/051bee487bfb5d13.png": (
-            example_media() / "051bee487bfb5d13.png"
-        ).read_bytes(),
-        "/media/a99a1b63048502d0.png": (
-            example_media() / "a99a1b63048502d0.png"
-        ).read_bytes(),
-        "/media/3cf0e3efe80c6b01.png": (
-            example_media() / "3cf0e3efe80c6b01.png"
-        ).read_bytes(),
-    }
-    url = live_url(serve(authored, packages=("visual-review",), media=media))
-    capture = {
-        "observedAt": "2026-09-10T10:30:00-07:00",
-        "browser": "Chrome",
-        "browserVersion": "140.0.7339.80",
-        "viewport": {"width": 900, "height": 373},
-        "deviceScaleFactor": 2,
-        "colorScheme": "light",
-        "locale": "en-US",
-        "timezone": "America/Los_Angeles",
-    }
-    record: dict = {
-        "title": "Docs navigation · candidate 7b921ac",
-        "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
-        "candidate": {
-            "revision": "7b921ac",
-            "url": "https://candidate.example/rev",
-        },
-        "cases": [
-            {
-                "id": "run-list",
-                "title": "Run list status",
-                "path": "/runs?owner=max",
-                "action": "Open the run list.",
-                "result": "Each row exposes its current status.",
-                "classification": "changed",
-                "capture": capture,
-                "focus": {"x": 120, "y": 80, "width": 640, "height": 220},
-                "before": "/media/051bee487bfb5d13.png",
-                "after": "/media/a99a1b63048502d0.png",
-                "traceUrl": "https://trace.example/runs/17",
-            },
-            {
-                "id": "run-detail",
-                "title": "Run detail navigation",
-                "path": "/runs/17",
-                "action": "Open the first run.",
-                "result": "The detail link and surrounding layout stay stable.",
-                "classification": "clean",
-                "capture": capture,
-                "before": "/media/051bee487bfb5d13.png",
-                "after": "/media/a99a1b63048502d0.png",
-            },
-        ],
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", record)
-    source = serve.page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            "</main>",
-            '<lf-visual-review id="visual-pinned" source="docs-run-reviewed">'
-            "</lf-visual-review></main>",
-        )
-    )
-    # The pinned run is a second source that nothing rewrites.
-    data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
-    page = open_page(browser, url)
-    case_thread = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 2,
-            "text": "Keep this note beside the run-list evidence.",
-            "anchor": {
-                "section": "visual-run",
-                "datum": "run-list",
-                "source": "docs-run",
-                "source_revision": source_revision(serve.page_dir, "docs-run"),
-            },
-        },
-    )
-    told(page)
-    widget = page.locator("#visual-run")
-    cases = widget.locator(".lf-vr-case")
-    first = cases.filter(has=page.locator(".lf-vr-title", has_text="Run list"))
-    second = cases.filter(has=page.locator(".lf-vr-title", has_text="Run detail"))
-
-    expect(widget.locator(".lf-vr-heading h2")).to_have_text(record["title"])
-    expect(widget.locator(".lf-vr-case-button")).to_have_count(2)
-    expect(first).to_be_visible()
-    expect(second).to_be_hidden()
-    expect(first).to_have_attribute("data-lf-projection", "visual-run")
-    origin = first.evaluate("node => JSON.parse(node.dataset.lfOrigin)")
-    assert origin["source"] == "docs-run"
-    assert origin["path"] == ["cases", 0]
-    expect(first.locator("lf-shot img")).to_have_count(2)
-    expect(
-        first.locator(f'.lf-page-thread[data-lf-thread="{case_thread["id"]}"]')
-    ).to_have_count(1)
-    first.get_by_role("button", name="Capture details").click()
-    for label, href in (
-        ("Open before page", "https://base.example/rev/runs?owner=max"),
-        ("Open after page", "https://candidate.example/rev/runs?owner=max"),
-        ("Capture trace", "https://trace.example/runs/17"),
-    ):
-        expect(first.get_by_role("link", name=label)).to_have_attribute("href", href)
-    expect(first.locator(".lf-facts")).to_contain_text("Chrome 140.0.7339.80")
-    expect(first.locator(".lf-facts")).to_contain_text("120, 80 · 640 × 220 CSS px")
-    page.keyboard.press("Escape")
-    first.get_by_role("button", name="Image options").click()
-    first.get_by_role("checkbox", name="Full frame").check()
-    first.get_by_role("button", name="100%", exact=True).click()
-    rendered(page)
-    width = first.locator("lf-shot img").first.evaluate(
-        "node => node.getBoundingClientRect().width"
-    )
-    assert width == pytest.approx(900, abs=1), "Actual size is captured CSS pixels"
-    with sending(page, "approve the first visual case"):
-        first.get_by_role("checkbox", name="Looks right").check()
-    expect(widget.locator(".lf-vr-progress")).to_contain_text("1 of 2")
-    widget.locator(".lf-vr-case-button").nth(1).click()
-    expect(first).to_be_hidden()
-    expect(second).to_be_visible()
-    second.get_by_role("radio", name="Slider").click()
-
-    inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
-    changed: dict = record | {
-        "base": {"revision": record["base"]["revision"]},
-        "cases": [
-            record["cases"][0],
-            inserted,
-            record["cases"][1]
-            | {
-                "result": "The detail route remains stable after the rerun.",
-                "capture": capture | {"observedAt": "2026-10-08T10:00:00-07:00"},
-            },
-        ],
-    }
-    original = second.element_handle()
-    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
-    told(page)
-    expect(second.locator(".lf-vr-result")).to_have_text(
-        "The detail route remains stable after the rerun."
-    )
-    assert original.evaluate(
-        "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
-    )
-    expect(second).to_be_visible()
-    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
-        "aria-checked", "true"
-    )
-    expect(
-        first.get_by_role("checkbox", name="Looks right", include_hidden=True)
-    ).to_be_checked()
-    expect(
-        page.locator("#visual-pinned .lf-vr-result").filter(
-            has_text=record["cases"][1]["result"]
-        )
-    ).to_have_count(1)
-    second.get_by_role("button", name="Capture details").click()
-    expect(second.locator(".lf-facts")).to_contain_text("2026-10-08T10:00:00-07:00")
-    expect(second.get_by_role("link", name="Open before page")).to_have_count(0)
-    expect(second.get_by_role("link", name="Open after page")).to_have_attribute(
-        "href", "https://candidate.example/rev/runs/17"
-    )
-    page.keyboard.press("Escape")
-    resized(page, 390, 900)
-    assert root_overflow(page) == 0
-
-    widget.locator(".lf-vr-case-button").first.click()
-    invalid_focus = changed | {
-        "cases": [
-            changed["cases"][0]
-            | {
-                "focus": {"x": 120, "y": 300, "width": 640, "height": 220},
-            },
-            *changed["cases"][1:],
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
-    told(page)
-    error = "focus 120,300 640×220 CSS px falls outside its captured images"
-    expect(first.locator(".lf-error")).to_contain_text(error)
-    consume_browser_errors(page, error)
-    unequal_pair = changed | {
-        "cases": [
-            changed["cases"][0]
-            | {
-                "focus": {"x": 20, "y": 80, "width": 300, "height": 150},
-                "after": "/media/3cf0e3efe80c6b01.png",
-            },
-            *changed["cases"][1:],
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", unequal_pair)
-    told(page)
-    error = "before is 1800px wide and after is 780px"
-    expect(first.locator(".lf-error")).to_contain_text(error)
-    consume_browser_errors(page, error)
-    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
-    told(page)
-    expect(first.locator(".lf-error")).to_have_count(0)
-    expect(first.locator("lf-shot img")).to_have_count(2)
-    with sending(page, "withdraw the approval"):
-        first.get_by_role("checkbox", name="Looks right").uncheck()
-    expect(first.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
 
 def test_the_render_gate_reports_a_server_that_stops_answering(

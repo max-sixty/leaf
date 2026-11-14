@@ -9,7 +9,11 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
+    DATUM_LINK,
+    DATUM_LINK_WIDGETS,
+    LINK,
     LONG_PAGE,
+    datum_button,
     holding,
     leaf_page,
     open_page,
@@ -17,6 +21,7 @@ from render_harness import (
     scroll_settled,
     sending,
     stored_draft_text,
+    tab_to,
     take_browser_errors,
     told,
     write,
@@ -687,10 +692,11 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
             "Review files beside a reply",
             '<h1>Review the patch</h1><lf-diff id="patch" source="review-patch" '
             'view="file"></lf-diff>'
-            '<lf-file-tree id="files" for="patch"></lf-file-tree>'
-            '<a id="after-files" href="#patch">Back to the patch</a>',
+            + LINK
+            + '<a id="after-files" href="#patch">Back to the patch</a>',
         ),
-        packages=("diff", "file-tree"),
+        layer_registry=DATUM_LINK,
+        layer_widgets=DATUM_LINK_WIDGETS,
     )
     data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     root = events_model.append_event(
@@ -715,19 +721,10 @@ def test_keyboard_file_navigation_keeps_its_destination_beside_a_retained_reply(
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
     caret = reply.evaluate("node => node.selectionStart")
-    search = page.locator("#files").get_by_role("textbox")
-    for _ in range(20):
-        page.keyboard.press("Tab")
-        if search.evaluate('node => node.matches(":focus")'):
-            break
-    expect(search).to_be_focused()
-    page.keyboard.press("Tab")
-    page.keyboard.press("End")
-    target = page.locator("#files").get_by_role("treeitem", name="tests.py", exact=True)
-    expect(target).to_be_focused()
+    target = datum_button(page, "tests.py")
+    tab_to(page, target)
     page.keyboard.press("Enter")
     wait_until_ready(page)
-    expect(target).to_have_attribute("aria-selected", "true")
     expect(
         page.locator("#patch").get_by_text('return "checked"', exact=True)
     ).to_be_visible()

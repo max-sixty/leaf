@@ -345,8 +345,7 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
-    source = named_source("visual-review-gallery")
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(named_source("feature-gallery")))
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate("""async () => {

@@ -7,8 +7,7 @@
 # Each context has an agent author one of those kinds in a single turn, and
 # `draw_failures.py` reads the executor's final `page check --render`, which opens
 # every thread holding markup, and the author's own checks for a widget that failed
-# to draw. The visual review's context is `visual-change-uses-captures/review`, which
-# has the captures. notes/agent-usability-evals.md, "Widgets plain page check doesn't
+# to draw. notes/agent-usability-evals.md, "Widgets plain page check doesn't
 # run", has the runs.
 description: widgets-draw-as-written
 metadata:

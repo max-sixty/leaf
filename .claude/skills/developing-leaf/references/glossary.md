@@ -225,7 +225,6 @@ its link's preview counts them.
 | **To-do** | Work the agent owes until it ends (`todo` in the protocol) |
 | **Plan** | The agent's outline of the page's work (`plan` in the protocol): goals and steps by depth, each step plain or naming a to-do or obligation, which it arranges without owning |
 | **Tally** | `lf-tally`: how many of a region's obligations are still open and whose turn each is, “2 of 8 to answer · 1 on Claude”, with an optional Next On Me that walks the region's obligations waiting on the user |
-| **Deck** | `lf-deck`: cards worked through one at a time, each holding its own obligations. An answered card moves on by itself; **Later** leaves one waiting for the end of the pass and records nothing |
 | **Resend** | An update a harness handed back to the user to send again: its obligation stays in On Me, next actor the user, until they do |
 | **Done items** | The items that left either list, under a Done heading at the foot of the On view; resolved threads stand likewise under Resolved at the foot of Threads, folded to that heading until the user opens it. A widget may also call its own submit control Done, as a multiple-choice `lf-options` does |
 | **Navigation step** | One move to a destination, such as a thread's passage, an obligation, or the element a followed fragment link names. It clears any surface hiding the destination, then stays put if the user already sees it, or moves and adds a history entry (`history.js`) |

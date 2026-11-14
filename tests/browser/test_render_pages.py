@@ -1,5 +1,6 @@
 """File-authored anchors, drawings, width, and handover tests."""
 
+import hashlib
 import io
 import json
 import math
@@ -25,6 +26,7 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     current_location_ring,
+    solid_png,
 )
 from render_cases_navigation import (
     composer_quote,
@@ -3629,7 +3631,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
 ):
     """In a declared shadow tree the default face reaches a bare control, and yields to
     the rules the widget adopts, those of a library it layers inside `lf-base`
-    included. It outranked them there, which set lf-file-tree's rows, buttons Trees
+    included. It outranked them there, which set such a library's rows, buttons it
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
     declaration["x-shadow"] = True
@@ -3786,3 +3788,55 @@ import pytest
 from render_harness import (
     leaf_page,
 )
+
+
+def test_a_shot_refuses_a_crop_outside_its_captures_and_recovers_when_it_is_corrected(
+    browser, serve
+):
+    """A host's focus rectangle has to fall inside both captures, at their pixel ratio,
+    and a pair has to share one width; each refusal draws as the shot's error, and the
+    shot draws again once the data is corrected."""
+    captures = {
+        name: solid_png(width, 746, (232, 226, 213))
+        for name, width in (("a", 1800), ("b", 1800), ("c", 780))
+    }
+    src = {
+        name: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
+        for name, data in captures.items()
+    }
+    media = {src[name]: data for name, data in captures.items()}
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Crop",
+                '<h1>Crop</h1><lf-shot id="pair" alt="pair" '
+                f'before="{src["a"]}" after="{src["b"]}"></lf-shot>',
+            ),
+            media=media,
+        ),
+    )
+    shot = page.locator("#pair")
+    expect(shot.locator("img")).to_have_count(2)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    # Captured at device scale 2, so 1800×746 pixels are 900×373 CSS pixels.
+    fits = "n => n.inspect({pixelRatio: 2, focus: {x: 120, y: 80, width: 640, height: 220}})"
+    shot.evaluate(fits)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    # The crop fits the bitmap but ends at CSS y=520, past the 373 the capture spans.
+    shot.evaluate(
+        "n => n.inspect({pixelRatio: 2, focus: {x: 120, y: 300, width: 640, height: 220}})"
+    )
+    error = "focus 120,300 640×220 CSS px falls outside its captured images"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
+    shot.evaluate(fits)
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(shot.locator("img")).to_have_count(2)
+    shot.evaluate("(n, src) => n.setAttribute('after', src)", src["c"])
+    error = "before is 1800px wide and after is 780px"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    consume_browser_errors(page, error)
+    shot.evaluate("(n, src) => n.setAttribute('after', src)", src["b"])
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(shot.locator("img")).to_have_count(2)

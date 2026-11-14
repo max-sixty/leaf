@@ -1,9 +1,6 @@
 ## A patch review
 
-`lf-diff` has its own file listing. When directory hierarchy helps the reader navigate
-the patch, select the `file-tree` package too; its author instructions describe the
-navigator and selected-file composition. A small flat patch can use the diff's listing
-alone.
+`lf-diff` has its own file listing.
 
 ## Supplying a patch
 

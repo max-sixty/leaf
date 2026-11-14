@@ -17,16 +17,11 @@ def test_independent_packages_keep_their_actions_data_and_nested_styles(browser,
             (FIXTURES / "composition.html").read_text(),
             packages=(
                 "diff",
-                "file-tree",
                 FIXTURES / "packages/composition",
                 FIXTURES / "packages/composition-theme",
             ),
         ),
     )
-    expect(page.get_by_role("treeitem", name="session.py", exact=True)).to_be_visible()
-    expect(
-        page.get_by_role("treeitem", name="test_session.py", exact=True)
-    ).to_be_visible()
     styles = page.evaluate("""() => Object.fromEntries(
       ['composition-owned-note', 'composition-nested-note'].map(id =>
         [id, getComputedStyle(document.getElementById(id)).borderInlineStartWidth]))""")

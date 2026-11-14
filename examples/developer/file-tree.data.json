@@ -1,8 +1,0 @@
-{
-  "$captures": {
-    "worktrunk-change": {
-      "file": "../pr-walkthrough.patch",
-      "format": "unified-diff"
-    }
-  }
-}

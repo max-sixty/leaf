@@ -644,56 +644,6 @@ const bundles = {
     ],
   }),
 
-  // The optional file navigator uses Trees' vanilla model and its own shadow-DOM
-  // renderer. Upstream includes its styles and Preact runtime; no React wrapper,
-  // external stylesheet, or consumer build reaches the page.
-  trees: () => ({
-    out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
-    entryPoints: [input("entries/trees/entry.mjs")],
-    platform: "browser",
-    target: "chrome105",
-    // Keep upstream's core/override ordering inside the page's vendor tier, so
-    // authored styles retain the same precedence as every other widget's.
-    adapt: [
-      {
-        file: /@pierre\/trees\/dist\/model\/FileTreeController\.js$/,
-        // beta.6 treats a nonempty query with no matches as unfiltered, exposing
-        // unrelated root rows. The controller must retain an empty filtered set;
-        // its existing empty-query branch remains the route back to all files.
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              'this.#searchMode === "hide-non-matches" && matchingPaths.length > 0',
-              'this.#searchMode === "hide-non-matches"',
-              "Trees empty search-result set",
-            ),
-            'this.#searchMode !== "hide-non-matches" || this.#searchMatchPathSet.size === 0',
-            'this.#searchMode !== "hide-non-matches"',
-            "Trees empty search-result visibility",
-          ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "return `${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}`;",
-              "return `@layer lf-base {\n${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}\n}`;",
-              "Trees core CSS cascade",
-            ),
-            "return `${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}`;",
-            "return `@layer lf-base {\n${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}\n}`;",
-            "Trees override CSS cascade",
-          ),
-      },
-    ],
-    banner: {
-      js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
-    },
-  }),
-
   // Split chrome controls, the controls Leaf's widgets load with themselves (`views`)
   // and the catalogue a package's own module may import, sharing their dependency graph.
   // All three entry points register the same components once. The catalogue remains on

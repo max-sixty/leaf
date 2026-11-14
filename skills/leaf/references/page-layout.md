@@ -240,6 +240,9 @@ keeps the reader's place in a bounded box across revisions, and in no other scro
 `data-bound="start"` opens at the top, and `data-bound="end"`, for a stream that grows
 downward, follows the newest entry while the user is at the end. The box takes the
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
+It clips at its sides too, with no room there, so a control that starts a line in it,
+such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
+box that holds such a control `padding-inline: var(--sp-2)`.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or

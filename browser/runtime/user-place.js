@@ -61,10 +61,11 @@
    every render in, for a 400-line module and its corrections of the browser's own.
 
    The module also owns the one rule for where the user is: focus while they can see it
-   (`focusPlace`), else what is on screen (reading-place.js, `pageReadingBlock`). A key
-   pressed while focus is not where they are lets go of it first (keyboard/controller.js),
-   so every key acts from what they see, and a revision reading where they are asks the
-   same (reading-place.js, `capturePlace`; version.js). */
+   where the glides under way leave it (`focusPlace`), else what is on screen
+   (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
+   are lets go of it first (keyboard/controller.js), so every key acts from what they
+   see, and a revision reading where they are asks the same (reading-place.js,
+   `capturePlace`; version.js). */
 import {
   clippedPlace,
   inFront,
@@ -74,13 +75,14 @@ import {
   shownWindow,
   stuckBox,
 } from "./geometry.js";
-import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
+import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling.js";
 import {
   carriersOf,
   edgeAt,
   holderOf,
   returnTo,
   scrollersOf,
+  seenAhead,
 } from "./scroll-containers.js";
 import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
@@ -115,16 +117,26 @@ const boxStoodAt = (node) => {
 };
 
 // The focused node while it is where the user is: while any of it, or the box it stands
-// at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
-// way is still carrying them to it (`carried`), since a walk focuses its stop before
-// gliding there and a key pressed on the way is meant for the stop, as a key a board's
-// card moves on is meant for the card while it slides from where it stood, clipped
-// meanwhile by a board that shrank. A user who scrolled away from the control they stand on is reading
+// at (`standsAt`), is in front of them where the glides under way leave it
+// (scroll-containers.js, `seenAhead`), or while a slide under way is still carrying
+// them to it, as a key a board's card moves on is meant for the card while it slides
+// from where it stood, clipped meanwhile by a board that shrank. A key pressed while a
+// glide runs acts as though the glide had landed, as a step pressed then steps from
+// where the glide is headed (navigation.js). A walk focuses its stop before gliding
+// there, so a key pressed on the way is meant for the stop. `g g` carries a control
+// mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
+// is still on screen, and acts from where `g g` lands (reading-place.js,
+// `landingPlace`). The user chose this on 2026-11-14. Rejected: judging a node still on
+// screen as the place, which opened a comment box on the control and let the glide
+// carry it off screen with focus in it, and moved Tab on from the control as though
+// the glide had not run; and counting every glide that carries focus, which took the
+// page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
-// every scroll and marks no place in what it stands over (geometry.js, `stuckBox`). Its
+// every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
+// `stuckBox`). Its
 // box is asked of what clips it out to that stuck box, then the window and the chrome,
 // since a sticky header reads as under the slot it stands in itself (`seenRect`,
 // `headerInset`). A row
@@ -136,11 +148,10 @@ export function focusPlace() {
   const node = focused();
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
-  if (box && seenRect(box, new Map())) return node;
-  const boxes = [...carriersOf(node)];
-  const [list] = boxes;
+  if (box && seenAhead(box)) return node;
+  const [list] = scrollersOf(node);
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  if (seenAhead(shown) || slides(node)) return node;
   const stuck = stuckBox(node);
   const left =
     stuck &&
@@ -160,13 +171,11 @@ watchScrollEnds(() => {
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
-// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
+// Whether a finite animation moves a box holding `node`, as the slide a moved card makes
+// from where it stood to where layout put it. The sheen's endless one, a fade, one held
 // paused and one on a box's pseudo-element bring the user nowhere.
-/** @param {Element} node @param {Element[]} boxes */
-const carried = (node, boxes) =>
-  boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
+/** @param {Element} node */
+const slides = (node) =>
   document.getAnimations().some((animation) => {
     const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
     return (
@@ -283,12 +292,14 @@ export function holdPlace(node, standIn = () => null) {
 // line's Comment, stands where its own layout put it, and is kept like any other. A
 // control the change replaced, or one focus left, has nothing to keep.
 //
-// The keep yields to any scroll since the reading: a scroll the user or a landing chose
-// and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide, or has yet to start for the reader's input
-// (arrivals.js, `browserScrolls`), in any box whose scroll moves the place, the page
-// included for a place in a box Leaf anchors to its words (`carriersOf`), so it never
-// overrides a scroll under way. It yields
+// The keep yields to any scroll since the reading in a box whose scroll moves the
+// place, the page included for a place in a box Leaf anchors to its words
+// (`carriersOf`): a scroll the user or a landing chose and ended (scrolling.js,
+// `chosenSince`), one the browser is still running, as a smooth scroll or a wheel's
+// glide, or has yet to start for the reader's input (arrivals.js, `browserScrolls`), so
+// it never overrides a scroll under way. A scroll in another box leaves the place to be
+// kept: a landing in another pane made the keep give up a focused control the change
+// then moved. It yields
 // to the user's own act since too, a press or a key anywhere but in the field held
 // (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
 // opened while a diff waited on its syntax grammar moved 140px when the keep put the
@@ -380,11 +391,13 @@ export function holdUserPlace() {
   }));
   return () => {
     unwatch();
-    if (acted || scrollChoices() !== choices) return;
+    if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
       const holder = holderOf(place);
-      if ([...carriersOf(holder)].some(browserScrolls)) return;
+      const carriers = [...carriersOf(holder)];
+      if (carriers.some((box) => browserScrolls(box) || chosenSince(box, choices)))
+        return;
       const [scroller] = scrollersOf(holder);
       if ((focus && focused() !== node) || still.has(scroller)) continue;
       if (hold()) return;

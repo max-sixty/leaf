@@ -42,8 +42,9 @@ session's pages (`cmd_pages`) to draw them beside the prompt and to fork for eac
 thread Leaf holds and to make each completion a page server asks of it, and at each
 turn's end asks the clerk what to fork the conversation with; `--fork` asks for each
 fork's prompt and hands back its answer (`clerk.cmd_fork`, `forks.cmd_reply`), or a
-completion's (`completions.cmd_reply`). `leaf hook`
-(`cli.hook`) dispatches here.
+completion's (`completions.cmd_reply`). The follower records the process it runs
+in, so a Stop can tell the user where Claude Code didn't load the module
+(`Harness.unloaded_module`). `leaf hook` (`cli.hook`) dispatches here.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -188,6 +189,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
     )
     if ended:
         close_session_turn(sid, turn_id, expected=expected)
+        # A Stop that ends the turn printed nothing, so its output can tell the user.
+        if notice := hooked.unloaded_module():
+            print(json.dumps(notice), flush=True)
 
 
 def reload_skill(session_id: str) -> str | None:
@@ -278,6 +282,13 @@ def cmd_pages(payload: dict) -> None:
     fork's step, under the newer Leaf, refused as not held, so each waited out its
     hold with no line."""
     sid = payload.get("session_id") or ""
+    from .harness import ClaudeCodeHarness
+    from .leases import mark_module
+
+    # Only Leaf's Claude Code module starts a follower, so one running shows the
+    # module loaded in this process (`ClaudeCodeHarness.unloaded_module`).
+    if (pid := ClaudeCodeHarness.process_pid()) is not None:
+        mark_module(sid, pid)
     if not owned_pages(sid):
         print(json.dumps({"pages": [], "completions": []}), flush=True)
         return

@@ -785,6 +785,41 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
+SAMPLE_FAULT = (
+    '<p id="practice">Practice.</p><script>function sampleFault() {'
+    " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
+)
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
+    """A live sample starts its page only as the reader nears it, but the gate reads
+    every document the page can show (`start_near_work`), so it refuses a page whose
+    sample's own script throws wherever on the page the sample stands, a sample far
+    down inside another one included: each started child starts its own."""
+    content = SAMPLE_FAULT
+    if nested:
+        content = (
+            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
+            '<lf-sample id="inner"><template id="inner-source" data-sample>'
+            f"{SAMPLE_FAULT}</template></lf-sample>"
+        )
+    source = leaf_page(
+        "Far fault",
+        '<p id="words">Words.</p><div style="height: 400vh"></div>'
+        '<lf-sample id="far"><template id="far-source" data-sample>'
+        f"{content}</template></lf-sample>",
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched, serve(source)
+    ).failures
+    assert any(
+        failure.code == "page-exception"
+        and "thrown in the sample" in failure.values["text"]
+        for failure in failures
+    ), failures
+
+
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
     """A same-origin inner frame cannot lend access through its outer boundary."""
     context = browser.new_context()
@@ -1303,6 +1338,32 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     page.emulate_media(color_scheme="dark")
     assert page.evaluate(
         "() => document.getElementById('hidden-field').getAnimations().length"
+    )
+    render_checks_model.wait_for_probe(page, "pageSettled")
+
+
+def test_a_scroll_driven_animation_leaves_the_page_settled(firefox_browser, serve):
+    """A view-timeline animation moves only while something scrolls, as a margin
+    card's message heads do. Firefox 159 gives one a finite end in time, and reading it
+    as motion held `leaf-dev probe --browser firefox` until its 120 s limit on every
+    page showing a margin card."""
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "a scroll-driven animation",
+                "<h1>Settles</h1><p id='rising'>Rises as the page scrolls.</p>",
+                head="<style>@keyframes rise { to { translate: 0 -4px; } }"
+                " #rising { animation: rise linear both;"
+                " animation-timeline: view(); }</style>",
+            )
+        ),
+    )
+    assert (
+        page.evaluate(
+            "() => document.getElementById('rising').getAnimations()[0].playState"
+        )
+        == "running"
     )
     render_checks_model.wait_for_probe(page, "pageSettled")
 
@@ -2192,7 +2253,8 @@ def resize_findings(page, path):
     positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths, so each journey runs on a page opened at
-    the end it starts from.
+    the end it starts from. Work a width brings near the window, such as a live
+    sample's page, stays started at every other, so the journey starts it all first.
 
     Unlike a scroll, a resize lays the whole page out again and repaints it, so what it
     writes at each step costs nothing beside that; a write that restates what stood is
@@ -2226,6 +2288,7 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    render_checks_model.start_near_work(page)
     # A sample can hold its child's growth while the reader sees the frame. Resizing
     # interrupts that reading and releases the held height; take the baseline after
     # that first release, so the return trip compares settled layouts at each width.
@@ -4258,6 +4321,50 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     assert [
         f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
     ], f"a cover between the page's first and last words went unreported: {covered}"
+
+
+@pytest.mark.parametrize(
+    ("style", "under"),
+    [
+        ("", []),
+        ("body { padding: 0 }", ["<p id=last>"]),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0 }"
+            " main { height: 100%; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+    ],
+    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
+)
+def test_words_the_panel_covers_at_the_page_s_end_are_reported(
+    browser, serve, style, under
+):
+    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
+    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
+    with nothing at its end, leaves them under the panel however far the user scrolls.
+    The gate reads the page from its top, as it reads the rest, and places each word
+    where it stands with every scroller holding it at its end: the document for the
+    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
+    is reported there, and nothing above it."""
+    source = leaf_page(
+        "end",
+        "<h1>The end of the page</h1>"
+        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
+        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
+        head=f"<style>{style}</style>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+    page.close()
+    under_panel = [f for f in found if f["code"] == "under-panel"]
+    assert [f["at"] for f in under_panel] == under, found
+    # The author reads the record as words naming the element it found.
+    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the

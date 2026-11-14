@@ -180,6 +180,17 @@ jobs:
       - name: Wait for lint and Python tests
         wait: [lint, python-tests]
 
+      # The daily run checks `hooks/` again against each harness's newest release, once
+      # the steps reading `node_modules` are done. The pins move with Dependabot's weekly
+      # npm group, while a user's Claude Code updates itself as each release ships, so a
+      # release that refuses to load `hooks/claude-code.ts`, or changes the Pi API
+      # `hooks/pi.ts` uses, turns the run red for tend within a day.
+      - name: Check the hooks against the newest Claude Code and Pi
+        if: github.event_name == 'schedule' && !cancelled()
+        run: |
+          pnpm add --save-dev @anthropic-ai/claude-code@latest @earendil-works/pi-coding-agent@latest
+          pnpm run check:hooks
+
       - name: Check website deployment
         if: github.event_name == 'pull_request'
         run: |

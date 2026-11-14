@@ -20,7 +20,7 @@
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs",
     "check:framework": "pnpm run check:browser && pnpm run test:browser",
     "check:worker": "tsc --noEmit --project worker/tsconfig.json && pnpm run test:worker",
-    "check:hooks": "tsc --project hooks/tsconfig.json",
+    "check:hooks": "tsc --project hooks/tsconfig.json && claude plugin validate .",
     "check:tools": "tsc --project build/tsconfig.json",
     "check": "pnpm run check:hooks && pnpm run check:tools && pnpm run check:framework && pnpm run test:runtime && pnpm run check:worker",
     "test:worker": "vitest run --root worker",
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.309",
+    "@anthropic-ai/claude-code": "2.1.325",
     "@awesome.me/webawesome": "3.14.0",
     "@cloudflare/containers": "0.3.7",
     "@cloudflare/workers-types": "5.20261101.1",

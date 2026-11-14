@@ -1023,9 +1023,12 @@ const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, fal
 // screen. A box out of layout costs no layout pass, where boxes hidden beside the shown
 // ones made every pass revisit them all. `nearObserver` maintains the reading for the
 // anchored controls (css-anchors.js, `anchorView`) and paint sets (target-paint-geometry.js,
-// `paintSet`); `nearWindow` reads it at once for a first presentation, which cannot wait
-// for the observer's first task. It clips at each scroller exactly, so it calls near only
-// what the observer will, and the observer's first record adds the rest.
+// `paintSet`), and starts work a widget holds until the reader nears it
+// (presentation.js, `whenNear`); `nearWindow` reads it at once for a first
+// presentation, which cannot wait for the observer's first task. It clips at each
+// scroller exactly, so it calls near only what the observer will, and the observer's
+// first record adds the rest. A percentage scroll margin misreads in Chromium
+// (notes/browser-support.md, "Percentage scroll margins in Chromium").
 /** @param {IntersectionObserverCallback} callback */
 export const nearObserver = (callback) =>
   new IntersectionObserver(callback, { rootMargin: "100%", scrollMargin: "600px" });

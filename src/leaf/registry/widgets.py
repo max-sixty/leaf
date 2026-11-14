@@ -369,7 +369,6 @@ def _validate_widget_interactions(
         key
         for key in (
             "x-state",
-            "x-language",
             "x-verbatim",
             "x-shadow",
             "x-thread-surface",

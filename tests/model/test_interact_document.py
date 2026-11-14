@@ -1541,7 +1541,7 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
 
 
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
-    """A widget attribute that declares itself a language (x-language) is held to the
+    """A widget's `language` attribute is held to the
     layer's $languages list. A plain <pre><code class="language-…"> claims no
     vocabulary: one the layer can't color stays the ink of an uncolored block."""
     (page_dir / "index.html").write_text(
@@ -1562,25 +1562,24 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose declaration carries x-language is held to
+    which widget takes a language: a tag whose declaration takes `language` is held to
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
 
     def declare(registry):
-        registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
-        registry["lf-gloss"]["x-language"] = "dialect"
+        registry["lf-gloss"]["properties"]["language"] = {"type": "string"}
 
     declare_on_page(page_dir, declare)
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
+            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" language="lisp">feeders</lf-gloss>',
         )
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
+        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["language"]
     )
 
 
@@ -1624,7 +1623,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
             # (`registry.contract.stamp_words`), not values the widget draws apart.
-            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
+            declared = {word for word, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
             elif attr not in declared:

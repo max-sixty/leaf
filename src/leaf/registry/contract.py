@@ -609,32 +609,35 @@ def stamp_states(registry: dict) -> dict:
     return registry
 
 
-# A word a widget declares that its layer has to know, as two things: the x- key
-# naming the attribute that carries it, and the layer-wide fact listing the words the
-# layer has. A misspelt language colors nothing and a misspelt tone paints nothing,
-# and each renders as a page that otherwise looks perfectly well, so the attribute's
-# schema has to refuse any other word. The list is the layer's ($languages, $tones)
-# rather than any widget's, and which attribute carries the word is the entry's to
-# say, so a new tag that takes a tone needs only its x-tone. A third such word is a
-# row here.
-DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
+# A word a widget takes that its layer has to know, as two things: the attribute that
+# carries it, the same on every widget (the registry's `$attributes`), and the
+# layer-wide fact listing the words the layer has. A misspelt language colors nothing
+# and a misspelt tone paints nothing, and each renders as a page that otherwise looks
+# perfectly well, so the attribute's schema has to refuse any other word. The list is
+# the layer's ($languages, $tones) rather than any widget's, so a new tag that takes a
+# tone needs only to declare `tone`. A third such word is a row here.
+DECLARED_WORDS = (("language", "$languages"), ("tone", "$tones"))
+# The attribute that holds an element's title on every widget that takes it
+# (`$attributes`), which names the element away from itself
+# (`gesture_words.element_name`, the browser's `addressableName`).
+NAME_ATTRIBUTE = "label"
 
 
 def stamp_words(registry: dict) -> dict:
-    """Write into a validated vocabulary each declared attribute's words
-    (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is complete:
-    validation refuses any other word, and an author reading the entry sees which it
-    may write.
+    """Write into a validated vocabulary the words of each attribute that takes the
+    layer's (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is
+    complete: validation refuses any other word, and an author reading the entry sees
+    which it may write.
 
     An attribute's schema may be `true`, which then becomes the words alone, or
     `false`, which admits no word already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
-    for key, fact in DECLARED_WORDS:
-        for tag, entry in registry.items():
-            if not (is_element_name(tag) and (attr := entry.get(key))):
+    for attr, fact in DECLARED_WORDS:
+        for entry in element_declarations(registry).values():
+            properties = entry.get("properties", {})
+            if attr not in properties:
                 continue
-            properties = entry["properties"]
             if properties[attr] is True:
                 properties[attr] = {}
             if isinstance(properties[attr], dict):

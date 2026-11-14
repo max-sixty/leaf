@@ -291,7 +291,6 @@
     ],
     "additionalProperties": false,
     "x-owners": ["lf-worktree-diffs"],
-    "x-name": "label",
     "x-patch": "members",
     "x-shadow": true
   },

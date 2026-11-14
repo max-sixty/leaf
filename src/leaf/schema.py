@@ -386,7 +386,6 @@ EXTENSION_SCHEMA = {
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
-        "x-language": _ATTRIBUTE_NAME,
         "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
@@ -415,7 +414,6 @@ EXTENSION_SCHEMA = {
         },
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
-        "x-tone": _ATTRIBUTE_NAME,
         "x-unique": {
             "type": "object",
             "minProperties": 1,
@@ -473,7 +471,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
-        "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
     "dependentRequired": {
@@ -610,12 +607,9 @@ LAYER_FACTS = {
 # a check. x-awaits and x-data name attributes too and keep their own loops, having more
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
-    "x-language",
-    "x-name",
     "x-prepaint",
     "x-refers",
     "x-says",
-    "x-tone",
     "x-unique",
 )
 

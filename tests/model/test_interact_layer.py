@@ -5364,17 +5364,17 @@ def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
     reading the entry, and the selected entry's instructions list the words."""
     registry = registry_storage.read_page_registry(page_dir).registry
     checked = set()
-    for key, fact in DECLARED_WORDS:
+    for attr, fact in DECLARED_WORDS:
         for name, entry in registry.items():
-            if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
+            if not name.startswith("lf-") or attr not in entry.get("properties", {}):
                 continue
             names = registry[fact]["names"]
-            assert entry["properties"][entry[key]]["enum"] == names
+            assert entry["properties"][attr]["enum"] == names
             author = page_instructions(page_dir, entries=(name,))["author"]
             listed = ", ".join(f"`{word}`" for word in names)
-            assert f"`{entry[key]}` takes one of: {listed}." in author
-            checked.add(key)
-    assert checked == {key for key, _ in DECLARED_WORDS}
+            assert f"`{attr}` takes one of: {listed}." in author
+            checked.add(attr)
+    assert checked == {attr for attr, _ in DECLARED_WORDS}
 
 
 def test_cli_selection_returns_the_composed_audience_map(instruction_page):

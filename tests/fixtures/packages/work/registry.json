@@ -136,7 +136,6 @@
   },
   "lf-test-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },

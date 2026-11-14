@@ -35,8 +35,8 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
 an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+widget whose title is an attribute holds it in `label`, as a column does, which names
+its element on every widget that takes it (the registry's `$attributes`).
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.

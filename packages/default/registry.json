@@ -125,7 +125,6 @@
   "lf-text-document": {
     "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
     "x-instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text. To start it collapsed, put it inside `details`.\n\n## Refreshing a source\n\nA Markdown file bound to a source:\n\n```html\n<lf-text-document\n  id=\"skill-source\"\n  source=\"leaf-skill\"\n  label=\"SKILL.md\"\n  preview=\"markdown\"\n></lf-text-document>\n```\n\nSet the source to one JSON string. For a whole file:\n\n```bash\njq -Rs . SKILL.md | leaf data set <page> leaf-skill\n```\n\nFor a selected line range instead:\n\n```bash\nsed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill\n```\n\nRun the pipeline again to refresh the open page. `references/authoring-evidence.md`,\n\"Source files and media\", owns when evidence follows a source and when it keeps a snapshot.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -155,7 +154,6 @@
         "property": "value"
       }
     },
-    "x-language": "language",
     "x-prepaint": "preview",
     "x-bound": "start",
     "x-example": "<lf-text-document id=\"changelog-fix\" label=\"CHANGELOG.md\" preview=\"markdown\"><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
@@ -345,7 +343,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-language": "language",
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
   "lf-note": {
@@ -426,7 +423,6 @@
   "lf-column": {
     "description": "One named board column, including empty columns the user can move a card into.",
     "x-instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -445,7 +441,6 @@
     "additionalProperties": false,
     "x-owners": ["lf-board"],
     "x-content": "members",
-    "x-tone": "tone",
     "x-says": {
       "label": "before"
     }
@@ -515,7 +510,6 @@
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
     "x-instructions": "In a side-list queue, write each tab's `summary` and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -550,7 +544,6 @@
   "lf-part": {
     "description": "One labeled part of a page, holding the box its own Layout arranges.",
     "x-instructions": "Hold exactly one child, carrying the part's Layout. Its `summary` shows under its label in the list, so the user can tell the parts apart before opening one; start it with what the part holds unless the label already says so. Keep ids distinct across parts, which share the page's id space.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -606,7 +599,6 @@
   "lf-sample": {
     "description": "A labeled sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
     "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -629,7 +621,6 @@
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",
     "x-instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },

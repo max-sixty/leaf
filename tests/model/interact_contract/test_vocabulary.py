@@ -122,7 +122,6 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local")
     declaration["properties"]["tone"] = schema
-    declaration["x-tone"] = "tone"
     layer_4 = registry_storage.layer_record(page_dir)
     assert layer_4 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
@@ -247,7 +246,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         # Faults against the other declarations, once every one holds alone.
         (
             {
-                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
+                "lf-beta": _faulty("lf-beta", **{"x-says": {"label": "before"}}),
                 "lf-eps": _faulty(
                     "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
                 ),

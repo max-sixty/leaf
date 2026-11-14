@@ -448,7 +448,6 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-owners": ["lf-trace"],
-    "x-name": "label",
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>"
   },
   "lf-trace-compare": {

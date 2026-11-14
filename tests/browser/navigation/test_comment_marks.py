@@ -1066,8 +1066,11 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     assert not note.evaluate("note => note.matches(':focus-visible')")
     assert _ring_round(page, "#p1")
     # From the keys, the block also wears the trace of the note's margin entry, whose
-    # grey the ring's accent outranks.
+    # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
+    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # reading. Focus back on the note before it is no arrival, since the user never left.
     page.keyboard.press("Tab")
+    expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
     note.focus()
     expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
     assert _ring_round(page, "#p1")

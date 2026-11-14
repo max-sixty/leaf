@@ -6688,6 +6688,9 @@ def test_a_search_match_across_blocks_marks_and_selects_each_piece(
     page.keyboard.press("/")
     page.keyboard.type("before shadow passage inside")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    # The input draws the count at once, but the marks in the next repaint frame;
+    # until then they stand where an earlier query's frame put them.
+    rendered(page)
     boxes = page.evaluate(
         """() => {
           const late = document.getElementById('late');

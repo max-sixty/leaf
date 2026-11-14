@@ -226,6 +226,13 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 0); that is not a regression. A `test` that held a runner and still ended cancelled
 hit its timeout, and that is a failure.
 
+A scheduled run runs every test a push runs, so main's push and schedule `ci` reports
+share most of their failures. When both need diagnosis, the push report owns each
+failure a push run also shows. The schedule report's diagnosis covers what pushes
+don't run, the `journeys` and `nightly` tests and `test-macos`, and links the push
+report's diagnosis and cause issues for the rest instead of rerunning or bisecting
+those tests itself.
+
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
 can't reproduce, and it takes four to five hours. For a failure only that job shows, the
 failing run is the evidence from before the fix, and the next scheduled run on main,

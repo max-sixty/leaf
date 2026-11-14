@@ -1080,7 +1080,10 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(pin).to_be_visible()
 
     sample = page.locator("#bg-margin-layer-status")
-    sample.scroll_into_view_if_needed()
+    # The reader scrolls to the sample, whose page starts as it nears the window.
+    page.mouse.move(5, 450)
+    page.mouse.wheel(0, sample.bounding_box()["y"] - 100)
+    expect(sample).to_be_in_viewport()
     child = sample.frame_locator("iframe")
     # The receipt reads Sent, and Waiting for delivery two minutes after the gallery
     # opened, which a slow runner can reach by now; either pins the same way.

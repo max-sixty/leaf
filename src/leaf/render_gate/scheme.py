@@ -22,6 +22,7 @@ from leaf.render_checks import (
     install_window_errors,
     observe_output_documents,
     output_values,
+    start_near_work,
     wait_for_probe,
     wait_until_ready,
 )
@@ -346,9 +347,11 @@ def _render_scheme(
     # teleporting, which `pageSettled` then waits out. Both waits are taken in both
     # schemes, because every reading below has boxes or words in it. The windows open
     # under load alone, which is how one page passed at a desk and reported words
-    # drawn over words under a full suite.
+    # drawn over words under a full suite. The readings take in every document the
+    # page can show, so work it holds until the reader nears it starts first.
     try:
         wait_until_ready(page, state, timeout_ms=handover_left())
+        start_near_work(page, state, timeout_ms=handover_left())
     except PageNotReady as error:
         failed_stage = error.stage
         unsettled = [

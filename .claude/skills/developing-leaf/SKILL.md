@@ -343,7 +343,11 @@ instructions.
 To make an existing page use the current checkout, serve it with the checkout
 launcher, and run that launcher's `page init` on a page at another protocol
 (`<root>/skills/leaf/references/serving-pages.md`, "Leaf updates"); fix or report a
-compatibility refusal rather than falling back to the installed plugin.
+compatibility refusal rather than falling back to the installed plugin. A page built
+in another checkout, such as a subagent's worktree, was checked against that
+checkout's Leaf, and markup and layout contracts change between commits with no
+protocol change. Serve it with that checkout's launcher, and judge it against that
+checkout's instructions.
 
 A page that explains how a Leaf widget, verb or event flow behaves lets the user try it
 in a live sample (`<root>/skills/leaf/references/live-samples.md`) holding only the

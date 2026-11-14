@@ -5,10 +5,8 @@
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
 // `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with;
-// `forkRejects`, which makes every fork reject; `forkRefused`, which makes every
-// fork come back as the API's refusal before any response; `forkUsage`, the usage a
-// fork reports in place of one that read its prompt from the cache; `completeReply`,
-// the text `$.model.complete` answers with, after `completeRefusals` completions it
+// `forkRejects`, which makes every fork reject; `completeReply`, the text
+// `$.model.complete` answers with, after `completeRefusals` completions it
 // answers as a provider's 429; `agentId`, the id each `$.agent.spawn` answers with,
 // or a list of them answered in turn, the last for every spawn after, each printing
 // what it was asked as `{"spawned"}`; `spawnWaits`, which holds each spawn's answer
@@ -17,15 +15,12 @@
 // then fails without running, as Leaf's process can; `sendRefuses`, the reason every
 // `$.session.send` gives for delivering nothing, which otherwise delivers, each send
 // printing what it was asked as `{"sent"}`; `state`, the values `$.state` holds as
-// the module loads, by key, as a reload finds them; `store`, the file that holds
-// `$.store`'s entries, kept across driven processes as Claude Code keeps a plugin's;
-// and `env`, Claude Code's environment, all that `$.env`
+// the module loads, by key, as a reload finds them; and `env`, Claude Code's
+// environment, all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each
 // `leaf hook --fork` the module runs prints its payload as `{"forkStep"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
-// with the input it reached (a step's with the usage of its response beside it), and
-// prints `{"event", "result"}` once they resolve. A
-// line `{"advance": <ms>}` moves `$.clock` on by that much. A
+// with the input it reached, and prints `{"event", "result"}` once they resolve. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
 // prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
@@ -59,25 +54,6 @@ const held = new Map(
 let band = { terminal: null, desktop: null };
 // How many completions have answered as a provider's 429.
 let refused = 0;
-// How far `{"advance"}` lines have moved `$.clock` past the real one.
-let advanced = 0;
-
-/** `$.store`'s entries, read from and written to `options.store` whole, or kept in
- * memory without one. */
-let memory = {};
-function stored() {
-  if (options.store === undefined || !fs.existsSync(options.store)) return memory;
-  return JSON.parse(fs.readFileSync(options.store, "utf8"));
-}
-function keyed(key) {
-  if (key.length > 256) throw new Error(`the key is ${key.length} characters`);
-  return key;
-}
-function keep(entries) {
-  memory = entries;
-  if (options.store !== undefined)
-    fs.writeFileSync(options.store, JSON.stringify(entries));
-}
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -173,17 +149,7 @@ const $ = {
         : fs.readFileSync(file, "utf8"),
   },
   clock: {
-    now: async () => Date.now() + advanced,
-  },
-  // Claude Code refuses a key over 256 characters (2.1.316).
-  store: {
-    get: async (key) => stored()[keyed(key)],
-    set: async (key, value) => keep({ ...stored(), [keyed(key)]: value }),
-    delete: async (key) => {
-      const { [keyed(key)]: _, ...rest } = stored();
-      keep(rest);
-    },
-    keys: async () => Object.keys(stored()),
+    now: async () => Date.now(),
   },
   state: {
     get: async ({ key }) => held.get(key) ?? { value: undefined, version: 0 },
@@ -255,20 +221,7 @@ const $ = {
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
-      if (options.forkRefused)
-        return {
-          isAnswered: false,
-          reason: "api-error",
-          status: 429,
-          error: "rate_limit",
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-          },
-        };
-      const usage = options.forkUsage ?? {
+      const usage = {
         input_tokens: 10,
         output_tokens: 20,
         cache_read_input_tokens: 1000,
@@ -335,14 +288,6 @@ function drawn(key, node = band.terminal) {
 
 // The events whose hooks stream, as Claude Code's declarations name them.
 const STREAMING = new Set(["turn.step"]);
-// The usage each step's response reports: the whole prompt in the cache after it, as
-// much as a fork that kept the cache reads (`model.fork`'s default usage).
-const STEP_USAGE = {
-  input_tokens: 2,
-  output_tokens: 30,
-  cache_read_input_tokens: 900,
-  cache_creation_input_tokens: 100,
-};
 
 // The driver files a render hook under its component, `ui.render:<component>`, and
 // runs any other hook whose matcher, if it has one, matches the event's input as
@@ -364,11 +309,7 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press, advance, spawnReturns: returns } = JSON.parse(line);
-  if (advance !== undefined) {
-    advanced += advance;
-    continue;
-  }
+  const { emit, e, flush, press, spawnReturns: returns } = JSON.parse(line);
   if (returns) {
     spawnReturns();
     continue;
@@ -383,14 +324,14 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     continue;
   }
   // A streaming event's hook is an async generator over the stream beneath, here
-  // one that yields nothing and returns the response to the step it reached.
+  // one that yields nothing and returns the input it reached.
   const streams = STREAMING.has(emit);
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     streams
       ? async function* (input) {
           yield* [];
-          return { ...input, usage: { ...STEP_USAGE, model: input.model } };
+          return input;
         }
       : async (input) => input,
   );

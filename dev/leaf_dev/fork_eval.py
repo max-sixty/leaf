@@ -25,12 +25,12 @@ reaches the conversation; an arm without it passes no findings on and gets no li
 The conversation is rendered as a Claude Code transcript under the same session id,
 in a home and cwd of its own outside the repository (`claude_child`), and resumed
 once with `claude -p` and the prompt, on the author model at the effort the arm's
-Leaf names for the fork (`clerk.EFFORT`, `forks.EFFORT`), as a live fork runs, so
-`--base` scores a change of effort as it scores one of wording. The records keep the
-shapes Claude Code writes, without thinking blocks. A background command's result
-records no task id: Claude Code tells a resumed session that a task it recorded has
-stopped, which a live fork never hears, so the replay needs no sentence of its own
-in the prompt. The request keeps Claude Code's tool definitions, as a live fork
+Leaf names for the fork, or at the session's (`SESSION_EFFORT`) where it names none,
+as a live fork runs, so `--base` scores a change of effort as it scores one of
+wording. The records keep the shapes Claude Code writes, without thinking blocks. A
+background command's result records no task id: Claude Code tells a resumed session
+that a task it recorded has stopped, which a live fork never hears, so the replay
+needs no sentence of its own in the prompt. The request keeps Claude Code's tool definitions, as a live fork
 resends the session's, with its per-machine sections moved out of the system prompt
 so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
 home's only one, refuses every call, and `--max-turns 1` then ends the fork without
@@ -90,6 +90,8 @@ DEFINITION = definition("fork_eval")
 CASES = DEFINITION["cases"]
 # A live fork resends the session's model; the replay takes the author model.
 MODEL = MODELS[ClaudeCodeHarness.name]
+# The effort of the sessions a fork serves, which a fork that names none thinks at.
+SESSION_EFFORT = "xhigh"
 
 # The parts of a turn-end answer, with the kinds each holds.
 PARTS = {"asks": ("question",), "findings": ("stale", "settled", "unshown")}
@@ -503,12 +505,12 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
 
 
 def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation once with the prompt and effort the arm's
-    Leaf `asked` for, as `$.model.fork` forks it, in a home and cwd of its own
-    outside the repository, keeping its stream and transcript under `work`; its
-    answer, or why it gave none."""
+    """Resume the rendered conversation once with the prompt the arm's Leaf `asked`
+    for, at the effort it names or the session's, as `$.model.fork` forks it, in a
+    home and cwd of its own outside the repository, keeping its stream and transcript
+    under `work`; its answer, or why it gave none."""
     stream = work / "fork.jsonl"
-    effort = asked["effort"]
+    effort = asked.get("effort", SESSION_EFFORT)
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
         cwd = Path(directory).resolve() / "cwd"
         cwd.mkdir()

@@ -474,12 +474,12 @@ def reference_errors(
     return errors
 
 
-def invoker_errors(
-    parser: SourceDocument, registry: dict, ids: set, by_id: dict
-) -> list[Finding]:
-    """Each authored `commandfor`, which the browser leaves doing nothing, with no error,
-    when its target or command is wrong. `ids` and `by_id` are the namespace
-    `reference_errors` reads for the same document.
+def invoker_errors(parser: SourceDocument, ids: set) -> list[Finding]:
+    """Each authored `commandfor` the browser would leave doing nothing, with no error:
+    one naming no element, or whose `command` is neither one of HTML's own nor a custom
+    one, which starts with `--`. `ids` is the namespace `reference_errors` reads for
+    the same document. Whether the target handles a custom command is its module's to
+    say, in its description; no declaration lists them.
 
     The browser finds a `commandfor` target in the button's own tree, the first element
     with that id in tree order, where an `x-refers` reader looks in its message first and
@@ -495,21 +495,7 @@ def invoker_errors(
             errors.append(
                 found_at("unknown-reference", rec, attr="commandfor", target=target)
             )
-        elif command.startswith("--"):
-            declared = registry.get(by_id.get(target, {}).get("tag"), {}).get(
-                "x-commands", {}
-            )
-            if command not in declared:
-                errors.append(
-                    found_at(
-                        "undeclared-command",
-                        rec,
-                        command=command,
-                        target=target,
-                        declared=sorted(declared),
-                    )
-                )
-        elif command.lower() not in _NATIVE_COMMANDS:
+        elif not command.startswith("--") and command.lower() not in _NATIVE_COMMANDS:
             errors.append(found_at("unknown-command", rec, command=command))
     return errors
 

@@ -4,7 +4,7 @@
       "shortlist": {
         "description": "The candidates a shortlist holds, in its order, and which of them are picked.",
         "instructions": {
-          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Declare the command in `x-commands`, and hold the value again after every change, whoever asked for it."
+          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Hold the value again after every change, whoever asked for it."
         },
         "schema": {
           "type": "object",
@@ -14,9 +14,17 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "key": { "type": "string", "minLength": 1 },
-                  "name": { "type": "string", "minLength": 1 },
-                  "picked": { "type": "boolean" }
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "picked": {
+                    "type": "boolean"
+                  }
                 },
                 "required": ["key", "name", "picked"],
                 "additionalProperties": false
@@ -34,16 +42,17 @@
     "x-instructions": "Write one <ul> with an <li> per candidate, each holding a <button type=\"button\" commandfor=\"THIS-ID\" command=\"--toggle\" value=\"KEY\"> whose words name the candidate.",
     "type": "object",
     "properties": {
-      "id": { "type": "string" }
+      "id": {
+        "type": "string"
+      }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-output": {
-      "shortlist": { "contract": "shortlist" }
-    },
-    "x-commands": {
-      "--toggle": "Picks the candidate the button's value names, or drops it where it is picked."
+      "shortlist": {
+        "contract": "shortlist"
+      }
     },
     "x-state": {
       "pick": {
@@ -51,8 +60,13 @@
         "detail": {
           "type": "object",
           "properties": {
-            "candidate": { "type": "string", "minLength": 1 },
-            "picked": { "type": "boolean" }
+            "candidate": {
+              "type": "string",
+              "minLength": 1
+            },
+            "picked": {
+              "type": "boolean"
+            }
           },
           "required": ["candidate", "picked"],
           "additionalProperties": false

@@ -127,7 +127,7 @@ def _instance_errors(
             thread_ids=thread_ids,
         )
     )
-    errors.extend(invoker_errors(parser, registry, parser.ids, parser.by_id))
+    errors.extend(invoker_errors(parser, parser.ids))
     errors.extend(suggestion_errors(parser.lf_elements, registry))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:

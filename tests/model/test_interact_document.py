@@ -1868,8 +1868,7 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
     from the browser, so a dead button would reach the user. A message's button may
     name the page's widget, and a duplicate id, which the browser would resolve to
     whichever element comes first, is refused before it can misdirect one."""
-    registry = copy.deepcopy(load_registry(page_dir))
-    registry["lf-code"]["x-commands"] = {"--seek": "Holds a line."}
+    registry = load_registry(page_dir)
     page = structure_model.SourceDocument(
         PAGE.replace(
             "</main>",
@@ -1899,14 +1898,6 @@ def test_an_invoker_names_an_element_and_a_command_it_handles(page_dir):
     assert found(
         errors("flim", "--seek"), "unknown-reference", attr="commandfor", target="flim"
     )
-    assert found(
-        errors("film", "--sek"),
-        "undeclared-command",
-        command="--sek",
-        target="film",
-        declared=["--seek"],
-    )
-    assert found(errors("more", "--seek"), "undeclared-command", declared=[])
     assert found(errors("film", "seek"), "unknown-command", command="seek")
     assert found(
         message('<button commandfor="film">Go</button>'), "unknown-command", command=""

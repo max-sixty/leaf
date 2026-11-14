@@ -12,7 +12,7 @@ convention ("References between widgets"), and then:
 | To                                                      | Use                                                                                                                                            | `page check` holds                                           |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | read what the other holds, such as a film's step        | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                    | that the named widget declares one output of that contract   |
-| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                 | that the target declares the command, for an authored button |
+| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                 | that an authored button names an element                     |
 | take the user to a part of it                           | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                                 |
 
 A recorded answer stays its owner's, and only the owner's module records it
@@ -45,12 +45,12 @@ this.addEventListener("command", (event) => {
 });
 ```
 
-The target lists the commands it handles in its registry entry,
-`"x-commands": {"--seek": "Holds the step the button's value names."}`, and `page
-check` refuses an authored button whose `commandfor` names no element, or whose
-command its target doesn't declare. A custom command's name starts with `--`; HTML's
-own, such as `show-modal` and `toggle-popover`, act on dialogs and popovers. An
-argument rides on the button's `value`.
+A custom command's name starts with `--`; HTML's own, such as `show-modal` and
+`toggle-popover`, act on dialogs and popovers. An argument rides on the button's
+`value`. The target's `description` says which commands it takes and what each
+value means, since nothing else tells a page's author. `page check` refuses an
+authored button whose `commandfor` names no element, or whose `command` is neither
+kind; a custom command the target doesn't handle does nothing, with no error.
 
 A module that draws the button writes the same attributes, taking the id from its own
 reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow

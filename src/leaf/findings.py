@@ -979,10 +979,6 @@ _TEXT = {
         f" with contract {v['contract']!r}, and it declares "
         + (", ".join(repr(name) for name in v["outputs"]) or "none")
     ),
-    "undeclared-command": lambda at, v: (
-        f'{_line(at, v)}: command="{v["command"]}" isn\'t in the x-commands of '
-        f"{v['target']!r}, which declares {', '.join(v['declared']) or 'none'}"
-    ),
     "unknown-command": lambda at, v: (
         f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s commands '
         "nor a custom command, which starts with --, so the button would do nothing"

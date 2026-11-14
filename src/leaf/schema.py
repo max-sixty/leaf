@@ -349,13 +349,6 @@ EXTENSION_SCHEMA = {
                 "additionalProperties": False,
             },
         },
-        # The custom invoker commands the element handles (`instances.invoker_errors`).
-        "x-commands": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": r"^--\S+$"},
-            "additionalProperties": {"type": "string", "pattern": r"\S"},
-        },
         "x-example": {"type": "string"},
         "x-example-data": {
             "type": "object",

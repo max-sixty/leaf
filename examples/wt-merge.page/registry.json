@@ -46,9 +46,6 @@
         "contract": "merge-frame"
       }
     },
-    "x-commands": {
-      "--seek": "Holds the step the button's value names, as the film's own step controls do."
-    },
     "x-upgrade": true,
     "x-visual": {
       "prefixes": ["commit:", "ref:", "tree:", "hook:"]

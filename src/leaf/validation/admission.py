@@ -220,7 +220,7 @@ def message_markup_errors(
     by_id = {**page.by_id, **frag.by_id}
     if reference_errs := reference_errors(
         frag.lf_elements, registry, ids, by_id, thread_ids=thread_ids(events)
-    ) + invoker_errors(frag, registry, ids, by_id):
+    ) + invoker_errors(frag, ids):
         return reference_errs
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.

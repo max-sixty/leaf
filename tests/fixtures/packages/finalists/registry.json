@@ -5,7 +5,7 @@
       "shortlist": {
         "description": "The candidates a shortlist holds, in its order, and which of them are picked.",
         "instructions": {
-          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Declare the command in `x-commands`, and hold the value again after every change, whoever asked for it."
+          "provider": "A widget holding a `shortlist` takes the invoker command `--toggle`: the button's `value` is a candidate's `key`, and the command picks that candidate, or drops it where it is picked. Hold the value again after every change, whoever asked for it."
         },
         "schema": {
           "type": "object",

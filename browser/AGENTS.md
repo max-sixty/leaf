@@ -82,9 +82,7 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   Map does when a widget's own contribution joins it, and the dial around its fold; a
   gesture's own result is its handler's to place. Owner: `user-place.js`
   (`holdUserPlace`, `holdPlace`), whose header records the costs the user accepted.
-  Checks: `tests/journeys/test_page_holds_still.py`, which states the guarantee once
-  for every place the user can be and every change that can reach it, in the page's
-  flow and in the boxes over it, and lists each place a rule the user chose lets move;
+  Checks: `tests/journeys/test_page_holds_still.py`,
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime

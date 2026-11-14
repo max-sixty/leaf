@@ -82,6 +82,8 @@ def pytest_configure(config):
 
 
 _PROCESS_STATE = pytest.StashKey[dict]()
+# The signals a command takes when it runs as a process.
+_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
 
 def _process_state():
@@ -96,10 +98,7 @@ def _process_state():
             if name != "PYTEST_CURRENT_TEST"
         },
         "working directory": os.getcwd(),
-        **{
-            f"{number.name} handler": signal.getsignal(number)
-            for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
-        },
+        **{f"{number.name} handler": signal.getsignal(number) for number in _SIGNALS},
     }
 
 
@@ -630,12 +629,27 @@ def isolated_session(tmp_path_factory, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def commands_leave_the_workers_signals(monkeypatch):
-    """A command a test runs in process, as `CliRunner` does, is its process's entry
-    point, and takes SIGTERM and SIGHUP so it unwinds on them
-    (`leases.release_on_termination`). In process that would be the worker's
-    disposition for every later test, so the command leaves it alone; a test of how a
-    command ends on a signal runs it as a process (`test_claims`)."""
-    monkeypatch.setattr(leases_model, "release_on_termination", lambda: None)
+    """A command a test runs in process through `CliRunner` is its process's entry
+    point, and takes signals as one: `leaf wait` unwinds on SIGTERM and SIGHUP
+    (`leases.release_on_termination`), and `leaf page events` exits quietly on
+    SIGTERM. In process those would be the worker's handlers for every later test, so
+    each invocation's handlers last only while it runs, as `CliRunner` already keeps
+    its streams. A test of how a command ends on a signal runs it as a process
+    (`test_claims`)."""
+    isolation = CliRunner.isolation
+
+    @contextlib.contextmanager
+    def isolated(self, *args, **kwargs):
+        held = {number: signal.getsignal(number) for number in _SIGNALS}
+        try:
+            with isolation(self, *args, **kwargs) as streams:
+                yield streams
+        finally:
+            for number, handler in held.items():
+                if signal.getsignal(number) is not handler:
+                    signal.signal(number, handler)
+
+    monkeypatch.setattr(CliRunner, "isolation", isolated)
 
 
 @pytest.fixture(autouse=True)

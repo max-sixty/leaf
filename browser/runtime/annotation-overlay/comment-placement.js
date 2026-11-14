@@ -471,12 +471,11 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    side gives, in its positioning space; `room` is the client rectangle that room stands
    in, the boundary across the surface's columns (`commentBoundary`, `across`); `stood`
    is the height a held surface caps no lower than, or 0. `stationary` says its
-   attachment line has not moved since its last landing. Its declared minimum is limited only by the boundary, never by
-   its passage's column.
-   The intended inline start caps growth, before a restored draft's own width can
-   shift it. On the left, the surface instead holds its right edge clear of the
-   target and grows toward the boundary; keeping its initial left edge would let
-   a longer draft grow across the words it comments on. */
+   attachment line has not moved since its last landing. Its width is limited only by the
+   boundary, never by its passage's column. Under or over, it stands at the intended
+   inline start, which reserves that width (`size-width`). On the left, it instead holds
+   its right edge clear of the target, so a change of its room moves its far edge and
+   never carries it across the words it comments on. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
@@ -895,8 +894,8 @@ export function commentPlacement() {
     landed({ x, y, middlewareData }) {
       initialHold = null;
       const { scale, column, attachmentInline, line } = middlewareData.scaled;
-      // A left-side surface grows toward the boundary, keeping its right edge beside
-      // the target. Holding its compact left edge would widen it over the target.
+      // A left-side surface keeps its right edge beside the target, so a change of its
+      // room moves its left edge, never the edge by the words.
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;

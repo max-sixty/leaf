@@ -51,7 +51,8 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
-import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import { html } from '/vendor/lit.js';
+import { LeafElement, readThreads, threadSummary, threadTurns } from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
@@ -76,7 +77,8 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {LeafElement, html, repeat, signal, threadActions, readThreads, threadSummary} from '/runtime/widget-api.js';
+import { html, repeat } from '/vendor/lit.js';
+import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   query = signal('');
   setup() { this.query.value = this.getAttribute('filter') ?? ''; }
@@ -1356,7 +1358,8 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
 
 
 THREAD_ACTIONS = r"""
-import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
+import { noChange } from '/vendor/lit.js';
+import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +

@@ -1,4 +1,5 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
+import { nothing } from "/vendor/lit.js";
 import {
   declarationFor,
   matchesWhen,
@@ -6,7 +7,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
   readWork,
   workAncestor,
 } from "/runtime/widget-api.js";

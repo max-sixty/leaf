@@ -25,7 +25,7 @@ long it lives across revisions. A widget's declarations are in
 ## The helper surface
 
 Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
-widget that also runs off Leaf"). Templates use the same API and `/vendor/lit.js`.
+widget that also runs off Leaf"), and Lit's templates from `/vendor/lit.js`.
 Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
@@ -35,10 +35,11 @@ there is no separate bundled-package tier. Kernel implementation and check-only
 observations live outside this surface. A DOM helper takes the element it acts for as
 its first argument.
 
-From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
-`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
-Preact Signals it exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+`/vendor/lit.js` is Lit's own module, the one path its names come from: `render`,
+`html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`, `classMap`,
+`styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals `widget-api.js`
+exports `signal`, for private state a command's `when` reads (`module-input.md`,
+"Command rows").
 
 ### A widget that also runs off Leaf
 

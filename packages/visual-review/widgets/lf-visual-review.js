@@ -9,15 +9,10 @@
  * themselves. */
 import "/widgets/lf-shot.js";
 /** @typedef {import("/widgets/lf-shot.js").Shot} Shot */
+import { html, nothing, repeat, ref, render, live } from "/vendor/lit.js";
 import {
   LeafElement,
-  html,
-  nothing,
-  repeat,
-  ref,
   generatedElement,
-  render,
-  live,
   generated,
   offered,
   offeredAction,
@@ -531,35 +526,35 @@ customElements.define(
                         <header class="lf-vr-inspection-heading">
                           <h4>Threads on this case</h4>
                           ${closeButton(
-                            `${this.id}-${record.id}-threads`,
-                            "Close threads on this case",
-                          )}
+                          `${this.id}-${record.id}-threads`,
+                          "Close threads on this case",
+                        )}
                         </header>
                         ${repeat(
-                          threads,
-                          (thread) => thread.key,
-                          (thread) =>
-                            html`<button
-                              ${offeredAction("word", "lf-vr-thread-link")}
-                              @click=${(/** @type {MouseEvent} */ event) => {
-                                const control = event.currentTarget;
-                                /** @type {HTMLDivElement | null} */
-                                const popup =
-                                  control instanceof HTMLElement
-                                    ? control.closest("div[popover]")
-                                    : null;
-                                if (popup) closeNativeLayer(popup);
-                                threadActions.open(thread.key, {
-                                  part: "thread",
-                                  travel: false,
-                                });
-                              }}
-                            >
-                              ${threadSummary(thread).topic}${
-                                thread.resolved ? " · Resolved" : ""
-                              }
-                            </button>`,
-                        )}
+                        threads,
+                        (thread) => thread.key,
+                        (thread) =>
+                          html`<button
+                            ${offeredAction("word", "lf-vr-thread-link")}
+                            @click=${(/** @type {MouseEvent} */ event) => {
+                              const control = event.currentTarget;
+                              /** @type {HTMLDivElement | null} */
+                              const popup =
+                                control instanceof HTMLElement
+                                  ? control.closest("div[popover]")
+                                  : null;
+                              if (popup) closeNativeLayer(popup);
+                              threadActions.open(thread.key, {
+                                part: "thread",
+                                travel: false,
+                              });
+                            }}
+                          >
+                            ${threadSummary(thread).topic}${
+                              thread.resolved ? " · Resolved" : ""
+                            }
+                          </button>`,
+                      )}
                       </div>`
                   : nothing
               }

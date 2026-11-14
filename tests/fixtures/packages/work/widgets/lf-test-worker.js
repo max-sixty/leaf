@@ -1,11 +1,10 @@
 /* An anonymous report consumer keeps clock and report identity tests independent
  * of the Atlas example's composition. */
+import { html, noChange } from "/vendor/lit.js";
 import {
   ago,
-  html,
   keeps,
   LeafElement,
-  noChange,
   readWork,
   reportSequence,
   reportsReady,

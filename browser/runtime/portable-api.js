@@ -17,21 +17,6 @@
    Each home re-exported here must load, and work, in a document Leaf did not compose:
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. */
-export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-} from "/vendor/lit.js";
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
   cancelRender,

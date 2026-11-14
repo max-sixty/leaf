@@ -6,13 +6,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { signal } from "/runtime/framework.js";
-import {
-  html,
-  LeafElement,
-  nothing,
-  noChange,
-  shadowStage,
-} from "/runtime/widget-api.js";
+import { html, nothing, noChange } from "/vendor/lit.js";
+import { LeafElement, shadowStage } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {

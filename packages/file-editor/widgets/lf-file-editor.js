@@ -38,6 +38,7 @@
  * lifetime pauses the file watch and listeners while retaining the editor, its
  * history and in-flight receipt.
  */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   allButCommandReference,
   announce,
@@ -51,14 +52,11 @@ import {
   focusDestination,
   focused,
   handBack,
-  html,
   iconTemplate,
   isNativeLayer,
   LeafElement,
-  nothing,
   offered,
   offeredAction,
-  render,
   rove,
   rowWalk,
   shadowStage,
@@ -314,7 +312,12 @@ customElements.define(
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
-                @click=${(/** @type {MouseEvent} */ event) => retry(event.currentTarget instanceof HTMLElement ? event.currentTarget : null)}
+                @click=${(/** @type {MouseEvent} */ event) =>
+                  retry(
+                    event.currentTarget instanceof HTMLElement
+                      ? event.currentTarget
+                      : null,
+                  )}
               ></button
               ><button
                 ${offeredAction("inline", "lf-file-editor-conflict")}

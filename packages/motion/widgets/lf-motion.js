@@ -33,6 +33,7 @@ import { render as motionTemplate } from "./motion-view.js";
  * succeeds. The input that pauses playback is the user's own (a press, key, wheel,
  * touch or text inside the study but outside its transport, or the window losing
  * focus), read from the window as Leaf's prepaint counts input. */
+import { render } from "/vendor/lit.js";
 import {
   cancelAnimation,
   commandsChanged,
@@ -42,7 +43,6 @@ import {
   once,
   placesFailure,
   reducedMotion,
-  render,
   reportFailure,
   tabStore,
   whileConnected,

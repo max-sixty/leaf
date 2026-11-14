@@ -30,6 +30,7 @@
  * row without an empty disclosure, and a file-type replacement keeps one file identity.
  * Author notes use the same source coordinate resolver as cross-widget navigation;
  * their authored nodes move into the stage, never copied into generated data rows. */
+import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   announce,
@@ -41,10 +42,6 @@ import {
   generated,
   generatedElement,
   holdFocus,
-  html,
-  nothing,
-  keyed,
-  render,
   inChrome,
   nameAction,
   keeps,

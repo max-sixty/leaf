@@ -17,6 +17,7 @@
  * commands, reading the focused item through the public model. The standard ARIA
  * treeitem role distinguishes row clicks from search and other tree controls.
  */
+import { render } from "/vendor/lit.js";
 import {
   PRESS,
   commandScope,
@@ -26,7 +27,6 @@ import {
   navigateToDatum,
   offer,
   LeafElement,
-  render,
   onCurrentLocation,
   plainPress,
   scrollIntoView,

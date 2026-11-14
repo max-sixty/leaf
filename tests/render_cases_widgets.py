@@ -17,9 +17,8 @@ from leaf.structure import SourceDocument
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
 # controlled independently, for page and frozen-message presentation journeys.
 PAGE_WIDGET = """\
-import {
-  html, keeps, layerFact, LeafElement, live,
-} from "/runtime/widget-api.js";
+import { html, live } from "/vendor/lit.js";
+import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {

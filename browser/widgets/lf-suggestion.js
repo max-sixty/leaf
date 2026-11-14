@@ -18,6 +18,7 @@
  * That owner renders and places the resulting entries, in the rail or as a pin, and
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
+import { nothing } from "/vendor/lit.js";
 import {
   commandScope,
   commandsChanged,
@@ -25,7 +26,6 @@ import {
   LeafElement,
   contributionEntry,
   failSoft,
-  nothing,
   quoted,
   registerContribution,
   says,

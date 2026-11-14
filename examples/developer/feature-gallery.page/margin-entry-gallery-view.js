@@ -1,5 +1,5 @@
 /* Lit view for the margin-entry exhibit, constructed during widget setup. */
-import { html, ref } from "/runtime/widget-api.js";
+import { html, ref } from "/vendor/lit.js";
 import { offerActionElement, generatedElement } from "/runtime/widget-api.js";
 const GROUPS = [
   {
@@ -250,8 +250,8 @@ export function createView(host) {
               class="margin-entry-gallery-disclosure"
               ${mark}
               ${ref((node) => {
-                if (node) entry.disclosure = node;
-              })}
+              if (node) entry.disclosure = node;
+            })}
               id=${`${key}-disclosure`}
               ?hidden=${!sample.expanded}
               >${sample.reveals}</span

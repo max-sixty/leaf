@@ -3,7 +3,8 @@ import "/runtime/stage-integration.js";
    nodes without changing the document coordinates those inputs established. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render, generatedElement } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
+import { generatedElement } from "/runtime/widget-api.js";
 import { authoredBody, holdAuthoredBody } from "/runtime/widget-elements.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { render as worktree } from "../../packages/diff/widgets/worktree-view.js";

@@ -74,6 +74,17 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  html,
+  live,
+  nothing,
+  classMap,
+  styleMap,
+  createRef,
+  ref,
+  render,
+  repeat,
+} from "/vendor/lit.js";
+import {
   alreadyShown,
   generatedElement,
   dragging,
@@ -86,21 +97,12 @@ import {
   focusDestination,
   closeNativeLayer,
   holdFocus,
-  html,
   actionTemplate,
   iconTemplate,
   inBaseLayer,
-  live,
-  nothing,
-  classMap,
-  styleMap,
   offered,
   offeredAction,
   pressIsKeyboardActivation,
-  createRef,
-  ref,
-  render,
-  repeat,
   keeps,
   keepsText,
   layoutPx,
@@ -2303,7 +2305,9 @@ export class Trace extends LeafElement {
                 : "Unavailable";
               return html`<button
                 ${offeredAction("row", "lf-trace-bookmark")}
-                ?hidden=${!(available.some((available) => available === moment) || !moment.scope)}
+                ?hidden=${!(
+                  available.some((available) => available === moment) || !moment.scope
+                )}
                 ?disabled=${!moment.scope || q}
                 aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
                 aria-current=${this.#momentSelected(moment) ? "true" : nothing}
@@ -2329,7 +2333,10 @@ export class Trace extends LeafElement {
     return html`<div class="lf-trace-body" ${ref(this.#body)}>
       <div
         class="lf-trace-evidence"
-        @click=${{ handleEvent: (/** @type {Event} */ event) => this.#inspect(event), capture: true }}
+        @click=${{
+          handleEvent: (/** @type {Event} */ event) => this.#inspect(event),
+          capture: true,
+        }}
       >
         <div class="lf-trace-stage" ?data-lf-ready=${!!trace} ${ref(this.#stage)}>
           <div class="lf-trace-heading" ?hidden=${!trace}>

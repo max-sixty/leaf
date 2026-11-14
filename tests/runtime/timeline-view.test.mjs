@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { assignRows } from "/runtime/time-axis.js";
 import {
   render as timelineView,

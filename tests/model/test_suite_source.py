@@ -249,11 +249,12 @@ def test_no_assertion_rests_on_a_sleep(path):
     On a slower machine the effect lands after the sleep: a check that it is absent
     passes with the bug present, and a check that it is there fails on a correct
     product. So a sleep (`time.sleep`, `wait_for_timeout`) is never followed, past
-    statements that only bind a reading, by an `assert`, an `expect`, or a function's
-    returned reading. The test waits for the operation's own completion, or for a later
-    event ordered after it, or runs the page's clock past the timer instead. A sleep
-    that paces a poll or spaces two gestures the browser tells apart by time is
-    followed by something else, and this leaves it alone."""
+    assignments, by an `assert`, an `expect`, or a returned value in the same block. The
+    test waits for the operation's own completion, or for a later event ordered after
+    it, or runs the page's clock past the timer instead. A sleep that paces a poll, or
+    spaces two gestures the browser tells apart by time, is followed by something else,
+    and this leaves it alone. The check reads that one shape; a reviewer reads a sleep
+    whose assertion comes later."""
 
     def sleeps(statement) -> bool:
         return (

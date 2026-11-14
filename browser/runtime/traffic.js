@@ -14,22 +14,24 @@
    activation would replace.
 
    `sends` and `acked` are posts to /api/event and /api/media, counted as issued and as
-   ended whichever way — answered, refused, or failed — so a retry is a second send.
-   `asked` and `heard` are the same pair for reads of /api/state, `heard` once the body
-   has been read or the read has failed. `received` and `applied` are the same pair for
-   the state an answer through either door carries: `received` as the page takes it in
-   hand, `applied` once the page has adopted it, dropped it as overtaken or failed to
-   show it (state-application.js, `receiveState`). A gesture's answer is received before
-   its attempt leaves `pending`, so a reader that waits for every send acked, nothing
-   pending and every state received applied waits for the page to hold the server's
-   reading of each gesture. `pending` names the attempts the published semantic state still
-   holds as sending, in ledger order, and changes with the publication that accepts or
-   refuses one: an entry behind a head that is retrying stays pending until its turn,
-   even where a read has already shown its attempt landed, because an applied reading
-   does not replace a delivery outcome. A bookkeeping event
-   (delivery.js), the page's error report, and a media upload (layer-client.js) never
-   enter that ledger, so a wait for "what this page sent has come back" consumes both
-   facts: every send acked, and nothing pending. */
+   ended whichever way — the answer's body read, refused, or failed — so a retry is a
+   second send. `asked` and `heard` are the same pair for reads of /api/state, `heard`
+   once the body has been read or the read has failed. `received` and `applied` are the
+   same pair for the state an answer through either door carries: `received` as the page
+   takes it in hand, `applied` once the page has adopted it, dropped it as overtaken or
+   failed to show it (state-application.js, `receiveState`). `pending` names the
+   attempts the published semantic state still holds as sending, in ledger order, and
+   changes with the publication that accepts or refuses one: an entry behind a head that
+   is retrying stays pending until its turn, even where a read has already shown its
+   attempt landed, because an applied reading does not replace a delivery outcome. A
+   bookkeeping event (delivery.js), the page's error report, and a media upload
+   (layer-client.js) never enter that ledger.
+
+   So a wait for "what this page sent has come back, and the page has taken in the
+   server's reading of it" consumes three facts: every send acked, nothing pending, and
+   every state received applied. A gesture's state is received before its attempt leaves
+   `pending`, and a bookkeeping post's in the task that counts its `acked`, so no paint
+   between them satisfies all three. */
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 

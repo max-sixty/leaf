@@ -88,7 +88,13 @@ def _process_state():
     """What a test may change in the process running it only through `monkeypatch`,
     which puts it back when the test ends."""
     return {
-        "environment": dict(os.environ),
+        # Pytest names the test and phase it is in, and takes the name away when the
+        # phase ends, whatever a run inherited from a run around it.
+        "environment": {
+            name: value
+            for name, value in os.environ.items()
+            if name != "PYTEST_CURRENT_TEST"
+        },
         "working directory": os.getcwd(),
         **{
             f"{number.name} handler": signal.getsignal(number)
@@ -105,8 +111,8 @@ def pytest_runtest_setup(item):
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_teardown(item):
-    """Fail a test that leaves the process other than it found it, once every fixture
-    it used has ended.
+    """Fail a test that leaves the process other than it found it, once its teardown
+    has ended the fixtures that end with it.
 
     A test, a fixture or the product code they call that writes `os.environ`, changes
     directory or takes a signal changes it for every later test in the worker, which

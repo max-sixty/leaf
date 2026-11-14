@@ -861,7 +861,7 @@ def _until(page, fact, wanted):
 # requests on a route must release every one, that report included.
 def heard_back(reading):
     """Whether one ledger reading says what the page sent has all come back, and the
-    page has applied the state it brought."""
+    page has finished applying the state it brought."""
     return (
         reading.acked == reading.sends
         and not reading.pending
@@ -871,7 +871,8 @@ def heard_back(reading):
 
 def round_trip(page):
     """Wait for what this page has sent to have come back to it, and for the page to
-    have applied the server's reading the answers carried."""
+    have finished applying the server's reading the answers carried; a reading it
+    failed to show is a browser problem the `browser` fixture reports."""
     _until(page, heard_back, "heard back what it sent")
 
 

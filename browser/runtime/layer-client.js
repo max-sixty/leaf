@@ -461,8 +461,10 @@ const KEEPALIVE_BYTES = 60_000;
 // error report below, which deliberately doesn't — share the request rather than
 // anything about the sending: same path, same method, same encoding, so a door that
 // moved would move for all of them. Whether a send waits on the one before it belongs
-// to the caller.
-/** @param {import("../types/contract.js").BrowserCommand} event */
+// to the caller. The trip ends once the answer's body is read, decoded or not, so
+// `acked` counts a post whose answer the page holds, as `heard` does a read's.
+/** @param {import("../types/contract.js").BrowserCommand} event
+ * @returns {Promise<{response: Response, decoded: {answer: any} | {error: unknown}} | null>} */
 export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -471,6 +473,8 @@ export const postEvent = async (event, held = heldReading()) => {
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   const body = JSON.stringify(event);
   let response;
+  /** @type {{answer: any} | {error: unknown}} */
+  let decoded;
   try {
     response = await fetch(pageUrl("api/event"), {
       method: "POST",
@@ -491,6 +495,10 @@ export const postEvent = async (event, held = heldReading()) => {
       attempt: event.attempt ?? null,
       status: response.status,
     });
+    decoded = await response.json().then(
+      (answer) => ({ answer }),
+      (error) => ({ error }),
+    );
   } catch (error) {
     recordInteraction("event_response", {
       kind: event.kind,
@@ -507,7 +515,7 @@ export const postEvent = async (event, held = heldReading()) => {
   // the link that ends it.
   if (response.status === KEY_REFUSED)
     throw new Error("the server refused this page's key");
-  return response;
+  return { response, decoded };
 };
 
 // Pasted pixels become page content before their Markdown reference enters a draft.

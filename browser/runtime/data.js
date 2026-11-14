@@ -191,9 +191,13 @@ function heldOutput(element, attribute, widget, contract) {
     changeOf(producer).value;
     return untracked(() => {
       const outputs = registry[producer.localName]?.["x-output"] ?? {};
-      const name = Object.keys(outputs).find((key) => outputs[key].contract === contract);
+      const name = Object.keys(outputs).find(
+        (key) => outputs[key].contract === contract,
+      );
       const value = name
-        ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (producer))[name]
+        ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (producer))[
+            name
+          ]
         : null;
       held =
         value === null || value === undefined

@@ -9,11 +9,11 @@ whose authors never met work together on a Leaf page and on a page without Leaf.
 names the other by id in an attribute it declares under `x-refers`, `for` by
 convention ("References between widgets"), and then:
 
-| To                                                      | Use                                                                                                                                            | `page check` holds                                           |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| read what the other holds, such as a film's step        | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                    | that the named widget declares one output of that contract   |
-| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                 | that an authored button names an element                     |
-| take the user to a part of it                           | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                                 |
+| To                                               | Use                                                                                                                                                   | `page check` holds                                         |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                          | that the named widget declares one output of that contract |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
+| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,

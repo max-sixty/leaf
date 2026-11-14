@@ -125,9 +125,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   share the floating panel's field, the container sets its dimensions from a theme token
   and each mode's controls fill it. It grows only for content, such as typed words, or
   an explicit action, such as More room. A one-line control's visible height is
-  `--lf-line` (`base.css`), and its touch target meets the minimum `surfaces.css` sets;
-  a control that derives its height from its font or the touch minimum instead changes
-  the height of every container that holds it. Checks:
+  `--lf-line` (`styles/tokens.css`), and its touch target meets the minimum
+  `surfaces.css` sets; a control that derives its height from its font or the touch
+  minimum instead changes the height of every container that holds it. Checks:
   `test_whatever_the_field_holds_the_row_keeps_its_line` compares the row's height with
   its token in each mode, since a check that controls fit the row would pass a row that
   grew to fit them, and `tests/swap_watch.js` fails a flex row whose height follows a
@@ -363,8 +363,9 @@ widget that also runs off Leaf only its part any document loads,
 `module-authoring.md` defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
-`.dependency-cruiser.mjs` enforces these boundaries and rejects cycles, so imports use
-literal paths; only the widget and interaction loaders compute theirs.
+`.dependency-cruiser.mjs` enforces these boundaries and knip (`knip.config.js`) rejects
+import cycles, so imports use literal paths; only the widget and interaction loaders
+compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
@@ -483,9 +484,10 @@ writers set instead).
   bands, the reading measure a Layout sets, and each widget's duty to fill the box it
   gets, declare its minimum, and never widen its container.
 - **A Layout, a style and a widget never read one another.** A Layout sets where boxes
-  go and how large they are, a style (`base.css`) sets type, spacing and form as tokens,
-  and a widget reads only its own box and the theme's tokens. A widget therefore behaves
-  the same in a shipped Layout as on a hand-written page that gives it the same box.
+  go and how large they are, a style (`base.css`, with its tokens in
+  `styles/tokens.css`) sets type, spacing and form as tokens, and a widget reads only
+  its own box and the theme's tokens. A widget therefore behaves the same in a shipped
+  Layout as on a hand-written page that gives it the same box.
   Where one must react to another, the owner sets a token describing the box, such as
   `--lf-full-height`, and the reader matches it with a style query; a width needs no
   token, since a size query on the reader's container answers it. Before adding a token,
@@ -517,7 +519,7 @@ writers set instead).
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
+  heights, `--raise-1` to `--raise-3` (`styles/tokens.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 
 ### The browser answers first

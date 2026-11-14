@@ -1618,7 +1618,7 @@ textarea.lf-field {
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
-  color: var(--muted);
+  color: var(--quiet);
   opacity: 1;
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),

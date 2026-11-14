@@ -807,7 +807,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
-    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # The slotted shortcut hint keeps the text field's quiet placeholder ink.
     # Typography shared with sent messages must not turn an empty hint into prose.
     hint_ink = """hint => [getComputedStyle(hint).color,
         getComputedStyle(hint.querySelector('kbd')).color]"""

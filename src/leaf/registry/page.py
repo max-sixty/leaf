@@ -64,6 +64,18 @@ def compose_page_registry(
         registry, set(widget_paths), "page/widgets", "widgets"
     )
     complete_declarations(registry)
+    # A page's widget module is named for a tag the page or its layer declares. One
+    # under another name is loaded by nothing, and its widget would draw as plain
+    # markup with nothing else to say so.
+    unnamed = sorted(
+        path
+        for path in widget_paths
+        if path.startswith("page/widgets/")
+        and path.endswith(".js")
+        and path not in registry[MODULES].values()
+    )
+    if unnamed:
+        raise registry_error("unnamed-module", source, modules=unnamed)
     # Compared by input, since the stamps make a composition unequal to the
     # unstamped merge of the same inputs.
     fresh = (layer_registry, page_declarations) != validated

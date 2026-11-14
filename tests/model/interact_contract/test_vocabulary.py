@@ -159,6 +159,22 @@ def test_a_module_that_goes_is_refused_by_a_composition_validated_with_it(page_d
     assert (finding.code, finding.at) == ("needs-module", "<lf-local>")
 
 
+def test_a_page_widget_module_no_tag_names_is_refused(page_dir):
+    """A page's widget module is loaded by its tag's name alone, so one under a name
+    no declaration has is refused where the page is checked."""
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True)
+    (widgets / "lf-locl.js").write_text("export {};\n")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": element_declaration("lf-local")})
+    )
+
+    finding = registry_refusal(lambda: registry_storage.read_page_registry(page_dir))
+
+    assert finding.code == "unnamed-module"
+    assert finding.values["modules"] == ["page/widgets/lf-locl.js"]
+
+
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
     """`$states` is what the browser reads for a verb's writer and the operation an
     admitted event records, so it derives neither. A page's own declaration is stamped
@@ -623,6 +639,9 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     ]
 
     authored.write_text("{}")
+    # A module no declared tag names is refused, so the widget's module goes with
+    # its declaration.
+    (page_dir / "page" / "widgets" / "lf-local.js").unlink()
     (page_dir / "index.html").write_text(PAGE)
     events = events_model.read_events(page_dir)
     activated = revisioning_model.activate_source(page_dir)

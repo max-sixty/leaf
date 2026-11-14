@@ -25,7 +25,7 @@ from .locations import first_overlap, located
 from .machine import package_store
 from .page_memory import once
 from .refusals import Refused
-from .registry.contract import is_element_name
+from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
@@ -975,6 +975,8 @@ def _composition(
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
         PUBLIC_MODULES
     )
+    # Every module path an import in the layer names.
+    imported = set()
     for root in roots:
         if root.resolve() == ASSETS.resolve():
             continue
@@ -998,11 +1000,33 @@ def _composition(
                 path = "/" + module.relative_to(root).as_posix()
                 for _, _, specifier in javascript_imports(module.read_bytes(), path):
                     dependency = dependency_reference(specifier, path, module=True)
+                    if dependency is not None:
+                        imported.add(dependency[0])
                     if dependency is not None and dependency[0] in private_modules:
                         raise Refused(
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"
                         )
+    # A module named as a widget's is loaded because its tag is declared or because
+    # another module imports it, as `lf-options.js` imports `lf-options-settled.js`.
+    # One that neither holds for is a widget's module under the wrong name, a typo or
+    # a tag renamed in the registry alone, and its widget would draw as plain markup
+    # with nothing else to say so.
+    loaded = set(vocabulary.registry[MODULES].values())
+    unloaded = sorted(
+        name
+        for name in vocabulary.widgets
+        if is_element_name(name.removesuffix(".js"))
+        and name.endswith(".js")
+        and f"widgets/{name}" not in loaded
+        and f"/widgets/{name}" not in imported
+    )
+    if unloaded:
+        raise Refused(
+            "nothing loads these modules: no declared tag has the name and no module "
+            "imports them. A widget's module is `widgets/<tag>.js`:\n"
+            + "\n".join(f"  - widgets/{name}" for name in unloaded)
+        )
     directory_sources = {
         sub: composed_dir_files(
             [

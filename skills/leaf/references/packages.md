@@ -269,7 +269,8 @@ presence is what makes the tag an upgraded widget: Leaf loads it only where a pa
 markup uses the tag, no declaration names it, and the composed registry lists each
 tag's module under `$modules`. Helper modules sit beside the
 entry module under names that aren't a declared tag's, and third-party files go under
-`vendor/`. What declarations mean for user
+`vendor/`. A module named like a widget (`lf-…`) that no tag declares and no module
+imports is refused, since it is usually a widget's module under a mistyped name. What declarations mean for user
 state is in [package-data.md, "User state"](package-data.md#user-state).
 
 ## Seeing it

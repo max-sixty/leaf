@@ -3993,6 +3993,40 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         assert "widgets/lf-unfinished.js" in result.output
 
 
+def test_a_widget_module_under_another_name_is_refused(tmp_path, monkeypatch):
+    """A module's name is what ties it to its tag, so one a typo or a renamed tag
+    left under another name is loaded by nothing, and its widget would draw as plain
+    markup. The package check and `page init` name the file; a helper another module
+    imports stands."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-callout")
+    widgets = package / "widgets"
+    (widgets / "lf-calout.js").write_text(
+        "customElements.define('lf-callout', class extends HTMLElement {});\n"
+    )
+
+    for args in (
+        ["package", "check", ".leaf"],
+        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
+    ):
+        result = runner.invoke(cli_model.cli, args)
+        assert result.exit_code != 0
+        assert "widgets/lf-calout.js" in result.output
+
+    (widgets / "lf-calout.js").rename(widgets / "lf-callout.js")
+    (widgets / "lf-callout-parts.js").write_text("export const parts = [];\n")
+    refused = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    assert "widgets/lf-callout-parts.js" in refused.output
+    (widgets / "lf-callout.js").write_text(
+        'import { parts } from "./lf-callout-parts.js";\n'
+        "customElements.define('lf-callout', class extends HTMLElement {});\n"
+    )
+    checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    assert json.loads(checked.output)["status"] == 0, checked.output
+
+
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -4289,7 +4323,12 @@ def test_package_init_widget_refuses_existing_members_without_writing(
     )
 
     assert result.exit_code != 0
-    assert "already exists in the composed layer" in result.output
+    # A module no tag names is refused before the starter can collide with it.
+    assert (
+        "nothing loads these modules"
+        if collision == "module"
+        else "already exists in the composed layer"
+    ) in result.output
     assert {
         path.relative_to(package): path.read_bytes()
         for path in package.rglob("*")

@@ -1190,6 +1190,14 @@ _TEXT = {
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
     ),
+    "unnamed-module": _declared(
+        lambda v: (
+            "no declared tag has the name of "
+            + ", ".join(v["modules"])
+            + "; a page widget's module is page/widgets/<tag>.js, and a helper"
+            " module stands elsewhere under page/"
+        )
+    ),
     "needs-module": _declared(
         lambda v: (
             f"declares {', '.join(v['keys'])}, which a module provides, and has"

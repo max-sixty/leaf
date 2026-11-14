@@ -274,15 +274,13 @@ the main thread what a fork did, with Leaf waking an idle session for a to-do a 
 opened (the guide's "How a fork tells the main thread" says why). The research above
 and the steps below stay here.
 
-Landing steps 1 to 3 on `main` needs a protocol bump: a Leaf at protocol 43 doesn't
-know that a fork's pickup holds the message, and picks the message up again for the
-main thread while the fork works. The same bump carries a change to the `reply`
-event: an agent's reply names the turn that posted it (`turn`), which the rule for who
-holds a message reads to tell which turn answered (`holding.py`), and an ephemeral
-reply's `start` no longer carries a `turn` of its own. Until the bump, the browser
-build's protocol check (`pnpm run check:browser`) fails on this branch with
-`reply.start.turn: the field is gone`; the landing bumps `$events.protocol` and runs
-`pnpm run build:browser`, which also regenerates the event types.
+Steps 1 to 3 take pages to protocol 44: a Leaf at protocol 43 doesn't know that a
+fork's pickup holds the message, and picks the message up again for the main thread
+while the fork works. The same bump carries a change to the `reply` event: an agent's
+reply names the turn that posted it (`turn`), which the rule for who holds a message
+reads to tell which turn answered (`holding.py`), and an ephemeral reply's `start` no
+longer carries a `turn` of its own. The session records whose shape changed with
+them, `clerk` and the new `agent-turns`, start at 44.
 
 ### Steps
 
@@ -366,11 +364,10 @@ build's protocol check (`pnpm run check:browser`) fails on this branch with
    5 s later, picked it up in the fork's turn, and the fork answered it 17.0 s after
    it was sent, with the main session idle throughout.
 
-   The protocol bump that landing these steps needs (above) belongs in the change
-   that lands them, not on this branch, where main's protocol baseline would keep
-   conflicting with it. Codex confirmed the misreading by running the merge base's
-   `read_plans` and `pick_up_acknowledged` against a fork's pickup: they reminded the
-   main thread of the message and recorded a main-thread pickup while the fork worked.
+   Codex confirmed the misreading that makes these steps bump the protocol (above)
+   by running the merge base's `read_plans` and `pick_up_acknowledged` against a
+   fork's pickup: they reminded the main thread of the message and recorded a
+   main-thread pickup while the fork worked.
 
 4. **Sorting, obligations and follow-ups**: the line fork sorts three ways; a
    significant message becomes a to-do on its thread; a fork tells the main thread

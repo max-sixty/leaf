@@ -796,7 +796,7 @@ AGENT_TURNS = Record(
             }
         ),
     ),
-    since=43,
+    since=44,
 )
 # Where a `leaf` command names the agent of the session that runs it, by its harness's
 # agent id: `leaf --agent-id ID`, which Leaf's PreToolUse hook adds to the `leaf`

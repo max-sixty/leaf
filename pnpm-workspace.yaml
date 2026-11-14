@@ -3,6 +3,7 @@ packages:
   - .
 verifyDepsBeforeRun: error
 allowBuilds:
+  "@anthropic-ai/claude-code": true
   esbuild: true
   workerd: true
   fsevents: false

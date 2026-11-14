@@ -96,8 +96,10 @@ Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and 
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, `anchor` names
-the `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when
-it waits on the user and `"waiting"` when it is with the agent. `resolved` is set while
+the `section` and `datum` it is attached to, and `attention` is the obligation record
+that speaks for it, or `null` when nobody owes a move there: its `next_actor` is
+`"user"` when the thread waits on the user and `"agent"` when it is with the agent, and
+its `state` says where that stands. `resolved` is set while
 it stands resolved. A message's `reactions` lists the reactions it takes and those in
 force, and is `null` on a message that takes none. An agent's message carries `agent`,
 the name it shows under.
@@ -187,9 +189,9 @@ drawn}`, each part optional:
 - `reply: {outlet, options}` names where the reply box stands, at the thread's end
   without `outlet`, with the options `parts.reply` takes, except that `hint` is called
   with `{resolved, attention}`: the thread as it is drawn, held news included, so the
-  box's words agree with Resolve and the notice. `attention` is what the thread waits
-  on, with the `word` Threads says it in, or null where it waits on nothing, as once
-  it is resolved.
+  box's words agree with Resolve and the notice. `attention` is whose `turn` the thread
+  is (`"user"` or `"agent"`) and its `state`, with the `word` Threads says it in, or
+  null where it waits on nothing, as once it is resolved.
 - `quote: true` quotes the words the thread is about over its messages.
 - `scroller: (transcript) => box` names the box that scrolls the thread's messages,
   which may be the thread's own `transcript`. An answer the user waits for that arrives

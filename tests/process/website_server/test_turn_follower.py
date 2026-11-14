@@ -153,7 +153,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     claim_record = website_server.page_claim(page_dir)
     assert claim_record is not None
     assert claim_record["turn_closed"] is not None
-    assert activity["kind"] != "working"
+    assert activity["state"] != "running"
     assert activity["obligations"] == []
 
 
@@ -308,7 +308,7 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
         state = page_state(page_dir)
 
         assert state["listening"] is True
-        assert state["activity"]["kind"] == "working"
+        assert state["activity"]["state"] == "running"
         assert state["activity"]["observed_kind"] == "working"
         assert owed_answers(page_dir)[0]["input"] == comment["id"]
 
@@ -319,7 +319,7 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
             expected=session_record("hosted-thread"),
         )
         working = page_state(page_dir)
-        assert working["activity"]["kind"] == "working"
+        assert working["activity"]["state"] == "running"
         assert working["activity"]["observed_kind"] == "tool"
         assert working["activity"]["observed"] == "Editing index.html"
     finally:
@@ -616,7 +616,7 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     claim_record_2 = website_server.page_claim(page_dir)
     assert claim_record_2 is not None
     assert claim_record_2["turn_closed"] is not None
-    assert activity_reading(page_dir)["kind"] != "working"
+    assert activity_reading(page_dir)["state"] != "running"
     assert silent.closed
 
 
@@ -666,7 +666,7 @@ def test_a_follower_fault_of_any_shape_still_releases_its_website_turn(
     assert claim_record_3 is not None
     assert claim_record_3["turn_closed"] is not None
     activity = activity_reading(page_dir)
-    assert activity["kind"] != "working"
+    assert activity["state"] != "running"
     assert activity["obligations"] == []
     assert socket.closed
     logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]

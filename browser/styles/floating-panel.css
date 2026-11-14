@@ -1807,7 +1807,8 @@
     height: 16px;
     color: var(--quiet);
   }
-  .lf-fp-plan-step[data-lf-state="open"] > .lf-fp-plan-mark::before {
+  .lf-fp-plan-step:is([data-lf-state="waiting"], [data-lf-state="blocked"])
+    > .lf-fp-plan-mark::before {
     content: "";
     display: block;
     width: 8px;
@@ -1830,10 +1831,10 @@
   .lf-fp-plan-step[data-lf-state="failed"] > .lf-fp-plan-mark {
     color: var(--danger-ink);
   }
-  .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-mark {
+  .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-mark {
     color: var(--accent);
   }
-  .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-title {
+  .lf-fp-plan-step[data-lf-state="running"] > .lf-fp-plan-title {
     font-weight: 600;
   }
   .lf-fp-plan-time,

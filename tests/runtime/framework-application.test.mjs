@@ -56,6 +56,26 @@ const descriptor = {
   ancestors: [],
   quoted: false,
 };
+// Where an obligation record stands (`standing.py`): open on the user, answered, or
+// withdrawn.
+const OPEN = { next_actor: "user", state: "waiting", reason: null, outcome: null };
+const ANSWERED = { next_actor: null, state: "done", reason: null, outcome: "done" };
+const WITHDRAWN = { ...ANSWERED, outcome: "dropped" };
+// The records the server publishes for a question the agent asked and for what an
+// update of the user's is owed, so a record made from them carries every field the
+// server sends.
+const ASKED = servedReading("question").browser.views["1"].obligations[0];
+const OWED = servedReading("queues on both sides").browser.views["1"].obligations.find(
+  ({ source, next_actor }) => source.kind === "update" && next_actor === "agent",
+);
+// The question the agent asked with the message `message` in `thread`.
+const question = (thread, message = thread) => ({
+  ...ASKED,
+  id: `message:${message}`,
+  source: { kind: "message", id: message },
+  thread,
+  message,
+});
 const wireObligation = (
   target,
   tag,
@@ -70,8 +90,8 @@ const wireObligation = (
   message,
   prompt: { text: null, target },
   answer: null,
-  status: "open",
-  next_actor: "user",
+  end: null,
+  ...OPEN,
 });
 // A view's obligations as the served lists hold them: each the user owes on their list, On Me,
 // and each that is no longer open, done.
@@ -83,9 +103,7 @@ const obligationQueues = (records) => {
   return {
     on_user: records.filter((record) => record.next_actor === "user").map(item),
     on_agent: [],
-    done: records
-      .filter((record) => record.status !== "open")
-      .map((record) => ({ ...item(record), state: "done", ended: null, detail: null })),
+    done: records.filter((record) => record.state === "done").map(item),
   };
 };
 const coordinate = ["choice", "choice", "decide"];
@@ -576,27 +594,31 @@ test("one publication keeps per-input workflows and user-first thread attention"
           text: "Second",
         },
       ],
-      { attention: { kind: "needs_user", reason: "obligation", workflow: null } },
+      { attention: "message:root" },
     ),
   ];
+  // A question the user owes in the thread speaks for it, ahead of the agent's work.
+  const asked = question("root");
+  reading.browser.views[1].obligations = [asked];
   reading.workflows = [
-    threadWorkflow("first-work", { stage: "replying", seq: 1 }),
-    threadWorkflow("second-work", { input: "newer", stage: "queued", seq: 2 }),
+    threadWorkflow("first-work", {
+      state: "running",
+      reason: "replying",
+      seen: true,
+      seq: 1,
+    }),
+    threadWorkflow("second-work", { input: "newer", seq: 2 }),
   ];
   app.adopt(reading);
   const thread = app.read().effective.thread.all[0];
   assert.deepEqual(
-    thread.msgs.map((message) => [message.id, message.workflows[0]?.stage]),
+    thread.msgs.map((message) => [message.id, message.workflows[0]?.id]),
     [
-      ["root", "replying"],
-      ["newer", "queued"],
+      ["root", "first-work"],
+      ["newer", "second-work"],
     ],
   );
-  assert.deepEqual(thread.attention, {
-    kind: "needs_user",
-    reason: "obligation",
-    workflow: null,
-  });
+  assert.deepEqual(thread.attention, asked);
   assert.equal(thread.workflows.length, 2);
   app.enqueue(
     { kind: "reply", parent: "root", attempt: "local", text: "Third", revision: 1 },
@@ -606,13 +628,14 @@ test("one publication keeps per-input workflows and user-first thread attention"
   // waits for the log's reading of it.
   const sent = app.read().effective.thread.all[0];
   assert.deepEqual(
-    sent.msgs.map((message) => [message.id, message.workflows[0]?.stage]),
+    sent.msgs.map((message) => [message.id, message.workflows[0]?.id]),
     [
-      ["root", "replying"],
-      ["newer", "queued"],
-      ["pending:local", "sending"],
+      ["root", "first-work"],
+      ["newer", "second-work"],
+      ["pending:local", "pending:local"],
     ],
   );
+  assert.equal(sent.msgs[2].workflows[0].local, true);
   assert.deepEqual(sent.attention, thread.attention);
 });
 
@@ -637,31 +660,46 @@ test("a refused send hands its thread to the user to send again", () => {
   );
   assert.equal(app.read().effective.thread.all[0].attention, null);
   app.refuse("local");
-  assert.deepEqual(app.read().effective.thread.all[0].attention, {
-    kind: "needs_user",
-    reason: "resend",
-    workflow: "rejected:local",
-  });
+  // Where the thread stands, by the record that speaks for it.
+  const standing = (held) => {
+    const { attention } = held.read().effective.thread.all[0];
+    return [attention.id, attention.next_actor, attention.state, attention.reason];
+  };
+  assert.deepEqual(standing(app), [
+    "update:rejected:local",
+    "user",
+    "blocked",
+    "failed",
+  ]);
 
   const acceptedApp = setup();
   const acceptedReading = structuredClone(reading);
-  acceptedReading.workflows = [threadWorkflow("accepted-send")];
-  acceptedReading.browser.views[1].thread.threads[0].attention = {
-    kind: "waiting",
-    reason: "workflow",
-    workflow: "accepted-send",
-  };
+  const accepted = threadWorkflow("accepted-send");
+  acceptedReading.workflows = [accepted];
+  acceptedReading.browser.views[1].obligations = [
+    {
+      ...OWED,
+      id: accepted.obligation,
+      source: { kind: "update", id: accepted.input, subject: accepted.subject },
+      thread: "root",
+      message: accepted.message,
+      prompt: { text: null, target: accepted.input },
+      workflow: accepted.id,
+    },
+  ];
+  acceptedReading.browser.views[1].thread.threads[0].attention = accepted.obligation;
   acceptedApp.adopt(acceptedReading);
   acceptedApp.enqueue(
     { kind: "reply", parent: "root", attempt: "next", text: "Third", revision: 1 },
     "2026-09-22T10:02:00-07:00",
   );
   acceptedApp.refuse("next");
-  assert.deepEqual(acceptedApp.read().effective.thread.all[0].attention, {
-    kind: "needs_user",
-    reason: "resend",
-    workflow: "rejected:next",
-  });
+  assert.deepEqual(standing(acceptedApp), [
+    "update:rejected:next",
+    "user",
+    "blocked",
+    "failed",
+  ]);
 });
 
 test("every thread gesture the ledger holds names the thread it stands in", () => {
@@ -740,10 +778,14 @@ test("a refused local message publishes one failed workflow before retirement", 
     revision: 1,
   };
   app.enqueue(event, "2026-09-22T10:00:00-07:00");
-  assert.equal(app.read().effective.workflows.at(-1).stage, "sending");
+  const sending = app.read().effective.workflows.at(-1);
+  assert.deepEqual([sending.local, sending.state], [true, "waiting"]);
   app.refuse("refused");
   const failed = app.read().effective.workflows.at(-1);
-  assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
+  assert.deepEqual(
+    [failed.local, failed.state, failed.reason],
+    [true, "blocked", "failed"],
+  );
   // It serves the record of the resend it leaves, which is the user's.
   const resend = app
     .read()
@@ -760,10 +802,10 @@ test("a send keeps whether it had to launch the agent while it waits", () => {
   app.enqueue(comment("first"), "now", "Hi", true);
   app.enqueue(comment("later"), "now");
   assert.deepEqual(
-    app.read().effective.workflows.map((item) => [item.stage, item.launching]),
+    app.read().effective.workflows.map((item) => [item.local, item.launching]),
     [
-      ["sending", true],
-      ["sending", false],
+      [true, true],
+      [true, false],
     ],
   );
 });
@@ -784,12 +826,11 @@ test("a local send's workflow takes the served workflow's shape", () => {
     assert.deepEqual(app.read().effective.workflows, []);
     app.release(new Set(["other"]));
   }
-  // Every field the server sends but the undelivered-only ones it has no reading of,
-  // and whether the send had to launch the agent, which only the tab knows.
-  const { quiet: _quiet, dropped: _dropped, ...served } = servedWorkflow();
+  // Every field the server sends, and what only the tab knows: that the send is its
+  // own and whether it had to launch the agent.
   assert.deepEqual(
     Object.keys(move).sort(),
-    [...Object.keys(served), "launching"].sort(),
+    [...Object.keys(servedWorkflow()), "local", "launching"].sort(),
   );
 });
 
@@ -1318,20 +1359,17 @@ for (const resolved of [null, { author: "user" }]) {
     };
     // The server owes nobody a turn in a resolved thread; an open one waits on the
     // user's answer.
-    const owed = resolved ? null : "needs_user";
+    const owed = resolved ? null : "user";
+    const asked = question(root.id);
     const accepted = state(2);
+    accepted.browser.views[1].obligations = resolved ? [] : [asked];
     accepted.browser.views[1].thread.threads = [
-      servedThread([root], {
-        resolved,
-        attention: resolved
-          ? null
-          : { kind: "needs_user", reason: "obligation", workflow: null },
-      }),
+      servedThread([root], { resolved, attention: resolved ? null : asked.id }),
     ];
     app.adopt(accepted);
     const turn = () => {
       const thread = app.read().effective.thread.all[0];
-      return [thread.attention?.kind ?? null, thread.resolved];
+      return [thread.attention?.next_actor ?? null, thread.resolved];
     };
     assert.deepEqual(turn(), [owed, resolved]);
 
@@ -1353,6 +1391,7 @@ for (const resolved of [null, { author: "user" }]) {
     const logged = state(3);
     logged.events = [answer];
     logged.browser.views[1].thread.threads = accepted.browser.views[1].thread.threads;
+    logged.browser.views[1].obligations = accepted.browser.views[1].obligations;
     app.adopt(logged);
     assert.deepEqual(app.read().unresolved, []);
     assert.deepEqual(turn(), [owed, resolved]);
@@ -1369,7 +1408,7 @@ for (const resolved of [null, { author: "user" }]) {
       "now",
     );
     app.refuse("retry");
-    assert.deepEqual(turn(), ["needs_user", resolved]);
+    assert.deepEqual(turn(), ["user", resolved]);
   });
 }
 
@@ -1401,19 +1440,14 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     message: item.id,
     prompt: { text: item.text, target: null },
     answer: { value: { token: "keep" }, event: kept },
-    status: "answered",
-    next_actor: null,
+    end: null,
+    ...ANSWERED,
   };
   accepted.browser.views[1].obligations = [answered];
-  const done = {
-    ...servedObligationRow(answered, {
-      kind: "message",
-      subject: { kind: "thread", id: item.id },
-    }),
-    state: "done",
-    ended: null,
-    detail: null,
-  };
+  const done = servedObligationRow(answered, {
+    kind: "message",
+    subject: { kind: "thread", id: item.id },
+  });
   accepted.browser.views[1].queues = { ...obligationQueues([]), done: [done] };
   accepted.browser.views[1].thread.threads = [servedThread([item, kept])];
   app.adopt(accepted);
@@ -1427,7 +1461,7 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     [["message", answered.id]],
   );
 
-  const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
+  const reopened = { ...answered, answer: null, ...OPEN };
   const undo = { kind: "undo", id: "e-undo", undoes: kept.id, attempt: "take-back" };
   const answeredUndo = state(3, [kept, undo]);
   answeredUndo.browser.views[1].obligations = [reopened];
@@ -1441,13 +1475,11 @@ test("a pending gesture leaves obligations and On Me as served until the log ans
     ],
   };
   answeredUndo.browser.views[1].thread.threads = [
-    servedThread([item], {
-      attention: { kind: "needs_user", reason: "obligation", workflow: null },
-    }),
+    servedThread([item], { attention: reopened.id }),
   ];
   app.adopt(answeredUndo);
   const { thread, queues } = app.read().effective;
-  assert.equal(thread.all[0].attention.kind, "needs_user");
+  assert.deepEqual(thread.all[0].attention, reopened);
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
     [["message", answered.id]],
@@ -1467,8 +1499,7 @@ test("the publisher carries the server's obligation reading, page obligations be
   const page = wireObligation("question", "lf-ask", "choice", "lf-choice");
   const frozen = {
     ...wireObligation("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", "root-1"),
-    status: "withdrawn",
-    next_actor: null,
+    ...WITHDRAWN,
   };
   read.browser.views[1].obligations = [page, frozen];
   app.adopt(read);
@@ -1698,7 +1729,7 @@ test("An obligation contains the local typed answer while completion waits for a
     value: { outcome: "accept" },
     event: null,
   });
-  assert.equal(pending.all[0].status, "open");
+  assert.equal(pending.all[0].state, "waiting");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
   assert.equal(app.read().effective.queues.on_user[0].kind, "widget");
@@ -1735,8 +1766,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   const reading = state(2);
   const item = {
     ...wireObligation("choice", "lf-choice"),
-    status: "answered",
-    next_actor: null,
+    ...ANSWERED,
     answer: { value: [], event: null },
   };
   reading.browser.views[1].obligations = [item];
@@ -1799,8 +1829,7 @@ test("pending undo removes completed empty obligation values and refusal restore
     entry.event.meaning.state = definition(declared.tag, answer);
     const item = {
       ...wireObligation("choice", "lf-choice"),
-      status: "answered",
-      next_actor: null,
+      ...ANSWERED,
       answer: { value, event: accepted },
     };
     reading.browser.views[1].obligations = [item];
@@ -1808,7 +1837,7 @@ test("pending undo removes completed empty obligation values and refusal restore
     app.adopt(reading);
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
-    assert.equal(app.read().effective.obligations.all[0].status, "answered");
+    assert.equal(app.read().effective.obligations.all[0].state, "done");
     assert.equal(app.read().effective.obligations.all[0].answer, null);
     assert.equal(app.read().effective.queues.done[0].obligation.answer, null);
     app.refuse("undo-empty");
@@ -1841,8 +1870,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
   reading.browser.views[1].obligations = [
     {
       ...wireObligation("choice", "lf-choice"),
-      status: "answered",
-      next_actor: null,
+      ...ANSWERED,
       answer: { value: { outcome: "accept" }, event: accepted },
     },
   ];
@@ -1864,8 +1892,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
   const reading = state(2, [accepted]);
   const item = {
     ...wireObligation("choice", "lf-choice"),
-    status: "answered",
-    next_actor: null,
+    ...ANSWERED,
     answer: { value: { outcome: "accept" }, event: accepted },
   };
   reading.browser.views[1].obligations = [item];
@@ -1876,7 +1903,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
   });
   app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-answer" }, "now");
   const pending = app.read().effective.obligations.all[0];
-  assert.equal(pending.status, "answered");
+  assert.equal(pending.state, "done");
   assert.equal(pending.answer, null);
   assert.equal(app.read().effective.queues.done[0].obligation.answer, null);
   app.refuse("undo-answer");

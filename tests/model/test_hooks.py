@@ -212,11 +212,12 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     # And what the agent said it was doing is untouched by the observation of it:
     # the page reads the turn ended, still in the agent's last words.
     activity = page_state(claimed)["activity"]
-    assert (activity["kind"], activity["dropped"], activity["detail"]) == (
-        "stalled",
-        True,
-        "reading the reconnect traces",
-    )
+    assert (
+        activity["presence"],
+        activity["state"],
+        activity["reason"],
+        activity["detail"],
+    ) == ("here", "blocked", "stopped", "reading the reconnect traces")
 
     # Re-entry after a block stands the guard down before it would speak; the stamp is
     # the turn's own and is taken on that ending too.
@@ -847,7 +848,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     )
     assert page_state(claimed)["pending"] == 1
     [workflow] = page_state(claimed)["workflows"]
-    assert workflow["stage"] == "sent"
+    assert (workflow["state"], workflow["seen"]) == ("waiting", False)
     # A running wait changes nothing: it only wakes the session.
     session = service_model.page_claim(claimed)
     assert session is not None
@@ -869,7 +870,7 @@ def test_claude_codes_turn_confirms_what_its_hooks_hand_over(claimed, capsys):
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     [workflow] = page_state(claimed)["workflows"]
-    assert workflow["stage"] == "picked_up"
+    assert (workflow["state"], workflow["seen"]) == ("waiting", True)
     assert page_state(claimed)["pending"] == 1
     with service_model.PageTransaction(claimed) as page:
         assert delivery_model.deliverable(page) == []
@@ -1299,7 +1300,7 @@ def test_a_tool_boundary_reminds_the_agent_of_a_status_line_left_standing(
     assert hook("PostToolBatch") == ""
 
     declare_status(claimed, ts=stood.isoformat(timespec="seconds"), session="s1")
-    assert activity_reading(claimed)["kind"] != "working"
+    assert activity_reading(claimed)["state"] != "running"
     check_due()
     assert hook("PostToolBatch") == ""
 
@@ -1478,11 +1479,15 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     assert asked["id"] in prompt["hookSpecificOutput"]["additionalContext"]
     claim = service_model.page_claim(claimed)
     activity = activity_reading(claimed)
-    assert activity["kind"] == "working"
-    assert activity["obligations"][0]["stage"] == "picked_up"
+    assert activity["state"] == "running"
+    [owed_move] = activity["obligations"]
     assert claim is not None
-    assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
-    assert activity["obligations"][0]["condition"] is None
+    assert owed_move["delivery_turn"] == claim["turn"]
+    assert (owed_move["state"], owed_move["reason"], owed_move["seen"]) == (
+        "waiting",
+        None,
+        True,
+    )
 
 
 def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):

@@ -12,6 +12,7 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
+from ..standing import is_open, leading
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -33,80 +34,22 @@ class BrowserReading(NamedTuple):
     documents: dict[int, DocumentReading]
 
 
-def _thread_attention(
-    thread: dict, records: list[dict], candidates: list[dict], todos: list[dict]
-) -> dict | None:
-    """Whose turn one thread is, read from the open obligation records in it
-    (`records`): `needs_user` while one is the user's, a request (`obligation`) ahead of an
-    update handed back to them to send again (`resend`); else `waiting` while one is
-    the agent's, or while a to-do the agent opened on it stands; else None, as for
-    every resolved thread.
-
-    `candidates` are the thread's `served_workflows`, strongest first, so the first
-    serving the record that decides is the one the thread waits on, and names its
-    stage. A widget's record turns the agent's only while the thread's newest
-    unanswered turn publishes an update record (`queues`), so a waiting thread always
-    has a workflow to name. `todos` are the agent's open to-dos, each stamped with its
-    `thread`, and `todo` names the one the thread waits on by id."""
-    if thread["resolved"]:
-        return None
-
-    def serving(kept) -> dict | None:
-        held = {record["id"] for record in records if kept(record)}
-        return next(
-            (workflow for workflow in candidates if workflow["obligation"] in held),
-            None,
-        )
-
-    if any(
-        record["next_actor"] == "user" and record["source"]["kind"] != "update"
-        for record in records
-    ):
-        return {"kind": "needs_user", "reason": "obligation", "workflow": None}
-    if resend := serving(
-        lambda record: (
-            record["next_actor"] == "user" and record["source"]["kind"] == "update"
-        )
-    ):
-        return {"kind": "needs_user", "reason": "resend", "workflow": resend["id"]}
-    if waiting := serving(lambda record: record["next_actor"] == "agent"):
-        return {
-            "kind": "waiting",
-            "reason": "uncertain" if waiting["condition"] else "workflow",
-            "workflow": waiting["id"],
-        }
-    if todo := next((todo for todo in todos if todo["thread"] == thread["id"]), None):
-        return {
-            "kind": "waiting",
-            "reason": "todo",
-            "workflow": None,
-            "todo": todo["id"],
-        }
-    return None
-
-
-def _apply_thread_attention(
-    records: list[dict], workflows: list[dict], threads: list[dict], todos: list[dict]
-):
+def _apply_thread_attention(records: list[dict], threads: list[dict]):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is. `records` are the obligation records of the view these threads are served
+    it is and where it stands: the id of the open obligation record that speaks for it
+    (`standing.leading`), or None where nobody owes a move there, as in every resolved
+    thread. `records` are the obligation records of the view these threads are served
     in, so a pinned revision's threads take the attention its own vocabulary reads;
-    `workflows` are the page's, enriched with delivery liveness."""
+    the updates' and to-dos' among them stand as `activity` read them."""
     open_records: dict[str, list[dict]] = {}
     for record in records:
-        if record["thread"] is not None and record["status"] == "open":
+        if record["thread"] is not None and is_open(record):
             open_records.setdefault(record["thread"], []).append(record)
-    by_thread: dict[str, list[dict]] = {}
-    for workflow in workflows:
-        if workflow["thread"] is not None:
-            by_thread.setdefault(workflow["thread"], []).append(workflow)
     for thread in threads:
-        thread["attention"] = _thread_attention(
-            thread,
-            open_records.get(thread["id"], []),
-            by_thread.get(thread["id"], []),
-            todos,
+        speaks = (
+            None if thread["resolved"] else leading(open_records.get(thread["id"], []))
         )
+        thread["attention"] = speaks["id"] if speaks else None
 
 
 def browser_state(
@@ -154,8 +97,6 @@ def browser_state(
         events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
-    todos = durable.page_todos(work.activity["todos"])
-    open_todos = [todo for todo in todos if todo["state"] == "open"]
 
     words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
@@ -179,10 +120,10 @@ def browser_state(
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
         # The view's obligations are its own document's beside its frozen thread's, and
-        # the page's updates', served once: a list row names a
+        # the page's updates' and to-dos', served once: a list row names a
         # record by its id.
-        items = viewed.all_obligations["all"] + durable.updates["all"]
-        _apply_thread_attention(items, workflows, thread["threads"], open_todos)
+        items = viewed.all_obligations["all"] + work.records
+        _apply_thread_attention(items, thread["threads"])
         documents[revision] = reading
         projection = reading.projection
         published_at = next(
@@ -207,7 +148,7 @@ def browser_state(
                 words=words,
             ),
             "published_at": published_at,
-            "queues": queues(workflows, todos, items, threads, reading.within),
+            "queues": queues(workflows, items, threads, reading.within),
         }
     if wants_history(readings[revision] for revision in view_revisions):
         page_history = {
@@ -225,8 +166,7 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        "todos": todos,
-        "plan": durable.plan,
+        "plan": durable.plan(work.records),
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

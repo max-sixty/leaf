@@ -1323,7 +1323,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
-    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert (working["state"], working["detail"]) == ("running", "Checking the camera.")
     assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
@@ -1652,7 +1652,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         },
     )
     [thread] = state_json(page_dir)["threads"]
-    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert thread["attention"] == f"message:{json.loads(asking.output)['id']}"
     assert [item[0] for item in owed_answers()] == [typo["id"]]
 
     # No words at all delete the message. It keeps its place, beneath the answers

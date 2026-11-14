@@ -22,9 +22,11 @@ settled, and emits two readings of them, each the one home of its facts:
   these records rather than deciding again. `activity.turn_obligations` decides how long
   an owed update holds the agent's turn.
 
-- A **workflow** for each unsettled update: its delivery. `stage` says how far it has
-  reached the agent (Sent, Queued, Delivered, Working, Replying), which the margin, the
-  Page Map and a thread's receipt show. `obligation` names the record it serves, or is
+- A **workflow** for each unsettled update: its delivery, the evidence of how far it
+  has reached the agent. `pickup` is the furthest a harness has carried it, `queued` or
+  `opened` into a turn, and `held_by` the start in force on it; `activity` reads them
+  with the claim and serves where it stands (`standing`), which the margin, the Page
+  Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
   delivered under to the newest `answer.ref` a pickup recorded for it
   (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
@@ -57,8 +59,8 @@ widget is owed, and `obligations` decides when that is.
 
 When a harness gives up on an update, `thread.fail_answer` writes the failure, a
 reply in the thread or a failed pickup of a page action, each carrying `failure`.
-The update's record then waits on the user, and its workflow stays at `answered` with
-the failed response, until the user acts again or the markup records the action.
+The update's record then waits on the user, and its workflow keeps the failed
+response (`handed_back`), until the user acts again or the markup records the action.
 """
 
 from bisect import bisect_right
@@ -66,6 +68,7 @@ from itertools import accumulate
 from operator import itemgetter
 from typing import NamedTuple
 
+from . import standing
 from .events import (
     conversation_turns,
     exchange,
@@ -109,11 +112,11 @@ def attention_reading(readings) -> dict:
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
-        if item["stage"] == "working"
+        if item["held_by"] is not None
     ] + [
-        (todo["id"], todo["subject"])
+        (todo["id"], todo["source"]["subject"])
         for todo in work.log.owed
-        if todo["subject"]["kind"] != "page"
+        if todo["source"]["subject"]["kind"] != "page"
     ]
     inputs = [
         (source, spec)
@@ -290,13 +293,12 @@ def handed_over(
     are no longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 
-    This is one interaction-scoped projection over the document and log: append
-    means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Delivered (stage `picked_up`), and a `start` naming the update means Working
-    (`todos.item_starts`). Replies
-    and authored state settle the source update, so the workflow disappears instead
-    of becoming a second outcome surface; a failed response instead keeps an
-    answered workflow, whose record waits on the user. Consecutive inputs retain
+    This is one interaction-scoped projection over the document and log: a harness
+    queue's acceptance is its `queued` pickup, entry into an exact agent turn its
+    `opened` one, and a `start` naming the update holds it (`todos.item_starts`).
+    Replies and authored state settle the source update, so the workflow disappears
+    instead of becoming a second outcome surface; a failed response instead keeps a
+    handed-back workflow, whose record waits on the user. Consecutive inputs retain
     distinct workflows even though the thread's single response obligation is
     addressed to the newest one, whose record each of them names.
     """
@@ -328,8 +330,9 @@ def handed_over(
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
     for todo in log.owed:
-        if todo["running"] and todo["subject"]["kind"] == "widget":
-            widget_starts.setdefault(todo["subject"]["id"], []).append(todo["running"])
+        subject = todo["source"]["subject"]
+        if todo["line"] and subject["kind"] == "widget":
+            widget_starts.setdefault(subject["id"], []).append(todo["line"])
 
     def delivered_at(source: dict) -> int:
         delivery = deliveries.get(source["id"], {})
@@ -381,15 +384,7 @@ def handed_over(
         opened = delivery.get("opened")
         queued = delivery.get("queued")
         start = holding(source, target, delivered_at(source))
-        if start:
-            stage, evidence = "working", start
-        elif opened:
-            stage, evidence = "picked_up", opened
-        elif queued:
-            stage, evidence = "queued", queued
-        else:
-            stage, evidence = "sent", source
-        fallback = opened or queued
+        pickup = opened or queued
         return {
             "id": source["id"],
             "input": source["id"],
@@ -399,35 +394,18 @@ def handed_over(
             "subject": target,
             "coordinate": coordinate,
             "obligation": obligation,
-            "stage": stage,
-            "ts": evidence.get("ts"),
-            "fallback_stage": (
-                "picked_up" if opened else "queued" if queued else "sent"
-            ),
-            "fallback_ts": (fallback.get("ts") if fallback else source.get("ts")),
-            "delivery_seq": fallback["seq"] if fallback else None,
-            "delivery_session": fallback.get("session") if fallback else None,
-            "delivery_turn": fallback.get("turn") if fallback else None,
+            "pickup": "opened" if opened else "queued" if queued else None,
+            "ts": (pickup or source).get("ts"),
+            "delivery_seq": pickup["seq"] if pickup else None,
+            "delivery_session": pickup.get("session") if pickup else None,
+            "delivery_turn": pickup.get("turn") if pickup else None,
             "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
             "detail_seq": start["seq"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,
-            "activity": (
-                [
-                    {
-                        "kind": "working",
-                        "detail": start["text"],
-                        "ts": start["ts"],
-                        "session": start.get("session"),
-                        "turn": start.get("turn"),
-                    }
-                ]
-                if start
-                else []
-            ),
-            "condition": None,
             "response": None,
+            "handed_back": False,
             "held_by": start,
             "started_by": [
                 {
@@ -443,34 +421,25 @@ def handed_over(
     def failed(
         source: dict, target: dict, coordinate: list[str], record: dict, obligation: str
     ) -> dict:
-        """The update a harness failure record returned to the user: answered, with a
-        failed response, serving the record that is now the user's to send again."""
+        """The update a harness failure record returned to the user, with the failed
+        response, serving the record that is now the user's to send again."""
         returned = workflow(
             source, target, coordinate, obligation=obligation, covering=[]
         )
         returned.update(
             {
-                "stage": "answered",
                 "ts": record["ts"],
                 "detail": None,
                 "detail_seq": None,
                 "agent": record.get("agent"),
                 "session": record.get("session"),
-                "activity": [
-                    {
-                        "kind": "response",
-                        "detail": None,
-                        "ts": record["ts"],
-                        "session": record.get("session"),
-                        "turn": record.get("turn"),
-                    }
-                ],
-                "condition": {"kind": "failed", "operation": "response"},
                 "response": {
                     "id": record["id"],
                     "attempt": record.get("attempt"),
                     "state": "failed",
                 },
+                "handed_back": True,
+                "held_by": None,
             }
         )
         return returned
@@ -610,9 +579,9 @@ def handed_over(
             item = obligation_by_source.get(
                 (source["widget"], coordinate[1])
             ) or obligation_by_source.get((source["widget"], None))
-            if item is not None and item["status"] == "open":
+            if item is not None and standing.is_open(item):
                 continue
-            owed = item is not None and item["status"] == "answered"
+            owed = item is not None and standing.answered(item)
             actions.append(
                 (
                     source,
@@ -690,7 +659,9 @@ def handed_over(
     # Every input a reply answered keeps its record, answered by its first answer in
     # the log, in the thread that answer stands in, whether or not the thread is
     # resolved: the agent's list's Done. An input handed back since holds its open
-    # record instead.
+    # record instead. A reply that promises the work rather than delivering it (its
+    # `todo`) is no answer to list as done: the to-do it opens is what the request is
+    # still owed, and that record lands in Done when the agent ends it.
     by_id = {event["id"]: event for event in events}
     thread_of = {
         message["id"]: thread_id
@@ -700,6 +671,7 @@ def handed_over(
     for reply in events:
         if (
             not is_answer(reply)
+            or "todo" in reply
             or reply["id"] not in thread_of
             or f"update:{reply['responds']}" in records
         ):

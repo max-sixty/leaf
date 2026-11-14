@@ -42,8 +42,12 @@ The table lists each fact the fold reads, and when it stops being believed.
 
 ### Activity
 
-Activity's `kind` is `closed`, `unheld`, `away`, `listening`, `working` or `stalled`.
-It describes the claimant and its watcher, not any one message.
+Activity says where the agent's side of the page stands in the words every record
+uses (`standing.py`): `state` is `running`, `blocked`, `waiting` or `done`, with the
+`reason` a blocked one is and the `next_actor` whose move changes it. Beside it,
+`presence` says whether anyone is there to take input: `here`, `away` between turns,
+`gone` when no session holds the page, or `closed`. It describes the claimant and its
+watcher, not any one message.
 
 Every rule that asks whether the claimant's turn is running reads one answer,
 `activity.claimant_turn`, which dates each piece of evidence and lets the newest
@@ -58,47 +62,54 @@ carry input, while its turn runs (`activity.takes_input`). Admission nudges a
 claimant that takes none once its turn was seen to end (`activity.nudge_due`), and
 where its harness says that nudge starts a turn (`Harness.input_wakes`), the page
 reads it as taking input too. Fresh declared or observed
-work makes the page `working`, however far newer input has progressed, and so does a
+work makes the page `running`, however far newer input has progressed, and so does a
 delivery opened into the running turn before its first start. The status line is the
-newest start's among the items still in hand. `counts.overdue` counts the owed updates
-that stalled with the agent to act: still Sent past the pickup grace, or left by a turn
-that ended before answering. On an `away` page, these are what the status asks the
-user to nudge the session about.
+newest start's among the items still in hand, and the page is `blocked` once those
+starts have gone quiet or their turn ended. An owed update is stranded when it stalled
+with the agent to act: `undelivered` past the pickup grace, or `stopped` or
+`interrupted` by a turn that ended before answering. Where nobody is `here`, a stranded
+update makes the page `blocked` with the user as its next actor, and the status asks
+them to nudge the session.
 
 Observed App Server activity (`working`, `thinking`, `tool`, `replying`,
 `awaiting_approval`, `awaiting_input`) refines the page's work and never a message's,
 since no harness binds a step to an input. A current authored declaration keeps the
-page's sentence and date; the observation is served beside it as `observed`,
-`observed_kind` and `awaiting`, and supplies the sentence only where the declaration
-has none. A tool invocation is not a tracked job, so neither an old observation nor a
-disconnected client proves that a job failed.
+page's sentence and date; the observation is served beside it as `observed` and
+`observed_kind`, and supplies the sentence only where the declaration has none. A step
+that waits on the user in the agent's own window makes the page, and whatever that
+turn has in hand, `blocked` with reason `terminal`. A tool invocation is not a tracked
+job, so neither an old observation nor a disconnected client proves that a job failed.
 
 ### Workflows and obligations
 
 `workflows.py` owns both readings of the updates the user has handed over: each
-unsettled update's workflow, whose `stage` reports its delivery, and each owed update's
+unsettled update's workflow, the evidence of its delivery, and each owed update's
 obligation record, which says who owes it a move. Its header says when each settles.
-The served list names each workflow's `thread` and whether the agent is `at_work` on
-it, which a fork of its conversation taking the update on sets before the stage moves
-(`forks.forked`), strongest first (`served_state.work.served_workflows`).
+`activity` says where each workflow stands, and each record stands where the strongest
+workflow serving it does. The served list names each workflow's `thread`, strongest
+first (`served_state.work.served_workflows`).
 
-`activity` adds a `condition` where evidence shows a stage has stopped, and keeps the
-durable stage:
+A workflow waits until a turn has taken it in (`seen`), and after, until the agent
+starts it. It is `running` while a start stands on it, while its reply streams in
+(reason `replying`), or once a fork of the agent's conversation has taken it on
+(`forks.forked`). It is `blocked` where evidence shows it has stopped moving:
 
-- `stale` delivery: still Sent past the pickup grace.
-- `ended` work: the exact turn the update was picked up in was seen to end, by its
-  close or the harness's record. It does not claim an interruption.
-- `stale` work: a Working start quiet past its lease, or a pickup in another or older
+- `undelivered`: no harness has carried it past the pickup grace.
+- `stopped`: the exact turn that took it in, or that started it, was seen to end, by
+  its close or the harness's record, with an answer still owed. It does not claim an
+  interruption.
+- `quiet`: a start unrenewed past its lease, or a pickup in another or older
   turn, or in one nothing has renewed within the working grace.
-- A provisional reply makes only the input its `responds` names Replying, and its own
-  state sets that input's condition: `stale` when disconnected, `interrupted`,
-  `failed`, or `ended` for a turn that completed without a final answer. `response`
-  names the delivery attempt.
+- `terminal`: the turn that started it waits on the user in the agent's own window.
+- A provisional reply moves only the input its `responds` names, by its own state:
+  `quiet` when disconnected, `interrupted`, `failed`, or `stopped` for a turn that
+  completed without a final answer. `response` names the delivery attempt.
 
-Browser notices read the current condition and its source, so an old failure is not
-news after a later answer, and stale work is not a failed response. These conditions
+Browser notices read the current standing and its source, so an old failure is not
+news after a later answer, and work gone quiet is not a failed response. These readings
 leave recovery with the agent. Only a terminal harness failure hands it to the user,
-through the failure answer `thread.fail_answer` writes.
+through the failure answer `thread.fail_answer` writes, which leaves the update
+`blocked` with reason `failed` and the user as its next actor.
 
 Each consumer selects its own obligations. `leaf page close` refuses over
 `activity.blocking_obligations`, and the Stop hook holds the turn over
@@ -107,8 +118,13 @@ is the agent's answer for now, and it does not carry into the next turn. Only th
 records the agent owes enter activity counts. Pickup never declares a status, and
 ending a turn settles none of its input.
 
-A start names one item and has to be renewed. What holds work across turns is the
-to-do itself, which no turn or session ending lapses (`todos.py`).
+A start names one item and has to be renewed: it is a lease on the item, held by the
+turn that wrote it. Work that outlives that turn, such as a delegate, a background
+command or a wait on CI, is whatever else holds the lease: another session's start, or
+the claimant's background work while its harness reports some. Such a job has no record
+of its own; its item reads `running` while the lease is renewed and `blocked` once it
+lapses (`standing.py`). What stays owed across turns is the to-do itself, which no turn
+or session ending lapses (`todos.py`).
 
 ### Turns and generations
 
@@ -121,7 +137,7 @@ record holds closed. `state.end_harness_instance` says
 which generations SessionEnd ends and which, such as a desktop Codex chat's or a
 background job's, outlive the harness instance.
 
-Where nothing answers for the declaration, activity reports the page `unheld`. A page
+Where nothing answers for the declaration, activity reports the agent `gone`. A page
 with a persistent service spends most of its life unheld, and picks up again when a
 session takes it.
 

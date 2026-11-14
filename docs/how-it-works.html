@@ -2440,7 +2440,7 @@ flowchart TD
             <p id="stages-lede">
               A label beside each comment or widget update records its delivery and
               handling. Leaf changes it only on recorded evidence and clears it when the
-              required answer arrives. Harnesses skip stages they do not report. Only On
+              required answer arrives. Harnesses skip steps they do not report. Only On
               it, Replying and Answered relay an act of the agent's own, so only they
               read in its voice; every other label is what Leaf observed of the update,
               set in italic.
@@ -2456,17 +2456,12 @@ flowchart TD
                 <tr id="stages-sent">
                   <td><em>Queued for Claude</em></td>
                   <td>
-                    No harness has queued the update or put it into the agent's turn.
-                    The label is the same while the browser is still sending it and once
-                    the server has added it to the page's event log. It names the page's
-                    agent and is set in italic, as Leaf's own words are, since the agent
-                    can't yet be saying anything about the update.
-                  </td>
-                </tr>
-                <tr id="stages-queued">
-                  <td><em>Up next</em></td>
-                  <td>
-                    Codex accepted the update's delivery as the task's next message.
+                    No harness has put the update into the agent's turn. The label is
+                    the same while the browser is still sending it, once the server has
+                    added it to the page's event log, and while Codex holds it as the
+                    task's next message. It names the page's agent and is set in italic,
+                    as Leaf's own words are, since the agent can't yet be saying
+                    anything about the update.
                   </td>
                 </tr>
                 <tr id="stages-picked">
@@ -2513,16 +2508,16 @@ flowchart TD
                 <tr id="stages-ended">
                   <td><em>Stopped</em></td>
                   <td>
-                    The turn the update was delivered into ended, or was interrupted,
-                    before the agent answered it.
+                    The turn the update was delivered into, or that started it, ended
+                    before the agent answered it, with no background work Claude Code
+                    reports still running.
                   </td>
                 </tr>
                 <tr id="stages-stale">
                   <td><em>Gone quiet</em></td>
                   <td>
-                    The agent's start on the update is 15 minutes old, or the turn that
-                    wrote it has ended with no background work Claude Code reports still
-                    running, and the agent has not started the update again since. A
+                    The agent's start on the update is 15 minutes old, and the agent has
+                    not started the update again since. A
                     <em>Delivered</em> update reads the same once nothing shows its turn
                     still running (no status, start, or step for 15 minutes), or once
                     the agent is in a later turn. On Codex App Server, so does a
@@ -2532,6 +2527,13 @@ flowchart TD
                 <tr id="stages-interrupted">
                   <td><em>Interrupted</em></td>
                   <td>Codex App Server stopped the turn before it answered.</td>
+                </tr>
+                <tr id="stages-terminal">
+                  <td><em>Waiting in the terminal</em></td>
+                  <td>
+                    The turn that started the update waits on an approval or a question
+                    in the agent's own window.
+                  </td>
                 </tr>
                 <tr id="stages-failed">
                   <td><em>Not answered</em></td>

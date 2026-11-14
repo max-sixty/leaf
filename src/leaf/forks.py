@@ -17,7 +17,7 @@ can act.
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment the hold
 starts, and while the line stands, the thread's waiting messages read On it
-(`forked`, which `served_state.work` serves as their workflows' `at_work`, so every
+(`forked`, which `activity` reads as a waiting update `running`, so every
 surface showing whether the agent is at work agrees), as the user chose
 on 2026-11-05. That word is all the fork changes: as a receipt's progress the line
 takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds

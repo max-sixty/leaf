@@ -10,32 +10,33 @@ import {
 } from "../../browser/runtime/contribution-controls.js";
 import { servedWorkflow } from "../served.mjs";
 
-const workflow = (stage, condition = null) =>
+// Where a workflow stands (`standing.py`), with the line the agent last wrote on it.
+const RUNNING = { state: "running" };
+const REPLYING = { state: "running", reason: "replying" };
+const DELIVERED = { state: "waiting", seen: true };
+const workflow = (standing) =>
   servedWorkflow({
-    id: `${stage}-workflow`,
-    stage,
-    // As the server stamps a workflow its session works on (`served_workflows`).
-    at_work: ["working", "replying"].includes(stage),
-    condition,
+    id: `${standing.state}-${standing.reason}-${standing.seen}-workflow`,
+    ...standing,
     detail: "Preparing an update",
   });
 
-test("margin workflow paint distinguishes live work from conditioned history", () => {
+test("margin workflow paint distinguishes live work from blocked work", () => {
   const control = document.createElement("button");
 
-  presentContributionReceipts(control, workflow("working"), false);
+  presentContributionReceipts(control, workflow(RUNNING), false);
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
 
   presentContributionReceipts(
     control,
-    workflow("working", { kind: "stale", operation: "work" }),
+    workflow({ state: "blocked", reason: "quiet", seen: true }),
     false,
   );
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
 
   presentContributionReceipts(
     control,
-    workflow("picked_up", { kind: "ended", operation: "work" }),
+    workflow({ state: "blocked", reason: "stopped", seen: true }),
     false,
   );
   assert.equal(control.hasAttribute("data-lf-agent-workflow"), false);
@@ -45,14 +46,14 @@ test("a reply streaming paints the working face under its own word", () => {
   // Threads says Replying for this receipt (`workflowWord`); the margin and Page Map
   // control carrying it says the same, under the face it shares with work.
   const control = document.createElement("button");
-  presentContributionReceipts(control, workflow("replying"), false);
+  presentContributionReceipts(control, workflow(REPLYING), false);
   assert.equal(control.getAttribute("data-lf-agent-workflow"), "working");
   assert.equal(
     control.getAttribute("aria-description"),
     "Replying · Preparing an update",
   );
-  presentContributionReceipts(control, workflow("picked_up"), false);
-  assert.equal(control.getAttribute("data-lf-agent-workflow"), "picked_up");
+  presentContributionReceipts(control, workflow(DELIVERED), false);
+  assert.equal(control.getAttribute("data-lf-agent-workflow"), "delivered");
   assert.equal(
     control.getAttribute("aria-description"),
     "Delivered · Preparing an update",
@@ -82,7 +83,7 @@ test("template contribution hosts paint the retained-host contract and are found
         behavior: "disclosure",
         relation: { kind: "entries", keys: ["detail"], expanded: true },
       }),
-      workflow("picked_up"),
+      workflow(DELIVERED),
       true,
     ],
     [
@@ -134,7 +135,7 @@ test("a refused widget move without a projection coordinate does not break the a
     .effective.workflows.find((item) => item.id === `rejected:${attempt}`);
   assert.equal(pending.coordinate, null);
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => undefined,
     openThread: () => {},
     goToObligation: () => {},

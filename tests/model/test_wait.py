@@ -36,6 +36,7 @@ from interact_support import (
     receive_through,
     record_claim,
     said,
+    served_todos,
     serving,
     vendored_at_another_protocol,
     wait_for,
@@ -254,8 +255,8 @@ def test_wait_preserves_the_work_in_hand_on_mid_work_output(page_dir, capsys):
     _, _, shown = delivered(capsys)
     assert [event["id"] for event in shown] == ["c1"]
     assert declared(page_dir) == before
-    [task] = page_state(page_dir)["browser"]["todos"]
-    assert task["running"]["text"] == "running the browser suite"
+    [task] = served_todos(page_state(page_dir)["browser"])
+    assert task["line"]["text"] == "running the browser suite"
 
 
 def test_a_wait_watches_a_stopped_server_until_its_page_ends(
@@ -427,7 +428,8 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     _, batch, shown = woken(waited.output)
     assert batch["page"] == str(page_dir.resolve())
     assert [event["id"] for event in shown] == [comment["id"]]
-    assert activity_reading(copy)["kind"] == "listening"
+    copied = activity_reading(copy)
+    assert (copied["presence"], copied["state"]) == ("here", "done")
 
 
 @pytest.mark.parametrize("wait", ["named", "session"])

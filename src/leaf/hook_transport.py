@@ -178,7 +178,8 @@ def status_reminders(session_id: str, plans: list["PagePlan"]) -> list[str]:
     lines = []
     for plan in plans:
         activity = plan.state["activity"]
-        if activity["kind"] != "working" or not activity["ts"]:
+        at_work = activity["state"] == "running" or activity["reason"] == "terminal"
+        if not at_work or not activity["ts"]:
             continue
         stood = now - datetime.fromisoformat(activity["ts"])
         if stood < STATUS_RENEWAL:

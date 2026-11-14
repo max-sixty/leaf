@@ -53,7 +53,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     }),
   ];
   const read = (acknowledging) =>
-    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], [], acknowledging)[0];
+    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], acknowledging)[0];
 
   const unread = read([]);
   assert.deepEqual(
@@ -95,7 +95,7 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
   );
   // A new thread, and a workflow that moved on in another, read again only theirs.
   const added = servedThread([agent("d", { kind: "comment" })]);
-  const moving = { ...workflows[1], stage: "picked_up" };
+  const moving = { ...workflows[1], seen: true };
   const next = read([...threads, added], NO_DOCUMENT, new Map(), [
     workflows[0],
     moving,
@@ -168,12 +168,11 @@ test("marking one thread read reads that thread's record again, and no other", (
     servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
   );
   const read = threadRecordReader();
-  const before = read(threads, NO_DOCUMENT, new Map(), [], [], [], []);
+  const before = read(threads, NO_DOCUMENT, new Map(), [], [], []);
   const after = read(
     threads,
     NO_DOCUMENT,
     new Map(),
-    [],
     [],
     [],
     [{ message: "a", version: "a" }],
@@ -253,6 +252,14 @@ test("an untitled thread goes by the words its opening renders, everywhere it is
   );
 });
 
+// The records the server publishes for a question the agent asked and for what an
+// update of the user's is owed, so a record made from them carries every field the
+// server sends.
+const ASKED = servedReading("question").browser.views["1"].obligations[0];
+const OWED = servedReading("queues on both sides").browser.views["1"].obligations.find(
+  ({ source, next_actor }) => source.kind === "update" && next_actor === "agent",
+);
+
 test("attention names the outstanding question rather than the latest message", () => {
   const question = agent("question", {
     kind: "comment",
@@ -262,66 +269,55 @@ test("attention names the outstanding question rather than the latest message", 
     text: "I also added the room number.",
     seq: 2,
   });
-  const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "obligation", workflow: null },
-  });
-  const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
+  const asked = {
+    ...ASKED,
+    id: "message:question",
+    source: { kind: "message", id: "question" },
+    thread: "question",
+    message: "question",
+  };
+  const source = servedThread([question, followup], { attention: asked.id });
+  const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), [], [asked]);
   const attention = threadAttention(thread, "Claude");
+  assert.equal(thread.attention, asked);
   assert.equal(attention.word.text, "Your turn");
+  // The record an update in the thread publishes, and the workflow it stands by.
+  const owed = (id, subject, changes) => ({
+    ...OWED,
+    id: `update:${id}`,
+    source: { kind: "update", id, subject },
+    thread: "question",
+    message: null,
+    workflow: id,
+    ...changes,
+  });
+  const handedBack = { next_actor: "user", state: "blocked", reason: "failed" };
+  const said = (record, workflows = []) =>
+    threadAttention({ ...thread, attention: record, workflows }, "Claude").word.text;
+  for (const [id, subject, word] of [
+    ["send", { kind: "thread", id: "question" }, "Send it again"],
+    ["move", { kind: "widget", id: "choice" }, "Try it again"],
+  ])
+    assert.equal(
+      said(owed(id, subject, handedBack), [
+        servedWorkflow({
+          id,
+          subject,
+          thread: "question",
+          state: "blocked",
+          reason: "failed",
+          seen: true,
+        }),
+      ]),
+      word,
+    );
+  // Owed by the agent with no workflow in the thread to say how it stands.
+  const inThread = { kind: "thread", id: "question" };
   assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "needs_user", reason: "resend", workflow: "send" },
-        workflows: [
-          servedWorkflow({
-            id: "send",
-            subject: { kind: "thread", id: "question" },
-            thread: "question",
-          }),
-        ],
-      },
-      "Claude",
-    ).word.text,
-    "Send it again",
-  );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "needs_user", reason: "resend", workflow: "move" },
-        workflows: [
-          servedWorkflow({
-            id: "move",
-            subject: { kind: "widget", id: "choice" },
-            thread: "question",
-          }),
-        ],
-      },
-      "Claude",
-    ).word.text,
-    "Try it again",
-  );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "waiting", reason: "uncertain", workflow: null },
-      },
-      "Claude",
-    ).word.text,
+    said(owed("gone", inThread, { state: "blocked", reason: "quiet" })),
     "Uncertain",
   );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "waiting", reason: "workflow", workflow: null },
-      },
-      "Claude",
-    ).word.text,
-    "Waiting",
-  );
+  assert.equal(said(owed("gone", inThread, { state: "waiting" })), "Waiting");
   assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);
 });
 

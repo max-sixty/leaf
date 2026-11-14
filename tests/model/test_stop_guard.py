@@ -74,7 +74,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
     obligation = {
         "input": "widget-action",
         "seq": 1,
-        "stage": "picked_up",
+        "queued": False,
         "answer": {
             "kind": "reply",
             "writer": "turn",
@@ -1124,13 +1124,19 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     )
     edited = state_json(claimed)
     [receipt] = edited["workflows"]
-    assert (receipt["input"], receipt["stage"], receipt["obligation"]) == (
-        edit["id"],
-        "sent",
-        None,
-    )
+    assert (
+        receipt["input"],
+        receipt["state"],
+        receipt["seen"],
+        receipt["obligation"],
+    ) == (edit["id"], "waiting", False, None)
     assert edited["activity"]["obligations"] == []
-    assert edited["activity"]["counts"]["total"] == 0
+    assert edited["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 0,
+    }
     picked = append_command(
         claimed,
         {
@@ -1145,7 +1151,12 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     state = state_json(claimed)
     [workflow] = owed(state)
     assert workflow["answer"] == {"kind": "markup", "action": picked["id"]}
-    assert state["activity"]["counts"]["total"] == 1
+    assert state["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 1,
+        "blocked": 0,
+        "unseen": 1,
+    }
 
     delivery = delivery_through(claimed, last_deliverable_seq(claimed))
     [batch] = delivery_model.read_delivery(delivery)["batches"]
@@ -1298,8 +1309,12 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     ticked = state_json(claimed)
     assert [item["widget"] for item in obligations_on_user(ticked)] == ["choice"]
     assert ticked["workflows"] == []
-    assert ticked["activity"]["counts"]["total"] == 0
-    assert ticked["activity"]["counts"]["pending"] == 0
+    assert ticked["activity"]["counts"] == {
+        "running": 0,
+        "waiting": 0,
+        "blocked": 0,
+        "unseen": 0,
+    }
 
     assert service_model.unacknowledged(events_model.read_events(claimed), 0) == []
     assert _stop(capsys) is None

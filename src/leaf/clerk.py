@@ -365,7 +365,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     threads = {thread["id"]: thread for thread in state["threads"]}
     obligations = {item["id"]: item for item in state["obligations"]}
-    todos = {todo["id"]: todo for todo in state["todos"]}
     updates = {workflow["id"]: workflow for workflow in state["workflows"]}
 
     # What each message asking a question says now, edits included: a question asked
@@ -400,10 +399,8 @@ def page_facts(state: dict, events: list) -> dict:
 
     def ended(record: dict) -> str | None:
         """How a question On Me no longer holds ended, or None while it stands."""
-        if record["status"] == "withdrawn":
-            return "dropped"
-        if record["status"] != "open":
-            return "answered"
+        if record["state"] == "done":
+            return "dropped" if record["outcome"] == "dropped" else "answered"
         if closer := (threads.get(record["thread"]) or {}).get("resolved"):
             return f"closed by the {closer} unanswered"
         return None
@@ -415,8 +412,9 @@ def page_facts(state: dict, events: list) -> dict:
     ]
     started = []
     for item, start in item_starts(events).items():
-        if todos.get(item, {}).get("state") == "open":
-            about = f'the agent\'s to-do "{todos[item]["title"]}"'
+        todo = obligations.get(item)
+        if todo and todo["source"]["kind"] == "todo" and todo["state"] != "done":
+            about = f'the agent\'s to-do "{todo["prompt"]["text"]}"'
         elif item in updates:
             subject = updates[item]["subject"]
             about = (

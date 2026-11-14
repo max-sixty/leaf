@@ -261,6 +261,7 @@ import { LeafElement } from "./leaf-element.js";
 import {
   RESOLVED,
   threadAttention,
+  inHand,
   todoWord,
   workflowStep,
   workflowWord,
@@ -301,6 +302,7 @@ import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
 import {
   carriesObligation,
   emptyOnList,
+  itemEnding,
   itemNoun,
   itemOutcome,
   onList,
@@ -3048,7 +3050,7 @@ export function createFloatingPanel({
         data-lf-key=${thread.key}
         ?data-lf-unread=${isNews(thread)}
         ?data-lf-resolved=${thread.resolved}
-        data-lf-turn=${attention?.kind === "needs_user" ? "user" : nothing}
+        data-lf-turn=${attention?.turn === "user" ? "user" : nothing}
         .lfPreview=${(/** @type {import("./preview.js").Route} */ route) =>
           threadPreview(
             [thread],
@@ -3507,17 +3509,28 @@ export function createFloatingPanel({
 
   // ---------- the plan ----------
   // What each state reads as to assistive tech, which hears no mark.
+  // A step's face: where it stands, and for a done one how it ended.
+  /** @param {import("../types/contract.js").ServedPlanStep} step */
+  const planFace = (step) =>
+    step.state === "done" ? (step.outcome ?? "done") : step.state;
   const PLAN_STATES = Object.freeze({
-    open: "Not started",
-    working: "Under way",
+    waiting: "Not started",
+    running: "Under way",
     done: "Done",
     failed: "Failed",
     dropped: "Dropped",
   });
+  // A blocked step says why in the word its item says on every other surface.
+  /** @param {import("../types/contract.js").ServedPlanStep} step */
+  const planWord = (step) =>
+    step.state === "blocked"
+      ? todoWord(step).text
+      : PLAN_STATES[step.state === "done" ? (step.outcome ?? "done") : step.state];
   const PLAN_MARKS = Object.freeze({
-    open: null,
+    waiting: null,
     done: "check",
-    working: "activity",
+    running: "activity",
+    blocked: null,
     failed: "cross",
     dropped: "subtract",
   });
@@ -3534,12 +3547,13 @@ export function createFloatingPanel({
   };
   /** @param {import("../types/contract.js").ServedPlanStep} step @returns {ReturnType<typeof html>} */
   function planStep(step) {
-    const mark = PLAN_MARKS[step.state];
-    return html`<li class="lf-fp-plan-step" data-lf-state=${step.state}>
-      <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
+    const face = planFace(step);
+    const mark = PLAN_MARKS[face];
+    return html`<li class="lf-fp-plan-step" data-lf-state=${face}>
+      <span class="lf-fp-plan-mark" role="img" aria-label=${planWord(step)}
         >${mark ? iconTemplate(mark, "lf-action-icon") : nothing}</span
       ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${
-        step.owner === "user" && step.state === "open"
+        step.next_actor === "user"
           ? html`<button
               type="button"
               ${offeredAction("inline", "lf-fp-plan-tag")}
@@ -3557,7 +3571,7 @@ export function createFloatingPanel({
             >
               On Me
             </button>`
-          : step.state === "working" && step.since
+          : step.state === "running" && step.since
             ? panelAge(step.since, { face: "lf-fp-plan-time" })
             : nothing
       }${
@@ -3620,11 +3634,11 @@ export function createFloatingPanel({
   // when.
   /** @param {PanelQueueItem} item */
   const workOn = (item) =>
-    item.kind === "todo"
+    item.obligation.source.kind === "todo"
       ? {
-          word: todoWord(item.todo.running),
-          line: item.todo.running ? agentSays(item.todo.running.text) : null,
-          since: item.todo.running?.ts ?? item.todo.ts,
+          word: todoWord(item.obligation),
+          line: item.obligation.line ? agentSays(item.obligation.line.text) : null,
+          since: item.obligation.line?.ts ?? item.obligation.ts ?? null,
         }
       : {
           word: workflowWord(item.workflow, agentName()),
@@ -3748,14 +3762,12 @@ export function createFloatingPanel({
     });
     const conversation = thread ?? carried[0]?.thread ?? null;
     // A carried question still waiting once the card's own is answered.
-    const waiting = carried.find(
-      ({ record: other }) => other.status === "open" && other.next_actor === "user",
-    );
+    const waiting = carried.find(({ record: other }) => other.next_actor === "user");
     // Where the thread's name stands for the item, it reads as Threads names the thread
     // (`threadHeading`).
     const heading =
       thread && title === threadName(thread) ? threadHeading(thread) : title;
-    const answered = record && record.status !== "open";
+    const answered = record && record.state === "done";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
         ? obligationView.choicesOf(record)
@@ -3800,11 +3812,13 @@ export function createFloatingPanel({
     let discussHere = true;
     // A finished item says how it ended and when: on its card, where its answers
     // stood, and on a line at the line's end, so the line's card holds Discuss.
-    if ("state" in item && !record)
+    const ending =
+      !record && item.obligation.state === "done" ? itemEnding(item) : null;
+    if (ending)
       answers = card
         ? html`<span class="lf-fp-said"
             >${voiced(itemOutcome(item))}${
-              item.ended ? html` ${panelAge(item.ended, { face: null })}` : nothing
+              ending.ended ? html` ${panelAge(ending.ended, { face: null })}` : nothing
             }</span
           >`
         : nothing;
@@ -3976,9 +3990,9 @@ export function createFloatingPanel({
       end = html`<span class="lf-fp-value"
         >${voiced(work.word ?? "")}${work.since ? html` ${panelAge(work.since)}` : nothing}</span
       >`;
-    } else if ("state" in item && !record)
+    } else if (ending)
       end = html`<span class="lf-fp-value"
-        >${voiced(itemOutcome(item))}${item.ended ? html` ${panelAge(item.ended)}` : nothing}</span
+        >${voiced(itemOutcome(item))}${ending.ended ? html` ${panelAge(ending.ended)}` : nothing}</span
       >`;
     else if (answered && !opened)
       end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
@@ -4204,10 +4218,10 @@ export function createFloatingPanel({
   // the agent has in hand, what is up next, and what it finished, folded under Done.
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
-    const inHand = lists.agent.filter((item) => item.live);
-    const queued = lists.agent.filter((item) => !item.live);
+    const held = lists.agent.filter((item) => inHand(item.obligation));
+    const queued = lists.agent.filter((item) => !inHand(item.obligation));
     const groups = [
-      { key: "in-hand", title: "In hand", items: inHand },
+      { key: "in-hand", title: "In hand", items: held },
       { key: "queued", title: "Up next", items: queued },
       { key: "done:agent", title: "Done", items: lists.done, folds: true },
     ].filter((group) => group.items.length);
@@ -4218,9 +4232,9 @@ export function createFloatingPanel({
     );
     return html`${opening.planShown ? planCards() : nothing}${
       layoutOf() === "summary"
-        ? workSummary(inHand, queued, lists.done)
+        ? workSummary(held, queued, lists.done)
         : html`${
-            inHand.length || queued.length
+            held.length || queued.length
               ? nothing
               : html`<p class="lf-rows-empty">${emptyListText(agentName())}</p>`
           }${groupedItems(groups, (item, group) =>
@@ -4269,8 +4283,8 @@ export function createFloatingPanel({
                 leafSays("Last done: "),
                 agentSays(excerptWords(queueTitle(last), 60)),
               ])}${
-                last.ended
-                  ? html`${voiced(leafSays(", "))}${panelAge(last.ended, { spoken: true, long: true })}`
+                itemEnding(last).ended
+                  ? html`${voiced(leafSays(", "))}${panelAge(/** @type {string} */ (itemEnding(last).ended), { spoken: true, long: true })}`
                   : nothing
               }${voiced(leafSays("."))}
             </p>`

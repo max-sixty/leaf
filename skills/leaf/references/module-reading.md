@@ -203,11 +203,11 @@ change (`module-authoring.md`, "Drawing what a widget reads").
 
 ### Reading obligations and the On lists
 
-An obligation is what a widget waits on the user for, or what an update the user
-handed over is owed; the On lists show each one under its next actor.
-`readObligations()` returns `{phase, all, user, unanswered}`: `all` holds every
-obligation whose source is still there, answered and withdrawn ones included, `user`
-the open obligations waiting on the user, and `unanswered` every open obligation,
+An obligation is what a widget waits on the user for, what an update the user
+handed over is owed, or a to-do the agent opened; the On lists show each one under its
+next actor. `readObligations()` returns `{phase, all, user, unanswered}`: `all` holds
+every obligation whose source is still there, answered and withdrawn ones included,
+`user` the open obligations waiting on the user, and `unanswered` every open obligation,
 including those with the agent. Each record looks like this:
 
 ```js
@@ -218,15 +218,27 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
-  next_actor: null,   // user | agent | null
+  end: null,          // how the agent ended it, where it did: {detail, event}
+  next_actor: null,   // whose move it is: user | agent | null
+  state: "done",      // waiting | running | blocked | done
+  reason: null,       // what the state leaves out, such as why it is blocked
+  outcome: "done",    // how a done one ended: done | failed | dropped
 }
 ```
 
+Every record says where it stands in those last four fields, the same words a thread,
+a plan step and the page's status use. An open one is `waiting` on its `next_actor`;
+one the agent has in hand is `running`; one that is owed while nothing moves it is
+`blocked`, with the `reason`: `stopped` or `interrupted` (its turn ended first),
+`quiet` (nothing has renewed it for a quarter of an hour), `undelivered` (no turn has
+taken it in), `terminal` (the agent's turn waits on the user in its own window) or
+`failed` (handed back to send again). A `done` one was answered when `outcome` is
+`done` and `end` is `null`, answered elsewhere when the agent's `end` stands in place of
+an answer, and withdrawn when `outcome` is `dropped`.
+
 A widget's obligation takes its answer and completion from its `x-awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
-show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
+show while it is open. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer;
 `prompt.text` is `null` for a widget with no heading and for an update. `thread`
 and `message` name the Thread and message of a widget inside a Thread. A user's answer
@@ -237,8 +249,8 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `outcome` is
+  `done` or `dropped` and `end.detail` says why.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
@@ -281,10 +293,12 @@ through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On Me and On <agent>. Each row has a `kind`, which is its obligation's
-`source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
-(with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
-obligation's row lists in `also` the ids of the other obligations the user answers at
-the same place, such as the agent's answer in a thread about it.
+`source.kind`, `todo` for a to-do of the agent's, the obligation itself as
+`obligation`, and an `owner`, `user` or `agent`, naming its list. The record says where
+the row stands: the agent has it in hand while its `state` is `running`, and a row in
+`done` ended as its `outcome` and `end` say. An obligation's row lists in `also` the ids
+of the other obligations the user answers at the same place, such as the agent's answer
+in a thread about it.
 `queueItemKey(row)` names a row across moves between lists, and `queueTitle(row)` gives
 its title. `queueActions.open(key)` goes to a row; an obligation is answered only
 through its widget or thread. Act on a collection only when its `phase` is `ready`.

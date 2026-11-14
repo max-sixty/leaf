@@ -28,7 +28,7 @@ def test_live_response_evidence_keeps_its_attempt_without_text(page_dir):
             "interrupted",
         )
     [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["condition"] == {"kind": "interrupted", "operation": "response"}
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "interrupted")
     assert workflow["response"] == {
         "state": "interrupted",
         "turn": "turn-1",
@@ -52,7 +52,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     )
 
     [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["condition"] == {"kind": "failed", "operation": "response"}
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     assert workflow["response"] == {
         "id": failure["id"],
         "attempt": "response-attempt",

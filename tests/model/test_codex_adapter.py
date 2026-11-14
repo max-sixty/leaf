@@ -195,9 +195,8 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert accepted == {"page": page_dir, "events": (comment["id"],)}
     assert acknowledged_through(page_dir) == 1
     activity = activity_reading(page_dir)
-    assert activity["kind"] == "working"
-    assert activity["dropped"] is False
-    assert activity["counts"]["handling"] == 1
+    assert (activity["state"], activity["reason"]) == ("running", None)
+    assert [item["handling"] for item in activity["obligations"]] == [True]
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
     [history] = (codex_state_model.delivery_dir("hosted-thread") / "history").glob(
         "*.json"
@@ -242,9 +241,13 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     }
     assert claim is not None
     assert claim["turn"] == first_turn
-    assert activity["counts"]["handling"] == 2
-    assert activity["counts"]["picked_up"] == 0
-    assert all(item["condition"] is None for item in interactions.values())
+    # Both are in the claimant's one running turn, which takes them in.
+    assert activity["state"] == "running"
+    assert activity["counts"] == {"running": 0, "waiting": 2, "blocked": 0, "unseen": 0}
+    assert all(
+        (item["state"], item["reason"], item["seen"]) == ("waiting", None, True)
+        for item in interactions.values()
+    )
 
 
 @pytest.mark.parametrize("ownership_transferred", [False, True])

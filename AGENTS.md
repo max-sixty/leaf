@@ -296,11 +296,12 @@ state. The log doesn't record them, so they live only as long as their DOM node:
 code that replaces a node carries that state to the new node, matched by the key
 the replacement already uses.
 
-Python decides where the agent's work stands: `activity.py` for the whole page,
-read by the Leaf panel, and `workflows.py` for each update
-the user handed over, read by messages, thread attention, margin entries and the
-Stop hook; thread attention also reads the user's outstanding obligations. A busy page
-doesn't mean every message is being worked on. The browser adds its own unsent
+Python decides where the agent's work stands, in the one vocabulary every record and
+surface reads (`standing.py`): whose move it is, and whether it is waiting, running,
+blocked or done. `activity.py` says it for the whole page, read by the Leaf panel, and
+for each obligation record and each update the user handed over (`workflows.py`), read
+by messages, thread attention, the On lists, margin entries and the Stop hook. A busy
+page doesn't mean every message is being worked on. The browser adds its own unsent
 gestures but never ages or reclassifies a workflow. Other pages read a page's
 activity only from the row `server_rows.py` writes and whether its server is
 alive.

@@ -249,7 +249,7 @@ function gatherConversations() {
       turn:
         threads
           .map((thread) => threadAttention(thread, agent))
-          .find((attention) => attention?.kind === "needs_user") ?? null,
+          .find((attention) => attention?.turn === "user") ?? null,
     };
     for (let at = /** @type {Element | null} */ (element); at; at = upFrom(at))
       add(inside, at, these);

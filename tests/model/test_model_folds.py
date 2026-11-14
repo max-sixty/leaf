@@ -12,7 +12,9 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
-from interact_support import page_packages, served_obligations
+from interact_support import page_packages, served_obligations, served_todos
+
+from leaf import standing as standing_model
 
 HUB = model.leaf_page(
     "command hub",
@@ -667,16 +669,8 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
         for workflow in state["workflows"]
     ] == [("e4", "e4", "update:e4"), ("e3", "e1", None)]
     threads = model.threads(state)
-    assert threads["e1"]["attention"] == {
-        "kind": "needs_user",
-        "reason": "obligation",
-        "workflow": None,
-    }
-    assert threads["e4"]["attention"] == {
-        "kind": "waiting",
-        "reason": "workflow",
-        "workflow": "e4",
-    }
+    assert threads["e1"]["attention"] == "message:e2"
+    assert threads["e4"]["attention"] == "update:e4"
 
 
 def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
@@ -735,7 +729,7 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
     state = add("reply", "second", parent="first", text="Hue?", obligation=True)
-    assert state["todos"] == []
+    assert served_todos(state) == []
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:first",
         "message:second",
@@ -755,14 +749,12 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["status"], first["answer"]) == ("withdrawn", None)
-    assert (second["status"], second["answer"]["event"]["id"]) == (
-        "answered",
-        "reaction",
-    )
+    assert (first["outcome"], first["answer"]) == ("dropped", None)
+    assert standing_model.answered(second)
+    assert second["answer"]["event"]["id"] == "reaction"
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
-    assert state["todos"] == []
+    assert served_todos(state) == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
@@ -792,12 +784,8 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]
-    assert thread["attention"] == {
-        "kind": "needs_user",
-        "reason": "obligation",
-        "workflow": None,
-    }
-    assert state["todos"] == []
+    assert thread["attention"] == "widget:routes"
+    assert served_todos(state) == []
     [item] = served_obligations(state)["all"]
     assert item["id"] == "widget:routes"
     assert item["next_actor"] == "user"
@@ -810,12 +798,10 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
         }
     )
     state = model.reading(HUB, events)
-    assert state["todos"] == []
+    assert served_todos(state) == []
     [item] = served_obligations(state)["all"]
-    assert (item["status"], item["answer"]["value"]) == (
-        "answered",
-        ["route-a"],
-    )
+    assert standing_model.answered(item)
+    assert item["answer"]["value"] == ["route-a"]
 
 
 def test_summary_protects_the_unanswered_obligation_after_later_agent_messages():

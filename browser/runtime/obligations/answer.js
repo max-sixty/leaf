@@ -9,7 +9,7 @@ import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
 import { hasObligationSource } from "./source.js";
 
-/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
+/** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update" | "todo"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
   tagsDeclaring((entry) => entry["x-awaits"]).join(","),
@@ -46,8 +46,8 @@ export function answerWords(item) {
    user (voice.js); the answer itself is the user's value, in the interface's face. */
 /** @param {AnswerableObligation} item */
 export function obligationEnding(item) {
-  if (item.status === "withdrawn") return leafSays("Withdrawn");
-  if (item.status === "answered_elsewhere") return leafSays("Answered elsewhere");
+  if (item.outcome === "dropped") return leafSays("Withdrawn");
+  if (item.end !== null) return leafSays("Answered elsewhere");
   const words = answerWords(item);
   return words ? [leafSays("Answered: "), words] : leafSays("Answered");
 }

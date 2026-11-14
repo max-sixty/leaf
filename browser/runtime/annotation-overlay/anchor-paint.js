@@ -29,7 +29,7 @@ import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
-import { pointRange } from "../preview.js";
+import { declareRanges, pointRange } from "../preview.js";
 import { renderedParent, shadowHost } from "../shadow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "../keeps.js";
@@ -408,6 +408,23 @@ export function createAnchorPaint({
   }
   /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
+  // A mark under a point beneath a preview, which the preview keeps clear of as it does
+  // a control, since a press there opens its thread (preview.js, `declareRanges`): the
+  // box of the mark's line there, or the element marked.
+  /** @param {number} x @param {number} y @param {Element} under */
+  function markBox(x, y, under) {
+    const where = markHit(x, y, under)?.where;
+    if (!where) return null;
+    if (!(where instanceof Range)) return where.getBoundingClientRect();
+    return (
+      [...where.getClientRects()].find(
+        (line) =>
+          x >= line.left && x <= line.right && y >= line.top && y <= line.bottom,
+      ) ?? where.getBoundingClientRect()
+    );
+  }
+  /** @type {(() => void) | null} */
+  let releaseMarks = null;
 
   // Index the marks where the hit test finds them (`inText`, `onElement`).
   function index() {
@@ -736,6 +753,7 @@ export function createAnchorPaint({
     mounted = true;
     document.addEventListener("pointermove", pointerAimed);
     document.addEventListener("pointerdown", pointerAimed);
+    releaseMarks = declareRanges(markBox);
   }
 
   function destroy() {
@@ -743,6 +761,8 @@ export function createAnchorPaint({
       document.removeEventListener("pointermove", pointerAimed);
       document.removeEventListener("pointerdown", pointerAimed);
     }
+    releaseMarks?.();
+    releaseMarks = null;
 
     mounted = false;
     if (pointed) pointRange(null);

@@ -25,10 +25,14 @@ a turn reads the message's delivery. A start would read as the session's turn,
 renewing it after an interrupt and holding the message at Working before the
 session had it, which hid it from the nudge and the overdue count.
 
-The fork thinks at `EFFORT` whatever the session's own effort, since every second it
-takes keeps the thread's messages from the session. The turn-end check's fork has an
-effort of its own (`clerk.EFFORT`), measured on its own work. Each falls back to the
-session's effort where the asked one cost the cache, as the clerk's header says. On 2026-11-09 low wrote
+The fork thinks at the session's own effort, and its prompt asks it to reply
+straight away without thinking it over, since every second it takes keeps the
+thread's messages from the session. A fork at another effort costs a rewrite of the
+conversation to the cache on backends without per-message effort, as the clerk's
+header says. From 2026-11-09 to 2026-11-14 it asked for `low`. On the eval's seven
+cases on 2026-11-14, a fork at xhigh asked to reply straight away passed 7, against
+the low fork's 6, writing 1.49 times its output (95% interval 0.91–2.44) in 1.09
+times its time (0.94–1.25). On 2026-11-09 low wrote
 lines as good as xhigh's. On 40 recorded thread messages, each replayed from its
 session's transcript (`notes/fork-replies.md`, "How well the fork judges"), a judge
 blind to the effort passed 35 lines at each effort and preferred low's on 19, xhigh's
@@ -37,8 +41,7 @@ five repeats. Neither effort thought on the recorded messages, so their output a
 time matched there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the
 eval's short conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s
 where a line took a median 1 s, and low over none, for 0.85 times xhigh's time
-(0.75–0.95). So low removes the occasional line xhigh spends seconds thinking over,
-and the line's time no longer depends on the session's effort.
+(0.75–0.95). So low removed the occasional line xhigh spent seconds thinking over.
 
 A thread's waiting messages are the user's messages since the agent's last answer in
 it, the newest of which owes the thread's answer. Each thread with waiting messages
@@ -85,11 +88,11 @@ was asked it, checked under the lock the append takes. The page's diagnostics
 (`interaction_log`) note whether admission held each thread message to a Claude Code
 session, and where not, whether its lane was up (`fork_hold`); each question as Leaf
 gives it to the module (`fork_asked`), so a fork that never answers shows; and every
-outcome (`fork_reply`), with the fork's tokens and time, the effort Claude Code
-reports it sent (`effort`), why Leaf refused its line where it did, and the request
+outcome (`fork_reply`), with the fork's tokens and time, why Leaf refused its line
+where it did, and the request
 it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts the
-conversation: to `sent` while `running` lists a call, else to `row`; its own
-`effort` is the session's), as the clerk's `turn_end_check` notes have it, which is
+conversation: to `sent` while `running` lists a call, else to `row`; its
+`effort` is the fork's), as the clerk's `turn_end_check` notes have it, which is
 what a later replay or audit scores. `leaf-dev timeline` reads them beside the
 session's transcript.
 `leaf-dev eval 'fork-reply*' --harness claude-code --base` scores a change to the
@@ -153,8 +156,6 @@ LANE_START = Record(
 
 # The words that open the fork's question, which the transcript carries.
 OPENING = "<leaf-fork-reply>"
-# How hard the fork thinks, whatever the session's effort (the header says why).
-EFFORT = "low"
 
 
 class Held(NamedTuple):
@@ -412,7 +413,6 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
             failed=payload.get("failed"),
             usage=payload.get("usage"),
             elapsed_ms=payload.get("elapsed_ms"),
-            effort=payload.get("effort"),
             running=payload.get("running") or [],
             request=payload.get("request"),
         )
@@ -421,7 +421,7 @@ def cmd_reply(session_id: str, payload: dict) -> dict | None:
 
 def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     """What to fork the conversation with for the thread `basis` names, as
-    `{"prompt", "thread", "effort"}`, or None once the thread is no longer held as
+    `{"prompt", "thread"}`, or None once the thread is no longer held as
     `basis` has it, or the page no longer the session's."""
     from .delivery import batch_data, current_responses
 
@@ -456,7 +456,7 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
             "running": [call["tool"] for call in running],
         },
     )
-    return {"prompt": reply_prompt(data, running), "thread": basis, "effort": EFFORT}
+    return {"prompt": reply_prompt(data, running), "thread": basis}
 
 
 def _running_line(running: list[dict]) -> str:
@@ -490,7 +490,7 @@ def reply_prompt(data: dict, running: list[dict]) -> str:
         ],
     }
     return f"""{OPENING}
-This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools. {_running_line(running)}
+This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools, and reply straight away without thinking it over. {_running_line(running)}
 
 The thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 {json.dumps(thread, ensure_ascii=False, indent=1)}
@@ -507,14 +507,12 @@ def take(
     failed: str | None,
     usage: dict | None = None,
     elapsed_ms: float | None = None,
-    effort: str | None = None,
     running: list[dict] | None = None,
     request: dict | None = None,
 ) -> dict:
     """Post the fork's answer as the agent's working line and hand the thread to the
     session, or hand it over bare where the fork failed (`failed`, its reason); what
-    came of it, recorded in the page's diagnostics with the effort Claude Code reports
-    it sent the fork at (`effort`)."""
+    came of it, recorded in the page's diagnostics."""
     line = (answer or "").strip()
     # TODO: where the message is self-contained, a fork that can act could do the
     # work itself rather than hand it over ("A fork that takes the work" in
@@ -532,7 +530,6 @@ def take(
             "running": running or [],
             **({"usage": usage} if usage else {}),
             **({"elapsedMs": elapsed_ms} if elapsed_ms is not None else {}),
-            **({"effort": effort} if effort is not None else {}),
             **({"request": request} if request else {}),
         },
     )

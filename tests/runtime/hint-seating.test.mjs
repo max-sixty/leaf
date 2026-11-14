@@ -165,19 +165,27 @@ test("a chip with no seat beside its own target is withheld", () => {
   ]);
 });
 
-test("adjacent footnote markers' chips all stand, stacked around the markers", () => {
+test("a run of targets narrower than a key gets no chips, and a walk onto one shows its own", () => {
+  // Adjacent footnote markers: no seat beside one says which of the three it names.
   const markers = [300, 308, 316].map((left) => box(left, 100, 8, 24));
-  const seated = seat(
-    markers.map((target) => ({ start: chip(target.left - 10, 92), target })),
+  const faces = markers.map((target) => ({
+    start: chip(target.left - 10, 92),
+    target,
+  }));
+  const seatedWith = (browsed) =>
+    seatHints(faces, { band: 2, viewport, browsed }).map(({ box }) => Boolean(box));
+  assert.deepEqual(seatedWith(undefined), [false, false, false]);
+  assert.deepEqual(seatedWith(faces[1]), [false, true, false]);
+});
+
+test("rows narrower than a key stacked one under another keep their chips", () => {
+  // As a contents list's marks are: they share no line, so none is bunched.
+  const marks = Array.from({ length: 5 }, (_, at) => box(100, 100 + 30 * at, 10, 20));
+  assert.ok(
+    seat(marks.map((target) => ({ start: chip(90, target.top - 8), target }))).every(
+      Boolean,
+    ),
   );
-  assert.ok(seated.every(Boolean), seated);
-  const boxes = seated.map(({ left, top }) => box(left, top, 20, 16));
-  for (const [at, one] of boxes.entries())
-    for (const other of boxes.slice(at + 1))
-      assert.ok(
-        one.bottom <= other.top || other.bottom <= one.top,
-        `${one.top} and ${other.top} collide`,
-      );
 });
 
 test("before-target chips stay outside the words, including when the window clamps them", () => {

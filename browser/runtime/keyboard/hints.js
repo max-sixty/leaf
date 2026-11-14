@@ -25,7 +25,8 @@
    that one, and its press would act on the wrong thing. In a list of rows shorter than
    a chip, every other row's corner chip steps out a column, level with its row, so every
    row keeps a chip where there is room beside the list. A chip with no seat at all is
-   withheld, and its member stays in the map, which the walk still reaches aloud. Where
+   withheld, as is each chip of a run of targets side by side too narrow to tell apart,
+   and its member stays in the map, which the walk still reaches aloud. Where
    seating in page order would withhold the chip the walk is on, that chip is seated
    first, so it shows wherever its target leaves room for one. A withheld chip's code
    still takes it, as every member's does. Until 11 November 2026 every chip was shown,
@@ -317,12 +318,12 @@ export function seatHints(
   // button does on the button to its left, or one stepped out of a column does on a
   // target beside the column. And it reads as the target whose rows are nearest its
   // middle among those in its column or its own target's, as in a list or a stack of
-  // controls; ties stand, as where a corner chip straddles two rows or footnote markers
-  // share an edge. A target around its own competes with neither, since its chip stands
+  // controls; ties stand, as where a corner chip straddles two rows or two targets share
+  // an edge. A target around its own competes with neither, since its chip stands
   // a step out (`nestOutsets`). So a chip in the gutter between two cards, level with its
   // own target's first line, reads as its own though the other card's edge is nearer its
   // middle. Nor may it stand further above or below its target than one more chip would
-  // fill, as the third of three footnote markers' chips does, stacked on the other two.
+  // fill, as a chip pushed past two others stacked over its target would.
   /** @param {HintBox} seat @param {HintFace} face */
   const readsAs = (seat, face) => {
     const own = face.target;
@@ -359,10 +360,31 @@ export function seatHints(
   // target runs on below it. In a list of rows shorter than a chip, it covers the row
   // above as much as its own, so wherever two rows' corner chips would collide, each
   // stands level with its own row instead (`level`). Rows sharing a column and no line
-  // are neighbours; a footnote marker beside another shares neither and stays on its
-  // corner.
+  // are neighbours; a target beside another shares neither and keeps its corner.
   /** @param {HintFace} face */
   const corner = (face) => (face.placement ?? "corner") === "corner";
+  // A target narrower than a key, with another as narrow beside it on its line less than
+  // a key away, as a film's slots in a narrow window or adjacent footnote markers are,
+  // gets no chip: no seat beside it says which of the run it names, and chips for a whole
+  // run bury it. A narrow target beside a wide one, as an icon beside a field, keeps its
+  // chip. Its member stays in the map, so its code still takes it and a walk onto it
+  // shows its chip. A key is a chip's height, one keycap. Rows stacked one under another,
+  // as in a contents list, share no line and keep their chips. Until 14 November 2026
+  // such a run's chips stacked or scattered around it.
+  /** @param {HintFace} face */
+  const bunched = ({ start, target }) =>
+    target.width < start.height &&
+    targets.some(
+      (other) =>
+        other !== target &&
+        other.width < start.height &&
+        !sameBox(other, target) &&
+        !encloses(other, target) &&
+        !encloses(target, other) &&
+        other.top < target.bottom &&
+        target.top < other.bottom &&
+        Math.max(other.left - target.right, target.left - other.right) < start.height,
+    );
   /** @param {import("../rect.js").Box} one @param {import("../rect.js").Box} other */
   const rowNeighbours = (one, other) =>
     overlapsAcross(one, other) && (one.bottom <= other.top || other.bottom <= one.top);
@@ -446,6 +468,7 @@ export function seatHints(
   };
   /** @param {typeof measured[number]} measuredFace @param {Map<T, HintBox | null>} placed */
   const seatOne = ({ face, seated, ownTarget, clamped, column }, placed) => {
+    if (face !== browsed && bunched(face)) return null;
     /** @param {HintBox} seat */
     const barriersAcross = (seat) => [
       ...fixedBarriers.filter((other) => overlapsAcross(other, seat)),

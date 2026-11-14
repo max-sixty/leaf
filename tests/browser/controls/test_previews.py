@@ -22,6 +22,8 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     back_gesture,
+    clocked,
+    dwelt,
     leaf_page,
     long_press,
     margins_laid_out,
@@ -31,7 +33,6 @@ from render_harness import (
     post_event,
     preview_parts,
     preview_text,
-    primed,
     put_preview_away,
     resized,
     tab_onto,
@@ -42,31 +43,6 @@ from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
 
 PREVIEW = "#lf-preview"
-# The timers that decide a preview (runtime/preview.js): a resting pointer's dwell,
-# which a pointer that leaves its target for nothing also waits out before the preview
-# goes; the warmth after one goes, inside which the next shows at once; and a finger's
-# hold, where the engine says nothing as a press grows long.
-DWELL = 200
-WARM = 400
-HOLD = 500
-
-
-def clocked(browser):
-    """`browser`, opening each page on a clock the test runs forward (`dwelt`),
-    installed before navigation so that every timer the runtime sets, and every
-    `performance.now` it reads, is the clock's. Otherwise the clock keeps real time."""
-    return primed(browser, lambda page: page.clock.install())
-
-
-def dwelt(page, ms=DWELL):
-    """Wait until every preview timer the input so far set, `ms` long or shorter, has
-    fired, whatever the machine's speed: the repaints that set some of them first, then
-    the page's clock run `ms` forward, then the repaints the timers queued."""
-    rendered(page)
-    page.clock.run_for(ms)
-    rendered(page)
-
-
 # Every box the thread draws, and the preview's own, where the page stands them.
 BOXES = """() => [...document.querySelectorAll(
     '.lf-fp-view[data-lf-route=thread] *, .lf-fp-row *')]
@@ -515,7 +491,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
 
     # Held past `HOLD`, the finger still reads nothing before the long press.
     touch("touchStart")
-    dwelt(page, HOLD)
+    dwelt(page, "HOLD")
     expect(preview).to_be_hidden()
     assert long_press(page, point) is False, "the platform's menu opened"
     expect(preview).to_be_visible()
@@ -1811,7 +1787,7 @@ def _reads(page, selector, words):
     page.mouse.move(2, 2)
     # Past the last preview's going and the warmth after it, so the words are read
     # after a dwell, as by a pointer that comes to them afresh.
-    dwelt(page, DWELL + WARM)
+    dwelt(page, "DWELL", "WARM")
     page.mouse.move(at["x"], at["y"], steps=3)
     dwelt(page)
     return tip.locator(".lf-preview-word").inner_text() if tip.is_visible() else None
@@ -2838,7 +2814,7 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
         expect(tip).to_be_hidden()
 
     touch("touchStart")
-    dwelt(page, HOLD)
+    dwelt(page, "HOLD")
     expect(tip).to_be_hidden()
     assert long_press(page, point) is False, "the platform's menu opened"
     expect(tip).to_be_visible()
@@ -2862,7 +2838,7 @@ def test_a_finger_s_hold_reads_and_its_release_presses_nothing(browser, serve):
     page.evaluate("() => { delete window.GestureEvent; }")
 
     touch("touchStart")
-    dwelt(page, HOLD)
+    dwelt(page, "HOLD")
     touch("touchEnd")
     page.wait_for_function("location.hash === '#far'")
     expect(tip).to_be_hidden()

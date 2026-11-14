@@ -2642,6 +2642,33 @@ def primed(browser, prepare):
     return SimpleNamespace(new_page=new_page, version=getattr(browser, "version", ""))
 
 
+def clocked(browser):
+    """`browser`, opening each page on a clock the test runs forward (`dwelt`),
+    installed before navigation so that every timer the runtime sets, and every
+    `performance.now` it reads, is the clock's. Otherwise the clock keeps real time."""
+    return primed(browser, lambda page: page.clock.install())
+
+
+def dwelt(page, *timers):
+    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/preview.js:
+    `DWELL` by default, `WARM`, `HOLD`) have run one after another and what they
+    decided has drawn, whatever the machine's speed: the repaints that set them, then
+    the page's clock run forward by their sum as the page's runtime states them, then
+    the repaints they queued. The page's clock is installed (`clocked`, or on its
+    context)."""
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate(
+            """async (names) => {
+              const {PREVIEW_TIMERS} = await window.__lfCheckApi();
+              return names.reduce((sum, name) => sum + PREVIEW_TIMERS[name], 0);
+            }""",
+            list(timers or ("DWELL",)),
+        )
+    )
+    rendered(page)
+
+
 @pytest.fixture
 def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.

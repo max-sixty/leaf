@@ -14,13 +14,14 @@ from render_cases_widgets import (
 )
 from render_harness import (
     PREVIEW,
+    clocked,
     consume_browser_errors,
+    dwelt,
     leaf_page,
     long_press,
     names,
     open_page,
     plant_quiet_word,
-    primed,
     resized,
 )
 
@@ -750,25 +751,11 @@ def said(page):
     ]
 
 
-# Past the longest a preview waits on its clock before it decides (preview.js): a
-# pointer's rest and its leaving, `DWELL`, 200 ms, and a finger's hold where the engine
-# says nothing, `HOLD`, 500 ms.
-PREVIEW_WAITS_MS = 600
-
-
-def clocked(browser):
-    """`browser`, each page it opens on a clock the test runs (`waited_out`)."""
-    return primed(browser, lambda page: page.clock.install())
-
-
 def waited_out(page):
     """Wait until each preview decision the input so far set going has been made and
-    drawn, however slowly this machine runs: the input taken in, the page's clock run
-    past every wait a preview decides after, and what those decisions drew. The page's
-    clock is installed, by `clocked` or on its context."""
-    render_checks_model.rendered(page)
-    page.clock.run_for(PREVIEW_WAITS_MS)
-    render_checks_model.rendered(page)
+    drawn: the page's clock run past both waits a chart's preview decides after, a
+    pointer's rest or leaving (`DWELL`) and a finger's hold (`HOLD`)."""
+    dwelt(page, "DWELL", "HOLD")
 
 
 def column(page, chart, week, height=0.15):

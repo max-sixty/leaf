@@ -10,11 +10,12 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     RELEASE_FOCUS,
+    clocked,
+    dwelt,
     leaf_page,
     open_page,
     open_threads,
     preview_parts,
-    primed,
     resized,
     scroll_settled,
     told,
@@ -1313,7 +1314,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     section; the changes view draws each changed section as its stretch of the spine or
     the rule. No mark moves a row or stands among its words."""
     page = open_page(
-        primed(browser, lambda page: page.clock.install()),
+        clocked(browser),
         serve(named_source("sidebar-contents")),
     )
     toc = page.locator("lf-toc")
@@ -1352,11 +1353,8 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     # The map reveals the label from its spine.
     page.mouse.move(access_box["x"] + 4, access_box["y"] + 4)
     access.hover()
-    # Once the hover is taken in, the page's clock runs past the rest a pointer's
-    # preview waits for (preview.js, `DWELL`, 200 ms), and what the rest decided draws.
-    rendered(page)
-    page.clock.run_for(600)
-    rendered(page)
+    # The page's clock runs past the rest a pointer's preview waits for.
+    dwelt(page)
     expect(page.locator("#lf-preview")).to_be_hidden()
 
     append_command(

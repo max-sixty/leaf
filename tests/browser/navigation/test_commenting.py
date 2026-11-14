@@ -752,32 +752,38 @@ def test_c_pressed_as_a_walk_glides_to_a_card_replies_in_it(browser, serve):
     assert page.evaluate("scrollY") == pytest.approx(landing, abs=2)
 
 
-def test_c_pressed_as_g_g_carries_focus_away_comments_where_g_g_lands(browser, serve):
+def test_keys_pressed_as_g_g_sets_off_act_where_g_g_lands(browser, serve):
     """`g g` glides the page to its top, carrying the control the user stood on out of
-    view. A `c` pressed once it has left acts from what the user sees, as it does once
-    the glide has landed, so it opens the panel's comment at the top, rather than
-    taking the page back down to comment on the control the glide left."""
+    view. A key pressed as it sets off, with the control still on screen, acts as it
+    does once the glide has landed: `c` opens the panel's comment at the top, rather
+    than a comment box on the control that the glide carries off screen with focus in
+    it, and Tab carries on from the page's top, rather than from the control."""
     page = open_page(
         browser,
         serve(
             LONG_PAGE.replace(
+                "<p id='p1'>Paragraph 1.",
+                "<p id='p1'>Paragraph 1. <a href='#p1'>The top link</a>",
+            ).replace(
                 "<p id='p41'>Paragraph 41.",
                 "<p id='p41'>Paragraph 41. <a href='#p41'>A link</a>",
             )
         ),
     )
     link = page.locator("#p41 a")
-    link.focus()
-    scroll_settled(page)
-    page.keyboard.press("g")
-    page.keyboard.press("g")
-    page.wait_for_function(
-        "document.querySelector('#p41 a').getBoundingClientRect().top > innerHeight"
-    )
-    page.keyboard.press("c")
-    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == pytest.approx(0, abs=2)
+    for key, lands in (
+        ("c", page.locator('.lf-fp-field leaf-text[name="comment"]')),
+        ("Tab", page.locator("#p1 a")),
+    ):
+        link.focus()
+        scroll_settled(page)
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(lands).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == pytest.approx(0, abs=2)
+        page.keyboard.press("Escape")
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):

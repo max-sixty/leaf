@@ -271,19 +271,25 @@ def agent_command(sid: str, payload: dict) -> dict | None:
         return None
     if agent_turn_of(sid, agent) is None and _awaits_agent(sid):
         return _denied(
+            sid,
+            agent,
+            given["command"],
             "Leaf is starting a turn for an agent of this session and can't yet tell "
-            "whether this command is that agent's; run the same command again."
+            "whether this command is that agent's; run the same command again.",
         )
     if not agent_known(sid, agent):
         return None
     if leading is None or words != [leading.end() - len("leaf")]:
         return _denied(
+            sid,
+            agent,
+            given["command"],
             "Run each `leaf` command as a Bash call of its own, beginning with "
             "`leaf`, with no other `leaf` anywhere in the call: Leaf marks only a "
             "leading `leaf` as this agent's, and any other may act as the main "
             "thread's. To post text, or run code, that names `leaf`, write it to a "
             "file with the Write tool and pass that file; to search for the word, "
-            "use the Grep tool."
+            "use the Grep tool.",
         )
     command = (
         given["command"][: leading.end()]
@@ -298,9 +304,14 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     }
 
 
-def _denied(reason: str) -> dict:
-    """Claude Code's PreToolUse answer that denies the call, with `reason`, which
-    the agent reads."""
+def _denied(sid: str, agent: str, command: str, reason: str) -> dict:
+    """Claude Code's PreToolUse answer that denies `agent`'s call of `command`, with
+    `reason`, which the agent reads. The command never runs, so it leaves no
+    `leaf_command` record; the denial is noted in each page the session holds
+    instead (`interaction_log.record_denial`)."""
+    from .interaction_log import record_denial
+
+    record_denial(owned_pages(sid), sid, agent, command, reason)
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -418,16 +429,27 @@ def cmd_pages(payload: dict) -> None:
     session running a checkout's Leaf under the installed copy's module, which read
     them under another name, kept back every thread message for the whole bound with
     no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
-    back, and the session's messages reach it as they would without forks."""
+    back, and the session's messages reach it as they would without forks.
+
+    The follower notes its verdict once in each page it holds
+    (`interaction_log.record_follower`): whether the module asked for forks, the
+    module's digest, and whether that module is this Leaf's. So a message admission
+    found with no lane (`forks.kept_from_main_at_admission`) says whether forks were
+    off, the module stale, or the follower that held the lane gone
+    (`leaf-dev timeline`)."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         print("[]", flush=True)
         return
 
+    from .interaction_log import record_follower
     from .presence import PRESENCE_CACHE_S, live_leaves
     from .session_runtime import module_current
 
-    forking = bool(payload.get("forks")) and module_current(payload.get("module"))
+    asked, current = bool(payload.get("forks")), module_current(payload.get("module"))
+    forking = asked and current
+    # The pages this follower has noted its verdict in, each once.
+    noted: set = set()
     if forking:
         from .file_changes import FileChanges, page_changes, wait
         from .forks import lane_path, take_lane
@@ -446,6 +468,14 @@ def cmd_pages(payload: dict) -> None:
                 # EX_TEMPFAIL: the module starts it again, under that Leaf.
                 raise SystemExit(os.EX_TEMPFAIL)
             held = {page.resolve() for page in owned_pages(sid)}
+            record_follower(
+                sorted(held - noted),
+                sid,
+                module=payload.get("module"),
+                forks=asked,
+                current=current,
+            )
+            noted |= held
             leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
             # keeps only for its most recent pages unless held.

@@ -1316,6 +1316,9 @@ def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
     ran = CliRunner().invoke(cli_model.cli, shlex.split(marked)[1:])
     assert ran.exit_code != 0
     assert "agent-1's turn has ended" in ran.output
+    # Its record in the page says it was refused, not answered.
+    [command] = read_interactions(claimed, types=("leaf_command",))
+    assert "agent-1's turn has ended" in command["refused"]
     assert hook_answer(capsys, reply, "agent-9", "u2") is None
 
 
@@ -1396,6 +1399,14 @@ def test_a_forks_leaf_command_waits_until_leaf_knows_its_agent(
     waiting = hook_answer(capsys, reply, "agent-1", "spawning")
     assert waiting is not None and waiting["permissionDecision"] == "deny"
     assert "run the same command again" in waiting["permissionDecisionReason"]
+    # The command never runs, so the page notes the denial in its place.
+    [denied] = read_interactions(claimed, types=("command_denied",))
+    assert (denied["session"], denied["agent"], denied["command"]) == (
+        "s1",
+        "agent-1",
+        reply,
+    )
+    assert denied["reason"] == waiting["permissionDecisionReason"]
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
@@ -1763,7 +1774,8 @@ def test_a_follower_for_another_copies_module_keeps_nothing_back(
     Leaf, and that module may read kept-back threads by an older contract, so a
     follower whose module's source, as it loaded, isn't this Leaf's takes no lane
     and keeps nothing back: the session's messages reach it as they would without
-    forks."""
+    forks. It notes that verdict once in the page, however often it reads, so the
+    page says why no message had a lane."""
     older = (state_model.PLUGIN_ROOT / "hooks" / "claude-code.ts").read_bytes()
     stale = hashlib.sha256(older + b"\n// an older contract\n").hexdigest()
     serving(claimed, 1)
@@ -1772,9 +1784,13 @@ def test_a_follower_for_another_copies_module_keeps_nothing_back(
     class Stopped(Exception):
         pass
 
+    slept = []
+
     def sleep(_seconds):
         assert forks_model.lane_since("s1") is None
-        raise Stopped
+        if slept:
+            raise Stopped
+        slept.append(True)
 
     def wait(_marks, _timeout):
         raise AssertionError("the follower took the lane and waits on its pages")
@@ -1785,6 +1801,13 @@ def test_a_follower_for_another_copies_module_keeps_nothing_back(
         hooks_model.cmd_pages({**FOLLOWER, "module": stale})
     [listed] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert "kept_back" not in listed[0]
+    [noted] = read_interactions(claimed, types=("follower",))
+    assert (noted["session"], noted["module"], noted["forks"], noted["current"]) == (
+        "s1",
+        stale,
+        True,
+        False,
+    )
 
 
 @pytest.mark.parametrize("moved", ["selected", "protocol", "removed"])

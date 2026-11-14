@@ -233,7 +233,9 @@ class LeafGroup(click.Group):
             from leaf.interaction_log import record_command
 
             record_command(
-                invocation.get("leaf_command", ""), agent=invocation.get("agent")
+                invocation.get("leaf_command", ""),
+                agent=invocation.get("agent"),
+                refused=invocation.get("refused"),
             )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
@@ -249,6 +251,8 @@ class LeafGroup(click.Group):
             }
             if isinstance(error, click.UsageError) and error.ctx is not None:
                 said["usage"] = error.ctx.get_usage().removeprefix("Usage: ")
+            # The command's diagnostics say it was refused (`record_command`).
+            extra["obj"]["refused"] = said["error"]
             print(json.dumps(said, ensure_ascii=False), file=sys.stderr)
             sys.exit(error.exit_code)
         except click.Abort:

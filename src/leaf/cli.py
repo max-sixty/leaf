@@ -4,9 +4,11 @@ Every command speaks JSON, since agents are its only readers: its result on stdo
 one JSON value (a record per line for a write), and anything said beside it on
 stderr, one JSON object per line. That is a note, a finding (`findings.note`), or a
 refusal ending the command, `{"error", "findings"}` (`LeafGroup`). So a reader that
-merges the streams still parses every line, one that pipes stdout alone still sees
-what was said beside it, and a refusal never reads as a result. `--help`, `--version`
-and `--root` print text, and `package run` prints what its script does.
+pipes stdout alone still sees what was said beside it, and a refusal never reads as a
+result. stderr also carries whatever the launcher, the interpreter and Leaf's
+dependencies print, such as a warning, a traceback or a library's log record, so a
+reader of stderr takes the lines that are JSON objects. `--help`, `--version` and
+`--root` print text, and `package run` prints what its script does.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
 returns, so every result has one presentation and a `cmd_*` function answers its

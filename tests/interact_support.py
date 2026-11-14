@@ -2629,13 +2629,15 @@ def words(output: str) -> str:
 
 def said(stderr: str) -> list[dict]:
     """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
+    (`cli`), its words as `Prose`. Other lines there are the runtime's or a
+    dependency's."""
     return [
         {
             key: Prose(value) if key in ("text", "error") else value
             for key, value in json.loads(line).items()
         }
         for line in stderr.splitlines()
+        if line.startswith("{")
     ]
 
 

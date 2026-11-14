@@ -60,7 +60,6 @@ names the limit, so the process notices its changes later rather than exiting.
 """
 
 import errno
-import logging
 import os
 import sys
 import threading
@@ -408,11 +407,6 @@ def _handler(native: _Native) -> "FileSystemEventHandler":
 
 
 _native = _Native()
-
-# watchdog logs without a handler of its own, so logging's last-resort handler would
-# print its records on stderr. On Linux it logs an error whenever a sweep unschedules
-# a directory just as an event for it arrives, which loses nothing.
-logging.getLogger("watchdog").addHandler(logging.NullHandler())
 
 
 # The limits each refusal can mean. watchdog raises the kernel's errno: inotify_init

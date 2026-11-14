@@ -250,8 +250,8 @@ export function createView(host) {
               class="margin-entry-gallery-disclosure"
               ${mark}
               ${ref((node) => {
-              if (node) entry.disclosure = node;
-            })}
+                if (node) entry.disclosure = node;
+              })}
               id=${`${key}-disclosure`}
               ?hidden=${!sample.expanded}
               >${sample.reveals}</span

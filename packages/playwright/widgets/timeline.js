@@ -534,27 +534,27 @@ export class RecordingTimeline {
                 model.moments.length
                   ? html`<div class="lf-trace-lane lf-trace-lane-moments">
                       ${this.#labels.moments.map(
-                      (cluster, index) =>
-                        html`<span
-                          class="lf-trace-moment-pin lf-on-axis"
-                          ?data-lf-flip=${cluster.flip}
-                          data-lf-pick="moments"
-                          data-lf-id=${cluster.items[0].id}
-                          data-lf-cluster=${index}
-                          .lfPreview=${saidOfAll(cluster.items, "moments")}
-                          ?data-lf-current=${cluster.items.some((item) => item.current)}
-                          style="--lf-axis-at: ${fraction(
-                            cluster.items[0].at,
-                          )}; max-inline-size: ${this.#labelRoom(
-                            this.#labels.moments,
-                            index,
-                            cluster,
-                          )}"
-                          ><span class="lf-trace-moment-flag"
-                            >${this.#labelWords(cluster, "moments")}</span
-                          ></span
-                        >`,
-                    )}
+                        (cluster, index) =>
+                          html`<span
+                            class="lf-trace-moment-pin lf-on-axis"
+                            ?data-lf-flip=${cluster.flip}
+                            data-lf-pick="moments"
+                            data-lf-id=${cluster.items[0].id}
+                            data-lf-cluster=${index}
+                            .lfPreview=${saidOfAll(cluster.items, "moments")}
+                            ?data-lf-current=${cluster.items.some((item) => item.current)}
+                            style="--lf-axis-at: ${fraction(
+                              cluster.items[0].at,
+                            )}; max-inline-size: ${this.#labelRoom(
+                              this.#labels.moments,
+                              index,
+                              cluster,
+                            )}"
+                            ><span class="lf-trace-moment-flag"
+                              >${this.#labelWords(cluster, "moments")}</span
+                            ></span
+                          >`,
+                      )}
                     </div>`
                   : nothing
               }
@@ -562,54 +562,54 @@ export class RecordingTimeline {
                 model.inputs.length
                   ? html`<div class="lf-trace-lane lf-trace-lane-input">
                       ${this.#labels.input.map(
-                      (cluster, index) =>
-                        html`<span
-                          class="lf-trace-input-label lf-on-axis"
-                          ?data-lf-flip=${cluster.flip}
-                          data-lf-pick="input"
-                          data-lf-id=${cluster.items[0].id}
-                          data-lf-cluster=${index}
-                          .lfPreview=${saidOfAll(cluster.items, "inputs")}
-                          style="--lf-axis-at: ${fraction(
-                            cluster.items[0].at,
-                          )}; max-inline-size: ${this.#labelRoom(
-                            this.#labels.input,
-                            index,
-                            cluster,
-                          )}"
-                          >${this.#labelWords(cluster, "input")}</span
-                        >`,
-                    )}
+                        (cluster, index) =>
+                          html`<span
+                            class="lf-trace-input-label lf-on-axis"
+                            ?data-lf-flip=${cluster.flip}
+                            data-lf-pick="input"
+                            data-lf-id=${cluster.items[0].id}
+                            data-lf-cluster=${index}
+                            .lfPreview=${saidOfAll(cluster.items, "inputs")}
+                            style="--lf-axis-at: ${fraction(
+                              cluster.items[0].at,
+                            )}; max-inline-size: ${this.#labelRoom(
+                              this.#labels.input,
+                              index,
+                              cluster,
+                            )}"
+                            >${this.#labelWords(cluster, "input")}</span
+                          >`,
+                      )}
                       ${repeat(
-                      model.inputs.filter((input) => input.send !== null),
-                      (input) => input.id,
-                      (input) =>
-                        html`<span
-                          class="lf-trace-input-send lf-on-axis"
-                          data-lf-pick="input"
-                          data-lf-id=${input.id}
-                          .lfPreview=${said(input.tip)}
-                          ?data-lf-current=${input.current}
-                          style="--lf-axis-at: ${fraction(input.send)}"
-                        ></span>`,
-                    )}
+                        model.inputs.filter((input) => input.send !== null),
+                        (input) => input.id,
+                        (input) =>
+                          html`<span
+                            class="lf-trace-input-send lf-on-axis"
+                            data-lf-pick="input"
+                            data-lf-id=${input.id}
+                            .lfPreview=${said(input.tip)}
+                            ?data-lf-current=${input.current}
+                            style="--lf-axis-at: ${fraction(input.send)}"
+                          ></span>`,
+                      )}
                       ${repeat(
-                      model.inputs,
-                      (input) => input.id,
-                      (input) =>
-                        html`<span
-                          class="lf-trace-bar lf-trace-input-bar lf-on-axis"
-                          data-lf-pick="input"
-                          data-lf-id=${input.id}
-                          .lfPreview=${said(input.tip)}
-                          ?data-lf-current=${input.current}
-                          ?data-lf-active=${input.active}
-                          style="--lf-axis-at: ${fraction(input.start)}; --d: ${length(
-                            input.start,
-                            input.end,
-                          )}"
-                        ></span>`,
-                    )}
+                        model.inputs,
+                        (input) => input.id,
+                        (input) =>
+                          html`<span
+                            class="lf-trace-bar lf-trace-input-bar lf-on-axis"
+                            data-lf-pick="input"
+                            data-lf-id=${input.id}
+                            .lfPreview=${said(input.tip)}
+                            ?data-lf-current=${input.current}
+                            ?data-lf-active=${input.active}
+                            style="--lf-axis-at: ${fraction(input.start)}; --d: ${length(
+                              input.start,
+                              input.end,
+                            )}"
+                          ></span>`,
+                      )}
                     </div>`
                   : nothing
               }
@@ -620,24 +620,24 @@ export class RecordingTimeline {
                       style="--lf-trace-rows: ${this.#callRows}"
                     >
                       ${repeat(
-                      model.calls,
-                      (call) => call.id,
-                      (call) =>
-                        html`<span
-                          class="lf-trace-bar lf-trace-call-bar lf-on-axis"
-                          data-lf-pick="calls"
-                          data-lf-id=${call.id}
-                          .lfPreview=${said(call.tip)}
-                          ?data-lf-current=${call.current}
-                          ?data-lf-active=${call.active}
-                          ?data-lf-error=${call.error}
-                          style="--lf-axis-at: ${fraction(call.start)}; --d: ${length(
-                            call.start,
-                            call.end,
-                          )}; --row: ${this.#callRowOf.get(call.id) ?? 0}"
-                          ><span class="lf-trace-call-name">${call.label}</span></span
-                        >`,
-                    )}
+                        model.calls,
+                        (call) => call.id,
+                        (call) =>
+                          html`<span
+                            class="lf-trace-bar lf-trace-call-bar lf-on-axis"
+                            data-lf-pick="calls"
+                            data-lf-id=${call.id}
+                            .lfPreview=${said(call.tip)}
+                            ?data-lf-current=${call.current}
+                            ?data-lf-active=${call.active}
+                            ?data-lf-error=${call.error}
+                            style="--lf-axis-at: ${fraction(call.start)}; --d: ${length(
+                              call.start,
+                              call.end,
+                            )}; --row: ${this.#callRowOf.get(call.id) ?? 0}"
+                            ><span class="lf-trace-call-name">${call.label}</span></span
+                          >`,
+                      )}
                     </div>`
                   : nothing
               }

@@ -348,10 +348,10 @@ class RepoFeed extends LeafElement {
                     @click=${() => this.admit(freshCount)}
                   >
                     ${
-                    freshCount
-                      ? `${freshCount} new ${freshCount === 1 ? "story" : "stories"}`
-                      : "Show refreshed stream"
-                  }<span aria-hidden="true"> ↑</span>
+                      freshCount
+                        ? `${freshCount} new ${freshCount === 1 ? "story" : "stories"}`
+                        : "Show refreshed stream"
+                    }<span aria-hidden="true"> ↑</span>
                   </button>`
                 : html`<button
                     ${offered("feed-refresh")}
@@ -414,10 +414,10 @@ class RepoFeed extends LeafElement {
                 ? html`<button ${offered("feed-more")} @click=${() => this.more()}>
                       Keep wandering <span aria-hidden="true">↓</span></button
                     >${
-                    this.loading
-                      ? html`<p>Reading ahead for your next few finds…</p>`
-                      : nothing
-                  }`
+                      this.loading
+                        ? html`<p>Reading ahead for your next few finds…</p>`
+                        : nothing
+                    }`
                 : this.loading
                   ? html`<div class="feed-loading">
                       <span class="feed-loading-dots" aria-hidden="true"
@@ -447,12 +447,12 @@ class RepoFeed extends LeafElement {
                           </button>
                           <p>
                             ${
-                            this.readAheadPaused
-                              ? "No strong finds in that batch. Continue to explore another pair of repositories."
-                              : this.liveEnabled
-                                ? "More stories arrive as you scroll."
-                                : "Explore live with a GitHub connection and an active agent session."
-                          }
+                              this.readAheadPaused
+                                ? "No strong finds in that batch. Continue to explore another pair of repositories."
+                                : this.liveEnabled
+                                  ? "More stories arrive as you scroll."
+                                  : "Explore live with a GitHub connection and an active agent session."
+                            }
                           </p>`
           }
         </footer>

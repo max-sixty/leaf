@@ -379,20 +379,20 @@ export class TabSet extends LeafElement {
               (run) =>
                 html` <div class="lf-tab-run" role="none">
                   ${
-                  run.group
-                    ? html`<span
-                        class="lf-tab-group lf-rows-head"
-                        aria-hidden="true"
-                        ${generated({ says: true })}
-                        >${run.group}</span
-                      >`
-                    : nothing
-                }
+                    run.group
+                      ? html`<span
+                          class="lf-tab-group lf-rows-head"
+                          aria-hidden="true"
+                          ${generated({ says: true })}
+                          >${run.group}</span
+                        >`
+                      : nothing
+                  }
                   ${repeat(
-                  run.panels,
-                  (panel) => panel,
-                  (panel) => this.#tab(panel),
-                )}
+                    run.panels,
+                    (panel) => panel,
+                    (panel) => this.#tab(panel),
+                  )}
                 </div>`,
             )
           : repeat(
@@ -477,8 +477,8 @@ export class TabSet extends LeafElement {
               class="lf-tab-answer"
               aria-hidden="true"
               data-lf-obligations=${
-              answered ? "answered" : items.length ? "open" : nothing
-            }
+                answered ? "answered" : items.length ? "open" : nothing
+              }
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing

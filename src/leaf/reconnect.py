@@ -30,43 +30,48 @@ user's tab without a server until the agent acted. Of 18 Claude Code sessions to
 over 20 days, 6 acted at their next tool call and 4 never did.
 """
 
+import time
 from pathlib import Path
 
 from .event_log import initialized
 from .findings import Finding
-from .harness import HOOK_TIMEOUT_S, Harness
+from .harness import Harness
 from .refusals import Refused
 from .schema import PREVIEW_FILE
 from .service import claim_is_active, claim_records, prepare_claim
 
-# How long the prompt waits for each page's server. A start takes under a second.
-# One waiting on a port another process holds is refused at this bound and tried
-# again at the next prompt, which still leaves the hook time to hand the turn its
-# input inline (`hook_transport.CONFIRM_WITHIN`).
-SERVE_WITHIN = HOOK_TIMEOUT_S / 4
 
-
-def serve_again(harness: Harness) -> list[Finding]:
+def serve_again(harness: Harness, started: float) -> list[Finding]:
     """Serve each page `harness`'s session still means to serve whose ownership or
-    server is down, and say what kept any of them from serving."""
+    server is down, and say what kept any of them from serving.
+
+    The starts share the hook's one deadline, `CONFIRM_WITHIN` after `started`, its
+    `time.monotonic()` as it began. A start takes about a second, or several on a
+    loaded machine, and one not ready and confirmed by the deadline is refused, so
+    the hook exits inside its timeout; a start that took the time the hook had to
+    hand over input inline leaves that input to a pointer instead
+    (`hook_transport`). A port another process holds refuses at once
+    (`hosting.listening_socket`)."""
     pages = to_serve(harness)
     if not pages:
         # Most prompts, which load no page servers.
         return []
+    from .hook_transport import CONFIRM_WITHIN
     from .hosting import claim_and_start
     from .vendoring import renew_layer
 
+    deadline = started + CONFIRM_WITHIN
     found = []
     for page_dir in pages:
         if unready := renew_layer(page_dir, harness, command=False):
             found.append(unready)
         try:
+            if time.monotonic() >= deadline:
+                raise Refused("the prompt had no time left to start it")
             prepared = prepare_claim(harness, page_dir)
             with (
                 harness.preparing_delivery(),
-                claim_and_start(
-                    page_dir, prepared_claim=prepared, timeout=SERVE_WITHIN
-                ),
+                claim_and_start(page_dir, prepared_claim=prepared, deadline=deadline),
             ):
                 pass
         except Refused as error:

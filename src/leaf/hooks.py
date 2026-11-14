@@ -131,7 +131,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
             # starts where the session's last one ended or names another process.
             from .reconnect import serve_again
 
-            unserved = serve_again(hooked)
+            unserved = serve_again(hooked, started)
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
             return

@@ -711,11 +711,15 @@ def tile(case: Case, window: Window, arms: dict[str, dict]) -> str:
     shots = {arm: got for arm, got in arms.items() if got.get("image")}
     alt = {arm: f"{case.title}: {got['sentence']}" for arm, got in shots.items()}
     shown = "head" if "head" in shots else next(iter(shots), None)
-    picture = shown and gallery.shot(
-        f"shot-{key}",
-        alt[shown],
-        shots["base"]["image"] if shown == "head" and "base" in shots else None,
-        shots[shown]["image"],
+    picture = (
+        ""
+        if shown is None
+        else gallery.shot(
+            f"shot-{key}",
+            alt[shown],
+            shots["base"]["image"] if shown == "head" and "base" in shots else None,
+            shots[shown]["image"],
+        )
     )
 
     def said_of(got: dict) -> str:

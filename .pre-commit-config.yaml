@@ -44,6 +44,18 @@ repos:
         entry: uv run leaf-dev generate record-types --check
         pass_filenames: false
         files: '^(src/leaf/|dev/leaf_dev/commands/generate/record_types\.py$|pyproject\.toml$|uv\.lock$)'
+      # Claude Code re-attaches only a skill's first 20,000 characters after a
+      # compaction, so past that a session loses the skill's tail without knowing.
+      # These are the skills long interactive sessions load.
+      - id: skill-size
+        name: skills a compaction keeps whole
+        language: system
+        entry: >-
+          sh -c 'status=0; for f; do n=$(wc -c < "$f" | tr -d " ");
+          if [ "$n" -gt 19500 ]; then echo "$f: $n bytes, past what a compaction keeps;
+          move an occasion'"'"'s procedure into references/"; status=1; fi; done;
+          exit $status' --
+        files: ^(\.claude/skills/developing-leaf|skills/leaf)/SKILL\.md$
       - id: ty
         name: ty
         language: system

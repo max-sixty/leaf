@@ -75,9 +75,8 @@ hold by when it was written rather than by the turn it names. Restating lines ne
 that changed first.
 
 This module is the fork's one home, shared by every harness: what it is asked
-(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them)
-and how hard it thinks (`EFFORT`), the answer it must give (`ANSWER`), and what Leaf
-does with that answer
+(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
+the answer it must give (`ANSWER`), and what Leaf does with that answer
 (`apply_answer`). A harness only makes the fork and carries the two halves
 (`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
 (`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
@@ -152,10 +151,10 @@ for input, would close that gap.
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time, the effort Claude Code
-reports it sent (`effort`), and the main thread's request it resent (`request` in
-`hooks/claude-code.ts`, which says where a replay cuts the conversation; a turn-end
-fork reads it to `row`), whose own `effort` is the session's. A fork that failed, or
+why it wrote no records, with the fork's tokens and time, and the main thread's
+request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
+cuts the conversation; a turn-end fork reads it to `row`), whose `effort` the fork
+thinks at. A fork that failed, or
 gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
@@ -182,16 +181,21 @@ Code's fork reuses the session's cached prefix while its system prompt and tools
 match the session's, which `$.model.fork` keeps by resending the main thread's own
 last request.
 
-The fork thinks at `EFFORT` whatever the session's own effort. Claude Code takes the
-effort since 2.1.318, and an older one ignores it and thinks at the session's. The
-effort leaves the cache whole where Claude Code's per-message effort reaches the
-model: in the claude-code journey on 2026-11-04, with the session at xhigh, a low
-fork read 98% of the conversation from the cache, as one at the session's effort
-did. Where it doesn't reach the model, a low fork writes the conversation to the
-cache again (#5891), so once a turn-end check does, the hooks module remembers it
-for that backend and makes its forks at the session's effort, in later sessions too
-(`runFork` in `hooks/claude-code.ts`).
-On turns planted in that journey, which leave an ask in the chat, answer it there,
+The fork thinks at the session's own effort, and the check's reference asks it to
+answer straight away without thinking it over, as Claude Code's `$.model.fork`
+documentation suggests for a quick side job. From 2026-11-04 to 2026-11-14 the fork
+asked for `low` effort instead, which kept the cache only where Claude Code's
+per-message effort reaches the model. Elsewhere, as on Vertex, a low fork wrote the
+whole conversation to the cache again (#5891, #5904), and the hooks module learned
+that per backend from each check's usage (#5892, #5907): a stored answer, a rewrite
+to learn it and another to check it again each week. On the 15 turn-end cases of
+`leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
+answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
+output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements
+below are of that low fork.
+
+On turns planted in the claude-code journey on 2026-11-04, with the session at
+xhigh, which leave an ask in the chat, answer it there,
 make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
 the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
@@ -234,8 +238,6 @@ from .state import (
     session_record,
 )
 
-# How hard the fork thinks, whatever the session's effort (the header says why).
-EFFORT = "low"
 REFERENCES = SKILL_FILE.parent / "references"
 # What the fork is asked, as the skill ships it.
 REFERENCE = REFERENCES / "turn-end-check.md"
@@ -520,7 +522,7 @@ def basis(session_id: str) -> dict | None:
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
     with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage`, `elapsed_ms`, `effort` and `request`
+    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request`
     where the harness gives them."""
     if not session_id:
         return None
@@ -528,7 +530,6 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
         run = {
             "usage": payload.get("usage"),
             "elapsedMs": payload.get("elapsed_ms"),
-            "effort": payload.get("effort"),
             "request": payload.get("request"),
             "failed": payload.get("failed"),
         }
@@ -542,8 +543,8 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
 
 
 def question(session_id: str) -> dict | None:
-    """What to fork `session_id`'s conversation with, as `{"prompt", "basis",
-    "effort"}`, or None where it holds no page."""
+    """What to fork `session_id`'s conversation with, as `{"prompt", "basis"}`, or
+    None where it holds no page."""
     from .service import owned_pages
 
     facts = [
@@ -551,7 +552,7 @@ def question(session_id: str) -> dict | None:
     ]
     if not facts:
         return None
-    return {"prompt": fork_prompt(facts), "basis": basis(session_id), "effort": EFFORT}
+    return {"prompt": fork_prompt(facts), "basis": basis(session_id)}
 
 
 def take_answer(

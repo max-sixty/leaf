@@ -28,6 +28,7 @@ from interact_support import (
 )
 
 from leaf import activity as activity_model
+from leaf import agent_state as agent_state_model
 from leaf import clerk as clerk_model
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -497,6 +498,55 @@ def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
     more = said(claimed, "And the autocomplete service?", parent=asked["id"])
     assert more["id"] in deliverable(claimed)
     assert agent_context(capsys, "agent-1") == ""
+
+
+def holders(page_dir) -> tuple[dict, dict]:
+    """Who `leaf page state` says has each answer the agent owes, by the input it
+    answers, and each thread, by its id."""
+    state = agent_state_model.cmd_page_state(page_dir)
+    return (
+        {
+            item["id"].removeprefix("update:"): item["holder"]
+            for item in state["activity"]["obligations"]
+        },
+        {thread["id"]: thread["holder"] for thread in state["threads"]},
+    )
+
+
+def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
+    """`leaf page state` names who has each answer owed and each thread: a fork by
+    the name the main thread reaches it by, with whether its turn runs, lapsed or
+    closed, or the main thread. So a main thread recovering what it owes there,
+    as after a compaction, can tell a running fork's work from its own: a lapsed
+    fork's message the main thread's prompt takes in is the main thread's, and a
+    fork that gave its thread back leaves the main thread owing it."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    running = {"kind": "fork", "name": taken["agent"], "state": "running"}
+    assert holders(claimed) == ({asked["id"]: running}, {asked["id"]: running})
+
+    turns = state_model.agent_turns("s1")
+    long_ago = datetime.now().astimezone() - activity_model.WORKING_GRACE
+    turns[taken["turn"]]["renewed"] = long_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    lapsed = {**running, "state": "lapsed"}
+    assert holders(claimed) == ({asked["id"]: lapsed}, {asked["id"]: lapsed})
+    context(capsys, "UserPromptSubmit")
+    main = {"kind": "main"}
+    assert holders(claimed) == ({asked["id"]: main}, {asked["id"]: main})
+
+    other, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    forks_model.started(
+        "s1", basis(claimed, other["id"], other["id"]), taken["turn"], "agent-2"
+    )
+    forks_model.ended("s1", agent="agent-2", turn=None, answer=None, failed="it broke")
+    closed = {"kind": "fork", "name": taken["agent"], "state": "closed"}
+    owed, threads = holders(claimed)
+    assert (owed[other["id"]], threads[other["id"]]) == (closed, closed)
 
 
 def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(

@@ -44,6 +44,12 @@ pick up, answer or start on only the messages it holds or no turn holds
 (`refuse_unheld`), so a fork whose thread another turn took can neither take it
 back, nor answer it, nor show itself at work on it.
 
+Every report of who holds something names the turn as `holder` does: the session's
+main thread, or the fork that took the thread, by the name the main thread reaches it
+by, with whether its turn runs, closed or lapsed. `leaf page state` gives a `holder`
+for each answer the agent owes and for each thread (`activity.canonical_activity`),
+so a main thread recovering what it owes there can leave a running fork's work to it.
+
 `docs/forks.html`, "Who holds a message", explains the rule with the rest of the
 fork design; `session-lifetime.md`, "Turns and generations", is the contract other
 modules rely on.
@@ -105,7 +111,10 @@ def rounds(events: list[dict]) -> Rounds:
 
 
 def holding_turns(
-    events: list[dict], session: str, running: set[str], found: Rounds | None = None
+    events: list[dict],
+    session: str | None,
+    running: set[str],
+    found: Rounds | None = None,
 ) -> dict[str, str]:
     """The turn of `session` that holds each of the user's waiting thread messages
     (the module header), where `running` is the set of `session`'s agent turns
@@ -151,13 +160,15 @@ def _last_taken(
     return {thread: turn for thread, (_seq, turn) in last.items()}
 
 
-def last_taken(events: list[dict], session: str) -> dict[str, str | None]:
+def last_taken(events: list[dict], session: str | None) -> dict[str, str | None]:
     """The turn of `session` that last took each thread, by a pickup or an answer
     (`_last_taken`)."""
     return _last_taken(events, newest_pickups(events, session), rounds(events).answers)
 
 
-def newest_pickups(events: list[dict], session: str) -> dict[str, tuple[int, str]]:
+def newest_pickups(
+    events: list[dict], session: str | None
+) -> dict[str, tuple[int, str]]:
     """The seq and turn of the newest opened pickup, by `session`, of each message
     one names."""
     newest: dict[str, tuple[int, str]] = {}
@@ -171,6 +182,40 @@ def newest_pickups(events: list[dict], session: str) -> dict[str, tuple[int, str
             for input_id in event["events"]:
                 newest[input_id] = (event["seq"], event["turn"])
     return newest
+
+
+def fork_name(thread: str) -> str:
+    """The name Leaf gives the fork that takes `thread`, by which the main session
+    reaches it (`SendMessage`)."""
+    return f"leaf-{thread}"
+
+
+def holder(
+    turn: str | None, thread: str | None, stamps: dict[str, dict], running: set[str]
+) -> dict:
+    """Who `turn` is, as every report of who holds a message or a thread names it.
+    `turn` is the turn of the claimant's session that holds a message in `thread`, or
+    that last took `thread`; `thread` is None for an input in no thread, which only
+    the main thread has.
+
+    One of the session's agent turns (`stamps`, as `state.agent_turn_stamps` gives
+    them) is `{"kind": "fork", "name", "state"}`: the fork that took the thread, by
+    `fork_name`, and whether its turn is `running` (in `running`, as `holding_turns`
+    takes it), `closed` or `lapsed` (`activity.agent_turn_state`). Any other turn, or
+    none, is `{"kind": "main"}`, the session's main thread, which has whatever no
+    agent's turn holds."""
+    # TODO(2026-11-14): name a worker subagent's turn by its own kind here once a
+    # worker that starts on a to-do runs a turn of its own (`state.acting_turn`).
+    from .activity import agent_turn_state
+
+    if turn not in stamps:
+        return {"kind": "main"}
+    assert thread is not None
+    return {
+        "kind": "fork",
+        "name": fork_name(thread),
+        "state": agent_turn_state(turn, stamps, running),
+    }
 
 
 def taken_over(input_ids) -> str:

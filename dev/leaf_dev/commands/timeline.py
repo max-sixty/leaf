@@ -59,7 +59,7 @@ from pathlib import Path
 
 import click
 
-from leaf.activity import running_agent_turns
+from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
 from leaf.holding import turn_threads
@@ -386,7 +386,7 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
     """Each agent turn of `session` as this machine's state home holds it now
     (`leaf.state.AGENT_TURNS`): its agent, the threads it took on the page, when it
     opened and was last renewed, and whether it runs, closed or lapsed: open but
-    believed running no longer (`leaf.activity.running_agent_turns`). Only the turns
+    believed running no longer (`leaf.activity.agent_turn_state`). Only the turns
     that took `thread`, where one is given."""
     record = session_record(session)
     turns = agent_turns(session)
@@ -400,18 +400,15 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         took = sorted(turn_threads(events, session, {turn}))
         if thread is not None and thread not in took:
             continue
-        state = (
-            f"closed {local(held['closed']):%H:%M:%S}"
-            if held["closed"]
-            else "running"
-            if turn in running
-            else "lapsed"
+        state = agent_turn_state(turn, turns, running)
+        shown = (
+            f"closed {local(held['closed']):%H:%M:%S}" if state == "closed" else state
         )
         lines.append(
             f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'} "
             f"on {', '.join(took) or 'no thread here'}: opened "
             f"{local(held['opened']):%H:%M:%S}, renewed "
-            f"{local(held['renewed']):%H:%M:%S}, {state}"
+            f"{local(held['renewed']):%H:%M:%S}, {shown}"
         )
     return lines
 

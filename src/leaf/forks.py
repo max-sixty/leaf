@@ -147,6 +147,8 @@ from typing import Literal, NamedTuple
 
 from .holding import (
     agent_held,
+    fork_name,
+    holder,
     holding_turns,
     last_taken,
     rounds,
@@ -787,12 +789,6 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     return {"text": text, "line": record["id"]}
 
 
-def _fork_name(thread: str) -> str:
-    """The name Leaf gives the fork that takes `thread`, by which the main session
-    reaches it (`SendMessage`)."""
-    return f"leaf-{thread}"
-
-
 def _resumable(page: PageTransaction, session_id: str, thread: str) -> str | None:
     """The agent id of the fork whose turn gave `thread`'s last answer, the turn the
     answer names (`thread.post_reply`), which Leaf gives the thread's waiting
@@ -843,7 +839,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
     page_dir = Path(basis["page"])
-    agent = _fork_name(basis["thread"])
+    agent = fork_name(basis["thread"])
     posted = _line(session_id, basis, line)
     if "line" not in posted:
         return posted
@@ -908,7 +904,7 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     outcome = {
         "step": "start",
         "outcome": "start" if named else "dropped",
-        "agent": _fork_name(basis["thread"]),
+        "agent": fork_name(basis["thread"]),
         "agentId": agent,
         "turn": turn,
     }
@@ -994,7 +990,7 @@ def ended(
                     inputs = [i for i in picked if i in holders or i in found.answered]
                     if not inputs:
                         continue
-                    name = _fork_name(thread)
+                    name = fork_name(thread)
                     subject = {"kind": "thread", "id": thread}
                     owing = [t for t in owed if t["subject"] == subject]
                     todos = [t for t in owing if t["id"] in own]
@@ -1014,7 +1010,8 @@ def ended(
                         outcome["why"] = _taken_by(
                             {holders[i] for i in inputs if i in holders}
                             | {a.get("turn") for a in answered if a["id"] not in own},
-                            agent_turn_stamps(claim),
+                            thread,
+                            claim,
                         )
                     elif ending == "hand_back":
                         outcome["why"] = why
@@ -1051,12 +1048,17 @@ def ended(
     return outcomes
 
 
-def _taken_by(turns: set, agents: dict) -> str:
-    """Why a fork's thread ended as `taken_over`: which turns took it, the main
-    thread's or another agent's (`agents`, the session's agent turns), as the page's
-    diagnostics note it."""
+def _taken_by(turns: set, thread: str, claim: dict) -> str:
+    """Why a fork's thread ended as `taken_over`: which turns of the session holding
+    the page by `claim` took `thread`, the main thread or another run of a fork
+    (`holding.holder`), as the page's diagnostics note it."""
+    stamps = agent_turn_stamps(claim)
+    running = running_turns(claim)
     takers = sorted(
-        f"agent turn {turn}" if turn in agents else "the main thread" for turn in turns
+        "the main thread"
+        if (named := holder(turn, thread, stamps, running))["kind"] == "main"
+        else f"{named['name']}'s turn {turn}"
+        for turn in turns
     )
     return f"{' and '.join(dict.fromkeys(takers))} took the thread"
 

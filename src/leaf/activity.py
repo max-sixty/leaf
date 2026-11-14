@@ -12,7 +12,7 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from .obligations import response_address
 from .state import turn_closed, turn_open
@@ -331,7 +331,7 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
         if "ref" in obligation["answer"]
         and not _started_by_turn(obligation, state)
         and not reminded(obligation["input"])
-        and not agent_holds(obligation, state)
+        and not agent_holds(obligation)
     ]
 
 
@@ -350,7 +350,7 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     return [
         obligation
         for obligation in blocking_obligations(state, watched=watched)
-        if not started_in_turn(obligation, state) and not agent_holds(obligation, state)
+        if not started_in_turn(obligation, state) and not agent_holds(obligation)
     ]
 
 
@@ -379,19 +379,27 @@ def agent_turn_end(stamp: dict) -> datetime:
     return datetime.fromisoformat(stamp["renewed"]) + WORKING_GRACE
 
 
-def agent_holds(obligation: dict, state: dict) -> bool:
-    """Whether an agent's running turn holds this owed update: the turn that holds
-    it (`holder`, `holding.holding_turns`) is a running turn of an agent the claimant's
-    session runs beside its main thread (`state.AGENT_TURNS`), such as a fork that
-    took a thread's work. The main thread neither holds its turn over it, is
-    reminded of it, nor takes it in again (`hook_transport.pick_up_acknowledged`)
-    until that turn ends; once it does, an update still owed is the main thread's
-    input, which its next delivery hands over (`holding.left_by_agent_turns`)."""
-    return obligation["holder"] in running_agent_turns(
-        state["agent_turns"],
-        state["session_alive"] is True,
-        datetime.now().astimezone(),
-    )
+def agent_turn_state(
+    turn: str, stamps: dict[str, dict], running: set[str]
+) -> Literal["running", "closed", "lapsed"]:
+    """Where the agent turn `turn` of `stamps` stands: `running` while it is in
+    `running` (`running_agent_turns`), `closed` once its harness said its run ended,
+    and otherwise `lapsed`, open but believed running no longer."""
+    if turn in running:
+        return "running"
+    return "lapsed" if stamps[turn]["closed"] is None else "closed"
+
+
+def agent_holds(obligation: dict) -> bool:
+    """Whether an agent's running turn holds this owed update (`holder`,
+    `holding.holder`): a running turn of an agent the claimant's session runs beside
+    its main thread (`state.AGENT_TURNS`), such as a fork that took a thread's work.
+    The main thread neither holds its turn over it, is reminded of it, nor takes it
+    in again (`hook_transport.pick_up_acknowledged`) until that turn ends; once it
+    does, an update still owed is the main thread's input, which its next delivery
+    hands over (`holding.left_by_agent_turns`)."""
+    held = obligation["holder"]
+    return held["kind"] == "fork" and held["state"] == "running"
 
 
 class Turn(NamedTuple):
@@ -655,13 +663,16 @@ def canonical_activity(
     (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it.
+    answer may commit first; the automatic final then yields to it. Each owed answer's
+    `holder`, and each thread's in `thread_holders`, names who has it, the main thread
+    or a fork (`holding.holder`).
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import holding_turns
+    from .holding import holder, holding_turns, last_taken
+    from .thread_context import thread_names
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -694,17 +705,14 @@ def canonical_activity(
     )
     held = not unheld
     # The turns the agents the claimant's session runs beside its main thread are
-    # running now, and the turn that holds each waiting message.
-    agents = running_agent_turns(
-        present["agent_turns"], present["session_alive"] is True, now
-    )
-    # Only a running agent turn's holding changes what any reader here does, so a
-    # page with none, as every page without working forks is, reads none.
-    holders = (
-        holding_turns(events, present["claim_session"], agents)
-        if agents and present.get("claim_session")
-        else {}
-    )
+    # running now, the turn that holds each waiting message, and the turn that last
+    # took each thread (`holding.py`).
+    stamps = present["agent_turns"]
+    agents = running_agent_turns(stamps, present["session_alive"] is True, now)
+    session = present.get("claim_session")
+    holders = holding_turns(events, session, agents)
+    took = last_taken(events, session)
+    threads = thread_names(events)
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents
     )
@@ -917,9 +925,20 @@ def canonical_activity(
                 **item,
                 "obligation": owing[item["input"]]["id"],
                 "answer": owed_answer(item),
-                # The claimant's turn that holds it (`holding.holding_turns`).
-                "holder": holders.get(item["input"]),
+                # Who has it: the turn that holds it (`holding.holding_turns`), named.
+                "holder": holder(
+                    holders.get(item["input"]),
+                    threads.get(item["input"]),
+                    stamps,
+                    agents,
+                ),
             }
             for item in obligations
         ],
+        # Who has each thread: the turn that last took it (`holding.last_taken`),
+        # named.
+        "thread_holders": {
+            thread: holder(took.get(thread), thread, stamps, agents)
+            for thread in set(threads.values())
+        },
     }

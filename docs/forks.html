@@ -404,6 +404,15 @@ sequenceDiagram
             closes or lapses, those messages are the main thread's to answer, though the
             closed turn still holds what it picked up until another turn picks it up.
           </p>
+          <p id="holding-shown">
+            <code>leaf page state</code> says who has each answer the agent owes and
+            each thread, as its <code>holder</code> (<code>holding.holder</code>): the
+            main thread, or the fork that took the thread, by the name the main thread
+            reaches it by, with whether its turn is <code>running</code>,
+            <code>closed</code> or <code>lapsed</code>. A main thread recovering what it
+            owes there, as after a compaction, leaves a running fork's answer to the
+            fork. <span class="tag ok">built</span>
+          </p>
           <figure id="holding-figure" class="diagram-figure">
             <lf-diagram id="holding-diagram" data-height="450" parts="all">
               <pre>

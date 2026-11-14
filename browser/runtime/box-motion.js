@@ -148,7 +148,7 @@ import { shifted } from "./rect.js";
 
 // The registered property (base.css) a carried part's `translate` reads while it
 // travels, which tells a reader of the motions under way that the part is moving rather
-// than being cut or faded (user-place.js, `carried`).
+// than being cut or faded (user-place.js, `slides`).
 export const CARRY = "--lf-box-carry";
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:

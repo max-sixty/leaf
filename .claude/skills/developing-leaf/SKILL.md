@@ -227,11 +227,9 @@ Where no state reaches a surface the change touches, add one to `STATES`
 never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
-Where and how wide a thread card stands depends on its subject, its messages, the
-route that opened it and the window, so one state can't cover it: `uv run leaf-dev
-placements --base` opens a card in every case of its `CASES` and writes a gallery of
-both arms. Run it for a change to thread-card placement, and give a shape a reader
-meets a case there.
+For a change to thread-card placement, also run `uv run leaf-dev placements --base`,
+a gallery of cards across subjects, messages, routes and windows, and add a case to its
+`CASES` for each new shape a reader meets.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
 crops and a sentence saying what changed, and link the page in the reply; a live

@@ -25,8 +25,8 @@ module here that the others import, never through `sys.path`, `PYTHONPATH` or a 
 path. A mechanism only one tool uses stays in that tool's file, and a command is named
 for what it examines rather than for the mechanisms inside it, so the code a new tool
 needs may sit in a command whose name doesn't suggest it. Before writing a mechanism,
-or turning a script of your own into a command, search all of `dev/` for code that
-already does the job, by the calls it has to make (the widget whose markup it writes,
+or turning a script of your own into a command, search `dev/`, `evals/` and `src/leaf/`
+for code that already does the job, by the calls it has to make (the widget whose markup it writes,
 the library it draws or measures with) rather than by name, as `/developing-leaf`'s
 **What it repeats** says. Move what you find into a module here that both tools
 import. The modules beside `cli.py` hold what several tools share already, such as

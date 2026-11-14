@@ -217,6 +217,47 @@ explorations set a scheme below the root. Recheck in Firefox and in iOS Safari w
 and the same with `--browser ios`; each reads `false` today. Delete the widening and
 the probe only once every engine Leaf supports reads `true`.
 
+### A highlight's `light-dark()` colour in a dark region in Chromium
+
+Chromium paints the light half of a `light-dark()` highlight colour inside an element
+whose `color-scheme` is dark when the `::highlight()` rule names no element, though
+`getComputedStyle` reports the dark half. On a light page, words Leaf marks inside a
+`color-scheme: dark` panel then wear the light scheme's violet ink and wash on the
+panel's dark ground, which is hard to read. With the comment marks on `:root` and
+`:host` (`browser/runtime/annotation-overlay/annotation-marks.css`, "Highlight style
+inheritance" above), every engine with highlight inheritance paints the same, since
+the marks there inherit the root scheme's colours; Firefox and Safari 26, whose rules
+are widened to every element, paint each region's own half.
+Recorded rather than corrected: no shipped page, theme or widget gives text a scheme
+of its own.
+
+On 2026-11-14, Playwright Chromium 158.0.8127.18 (build 1254) painted this red and
+read it blue; WebKit 27.2 (build 2388) and Firefox 159.0 (build 1572) painted it
+blue. Naming an element, as `p::highlight(m)` or `.dark::highlight(m)`, painted blue in
+Chromium too.
+
+```html
+<style>
+  .dark {
+    color-scheme: dark;
+    background: black;
+    color: white;
+  }
+  ::highlight(m) {
+    background-color: light-dark(red, blue);
+  }
+</style>
+<p class="dark" id="p">marked words</p>
+<script>
+  const r = new Range();
+  r.selectNodeContents(p);
+  CSS.highlights.set("m", new Highlight(r));
+</script>
+```
+
+Recheck by loading that page in Chromium: the gap has closed once the words paint
+blue.
+
 ### Font style in syntax highlights
 
 `lf-text-document` colours its source with CSS custom highlights

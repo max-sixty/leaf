@@ -1,5 +1,5 @@
-"""Live samples a page or an agent's reply runs: full view and its Tab walk, and reading
-keys passing from a sample to its page."""
+"""Live samples a page or an agent's reply runs: full view and its Tab walk, reading
+keys passing from a sample to its page, and a comment box's caret staying inside one."""
 
 import pytest
 from click.testing import CliRunner
@@ -10,12 +10,15 @@ from render_cases_layout import current_location_ring
 from render_harness import (
     Traffic,
     leaf_page,
+    one_frame,
     open_page,
     put_preview_away,
     rendered,
     resized,
+    scroll_settled,
     sending,
     take_browser_errors,
+    write,
 )
 
 from browser.controls import (
@@ -231,6 +234,83 @@ def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
     page.keyboard.press("d")
     page.wait_for_timeout(300)
     assert page.evaluate("scrollY") == at
+
+
+def test_a_caret_key_in_a_sample_s_comment_box_leaves_the_page_around_it_still(
+    scrollbar_browser, serve
+):
+    """A caret key in a comment box asks its editor to show the caret, and Leaf
+    answers with its own scroll (editor-view.js), which stops at the box's document.
+    CodeMirror's answer ends in a native `scrollIntoView` wherever a classic
+    horizontal scrollbar leaves the visual viewport shorter than the window, and a
+    native one goes on through the sample's frame to scroll the page around it. So
+    with the box scrolled out of the sample's view, and only the sample's foot in the
+    window, a caret key moves the caret and the page around the sample stays where
+    the user left it."""
+    words = "Take the left route"
+    page = open_page(
+        scrollbar_browser,
+        serve(
+            leaf_page(
+                "Comment box containment",
+                """
+<h1>Containing page</h1>
+<div style="height:1400px"></div>
+<lf-sample id="practice" label="Comment practice" window>
+  <template id="practice-source" data-sample>
+    <style>
+      html { overflow-x:scroll !important; }
+      ::-webkit-scrollbar { width:16px; height:16px; background:#ddd; }
+      ::-webkit-scrollbar-thumb { background:#888; }
+    </style>
+    <h1>Comment practice</h1><div style="width:3000px;height:4px"></div>
+    <lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>
+      <lf-option id="left">Take the left route</lf-option>
+      <lf-option id="right">Take the right route</lf-option>
+    </lf-options></lf-ask>
+    <div style="height:3000px"></div>
+  </template>
+</lf-sample>
+<div style="height:1400px"></div>
+""",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => { await sample.ready; }")
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+    assert child.evaluate("innerHeight - visualViewport.height") > 1, (
+        "no classic scrollbar shortens the sample's visual viewport, so CodeMirror's "
+        "native reveal would not run and a still page would prove nothing"
+    )
+    child.locator("h1").click()
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    box = child.locator(".lf-fab-input")
+    expect(box).to_be_focused()
+    write(box, words)
+    # The user reads on in the sample, away from the box, and then in the page around
+    # it, until only the sample's foot is left in the window.
+    child.evaluate("scrollTo(0, 2000)")
+    scroll_settled(child)
+    assert box.evaluate("box => box.getBoundingClientRect().bottom") < 0
+    foot = frame.evaluate(
+        "frame => Math.round(frame.getBoundingClientRect().bottom + scrollY - 100)"
+    )
+    page.evaluate("y => scrollTo(0, y)", foot)
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == foot
+
+    page.keyboard.press("ArrowLeft")
+    expect(box).to_have_js_property("selectionStart", len(words) - 1)
+    # CodeMirror reveals a caret as it next measures, a frame after the key.
+    rendered(child)
+    one_frame(child)
+    rendered(child)
+    assert page.evaluate("scrollY") == foot, (
+        "a caret key in the sample's comment box scrolled the page around the sample"
+    )
 
 
 def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):

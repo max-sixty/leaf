@@ -1618,7 +1618,7 @@ textarea.lf-field {
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
-  color: var(--muted);
+  color: var(--quiet);
   opacity: 1;
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
@@ -1643,7 +1643,7 @@ textarea.lf-field {
    speaker's voice take that speaker's face instead (`span[data-lf-voice]`, above), so
    held news, which is Leaf's, is regular italic and stands apart by its ink: the user
    kept that over bold news on 31 October. A generated control in the document takes
-   the chrome's size (surfaces.css, `.lf-ui-face`), so the face inherits its line's; a
+   the chrome's size (control-face.css, `.lf-ui-face`), so the face inherits its line's; a
    press whose box stands beside its line rather than in it states the line's size
    where it is placed. */
 :where(button).lf-inline-action {

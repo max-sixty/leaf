@@ -566,13 +566,12 @@ LAYER_FACTS = {
                         "description": _NONEMPTY,
                         "schema": {"type": "object"},
                         "instructions": INSTRUCTIONS_SCHEMA,
-                        # Null reads as absent (`data.deferred_records`).
+                        # Null reads as absent (`data_contracts.payload_error`).
                         "records": {
                             "type": ["object", "null"],
                             "properties": {
                                 "items": _NONEMPTY,
                                 "key": _NONEMPTY,
-                                "deferred": _NONEMPTY,
                             },
                             "required": ["items", "key"],
                             "additionalProperties": False,

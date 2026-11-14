@@ -74,9 +74,9 @@ export function addressableSays(addressable) {
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`../../references/page-authoring.md`): the attribute its registry entry declares
-// with `x-name`, else a leading disclosure summary, heading, or titled member's
-// <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
+// (`skills/leaf/references/module-reading.md`, "Naming elements"): the attribute its
+// registry entry declares with `x-name`, else a leading disclosure summary, heading,
+// or titled member's <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
 // before it; elements may, as a titled member's comparison chips stand in the band
 // above its title and an eyebrow above a header's heading. The words are the ones the
 // author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase

@@ -470,11 +470,12 @@ marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
-elements whose text the ranges paint. The comment marks can land on any text and
-Firefox inherits no highlight style (`notes/browser-support.md`, "Highlight style
-inheritance"), so theirs stay universal, and in Chromium a custom property changing
-on `html` or `body` then restyles every element (`root-state.js` says what the root's
-writers set instead).
+elements whose text the ranges paint. The comment marks can land on any text, so
+their rules name only the root and each shadow host, whose highlight styles every
+element below inherits; where an engine has no highlight inheritance, `stylesheets.js`
+(`markSheet`) widens them to every element. In Chromium a custom property changing on
+`html` then restyles every element (`root-state.js` says what the root's writers set
+instead).
 
 ### Layouts, styles and controls
 
@@ -617,7 +618,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |
-| Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
+| Which of two nodes the reader reaches first, across shadow trees, alone or in a sort                  | `shadow-tree.js` `renderedOrder`, `renderedOrdering`, `byRenderedOrder`            |
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |

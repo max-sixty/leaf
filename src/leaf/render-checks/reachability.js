@@ -9,7 +9,7 @@ import { at, place, unique } from "./locate.js";
 // every one of them through. What separates a board, whose columns run past it and are
 // reached by dragging, from a group that swallowed its own pick marks is whether the
 // box offers the user a way in: auto and scroll do, hidden and clip do not. Paint
-// containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
+// containment clips both axes while `overflow` computes `visible` (`misplacedBoxes`
 // reads the same fact for its ancestors), and it denies the way in exactly where the
 // axis has no scroller of its own.
 /** @param {CSSStyleDeclaration} style */
@@ -22,7 +22,7 @@ export function sealedAxes(style) {
   return { across: sealed(style.overflowX), down: sealed(style.overflowY) };
 }
 
-// A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
+// A control drawn where no user can reach it. `tinyBoxes` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
 // difference is which failure each catches: a widget with no box is a widget that didn't
 // render, and a control with a box its own container clips away is a widget that rendered
@@ -65,7 +65,7 @@ export function clippedControls() {
     if (b.width < 1 && b.height < 1) continue;
     // Where the clip is escaped rather than suffered. An absolutely-positioned
     // control whose containing block is above the clipping ancestor is painted
-    // outside it on purpose, exactly as MISPLACED_BOXES' own margin content is.
+    // outside it on purpose, exactly as `misplacedBoxes`' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
     // Up to the body and no further: the document's own scrolling arrangement is
     // the page's, not a widget's. The runtime scrolls body rather than the
@@ -172,7 +172,7 @@ export function tinyBoxes(declarations) {
 // through (shownParts) — which leaves one case that answer cannot reach, an element whose
 // words are in no child element at all, where there is nothing to hang anything on.
 //
-// TINY_BOXES is next door and cannot see this: `checkVisibility()` is false for an element
+// `tinyBoxes` is next door and cannot see this: `checkVisibility()` is false for an element
 // with no box, so the very elements at issue are the ones it filters out. Both readings are
 // imported rather than restated, so what the gate refuses a handover for and what the page
 // actually paints cannot come apart — the whole point of the pair being that there is one

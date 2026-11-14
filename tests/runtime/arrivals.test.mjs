@@ -508,5 +508,15 @@ test("an instant write reaches a box only where it moves it, and a stop writes w
   moving.box.scrollTo({ top: 60 });
   moving.box.dispatchEvent(new window.Event("scrollend"));
   assert.equal(browserScrolls(moving.box), false);
+  // Where the browser applied the input's scroll before the input was heard, as
+  // Chromium can a wheel's, the input found the box where the page last heard it, so
+  // the end of that scroll ends the reader's sequence.
+  moving.box.dispatchEvent(new window.Event("scroll"));
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  moving.box.scrollTo({ top: 200 });
+  startReaderScroll(moving.box);
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), false);
   moving.box.remove();
 });

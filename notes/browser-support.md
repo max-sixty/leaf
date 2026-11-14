@@ -185,14 +185,78 @@ the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 
 
 ### Highlight style inheritance
 
-Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-22 but painted no highlight on nested syntax spans in either light
-or shadow DOM. Universal highlight rules paint those ranges correctly; retain
-them in `browser/runtime/annotation-overlay/annotation-marks.css` and
-`browser/runtime/marks.css`. Revisit root-scoped rules when
-`test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
-`tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 passed both forms in that check.
+Firefox and shipping Safari have no highlight inheritance (css-pseudo-4, "Cascading
+and Per-Element Highlight Styles"). Firefox resolves a `::highlight()` style as it
+paints a run of text, only from the rules that match the run's own element
+(`nsIFrame::ComputeHighlightSelectionStyle`), and
+[bug 1999628](https://bugzilla.mozilla.org/show_bug.cgi?id=1999628) is open for it,
+unassigned. On 2026-11-11, Playwright Firefox 159.0 (build 1572) and release Firefox
+160.0 on macOS painted nothing from a rule on `:root` or `:host`, in the document or
+a shadow tree, and `getComputedStyle(element, "::highlight(name)")` read the
+rule's background as transparent on every element below the root. On 2026-11-12,
+Safari 26.1 on the iOS simulator answered the same way to the probe below. Playwright
+Chromium 158.0.8127.18 (build 1254) and Playwright's WebKit 27.2 (build 2388) painted
+the rule on every element below the root and read it there, shadow trees included.
+
+The comment marks' rules (`browser/runtime/annotation-overlay/annotation-marks.css`)
+name the root and each shadow host, since Chromium resolves a highlight's style for
+every element a rule matches. `prepaint.js` asks whether a root highlight style
+reaches the head, and where it doesn't, `stylesheets.js` (`markSheet`) widens the
+rules to every element. So the saving reaches Chromium today, and Safari once it
+ships the inheritance Playwright's WebKit has. Firefox resolves the widened rules
+only where it paints, so its load costs the same as with no mark rules. The engines
+then differ in where a mark reads its colours. Where the rules are widened, each
+element reads its own tokens and `color-scheme`. Where they inherit, a mark reads
+them on the root or the shadow host above it: a `--mark` set on a section of the
+page is ignored, and words marked in a region with its own `color-scheme`, such as
+a dark panel on a light page, wear the root scheme's ink and wash. No shipped page,
+theme or widget sets a mark token below the root or gives text a scheme of its own;
+of about 10,300 page sources on the maintainer's machine on 2026-11-12, two design
+explorations set a scheme below the root. Recheck in Firefox and in iOS Safari with
+`uv run leaf-dev probe review-a-plan --browser firefox --js window.lfHighlightsInherit`
+and the same with `--browser ios`; each reads `false` today. Delete the widening and
+the probe only once every engine Leaf supports reads `true`.
+
+### A highlight's `light-dark()` colour in a dark region in Chromium
+
+Chromium paints the light half of a `light-dark()` highlight colour inside an element
+whose `color-scheme` is dark when the `::highlight()` rule names no element, though
+`getComputedStyle` reports the dark half. On a light page, words Leaf marks inside a
+`color-scheme: dark` panel then wear the light scheme's violet ink and wash on the
+panel's dark ground, which is hard to read. With the comment marks on `:root` and
+`:host` (`browser/runtime/annotation-overlay/annotation-marks.css`, "Highlight style
+inheritance" above), every engine with highlight inheritance paints the same, since
+the marks there inherit the root scheme's colours; Firefox and Safari 26, whose rules
+are widened to every element, paint each region's own half.
+Recorded rather than corrected: no shipped page, theme or widget gives text a scheme
+of its own.
+
+On 2026-11-14, Playwright Chromium 158.0.8127.18 (build 1254) painted this red and
+read it blue; WebKit 27.2 (build 2388) and Firefox 159.0 (build 1572) painted it
+blue. Naming an element, as `p::highlight(m)` or `.dark::highlight(m)`, painted blue in
+Chromium too.
+
+```html
+<style>
+  .dark {
+    color-scheme: dark;
+    background: black;
+    color: white;
+  }
+  ::highlight(m) {
+    background-color: light-dark(red, blue);
+  }
+</style>
+<p class="dark" id="p">marked words</p>
+<script>
+  const r = new Range();
+  r.selectNodeContents(p);
+  CSS.highlights.set("m", new Highlight(r));
+</script>
+```
+
+Recheck by loading that page in Chromium: the gap has closed once the words paint
+blue.
 
 ### Font style in syntax highlights
 
@@ -446,19 +510,24 @@ window's width, a breakout may move by an offset again. In Leaf,
 `test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
 breakouts and fail if the page then scrolls sideways.
 
-### An inherited length after a container resize in WebKit
+### A non-inheriting property taken with `inherit` in WebKit
 
-A registered custom property that does not inherit, computed from `100cqi` on the
-column and passed to a child with `inherit`, kept the child's first value in
-Playwright WebKit 27.2 after the window resized: the column's own value followed
-the resize, but an `available` block sized from the child's copy stayed 1392px wide
-at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
-property updates in every child. So the column's room (`--lf-free-start`,
-`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
-flow sets it back to zero. Recheck with
+A child or `::after` that takes a registered custom property declared
+`inherits: false` with `inherit` keeps its first value in Playwright WebKit 27.2
+when only that property changes on its parent; Chromium 158.0.8127.18 and
+Firefox 159.0 restyle it (2026-11-12, a parent's `--len` set from 10px to 30px
+left a child's and an `::after`'s `height: var(--len)` at 10px). On 2026-10-31
+the same engine kept a child's copy of the column's room through a window resize:
+an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
+windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
+`browser/layouts.css`) inherits, and a box outside the column's flow sets it back
+to zero; and a thread card's fade (`--lf-thread-fade-top`,
+`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
+restyles every element in the thread. Recheck with a page holding that pair of
+rules in `leaf-dev probe --browser webkit`, then with
 `test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
-`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
-properties non-inheriting and passing them down with `inherit`.
+`tests/browser/test_render_pages.py` under `webkit_browser` after making the
+column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 

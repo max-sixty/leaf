@@ -19,17 +19,21 @@ from interact_support import (
     append_carried_log_record,
     read_record,
     serving,
+    stamp,
     wait_for,
 )
 
 from leaf import clerk as clerk_model
+from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import forks as forks_model
+from leaf import inference as inference_model
 from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread_titles as thread_titles_model
 from leaf.harness import NUDGE_WORDS
 from leaf.interaction_log import read_interactions
 
@@ -56,6 +60,7 @@ class ClaudeCode:
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
+        self.completions = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -70,6 +75,8 @@ class ClaudeCode:
                 self.bands.put(record["band"])
             elif "forked" in record:
                 self.forks.put(record)
+            elif "completed" in record:
+                self.completions.put(record["completed"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -101,16 +108,19 @@ class ClaudeCode:
             self.ended = True
 
 
-def holding_page(driven: ClaudeCode, page_dir: Path, monkeypatch) -> None:
+def holding_page(
+    driven: ClaudeCode, page_dir: Path, monkeypatch, serve: bool = True
+) -> None:
     """Have the session `driven` drives hold a page claimed and served from a Bash
     tool command as Claude Code runs one: its session id and its process. Claude
     Code's own environment names no session, so neither does the module's. The
     session then starts, as one does when the module loads while it holds a
-    page."""
+    page. `serve=False` leaves the page served by an earlier session's call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
-    serving(page_dir, 1)
+    if serve:
+        serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
     # hooks.json's prompt hook has run for the session by the time it holds a page.
     leases_model.mark_hooks(driven.session)
@@ -341,7 +351,7 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
     launcher.write_text(
         "#!/bin/sh\n"
         f"echo started >> {starts}\n"
-        f"echo '{json.dumps([page])}'\n"
+        f"echo '{json.dumps({'pages': [page], 'completions': []})}'\n"
         f'[ "$(wc -l < {starts})" -gt 1 ] && exec sleep 60\n'
         "exit 75\n"
     )
@@ -376,7 +386,7 @@ FORK_USAGE = {
 }
 
 
-def main_thread_request(driven) -> None:
+def main_thread_request(driven, messages: int = 12) -> None:
     """The main thread's request and the rows it stored, which a fork resends, with a
     subagent's after them, which it doesn't."""
     row = {
@@ -386,7 +396,7 @@ def main_thread_request(driven) -> None:
     }
     driven.emit("session.append", {**row, "uuid": "r1"})
     step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
-    driven.emit("turn.step", {**step, "messageCount": 12})
+    driven.emit("turn.step", {**step, "messageCount": messages})
     driven.emit("session.append", {**row, "uuid": "r2"})
     driven.emit(
         "turn.step",
@@ -463,39 +473,152 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     driven.quit()
 
 
+# The usage of a fork that wrote the conversation to the cache again.
+REWROTE = {
+    **FORK_USAGE,
+    "cache_read_input_tokens": 50,
+    "cache_creation_input_tokens": 9000,
+}
+# A minute and a day, in `$.clock`'s milliseconds.
+MINUTE_MS = 60 * 1000
+DAY_MS = 24 * 60 * MINUTE_MS
+
+
+@pytest.fixture
+def checks(page_dir, monkeypatch, spawn, sessionless, tmp_path):
+    """Run a new session's turn-end checks, all sessions sharing one plugin store
+    (`store.json` in `tmp_path`),
+    and return each check's effort. `later` moves `$.clock` on before the main
+    thread's request, and `idle` between that request and the checks; the request
+    carries `messages` messages, and the other options are the driver's."""
+    store = tmp_path / "store.json"
+    served = []
+
+    def run(session, turns, later=0, idle=0, messages=12, **options):
+        reply = json.dumps({"asks": [], "findings": []})
+        driven = ClaudeCode(
+            spawn, session, {"forkReply": reply, "store": str(store), **options}
+        )
+        holding_page(driven, page_dir, monkeypatch, serve=not served)
+        served.append(session)
+        driven.send({"advance": later})
+        main_thread_request(driven, messages)
+        driven.send({"advance": idle})
+        ended = {"answer": "Done.", "durationMs": 1, "isAborted": False}
+        efforts = []
+        for turn in range(turns):
+            driven.emit(
+                "turn.complete", {**ended, "reason": "answer", "turnId": f"t{turn}"}
+            )
+            efforts.append(driven.forks.get(timeout=STATED_TIMEOUT)["effort"])
+            wait_for(
+                lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+                lambda line: line.startswith("Leaf: the clerk"),
+                failure=lambda: (
+                    f"the clerk never reported: {list(driven.diagnostics.queue)}"
+                ),
+            )
+        driven.quit()
+        return efforts
+
+    return run
+
+
+LOW, SESSIONS = clerk_model.EFFORT, RESENT["effort"]
+
+
 def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
-    page_dir, monkeypatch, spawn, sessionless
+    checks,
 ):
     """Where Claude Code's per-message effort doesn't reach the model, a fork at
     another effort than the session's writes the conversation to the cache again
-    (#5891). Once a fork's usage shows it wrote more of its prompt than it read, each
-    later fork of the session goes at the session's own effort, which the cache
-    serves."""
-    rewrote = {
-        **FORK_USAGE,
-        "cache_read_input_tokens": 50,
-        "cache_creation_input_tokens": 9000,
-    }
-    reply = json.dumps({"asks": [], "findings": []})
+    (#5891). Once a turn-end check's usage shows it wrote more of its prompt than it
+    read, each later fork on that backend goes at the session's own effort, which the
+    cache serves: in the same session, and from the first fork of a later one, which
+    so pays no rewrite to find that out again (#5906). Another route is another
+    backend, which asks at the changed effort."""
+    assert checks("cc-rewrote-1", 2, forkUsage=REWROTE) == [LOW, SESSIONS]
+    assert checks("cc-rewrote-2", 1) == [SESSIONS]
+    assert checks("cc-rewrote-3", 1, env={"CLAUDE_CODE_USE_VERTEX": "1"}) == [LOW]
+    # A route longer than a store key holds its answer too.
+    proxy = {"ANTHROPIC_BASE_URL": "https://proxy.example/" + "p" * 300}
+    assert checks("cc-rewrote-4", 1, forkUsage=REWROTE, env=proxy) == [LOW]
+    assert checks("cc-rewrote-5", 1, env=proxy) == [SESSIONS]
+
+
+@pytest.mark.parametrize(
+    ("later", "messages", "expected"),
+    [
+        # An answer some days old still holds.
+        (3 * DAY_MS, 12, [SESSIONS, SESSIONS]),
+        # A lapsed one asks again while the conversation is small, and a check that
+        # keeps the cache drops it.
+        (8 * DAY_MS, 12, [LOW, LOW]),
+        # In a large conversation that would cost a rewrite of it, so it holds.
+        (8 * DAY_MS, 400, [SESSIONS, SESSIONS]),
+    ],
+)
+def test_a_stored_rewrite_lapses(checks, later, messages, expected):
+    """A backend that gains per-message effort is found again: a stored rewrite
+    lapses after some days, and the next check in a small conversation asks at the
+    changed effort, which here keeps the cache."""
+    assert checks("cc-lapse-1", 1, forkUsage=REWROTE) == [LOW]
+    assert checks("cc-lapse-2", 2, later=later, messages=messages) == expected
+
+
+def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
+    checks, page_dir, monkeypatch, spawn, tmp_path
+):
+    """A thread's fork learns nothing from its usage, so it can't renew or drop a
+    lapsed answer: asking again there would pay a rewrite on every reply until a
+    turn-end check. Each reply keeps the session's effort, and the store, and the
+    next check asks again."""
+    assert checks("cc-lapse-reply-1", 1, forkUsage=REWROTE) == [LOW]
+    store = tmp_path / "store.json"
+    stored = json.loads(store.read_text())
     driven = ClaudeCode(
-        spawn, "cc-fork-rewrote", {"forkReply": reply, "forkUsage": rewrote}
+        spawn,
+        "cc-lapse-reply-2",
+        {"forkReply": "Looking", "store": str(store), "forkUsage": REWROTE},
     )
-    holding_page(driven, page_dir, monkeypatch)
+    holding_page(driven, page_dir, monkeypatch, serve=False)
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    driven.send({"advance": 8 * DAY_MS})
     main_thread_request(driven)
-    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "reason": "answer"}
-    efforts = []
-    for turn in ("t1", "t2"):
-        driven.emit("turn.complete", {**ended, "turnId": turn})
-        efforts.append(driven.forks.get(timeout=STATED_TIMEOUT)["effort"])
+    for text in ("Why 2 s?", "And the retry?"):
+        append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": text}
+        )
+        assert driven.forks.get(timeout=STATED_TIMEOUT)["effort"] == SESSIONS
         wait_for(
             lambda: driven.debug.get(timeout=STATED_TIMEOUT),
-            lambda line: line.startswith("Leaf: the clerk"),
+            lambda line: line.startswith("Leaf: a fork took"),
             failure=lambda: (
-                f"the clerk never reported: {list(driven.diagnostics.queue)}"
+                f"the fork never reported: {list(driven.diagnostics.queue)}"
             ),
         )
-    assert efforts == [clerk_model.EFFORT, RESENT["effort"]], efforts
+    assert json.loads(store.read_text()) == stored
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "turnId": "t1"})
+    assert driven.forks.get(timeout=STATED_TIMEOUT)["effort"] == LOW
     driven.quit()
+
+
+def test_a_check_after_the_cache_expired_stores_nothing(checks, tmp_path):
+    """A check made once the main thread's last request has left the cache writes
+    the conversation again at any effort, so its usage stores no answer."""
+    expired = checks("cc-cold", 2, forkUsage=REWROTE, idle=10 * MINUTE_MS)
+    assert expired == [LOW, LOW]
+    store = tmp_path / "store.json"
+    assert not store.exists() or json.loads(store.read_text()) == {}
 
 
 def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
@@ -588,4 +711,68 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
     assert note["effort"] == forks_model.EFFORT != RESENT["effort"], note
     assert note["usage"] == FORK_USAGE and note["elapsedMs"] >= 0, note
     assert driven.diagnostics.empty()
+    driven.quit()
+
+
+def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """As a comment opens an untitled thread, its page server asks the claimant's
+    model for a title through the session's pages follower; the module makes the
+    completion on the session's own client and hands the reply back through the
+    launcher, and the title goes in in the claimant's voice. The provider's first
+    answer is a 429, which the module reports with its status, so the page server
+    asks again (`thread_titles.RETRY_INTERVAL`). Forks are off, so the follower
+    waits on the session's requests alone."""
+    monkeypatch.setattr(thread_titles_model, "RETRY_INTERVAL", 0.1)
+    driven = ClaudeCode(
+        spawn,
+        "cc-title",
+        {
+            "completeReply": '{"title": "Poll interval"}',
+            "completeRefusals": 1,
+            "env": {"LEAF_FORK_REPLIES": "off"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    assert stamp(page_dir, "first").exit_code == 0
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    wait_for(
+        lambda: band_lines(
+            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
+        ),
+        bool,
+        failure="the band never showed the page",
+    )
+    status, body = endpoint_model.accept_event(
+        page_dir, {"kind": "comment", "revision": 1, "text": "Why does it poll 2 s?"}
+    )
+    assert status == 200, body
+    refused = driven.completions.get(timeout=STATED_TIMEOUT)
+    assert refused["model"] == inference_model.CLAUDE_CODE_MODEL
+    assert "Why does it poll 2 s?" in refused["prompt"]
+    assert driven.completions.get(timeout=STATED_TIMEOUT) == refused
+    [title] = wait_for(
+        lambda: [
+            event
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "thread_title"
+        ],
+        bool,
+        failure=lambda: f"no title: {read_interactions(page_dir)}",
+    )
+    assert (title["thread"], title["title"], title["session"]) == (
+        body["event"]["id"],
+        "Poll interval",
+        "cc-title",
+    )
+    [logged] = wait_for(
+        lambda: read_interactions(page_dir, types=("thread_title_generated",)),
+        bool,
+        failure="the title was never recorded",
+    )
+    assert (logged["refusals"], logged["inputTokens"]) == (1, 300)
+    assert logged["apiDurationMs"] >= 0
+    assert driven.forks.empty() and driven.diagnostics.empty()
     driven.quit()

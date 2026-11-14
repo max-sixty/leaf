@@ -7,8 +7,9 @@ settings:
 overrides:
   '@anthropic-ai/claude-agent-sdk': 0.3.309
   lit-html: 3.3.0
-  get-uri>basic-ftp: 6.2.1
+  get-uri>basic-ftp: 6.2.6
   minimatch@<11.0.1: ^11.0.4
+  '@hono/node-server@<2.1.6': ^2.1.6
 
 patchedDependencies:
   '@awesome.me/webawesome@3.14.0':
@@ -943,8 +944,8 @@ packages:
     resolution: {integrity: sha512-Bbr0hW9hhDhBf3Jp0EyDlkCbFgbr0z2jd3BMKYOYW+fOkPM4Nx195GMXyCtRCGEgoNn6i09FabXrSkNFm2ONzg==}
     engines: {node: '>=20.0.0'}
 
-  '@hono/node-server@2.1.5':
-    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+  '@hono/node-server@2.1.8':
+    resolution: {integrity: sha512-jdf7FHh6A1lzjpHHQUgxsg2GeER2vMetnAOfeActzcoli6jamlK+NAwL6Dsr5Fl3BS3tYUQzCdtZjU8Qxv7bEA==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
@@ -2498,8 +2499,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  basic-ftp@6.2.1:
-    resolution: {integrity: sha512-bK67isD+lKq46AU8vNtjvMaT2ZqAOAmNCbxUHlFBRD4k15NWxyEjmaKtZPlgce58So4BNTjITGQOVTjL9y0ECA==}
+  basic-ftp@6.2.6:
+    resolution: {integrity: sha512-0EjZCaodOz6yiokv2JA1VyKGNdGxULZ+GGlPgG9tm4d+T/bHtX1hUch8CumDneBfpIbiSdn7TaCGwpM+gwsOlw==}
     engines: {node: '>=10.0.0'}
 
   bidi-js@1.1.0:
@@ -3378,8 +3379,8 @@ packages:
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
 
-  hono@4.13.12:
-    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
+  hono@4.13.18:
+    resolution: {integrity: sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA==}
     engines: {node: '>=16.9.0'}
 
   hookified@1.15.1:
@@ -6066,9 +6067,9 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@hono/node-server@2.1.5(hono@4.13.12)':
+  '@hono/node-server@2.1.8(hono@4.13.18)':
     dependencies:
-      hono: 4.13.12
+      hono: 4.13.18
 
   '@img/colour@1.1.0': {}
 
@@ -6414,7 +6415,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.7)':
     dependencies:
-      '@hono/node-server': 2.1.5(hono@4.13.12)
+      '@hono/node-server': 2.1.8(hono@4.13.18)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -6424,7 +6425,7 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.3.0
       express-rate-limit: 8.7.0(express@5.3.0)
-      hono: 4.13.12
+      hono: 4.13.18
       jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -7366,7 +7367,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  basic-ftp@6.2.1: {}
+  basic-ftp@6.2.6: {}
 
   bidi-js@1.1.0:
     dependencies:
@@ -8122,7 +8123,7 @@ snapshots:
 
   get-uri@8.0.1:
     dependencies:
-      basic-ftp: 6.2.1
+      basic-ftp: 6.2.6
       data-uri-to-buffer: 8.0.0
       debug: 4.4.3
     transitivePeerDependencies:
@@ -8224,7 +8225,7 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
-  hono@4.13.12: {}
+  hono@4.13.18: {}
 
   hookified@1.15.1: {}
 
@@ -9103,7 +9104,7 @@ snapshots:
     dependencies:
       '@anthropic-ai/sdk': 0.133.0(zod@4.6.7)
       '@apidevtools/json-schema-ref-parser': 16.0.5(@types/json-schema@7.0.15)
-      '@hono/node-server': 2.1.5(hono@4.13.12)
+      '@hono/node-server': 2.1.8(hono@4.13.18)
       '@inquirer/checkbox': 5.2.7(@types/node@26.6.5)
       '@inquirer/confirm': 6.3.4(@types/node@26.6.5)
       '@inquirer/core': 12.0.5(@types/node@26.6.5)
@@ -9197,7 +9198,7 @@ snapshots:
       '@opencode-ai/sdk': 1.19.4
       '@smithy/node-http-handler': 4.12.1
       google-auth-library: 11.3.1
-      hono: 4.13.12
+      hono: 4.13.18
       natural: 8.2.4(@aws-sdk/credential-providers@3.1156.0)(@opentelemetry/api@1.9.1)(gcp-metadata@9.2.2)(socks@2.8.10)
       node-sql-parser: 5.4.0
       pdf-parse: 2.4.5

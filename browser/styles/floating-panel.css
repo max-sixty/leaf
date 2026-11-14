@@ -390,12 +390,57 @@
     margin: 0;
     box-shadow: none;
   }
-  /* The caret in the field wears the ring an anchored comment box wears (response.css),
-     so a key that moves it there, `c` among them, shows where the words will go. */
-  .lf-fp-field .lf-compose-field[data-lf-control-focus-visible] {
+  /* The caret in the field makes the panel's right part the box the words go in, with
+     an anchored comment box's face (annotation-chrome.css): the field's box runs out to
+     the panel's edges wherever it borders them, the ring one band inside them, the
+     card's ground inside it, lighter than the panel's, and every corner at the panel's
+     own rounding. Its left side stands between the leaf and the words, so the leaf
+     stays outside the box. A key that moves the caret there, `c` among them, shows where
+     the words will go. The box's padding takes back the room its margins give, and its
+     words stand as far in as that box's at rest too, so the caret arriving moves none
+     of them. With a view open the box reaches the panel's sides and foot, and the line
+     over the row gives way to its ring.
+
+     The user chose this on 14 November 2026, after finding the field drew less
+     attention than the anchored box, which wears the same face and ring but stood out
+     by its ground, its inset and its single contour: the field's words stood 6px inside
+     a ring 4px inside the panel's hairline, on the panel's own ground. Rejected: the
+     ring round the field inside the panel, built first, two contours where the anchored
+     box has one; the ring round the whole panel, edge to edge, which stood the leaf
+     inside the box being written in, and open at the leaf's side; the panel parting
+     into a box for the leaf and one for the words, which left a gap and changed the
+     panel's shape; the field's 6px corners, which against the panel's edge read square;
+     and the panel's hairline and shadow giving way while the user writes, which in the
+     light scheme left page text under the panel ending at an edge nobody sees. The
+     panel's hairline stays just outside the ring: covering it would stand the ring
+     outside the card, whose clip Safari can't widen (`overflow-clip-margin`).
+
+     The field names the row as the box that shows its focus, so the row can give up
+     its line while the ring stands. The ring is the field's slot's (`.lf-fp-field`)
+     rather than the editor's, so Send, standing in the editor's corner, stays put;
+     a stance's ✕ at the row's end keeps the box's right side off the panel's edge. */
+  .lf-fp-field .lf-compose-field > leaf-text {
+    --lf-focus-box: .lf-fp-row;
+  }
+  .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field {
+    margin-block: calc(-1 * var(--lf-fp-row-pad));
+    padding-block: var(--lf-fp-row-pad);
     outline: var(--focus-ring);
-    border-radius: var(--r);
+    --lf-ring-at: var(--focus-ring-inset);
+    border-radius: var(--r-l);
+    background: var(--card);
     --lf-wears-ring: 1;
+  }
+  .lf-fp-row[data-lf-control-focus-visible]:not(:has(> .lf-fp-quick:not([hidden])))
+    > .lf-fp-field {
+    margin-inline-end: calc(-1 * var(--lf-fp-row-pad));
+    padding-inline-end: var(--lf-fp-row-pad);
+  }
+  .lf-fp-row[data-lf-control-focus-visible] > .lf-fp-field .lf-compose-field {
+    --lf-field-ground: var(--card);
+  }
+  .lf-floating-panel[data-lf-open] .lf-fp-row[data-lf-control-focus-visible] {
+    background: none;
   }
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
@@ -449,6 +494,7 @@
     background: none;
     box-shadow: none;
     padding: calc((var(--lf-line) - 1lh) / 2) 6px;
+    padding-inline-start: var(--lf-thread-text-inset);
     min-height: var(--lf-line);
     /* Half the window: a long comment reads whole before the field scrolls. */
     max-height: 50dvh;
@@ -562,7 +608,8 @@
   }
   .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-line) - 1lh) / 2) 6px;
-    background: var(--lf-fp-surface);
+    padding-inline-start: var(--lf-thread-text-inset);
+    background: var(--lf-field-ground);
     white-space: nowrap;
   }
   .lf-fp-field .lf-compose-error > span {

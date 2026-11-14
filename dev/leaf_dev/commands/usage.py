@@ -13,7 +13,8 @@ to put to the maintainer, with what the feature costs beside it.
 - **Widgets**: each tag a bundled registry declares, with the pages whose current
   source holds it. A page that used a widget and later dropped it doesn't count.
 - **Packages**: the packages each page's layer record selects, for the pages whose
-  record this Leaf reads (`leaf.registry.storage.layer_record`).
+  record this Leaf reads. A record at another shape, an older Leaf's or a newer
+  one's, counts as none, where `page init` would refuse the newer one.
 - **Commands**: each command a person ran, by key or by press, from the `command`
   observations a tab writes (`browser/runtime/interaction-log.js`), with the sessions
   and pages it ran in. A session whose browser calls itself headless is a check or a
@@ -39,7 +40,8 @@ from pathlib import Path
 import click
 
 from leaf.interaction_log import read_interactions
-from leaf.registry.storage import layer_record
+from leaf.registry.storage import LAYER
+from leaf.schema import LAYER_FILE
 from leaf.state import state_home
 from leaf_dev import ROOT
 
@@ -119,7 +121,7 @@ def survey(pages: list[Path], since: datetime | None) -> dict:
                 if tag in widgets:
                     held[tag].add(page.name)
                     uses[tag] += count
-        if record := layer_record(page):
+        if record := LAYER.read(page / LAYER_FILE):
             layered += 1
             for package in record["packages"]:
                 selected[Path(package).name] += 1

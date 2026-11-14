@@ -19,7 +19,6 @@
     "required": ["id", "objective", "window", "consumed"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-example": "<lf-burn id=\"search-burn\" objective=\"99.95\" window=\"7d\" consumed=\"0.33\"></lf-burn>"
   }
 }

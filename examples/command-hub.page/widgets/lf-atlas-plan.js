@@ -1,17 +1,14 @@
 /* Atlas owns this dashboard's composition. Shared work readings keep counts,
  * stopped tasks and assignments consistent with the recorded decisions. */
+import { html, noChange, render, repeat } from "/vendor/lit.js";
 import {
   authoredScope,
   generatedElement,
   keeps,
   HeldReading,
-  html,
   keepsText,
   LeafElement,
-  noChange,
   readWork,
-  render,
-  repeat,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-plan",

@@ -80,7 +80,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "required": ["id", "phase"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-state": {
             "phase": {
                 "unit": "widget",
@@ -246,7 +245,8 @@ customElements.define("lf-tally", class extends LeafElement {
 
 
 LEAF_OWNER = """\
-import { LeafElement, nothing } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -263,7 +263,8 @@ customElements.define("lf-owner", class extends LeafElement {
 
 
 LEAF_PIECE = """\
-import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { keeps, LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends LeafElement {
   render() {
     keeps(this, "pinned", this.state.move.value);

@@ -2849,7 +2849,6 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
         },

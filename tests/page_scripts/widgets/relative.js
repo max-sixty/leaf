@@ -1,6 +1,7 @@
 /* An intentionally invalid renderer: complete state increments its current
  * count and appends its caption. Replaying it exposes both relative-state faults. */
-import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { keeps, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",

@@ -311,7 +311,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     )
     assert item.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""

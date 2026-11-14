@@ -195,7 +195,7 @@ def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     read from the immutable document."""
     registry = vocabulary(page_dir)
     widget = registry["lf-num"]
-    widget["x-upgrade"] = True
+    registry["$modules"]["lf-num"] = "widgets/lf-num.js"
     widget["properties"]["restated"] = {"type": "boolean"}
     widget["x-state"] = {
         "repin": {

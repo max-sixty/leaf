@@ -46,6 +46,7 @@ import { ShotView } from "./shot-view.js";
  * pixel key, so the row holds only the views and nothing there reads as a fourth one.
  * Print shows both complete original images. */
 // A containing widget can create a pair absent from the authored document.
+import { render } from "/vendor/lit.js";
 import {
   setScroll,
   canvas2D,
@@ -58,7 +59,6 @@ import {
   placesFailure,
   focusDestination,
   closeNativeLayer,
-  render,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,

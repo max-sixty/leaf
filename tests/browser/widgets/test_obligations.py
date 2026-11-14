@@ -119,7 +119,6 @@ PLATE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-visual": "whole",
-        "x-upgrade": False,
     }
 }
 

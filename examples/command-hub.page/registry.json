@@ -106,7 +106,6 @@
   },
   "lf-atlas-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
-    "x-name": "label",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -125,8 +124,7 @@
     "x-content": "members",
     "x-refers": {
       "overview": {}
-    },
-    "x-upgrade": true
+    }
   },
   "lf-atlas-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
@@ -164,8 +162,6 @@
     "required": ["id", "status"],
     "additionalProperties": false,
     "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
-    "x-content": "markup",
-    "x-upgrade": true,
     "x-thread-seat": {
       "when": {
         "talk": [true]
@@ -199,7 +195,6 @@
     "required": ["id", "state"],
     "additionalProperties": false,
     "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
-    "x-content": "markup",
     "x-refers": {
       "on": {
         "via": "$work.widgets",
@@ -208,7 +203,6 @@
         }
       }
     },
-    "x-upgrade": true,
     "x-state": {
       "state": {
         "writer": "agent",
@@ -238,7 +232,6 @@
         "property": "value"
       }
     },
-    "x-upgrade": true,
     "x-space": "wide"
   }
 }

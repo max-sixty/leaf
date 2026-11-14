@@ -229,8 +229,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, sentenceUnits} = await window.__lfCheckApi();
-          const {alignText} = await window.__lfWidgetApi();
+          const {alignInlineText, alignText, sentenceUnits} = await window.__lfCheckApi();
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),

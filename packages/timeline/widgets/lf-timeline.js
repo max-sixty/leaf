@@ -25,13 +25,13 @@ import {
  * the layout, so nothing waits on it, and a failure shows where it happened
  * (`failSoft`). Its step is kept under its id, which no other widget on the page or in
  * a reply shares. */
+import { render } from "/vendor/lit.js";
 import {
   announce,
   commandsChanged,
   failSoft,
   once,
   registerVisualParts,
-  render,
   reportFailure,
   sizeObserver,
   tabStore,

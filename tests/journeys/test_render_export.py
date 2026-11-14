@@ -82,7 +82,8 @@ def requested_documents(page):
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -129,7 +130,6 @@ OFFLINE_REGISTRY = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",

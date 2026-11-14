@@ -550,13 +550,14 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, relabel, searchField}} =
+  const {{offer, nameAction, generatedElement, keepsText, searchField}} =
     await import("/runtime/portable-api.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
   const label = offer("span");
-  relabel(label, "Evidence", {{says: "echo"}});
+  generatedElement(label, {{says: "echo"}});
+  keepsText(label, "Evidence");
   const search = searchField("host-search", {{name: "files", label: "Find files"}});
   document.querySelector("main").append(button, label, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}

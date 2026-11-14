@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { LeafElement, nothing, html } from "/runtime/widget-api.js";
+import { nothing, html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 let fixtureSequence = 0;
 async function scene() {

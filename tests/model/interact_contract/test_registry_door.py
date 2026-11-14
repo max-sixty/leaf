@@ -15,8 +15,8 @@ from interact_support import (
     _report_position_record,
     _report_says_attr,
     _report_undeclared_attr,
+    _report_without_module,
     _report_without_overruled,
-    _report_without_upgrade,
     _user_verb_text,
     check_findings,
     element_declaration,
@@ -194,8 +194,6 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
         ("x-refers", {}),
         ("x-says", []),
         ("x-state", []),
-        ("x-thread-surface", False),
-        ("x-upgrade", "yes"),
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
@@ -261,8 +259,8 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, code, at, va
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
         (_report_without_overruled, "unoverruled", {}),
-        # Reports replay through the widget's render(), so the widget must upgrade.
-        (_report_without_upgrade, "needs-upgrade", {}),
+        # Reports replay through the widget's render(), so the widget needs a module.
+        (_report_without_module, "needs-module", {}),
         # Only an agent verb declares `text`.
         (_user_verb_text, "invalid-extensions", {}),
         # The user answers their own obligation; the agent's news never does.
@@ -504,18 +502,21 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     [
         ("lf-options", "x-state", None),
         ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
-        ("lf-diff", "x-thread-surface", True),
     ],
 )
-def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallback):
+def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
+    """A page declares a tag that takes what only a module provides, and holds no
+    `page/widgets/<tag>.js` for it."""
     registry = vocabulary(page_dir)
-    registry[tag][key] = registry[tag].get(key, fallback)
-    registry[tag]["x-upgrade"] = False
+    bare = deepcopy(registry[tag])
+    bare[key] = bare.get(key, fallback)
+    bare.pop("x-example", None)
+    registry["lf-bare"] = bare
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    [refused] = found(findings, "needs-upgrade", f"<{tag}>")
+    [refused] = found(findings, "needs-module", "<lf-bare>")
     assert key in refused.values["keys"]
 
 
@@ -750,17 +751,14 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-option", "x-unique", {"label": "lf-options"}, "label"),
-        ("lf-code", "x-language", "dialect", "dialect"),
-        ("lf-column", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     page_dir, tag, key, value, missing
 ):
     """These keys point at attributes rather than declaring them — the words a widget
-    shows, the ones that name another element, the ones no two members of an owner
-    share, and the two carrying a word its layer
-    has to know —
+    shows, the ones that name another element, and the ones no two members of an owner
+    share —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget
     simply missing from the pass, and a page that looks authored correctly because it
@@ -840,7 +838,6 @@ def test_an_obligation_role_declares_an_addressable_instance(page_dir):
                 "unit": "widget",
             }
         },
-        "x-upgrade": False,
     }
     declare_vocabulary(page_dir, registry)
 

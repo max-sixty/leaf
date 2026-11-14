@@ -1685,7 +1685,6 @@ def _author_stateful_verbatim_widget(tmp_path):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }

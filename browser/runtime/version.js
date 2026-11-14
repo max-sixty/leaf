@@ -120,7 +120,7 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring, upgrades } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
@@ -577,11 +577,11 @@ const diffBlockSel = () =>
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring(
-      (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+      (e, tag) => upgrades(tag) && !e["x-verbatim"] && e["x-content"] === "data",
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e["x-data"]),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -1823,8 +1823,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (/** @type {Element} */ element) =>
-    Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (/** @type {Element} */ element) => upgrades(element.localName);
 
   // Every element under a root in document order, including inert template contents.
   /** @param {Element} root @returns {Generator<Element>} */

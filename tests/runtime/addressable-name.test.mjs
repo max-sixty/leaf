@@ -1,8 +1,8 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
    A section is named by its heading, a disclosure by its summary, a titled compound
-   member by its leading <strong>, and an element whose registry entry declares
-   `x-name` by that attribute. Anything else has no name, and the caller decides what
+   member by its leading <strong>, and a registered widget that takes a `label` by
+   that attribute. Anything else has no name, and the caller decides what
    stands in for one. The words come through the passage reader, so
    generated chrome inside an element names nothing.
 

@@ -1076,7 +1076,6 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         "properties": {},
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-example": "<lf-piece>Example</lf-piece>",
     }
     registry_path.write_text(json.dumps(declarations, indent=2))

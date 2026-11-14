@@ -17,24 +17,8 @@
    Each home re-exported here must load, and work, in a document Leaf did not compose:
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. */
-export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-} from "/vendor/lit.js";
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
-  afterScript,
   cancelRender,
   cancelAnimation,
   nextAnimation,
@@ -48,7 +32,6 @@ export {
   announce,
   bodyText,
   commandsChanged,
-  dataBody,
   failSoft,
   layoutChanged,
   once,
@@ -62,7 +45,6 @@ export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
 export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tokens.js";
-export { actionName } from "./icon-paths.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export {
@@ -101,7 +83,7 @@ export { publishOutput } from "./widget-output.js";
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
-export { nameAction, relabel, searchField } from "./control-labels.js";
+export { nameAction, searchField } from "./control-labels.js";
 
 export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";

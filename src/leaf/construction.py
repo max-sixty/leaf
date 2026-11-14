@@ -22,7 +22,7 @@ from .projection import (
     markup_value,
     record_members,
 )
-from .registry.contract import state_specs
+from .registry.contract import state_specs, upgraded
 from .structure import SourceDocument
 
 
@@ -111,7 +111,7 @@ def constructed_content(
                 parents[identity] = parent
             node["edit"] = {"kind": "thread", "thread": thread}
             entry = registry.get(node["tag"], {})
-            if entry.get("x-upgrade"):
+            if upgraded(registry, node["tag"]):
                 node["vocabulary"] = node["tag"]
             inputs = input_readings(node["attrs"], entry, stored, page_dir)
             if inputs:

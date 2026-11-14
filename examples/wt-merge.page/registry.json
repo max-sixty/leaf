@@ -8,7 +8,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-visual": {
       "prefixes": ["commit:", "ref:", "tree:", "hook:"]
     },
@@ -23,10 +22,8 @@
     },
     "required": ["id", "for"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-refers": {
       "for": {}
-    },
-    "x-upgrade": true
+    }
   }
 }

@@ -11,6 +11,9 @@ from pathlib import Path
 from leaf.state import KERNEL_REGISTRY
 
 from .contract import (
+    MODULES,
+    complete_declarations,
+    module_paths,
     read_registry_declarations,
     registry_error,
     stamp_decisions,
@@ -76,14 +79,20 @@ def _canonical(value) -> str:
 
 def merged_registry(packages: list[Path]) -> tuple[dict, str]:
     """The kernel registry's facts with each package's registry declarations merged
-    over them, and the name a refusal gives the merge.
+    over them, the module each declared element has among the packages' `widgets/`
+    (`contract.MODULES`), each declaration's defaults written in
+    (`contract.complete_declarations`), and the name a refusal gives the merge.
 
     Packages are additive at the top level; `merge_layer_declarations` holds the
     grain."""
     merged = {}
     merge_layer_declarations(merged, read_registry_declarations(KERNEL_REGISTRY))
     paths = []
+    widgets = set()
     for package in packages:
+        widgets.update(
+            f"widgets/{module.name}" for module in (package / "widgets").glob("*.js")
+        )
         path = package / "registry.json"
         if not path.is_file():
             continue
@@ -91,6 +100,8 @@ def merged_registry(packages: list[Path]) -> tuple[dict, str]:
         merge_layer_declarations(merged, read_registry_declarations(path))
     if not paths:
         raise registry_error("no-incoming-registry")
+    merged[MODULES] = module_paths(merged, widgets, "widgets")
+    complete_declarations(merged)
     return merged, "merged registry (" + ", ".join(str(path) for path in paths) + ")"
 
 

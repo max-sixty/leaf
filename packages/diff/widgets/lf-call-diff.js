@@ -12,11 +12,10 @@
  * persistent invocation instances. Rows are keyed by call and placed with setChildLists rather than a Lit repeat per root:
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
+import { html, render, nothing } from "/vendor/lit.js";
 import {
   announce,
-  html,
   nameAction,
-  render,
   el,
   generated,
   generatedElement,
@@ -24,7 +23,6 @@ import {
   keepsText,
   LeafElement,
   navigateToDatum,
-  nothing,
   offerAction,
   setChildLists,
   setChildren,

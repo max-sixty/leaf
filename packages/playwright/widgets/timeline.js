@@ -16,13 +16,9 @@
  * capture is shown; this module owns only geometry, labels and gestures. Times are
  * milliseconds from the recording's origin.
  */
+import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
 import {
   setScroll,
-  html,
-  keyed,
-  nothing,
-  render,
-  repeat,
   frameFor,
   sizeObserver,
   whileConnected,

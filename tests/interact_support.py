@@ -740,7 +740,6 @@ def declare_data_input(
         "additionalProperties": False,
         "x-content": "empty",
         "x-data": {input_name: {"contract": contract, "source": "source"}},
-        "x-upgrade": False,
     }
 
     def declare(registry):
@@ -1417,8 +1416,11 @@ def _report_without_overruled(registry):
     del registry["lf-test-task"]["properties"]["overruled"]
 
 
-def _report_without_upgrade(registry):
-    registry["lf-test-task"]["x-upgrade"] = False
+def _report_without_module(registry):
+    registry["lf-test-bare"] = {
+        **deepcopy(registry["lf-test-task"]),
+        "x-example": '<lf-test-bare id="bare"></lf-test-bare>',
+    }
 
 
 def _user_verb_text(registry):
@@ -2523,12 +2525,22 @@ def declared_reading_package(tmp_path, monkeypatch):
     return "./.leaf"
 
 
+def with_modules(registry: dict, *tags: str) -> dict:
+    """`registry` holding a module for each of `tags`, as composing a layer that holds
+    their `widgets/<tag>.js` writes it (`registry.contract.MODULES`)."""
+    registry.setdefault("$modules", {}).update(
+        {tag: f"widgets/{tag}.js" for tag in tags}
+    )
+    return registry
+
+
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag`, or, without `upgrade`, the same
-    markup block with no module behind it."""
+    """The product's starter declaration for `tag` as a composed vocabulary holds it,
+    its defaults written in, or, without `upgrade`, the same markup block with no
+    module behind it."""
     declaration = packages_model.starter_element_declaration(tag)
+    declaration["x-content"] = "markup"
     if not upgrade:
-        declaration["x-upgrade"] = False
         del declaration["x-verbatim"]
     return declaration
 

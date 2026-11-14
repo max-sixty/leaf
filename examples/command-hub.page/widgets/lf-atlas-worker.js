@@ -1,14 +1,13 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
  * user asks for the latest, while identity and state come from the public projection. */
+import { html, noChange } from "/vendor/lit.js";
 import {
   ago,
   generatedElement,
   HeldReading,
-  html,
   keeps,
   keepsText,
   LeafElement,
-  noChange,
   readWork,
   reportSequence,
   reportsReady,

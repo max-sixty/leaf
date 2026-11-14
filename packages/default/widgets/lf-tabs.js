@@ -76,6 +76,7 @@
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
+import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   setScroll,
@@ -125,11 +126,6 @@ import {
   pressIsKeyboardActivation,
   signal,
   LeafElement,
-  html,
-  nothing,
-  render,
-  repeat,
-  ref,
   commandsChanged,
 } from "/runtime/widget-api.js";
 

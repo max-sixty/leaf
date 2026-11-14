@@ -61,16 +61,14 @@ screenshot fitted to its box is, declares `visible` or `clip`, or `hidden` where
 keeps a `scrollbar-gutter` across states.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
-page's (`pageScroller`). `regionScrollBehavior(node)` is `"bounded"` while the region's body
-scrolls itself, and `"flow"` otherwise.
+page's (`pageScroller`).
 
 When a change hides or shows regions, such as switching tabs, run it through
 `preserveReadingRegions(owner, change)`, so Leaf restores the user's place in the
 regions shown once `change`'s promise resolves. A region that shows one subject of
 several at a time, as a trace's saved tree shows one checkpoint, replaces its body's
 contents inside `showReadingSubject(id, subject, render)`, and the user returns to their
-place in each subject. `watchReadingRegionTransitions(listener)` hears these changes and
-any shift in a region's scroller or width; `runtime/reading-regions.js` describes them.
+place in each subject.
 
 ### Holding the reader's place
 
@@ -219,7 +217,7 @@ container above it.
 
 Link to a place on the page with an ordinary fragment link; Leaf clears any panel
 covering the page and opens whatever holds the element. A fragment can also name a
-part of a widget by the widget's id and a key, which `fragmentUrl` builds
+part of a widget by the widget's id and a key
 ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)).
 A widget that opens the part a
 fragment names reads it with `fragmentTarget(hash)`: the element, or for a key the part
@@ -267,26 +265,15 @@ A widget removing an item asks `foldDuration()` each time rather than choosing a
 number, and a retained frame returning from an editor to its reading uses the shorter
 `returnDuration()`.
 
-`foldBlock(element)` animates a block from its ordinary CSS size to zero, margins,
-padding, borders and minimum size included. It returns an Animation, or `null` where it
-retires the block at once, as under reduced motion. Retire the block's state at once,
-since the effect keeps its pixels drawn until the fold finishes; keep its ordinary
-sizing rules while it leaves, and cancel the effect if retirement is reversed.
-
 `backgroundFlash(element, ms)` gives an element a brief yellow tint that fades to its
 own background. `flashDuration()` is how long Leaf's own arrival tint lasts, as on a
 newly arrived message.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's panel, in the italic Leaf sets its
-own words in, and announces it to screen readers, such as a view the widget switched
-to. A recorded gesture is acknowledged by
-the `says` its dispatch gives (`module-state.md`, "The widget controller"). News not
-caused by the user passes `{background: true}` and waits behind what the user just did;
-`{announce: false}` only shows it. `announce(message)` only announces, for words already
-on screen: it dispatches an `lf-announce` event on the window carrying `message` as its
-`detail`, which Leaf says in its live region and a page without Leaf leaves unsaid.
+`announce(message)` announces words already on screen: it dispatches an `lf-announce`
+event on the window carrying `message` as its `detail`, which Leaf says in its live
+region and a page without Leaf leaves unsaid.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's

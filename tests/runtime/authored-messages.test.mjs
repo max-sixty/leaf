@@ -29,7 +29,8 @@ test("overlapping message reads share preparation and retain it through surface 
   `)}`;
   adoptRegistry({
     $layer: { generation: "frozen-message-preparation" },
-    "lf-message-preparation": { "x-upgrade": true },
+    "lf-message-preparation": {},
+    $modules: { "lf-message-preparation": "widgets/lf-message-preparation.js" },
   });
   widgetModule(t, "lf-message-preparation", initializer);
   const message = {
@@ -70,7 +71,8 @@ test("failed message preparation reaches every waiting state read and later read
   )}`;
   adoptRegistry({
     $layer: { generation: "failed-frozen-message-preparation" },
-    "lf-message-failure": { "x-upgrade": true },
+    "lf-message-failure": {},
+    $modules: { "lf-message-failure": "widgets/lf-message-failure.js" },
   });
   widgetModule(t, "lf-message-failure", initializer);
   const message = {

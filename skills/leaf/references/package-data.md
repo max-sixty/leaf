@@ -287,8 +287,7 @@ other unbound input to the widget. Tell page authors how to bind it in
         "property": "value"
       }
     },
-    "x-instructions": "Bind `source` to the build feed this page should show.",
-    "x-upgrade": true
+    "x-instructions": "Bind `source` to the build feed this page should show."
   }
 }
 ```

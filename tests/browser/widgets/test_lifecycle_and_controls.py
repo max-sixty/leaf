@@ -27,7 +27,6 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "data",
-        "x-upgrade": True,
     }
     stage = {**source, "x-content": "markup", "x-shadow": True}
     url = serve(

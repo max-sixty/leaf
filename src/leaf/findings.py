@@ -1187,15 +1187,8 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
-    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
-    ),
-    "missing-module": _declared(
-        lambda v: (
-            "is upgraded but its module is missing; expected"
-            f" {v['expected'][0]} or {v['expected'][1]}"
-        )
     ),
     "markdown-needs-data": _declared(
         lambda v: "block Markdown requires x-content: data"
@@ -1214,8 +1207,19 @@ _TEXT = {
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
     ),
-    "needs-upgrade": _declared(
-        lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
+    "unnamed-module": _declared(
+        lambda v: (
+            "no declared tag has the name of "
+            + ", ".join(v["modules"])
+            + "; a page widget's module is page/widgets/<tag>.js, and a helper"
+            " module stands elsewhere under page/"
+        )
+    ),
+    "needs-module": _declared(
+        lambda v: (
+            f"declares {', '.join(v['keys'])}, which a module provides, and has"
+            f" none at {v['module']}"
+        )
     ),
     "unknown-declarations": _declared(
         lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
@@ -1295,12 +1299,6 @@ _TEXT = {
         lambda v: (
             "has addressable visual parts but does not require a string `id`"
             " for their anchor"
-        )
-    ),
-    "visual-upgrade": _declared(
-        lambda v: (
-            "declares addressable visual parts but has no upgraded handler to"
-            " resolve them"
         )
     ),
     # Its conditions, read against its own attributes.

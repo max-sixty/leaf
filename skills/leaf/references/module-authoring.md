@@ -25,7 +25,7 @@ long it lives across revisions. A widget's declarations are in
 ## The helper surface
 
 Import behavior helpers from `/runtime/widget-api.js`, or its portable part ("A
-widget that also runs off Leaf"). Templates use the same API and `/vendor/lit.js`.
+widget that also runs off Leaf"), and Lit's templates from `/vendor/lit.js`.
 Don't import the runtime's
 other modules, query Leaf's own chrome, or copy a runtime helper. Each helper is
 described in the section for the task it serves, and its full contract is in the header
@@ -35,10 +35,11 @@ there is no separate bundled-package tier. Kernel implementation and check-only
 observations live outside this surface. A DOM helper takes the element it acts for as
 its first argument.
 
-From Lit, `widget-api.js` exports `render`, `html`, `nothing`, `repeat`, `keyed`,
-`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard` and `unsafeHTML`. From
-Preact Signals it exports `signal`, for private state a command's `when` reads
-(`module-input.md`, "Command rows").
+`/vendor/lit.js` is Lit's own module, the one path its names come from: `render`,
+`html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`, `classMap`,
+`styleMap`, `guard`, `unsafeHTML` and `noChange`. From Preact Signals `widget-api.js`
+exports `signal`, for private state a command's `when` reads (`module-input.md`,
+"Command rows").
 
 ### A widget that also runs off Leaf
 
@@ -93,7 +94,7 @@ script", lists.
   (`module-reading.md`, "Reading the page").
 - Build injected controls with `offer()`, `offered` or `selectableOffer()`, a press
   that looks like Leaf's controls with `offerAction()` or `offeredAction` by its role, and
-  label them with `relabel()` ("Generated controls").
+  mark the words they write with `generatedElement()` ("Generated controls").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
 - Schedule paints with `frameFor`, observe size with `sizeObserver`, and write repeated
@@ -223,9 +224,7 @@ native disclosures, links and authored content need no such wait.
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- For an imperative widget that moves authored children into a generated container,
-  use `holdAuthoredBody(host, box)`. An `x-patch: members` revision edits inside that box.
-  A markup container without `x-views` leaves those children as independent evidence;
+- A markup container without `x-views` leaves those children as independent evidence;
   revisions can change them without rebuilding its generated controls. A renderer that
   consumes its children's identities or attributes declares structural members or
   `x-views`, so changing those inputs rebuilds its view.
@@ -350,10 +349,6 @@ page doesn't count as settled until this work runs, so motion that may run until
 user stops it, such as playback, uses `nextAnimation(callback)` and
 `cancelAnimation(id)` instead.
 
-`afterScript(callback)` runs a callback once when the current script finishes, for a
-paint two steps of one script would otherwise trigger twice; pass the same function each
-time, not a new arrow.
-
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
 the page plays.
@@ -405,9 +400,6 @@ Leaf's computed geometry or styling another package's internals.
 
 ## Generated controls
 
-`PRESSABLE` is the selector for a generated control that offers a press. Use it when
-a compound widget delegates events to its own controls.
-
 `offer(tag, className, label, inputType, pressable)` makes a native control, or a box of
 controls, marked as Leaf-generated; the browser keeps its activation, focus and
 accessibility. `inputType` is for an `input`. Pass `pressable: true` for a custom element
@@ -457,18 +449,15 @@ names its role last: `selectableOffer("button", className, label, "row")`. For
 another role, such as `"tab"`, the widget declares its keys. Printing drops every
 offer, so build structure that isn't injected UI with `el(tag, className, text)`.
 
-`relabel(node, label, {says})` writes a generated control's label. Set `says: true`
-where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an
-action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
-worker's name.
-
 Words a module writes into the page need no marking: setting an element's
 `textContent`, appending a paragraph or rendering a template leaves them the page's
 words, which the user can comment on. A version comparison reads each version's source
 rather than the page, so they never read as a change. To set apart words the widget
-writes beside the author's, such as a count after an authored sentence, mark their
-element with `generatedElement(node, {says})`, which takes the same answers; in a
-template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
+writes, such as a count after an authored sentence or a generated control's label, mark
+their element with `generatedElement(node, {says})`. Set `says: true` where the words
+are the page speaking, as a pick mark reading "chosen" does, `false` for an action
+word, and `"echo"` for a copy of words the page shows elsewhere, such as a worker's
+name; in a template, write `<h2 ${generated({ says: true })}>`. `wrote()` then leaves them out,
 and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
@@ -485,7 +474,7 @@ that measure what they hold, so they read again.
 with Leaf's frame, label, editor and Clear button; the widget owns the query and
 results, and can put a match count in its `end` slot.
 
-`relabel`, `nameAction` and `searchField` also load through
+`nameAction` and `searchField` also load through
 `portable-api.js` on a plain host. Load `/vendor/webawesome.esm.js` to upgrade a
 search field's editor.
 

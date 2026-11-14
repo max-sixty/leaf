@@ -919,7 +919,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )

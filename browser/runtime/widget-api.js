@@ -16,19 +16,16 @@
 import "./element-integration.js";
 export * from "./portable-api.js";
 export { signal } from "/runtime/framework.js";
-export { iconElement, iconTemplate } from "./icons.js";
+export { iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
-export { holdAuthoredBody } from "./widget-elements.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
-// arrivals and links read it; `fragmentUrl(element, key)` is this page's URL with a
-// fragment naming the element, or the part of it a key names.
-export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
-export { fragmentUrl } from "./anchor-coordinate.js";
+// arrivals and links read it.
+export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
@@ -54,7 +51,7 @@ export { under } from "./shadow.js";
 // from and handing them back as it closes; running something once they move off an
 // element, or once a press lands away from it (`onPressAway`); and a group's roving Tab
 // stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
-// Markdown in; TEXT_BOX matches it and any native textarea.
+// Markdown in.
 export {
   closeLayer,
   handBack,
@@ -64,9 +61,8 @@ export {
   openLayer,
   openerOf,
   rove,
-  whenLeft,
 } from "./focus.js";
-export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
+export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
 export { obligationsIn } from "./obligations/place.js";
@@ -102,10 +98,7 @@ export { commandScope, commandsOn, saying } from "./keyboard/scopes.js";
 export { allButCommandReference } from "./keyboard/register.js";
 export { rowWalk } from "./walk-position.js";
 export { excerptWords } from "./words.js";
-export {
-  CONTRIBUTION_ENTRY_SCHEMA,
-  contributionItemKey,
-} from "./contribution-model.js";
+export { contributionItemKey } from "./contribution-model.js";
 export {
   contributionEntry,
   presentContributionEntry,
@@ -130,18 +123,14 @@ export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export {
   compoundReadingRegionId,
   preserveReadingRegions,
-  regionScrollBehavior,
   registerReadingRegion,
   scrollerFor,
   showReadingSubject,
-  watchReadingRegionTransitions,
 } from "./reading-regions.js";
-export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
-export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
+export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
-export { ago, agePreview, clockValue, quietSince, shortAgo } from "./presence.js";
-export { revisionLabel } from "./context.js";
+export { ago, agePreview } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
@@ -157,7 +146,6 @@ export {
   flashDuration,
   foldDuration,
   returnDuration,
-  foldBlock,
   backgroundFlash,
   motion,
 } from "./motion.js";
@@ -181,16 +169,9 @@ export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
-export {
-  saidAt,
-  readHistory,
-  reportSequence,
-  reportsPresented,
-  reportsReady,
-} from "./reports.js";
+export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {
-  PRESSABLE,
   dragging,
   el,
   motionPreview,

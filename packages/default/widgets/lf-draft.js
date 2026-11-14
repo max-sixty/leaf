@@ -68,17 +68,15 @@
  * without taking focus from an unrelated place. A refused save reopens the retained
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
+import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableWord,
   commandScope,
   motion,
   returnDuration,
-  html,
-  render,
   offered,
   offeredAction,
-  nothing,
   LeafElement,
   offer,
   TEXT_FIELD,

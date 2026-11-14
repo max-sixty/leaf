@@ -1,4 +1,5 @@
 /* Atlas task rows keep their authored hierarchy and report identity. */
+import { nothing } from "/vendor/lit.js";
 import {
   declarationFor,
   matchesWhen,
@@ -6,7 +7,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-task",

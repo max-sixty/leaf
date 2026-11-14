@@ -28,7 +28,10 @@ test("a surface widget whose constructor threw is not waited for", async () => {
   // watch that waited for the definition would re-offer the element on every
   // resolution and spin forever. Waits are counted, and capped so that spin fails here
   // rather than starving the event loop.
-  adoptRegistry({ "lf-broken-surface": { "x-thread-surface": true } });
+  adoptRegistry({
+    "lf-broken-surface": {},
+    $modules: { "lf-broken-surface": "widgets/lf-broken-surface.js" },
+  });
   const real = customElements.whenDefined.bind(customElements);
   let waits = 0;
   customElements.whenDefined = (name) =>

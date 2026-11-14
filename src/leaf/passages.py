@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .registry.contract import upgraded
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
@@ -444,7 +445,8 @@ class _PassageParser:
         entry = self.registry.get(tag) or {}
         joins = tag in JOINS_WORDS_TAGS or bool(entry.get("x-inline"))
         block = parent["block"] if parent and joins else self._fresh()
-        if entry.get("x-upgrade"):
+        upgrade = upgraded(self.registry, tag)
+        if upgrade:
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
                     self.verbatim[ancestor["verbatim"]].boundary(tag, attrs_d.get("id"))
@@ -457,7 +459,7 @@ class _PassageParser:
             self.verbatim_owners += 1
         # An upgrade is opaque unless it preserves its own words and ordered nested
         # upgraded boundaries. Descendants keep their own contracts.
-        opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
+        opaque = upgrade and not entry.get("x-verbatim")
         editable = bool(parent and parent["editable"])
         if "contenteditable" in attrs_d:
             value = (attrs_d["contenteditable"] or "").lower()
@@ -534,7 +536,7 @@ class _PassageParser:
             "retired_by": retired_by,
             "opaque": opaque,
             "editable": editable,
-            "upgrade": bool(entry.get("x-upgrade")),
+            "upgrade": upgrade,
             "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
             # Whether its words are prose: it or an element around it is a text block.

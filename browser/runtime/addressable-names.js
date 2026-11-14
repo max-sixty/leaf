@@ -51,12 +51,12 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
-// where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+// A widget's word for its kind: what its module answers from `lfWord()` where `element`
+// is drawn and has the method, else its registry's fixed `x-word`, else its tag without
+// the prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
-  const declared = registry[tag]?.["x-word"];
-  const own = declared === "module" ? element?.lfWord?.() : declared;
+  const own = element?.lfWord?.() || registry[tag]?.["x-word"];
   return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
@@ -66,16 +66,12 @@ export function widgetWord(tag, element = null) {
 /** @param {Element | null | undefined} addressable */
 export function addressableSays(addressable) {
   if (!addressable) return "";
-  const own =
-    registry[addressable.localName]?.["x-word"] === "module"
-      ? addressable.lfSays?.()
-      : "";
-  return own || elementReading(addressable);
+  return addressable.lfSays?.() || elementReading(addressable);
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`skills/leaf/references/module-reading.md`, "Naming elements"): the attribute its
-// registry entry declares with `x-name`, else a leading disclosure summary, heading,
+// (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
+// attribute (the registry's `$attributes`), else a leading disclosure summary, heading,
 // or titled member's <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
 // before it; elements may, as a titled member's comparison chips stand in the band
 // above its title and an eyebrow above a header's heading. The words are the ones the
@@ -104,12 +100,14 @@ function readLeadingTitle(container) {
   }
   return null;
 }
-// The title an element's attribute holds, as its declaration names (`x-name`), such
-// as a tab's label.
+// The title a widget's `label` attribute holds, such as a tab's: the one attribute
+// that names its element on every widget that takes it (`$attributes`, Python's
+// `registry.contract.NAME_ATTRIBUTE`).
 /** @param {Element} element */
 function declaredName(element) {
-  const attribute = registry[element.localName]?.["x-name"];
-  return (attribute && element.getAttribute(attribute)?.trim()) || "";
+  const widget =
+    isElementName(element.localName) && Object.hasOwn(registry, element.localName);
+  return (widget && element.getAttribute("label")?.trim()) || "";
 }
 // Where a name comes from: an attribute's words, or an element whose words are the name,
 // read by the reading the rule names. A reader that reads names as something else draws
@@ -182,7 +180,7 @@ export const ownName = (element) => namingWords(ownNaming(element));
 /** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  element.lfSays?.() ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );

@@ -969,7 +969,8 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {keeps, offer, LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     this.show(this.value);
@@ -1014,7 +1015,6 @@ def data_projection_page(serve):
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }
     contract = {

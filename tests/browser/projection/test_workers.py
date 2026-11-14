@@ -476,14 +476,14 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {clockValue} = await window.__lfWidgetApi();
-          const {readApplicationPresentation} = await window.__lfCheckApi();
+          const {clockValue, projectionRegionsPresented, readApplicationPresentation} =
+            await window.__lfCheckApi();
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
           customElements.define('lf-report-proof', class extends api.LeafElement {
             render() {
-              if (!this.whenReady(() => api.reportsPresented(owner))) return api.noChange;
+              if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return api.noChange;
               clockValue(() => window.__proofClock);
               window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
               return api.noChange;

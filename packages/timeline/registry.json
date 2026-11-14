@@ -13,7 +13,6 @@
     "required": ["id", "aria-label"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
     "x-visual": {
       "prefixes": ["event:"]
     },
@@ -30,10 +29,8 @@
     },
     "required": ["label"],
     "additionalProperties": false,
-    "x-name": "label",
     "x-owners": ["lf-timeline", "lf-run"],
-    "x-content": "members",
-    "x-upgrade": false
+    "x-content": "members"
   },
   "lf-run": {
     "description": "One run of a compared sequence in an `lf-timeline`, such as the run before a fix, holding its lanes. Every run in a timeline shares its time axis and its playhead, and a timeline with runs keeps every lane in one.",
@@ -46,10 +43,8 @@
     },
     "required": ["label"],
     "additionalProperties": false,
-    "x-name": "label",
     "x-owners": ["lf-timeline"],
     "x-content": "members",
-    "x-upgrade": false,
     "x-example": "<lf-timeline id=\"retry-order\" aria-label=\"Retry handling before and after the fix\"><lf-run label=\"Before the fix\"><lf-lane label=\"Client\"><lf-event id=\"retry-before-send\" at=\"0\" end=\"300\" label=\"Send\"></lf-event><lf-event id=\"retry-before-resend\" at=\"1200\" end=\"1500\" label=\"Resend\"></lf-event></lf-lane><lf-lane label=\"Server\"><lf-event id=\"retry-before-apply\" at=\"400\" label=\"Apply\"></lf-event><lf-event id=\"retry-before-reapply\" at=\"1600\" label=\"Apply again\"></lf-event></lf-lane></lf-run><lf-run label=\"After the fix\"><lf-lane label=\"Client\"><lf-event id=\"retry-after-send\" at=\"0\" end=\"300\" label=\"Send\"></lf-event><lf-event id=\"retry-after-resend\" at=\"1200\" end=\"1500\" label=\"Resend\"></lf-event></lf-lane><lf-lane label=\"Server\"><lf-event id=\"retry-after-apply\" at=\"400\" label=\"Apply\"></lf-event><lf-event id=\"retry-after-skip\" at=\"1600\" label=\"Skip the duplicate\"></lf-event></lf-lane></lf-run></lf-timeline>"
   },
   "lf-event": {
@@ -72,9 +67,7 @@
     },
     "required": ["id", "label", "at"],
     "additionalProperties": false,
-    "x-name": "label",
     "x-owners": ["lf-lane"],
-    "x-content": "empty",
-    "x-upgrade": false
+    "x-content": "empty"
   }
 }

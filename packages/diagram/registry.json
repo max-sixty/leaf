@@ -12,7 +12,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-upgrade": true,
     "x-visual": {
       "parts": "parts"
     },

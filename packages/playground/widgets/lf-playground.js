@@ -59,6 +59,7 @@ import { createPlayground } from "./playground-view.js";
  * the page's elements, not Leaf's controls. Rejected: methods the page calls from its
  * own handlers with a decision state to label from, which would leave every page to
  * restate when the press withdraws the choice. */
+import { render } from "/vendor/lit.js";
 import {
   afterPresentation,
   compoundReadingRegionId,
@@ -72,7 +73,6 @@ import {
   onPress,
   isNativeLayer,
   LeafElement,
-  render,
   registerReadingRegion,
   reachedForWords,
   says,

@@ -58,6 +58,7 @@ import { sectionMarks } from "./toc-marks.js";
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
+import { render } from "/vendor/lit.js";
 import {
   atLayoutPrecision,
   atScrollEnd,
@@ -65,7 +66,6 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  render,
   keeps,
   landingInsets,
   LAYOUT,

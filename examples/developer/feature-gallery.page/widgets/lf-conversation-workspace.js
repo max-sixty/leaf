@@ -1,5 +1,6 @@
 /* A package chooses layout while Leaf retains conversations, messages and replies.
    Local selection and ordering never change the log or decide obligation membership. */
+import { noChange } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
   HeldReading,
@@ -9,7 +10,6 @@ import {
   offer,
   offerAction,
   LeafElement,
-  noChange,
   queueActions,
   queueItemKey,
   queueTitle,

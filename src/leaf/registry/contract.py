@@ -67,6 +67,49 @@ def element_declarations(registry: dict) -> dict:
     return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
+# The path of each element's module, by tag, in a composed vocabulary. Composition
+# derives it from the files it composes (`registry.layer.merged_registry`,
+# `registry.page.compose_page_registry`), so no declaration says whether a module
+# upgrades its element: the module's presence at `widgets/<tag>.js` does.
+MODULES = "$modules"
+
+
+def complete_declarations(registry: dict) -> dict:
+    """Write into a merged vocabulary's element declarations the default each may
+    leave unsaid, so every reader reads a complete entry: an element's content is its
+    author's markup (`x-content`) unless it declares another."""
+    for entry in element_declarations(registry).values():
+        if isinstance(entry, dict):
+            entry.setdefault("x-content", "markup")
+    return registry
+
+
+def upgraded(registry: dict, tag: str) -> bool:
+    """Whether a module upgrades `tag` in the browser (`MODULES`)."""
+    return tag in registry.get(MODULES, ())
+
+
+def module_paths(registry: dict, available, *directories: str) -> dict[str, str]:
+    """`MODULES` for a vocabulary: each declared element whose `<tag>.js` stands in
+    one of `directories`, the earliest directory winning, among the `available`
+    paths."""
+    return {
+        tag: path
+        for tag in registry
+        if is_element_name(tag)
+        and (
+            path := next(
+                (
+                    candidate
+                    for directory in directories
+                    if (candidate := f"{directory}/{tag}.js") in available
+                ),
+                None,
+            )
+        )
+    }
+
+
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     registry's `$events`: the event kind's `handling` clauses, then the `answering`
@@ -566,32 +609,35 @@ def stamp_states(registry: dict) -> dict:
     return registry
 
 
-# A word a widget declares that its layer has to know, as two things: the x- key
-# naming the attribute that carries it, and the layer-wide fact listing the words the
-# layer has. A misspelt language colors nothing and a misspelt tone paints nothing,
-# and each renders as a page that otherwise looks perfectly well, so the attribute's
-# schema has to refuse any other word. The list is the layer's ($languages, $tones)
-# rather than any widget's, and which attribute carries the word is the entry's to
-# say, so a new tag that takes a tone needs only its x-tone. A third such word is a
-# row here.
-DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
+# A word a widget takes that its layer has to know, as two things: the attribute that
+# carries it, the same on every widget (the registry's `$attributes`), and the
+# layer-wide fact listing the words the layer has. A misspelt language colors nothing
+# and a misspelt tone paints nothing, and each renders as a page that otherwise looks
+# perfectly well, so the attribute's schema has to refuse any other word. The list is
+# the layer's ($languages, $tones) rather than any widget's, so a new tag that takes a
+# tone needs only to declare `tone`. A third such word is a row here.
+DECLARED_WORDS = (("language", "$languages"), ("tone", "$tones"))
+# The attribute that holds an element's title on every widget that takes it
+# (`$attributes`), which names the element away from itself
+# (`gesture_words.element_name`, the browser's `addressableName`).
+NAME_ATTRIBUTE = "label"
 
 
 def stamp_words(registry: dict) -> dict:
-    """Write into a validated vocabulary each declared attribute's words
-    (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is complete:
-    validation refuses any other word, and an author reading the entry sees which it
-    may write.
+    """Write into a validated vocabulary the words of each attribute that takes the
+    layer's (`DECLARED_WORDS`) as its schema's `enum`, so the attribute's schema is
+    complete: validation refuses any other word, and an author reading the entry sees
+    which it may write.
 
     An attribute's schema may be `true`, which then becomes the words alone, or
     `false`, which admits no word already and is left as it is.
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
-    for key, fact in DECLARED_WORDS:
-        for tag, entry in registry.items():
-            if not (is_element_name(tag) and (attr := entry.get(key))):
+    for attr, fact in DECLARED_WORDS:
+        for entry in element_declarations(registry).values():
+            properties = entry.get("properties", {})
+            if attr not in properties:
                 continue
-            properties = entry["properties"]
             if properties[attr] is True:
                 properties[attr] = {}
             if isinstance(properties[attr], dict):
@@ -650,3 +696,38 @@ def stamp_decisions(registry: dict) -> dict:
         if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry
+
+
+def validate_modules(registry: dict, path) -> None:
+    """Refuse each declaration of what only a module provides whose tag has none
+    (`contract.MODULES`), the first finding in each. Validation asks it of every
+    declaration, and a composition that reuses an earlier validation asks it again
+    (`registry.page.compose_page_registry`): the declarations it validated can stand
+    unchanged while a module file goes. It lives here, beside `MODULES`, because that
+    reuse runs in a harness hook, which loads no schema validator."""
+    with gathering() as unit:
+        for tag, entry in element_declarations(registry).items():
+            with unit():
+                require_module(tag, entry, registry, path)
+
+
+def require_module(tag: str, entry: dict, registry: dict, path) -> None:
+    # A declaration of one of these without its module is a widget that reads as
+    # working and does nothing. Declarations validated apart from the files they
+    # compose with carry no `MODULES`, and there nothing can say.
+    needs_module = [
+        key
+        for key in (
+            "x-state",
+            "x-verbatim",
+            "x-shadow",
+            "x-thread-seat",
+            "x-history",
+            "x-patch",
+        )
+        if entry.get(key)
+    ] + (["x-visual"] if isinstance(entry.get("x-visual"), dict) else [])
+    if needs_module and MODULES in registry and not upgraded(registry, tag):
+        raise registry_error(
+            "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"
+        )

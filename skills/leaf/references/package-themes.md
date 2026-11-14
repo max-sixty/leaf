@@ -217,7 +217,7 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`x-thread-surface`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles

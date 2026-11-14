@@ -49,6 +49,7 @@
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
+import { html, nothing } from "/vendor/lit.js";
 import {
   agentName,
   nameAction,
@@ -80,8 +81,6 @@ import {
   tallyWords,
   under,
   whileConnected,
-  html,
-  nothing,
   commandsChanged,
 } from "/runtime/widget-api.js";
 

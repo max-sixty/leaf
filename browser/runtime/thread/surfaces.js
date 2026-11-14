@@ -1,7 +1,7 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
-   A widget whose tag declares `x-thread-surface` is a seat for as long as it stands
-   upgraded: `watchThreadSurfaces` registers it once its module has defined it and
+   A widget whose element has a `threadOutlets` method is a seat for as long as it
+   stands upgraded: `watchThreadSurfaces` registers it once its module has defined it and
    retires it when it leaves, over the same arrival lifetime every element owner holds
    (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
    the widget itself for outlets with
@@ -26,7 +26,7 @@ import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
 import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
-import { tagsDeclaring } from "../registry.js";
+import { registry } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface, pageSeatThread } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
@@ -75,7 +75,9 @@ const sameSet = (a, b) => a.size === b.size && [...a].every((item) => b.has(item
 
 /** @param {SurfaceServices} commands */
 export function watchThreadSurfaces(commands) {
-  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
+  // The method is the declaration: any tag a module upgrades may define it, so the
+  // watch covers every such tag and asks each element.
+  const tags = Object.keys(registry.$modules ?? {});
   if (!tags.length) return;
   watchArrivals(tags.join(","), [], {
     arrive(owner) {
@@ -85,10 +87,7 @@ export function watchThreadSurfaces(commands) {
       // an undefined owner failed to upgrade, which its module's failure reports.
       if (!owner.matches(":defined")) return;
       const outlets = owner.threadOutlets;
-      if (typeof outlets !== "function")
-        throw new TypeError(
-          `<${owner.localName}> declares x-thread-surface without threadOutlets`,
-        );
+      if (typeof outlets !== "function") return;
       register(
         owner,
         (targets, context) => {

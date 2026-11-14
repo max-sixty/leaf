@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { tabStore } from "/runtime/tab-store.js";
 import {
   ACTIVITY_VIEW,

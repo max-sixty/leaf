@@ -2064,9 +2064,8 @@ packages/callout/
   Writes pause for about two minutes.
 &lt;/lf-callout&gt;</code></pre>
             <p>
-              Its complete <code>registry.json</code> entry validates the attributes and
-              tells Leaf that the body is prose. <code>x-example</code> is the sample an
-              author queries with the entry:
+              Its complete <code>registry.json</code> entry validates the attributes.
+              <code>x-example</code> is the sample an author queries with the entry:
             </p>
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
@@ -2077,15 +2076,13 @@ packages/callout/
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": false,
     "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
             <p>
-              <code>x-content</code> and <code>x-upgrade</code> are the two Leaf
-              declarations every widget requires. The ordinary JSON Schema fields
-              validate its attributes, and Leaf adds the grammar an
+              The entry is a JSON Schema and needs no Leaf declaration: the body is the
+              author's markup unless <code>x-content</code> says otherwise. The ordinary
+              JSON Schema fields validate its attributes, and Leaf adds the grammar an
               <code>id</code> follows; <code>description</code> and
               <code>x-example</code> make the merged registry useful to an author.
             </p>

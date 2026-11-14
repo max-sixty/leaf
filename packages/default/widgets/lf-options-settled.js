@@ -3,14 +3,12 @@
  * Options remain the host's direct children, the boundary its selection, replay and
  * page-authored layout selectors read. A native details wrapper would reparent them,
  * so this disclosure owns their hidden state without changing that boundary. */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   DISCLOSE,
   comparisonChanges,
   keeps,
   generated,
-  html,
-  nothing,
-  render,
   selectableOffer,
   tabStore,
   commandsChanged,

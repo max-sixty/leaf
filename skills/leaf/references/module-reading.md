@@ -13,8 +13,7 @@ element so its computed styles supply these boundaries; a closed popover is supp
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters.
-A widget that also declares an `x-data` input reads that input's property instead,
+blank lines and trailing whitespace. A widget that also declares an `x-data` input reads that input's property instead,
 which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
@@ -35,8 +34,8 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
 an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+widget whose title is an attribute holds it in `label`, as a column does, which names
+its element on every widget that takes it (the registry's `$attributes`).
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
@@ -67,14 +66,9 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn. Where your key is a source location rather than the datum's
-lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
-element or `null`.
+name a datum not yet drawn.
 
-A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
-a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
-copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
-Loading, following, reloading, or going Back or Forward to that URL draws the part
+A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
 key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
 to its parts.
@@ -140,11 +134,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 ### Text alignment
 
-`alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
-up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
-walks its own units with jsdiff, such as a document's lines, passes the same cap.
+A widget that walks its own units with jsdiff, such as a document's lines, gives up
+after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
+alignment does.
 
 ### Media URLs
 
@@ -158,7 +150,7 @@ the drawing needs them.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+`iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
@@ -171,7 +163,7 @@ tooltip and accessible name, unless `label` or `title` says more.
 face, such as the second of two symbols a press swaps by CSS.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`; `actionName(action)` supplies the action's accessible name.
+`offerAction`.
 
 ### Time axes
 
@@ -312,13 +304,10 @@ widget restoring something from `tabStore` compares it with the history once `ph
 `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false; outside `render()`,
-`reportsPresented(target)` answers the same question. Each entry has `id`, `target`,
+`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
 `source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
 by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
-`saidAt(element)` is when the message holding `element` was sent, or the page
-published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
@@ -336,6 +325,3 @@ the element the removal emptied of every block. A removal's `at` is in the part 
 page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
 The result's length counts changes as the reader does. Reading it during a
 `LeafElement` render subscribes that render to comparison changes.
-
-`revisionLabel(event.revision)` is the page's name for the version an event was
-recorded in.

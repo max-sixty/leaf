@@ -229,8 +229,8 @@ colours with the page's status.
 ## A widget
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
-that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it puts an obligation on On Me. The merged registry's `$keys` entry defines each
+that say how Leaf treats the tag, such as its action verbs and whether it puts an
+obligation on On Me. The merged registry's `$keys` entry defines each
 key; `$state` defines the members of `x-state`, and `$awaits` an obligation's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
@@ -253,20 +253,24 @@ since `page check` requires its value to name an element the page holds.
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Key                | Shipped example                                                |
-| ------------------ | -------------------------------------------------------------- |
-| `x-reading-role`   | `lf-pane`                                                      |
-| `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
-| `x-bound`          | `lf-activity`                                                  |
-| `x-height`         | `lf-chart`                                                     |
-| `x-history`        | `lf-activity`                                                  |
-| `x-patch`          | `lf-tabs`                                                      |
-| `x-views`          | `lf-tabs`                                                      |
-| `x-thread-surface` | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| Key              | Shipped example                                                |
+| ---------------- | -------------------------------------------------------------- |
+| `x-reading-role` | `lf-pane`                                                      |
+| `x-visual`       | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
+| `x-bound`        | `lf-activity`                                                  |
+| `x-height`       | `lf-chart`                                                     |
+| `x-history`      | `lf-activity`                                                  |
+| `x-patch`        | `lf-tabs`                                                      |
+| `x-views`        | `lf-tabs`                                                      |
 
-A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module,
-following [module-authoring.md](module-authoring.md). Helper modules sit beside the
-entry module, and third-party files go under `vendor/`. What declarations mean for user
+A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
+at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's
+presence is what makes the tag an upgraded widget: Leaf loads it only where a page's
+markup uses the tag, no declaration names it, and the composed registry lists each
+tag's module under `$modules`. Helper modules sit beside the
+entry module under names that aren't a declared tag's, and third-party files go under
+`vendor/`. A module named like a widget (`lf-…`) that no tag declares and no module
+imports is refused, since it is usually a widget's module under a mistyped name. What declarations mean for user
 state is in [package-data.md, "User state"](package-data.md#user-state).
 
 ## Seeing it
@@ -276,15 +280,6 @@ widgets, once in a reading column and once in a workspace pane, and prints findi
 `page check`'s format. Presentation findings are advice for the widget's author.
 The command fails when the package check fails, the examples can't be drawn, or an
 exercised output violates its [declared data contract](package-data.md#widget-outputs).
-
-For a data-bound example, add `x-example-data` beside `x-example`, mapping each
-source id in that markup to its sample JSON value. For example,
-`"x-example-data": {"release-ci": {"main": "passing"}}` supplies the source in
-`<lf-builds id="builds" source="release-ci"></lf-builds>` when its contract accepts
-that value. Package checks validate these values against the bound contracts; a
-source without a sample stays unset. The render check supplies the values through
-ordinary bound data in both Layouts. Examples that reuse a source id render on
-separate pages, so each keeps its own values.
 
 The presentation checks:
 

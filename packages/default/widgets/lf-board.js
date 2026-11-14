@@ -40,11 +40,11 @@
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
 import Sortable from "/vendor/sortable.esm.js";
+import { nothing } from "/vendor/lit.js";
 import {
   setScroll,
   elementById,
   LeafElement,
-  nothing,
   move,
   offer,
   offerAction,

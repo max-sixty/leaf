@@ -248,7 +248,6 @@ def _shadow_tree_widget(tag):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-example": f'<{tag} id="example"></{tag}>',
     }

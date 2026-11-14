@@ -141,7 +141,11 @@ as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would ha
 
 ## Composition stamps
 
-Every composition, `page init`'s layer and a page's own declarations over it, stamps
+Every composition, `page init`'s layer and a page's own declarations over it, writes
+`$modules`, the module each declared element has among the files it composes
+(`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
+`page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
+declaration says so. It then stamps
 the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
 overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
 and the member tags each of its outcomes retires, and `$states`, each verb's writer

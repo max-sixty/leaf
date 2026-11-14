@@ -98,7 +98,6 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
         "additionalProperties": False,
         "x-content": "markup",
         "x-owners": ["lf-test-plan"],
-        "x-upgrade": True,
         "x-state": {
             "phase": {
                 "writer": "agent",

@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     open_threads,
     preview_parts,
+    primed,
     resized,
     scroll_settled,
     told,
@@ -1311,7 +1312,10 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     whose disclosure leaves that row out, its open toggle's. A thread arriving marks its
     section; the changes view draws each changed section as its stretch of the spine or
     the rule. No mark moves a row or stands among its words."""
-    page = open_page(browser, serve(named_source("sidebar-contents")))
+    page = open_page(
+        primed(browser, lambda page: page.clock.install()),
+        serve(named_source("sidebar-contents")),
+    )
     toc = page.locator("lf-toc")
     toggle = toc.locator(".lf-toc-toggle")
     held = {
@@ -1348,7 +1352,11 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     # The map reveals the label from its spine.
     page.mouse.move(access_box["x"] + 4, access_box["y"] + 4)
     access.hover()
-    page.wait_for_timeout(400)
+    # Once the hover is taken in, the page's clock runs past the rest a pointer's
+    # preview waits for (preview.js, `DWELL`, 200 ms), and what the rest decided draws.
+    rendered(page)
+    page.clock.run_for(600)
+    rendered(page)
     expect(page.locator("#lf-preview")).to_be_hidden()
 
     append_command(

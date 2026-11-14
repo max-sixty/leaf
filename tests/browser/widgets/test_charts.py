@@ -20,6 +20,7 @@ from render_harness import (
     names,
     open_page,
     plant_quiet_word,
+    primed,
     resized,
 )
 
@@ -749,6 +750,27 @@ def said(page):
     ]
 
 
+# Past the longest a preview waits on its clock before it decides (preview.js): a
+# pointer's rest and its leaving, `DWELL`, 200 ms, and a finger's hold where the engine
+# says nothing, `HOLD`, 500 ms.
+PREVIEW_WAITS_MS = 600
+
+
+def clocked(browser):
+    """`browser`, each page it opens on a clock the test runs (`waited_out`)."""
+    return primed(browser, lambda page: page.clock.install())
+
+
+def waited_out(page):
+    """Wait until each preview decision the input so far set going has been made and
+    drawn, however slowly this machine runs: the input taken in, the page's clock run
+    past every wait a preview decides after, and what those decisions drew. The page's
+    clock is installed, by `clocked` or on its context."""
+    render_checks_model.rendered(page)
+    page.clock.run_for(PREVIEW_WAITS_MS)
+    render_checks_model.rendered(page)
+
+
 def column(page, chart, week, height=0.15):
     """A point over `week`'s column of `chart`, `height` of the way down its drawing."""
     ticks = page.locator(f"#{chart} [data-lf-part='x-axis tick label'] text")
@@ -772,7 +794,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     and the ring away, a redraw brings back neither, and an arrow steps on from where
     Escape left it and shows both again. With the preview put away, Escape leaves the
     chart. Each line the preview says is one of Plot's rows."""
-    page = open_page(request.getfixturevalue(engine), serve(VALUES_PAGE))
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(VALUES_PAGE))
     chart = page.locator("#hours")
     preview = page.locator(PREVIEW)
     ring = chart.locator(".lf-chart-at circle")
@@ -798,7 +820,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     expect(preview).to_be_hidden()
     expect(ring).to_be_hidden()
     page.mouse.move(*column(page, "hours", "w1", 0.8))
-    page.wait_for_timeout(300)
+    waited_out(page)
     expect(preview).to_be_hidden()
     page.mouse.move(*column(page, "hours", "w2", 0.15))
     expect(preview.locator(".lf-preview-detail")).to_have_text(
@@ -853,7 +875,7 @@ def test_a_chart_says_the_value_under_the_pointer_and_the_keyboard(
     page.wait_for_function(
         "([drawn]) => document.getElementById('hours').drawn !== drawn", arg=[drawn]
     )
-    page.wait_for_timeout(300)
+    render_checks_model.rendered(page)
     expect(preview).to_be_hidden()
     expect(ring).to_be_hidden()
     # A key's step is the user aiming again: it steps on from the point Escape put
@@ -890,6 +912,7 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
     nothing and leaves the preview and its ring standing, until the next touch puts
     them away. Chromium alone: Playwright holds no finger in Firefox."""
     context = browser.new_context(has_touch=True)
+    context.clock.install()
     page = open_page(browser, serve(VALUES_PAGE), context=context)
     preview = page.locator(PREVIEW)
     ring = page.locator("#hours .lf-chart-at circle")
@@ -902,7 +925,7 @@ def test_a_finger_held_on_a_chart_reads_the_point_under_it(browser, serve):
 
     start = column(page, "hours", "w2")
     touch("touchStart", start)
-    page.wait_for_timeout(600)
+    waited_out(page)
     expect(preview).to_be_hidden()
     assert long_press(page, {"x": start[0], "y": start[1]}) is False
     expect(preview).to_be_visible()
@@ -1035,7 +1058,7 @@ def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
     point is within reach: the reading and its ring stay, to be read. The next point
     the pointer reaches takes their place."""
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(leaf_page("titled", f'<h1 id="t">Tasks</h1>{TITLED}')),
     )
     chart = page.locator("#titled")
@@ -1064,7 +1087,7 @@ def test_a_reading_stays_as_the_pointer_crosses_empty_drawing_toward_it(
             second[0] + (corner[0] - second[0]) * step / 8,
             second[1] + (corner[1] - second[1]) * step / 8,
         )
-    page.wait_for_timeout(300)
+    waited_out(page)
     assert said(page) == ["Second", "20 hours", "3 tasks"]
     expect(ring).to_be_visible()
     page.mouse.move(*at(0))
@@ -1265,7 +1288,7 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
         "</lf-tab></lf-tabs>"
     )
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(
             leaf_page(
                 "tall",
@@ -1307,7 +1330,7 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
             high[0] + (lines[0] - high[0]) * step / 10,
             high[1] + (lines[1] - high[1]) * step / 10,
         )
-    page.wait_for_timeout(400)
+    waited_out(page)
     assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
     expect(ring).to_be_visible()
     page.mouse.move(2, 2)
@@ -1329,7 +1352,7 @@ def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
     words, reaches only inert text inside the box the chart shares, so the reading and
     its ring stay."""
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(
             leaf_page(
                 "tall",
@@ -1360,7 +1383,7 @@ def test_a_reading_stays_over_words_its_chart_shares_a_box_with(
             high[0] + (on[0] - high[0]) * step / 10,
             high[1] + (on[1] - high[1]) * step / 10,
         )
-    page.wait_for_timeout(400)
+    waited_out(page)
     assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
     expect(ring).to_be_visible()
 
@@ -1373,7 +1396,7 @@ def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
     reading, then slides sideways into the reading over the same paragraph. No element
     boundary marks the entry, and the reading and its ring stay."""
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(
             leaf_page(
                 "tall",
@@ -1408,7 +1431,7 @@ def test_a_reading_holds_a_pointer_that_slides_onto_it_over_one_paragraph(
         assert page.evaluate("([x, y]) => document.elementFromPoint(x, y).id", at) == (
             "words"
         )
-    page.wait_for_timeout(500)
+    waited_out(page)
     assert said(page) == ["Higher", *(f"line {n}" for n in range(2, 7))]
     expect(ring).to_be_visible()
 
@@ -1492,7 +1515,7 @@ def test_a_reading_keeps_clear_of_the_card_its_chart_stands_in(engine, request, 
     page.mouse.move(high[0] - 4, high[1])
     page.mouse.move(*high)
     expect(preview.locator(".lf-preview-word")).to_have_text("Higher")
-    page.wait_for_timeout(200)
+    render_checks_model.rendered(page)
     tip = preview.bounding_box()
     drawing = chart.bounding_box()
     assert tip["y"] >= box["y"] + box["height"], (tip, box, drawing)
@@ -1687,6 +1710,7 @@ def test_a_held_reading_kept_in_a_gap_stays_as_the_window_resizes(browser, serve
     reach, which keeps the reading; the window changing size reads the preview again and
     keeps the same point. Chromium alone: Playwright holds no finger in Firefox."""
     context = browser.new_context(has_touch=True)
+    context.clock.install()
     page = open_page(browser, serve(VALUES_PAGE), context=context)
     preview = page.locator(PREVIEW)
     ring = page.locator("#hours .lf-chart-at circle")
@@ -1704,11 +1728,11 @@ def test_a_held_reading_kept_in_a_gap_stays_as_the_window_resizes(browser, serve
     expect(preview).to_be_visible()
     for step in range(1, 5):
         touch("touchMove", (start[0] - 20 * step, start[1]))
-    page.wait_for_timeout(300)
+    waited_out(page)
     assert said(page) == ["week w2", "kind fixes", "hours 14"]
     size = page.viewport_size
-    page.set_viewport_size({"width": size["width"], "height": size["height"] + 1})
-    page.wait_for_timeout(400)
+    resized(page, size["width"], size["height"] + 1)
+    waited_out(page)
     assert said(page) == ["week w2", "kind fixes", "hours 14"]
     expect(ring).to_be_visible()
     touch("touchEnd")
@@ -1798,7 +1822,7 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
 }""",
     )
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(leaf_page("picked", f'<h1 id="t">Hours</h1>{picked}')),
     )
     preview = page.locator(PREVIEW)
@@ -1812,7 +1836,7 @@ def test_a_chart_s_author_picks_which_marks_say_their_values_and_their_words(
     assert said(page) == ["Release w3", "shipped on time"]
     # The line's points say nothing, so over w1 the dot's reading stays.
     page.mouse.move(*column(page, "picked", "w1", 0.25))
-    page.wait_for_timeout(300)
+    waited_out(page)
     assert said(page) == ["Release w3", "shipped on time"]
     page.mouse.move(2, 2)
     expect(preview).to_be_hidden()

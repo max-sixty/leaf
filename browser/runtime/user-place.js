@@ -32,6 +32,10 @@
      standing for it takes its place: the paragraph's top, or the words read where
      the paragraph began above the window (lf-dial.js).
    A reader who focused nothing is anchoring's to keep, by the first block in view.
+   A control in a box Leaf stands over the page, as the floating panel's thread view or
+   a thread card, moves as the box grows, which no scroll puts back: such a box asks
+   where the user is before news grows it (`aimedControls`), and holds that news behind
+   its notice instead.
    Rejected: holding the reading line for every reader, which kept a diff's line still
    as five rows joined above it (100px on main) but moved what it left alone: words
    above the line stood at -55px where anchoring left them at 45px, and a drag
@@ -349,14 +353,27 @@ const caretPlace = (node) => {
   const [scroller] = scrollersOf(holder);
   return scroller && !stuckBox(holder, scroller) ? caret : null;
 };
-// The element under a pointer resting over the window, where one does.
+// The control under a pointer resting over the window, where one does: over the page,
+// or over a box of Leaf's standing over it.
 const pointed = () => {
   const { x, y } = pointerAt();
-  const window = shownWindow();
+  const window = layoutWindow();
   if (x < window.left || x > window.right || y < window.top || y > window.bottom)
     return null;
   return document.elementFromPoint(x, y)?.closest(PRESSES) ?? null;
 };
+// The controls the user is on: the press holding focus where they are (`focusPlace`),
+// and the one under a resting pointer. The hold below keeps either still by scrolling
+// what it rides in. A box Leaf stands over the page moves its controls by growing,
+// which no scroll puts back, so the box asks this before news grows it, and news that
+// would carry such a control waits behind the thread's notice, as any news that would
+// move the reader does (thread/held-news.js; thread-preview.js, `endNewsMoves`;
+// floating-panel.js, `answersAtOnce`).
+/** @returns {Element[]} */
+export const aimedControls = () =>
+  [focusPlace(), pointed()].filter(
+    /** @returns {node is Element} */ (node) => Boolean(node?.matches(PRESSES)),
+  );
 export function holdUserPlace() {
   const node = focused();
   const pointer = pointed();

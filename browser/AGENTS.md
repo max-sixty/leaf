@@ -64,7 +64,10 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
   once, the rare path the user chose to let move what follows it (2026-11-04). An
   exception the user chose stays with its owner, as the floating panel's growth for an
-  answer the user waits for (`floating-panel.js`) does. Check:
+  answer the user waits for (`floating-panel.js`) does. No exception carries a control
+  the user is on, by focus or a resting pointer, in a box over the page, where no
+  scroll could put it back: that news waits behind the thread's control too
+  (`aimedControls` in `user-place.js`). Check:
   `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and
   `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
@@ -82,7 +85,9 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   Map does when a widget's own contribution joins it, and the dial around its fold; a
   gesture's own result is its handler's to place. Owner: `user-place.js`
   (`holdUserPlace`, `holdPlace`), whose header records the costs the user accepted.
-  Checks:
+  Checks: `tests/journeys/test_page_holds_still.py`, which states the guarantee once
+  for every place the user can be and every change that can reach it, in the page's
+  flow and in the boxes over it, and lists each place a rule the user chose lets move;
   `test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_away`,
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
@@ -633,6 +638,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether focus is where the user is: seen where the glides leave it, or a slide taking them to it      | `user-place.js` `focusPlace`                                                       |
 | What the user reads where focus isn't where they are, in their column                                 | `reading-place.js` `pageReadingBlock`                                              |
 | What stands at the reading line, and holding a place across a change anchoring can't keep still       | `user-place.js` `readingAt`, `holdPlace`                                           |
+| The controls the user is on, by focus or a resting pointer                                            | `user-place.js` `aimedControls`                                                    |
 | Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
 | Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |

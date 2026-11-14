@@ -16,7 +16,11 @@ says how, and frames are held to that alone: the user's own scroll keeps the pla
 its path to the scroll's goal (`Place.travel`), a new thread drawn at once above it
 moves it by what the thread adds (what `Change.make` returns), and the dial's glide
 is passed over until it ends (`turn`). A case marked as failing expects only `Moved`,
-the verdict on where the place stood. Each case records what it measured (`moved`,
+the verdict on where the place stood: one the runtime gets wrong (`MOVES_ON_MAIN`), or
+one where a rule the user chose moves the place (`MOVES_BY_CHOICE`), so the choices
+that bound the guarantee are listed beside the cases that hold it. The places include
+a thread's two boxes over the page, its margin card and the floating panel's view of
+it (`floating_places`). Each case records what it measured (`moved`,
 `painted` and the rest) as JUnit properties, so a run's `--junitxml` holds the whole
 matrix.
 
@@ -39,6 +43,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    panel_settled,
     resized,
     scroll_settled,
     stamp_page,
@@ -49,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import settle
+from leaf_dev.browser import go_to_threads, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -300,6 +305,34 @@ def decisions_page(serve):
     return Built(live_url(serve(DECISIONS_PAGE)), serve.page_dir, DECISIONS_PAGE)
 
 
+FLOATING_PAGE = leaf_page(
+    "Floating", '<h1 id="title">Floating</h1>' + paragraphs(0, 90)
+)
+
+
+def floating_page(serve):
+    """Ninety paragraphs, with two threads on words of the page, which the margin shows
+    as rows and opens as cards: `told`, where the agent spoke last, so its next message
+    is news, and `asked`, where the user did, so its next message is the answer they
+    wait for."""
+    url = serve(FLOATING_PAGE)
+    d = serve.page_dir
+
+    def turn(thread, author, text):
+        event = {"kind": "reply", "author": author, "parent": thread, "text": text}
+        if author == "agent":
+            return append_agent_reply(d, thread, text)["id"]
+        return append_carried_log_record(d, event)["id"]
+
+    told = panel_comment(d, "Does paragraph 20 hold?", {"section": "p-20"}, "agent")
+    turn(told, "user", "It does, I think.")
+    turn(told, "agent", "Good. " + WORDS)
+    asked = panel_comment(d, "Does paragraph 22 hold?", {"section": "p-22"}, "agent")
+    turn(asked, "agent", "It may. " + WORDS)
+    turn(asked, "user", "Which part of it?")
+    return Built(live_url(url), d, FLOATING_PAGE, {"told": told, "asked": asked})
+
+
 PAGES = {
     "thread": thread_page,
     "map": map_page,
@@ -309,6 +342,7 @@ PAGES = {
     "pane": pane_page,
     "queue": queue_page,
     "decisions": decisions_page,
+    "floating": floating_page,
 }
 
 # ---------------------------------------------------------------------------------
@@ -633,6 +667,14 @@ def put_reading_unfocused(page, built):
     nothing_focused(page)
 
 
+def put_reading_under_thread(page, built):
+    """Read a paragraph of the page two thirds down the window, under the threads of
+    the first plan, having focused nothing on the page: a reader who only reads."""
+    scroll_to(page, "#p-33", 600)
+    expect(page.locator(thread_of(built, "jobs"))).to_be_in_viewport()
+    nothing_focused(page)
+
+
 def put_diff_reading(page, built):
     """Read the diff's twenty-eighth new line at the reading line, having focused
     nothing on the page."""
@@ -773,6 +815,104 @@ def put_on_me_turned_back(page, built):
     card.hover()
 
 
+CARD = ".lf-margin-preview:not([hidden])"
+CARD_REPLY = f"{CARD} .lf-thread-reply leaf-text"
+CARD_RESOLVE = f'{CARD} button[aria-label="Resolve thread"]'
+PANEL_VIEW = '.lf-fp-view[data-lf-route="thread"]:not([data-lf-leaving])'
+PANEL_REPLY = ".lf-floating-panel .lf-thread-reply leaf-text"
+PANEL_RESOLVE = '.lf-floating-panel .lf-fp-head button[aria-label="Resolve thread"]'
+
+
+def open_card(page, built, thread):
+    """Open `thread`'s margin card by a click on its row's marker, its words a third of
+    the way down the window; the click leaves the caret in the card's reply box."""
+    section = {"told": "p-20", "asked": "p-22"}[thread]
+    scroll_to(page, f"#{section}", 300)
+    page.locator(f'[data-lf-margin-for="{section}"] .lf-margin-marker').first.click()
+    card = page.locator(CARD)
+    expect(
+        card.locator(f'.lf-page-thread[data-lf-thread="{built.ids[thread]}"]')
+    ).to_be_visible()
+    settle(page)
+    return card
+
+
+def put_card(thread, *, words=False, on=None):
+    def put(page, built):
+        card = open_card(page, built, thread)
+        if words:
+            card.get_by_role("textbox", name="Reply", exact=True).click()
+            page.keyboard.type("Half a thought")
+        if on:
+            page.locator(on).first.hover()
+        else:
+            page.mouse.move(*ASIDE)
+
+    return put
+
+
+def put_panel(thread, *, words=False, on=None):
+    def put(page, built):
+        """Open `thread` in the floating panel from Threads."""
+        scroll_to(page, "#p-20", 300)
+        go_to_threads(page)
+        topic = {"told": "paragraph 20", "asked": "paragraph 22"}[thread]
+        page.locator(".lf-fp-thread", has_text=topic).click()
+        view = page.locator(PANEL_VIEW)
+        expect(view).to_be_visible()
+        panel_settled(page)
+        if words:
+            page.locator(PANEL_REPLY).click()
+            page.keyboard.type("Half a thought")
+        if on:
+            page.locator(on).first.hover()
+        else:
+            page.mouse.move(*ASIDE)
+
+    return put
+
+
+def floating_places():
+    """The places in a thread's two floating boxes, the margin card and the floating
+    panel's view: writing a reply, the caret in the empty reply box, and the pointer
+    resting on Resolve at the box's head, with and without words in the reply box, in
+    a thread whose next message is news (`told`) and in one whose next message answers
+    the user (`asked`)."""
+    for thread in ("told", "asked"):
+        for box, put, reply, resolve in (
+            ("card", put_card, CARD_REPLY, CARD_RESOLVE),
+            ("panel", put_panel, PANEL_REPLY, PANEL_RESOLVE),
+        ):
+            yield Place(
+                f"{box}-typing-{thread}",
+                "floating",
+                put(thread, words=True),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-caret-{thread}",
+                "floating",
+                put(thread),
+                Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-resolve-{thread}",
+                "floating",
+                put(thread, on=resolve),
+                Found(resolve),
+                {"thread below": thread},
+            )
+            yield Place(
+                f"{box}-writing-on-resolve-{thread}",
+                "floating",
+                put(thread, words=True, on=resolve),
+                Found(resolve),
+                {"thread below": thread},
+            )
+
+
 PLACES = [
     Place(
         "typing",
@@ -878,6 +1018,13 @@ PLACES = [
         {"paragraph above": "read"},
     ),
     Place(
+        "reading-under-thread",
+        "thread",
+        put_reading_under_thread,
+        Found("#p-33"),
+        {"thread above": "jobs"},
+    ),
+    Place(
         "reading-lines",
         "thread",
         put_reading_lines,
@@ -959,6 +1106,7 @@ PLACES = [
         Found(".lf-fp-on-item", "Ask 6:"),
         {"ask above": "ask-0"},
     ),
+    *floating_places(),
 ]
 
 # ---------------------------------------------------------------------------------
@@ -1079,8 +1227,10 @@ def reply(side):
             lambda: page.wait_for_function(
                 """([selector, count]) => {
                   const thread = document.querySelector(selector);
+                  const shown = (news) => news && news.checkVisibility();
                   return thread.querySelectorAll('.lf-msg').length > count
-                    || thread.querySelector('.lf-thread-news');
+                    || shown(thread.querySelector('.lf-thread-news'))
+                    || shown(document.querySelector('.lf-fp-news-outlet .lf-thread-news'));
                 }""",
                 arg=[selector, count],
             ),
@@ -1095,7 +1245,8 @@ def note_news(page, built, inside):
     notice, which says what reached the place."""
     built.notes["news"] = page.evaluate(
         """(selector) => document.querySelector(selector)
-          .closest('.lf-page-thread').querySelector('.lf-thread-news')
+          .closest('.lf-page-thread').querySelector('.lf-thread-news')?.checkVisibility()
+          || document.querySelector('.lf-fp-news-outlet .lf-thread-news')?.checkVisibility()
           ? 'held' : 'drawn'""",
         inside,
     )
@@ -1586,6 +1737,21 @@ MOVES_ON_MAIN = {
 }
 
 
+# The cases where the place moves because the user chose the rule that moves it: the
+# rule's owner records the choice, and a change of mind there flips the case to a pass,
+# whose strict mark then fails until its entry goes.
+EMPTY_REPLY = (
+    "a card grows down past the empty reply box a send or an opening left the caret "
+    "in, 239px, so the answer shows under the words read (thread-preview.js, the "
+    "user's choices of 5 and 9 November 2026)"
+)
+MOVES_BY_CHOICE = {
+    f"card-caret-{thread}-reply-above-{engine}": EMPTY_REPLY
+    for thread in ("told", "asked")
+    for engine in ("chromium", "firefox")
+}
+
+
 def cases():
     for place in PLACES:
         for change in CHANGES:
@@ -1593,7 +1759,7 @@ def cases():
                 continue
             for fixture, engine in ENGINES.items():
                 case = f"{place.name}-{change.name}-{engine}"
-                reason = MOVES_ON_MAIN.get(case)
+                reason = MOVES_ON_MAIN.get(case) or MOVES_BY_CHOICE.get(case)
                 marks = (
                     [pytest.mark.xfail(strict=True, raises=Moved, reason=reason)]
                     if reason

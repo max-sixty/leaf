@@ -88,13 +88,13 @@ const boxesOf = (view) =>
   view.kind === "thread" ? [view.node, ...Object.values(view.apart)] : [view.node];
 /** @param {Element} owner @param {PrimaryRender} render
  * @param {import("./thread-card.js").ThreadCommands} commands @param {() => Promise<unknown>} update
- * @param {{answersAtOnce?: boolean, onFailure?: () => void}} [options] */
+ * @param {{answersAtOnce?: () => boolean, onFailure?: () => void}} [options] */
 export function createPrimaryReader(
   owner,
   render,
   commands,
   update,
-  { answersAtOnce = false, onFailure = () => {} } = {},
+  { answersAtOnce = () => false, onFailure = () => {} } = {},
 ) {
   let active = true;
   // Whether the presentation's own part of the current pass failed: its render, the
@@ -124,10 +124,11 @@ export function createPrimaryReader(
         node: drawingOf(parts) ?? last.node,
         progressOpen: whole?.progressOpen ?? false,
         // A presentation that makes room for the agent's answer to the user's last turn
-        // itself (`answersAtOnce`) is handed it whatever it moves. A whole thread moves
-        // what a card's would (thread-card.js, `newsMoves`).
+        // itself is handed it whatever it moves, while it says it has that room as the
+        // news comes (`answersAtOnce`). A whole thread moves what a card's would
+        // (thread-card.js, `newsMoves`).
         newsMoves: (held) =>
-          !(answersAtOnce && held.answers) &&
+          !(held.answers && answersAtOnce()) &&
           (whole
             ? whole.newsMoves(held)
             : parts.some(

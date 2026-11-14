@@ -26,7 +26,10 @@
    its subject it also rises (`rises`; `size-rises` in placement-rules.json): it may
    outgrow the room below its top, and the window's foot lifts it, so an answer
    arriving stays in view with the turn it answers, and its top stays where it stood,
-   so a shorter thread brings it back down. While the user writes words in its reply
+   so a shorter thread brings it back down. News lifts it from under no control of its
+   head or transcript the user is on, by focus or a resting pointer: that news waits
+   behind the thread's notice (`endNewsMoves`), since the lift left Resolve's place to
+   a reply's own presses under a pointer that hadn't moved. While the user writes words in its reply
    box (user-place.js, `focusPlace`), a card beside its subject holds its foot instead,
    as one above it does: the line being typed stays still as the conversation grows
    above it. A send empties the box, so the card holds its top through the send and
@@ -138,7 +141,7 @@ import {
   tabStops,
   typesText,
 } from "../focus.js";
-import { focusPlace } from "../user-place.js";
+import { aimedControls, focusPlace } from "../user-place.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offerAction } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
@@ -624,16 +627,24 @@ export function createThreadPreview({
   // reply there (replies.js, `replyIsEditing`), not while the caret only rests in the
   // empty box a send or an opening left, so the answer they wait for shows. Held by its
   // foot, it grows up under the head and transcript, which the user is on unless they
-  // are in the reply row.
+  // are in the reply row. A control of the head or transcript the user is on, by focus
+  // or a resting pointer (user-place.js, `aimedControls`), is carried by that growth,
+  // and beside its subject by the card's rise too, whichever edge it holds.
   /** @param {Session} session */
   function endNewsMoves(session) {
     const { side } = session.side.capture();
     if (!side) return false;
     const { edge, at } = heldEdge(side);
     const inReply = Boolean(at && closestAcross(at, ".lf-thread-reply"));
-    return edge === "foot"
-      ? !inReply
-      : inReply && replyIsEditing(threadKey(session.item.thread));
+    const above = aimedControls().some(
+      (control) =>
+        renderedUnder(control, preview) && !closestAcross(control, ".lf-thread-reply"),
+    );
+    if (edge === "foot") return !inReply || above;
+    return (
+      (inReply && replyIsEditing(threadKey(session.item.thread))) ||
+      (above && (side === "left" || side === "right"))
+    );
   }
 
   // Placement supplies the outer bounds; the native tracks share them between

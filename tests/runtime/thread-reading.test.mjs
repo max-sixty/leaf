@@ -570,7 +570,7 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
       read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
     },
     () => Promise.resolve(),
-    { answersAtOnce: true },
+    { answersAtOnce: () => true },
   );
   t.after(() => {
     reader.unregister();

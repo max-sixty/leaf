@@ -59,7 +59,7 @@ import { raiseError } from "./errors.js";
 
 /** @typedef {Parameters<typeof createThreadPresentation>[0]} ThreadPresentationOptions
  * @typedef {ReturnType<typeof createThreadDestinations>} ThreadDestinations
- * @typedef {{render: import("./thread/primary-reader.js").PrimaryRender, reveal: import("./thread/destination.js").OpenPrimary, answersAtOnce?: boolean}} PresentationSpec
+ * @typedef {{render: import("./thread/primary-reader.js").PrimaryRender, reveal: import("./thread/destination.js").OpenPrimary, answersAtOnce?: () => boolean}} PresentationSpec
  * @typedef {PresentationSpec & {yielded: () => (() => void) | null}} YieldingSpec
  */
 /** @template {PresentationSpec} [T=PresentationSpec]
@@ -625,11 +625,12 @@ function createApplication(dependencies) {
   // taking its place the conversation it shows, which runs once the package holds its
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
-  // itself says so (`answersAtOnce`), and its reader draws that answer at once.
+  // itself says so as that news comes (`answersAtOnce`), and its reader draws the
+  // answer at once.
   /** @param {Element} owner @param {PresentationSpec} spec @param {(() => void) | undefined} [onFailure] */
   const attachPresentation = (
     owner,
-    { render, reveal, answersAtOnce = false },
+    { render, reveal, answersAtOnce = () => false },
     onFailure = undefined,
   ) => {
     const reader = createPrimaryReader(

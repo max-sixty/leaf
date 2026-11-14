@@ -120,7 +120,9 @@
  *   chose on 28 October over Close in the row's seat, 52px of the field at rest. The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
- *   the thread's presses up with its name. A press on the head line holds the view's
+ *   the thread's presses up with its name, but never one the user is on, by focus or a
+ *   resting pointer: that answer waits behind the thread's notice, as other news does
+ *   (`answersAtOnce`). A press on the head line holds the view's
  *   height as it acts, so the presses there stay under the pointer for the next press,
  *   as a press in the view holds it (`judgePress`); Resolve, which takes the thread
  *   away, opens the next one at its own height (`resolveLanding`). It lasts while it
@@ -294,7 +296,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { holdPlace, standsAt } from "./user-place.js";
+import { aimedControls, holdPlace, standsAt } from "./user-place.js";
 import { onUserCount, queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { groupingLabel, ON_ME_GROUPINGS, queueStop } from "./queue-walk.js";
@@ -2019,7 +2021,11 @@ export function createFloatingPanel({
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
-  // for unseen. Other news in an open thread is still held. A thread's view declares
+  // for unseen. Other news in an open thread is still held, and so is the answer while
+  // the user is on a control of the view or its head line, by focus or a resting
+  // pointer (user-place.js, `aimedControls`): the growth carried Resolve 216px from
+  // under a pointer resting on it and stood a message's pencil there, and no scroll
+  // puts back what the panel's own growth moves. A thread's view declares
   // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
   // exactly this growth (tests/shift_watch.js, `appendGrowth`).
   // Whether this opening of a thread has shown Show on page (`onPageSeat`), whose seat
@@ -5324,8 +5330,10 @@ export function createFloatingPanel({
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
       // The view makes room for the agent's answer to the user's last turn itself
-      // (the growth under **Opened**), so the reader hands it over at once.
-      answersAtOnce: true,
+      // (the growth under **Opened**), so the reader hands it over at once, unless
+      // that growth would carry a control the user is on.
+      answersAtOnce: () =>
+        !aimedControls().some((control) => renderedUnder(control, opened)),
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
       // reader, and the message they were on, goes.

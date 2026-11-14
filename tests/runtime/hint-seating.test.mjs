@@ -38,13 +38,6 @@ test("a chip drawn on another is seated below it", () => {
   );
 });
 
-test("a chip below its target is centred under it and clears it", () => {
-  const target = box(200, 50, 100, 20);
-  assert.deepEqual(seat([{ start: chip(0, 0), target, placement: "below" }]), [
-    { left: 240, top: 72 },
-  ]);
-});
-
 test("a chip past the window's corner is held inside the band", () => {
   // The last few pixels of a control show in the window's corner.
   const target = box(990, 795, 10, 5);
@@ -233,25 +226,26 @@ test("a before chip that would stand on a neighbouring target stands above its o
     { left: 78, top: 107 },
     { left: 205, top: 82 },
   ]);
-  // Where another target stands above it too, as in a grid of buttons, the chip keeps
-  // its target's corner, which covers less of the neighbour's words.
+  // Where another target stands above it too, as in a grid of buttons, the chip stands
+  // on its own target's corner.
   assert.deepEqual(
     before([...buttons, box(100, 135, 100, 30), box(205, 135, 100, 30)]),
     [
       { left: 78, top: 107 },
       { left: 205, top: 82 },
       { left: 78, top: 142 },
-      { left: 183, top: 135 },
+      { left: 205, top: 135 },
     ],
   );
   // The seat above is read where the window lets it stand: pushed in from the window's
-  // right edge, it would stand on the target above and left of its own.
+  // right edge, it would read as the target above and left of its own, so the chip
+  // stands on its own target's corner, its middle still nearer its own target.
   const edge = before([
     box(940, 100, 45, 30),
     box(990, 100, 10, 30),
     box(960, 65, 25, 25),
   ]);
-  assert.deepEqual(edge[1], { left: 968, top: 100 });
+  assert.deepEqual(edge[1], { left: 978, top: 100 });
   // A target around its own is no neighbour: the first slot of a film keeps its seat
   // before the film's edge, and the next slot's chip stands above it.
   const film = box(100, 100, 300, 60);
@@ -272,13 +266,59 @@ test("a before chip that would stand on a neighbouring target stands above its o
   );
 });
 
-test("control chips sit above their own left edge", () => {
+test("a chip beside its own target reads as its own though another target's edge is nearer", () => {
+  // A choice beside a card: its chip stands in the gutter, over the card's edge, level
+  // with the choice.
+  const card = box(40, 100, 297, 200);
+  const choice = box(355, 150, 200, 30);
+  assert.deepEqual(
+    seat(
+      [card, choice].map((target) => ({
+        start: chip(target.left, target.top),
+        target,
+        placement: "before",
+      })),
+    )[1],
+    { left: 333, top: 157 },
+  );
+  // A corner chip whose middle stands on its own target stands, though the link beside
+  // overlaps that corner by a pixel.
+  const links = [box(32, 480, 320, 22), box(351, 490, 226, 230)];
+  assert.deepEqual(
+    seat(
+      links.map((target) => ({
+        start: chip(target.left - 10, target.top - 8),
+        target,
+      })),
+    ),
+    [
+      { left: 22, top: 472 },
+      { left: 341, top: 482 },
+    ],
+  );
+});
+
+test("control chips sit above their own left edge, and before it where that seat reads as the control above", () => {
   const target = box(800, 400, 120, 30);
   // The chip's CSS centres its face on the seat. Its measured start already carries
   // that translation; outside placement follows the target edge rather than it.
   assert.deepEqual(seat([{ start: chip(790, 392), target, placement: "above" }]), [
     { left: 800, top: 382 },
   ]);
+  const stacked = [box(800, 362, 120, 30), target];
+  assert.deepEqual(
+    seat(
+      stacked.map((one) => ({
+        start: chip(790, one.top - 8),
+        target: one,
+        placement: "above",
+      })),
+    ),
+    [
+      { left: 800, top: 344 },
+      { left: 778, top: 407 },
+    ],
+  );
 });
 
 test("before chips of nested targets stand one step out per level, the deepest where they would alone", () => {
@@ -318,7 +358,7 @@ test("the nesting step narrows to the room before the outermost target", () => {
   assert.deepEqual(lefts, [2, 10, 18]);
 });
 
-test("a target in no nest keeps its chip beside it, and a clamped chip does not narrow the step", () => {
+test("a target in no nest keeps its chip beside it, and one with no room before it does not narrow the step", () => {
   const group = box(200, 100, 400, 300);
   const option = box(200, 100, 400, 100);
   const alone = box(200, 500, 400, 50);
@@ -331,5 +371,5 @@ test("a target in no nest keeps its chip beside it, and a clamped chip does not 
       placement: "before",
     })),
   ).map(({ left }) => left);
-  assert.deepEqual(lefts, [168, 178, 178, 2, 2]);
+  assert.deepEqual(lefts, [168, 178, 178, 10, 10]);
 });

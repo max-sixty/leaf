@@ -26,13 +26,24 @@ A turn holds a thread from the moment it takes the thread until another turn doe
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
 
-This is the one reading of who holds a message. Delivery (`forks.kept_from_main`,
-and `left_by_agent_turns` for what a fork's ended turn left the main thread),
-an agent's tool boundary (`to_carry`), the activity fold and every hook that reads
-it (`activity.agent_holds`), the end of an agent's run (`forks.ended`), keeping a
-thread back for a line fork (`forks.kept_back`) and an agent turn's right to act on
-a message (`refuse_unheld`) all ask it rather than reading the pickups and answers
-themselves.
+This is the one reading of who holds a message. An agent's tool boundary
+(`to_carry`), the end of an agent's run (`forks.ended`), keeping a thread back for a
+line fork (`forks.kept_back`) and an agent turn's right to act on a message
+(`refuse_unheld`) all ask it rather than reading the pickups and answers themselves.
+
+`message_holders` names each waiting message's holder for a reader (`holder`): the
+session's main thread, or the fork that took the thread, by the name the main thread
+reaches it by, with whether its turn runs, closed or lapsed; or, for a message Leaf
+keeps back while a line fork judges it (`forks.kept_back`), the line fork. Who owes
+its answer now is that holder while it is the line fork or a fork whose turn runs,
+and otherwise the main thread (`owed_by`). Delivery (`delivery.deliverable`), admission
+(`forks.kept_from_main_at_admission`) and the activity fold, with every hook that
+reads it (`activity.agent_holds`), filter that one reading: they keep from the main
+thread what it doesn't owe, and hand it what a fork's ended turn left it. `leaf page
+state` prints it, giving each answer the agent owes the holder that owes it now
+(`activity.canonical_activity`), and each thread the `holder` of the turn that last
+took it (`last_taken`). So a main thread recovering what it owes there can leave a
+running fork's work, and a message a line fork is judging, to them.
 
 An agent's turn keeps the main thread off the messages it holds only while it runs,
 that is while it is open and renewed within the working grace
@@ -43,19 +54,6 @@ a message a running fork holds takes the thread over at once. An agent's turn ma
 pick up, answer or start on only the messages it holds or no turn holds
 (`refuse_unheld`), so a fork whose thread another turn took can neither take it
 back, nor answer it, nor show itself at work on it.
-
-`holder` names a turn for a reader: the session's main thread, or the fork that took
-the thread, by the name the main thread reaches it by, with whether its turn runs,
-closed or lapsed. `leaf page state` gives each thread the `holder` of the turn that
-last took it, and each answer the agent owes the `holder` that owes it now: a fork
-while its turn runs, and otherwise the main thread (`activity.canonical_activity`). So
-a main thread recovering what it owes there can leave a running fork's work to it.
-
-TODO(2026-11-14): read who answers each message once, here, as the main thread, a
-named fork, or a line fork still judging it, and have `activity.agent_holds`,
-`forks.kept_from_main` and `left_by_agent_turns` filter that reading, which page state
-then prints as it is; today a message kept back for a line fork reads as the main
-thread's. Page state could then also say which holder is the caller's own turn.
 
 `docs/forks.html`, "Who holds a message", explains the rule with the rest of the
 fork design; `session-lifetime.md`, "Turns and generations", is the contract other
@@ -228,6 +226,50 @@ def holder(
     }
 
 
+MAIN = {"kind": "main"}
+# The holder of a message Leaf keeps back while a line fork judges it.
+LINE = {"kind": "line"}
+
+
+def message_holders(
+    events: list[dict],
+    session: str | None,
+    stamps: dict[str, dict],
+    running: set[str],
+    kept: set[str],
+    found: Rounds | None = None,
+) -> dict[str, dict]:
+    """The holder of each of the user's waiting thread messages that the main thread
+    doesn't hold (the module header), for the claimant's `session`, whose agent turns
+    are `stamps` and `running` as `holder` takes them: the line fork (`LINE`) for each
+    message in `kept`, which Leaf keeps back while a line fork judges it
+    (`forks.kept_back`), and otherwise the fork whose turn holds it
+    (`holding_turns`), named. Any other message is the main thread's (`MAIN`).
+    `found` is the log's `rounds`, where the caller has them."""
+    if not stamps and not kept:
+        return {}
+    found = rounds(events) if found is None else found
+    turns = holding_turns(events, session, running, found)
+    return {
+        event["id"]: held
+        for thread, said in found.waiting.items()
+        for event in said
+        if (
+            held := LINE
+            if event["id"] in kept
+            else holder(turns.get(event["id"]), thread, stamps, running)
+        )["kind"]
+        != "main"
+    }
+
+
+def owed_by(held: dict) -> dict:
+    """Who owes the answer to a message whose holder is `held` (`message_holders`):
+    that holder while it is the line fork or a fork whose turn runs, and otherwise
+    the main thread, which owes what a fork's ended turn left."""
+    return held if held["kind"] == "line" or held.get("state") == "running" else MAIN
+
+
 def taken_over(input_ids) -> str:
     """What an agent's turn is told as it acts on messages another turn of its
     session now holds (`refuse_unheld`)."""
@@ -330,42 +372,6 @@ def pickable(
         return input_ids
     holders = holding_turns(page.events, session, running)
     return [i for i in input_ids if holders.get(i) not in running]
-
-
-def agent_held(page: PageTransaction) -> set[str]:
-    """The waiting messages an agent's running turn holds (`holding_turns`), which
-    go to that agent at its tool boundary rather than to the main thread. With no
-    active claim, no agent speaks for the page."""
-    claim = page.active_claim
-    if claim is None:
-        return set()
-    running = running_turns(claim)
-    if not running:
-        return set()
-    return {
-        input_id
-        for input_id, turn in holding_turns(page.events, claim["id"], running).items()
-        if turn in running
-    }
-
-
-def left_by_agent_turns(page: PageTransaction) -> set[str]:
-    """The waiting messages whose newest pickup was in an agent turn of the
-    claimant's that no longer runs: the thread of a fork that gave it back, failed,
-    or lapsed. The main thread owes them now, and its next delivery hands them over
-    as input (`delivery.deliverable`), which its pickup takes the thread with."""
-    claim = page.active_claim
-    if claim is None:
-        return set()
-    stamps = agent_turn_stamps(claim)
-    if not stamps:
-        return set()
-    running = running_turns(claim)
-    return {
-        input_id
-        for input_id, turn in holding_turns(page.events, claim["id"], set()).items()
-        if turn in stamps and turn not in running
-    }
 
 
 def taken_by_agent_turns(page: PageTransaction) -> set[str]:

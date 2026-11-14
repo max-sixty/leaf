@@ -391,14 +391,15 @@ def agent_turn_state(
 
 
 def agent_holds(obligation: dict) -> bool:
-    """Whether an agent's running turn holds this owed update (`holder`,
-    `holding.holder`): a running turn of an agent the claimant's session runs beside
-    its main thread (`state.AGENT_TURNS`), such as a fork that took a thread's work.
-    The main thread neither holds its turn over it, is reminded of it, nor takes it
-    in again (`hook_transport.pick_up_acknowledged`) until that turn ends; once it
-    does, an update still owed is the main thread's input, which its next delivery
-    hands over (`holding.left_by_agent_turns`)."""
-    return obligation["holder"]["kind"] == "fork"
+    """Whether an agent other than the main thread owes this update now (`holder`,
+    `holding.owed_by`): a running turn of an agent the claimant's session runs beside
+    its main thread (`state.AGENT_TURNS`), such as a fork that took a thread's work,
+    or a line fork judging a message Leaf keeps back. The main thread neither holds
+    its turn over it, is reminded of it, nor takes it in again
+    (`hook_transport.pick_up_acknowledged`) until that turn ends; once it does, an
+    update still owed is the main thread's input, which its next delivery hands over
+    (`delivery.deliverable`)."""
+    return obligation["holder"]["kind"] != "main"
 
 
 class Turn(NamedTuple):
@@ -663,14 +664,15 @@ def canonical_activity(
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. Each owed answer's
-    `holder` names who owes it now, a running fork or the main thread, and each
+    `holder` names who owes it now, a running fork, the line fork judging a message
+    `present` says Leaf keeps back, or the main thread (`holding.owed_by`), and each
     thread's in `thread_holders` the turn that last took it (`holding.holder`).
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import holder, holding_turns, last_taken, rounds
+    from .holding import MAIN, holder, last_taken, message_holders, owed_by, rounds
     from .thread_context import thread_names
     from .todos import TodoReading
 
@@ -704,23 +706,22 @@ def canonical_activity(
     )
     held = not unheld
     # The turns the agents the claimant's session runs beside its main thread are
-    # running now, the turn that holds each waiting message, and the turn that last
-    # took each thread (`holding.py`).
+    # running now, who holds each waiting message, and the turn that last took each
+    # thread (`holding.py`).
     stamps = present["agent_turns"]
     agents = running_agent_turns(stamps, present["session_alive"] is True, now)
     session = present.get("claim_session")
     found = rounds(events)
-    holders = holding_turns(events, session, agents, found)
+    holders = message_holders(
+        events, session, stamps, agents, set(present["kept_back"]), found
+    )
     took = last_taken(events, session, found)
     threads = thread_names(events)
 
     def owes(item: dict) -> dict:
-        """Who owes the answer to `item` now (`agent_holds`): the running agent turn
-        that holds it, and otherwise the main thread."""
-        turn = holders.get(item["input"])
-        return holder(
-            turn if turn in agents else None, threads.get(item["input"]), stamps, agents
-        )
+        """Who owes the answer to `item` now (`holding.owed_by`, `agent_holds`): a
+        running fork that holds it, the line fork judging it, or the main thread."""
+        return owed_by(holders.get(item["input"], MAIN))
 
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents

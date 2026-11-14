@@ -515,13 +515,23 @@ def holders(page_dir) -> tuple[dict, dict]:
 
 
 def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
-    """`leaf page state` names who owes each answer the agent owes, a fork while its
-    turn runs and otherwise the main thread, and who last took each thread, a fork
-    with whether its turn runs, lapsed or closed, or the main thread. So a main
-    thread recovering what it owes there, as after a compaction, can tell a running
-    fork's work from its own: a lapsed fork's message, and one a fork gave back, is
-    the main thread's to answer."""
-    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    """`leaf page state` names who owes each answer the agent owes, the line fork
+    while Leaf keeps its message back, a fork while its turn runs and otherwise the
+    main thread, and who last took each thread, a fork with whether its turn runs,
+    lapsed or closed, or the main thread. So a main thread recovering what it owes
+    there, as after a compaction, can tell a running fork's work, and a message a
+    line fork is judging, from its own: a lapsed fork's message, and one a fork gave
+    back, is the main thread's to answer."""
+    asked = said(claimed, "Does the suggest service cache?")
+    main = {"kind": "main"}
+    assert holders(claimed) == ({asked["id"]: {"kind": "line"}}, {asked["id"]: main})
+    taken = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("looking into the cache", "take"),
+        failed=None,
+        work_forks=True,
+    )
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
@@ -534,7 +544,6 @@ def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
     state_model.AGENT_TURNS.write(
         session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
     )
-    main = {"kind": "main"}
     lapsed = {**running, "state": "lapsed"}
     assert holders(claimed) == ({asked["id"]: main}, {asked["id"]: lapsed})
     context(capsys, "UserPromptSubmit")
@@ -1133,7 +1142,7 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
         for row in read_interactions(claimed, types=("fork_admission",))
         if row["event"] == soon["id"]
     ]
-    assert (note["kept_back"], note["held_by"]) == (False, running["turn"])
+    assert (note["kept_back"], note["held_by"]) == (False, f"leaf-{zone['id']}")
     assert kept_back(claimed) == []
     assert deliverable(claimed) == []
     _opening, envelope = agent_context(capsys, "agent-5").split("\n", 1)

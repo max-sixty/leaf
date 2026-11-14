@@ -18,7 +18,7 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
-from .forks import forked, lane_since
+from .forks import forked, kept_back_threads, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -273,7 +273,7 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
         "input_wakes": bool(active and claim_harness(active).input_wakes()),
         # When the claimant's fork lane came up, or None while none runs
-        # (`forks.lane_since`), which decides the threads a fork holds (`forked`).
+        # (`forks.lane_since`), which decides the threads Leaf keeps back (`kept_back`).
         "fork_lane": lane_since(active["id"]) if active else None,
     }
 
@@ -336,13 +336,23 @@ def presence_with_activity(
     # next durable consumer. An action past this seq has not reached that point,
     # which lets the runtime carry it forward onto versions written without it.
     cursor = acknowledged(events)
+    kept = {
+        input_id
+        for thread in kept_back_threads(page_dir, events, cursor, active)
+        for input_id in thread.inputs
+    }
     reading = {
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
+        # The user's waiting messages Leaf keeps back from the claimant's main thread
+        # while a line fork judges them (`forks.kept_back`), which the activity fold
+        # reads as the line fork's (`holding.message_holders`).
+        "kept_back": sorted(kept),
         # The user's waiting messages a fork of the claimant's conversation has taken
-        # on, which read On it while their delivery stands (`forks.forked`).
-        "forked": sorted(forked(page_dir, events, cursor, active)),
+        # on, which read On it while their delivery stands (`forks.forked`). With no
+        # active claim, no fork speaks for the page.
+        "forked": sorted(forked(events, kept)) if active else [],
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.

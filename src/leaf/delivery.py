@@ -1150,16 +1150,16 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
-    More, too, each waiting message an agent's turn picked up and left owed as it
-    ended, giving its thread back or ending without answering
-    (`holding.left_by_agent_turns`), which the main thread now owes.
-
-    Less, too, each waiting message Leaf keeps back while a line fork of the
-    owner's conversation writes its line (`forks.kept_back`), until the line fork
-    hands it over or its bound runs out, which keeps the watch from waking the
-    session for it as it arrives; and what an agent of the owner's session took, which its own turn
-    received, or holds, the further messages of a thread it took, which go to it at
-    its tool boundary while its turn runs (`forks.kept_from_main`).
+    Both kinds are filtered by who holds each of the user's waiting messages
+    (`forks.page_holders`). More, too, each waiting message whose holder is a fork
+    whose turn has ended, which picked it up and left it owed, giving its thread back
+    or ending without answering, and which the main thread now owes
+    (`holding.owed_by`). Less, each waiting message the main thread doesn't owe:
+    one Leaf keeps back while a line fork of the owner's conversation writes its line
+    (`forks.kept_back`), until the line fork hands it over or its bound runs out,
+    which keeps the watch from waking the session for it as it arrives; and one a
+    fork's running turn took or holds, as the further messages of a thread it took
+    are, which go to it at its tool boundary.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1173,24 +1173,33 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .holding import left_by_agent_turns
+    from .forks import page_holders
+    from .holding import owed_by
 
     owed = unreferenced(page, obligations) if received else []
-    if received and (left := left_by_agent_turns(page)):
+    holders = page_holders(page) if received or pending else {}
+    if received and (
+        left := {
+            input_id
+            for input_id, held in holders.items()
+            if held["kind"] == "fork" and held["state"] != "running"
+        }
+    ):
         # What a fork's turn picked up and then left owed, giving its thread back or
         # ending without answering, is the main thread's input now; a message
         # already pending or owed goes once.
         left -= {event["id"] for event in [*owed, *pending]}
         owed += [event for event in page.events if event["id"] in left]
-    if pending or owed:
-        from .forks import kept_from_main
-
-        # A message an agent's running turn holds is owed and unreferenced once the
-        # cursor has passed it, and stays the agent's all the same; a kept-back one
-        # is still pending, and stays kept back.
-        if forked := kept_from_main(page):
-            pending = [event for event in pending if event["id"] not in forked]
-            owed = [event for event in owed if event["id"] not in forked]
+    # A message a fork's running turn holds is owed and unreferenced once the cursor
+    # has passed it, and stays the fork's all the same; a kept-back one is still
+    # pending, and stays kept back.
+    if elsewhere := {
+        input_id
+        for input_id, held in holders.items()
+        if owed_by(held)["kind"] != "main"
+    }:
+        pending = [event for event in pending if event["id"] not in elsewhere]
+        owed = [event for event in owed if event["id"] not in elsewhere]
     if not pending and not owed:
         return []
     from .event_contracts import write_refusal

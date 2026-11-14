@@ -43,7 +43,7 @@ def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, s
             "obligation": True,
         },
     )
-    # The optional user-view audit walks the whole page. Hold its module until
+    # The optional user-view audit walks what the page draws. Hold its module until
     # both drawing measurements are over, so its timer cannot enter the counter.
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     audits = []

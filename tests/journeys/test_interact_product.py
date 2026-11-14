@@ -2,21 +2,26 @@
 
 import json
 
+import click
 import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
     ROOT,
+    append_carried_log_record,
     check,
     comment,
     found,
     fragment_errors,
+    page_packages,
     publish,
+    response_reference,
 )
 from model.test_interact_product import PAGE_FIXTURES
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from leaf_dev.example_data import authored_sources, named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
@@ -165,18 +170,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup or an obligation, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )
-
-
-import click
-import pytest
-from interact_support import (
-    ROOT,
-    append_carried_log_record,
-    page_packages,
-    response_reference,
-)
-
-from leaf import event_log as events_model
 
 
 def test_reply_validates_widget_markup(page_dir):

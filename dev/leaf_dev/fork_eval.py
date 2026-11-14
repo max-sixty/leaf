@@ -46,7 +46,8 @@ its `fork_reply` note says Leaf posted. An answer or line Leaf refused fails
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
-item of its kind. A stale one's `edit` is either null, as the item's must be, or
+item of its kind, and one naming a `thread` needs an ask written in that thread, or
+in a new thread where it names null. A stale one's `edit` is either null, as the item's must be, or
 the words its fix must remove: Leaf changed the page, and the page as the user reads
 it no longer shows them. An item of any kind in the same part of the answer (asks or
 findings) matching an `absent` label fails the case, since it names what the case's
@@ -614,9 +615,9 @@ def rests_on(item: dict, label: dict) -> bool:
 
 def match(items: list[dict], labels: dict) -> dict:
     """Each item matched to the first label it rests on: the item each expected
-    label of its kind found, by the label's index; each item naming an absent label
-    in its part, of whatever kind; and the rest, among them a second item of a found
-    label's kind on its words."""
+    label of its kind found, by the label's index, in the label's `thread` where it
+    names one; each item naming an absent label in its part, of whatever kind; and
+    the rest, among them a second item of a found label's kind on its words."""
     part = {kind: name for name, kinds in PARTS.items() for kind in kinds}
     found: dict[int, dict] = {}
     named, extra = [], []
@@ -624,7 +625,9 @@ def match(items: list[dict], labels: dict) -> dict:
         expect = [
             index
             for index, label in enumerate(labels.get("expect", []))
-            if label["kind"] == item["kind"] and rests_on(item, label)
+            if label["kind"] == item["kind"]
+            and rests_on(item, label)
+            and label.get("thread", item.get("thread")) == item.get("thread")
         ]
         absent = [
             label
@@ -655,13 +658,23 @@ def score_turn_end(
         return {"checks": {"answered": False}, "refused": ran.stderr.strip()}
     applied = json.loads(ran.stdout)
     note = leaf.python(NOTE, str(page), "turn_end_check") or {}
+
+    def titled(record: dict) -> str:
+        """The title the user reads over an ask: a follow-up's is its thread's."""
+        if "parent" not in record:
+            return record["title"]
+        shown = leaf.run("page", "state", str(page), record["parent"]).stdout
+        return json.loads(shown)["thread"]["title"]
+
     items = [
         *(
             {
                 "kind": "question",
-                "title": record["title"],
+                "title": titled(record),
                 "text": record.get("text", ""),
                 "passage": (record.get("anchor") or {}).get("quote", ""),
+                # The thread a follow-up replies in; an ask in a new thread has none.
+                "thread": record.get("parent"),
             }
             for record in applied["wrote"]
         ),

@@ -19,8 +19,11 @@
 
    Every rule that draws a focus ring draws it with `--focus-ring` or `--focus-shadow`
    (base.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
-   reserves `--focus-ring-room` with `scroll-padding`, and a sticky row keeps that room as
-   its own padding; a box whose edge touches something that paints draws its ring inset.
+   pads its edges by the room of the widest ring it holds: a control's
+   (`--focus-ring-room`), or a region's (`--focus-region-room`) where it holds a block of
+   the page or of a message, as a margin card's transcript does. A landing keeps that room
+   too (`--focus-ring-landing`, surfaces.css), and a sticky row keeps it as its own
+   padding; a box whose edge touches something that paints draws its ring inset.
    A large composite region paints a quiet ground inside its box instead.
 
    The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
@@ -966,8 +969,9 @@ html[data-lf-region-capture]
     transform: translate(-50%, -50%);
   }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
-     names while their interaction stands. Every hint remains visible: the face is
-     the route itself, not a reminder of a predictable ordinal. */
+     names while their interaction stands. The face is the route itself, not a reminder
+     of a predictable ordinal, so it stands only where it reads as its own target's
+     (hints.js, `seatHints`). */
   :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint {
     min-width: 0;
     height: auto;

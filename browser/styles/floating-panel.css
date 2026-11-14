@@ -11,11 +11,9 @@
    12px, which put its qualifiers half a pixel larger than the headings and statuses
    it shares with the other lists. Three inks: the ink, the muted (`--muted`, tokens.css)
    for what qualifies a line, as every list's does, and the
-   accent for what is on the user, with the empty field's status a step dimmer at 62%
-   (`--lf-fp-quiet`). The status is as dim as WCAG AA's 4.5:1 for text lets it be on the
-   panel's ground in the light scheme: 62% reads 4.7:1 there, where the 48% it first
-   wore read 3.1:1. The user chose a dim status, so it stays the dimmest words in the
-   panel. Every row is one line. */
+   accent for what is on the user, with the empty field's words a step dimmer
+   (`--quiet`, tokens.css), as every empty box's are. The user chose a dim status, so
+   it stays the dimmest words in the panel. Every row is one line. */
 @scope (.lf-chrome) {
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
@@ -26,7 +24,6 @@
       color-mix(in srgb, var(--ink) 13%, transparent),
       color-mix(in srgb, var(--ink) 19%, transparent)
     );
-    --lf-fp-quiet: color-mix(in srgb, var(--ink) 62%, transparent);
     --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     /* What the panel raises, its corner marks and attached pictures, meets its ground
@@ -287,9 +284,6 @@
     font: var(--font-ui);
     color: var(--ink);
   }
-  .lf-fp-search::placeholder {
-    color: var(--muted);
-  }
   .lf-fp-search:focus-visible {
     outline: none;
   }
@@ -398,7 +392,7 @@
   }
   /* The caret in the field wears the ring an anchored comment box wears (response.css),
      so a key that moves it there, `c` among them, shows where the words will go. */
-  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus-visible]) {
+  .lf-fp-field .lf-compose-field[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     border-radius: var(--r);
     --lf-wears-ring: 1;
@@ -493,9 +487,10 @@
   .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus-visible] {
     outline: none;
   }
-  /* The empty field's words read dimmer than anything written in it: the agent's
-     status, whose turn a thread is, and, once the caret is in, the field's word. A passing
-     notice is news, so it reads a step brighter until it passes. While the agent works,
+  /* The empty field's words read dimmer than anything written in it, in every empty
+     box's face (`--quiet`, text-field.js): the agent's status, whose turn a thread is,
+     and, once the caret is in, the field's word. A passing notice is news, so it reads
+     a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (surfaces.css), from its own
      dim face to ink and back. The face is the field's placeholder part, so it holds
      whether the words come with a key drawn beside them or alone. Whose reading the
@@ -517,15 +512,14 @@
      composing/input.js, `enters`), so the row says that c goes here and, by losing
      them, that it goes elsewhere. The user chose the word on 5 November 2026, so every
      key in a box stands with its word, over the key alone they had chosen the day
-     before, which a reader took for the inbox's shortcut beside it. */
-  .lf-fp-field leaf-text::part(placeholder) {
-    color: var(--lf-fp-quiet);
-  }
-  /* The word naming what entering the field does, after the agent's or Leaf's words
+     before, which a reader took for the inbox's shortcut beside it.
+
+     The word naming what entering the field does, after the agent's or Leaf's words
      (composing/input.js, `enters`), or the press the field's end offers in its place,
-     such as a Resolve's Next thread, in Leaf's italic whatever voice theirs is. */
+     such as a Resolve's Next thread, keeps that face whatever ink the words before it
+     wear, in Leaf's italic whatever voice theirs is. */
   .lf-fp-field :is(.lf-compose-placeholder-enters, .lf-compose-press-word) {
-    color: var(--lf-fp-quiet);
+    color: var(--quiet);
     font-style: italic;
   }
   .lf-fp-field
@@ -579,7 +573,7 @@
     .lf-floating-panel[data-lf-tone="working"]:not([data-lf-asks])
       .lf-fp-field
       leaf-text[data-lf-says="status"]::part(placeholder) {
-      /* The quiet face is ink at 62% (`--lf-fp-quiet`). */
+      /* The quiet face is ink at 62% (`--quiet`, tokens.css). */
       --lf-sheen-rest: 0.62;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
@@ -800,7 +794,7 @@
     white-space: nowrap;
   }
   .lf-fp-row-notice-sep {
-    color: var(--lf-fp-quiet);
+    color: var(--quiet);
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
@@ -1149,7 +1143,10 @@
     opacity: 0;
     cursor: pointer;
   }
-  .lf-fp-chooser:has(> select[data-lf-focus-visible]) {
+  .lf-fp-chooser > select {
+    --lf-focus-box: .lf-fp-chooser;
+  }
+  .lf-fp-chooser[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
   }
   :is(.lf-fp-on-page, .lf-fp-close)[data-lf-unoffered] {
@@ -1204,12 +1201,10 @@
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage:has(
-      > .lf-fp-view[data-lf-focus-visible]:not(
-          [data-lf-leaving],
-          [data-lf-route="thread"]
-        )
-    )::after {
+  .lf-fp-stage > .lf-fp-view:not([data-lf-leaving], [data-lf-route="thread"]) {
+    --lf-focus-box: .lf-fp-stage;
+  }
+  .lf-fp-stage[data-lf-control-focus-visible]::after {
     content: "";
     position: absolute;
     inset: 4px;
@@ -1810,7 +1805,7 @@
     align-self: center;
     width: 16px;
     height: 16px;
-    color: var(--lf-fp-quiet);
+    color: var(--quiet);
   }
   .lf-fp-plan-step[data-lf-state="open"] > .lf-fp-plan-mark::before {
     content: "";

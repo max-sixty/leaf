@@ -95,6 +95,11 @@ def build(collection: Collection, sizes: list[int], directory: Path) -> dict[int
     written, so the pages of every size together activate each version once."""
     from leaf.revisioning import activate_source
     from leaf.vendoring import cmd_init
+    from leaf_dev.page_fixtures import DEFAULT_PACKAGES
+
+    # The packages the browser's bench builds the same pages with
+    # (`page_fixtures.source_packages`), so a collection may use any of their widgets.
+    packages = tuple(json.loads(DEFAULT_PACKAGES.read_text(encoding="utf-8")))
 
     pages = {}
     versions, built = directory, []
@@ -106,7 +111,7 @@ def build(collection: Collection, sizes: list[int], directory: Path) -> dict[int
         for source in sources[len(built) :]:
             (versions / "index.html").write_text(source)
             if not built:
-                cmd_init(versions)
+                cmd_init(versions, packages)
             activation = activate_source(versions)
             assert activation.error is None, activation.error
             built.append(source)

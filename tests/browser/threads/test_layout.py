@@ -234,7 +234,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
     # The margin at this width caps the card short of the head's words and controls.
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
@@ -967,7 +967,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["height"] == 0, cue
 
     # Follow the outgoing header as the next author pushes it off the top, then
-    # follow the transcript edge through the gap. Neither position fades a name.
+    # follow the transcript edge through the gap. Neither position fades a name. The
+    # edge is the slot where heads stick (`--lf-top`), past the room the transcript
+    # keeps above it.
     for handoff in ("pushed", "gap"):
         transcript.evaluate(
             """(box, handoff) => {
@@ -978,7 +980,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
               const target = handoff === 'pushed'
                 ? first.bottom - head.height / 2
                 : (first.bottom + next.top) / 2;
-              box.scrollTop += target - box.getBoundingClientRect().top - box.clientTop;
+              const slot = box.getBoundingClientRect().top + box.clientTop
+                + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'));
+              box.scrollTop += target - slot;
             }""",
             handoff,
         )

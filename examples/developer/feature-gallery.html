@@ -24,6 +24,15 @@
         margin-bottom: 4px;
       }
 
+      /* The page owns this box's overflow; lf-scroll asks Leaf for its keys and fades. */
+      #bg-own-scroll-box {
+        overflow-x: auto;
+      }
+      /* Leaf fits an SVG to its container; this timeline keeps its drawn width. */
+      #bg-own-scroll-box > svg {
+        max-width: none;
+      }
+
       /* Cells side by side while each keeps 14rem, and one above the other below that:
          the thread pair and the charts wrap a column at a time. */
       #bg-thread-title-pair,
@@ -442,7 +451,7 @@
                 record: <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" class="button" type="button">
+              <button id="bg-read-question" class="lf-btn" type="button">
                 Read current obligation
               </button>
               <pre id="bg-question-reading" hidden></pre>
@@ -455,12 +464,12 @@
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" class="button" type="button">
+                <button id="bg-shortcut-focus-note" class="lf-btn" type="button">
                   Write sample note
                 </button>
                 <label>
                   Sample note
-                  <input id="bg-shortcut-note" class="field" type="text" />
+                  <input id="bg-shortcut-note" class="lf-field" type="text" />
                 </label>
               </div>
             </section>
@@ -561,7 +570,7 @@
               <code>data-room</code> reserves their width from first paint.
             </p>
             <p id="bg-feedback-row">
-              <button class="button" type="button">Next status</button>
+              <button class="lf-btn" type="button">Next status</button>
               <span
                 role="status"
                 data-room="Ready&#10;Working…&#10;Finished. Run again."
@@ -1125,18 +1134,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
               <button
                 type="button"
-                class="button"
+                class="lf-btn"
                 data-view="overview"
                 aria-pressed="false"
               >
                 Open threads
               </button>
-              <button type="button" class="button" data-view="you" aria-pressed="false">
+              <button type="button" class="lf-btn" data-view="you" aria-pressed="false">
                 On Me
               </button>
               <button
                 type="button"
-                class="button"
+                class="lf-btn"
                 data-view="resolved"
                 aria-pressed="false"
               >
@@ -1144,7 +1153,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </button>
               <button
                 type="button"
-                class="button"
+                class="lf-btn"
                 data-view="summary"
                 aria-pressed="false"
               >
@@ -1152,7 +1161,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </button>
               <button
                 type="button"
-                class="button"
+                class="lf-btn"
                 data-view="progress"
                 aria-pressed="false"
               >
@@ -1164,7 +1173,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 role="radiogroup"
                 aria-labelledby="bg-panel-width-label"
               >
-                <label class="choice"
+                <label class="lf-choice"
                   ><input
                     type="radio"
                     name="panel-width"
@@ -1172,7 +1181,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     checked
                   />Wide</label
                 >
-                <label class="choice"
+                <label class="lf-choice"
                   ><input type="radio" name="panel-width" value="20rem" />Narrow</label
                 >
               </div>
@@ -1557,7 +1566,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" class="button" type="button">
+                <button id="bg-title-sheen-show" class="lf-btn" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -1789,6 +1798,33 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </tr>
               </tbody>
             </table>
+          </section>
+
+          <section id="bg-own-scroll" class="layout-flow">
+            <p class="eyebrow">lf-scroll</p>
+            <h2><strong>A box the page scrolls</strong></h2>
+            <p id="bg-own-scroll-guide">
+              This timeline is wider than the page, and the page's own style scrolls it
+              sideways. Its <code>lf-scroll</code> class gives it Leaf's edge fades and
+              a keyboard stop: press <kbd>Tab</kbd> until it is focused, then the arrow
+              keys move it.
+            </p>
+            <div id="bg-own-scroll-box" class="lf-scroll">
+              <svg
+                width="1600"
+                height="120"
+                role="img"
+                aria-label="Requests in each minute across the hour"
+              >
+                <path
+                  fill="currentColor"
+                  opacity="0.55"
+                  d="M20 90v-30h40v30z M80 90v-42h40v42z M140 90v-25h40v25z M200 90v-60h40v60z M260 90v-48h40v48z M320 90v-35h40v35z M380 90v-70h40v70z M440 90v-52h40v52z M500 90v-40h40v40z M560 90v-28h40v28z M620 90v-64h40v64z M680 90v-45h40v45z M740 90v-38h40v38z M800 90v-55h40v55z M860 90v-33h40v33z M920 90v-72h40v72z M980 90v-50h40v50z M1040 90v-44h40v44z M1100 90v-36h40v36z M1160 90v-58h40v58z M1220 90v-41h40v41z M1280 90v-66h40v66z M1340 90v-30h40v30z M1400 90v-47h40v47z M1460 90v-53h40v53z M1520 90v-39h40v39z"
+                ></path>
+                <text x="20" y="110" font-size="12" fill="currentColor">:00</text>
+                <text x="1540" y="110" font-size="12" fill="currentColor">:59</text>
+              </svg>
+            </div>
           </section>
 
           <section id="bg-ask-across" class="layout-flow">
@@ -2979,7 +3015,7 @@ gallery/
                   origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" class="button" type="button">
+                  <button id="bg-durable-frame-open" class="lf-btn" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -3290,7 +3326,7 @@ switch --readers checkout-api,orders-api</code></pre>
               status and text once connected. Each read consumes one request from its
               allowance; the result is not saved.
             </p>
-            <button id="bg-http-read" class="button" type="button">Read</button>
+            <button id="bg-http-read" class="lf-btn" type="button">Read</button>
             <p id="bg-http-result" role="status">No HTTP read requested.</p>
             <p>
               The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
@@ -3307,7 +3343,7 @@ switch --readers checkout-api,orders-api</code></pre>
               a claim is required. Each press can incur model usage; the result is not
               saved.
             </p>
-            <button id="bg-llm-generate" class="button" type="button">Generate</button>
+            <button id="bg-llm-generate" class="lf-btn" type="button">Generate</button>
             <p id="bg-llm-result" role="status">No generation requested.</p>
           </section>
           <section id="bg-external-data" class="layout-flow">

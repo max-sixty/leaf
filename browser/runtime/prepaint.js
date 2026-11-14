@@ -178,6 +178,20 @@
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
 
+  // Whether a highlight style given to the root reaches the elements below it, as
+  // css-pseudo-4's highlight inheritance has it. The answer decides which elements the
+  // comment marks' rules match (stylesheets.js, `markSheet`). It is asked here, before
+  // the body has parsed, because the style read then computes only the head; read from
+  // a module once the page has parsed, it would make the browser style the whole page.
+  const probe = new CSSStyleSheet();
+  probe.replaceSync(":root::highlight(lf-probe) { background-color: red }");
+  const adopted = [...document.adoptedStyleSheets];
+  document.adoptedStyleSheets = [...adopted, probe];
+  window.lfHighlightsInherit =
+    getComputedStyle(document.head, "::highlight(lf-probe)").backgroundColor ===
+    "rgb(255, 0, 0)";
+  document.adoptedStyleSheets = adopted;
+
   // Tab memory has one storage policy, including before the module graph starts.
   // Widgets and later controllers read the same values.
   // Samples own disposable browser state in their realm. Choosing the backing here

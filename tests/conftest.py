@@ -764,7 +764,11 @@ def dead_pid(spawn):
 
 @pytest.fixture(scope="session")
 def _playwright():
-    """The one Playwright driver a worker may hold; every browser engine launches from it."""
+    """The one Playwright driver a worker may hold; every browser engine launches from it.
+    Each tap it sends is a fresh press (`render_harness.fresh_taps`)."""
+    from render_harness import fresh_taps
+
+    fresh_taps()
     with sync_playwright() as p:
         yield p
 

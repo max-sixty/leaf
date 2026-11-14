@@ -23,6 +23,9 @@ A pure function of its arguments, which no file can make stale, is memoized at m
 level instead, bounded by entry count (`revision_artifact._shared_registry`,
 `thread_context._fragment`). So is a reading of the machine rather than of a page, in
 one slot replaced whole (`presence.neighbor_candidates`, `harness._registry_listing`).
+A reading that takes seconds and that requests arriving together all need, such as
+the layer a page selects (`layer.selected_layer`), is kept with `once`, so the first of
+those requests makes it and the rest wait for it rather than each making it again.
 """
 
 import threading
@@ -62,6 +65,33 @@ class Slot:
         value = read()
         self._held = (key, value)
         return value
+
+
+def once[T](held: dict, key, read: Callable[[], T]) -> T:
+    """The reading `key` names in `held`, made with `read` if `held` lacks it.
+
+    Of several threads that ask at once for a key `held` lacks, the first makes the
+    reading and the rest wait for it, where `functools.cache` lets each make its own.
+    A page server meets that when requests reach it together before it has composed
+    the page's layer, which each of them needs."""
+    entry = held.get(key) or held.setdefault(key, _Once())
+    return entry.get(read)
+
+
+class _Once:
+    """One reading, made by the first thread to ask for it while the rest wait. A
+    failed reading is not kept, so the next thread to ask makes it again."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._made: tuple | None = None
+
+    def get[T](self, read: Callable[[], T]) -> T:
+        if self._made is None:
+            with self._lock:
+                if self._made is None:
+                    self._made = (read(),)
+        return self._made[0]
 
 
 class PageMemories:

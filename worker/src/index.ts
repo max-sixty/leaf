@@ -184,20 +184,27 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 
   private async forward(request: Request): Promise<Response> {
+    // A connection lost while the container starts or restarts says nothing about
+    // the request, so a request Python answers the same way twice gets one more
+    // attempt rather than showing the visitor a 500: a read, or a view report,
+    // which replaces only an older report of its session (`leaf.user_views`).
+    // Any other write may already have reached Python, so its loss reaches the
+    // caller instead.
+    const replay =
+      request.method === "GET" || request.method === "HEAD"
+        ? request
+        : request.method === "POST" &&
+            new URL(request.url).pathname.endsWith("/api/user-view")
+          ? request.clone()
+          : null;
     const response = await super.fetch(request);
     if (response.status < 500) return response;
     const source = await errorSource(response);
-    // A connection lost while the container starts or restarts says nothing about
-    // the request, so a read gets one more attempt rather than showing the
-    // visitor a 500. A write may already have reached Python, so
-    // its loss reaches the caller instead.
-    const retry =
-      source === "disconnected" &&
-      (request.method === "GET" || request.method === "HEAD");
+    const retry = source === "disconnected" && replay !== null;
     logHttpError(request, response, source, retry);
     if (!retry) return response;
     await response.body?.cancel();
-    const second = await super.fetch(request);
+    const second = await super.fetch(replay);
     if (second.status >= 500) {
       logHttpError(request, second, await errorSource(second), false);
     }
@@ -224,12 +231,6 @@ export class LeafWebsiteSession extends Container<Env> {
             url.searchParams.get("revision") ||
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
-        } else if (path === "api/deferred") {
-          path += `?${new URLSearchParams({
-            source: url.searchParams.get("source") ?? "",
-            source_revision: url.searchParams.get("source_revision") ?? "",
-            key: url.searchParams.get("key") ?? "",
-          })}`;
         }
         const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;
@@ -275,41 +276,58 @@ LeafWebsiteSession.outboundByHost = {
     env: Env,
     ctx: OutboundHandlerContext,
   ) => {
-    // The proxy supplies the owning DO identity. The container cannot select a
-    // different user's session by changing a URL, cookie, or request header.
-    const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
-    const path = new URL(request.url).pathname;
-    if (request.method === "GET" && path === "/records") {
-      return session.savedRecords();
+    try {
+      return await answerPageStore(request, env, ctx);
+    } catch (error) {
+      // An outbound handler that throws reaches the container as a connection closed
+      // without a response, so answer with the store's reason for the container to
+      // log. A container still on the previous image after a deploy meets the new
+      // release's refusal here (`PageStore.checkRelease`).
+      return new Response(error instanceof Error ? error.message : String(error), {
+        status: 500,
+      });
     }
-    if (request.method === "PUT" && path === "/prepare") {
-      return Response.json(await session.preparePublication(await request.json()));
-    }
-    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
-    if (blob !== null && request.method === "PUT") {
-      // Bound the body before it crosses the RPC boundary or enters SQLite.
-      let length = 0;
-      const body = request.body?.pipeThrough(
-        new TransformStream<Uint8Array, Uint8Array>({
-          transform(chunk, controller) {
-            length += chunk.byteLength;
-            if (length > CHUNK_BYTES)
-              throw new Error("page storage chunk exceeds 1 MiB");
-            controller.enqueue(chunk);
-          },
-        }),
-      );
-      await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
-      return new Response(null, { status: 204 });
-    }
-    if (request.method === "PUT" && path === "/publication") {
-      await session.savePublication(await request.json());
-      return new Response(null, { status: 204 });
-    }
-    return new Response("unknown page storage operation", { status: 404 });
   },
   "api.openai.com": proxyModelRequest,
 };
+
+async function answerPageStore(
+  request: Request,
+  env: Env,
+  ctx: OutboundHandlerContext,
+): Promise<Response> {
+  // The proxy supplies the owning DO identity. The container cannot select a
+  // different user's session by changing a URL, cookie, or request header.
+  const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
+  const path = new URL(request.url).pathname;
+  if (request.method === "GET" && path === "/records") {
+    return session.savedRecords();
+  }
+  if (request.method === "PUT" && path === "/prepare") {
+    return Response.json(await session.preparePublication(await request.json()));
+  }
+  const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+  if (blob !== null && request.method === "PUT") {
+    // Bound the body before it crosses the RPC boundary or enters SQLite.
+    let length = 0;
+    const body = request.body?.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          length += chunk.byteLength;
+          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
+    return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/publication") {
+    await session.savePublication(await request.json());
+    return new Response(null, { status: 204 });
+  }
+  return new Response("unknown page storage operation", { status: 404 });
+}
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));

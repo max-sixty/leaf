@@ -1855,11 +1855,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
-    admitted = reader.evaluate(
-        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
-        pending["key"],
-    )
-    assert admitted["id"] != pending["id"]
+    # The server's reading, adopted after the send's answer, replaces the pending id.
+    admitted = page.wait_for_function(
+        """([node, key, pending]) => {
+          const thread = node.collection.threads.find((thread) => thread.key === key);
+          return thread && thread.id !== pending ? thread : null;
+        }""",
+        arg=[reader.element_handle(), pending["key"], pending["id"]],
+    ).json_value()
     assert admitted["root"]["key"] == pending["root"]["key"]
     selected = page.locator(f'{PANEL_THREAD}[data-lf-thread="{admitted["id"]}"]')
     expect(selected).to_be_visible()
@@ -1972,9 +1975,17 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    thread_id = first.evaluate(
-        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
-    )
+    # The widget draws the thread under its pending id first; the server's reading,
+    # adopted after the send's answer, gives it the id the panel's view names.
+    thread_id = page.wait_for_function(
+        """node => {
+          const id = node.collection.threads.find(
+            (thread) => thread.root.body.text.trim() === 'Delta'
+          )?.id;
+          return id && !id.startsWith('pending:') ? id : null;
+        }""",
+        arg=first.element_handle(),
+    ).json_value()
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
     expect(

@@ -1,5 +1,5 @@
-"""How a page keeps its state current: freshness reads, hidden pages, coalesced and
-bounded state reads, offline authored state and recovery, and reloads."""
+"""How a page keeps its state current: freshness reads, hidden pages, coalesced
+state reads and what ends one, offline authored state and recovery, and reloads."""
 
 import re
 from urllib.parse import urlparse
@@ -299,17 +299,12 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     delay_state_body_past_deadline = """
       const nativeFetch = window.fetch.bind(window);
-      Object.defineProperty(AbortSignal, 'timeout', {
-        value: () => ({aborted: false}),
-      });
       window.fetch = async (...args) => {
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         if (new URL(url, location.href).pathname !== '/api/state')
           return nativeFetch(...args);
-        const signal = args[1].signal;
-        const response = await nativeFetch(input, {...args[1], signal: undefined});
-        signal.aborted = true;
+        const response = await nativeFetch(...args);
         return {
           ok: response.ok,
           headers: response.headers,
@@ -324,8 +319,40 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
     expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
 
 
-def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, serve):
-    """Two reads, two deadlines, because they are answerable to different things.
+# Takes every bound the page sets on a request into the test's hands, so none ends a
+# request on its own, and keeps the bound each state read was given: the page sets a
+# read's bound just before it asks. `__lfOutlast(ms)` ends, as the browser ends an
+# expired one, each state read's bound that a read lasting `ms` would have passed, and
+# returns those bounds.
+HELD_BOUNDS = """
+window.__lfBounds = {last: null, reads: []};
+Object.defineProperty(AbortSignal, 'timeout', {
+  value: (ms) => {
+    const controller = new AbortController();
+    window.__lfBounds.last = {ms, controller};
+    return controller.signal;
+  },
+});
+const boundedFetch = window.fetch.bind(window);
+window.fetch = (...args) => {
+  const url = String(args[0] instanceof Request ? args[0].url : args[0]);
+  if (url.includes("api/state")) window.__lfBounds.reads.push(window.__lfBounds.last);
+  return boundedFetch(...args);
+};
+window.__lfOutlast = (ms) => window.__lfBounds.reads
+  .filter((bound) => bound.ms <= ms && !bound.controller.signal.aborted)
+  .map((bound) => {
+    bound.controller.abort(new DOMException("signal timed out", "TimeoutError"));
+    return bound.ms;
+  });
+"""
+
+
+def test_a_state_read_waits_while_news_answers_and_ends_when_a_look_fails(
+    browser, serve
+):
+    """A state read waits for its answer while the server answers the page's news
+    looks, and ends as offline once a look goes unanswered.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
     then read the reloaded page still on the revision from before the turn. A
@@ -333,40 +360,35 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     than milliseconds — measured against a live deployment at 123 ms before a turn and
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
-    for gone while the answer it asked for is still on its way. Nothing waits on the
-    first read to open the comment interface — upgrade does that independently — so its
-    bound can sit outside every reading a live container takes. The deploy gate gives that container
-    120 seconds for each read it makes of it.
+    for gone while the answer it asked for is still on its way. A slow container still
+    answers news, so the looks, not a deadline on the read, say when the server is gone.
+    """
+    page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS + HELD_BOUNDS)
+    open_threads(page)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Slow."},
+    )
+    holding(page, held, 1, "the read the news asked for")
+    # A read ten times as slow as the slowest the deployment answered.
+    assert page.evaluate("ms => window.__lfOutlast(ms)", 40_000) == [], (
+        "a read the server was still answering ended on time"
+    )
+    looked_since(page)
+    held[0].continue_()
+    notice = page.locator(".lf-fp-joined .lf-thread-news")
+    expect_preview_words(notice, "1 new thread")
 
-    Every read after presentation answers to the user instead. The status's one way
-    to say the server stopped answering runs through a read that *completed* with
-    nothing, and a read still in flight holds the page's one slot, so this bound is the
-    whole time a live page can go on showing a reading the server has abandoned. It
-    stays on a user's timescale rather than the gate's.
-    """
-    record_read_bounds = """
-      window.__leafReadBounds = [];
-      const native = AbortSignal.timeout.bind(AbortSignal);
-      Object.defineProperty(AbortSignal, 'timeout', {
-        value: (ms) => {
-          window.__leafReadBounds.push(ms);
-          return native(ms);
-        },
-      });
-    """
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    watched(page)
-    page.add_init_script(record_read_bounds)
-    # A read that brings nothing is what puts the page back on the clock: a page holding
-    # an answer asks again only when its news moves, so refusing the reads is how a
-    # second one is reached without waiting on the server to say something new.
-    page.route("**/api/state*", refuse)
-    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
-    page.wait_for_function("() => window.__leafReadBounds.length >= 2")
-    bounds = page.evaluate("() => window.__leafReadBounds")
-    assert bounds[0] == 120_000, bounds
-    assert 0 < bounds[1] < bounds[0], bounds
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Gone."},
+    )
+    holding(page, held, 2, "the read the next news asked for")
+    page.route("**/api/news*", refuse)
+    expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
+    page.unroute_all(behavior="ignoreErrors")
 
 
 def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(

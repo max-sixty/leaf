@@ -309,6 +309,60 @@ test("the page asks for no reading it already has in hand", async (t) => {
   await setImmediate();
 });
 
+test("a read waits while the news answers and ends when a look does not", async (t) => {
+  t.after(() => window.happyDOM.cancelAsync());
+  const listeners = [];
+  const add = document.addEventListener.bind(document);
+  t.mock.method(document, "addEventListener", (name, listener, options) => {
+    listeners.push([name, listener, options]);
+    add(name, listener, options);
+  });
+  t.after(() => {
+    for (const args of listeners) document.removeEventListener(...args);
+  });
+  // Only the looks end a read here: no bound comes due on its own.
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  const looks = [];
+  t.mock.method(globalThis, "setTimeout", (callback, delay) => {
+    if (delay === 250) looks.push(callback);
+    return 1;
+  });
+  t.mock.method(globalThis, "clearTimeout", () => {});
+  t.mock.method(globalThis, "setInterval", () => 1);
+  let news = "initial";
+  let answering = true;
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    const path = new URL(url).pathname;
+    if (path === "/api/news") {
+      if (!answering) throw new TypeError("Failed to fetch");
+      return new Response(news);
+    }
+    assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
+    // A server still working on the answer, which only the page can end.
+    return new Promise((_, reject) =>
+      init.signal.addEventListener("abort", () => reject(init.signal.reason)),
+    );
+  });
+  createStateFeed({
+    stateApplying: () => false,
+    stateInHand: () => runtime.state,
+    invalidateDom: async () => {},
+    receiveState: async (answer) => applicationState.adopt(answer),
+    prepareActivation: async () => null,
+  }).startFeed(async () => {}, Promise.resolve({ state: state("initial") }));
+  await setImmediate();
+  news = "moved";
+  looks.at(-1)();
+  await setImmediate();
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(applicationState.read().reach.reach, "reached");
+  answering = false;
+  looks.at(-1)();
+  await setImmediate();
+  assert.equal(applicationState.read().reach.reach, "unreachable");
+});
+
 test("a matching response completes from its held data after a newer admission", async (t) => {
   const held = {
     version: "initial",

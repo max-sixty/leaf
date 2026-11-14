@@ -436,6 +436,10 @@ element itself: a control inside the element says a bubbling `change` of its own
 which Leaf doesn't count, and which a module listening on its own element tells apart
 by `event.target`.
 
+A consumer draws after the producer's `change`, in the same frame, not inside it. A
+producer that goes on to act on the page as its consumers leave it, such as scrolling
+to a place, does that in the next frame (`frameFor`).
+
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
 

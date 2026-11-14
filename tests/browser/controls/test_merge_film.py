@@ -213,6 +213,20 @@ def test_merge_film_phone_holds_readable_outcomes_and_preserves_them_on_reflow(
     expect(page.locator(".film-play")).to_have_text("Play")
 
 
+def test_a_step_pressed_on_a_phone_brings_the_film_into_view(browser, serve):
+    """Narrow, the film stands above its steps, so holding a step glides the page to
+    it. The step list draws the film's new moment after the press, which grows the step
+    now told, and a glide begun before that draw ended with the film out of view."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(named_source("wt-merge")), context=context)
+    page.locator("#step-premerge button").tap()
+    scroll_settled(page)
+    expect(page.locator("#step-premerge")).to_have_attribute("data-now", "")
+    assert 0 <= page.locator("#merge-film").bounding_box()["y"] < 200
+
+
 def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser, serve):
     """Where the film's pane is narrow enough for its phone layout but the workspace
     still fills an 800x720 window, the stage keeps its content's height and the pane

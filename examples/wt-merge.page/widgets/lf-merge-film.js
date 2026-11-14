@@ -21,6 +21,7 @@
 
 import {
   compoundReadingRegionId,
+  frameFor,
   generatedElement,
   holdFocus,
   keeps,
@@ -237,11 +238,18 @@ customElements.define(
       this.#inspect(null);
     }
 
-    #reveal() {
-      if (this.hasAttribute("data-phone")) {
-        if (this.settings.open) this.settings.open = false;
+    // Narrow, the film stands above its steps, so holding a moment brings it into view.
+    // The glide starts on the next frame, once whatever reads `frame`, such as the step
+    // list, has drawn: a draw that moved the page under a glide already begun ends it.
+    #glide = frameFor(this, () => {
+      if (this.hasAttribute("data-phone"))
         scrollIntoView(this, { block: "start", behavior: "smooth" });
-      }
+    });
+
+    #reveal() {
+      if (!this.hasAttribute("data-phone")) return;
+      if (this.settings.open) this.settings.open = false;
+      this.#glide();
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.

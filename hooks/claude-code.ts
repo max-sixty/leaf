@@ -1,9 +1,10 @@
 /**
  * Leaf's Claude Code hooks module: the band above the prompt that shows the
  * session's pages, the drawing of Leaf's own rows in the conversation, the fork
- * of the conversation Leaf's clerk asks at each turn's end (`clerk`), and the
- * fork that writes the agent's working line on a thread's waiting messages at
- * once (`forkReply`). Claude
+ * of the conversation Leaf's clerk asks at each turn's end (`clerk`), the fork
+ * that writes the agent's working line on a thread's waiting messages at once
+ * (`forkReply`), and the completions a page server asks of the session's model,
+ * such as a thread's title or a widget's `generate` (`complete`). Claude
  * Code loads it from the installed plugin (measured at 2.1.305). It neither
  * watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
@@ -52,10 +53,11 @@
  * else the user serves on localhost.
  *
  * A follower (`bin/leaf hook --harness claude-code
- * --if-claimed --pages`) prints that list whenever it changes and exits once the
- * session holds no page; the launcher answers it without starting uv in a session
- * holding none. It is also the session's forks lane (`src/leaf/forks.py`): each
- * page it lists carries the threads Leaf holds for a fork's line. The session
+ * --if-claimed --pages`) prints that list, with the completions page servers ask
+ * of the session (`src/leaf/completions.py`), whenever either changes, and exits
+ * once the session holds no page; the launcher answers it without starting uv in a
+ * session holding none. It is also the session's forks lane (`src/leaf/forks.py`):
+ * each page it lists carries the threads Leaf holds for a fork's line. The session
  * takes a page only through a `leaf` command, so the
  * module starts the follower as the session starts, after each Bash call that
  * runs `leaf`, and as a turn starts or a main-loop turn ends, once none is
@@ -68,6 +70,7 @@
 
 import type {
   EngineInterface,
+  ModelCompleteRequest,
   ModelEffort,
   Register,
   RenderElement,
@@ -103,8 +106,16 @@ type Leaf = {
   forks?: Held[];
 };
 
+// What the follower prints each time it changes (`hooks.cmd_pages`): the live pages,
+// and the completions page servers ask of the session that still wait for a reply
+// (`completions.pending`).
+type Listing = { pages: Leaf[]; completions: Completion[] };
+
 // A thread whose waiting messages Leaf holds for a fork, as the follower prints it.
 type Held = { page: string; thread: string; inputs: string[] };
+
+// A completion a page server asks of the session, as the follower prints it.
+type Completion = { id: string; request: ModelCompleteRequest };
 
 // The color the word Leaf wears for each activity kind, in Claude Code's theme: the
 // tone the page's Leaf panel paints its leaf (`.lf-dot` in chrome.css), muted for the
@@ -243,10 +254,11 @@ function follow($: EngineInterface, session: string) {
         line = lines.pop() ?? "";
         const last = lines.at(-1);
         if (last === undefined || following !== current) continue;
-        const listed: Leaf[] = JSON.parse(last);
-        show($, listed);
-        for (const page of listed)
+        const listed: Listing = JSON.parse(last);
+        show($, listed.pages);
+        for (const page of listed.pages)
           for (const held of page.forks ?? []) forkReply($, session, held);
+        for (const asked of listed.completions) complete($, session, asked);
       }
       const result = await stream.result;
       renewed = result.code === 75;
@@ -270,9 +282,10 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-/** Run one step of a fork Leaf asks for (`leaf hook --fork`: the clerk's
- * `clerk.cmd_fork`, or a held thread's `forks.cmd_reply`) with `payload`, and what
- * it printed, or undefined where it printed nothing. */
+/** Run one step of a model call Leaf asks for (`leaf hook --fork`: the clerk's
+ * `clerk.cmd_fork`, a held thread's `forks.cmd_reply`, or a completion's reply,
+ * `completions.cmd_reply`) with `payload`, and what it printed, or undefined where
+ * it printed nothing. */
 async function forkStep(
   $: EngineInterface,
   session: string,
@@ -600,6 +613,51 @@ function forkReply($: EngineInterface, session: string, held: Held) {
         thread: held,
         failed: `Leaf's step failed: ${error}`,
       }).catch(() => undefined);
+    }
+  })();
+}
+
+// The completions made for Leaf, by request, so each is made once.
+const completed = new Set<string>();
+
+/** Make a completion a page server asks of the session, such as a thread's title
+ * (`src/leaf/completions.py`, whose header says how the request reaches the
+ * module): `$.model.complete` with the request as Leaf wrote it, on the session's
+ * own model client, then hand Leaf what it came to, the text or why there is none,
+ * with its usage and time. The page server waits for the reply until its deadline
+ * and fails the request where none comes, so a reply Leaf couldn't take goes only
+ * to the debug log. */
+function complete($: EngineInterface, session: string, asked: Completion) {
+  if (completed.has(asked.id)) return;
+  completed.add(asked.id);
+  void (async () => {
+    const started = await $.clock.now();
+    let ran: Record<string, unknown>;
+    try {
+      const reply = await $.model.complete(asked.request);
+      ran = reply.isAnswered
+        ? { text: reply.text, usage: reply.usage }
+        : {
+            failed: reply.reason,
+            ...(reply.reason === "api-error"
+              ? { status: reply.status, error: reply.error }
+              : {}),
+            usage: reply.usage,
+          };
+    } catch (error) {
+      // A request the engine refuses to send, such as one for a blocked model.
+      ran = { failed: String(error) };
+    }
+    try {
+      await forkStep($, session, {
+        completion: asked.id,
+        ...ran,
+        elapsed_ms: (await $.clock.now()) - started,
+      });
+    } catch (error) {
+      $.ui.log(`Leaf: the reply to completion ${asked.id} was lost: ${error}`, {
+        to: "debug",
+      });
     }
   })();
 }

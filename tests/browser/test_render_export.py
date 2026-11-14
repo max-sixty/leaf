@@ -277,11 +277,9 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert external == []
 
 
-def test_an_interactive_export_reads_each_source_and_deferred_field_offline(
-    browser, serve, tmp_path
-):
-    """Each source reaches the widget bound to it, an unopened tab's too, and each
-    unopened deferred payload loads, from one file with no host."""
+def test_an_interactive_export_reads_each_source_offline(browser, serve, tmp_path):
+    """Each source reaches the widget bound to it, an unopened tab's and an unopened
+    diff file's too, from one file with no host."""
     serve(
         leaf_page(
             "offline data",

@@ -37,8 +37,7 @@ Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. 
 totalling well under the cgroups' CPU is flagged as one whose accounting stopped
 mid-run. CI writes all three and puts this command's output in the job's
 summary. The report also lists every test over its tier directory's budget
-(`BUDGETS`) and every journey within the browser budget, the moves tend's weekly pass
-makes.
+(`BUDGETS`), the moves tend's weekly pass makes.
 """
 
 import json
@@ -350,12 +349,10 @@ def report_cases(cases: list[dict], top: int) -> float | None:
 
 def report_budgets(cases: list[dict]) -> None:
     """Every test over its directory's budget, which belongs in `journeys` or needs to
-    get faster, and every journey within the browser budget, which could run on each
-    push to main instead (`tests/AGENTS.md`, "Run what the change needs"). Only a
-    test that passed has a time that says what it costs. A test that runs its cases
-    as subtests on one page holds that many tests' coverage, so it is judged by its
-    seconds per case."""
-    over, under = [], []
+    get faster. Only a test that passed has a time that says what it costs. A test
+    that runs its cases as subtests on one page holds that many tests' coverage, so
+    it is judged by its seconds per case."""
+    over = []
     for case in cases:
         parts = Path(case["file"]).parts
         if not case["passed"] or len(parts) < 3:
@@ -365,8 +362,6 @@ def report_budgets(cases: list[dict]) -> None:
         seconds = case["seconds"] / (case["profile"] or {}).get("cases", 1)
         if (budget := BUDGETS.get(directory)) and seconds >= budget:
             over.append((seconds, budget, test))
-        if directory == "journeys" and seconds < BUDGETS["browser"]:
-            under.append((seconds, test))
     if over:
         section("Over their directory's budget")
         table(
@@ -376,9 +371,6 @@ def report_budgets(cases: list[dict]) -> None:
                 for s, b, name in sorted(over, reverse=True)
             ],
         )
-    if under:
-        section("Journeys within the browser budget")
-        table(("seconds", "test"), [(f"{s:.1f}", name) for s, name in sorted(under)])
 
 
 def report_stacks(path: Path, rate: float, top: int) -> None:

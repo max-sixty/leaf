@@ -51,12 +51,12 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
-// where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+// A widget's word for its kind: what its module answers from `lfWord()` where `element`
+// is drawn and has the method, else its registry's fixed `x-word`, else its tag without
+// the prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
-  const declared = registry[tag]?.["x-word"];
-  const own = declared === "module" ? element?.lfWord?.() : declared;
+  const own = element?.lfWord?.() || registry[tag]?.["x-word"];
   return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
@@ -66,11 +66,7 @@ export function widgetWord(tag, element = null) {
 /** @param {Element | null | undefined} addressable */
 export function addressableSays(addressable) {
   if (!addressable) return "";
-  const own =
-    registry[addressable.localName]?.["x-word"] === "module"
-      ? addressable.lfSays?.()
-      : "";
-  return own || elementReading(addressable);
+  return addressable.lfSays?.() || elementReading(addressable);
 }
 
 // What names an element, where the authoring contract gives it a name
@@ -184,7 +180,7 @@ export const ownName = (element) => namingWords(ownNaming(element));
 /** @param {Element} element */
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  element.lfSays?.() ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );

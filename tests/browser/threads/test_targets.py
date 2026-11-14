@@ -480,7 +480,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):
     """A rewrite's slots are two words apart on the page and no characters apart in
     the text, so a thread anchored on one was quoted as "redblue". The module that
-    names its own kind (x-word) names its own words the same way."""
+    names its own kind (`lfWord`) names its own words the same way (`lfSays`)."""
     url = serve(
         leaf_page(
             "rewrite",

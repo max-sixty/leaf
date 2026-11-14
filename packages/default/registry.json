@@ -234,7 +234,6 @@
     },
     "additionalProperties": false,
     "x-content": "members",
-    "x-word": "module",
     "x-awaits": {
       "value": "choose",
       "when": {
@@ -574,7 +573,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-word": "module",
     "x-awaits": {
       "value": "edit",
       "when": {

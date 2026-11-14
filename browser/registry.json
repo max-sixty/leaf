@@ -25,7 +25,6 @@
       "all": "accept"
     },
     "x-withdrawn-as": "reject",
-    "x-word": "module",
     "x-state": {
       "decide": {
         "decides": true,
@@ -153,7 +152,7 @@
     "x-history": "`true`: the module renders the page's history, so a page that contains one is served the `history` reading with its state. The reading is the newest 50 logged events, newest first, each with who acted, what they did, the id of the thread it was in, whether a later undo took it back, and, for a widget gesture, the words its ids had when it was made. The module reads it with `readHistory`.",
     "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the obligation without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
     "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
-    "x-word": "The widget's word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor: a fixed word, as `lf-ask` says \"question\", or `module`, where the module gives one through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Without one, Leaf calls the widget by its tag name without the prefix. With `module`, the module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
+    "x-word": "The widget's fixed word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor, as `lf-ask` says \"question\". Without one, Leaf calls the widget by its tag name without the prefix. A module whose word depends on the element answers from an `lfWord()` method instead, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children, and needs no key; it may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text.",
     "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task create` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
   },
   "$attributes": {

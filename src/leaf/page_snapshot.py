@@ -75,13 +75,6 @@ class PageSnapshot:
     def revision(self, revision: int) -> SourceReading:
         return self.context.revision(revision)
 
-    def active_registry(self) -> dict:
-        assert self.context.registry is not None
-        return self.context.registry
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return self.context.data["sources"].get(source)
-
     def events(self) -> list[dict]:
         return list(self.context.events)
 

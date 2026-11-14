@@ -65,7 +65,7 @@ dependencies = [
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
-  "watchdog>=7.0.0",
+  "watchdog>=7.1.0",
   "websockets>=15",
 ]
 

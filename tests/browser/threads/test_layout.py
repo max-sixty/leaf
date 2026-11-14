@@ -234,7 +234,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
     # The margin at this width caps the card short of the head's words and controls.
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first

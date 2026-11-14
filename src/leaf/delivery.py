@@ -581,6 +581,16 @@ def batch_data(
         if durable is not None
         else {}
     )
+    about = (
+        waiting_about(durable.all_obligations["all"], durable.threads, durable.within)
+        if durable is not None and any(event["kind"] == "action" for event in batch)
+        else None
+    )
+    in_thread = (
+        waiting_in_thread(durable.all_obligations["all"], durable.threads)
+        if durable is not None and replies
+        else None
+    )
 
     captured = []
     for event in batch:
@@ -591,25 +601,15 @@ def batch_data(
         entry.pop("attempt", None)
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
-        if durable is not None and (
-            waiting := waiting_about(
-                event["widget"],
-                durable.all_obligations["all"],
-                durable.threads,
-                durable.within,
-            )
-            if event["kind"] == "action"
+        if (
+            waiting := about(event["widget"])
+            if about is not None and event["kind"] == "action"
             else [
                 question
                 for thread in known["threads"]
-                for question in waiting_in_thread(
-                    thread,
-                    event["seq"],
-                    durable.all_obligations["all"],
-                    durable.threads,
-                )
+                for question in in_thread(thread, event["seq"])
             ]
-            if _users_words_in_a_thread(event)
+            if in_thread is not None and _users_words_in_a_thread(event)
             else None
         ):
             entry["waiting"] = waiting

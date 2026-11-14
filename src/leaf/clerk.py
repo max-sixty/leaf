@@ -132,10 +132,10 @@ draft body the user rewrote is never the one changed. Leaf swaps just those word
 `index.html` (`fixed_source`), keeping the source's whitespace between them so a line
 or paragraph break among them stays, checks that the page then reads as before but
 for them, and publishes the save as an agent's is checked and published, putting the
-source back where the check fails. A fix whose changing words cross markup, that
-would drop a line break, or that Leaf can't otherwise place reaches the agent as the
-finding alone. A page the agent builds from another file loses the fix at its next
-build, which the agent's line tells it.
+source back where the check fails. A fix whose changing words cross markup, whose
+new words hold a tag, that would drop a line break, or that Leaf can't otherwise
+place reaches the agent as the finding alone. A page the agent builds from another
+file loses the fix at its next build, which the agent's line tells it.
 
 Leaf queues one line for each record and finding (`QUEUED`) under the same locks as
 its page's write, so a later page's failure loses no earlier page's lines. The next
@@ -193,8 +193,9 @@ effort leaves the cache whole where Claude Code's per-message effort reaches the
 model: in the claude-code journey on 2026-11-04, with the session at xhigh, a low
 fork read 98% of the conversation from the cache, as one at the session's effort
 did. Where it doesn't reach the model, a low fork writes the conversation to the
-cache again (#5891), so once a turn-end check of a session does, the hooks module
-makes each later fork at the session's effort (`runFork` in `hooks/claude-code.ts`).
+cache again (#5891), so once a turn-end check does, the hooks module remembers it
+for that backend and makes its forks at the session's effort, in later sessions too
+(`runFork` in `hooks/claude-code.ts`).
 On turns planted in that journey, which leave an ask in the chat, answer it there,
 make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
@@ -856,7 +857,10 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
     words that change are swapped, and the source's own whitespace between them
     stays, so a line or paragraph break among them survives the swap. In a `<pre>`,
     where a line break shows, a fix that changes how many words stand beside or
-    among one is refused, since which line each word belongs on is a guess."""
+    among one is refused, since which line each word belongs on is a guess. So is
+    one whose new words hold a tag (`_TAG`): Leaf writes them as text, so a link the
+    fork wrote would show as its markup, and the agent, told the words with the tag,
+    wouldn't see that it does."""
     from .anchor_capture import occurrences
     from .passages import COLLAPSE, collapse, page_passages
     from .structure import SourceDocument
@@ -875,6 +879,8 @@ def fixed_source(source: str, registry: dict, logged: dict, edit: dict):
     if words == put or len(found) != 1:
         return None
     start, end, new = _changed(words, put)
+    if _TAG.search(new):
+        return None
     old, target = words[start:end], found[0] + start
     placed = _place(SourceDocument(source), registry, old, target, passages, read)
     if placed is None:
@@ -1006,6 +1012,11 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
         seen += 1
     return None
 
+
+# What opens a tag in HTML's tokenizer: `<` before a letter, `/`, `!` or `?`. Words
+# the page shows as text may hold one too, as code does, and a fix to them is
+# refused alike, leaving the finding to the agent.
+_TAG = re.compile("<[A-Za-z/!?]")
 
 # The supplementary private use areas, which `_place` draws its marks from.
 _PRIVATE = re.compile("[\U000f0000-\U0010fffd]")

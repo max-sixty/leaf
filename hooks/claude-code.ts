@@ -182,6 +182,10 @@ async function sessionOf($: EngineInterface) {
     claudePid = (await $.process.run(["/bin/sh", "-c", "echo $PPID"])).stdout.trim();
     lineForks = (await $.env.get("LEAF_FORK_REPLIES")) !== "off";
     workForks = (await $.env.get("LEAF_FORK_WORK")) === "on";
+    for (const name of ROUTE) {
+      const value = await $.env.get(name);
+      if (value) route[name] = value;
+    }
   })().catch((error) => {
     // A read that failed is read again by the next hook.
     initialized = undefined;
@@ -355,9 +359,9 @@ let forkAgain = false;
  * off the turn's path, and a turn that ends while a fork is out starts one more
  * after it. `$.model.fork` resends the main thread's own last request, its model,
  * system prompt and tools, so the cache serves the conversation, and thinks at the
- * effort Leaf's question names (`clerk.EFFORT`), or at the session's own where that
- * effort cost the cache (`runFork`); it takes no answer schema, so Leaf checks the
- * answer against its own (`read_answer`). What Leaf wrote goes to the debug log, beside Claude Code's own
+ * effort Leaf's question names (`clerk.EFFORT`), or at the session's own where a
+ * change of effort costs the cache on this backend (`runFork`); it takes no answer
+ * schema, so Leaf checks the answer against its own (`read_answer`). What Leaf wrote goes to the debug log, beside Claude Code's own
  * lines for the fork's tokens (`Forked agent [plugin_model_fork] finished`) and the
  * effort it sent; the module logs no usage of its own, since the debug log redacts
  * a `*_tokens` field, and hands the fork's usage and time, or why it gave no answer,
@@ -377,13 +381,9 @@ async function clerk($: EngineInterface, session: string) {
       try {
         const asked = await forkStep($, session, {});
         if (!asked) continue;
-        const ran = await runFork($, asked);
-        // The main thread's request has just gone out, so its cache is warm, and a
-        // fork that wrote more of its prompt than it read met the rewrite. A thread's
-        // fork can't tell: an idle session's cache may have expired (`runFork`).
-        const usage = ran.usage as Record<string, unknown> | undefined;
-        const written = Number(usage?.cache_creation_input_tokens ?? 0);
-        if (written > Number(usage?.cache_read_input_tokens ?? 0)) rewrote = true;
+        // The main thread's request has just gone out, so the check's usage tells
+        // whether a change of effort keeps the cache (`runFork`).
+        const ran = await runFork($, asked, true);
         const applied = await forkStep($, session, { basis: asked.basis, ...ran });
         if (ran.answer === undefined) {
           $.ui.log(`Leaf: the clerk's fork gave no answer (${ran.failed})`, {
@@ -425,6 +425,8 @@ let lastStep:
   | { model: string; effort?: string | number; messages: number; sent?: string }
   | undefined;
 let lastRow: string | undefined;
+// When the main thread's last request began, by `$.clock`.
+let lastSent = 0;
 
 function request() {
   return (
@@ -432,9 +434,49 @@ function request() {
   );
 }
 
-// Whether a turn-end check of this session wrote more of its prompt to the cache
-// than it read, so later forks think at the session's own effort (`runFork`).
-let rewrote = false;
+// The variables that pick the route Claude Code's requests take, read once with
+// Claude Code's process (`sessionOf`). They name the backend a stored answer holds
+// for (`runFork`); none of them decides the answer.
+const ROUTE = [
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
+  "CLAUDE_CODE_USE_GATEWAY",
+  "CLAUDE_CODE_USE_MANTLE",
+  "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+  "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_VERTEX_BASE_URL",
+  "ANTHROPIC_BEDROCK_BASE_URL",
+  "ANTHROPIC_BEDROCK_MANTLE_BASE_URL",
+  "ANTHROPIC_FOUNDRY_BASE_URL",
+  "ANTHROPIC_AWS_BASE_URL",
+  "ANTHROPIC_GOOGLE_CLOUD_BASE_URL",
+  "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
+];
+const route: Record<string, string> = {};
+
+// How long the prompt cache keeps an entry Claude Code wrote: the API's default
+// lifetime, the shorter of the two it offers, so a check never reads an expired
+// entry as a rewrite.
+const CACHE_LIFETIME_MS = 5 * 60 * 1000;
+// How long a stored rewrite holds before a check asks at the changed effort again.
+const ANSWER_LAPSES_MS = 7 * 24 * 60 * 60 * 1000;
+// The most messages a conversation may carry for a check to ask again at the
+// changed effort once the stored rewrite has lapsed, so finding the backend's answer
+// again rewrites a conversation still small, for cents.
+const SMALL_CONVERSATION = 20;
+
+// The `$.store` key whose value maps each backend (`backendOf`) to its stored
+// rewrite. One fixed key, since `$.store` refuses a key over 256 characters and a
+// backend's model and base URLs can be longer.
+const ANSWERS = "fork-effort";
+type Answers = Record<string, { at: number }>;
+
+/** The backend a model on this process's route names, in `ANSWERS`. */
+function backendOf(model: string) {
+  return JSON.stringify({ model, ...route });
+}
 
 /** Fork the conversation with the prompt and effort Leaf asked for, and what Leaf
  * notes of the fork: its `answer`, or why it gave none (`failed`, a thrown error
@@ -445,24 +487,50 @@ let rewrote = false;
  * A fork at another effort than the session's reads the conversation from the cache
  * only where Claude Code's per-message effort reaches the model; otherwise the
  * changed effort writes the conversation to the cache again from the session's
- * first reply on, a cache write billed where a read was expected (issue #5891:
- * through a proxy that rewrites mid-conversation system messages, on Vertex, or
- * with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Leaf can't tell those setups
- * apart from the module, so the turn-end check's usage does (`clerk`): it forks just
- * after the main thread's request, while the cache is warm, so once one writes more
- * of its prompt than it reads, each later fork of the session thinks at the
- * session's effort, which the cache serves. A thread's fork can find the cache
- * expired in an idle session at any effort, so its usage decides nothing. */
+ * first reply on, a cache write billed where a read was expected (issues #5891 and
+ * #5904: through a proxy that rewrites mid-conversation system messages, on Vertex,
+ * or with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`). Claude Code tells a plugin
+ * nothing of it ahead of the fork, and the provider variables can't show a proxy or
+ * a model without per-message effort, so the turn-end check's usage tells (`learns`):
+ * where the check went at a changed effort while the main thread's cache was warm
+ * and wrote more of its prompt than it read, the module stores that answer in
+ * `$.store` under the model and the route's variables (`backendOf`), and every fork
+ * of every session on that backend then thinks at the session's effort, which the
+ * cache serves, from its first. The answer lapses after `ANSWER_LAPSES_MS`; then a
+ * check, the only fork whose usage can renew or drop it, asks at the changed effort
+ * again while the conversation is small, and every other fork keeps the session's
+ * effort. A check that keeps the cache drops the answer, so a backend that gains
+ * per-message effort is found again (issue #5906). A thread's fork can find the cache expired in
+ * an idle session at any effort, so its usage decides nothing. */
 async function runFork(
   $: EngineInterface,
   asked: { prompt: string; effort: ModelEffort },
+  learns = false,
 ): Promise<Record<string, unknown>> {
   const resent = request();
-  const effort =
-    rewrote && lastStep?.effort !== undefined
-      ? (lastStep.effort as ModelEffort)
-      : asked.effort;
   const started = await $.clock.now();
+  const session = lastStep?.effort;
+  // The backend, where Leaf asks for another effort than the session's.
+  const key =
+    lastStep && session !== undefined && session !== asked.effort
+      ? backendOf(lastStep.model)
+      : undefined;
+  let stored: { at: number } | undefined;
+  if (key)
+    try {
+      stored = ((await $.store.get(ANSWERS)) as Answers | undefined)?.[key];
+    } catch (error) {
+      $.ui.log(`Leaf: the fork's stored effort answer is unreadable: ${error}`, {
+        to: "debug",
+      });
+    }
+  const asksAgain =
+    learns &&
+    stored !== undefined &&
+    started - stored.at >= ANSWER_LAPSES_MS &&
+    (lastStep?.messages ?? Infinity) <= SMALL_CONVERSATION;
+  const effort =
+    stored !== undefined && !asksAgain ? (session as ModelEffort) : asked.effort;
   let ran: Record<string, unknown>;
   try {
     const reply = await $.model.fork({ prompt: asked.prompt, effort });
@@ -474,6 +542,27 @@ async function runFork(
   } catch (error) {
     ran = { failed: String(error) };
   }
+  const usage = ran.usage as Record<string, unknown> | undefined;
+  // An entry that expired reads in `usage` as a rewrite does, so only a check made
+  // while the main thread's last request is in the cache tells.
+  if (learns && key && effort !== session && usage)
+    if (started - lastSent < CACHE_LIFETIME_MS)
+      try {
+        const written = Number(usage.cache_creation_input_tokens ?? 0);
+        const rewrote = written > Number(usage.cache_read_input_tokens ?? 0);
+        if (rewrote || stored !== undefined) {
+          const { [key]: _, ...others } =
+            ((await $.store.get(ANSWERS)) as Answers | undefined) ?? {};
+          await $.store.set(
+            ANSWERS,
+            rewrote ? { ...others, [key]: { at: started } } : others,
+          );
+        }
+      } catch (error) {
+        $.ui.log(`Leaf: the fork's effort answer went unstored: ${error}`, {
+          to: "debug",
+        });
+      }
   return {
     ...ran,
     elapsed_ms: (await $.clock.now()) - started,
@@ -696,13 +785,15 @@ export const register: Register = (on) => {
   });
 
   on("turn.step", async function* ($, e, next) {
-    if (e.agentId === undefined)
+    if (e.agentId === undefined) {
+      lastSent = await $.clock.now();
       lastStep = {
         model: e.model,
         messages: e.messageCount,
         ...(e.effort === undefined ? {} : { effort: e.effort }),
         ...(lastRow === undefined ? {} : { sent: lastRow }),
       };
+    }
     return yield* next(e);
   });
 

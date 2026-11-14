@@ -170,6 +170,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { contentsRects } from "../shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
@@ -551,9 +552,7 @@ class LeafText extends HTMLElement {
       const block = line.getBoundingClientRect();
       if (block.bottom <= top || block.top >= box.bottom) continue;
       const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
-      const words = document.createRange();
-      words.selectNodeContents(line);
-      for (const rect of words.getClientRects())
+      for (const rect of contentsRects(line))
         if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
     }
     if (!view.hasFocus) return false;

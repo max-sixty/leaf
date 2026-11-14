@@ -14,11 +14,14 @@
 // `sendRefuses`, the reason every `$.session.send` gives for delivering nothing,
 // which otherwise delivers, each send printing what it was asked as `{"sent"}`;
 // `state`, the values `$.state` holds as the module loads, by key, as a reload
-// finds them; and `env`, Claude Code's environment, all that `$.env`
+// finds them; `store`, the file that holds `$.store`'s entries, kept across driven
+// processes as Claude Code keeps a plugin's; and `env`, Claude Code's environment,
+// all that `$.env`
 // reads and what the module's processes inherit over the driver's own. Each
 // `leaf hook --fork` the module runs prints its payload as `{"forkStep"}`. Each stdin line is `{"emit": <event>, "e": <input>}`:
 // the driver runs that event's hooks over `e`, the bottom of the chain answering
 // with the input it reached, and prints `{"event", "result"}` once they resolve. A
+// line `{"advance": <ms>}` moves `$.clock` on by that much. A
 // line `{"flush": true}` prints `{"flushed": true}` once the module has done what
 // it does without waiting on anything outside. Each redraw the module asks for
 // prints `{"band": {terminal, desktop}}`, the band above the prompt as its render
@@ -29,7 +32,7 @@
 // terminal's band last drawn; what a press copies prints as `{"copied": <text>}`,
 // and a toast as `{"toast": <text>}`.
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -50,6 +53,25 @@ const held = new Map(
   ]),
 );
 let band = { terminal: null, desktop: null };
+// How far `{"advance"}` lines have moved `$.clock` past the real one.
+let advanced = 0;
+
+/** `$.store`'s entries, read from and written to `options.store` whole, or kept in
+ * memory without one. */
+let memory = {};
+function stored() {
+  if (options.store === undefined || !fs.existsSync(options.store)) return memory;
+  return JSON.parse(fs.readFileSync(options.store, "utf8"));
+}
+function keyed(key) {
+  if (key.length > 256) throw new Error(`the key is ${key.length} characters`);
+  return key;
+}
+function keep(entries) {
+  memory = entries;
+  if (options.store !== undefined)
+    fs.writeFileSync(options.store, JSON.stringify(entries));
+}
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -141,11 +163,21 @@ const $ = {
   fs: {
     read: async (file, { as } = {}) =>
       as === "bytes"
-        ? { base64: readFileSync(file).toString("base64") }
-        : readFileSync(file, "utf8"),
+        ? { base64: fs.readFileSync(file).toString("base64") }
+        : fs.readFileSync(file, "utf8"),
   },
   clock: {
-    now: async () => Date.now(),
+    now: async () => Date.now() + advanced,
+  },
+  // Claude Code refuses a key over 256 characters (2.1.316).
+  store: {
+    get: async (key) => stored()[keyed(key)],
+    set: async (key, value) => keep({ ...stored(), [keyed(key)]: value }),
+    delete: async (key) => {
+      const { [keyed(key)]: _, ...rest } = stored();
+      keep(rest);
+    },
+    keys: async () => Object.keys(stored()),
   },
   state: {
     get: async ({ key }) => held.get(key) ?? { value: undefined, version: 0 },
@@ -279,7 +311,11 @@ await register((event, ...rest) => {
 print({ pid: process.pid });
 
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, flush, press, spawnReturns: returns } = JSON.parse(line);
+  const { emit, e, flush, press, advance, spawnReturns: returns } = JSON.parse(line);
+  if (advance !== undefined) {
+    advanced += advance;
+    continue;
+  }
   if (returns) {
     spawnReturns();
     continue;

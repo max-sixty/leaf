@@ -106,7 +106,7 @@
     "overrides": {
       "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
       "lit-html": "$lit-html",
-      "get-uri>basic-ftp": "6.2.1",
+      "get-uri>basic-ftp": "6.2.6",
       "minimatch@<11.0.1": "^11.0.4",
       "@hono/node-server@<2.1.6": "^2.1.6"
     },

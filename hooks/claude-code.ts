@@ -72,7 +72,14 @@
  *
  * Claude Code generates declarations under .claude-plugin/types/ and a root
  * tsconfig.json when it loads the plugin. Those declarations are absent from
- * its npm package, so CI's hooks/tsconfig.json checks Pi and its watch owner.
+ * its npm package, so hooks/tsconfig.json type-checks only Pi and its watch owner.
+ * `pnpm run check:hooks` also runs `claude plugin validate` from the Claude Code
+ * that `package.json` pins, which fails where Claude Code would refuse to load this
+ * module, as it refuses a `$.env.get` whose name isn't a string literal. A refused
+ * module leaves the session with no band, no clerk and no thread forks, and Claude
+ * Code reports the refusal only in its debug log, so the follower records the
+ * process it runs in and Leaf's Stop hook tells the user where none ran
+ * (`ClaudeCodeHarness.unloaded_module`).
  */
 
 import type {

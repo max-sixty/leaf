@@ -45,6 +45,7 @@ from interact_support import (
 from interact_support import declare as declare_status
 
 from leaf import cli as cli_model
+from leaf import completions as completions_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -89,32 +90,90 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 
     monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert capsys.readouterr().out == "[]\n"
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "completions": []}
 
 
-def test_pages_follower_reads_on_its_timer_without_a_native_subscription(
-    claimed, monkeypatch, capsys
-):
-    """The per-session page list follows claims without an inotify instance."""
+def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsys):
+    """Without forks, the per-session page list follows claims on its timer and
+    subscribes to none of its pages, only to the session's completion requests
+    (`completions.watch`)."""
 
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+    subscribed = []
+    subscribe = file_changes_model.FileChanges
+
+    def watching(roots, accepts):
+        subscribed.append(set(roots))
+        return subscribe(roots, accepts)
 
     def forbidden(*_args, **_kwargs):
-        pytest.fail("the page list allocated a native subscription")
+        pytest.fail("the page list subscribed to a page")
 
-    def release(_seconds):
+    def release(_marks, _timeout):
         cleanup_model.end_session("s1")
 
-    monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
-    monkeypatch.setattr(
-        hooks_model, "time", SimpleNamespace(sleep=release, monotonic=time.monotonic)
-    )
+    monkeypatch.setattr(file_changes_model, "FileChanges", watching)
+    monkeypatch.setattr(file_changes_model, "page_changes", forbidden)
+    monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
+    assert subscribed == [{cleanup_model.sessions_home().resolve()}]
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
-    assert len(first) == 1
-    assert first[0]["page_key"] == cleanup_model.page_key(claimed)
-    assert last == []
+    assert len(first["pages"]) == 1
+    assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)
+    assert last == {"pages": [], "completions": []}
+
+
+def test_pages_follower_lists_completions_whatever_its_pages_show(
+    claimed, monkeypatch, capsys
+):
+    """The follower lists each completion a page server asks of the session though
+    it lists none of the session's pages, as when the agent closed the page whose
+    thread the request titles (`completions`)."""
+    replied = []
+    asking = threading.Thread(
+        target=lambda: replied.append(
+            completions_model.ask("s1", {"prompt": "Name it"}, timeout=STATED_TIMEOUT)
+        )
+    )
+    asking.start()
+    [request] = wait_for(
+        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    )
+
+    def release(_marks, _timeout):
+        cleanup_model.end_session("s1")
+
+    monkeypatch.setattr(file_changes_model, "wait", release)
+    hooks_model.cmd_pages({"session_id": "s1"})
+    [listed] = map(json.loads, capsys.readouterr().out.splitlines())
+    assert listed == {"pages": [], "completions": [request]}
+    assert request["request"] == {"prompt": "Name it"}
+    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "Named"})
+    asking.join()
+    assert replied == [{"text": "Named"}]
+
+
+def test_the_follower_hears_a_completion_as_it_is_asked():
+    """The follower's subscription to the session's requests wakes it as one is
+    written, rather than at its next presence read (`completions.watch`)."""
+    heard = completions_model.watch("s1")
+    mark = heard.mark()
+    # Asked for longer than the wake may take, so it is still there to answer.
+    asking = threading.Thread(
+        target=completions_model.ask,
+        args=("s1", {"prompt": "Name it"}),
+        kwargs={"timeout": 2 * STATED_TIMEOUT},
+    )
+    asking.start()
+    woke = heard.wait(mark, STATED_TIMEOUT)
+    [request] = wait_for(
+        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    )
+    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "{}"})
+    asking.join()
+    heard.close()
+    assert woke, "the request woke nothing"
 
 
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):

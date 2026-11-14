@@ -52,7 +52,11 @@ const recordedOwner = (member, record) => {
 /** @param {Element} widget @param {string} selector @param {StateRecord} record */
 const ownedRecordMembers = (widget, selector, record) =>
   [...widget.querySelectorAll(selector)].filter(
-    (member) => recordedOwner(member, record) === widget,
+    // Only a Leaf element holds recorded state, as the server's index reads it
+    // (structure.py): a native `<option selected>` inside an option's card is the
+    // author's own control, not a pick.
+    (member) =>
+      member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
   );
 
 /** @param {Element} el @param {StateRecord} record */

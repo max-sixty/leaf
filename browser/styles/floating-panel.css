@@ -673,7 +673,7 @@
      mouse, the words took that room back with Send in a corner they leave free
      (below). Each is a line tall, standing on the row's foot, and as wide as the
      floor, as the row's other presses are. */
-  .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
+  .lf-fp-field .lf-compose-submit {
     inset-inline-end: 0;
     inset-block-end: 0;
     place-items: center;
@@ -710,7 +710,7 @@
     }
   }
   /* Send shows while the user writes words, in every composer's face: the accent arrow,
-     not a press of its own, in Dictate's seat. While the user writes or the field
+     not a press of its own. While the user writes or the field
      holds a draft, the mark steps aside, so the field takes its room, and Send stays
      in its corner with the caret elsewhere, so no line of the draft moves
      (floating-panel.js, `writing` and `drafted`). */
@@ -721,15 +721,6 @@
     .lf-fp-field
     .lf-compose-submit {
     display: grid;
-  }
-  .lf-fp-field .lf-compose-dictate {
-    display: grid;
-  }
-  /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
-     while they stay in the panel (floating-panel.js, `writing`), so Tab from the field
-     lands on Dictate rather than hiding it as the field lets go. */
-  .lf-floating-panel:not([data-lf-writing]) .lf-compose-dictate {
-    display: none;
   }
 
   /* The row's end: one seat, which the On Me mark and a stance's way out take in turn

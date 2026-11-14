@@ -1565,7 +1565,6 @@ export class ThreadView {
   }
 
   retire() {
-    this.#reply?.cancelDictation();
     this.#transcript.retire();
   }
 

@@ -11,7 +11,6 @@ const wireInput = () =>
     value: () => "",
     button: null,
     load() {},
-    cancelDictation() {},
   });
 
 test("a thread card's output updates its commands without invalidating its presenter", () => {

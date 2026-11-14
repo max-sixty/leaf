@@ -358,7 +358,7 @@ export function boxMotion({
   // How far each editor had scrolled its words before the change being read: taken at
   // each reading, again as each press or key begins, and as the field opens an edit
   // (`lf-before-edit`, composing/text-field.js), since a field scrolls as it is typed
-  // in without changing size, and paste or dictation edit it with no key.
+  // in without changing size, and a paste edits it with no key.
   /** @type {Map<Element, number>} */
   let fieldScrolls = new Map();
   const noteFieldScrolls = () => {

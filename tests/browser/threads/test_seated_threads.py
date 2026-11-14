@@ -745,58 +745,6 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought")
 
 
-# The browser's speech recognizer, replaced at its boundary as tests/runtime's
-# dictation tests replace it: each instance records whether it was aborted, and a
-# test hears words through its `onresult`.
-FAKE_RECOGNITION = """
-window.lfRecognizers = [];
-window.SpeechRecognition = class {
-  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
-  start() { setTimeout(() => this.onstart?.()); }
-  stop() { setTimeout(() => this.onend?.()); }
-  abort() { this.aborted = true; }
-};
-"""
-
-
-def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
-    browser, serve
-):
-    """The user dictates a reply on the diff line, and the patch moves the thread to
-    its margin card and back. Leaf's dictation followed the editor's view and stopped
-    on each move. It goes on with the editor, still listening, and writes what it
-    hears into the same box wherever the thread stands."""
-    url, root = seated_thread(serve, "diff", 2)
-    page = open_page(browser, url, init_script=FAKE_RECOGNITION)
-    resized(page, 1440, 900)
-    inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
-    row = inline.locator(":scope > .lf-thread-reply")
-    row.scroll_into_view_if_needed()
-    row.locator("leaf-text").focus()
-    row.locator(".lf-compose-dictate").click()
-    page.wait_for_function("() => window.lfRecognizers.length === 1")
-    heard = """words => window.lfRecognizers[0].onresult({
-      results: [[{ transcript: words }]],
-    })"""
-    page.evaluate(heard, "Half a")
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
-    )
-    told(page)
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
-    reply = card.locator(":scope > .lf-thread-reply leaf-text")
-    expect(reply).to_be_focused()
-    page.evaluate(heard, "Half a thought")
-    expect(reply).to_have_js_property("value", "Half a thought")
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
-    told(page)
-    box = row.locator("leaf-text")
-    expect(box).to_be_focused()
-    page.evaluate(heard, "Half a thought more")
-    expect(box).to_have_js_property("value", "Half a thought more")
-    assert page.evaluate("() => window.lfRecognizers.map(r => r.aborted)") == [False]
-
-
 @pytest.mark.parametrize("card", ["open", "closed"])
 def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     browser, serve, card

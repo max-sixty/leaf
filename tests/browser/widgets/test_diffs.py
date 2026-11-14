@@ -1497,7 +1497,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
         head.element_handle(),
     )
     scroll_settled(page)
-    beside = page.locator("lf-diff .lf-diff-thread-outlet .lf-compose-dictate")
+    beside = page.locator("lf-diff .lf-diff-thread-outlet .lf-compose-submit")
     under = beside.evaluate(
         "(el, head) => el.getBoundingClientRect().top"
         " < head.getBoundingClientRect().bottom",
@@ -1511,7 +1511,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
         const root = document.getElementById('patch').shadowRoot;
         const head = root.querySelector('.lf-diff-file > details > summary');
         const focused = root.activeElement;
-        return {beside: focused?.matches('.lf-diff-thread-outlet .lf-compose-dictate'),
+        return {beside: focused?.matches('.lf-diff-thread-outlet .lf-compose-submit'),
                 top: focused?.getBoundingClientRect().top,
                 head: head.getBoundingClientRect().bottom};
     }"""
@@ -1522,7 +1522,7 @@ def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve
 
 def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serve):
     """A conversation in a diff ends in a Reply press, one control high and with no
-    frame or microphone, rather than an open field. A press opens the field, which
+    frame but Send beside the hint, rather than an open field. A press opens the field, which
     rests again once the user leaves it empty, and `c` from the conversation opens it
     with the caret in it."""
     datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
@@ -1549,16 +1549,18 @@ def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serv
       return {
         height: field.getBoundingClientRect().height,
         frame: getComputedStyle(box).borderTopColor,
-        mic: getComputedStyle(box.querySelector('.lf-compose-dictate')).display,
+        send: getComputedStyle(box.querySelector('.lf-compose-submit')).display,
       };
     }"""
-    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "mic": "none"}
+    resting = {"height": 24, "frame": "rgba(0, 0, 0, 0)", "send": "grid"}
     expect(reply).to_be_visible()
     assert reply.evaluate(face) == resting
     reply.click()
     expect(reply).to_be_focused()
     opened = reply.evaluate(face)
-    assert opened["height"] > resting["height"] and opened["mic"] != "none", opened
+    assert opened["height"] > resting["height"] and opened["send"] == resting["send"], (
+        opened
+    )
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
     assert reply.evaluate(face) == resting
@@ -1566,7 +1568,7 @@ def test_a_diff_conversation_s_reply_rests_as_a_press_that_c_opens(browser, serv
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     reached = reply.evaluate(face)
-    assert (reached["height"], reached["mic"]) == (opened["height"], opened["mic"])
+    assert (reached["height"], reached["send"]) == (opened["height"], opened["send"])
     page.keyboard.insert_text("Keep this draft open")
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()

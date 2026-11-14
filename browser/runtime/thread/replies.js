@@ -121,7 +121,6 @@ const available = (composition) =>
 /** @param {string} context @param {Composition} composition */
 function adopt(context, composition) {
   const session = compositions.get(context);
-  if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
   const caret = readCaret(session?.owner?.controls.input ?? null);
   if (session) session.owner = composition;
   else openSession(context, { owner: composition });
@@ -240,7 +239,6 @@ function endSession(context) {
 function dismissContext(context) {
   const session = endSession(context);
   if (!session) return;
-  session.owner?.sync.cancelDictation();
   session.owner?.changed();
 }
 /** @param {string} key */
@@ -510,10 +508,7 @@ function attach(composition, binding) {
     },
   });
   controls.input.addEventListener("pointerdown", begin);
-  // A row handed on to another view (`give`) keeps its dictation, as it keeps focus,
-  // caret and history; one this view ends with it stops listening.
-  return ({ handingOn = false } = {}) => {
-    if (!handingOn) sync.cancelDictation();
+  return () => {
     stopMirror();
     controls.input.removeEventListener("pointerdown", begin);
     views.delete(attached);
@@ -607,7 +602,7 @@ export function createReplyView(
     sending,
     sent,
     give: () => {
-      detach({ handingOn: true });
+      detach();
       composition = fresh();
       detach = attach(composition, binding);
       return redraw;
@@ -631,7 +626,6 @@ export function createReplyView(
     get input() {
       return composition.controls.input;
     },
-    cancelDictation: () => composition.sync.cancelDictation(),
     // Paint the box again where what its `hint` reads has changed.
     sync: () => composition.sync(),
     // A view drawing the thread takes its session's row where no view holds it: one

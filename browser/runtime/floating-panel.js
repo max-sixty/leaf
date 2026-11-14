@@ -181,8 +181,8 @@
  * draft, caret and send), and the panel stands the current one in the field's place, so
  * words never move between editors. Page and Threads search take this same field
  * with their own native inputs: a right-hand scope chip and a faint tint name the
- * mode after its placeholder is gone. Search never borrows an editor or its send,
- * attachments or dictation. Every mode keeps its field on the bottom row, with
+ * mode after its placeholder is gone. Search never borrows an editor or its send or
+ * attachments. Every mode keeps its field on the bottom row, with
  * mode-specific controls beside it. Content opens in a view; response choices
  * use a picker. Features contribute to those surfaces rather than adding strips.
  *
@@ -1065,8 +1065,8 @@ export function createFloatingPanel({
     focusDestination(view, "return");
   }
   // While the user writes, the field runs to the row's end, the mark and the row's
-  // notice stepped aside, from the moment they open it: Dictate, then Send, stand in
-  // the one corner, and the first key moves nothing. The user chose this on 29
+  // notice stepped aside, from the moment they open it: Send stands in
+  // the corner, and the first key moves nothing. The user chose this on 29
   // October over the field widening at the first key, which moved its end and the
   // action under it by the mark's width as typing began.
   let writing = false;
@@ -1078,7 +1078,7 @@ export function createFloatingPanel({
   // October over the counts coming back as the caret left, which rewrapped the draft
   // each time the user stepped out and again as they came back. Words a refused send
   // hands back move nothing, so its action stays in the seat the empty field gave it,
-  // Dictate's, until the user types again; emptying the field always ends it. A draft is
+  // until the user types again; emptying the field always ends it. A draft is
   // anything typed, a line break included.
   let drafted = false;
   let postureMoved = true;

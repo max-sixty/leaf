@@ -868,7 +868,7 @@ def card_more_room(page: Page) -> None:
 
 
 def card_reply_empty(page: Page) -> None:
-    """The first margin card's empty reply, ready for typing or dictation."""
+    """The first margin card's empty reply, ready for typing."""
     card_by_keyboard(page)
     page.keyboard.press("Enter")
     page.wait_for_function(
@@ -897,21 +897,6 @@ def panel_reply_empty(page: Page) -> None:
     expect(page.locator(panel_view("thread"))).to_be_visible()
     page.locator(".lf-fp-field leaf-text").click()
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
-
-
-def panel_dictating(page: Page) -> None:
-    """The floating panel's field while Dictate listens. Headless has no microphone, so
-    the button takes the state a listening dictation renders on it."""
-    page.locator(".lf-fp-field leaf-text").click()
-    dictate = page.locator(".lf-fp-field .lf-compose-dictate")
-    expect(dictate).to_be_visible()
-    dictate.evaluate(
-        """button => {
-          button.setAttribute("aria-pressed", "true");
-          button.dataset.lfDictation = "listening";
-        }"""
-    )
-    settle(page)
 
 
 def comment_on(section: str) -> None:
@@ -3272,9 +3257,6 @@ STATES = (
         "review-a-plan",
         panel_reply_empty,
         region=".lf-fp-row",
-    ),
-    State(
-        "plan-panel-dictating", "review-a-plan", panel_dictating, region=".lf-fp-row"
     ),
     State("plan-option-empty", "review-a-plan", option_empty, region=".lf-another"),
     State(

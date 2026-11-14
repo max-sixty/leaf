@@ -76,12 +76,12 @@ import { textField } from "./text-field.js";
 import { raiseError } from "../errors.js";
 import { isNativeLayer } from "../shadow-tree.js";
 
-// The comment field keeps Send or Dictate as its primary action. Other responses
+// The comment field keeps Send as its primary action. Other responses
 // open in one anchored picker from a ⋯ in the field's corner, Tab, or e. The same
 // picker follows the composer between the floating panel, a passage, and a widget
 // outlet; opening it never changes the field's size or position.
 //
-// The ⋯ stands beside Dictate only while the field is empty, and the draft's first
+// The ⋯ stands beside Send only while the field is empty, and the draft's first
 // word takes its place, so the field spans the bar in every state and nothing moves
 // as the user starts typing (response.css). Max chose this on 25 October 2026 over a
 // bordered button beside the field, which kept 40px of a 294px bar from the words
@@ -475,7 +475,6 @@ export function createSelectionComposer({
   /** @param {boolean} open */
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
-    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the chrome took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact

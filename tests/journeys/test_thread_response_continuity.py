@@ -508,7 +508,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             return {left, top, bottom, centerY: (top + bottom) / 2};
           };
           // An empty diff reply rests as the Reply field, without a visible button.
-          const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
+          const action = [...node.querySelectorAll('.lf-compose-submit')]
             .find(button => button.checkVisibility()) ?? node.querySelector('leaf-text');
           const pose = {action: rect(action),
             tail: rect(document.querySelector('#continuity-tail'))};
@@ -556,7 +556,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
         restored = pose()
         for node in pending:
-            # Dictate and Send share an aim, but Send is shorter under a mouse.
+            # Send is shorter under a mouse, so its left edge and centre hold.
             edges = ("left", "centerY") if node == "action" else pending[node]
             for edge in edges:
                 assert abs(restored[node][edge] - pending[node][edge]) < 0.5, (

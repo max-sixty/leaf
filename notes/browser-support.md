@@ -343,18 +343,6 @@ Recheck by running
 in place of `browser`; it fails while the gap holds. When both engines pass,
 parametrize the test over them.
 
-### Browser dictation in comment boxes
-
-`browser/runtime/composing/dictation.js` offers dictation when
-`SpeechRecognition` or `webkitSpeechRecognition` exists. Browsers without it
-keep typing and Send. Interface availability does not establish microphone
-permission or access to the recognition service.
-On 2026-10-11, Chrome 155 began listening but synthetic microphone audio ended
-with `no-speech`; successful real transcription was unverified. The user's
-Codex embedded-browser trial returned `network`. Native event tests cover
-transcripts and failure recovery, but do not establish service availability.
-Recheck with real speech in the affected browser.
-
 ### Find-in-page scrolling to folded content
 
 Widgets fold content with `hidden="until-found"`, which Leaf's own travel reveals

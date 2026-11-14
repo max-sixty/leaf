@@ -68,8 +68,6 @@
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out.
- * `edit(text)` replaces the words as external text input, such as dictation: it keeps
- * undo history and emits the same before-edit/input bracket as native typing.
  * That bracket bubbles across enclosing shadow stages, as a textarea's input does.
  * `lf-caret-move` says the user moved the caret or selection without editing, as an
  * arrow key does; a write to the selection triple fires nothing.
@@ -1030,29 +1028,6 @@ class LeafText extends HTMLElement {
 
   get value() {
     return this.#text;
-  }
-
-  /** @param {string} text */
-  edit(text) {
-    text = String(text).replace(/\r\n?/g, "\n");
-    if (text === this.value) return;
-    if (!this.#view && this.isConnected) this.#build();
-    this.#change(
-      () => ({
-        changes: { from: 0, to: this.#length, insert: text },
-        selection: { anchor: text.length },
-        userEvent: "input.dictation",
-      }),
-      (draft) => {
-        if (this.isConnected) this.#beforeEdit();
-        draft.text = text;
-        draft.anchor = draft.head = text.length;
-        if (!this.isConnected) return;
-        this.#paintRest();
-        this.#paintEmpty();
-        this.#emit("input");
-      },
-    );
   }
 
   // Records a change the owner has just made outside the words as a step of the words'

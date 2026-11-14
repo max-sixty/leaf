@@ -247,11 +247,6 @@ interface CloseWatcher extends EventTarget {
 }
 declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };
 
-interface Window {
-  SpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
-  webkitSpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
-}
-
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
 }

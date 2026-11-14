@@ -563,7 +563,6 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
             value: () => "",
             button: null,
             load() {},
-            cancelDictation() {},
           }),
       },
       reaction: {},

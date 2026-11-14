@@ -4926,22 +4926,22 @@ def test_a_layer_a_menu_row_opened_closes_back_to_the_leaf(browser, serve):
     expect(field(page)).to_have_js_property("value", "An unfinished reply")
 
 
-def test_tab_from_the_field_reaches_dictate(browser, serve):
-    """Dictate stands beside the field while the user writes in the panel and is gone at
+def test_tab_from_the_field_reaches_send(browser, serve):
+    """Send stands beside the field while the user writes in the panel and is gone at
     rest, so Tab from the field lands on it rather than hiding it as the field lets go.
     """
     page = floating(browser, serve(LONG_PAGE))
-    dictate = page.locator(".lf-fp-box .lf-compose-dictate")
-    expect(dictate).to_be_hidden()
+    send = page.locator(".lf-fp-box .lf-compose-submit")
+    expect(send).to_be_hidden()
     field(page).click()
-    expect(dictate).to_be_visible()
+    expect(send).to_be_visible()
     page.keyboard.press("Tab")
-    # The field's letting go repaints the box a frame later; Dictate is still there.
+    # The field's letting go repaints the box a frame later; Send is still there.
     page.evaluate(
         "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
     )
-    expect(dictate).to_be_visible()
-    expect(dictate).to_be_focused()
+    expect(send).to_be_visible()
+    expect(send).to_be_focused()
 
 
 ROW_CENTRES = """() => {
@@ -4955,7 +4955,6 @@ ROW_CENTRES = """() => {
   return {
     leaf: centre('.lf-fp-leaf > svg[data-lf-icon=leaf]'),
     line: text.bottom - 16,
-    dictate: centre('.lf-fp-field .lf-compose-dictate svg'),
     send: centre('.lf-fp-field .lf-compose-submit svg'),
     count: centre('.lf-fp-on-user svg'),
     field: text.right,
@@ -4967,7 +4966,7 @@ ROW_CENTRES = """() => {
 
 def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     """Everything in the row stands on the one line the words are written on: the
-    leaf and the counts at rest, Dictate as the user opens the field, and Send while
+    leaf and the counts at rest, and Send as the user opens the field and while
     they type, each centred on the field's last line of words, however many lines it
     holds. Send floats in the field's end corner, as an anchored comment box's does,
     and under a mouse the words take its column (drafts/test_send_corner.py follows
@@ -4980,7 +4979,7 @@ def test_the_row_s_marks_and_presses_share_the_words_line(browser, serve):
     field(page).click()
     settled(page)
     seats = page.evaluate(ROW_CENTRES)
-    for mark in ("leaf", "dictate"):
+    for mark in ("leaf", "send"):
         assert abs(seats[mark] - seats["line"]) < 0.5, (mark, seats)
     page.keyboard.type(
         "Could the rollback cover the weekend, and the mobile cohort as well, and"

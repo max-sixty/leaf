@@ -67,6 +67,7 @@ from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
+from leaf.render_gate import scheme as scheme_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf_dev.browser import PANEL_THREAD
@@ -311,11 +312,21 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 
     Stall the gate's second read of this version, after its first read delivered the
     page. Stalling that first read would wedge navigation instead and report the
-    banner the gate never saw. The deadline is shortened here because the number is
-    not the subject, the bound is.
+    banner the gate never saw. Only the stalled read's deadline is shortened, since
+    its answer never comes: the number is not the subject, the bound is. Every other
+    read and probe keeps the suite's deadline, so a slow machine still renders.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
+    bounded = scheme_model.served
+    shortened = []
+
+    def served(page, url, path, timeout_ms=None):
+        if path == "/versions/v2.html" and not shortened:
+            shortened.append(path)
+            timeout_ms = 1500
+        return bounded(page, url, path, timeout_ms)
+
+    monkeypatch.setattr(scheme_model, "served", served)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for _ in (1, 2):

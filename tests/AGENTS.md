@@ -377,7 +377,12 @@ Waits take the suite's deadlines: `STATED_TIMEOUT` on the Python side, with
 `interact_support.wait_for` for pure-Python polls, and `SERVED_TIMEOUT_MS`, which
 `render_harness` makes every Playwright wait's default, so a wait
 names a deadline only when it spans a page handover (`HANDOVER_DEADLINE_MS`).
-`test_a_wait_takes_the_suites_deadline` checks both.
+`test_a_wait_takes_the_suites_deadline` checks both. It can't see a deadline or cache
+age the product applies inside the code a test calls, such as the prompt hook's bound
+on a server start, so a test that runs work under one gives it `STATED_TIMEOUT`, and
+shortens it only to 0 or where the work it bounds can never finish, as behind a held
+port. `_hook_bounds_take_the_suites_deadline` (`interact_support.py`) does this for
+the prompt hook's bounds in every in-process test.
 
 ### Transient states
 

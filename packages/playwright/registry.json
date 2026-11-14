@@ -460,7 +460,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-views": { "members": ":not(script, style, template)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"

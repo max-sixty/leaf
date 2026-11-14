@@ -2535,9 +2535,11 @@ def with_modules(registry: dict, *tags: str) -> dict:
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag`, or, without `upgrade`, the same
-    markup block with no module behind it."""
+    """The product's starter declaration for `tag` as a composed vocabulary holds it,
+    its defaults written in, or, without `upgrade`, the same markup block with no
+    module behind it."""
     declaration = packages_model.starter_element_declaration(tag)
+    declaration["x-content"] = "markup"
     if not upgrade:
         del declaration["x-verbatim"]
     return declaration

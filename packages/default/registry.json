@@ -66,7 +66,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-encloses": true,
     "x-flow": true,
     "x-word": "question",
@@ -85,7 +84,6 @@
     },
     "required": ["tip"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-inline": true,
     "x-says": {
       "tip": "after"
@@ -111,7 +109,6 @@
     },
     "required": ["source", "run"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-data": {
       "measurement": {
         "contract": "measured-scalar",
@@ -322,7 +319,6 @@
     "x-unique": {
       "value": "lf-options"
     },
-    "x-content": "markup",
     "x-text-format": "inline-markdown",
     "x-refers": {
       "for": {}
@@ -365,8 +361,7 @@
     },
     "required": ["at"],
     "additionalProperties": false,
-    "x-owners": ["lf-code"],
-    "x-content": "markup"
+    "x-owners": ["lf-code"]
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
@@ -476,7 +471,6 @@
       "attr": "shows",
       "value": "value"
     },
-    "x-content": "markup",
     "x-work": true
   },
   "lf-tabs": {
@@ -537,8 +531,7 @@
     },
     "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": ["lf-tabs"],
-    "x-content": "markup"
+    "x-owners": ["lf-tabs"]
   },
   "lf-parts": {
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
@@ -570,8 +563,7 @@
     },
     "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": ["lf-parts"],
-    "x-content": "markup"
+    "x-owners": ["lf-parts"]
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
@@ -628,7 +620,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-says": {
       "label": "before"
     },
@@ -649,7 +640,6 @@
     },
     "required": ["id", "label"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-reading-role": "pane",
     "x-patch": "members",
     "x-verbatim": true,

@@ -201,8 +201,7 @@
     "additionalProperties": false,
     "x-word": "option",
     "x-unique": { "value": "lf-playground-control" },
-    "x-owners": ["lf-playground-control"],
-    "x-content": "markup"
+    "x-owners": ["lf-playground-control"]
   },
   "lf-playground-preset": {
     "description": "A named partial playground configuration the user can apply at once.",
@@ -248,8 +247,7 @@
       "id": { "type": "string" }
     },
     "additionalProperties": false,
-    "x-owners": ["lf-playground"],
-    "x-content": "markup"
+    "x-owners": ["lf-playground"]
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
@@ -258,8 +256,7 @@
       "id": { "type": "string" }
     },
     "additionalProperties": false,
-    "x-owners": ["lf-playground"],
-    "x-content": "markup"
+    "x-owners": ["lf-playground"]
   },
   "lf-playground-value": {
     "description": "A live scalar value embedded in a playground instruction.",

@@ -105,7 +105,6 @@
     "required": ["id", "state"],
     "additionalProperties": false,
     "x-owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
-    "x-content": "markup",
     "x-refers": {
       "on": {
         "via": "$work.widgets",
@@ -200,7 +199,6 @@
     "required": ["id", "status"],
     "additionalProperties": false,
     "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
-    "x-content": "markup",
     "x-thread-seat": {
       "when": {
         "talk": [true]

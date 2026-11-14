@@ -12,6 +12,7 @@ from leaf.state import KERNEL_REGISTRY
 
 from .contract import (
     MODULES,
+    complete_declarations,
     module_paths,
     read_registry_declarations,
     registry_error,
@@ -79,7 +80,8 @@ def _canonical(value) -> str:
 def merged_registry(packages: list[Path]) -> tuple[dict, str]:
     """The kernel registry's facts with each package's registry declarations merged
     over them, the module each declared element has among the packages' `widgets/`
-    (`contract.MODULES`), and the name a refusal gives the merge.
+    (`contract.MODULES`), each declaration's defaults written in
+    (`contract.complete_declarations`), and the name a refusal gives the merge.
 
     Packages are additive at the top level; `merge_layer_declarations` holds the
     grain."""
@@ -99,6 +101,7 @@ def merged_registry(packages: list[Path]) -> tuple[dict, str]:
     if not paths:
         raise registry_error("no-incoming-registry")
     merged[MODULES] = module_paths(merged, widgets, "widgets")
+    complete_declarations(merged)
     return merged, "merged registry (" + ", ".join(str(path) for path in paths) + ")"
 
 

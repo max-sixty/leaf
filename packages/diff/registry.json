@@ -291,7 +291,6 @@
     ],
     "additionalProperties": false,
     "x-owners": ["lf-worktree-diffs"],
-    "x-content": "markup",
     "x-name": "label",
     "x-patch": "members",
     "x-shadow": true
@@ -316,7 +315,6 @@
     },
     "required": ["file", "side", "at"],
     "additionalProperties": false,
-    "x-owners": ["lf-diff"],
-    "x-content": "markup"
+    "x-owners": ["lf-diff"]
   }
 }

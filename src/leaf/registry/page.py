@@ -13,7 +13,14 @@ from collections.abc import Collection
 from copy import deepcopy
 from typing import NamedTuple
 
-from .contract import MODULES, gathering, is_element_name, module_paths, registry_error
+from .contract import (
+    MODULES,
+    complete_declarations,
+    gathering,
+    is_element_name,
+    module_paths,
+    registry_error,
+)
 from .layer import merge_layer_declarations, stamp_composition
 
 
@@ -55,6 +62,7 @@ def compose_page_registry(
     registry[MODULES] = module_paths(
         registry, set(widget_paths), "page/widgets", "widgets"
     )
+    complete_declarations(registry)
     # Compared by input, since the stamps make a composition unequal to the
     # unstamped merge of the same inputs.
     fresh = (layer_registry, page_declarations) != validated

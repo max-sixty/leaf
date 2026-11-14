@@ -476,7 +476,6 @@ EXTENSION_SCHEMA = {
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
-    "required": ["x-content"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],

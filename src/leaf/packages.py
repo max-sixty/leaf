@@ -117,7 +117,6 @@ def starter_element_declaration(tag: str) -> dict:
         "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "markup",
         "x-verbatim": True,
         "x-example": (
             f'<{tag} id="{name}"><strong>{title}</strong> '

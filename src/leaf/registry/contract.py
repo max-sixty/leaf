@@ -74,6 +74,16 @@ def element_declarations(registry: dict) -> dict:
 MODULES = "$modules"
 
 
+def complete_declarations(registry: dict) -> dict:
+    """Write into a merged vocabulary's element declarations the default each may
+    leave unsaid, so every reader reads a complete entry: an element's content is its
+    author's markup (`x-content`) unless it declares another."""
+    for entry in element_declarations(registry).values():
+        if isinstance(entry, dict):
+            entry.setdefault("x-content", "markup")
+    return registry
+
+
 def upgraded(registry: dict, tag: str) -> bool:
     """Whether a module upgrades `tag` in the browser (`MODULES`)."""
     return tag in registry.get(MODULES, ())

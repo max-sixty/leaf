@@ -22,7 +22,6 @@
     },
     "required": ["id", "for"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-refers": {
       "for": {}
     }

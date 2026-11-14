@@ -1,6 +1,33 @@
 # Package state and data
 
-Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers the user state a widget records, references between widgets, and external or derived data sources.
+Read with [packages.md](packages.md), which holds the package contract and a widget's declaration. This file covers how widgets work together, the user state a widget records, references between widgets, and external or derived data sources.
+
+## Widgets working together
+
+A widget shares what it has the way its element would in plain HTML, so two widgets
+whose authors never met work together on a Leaf page and on a page without Leaf. One
+names the other by id in an attribute it declares under `x-refers`, `for` by
+convention ("References between widgets"), and then:
+
+| To                                                      | Use                                                                                                                                            | `page check` holds                                           |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| read what the other holds, such as a film's step        | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                    | that the named widget declares one output of that contract   |
+| ask it to act, such as "hold this step"                 | an HTML invoker command, `commandfor` with `command="--name"` ([module-input.md, "Invoker commands"](module-input.md#invoker-commands))        | that the target declares the command, for an authored button |
+| take the user to a part of it                           | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                                 |
+
+A recorded answer stays its owner's, and only the owner's module records it
+("User state"). Another widget shows that answer by reading an output the owner holds,
+and changes it by asking the owner with a command the owner turns into its own verb. The
+log then holds one answer whichever widget the user changed it in, Undo takes back
+that one action, and the same two modules work off Leaf, where the owner keeps the
+answer itself. A view whose own place on the page is that answer, as a board card
+stands in the column of a pick, declares `x-shows` instead ("Views of an answer"),
+since the server has to place it.
+
+Packages declare no dependency on each other, so two that share a contract each
+declare it in their own `$data.contracts`, word for word; a page composing both keeps
+one copy, and `page check --render` holds what the producer holds to it. What a
+provider of the contract must take as commands goes in the contract's `instructions`.
 
 ## User state
 
@@ -302,10 +329,20 @@ share one:
 
 ### Widget outputs
 
-A widget may also publish a typed value derived from its current inputs. Its registry
-entry declares `"x-output": {"files": {"contract": "file-list"}}`; the contract is
-an ordinary `$data.contracts` entry. A consumer uses the same `x-data` input API for
-an external source or another widget's output:
+A widget may also hold a typed value for other widgets to read, such as the files a
+diff lists or the step a film shows. Its registry entry declares
+`"x-output": {"files": {"contract": "file-list"}}`; the contract is an ordinary
+`$data.contracts` entry, and the output's name is the element property that holds it.
+The module sets that property to the complete value, or `null` while it has none, and
+then dispatches `change` on the element, as a form control does for `value`:
+
+```js
+this.files = { files: entries };
+this.dispatchEvent(new Event("change"));
+```
+
+A consumer uses the same `x-data` input for an external source or another widget's
+output:
 
 ```json
 "x-data": {
@@ -313,37 +350,43 @@ an external source or another widget's output:
     "contract": "file-list",
     "source": "source",
     "reference": "for",
-    "output": "files",
     "property": "value"
   }
 },
 "x-refers": {"for": {}}
 ```
 
-The input's `reference` names its ordinary element relation, and `output` names the
-producer's declared output. The consumer declares both attributes in `properties`.
-A page binds either `source="project-files"` or `for="review"`, where `review`
-is a widget publishing `files`. `page check` verifies the referenced widget declares the
-named output with the input's contract. Consumers never identify a producer by tag.
+The input's `reference` names its ordinary element relation, and the consumer
+declares both attributes in `properties`. A page binds either
+`source="project-files"` or `for="review"`, where `review` is a widget holding a
+`file-list`. The input binds by contract: it reads the one output of its contract the
+named widget declares, whatever that widget calls it, so a consumer never names a
+producer's tag or its output and works beside any producer of the contract. `page
+check` refuses a `for` naming a widget with no output of the contract, or with more
+than one.
 
-The producer calls `publishOutput(this, "files", value)` after deriving its complete
-value, and publishes `null` when that output is unavailable. This helper is also
-available from `portable-api.js`: it dispatches a bubbling, composed `lf-output`
-event carrying `{output, value}`. A plain host may listen without Leaf; Leaf reads
-the notification into its typed output and presentation system. `page check --render`
-and `package check --render` validate every output exercised during their render,
-including values later withdrawn or replaced and values from contained samples whose
-frames are later disposed. A mismatch is an error naming the
-producer, output, contract and value path. Captured provenance names the implementation
-owner and, when different, the output declaration and data contract owners: a page
-can change each independently. These checks cover the paths the examples exercise,
-not every possible later value. The running browser does not load a schema validator.
+Leaf reads the property when the consumer first draws, again each time the producer
+says `change`, and from the new element when a revision replaces the producer, so a
+consumer draws the current value whichever module loaded first. The consumer gets its
+own copy and redraws only when the value differs. Assign a new value rather than
+editing the held one, and say `change` after each assignment.
 
-Output values belong to
-the widget instance: leaving the document clears them; returning restores them until
-the producer publishes again. Outputs are ephemeral browser derivations, not stored
-sources, and have no fabricated source revision or run receipt. Data reading,
-projection, and presentation follow [module-state.md, "Bound data and
+On a page without Leaf the same module needs no import for this, and the host does
+the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.
+
+`page check --render` and `package check --render` validate every value an output
+holds as it says `change` during their render, including values later withdrawn or
+replaced and values from contained samples whose frames are later disposed. A
+mismatch is an error naming the producer, output, contract and value path. Captured
+provenance names the implementation owner and, when different, the output declaration
+and data contract owners: a page can change each independently. These checks cover
+the paths the examples exercise, not every possible later value. The running browser
+does not load a schema validator.
+
+An output belongs to its element and lives only in the browser: it reaches neither
+the server nor the agent, and has no source revision or run receipt. Record what the
+agent or another device should see ("User state"). Data reading, projection, and
+presentation follow [module-state.md, "Bound data and
 projections"](module-state.md#bound-data-and-projections).
 
 The agent gathers the value and sets it whole; Leaf fetches nothing:

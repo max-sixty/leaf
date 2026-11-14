@@ -14,6 +14,7 @@ code of its own. Choose by what the state is:
 | Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
 | How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                  | the widgets on this page that name it, in this tab                                                                  | the widget sets it; a reader's bound property is set, and its `render()` runs                              |
 | A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
@@ -147,11 +148,12 @@ the same value delivers a new copy too. An input the markup leaves unbound, such
 `lf-diff` showing its inline patch, is left to the widget: Leaf doesn't set its
 property.
 
-A widget output reads through the same property, as the value its producer published
-with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). The
-producer publishes in the turn that commits the matching rendering, and publishes
-`null` rather than keep stale records after a failed replacement. Leaf doesn't check a
-published value against its contract, so publish only values that fit it.
+An input bound to another widget's output reads through the same property, as the
+value that widget holds (package-data.md, "Widget outputs"). The producer sets its
+output property and says `change` in the turn that commits the matching rendering,
+and holds `null` rather than keep stale records after a failed replacement. The
+running page doesn't check a held value against its contract, so hold only values
+that fit it.
 
 ### Marking drawn data
 

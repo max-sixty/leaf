@@ -134,9 +134,9 @@ claimant's agent turns (`agent_turns`), and the fold believes one running while 
 open and renewed within the working grace (`activity.running_agent_turns`).
 
 Which turn holds each thread message, the main thread's or an agent's, is one reading
-every reader asks (`holding.py`, whose header states the rule), and every report of it
-names the turn alike, as `leaf page state`'s `holder` does: the main thread, or the
-fork by name with whether its turn runs (`holding.holder`). The newest pickup of a
+every reader asks (`holding.py`, whose header states the rule), and `leaf page
+state`'s `holder` names the turn: the main thread, or the fork by name with whether its
+turn runs (`holding.holder`). The newest pickup of a
 thread's waiting messages holds them, an answer takes its thread as a pickup does, and
 a running agent turn that last took a thread holds the messages the user writes in it
 until another turn picks them up. A message a running agent turn holds is in hand for

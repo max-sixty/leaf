@@ -405,10 +405,12 @@ sequenceDiagram
             closed turn still holds what it picked up until another turn picks it up.
           </p>
           <p id="holding-shown">
-            <code>leaf page state</code> says who has each answer the agent owes and
-            each thread, as its <code>holder</code> (<code>holding.holder</code>): the
-            main thread, or the fork that took the thread, by the name the main thread
-            reaches it by, with whether its turn is <code>running</code>,
+            <code>leaf page state</code> names a
+            <code>holder</code> (<code>holding.holder</code>), the main thread or a fork
+            by the name the main thread reaches it by, on each answer the agent owes and
+            on each thread. An answer's holder is who owes it now: a fork while its turn
+            runs, and otherwise the main thread. A thread's holder is the turn that last
+            took it, with whether that fork's turn is <code>running</code>,
             <code>closed</code> or <code>lapsed</code>. A main thread recovering what it
             owes there, as after a compaction, leaves a running fork's answer to the
             fork. <span class="tag ok">built</span>

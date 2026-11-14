@@ -972,11 +972,10 @@ def ended(
                 if claim is None or claim["id"] != session_id:
                     continue
                 found = rounds(page.events)
+                stamps, running = agent_turn_stamps(claim), running_turns(claim)
                 # Read after the close, so the closed turn holds only what it
                 # picked up.
-                holders = holding_turns(
-                    page.events, session_id, running_turns(claim), found
-                )
+                holders = holding_turns(page.events, session_id, running, found)
                 # The ids of the replies the closed turn wrote.
                 own = {e["id"] for e in page.events if e.get("turn") in closed}
                 owed = TodoReading(page.events).owed
@@ -1011,7 +1010,8 @@ def ended(
                             {holders[i] for i in inputs if i in holders}
                             | {a.get("turn") for a in answered if a["id"] not in own},
                             thread,
-                            claim,
+                            stamps,
+                            running,
                         )
                     elif ending == "hand_back":
                         outcome["why"] = why
@@ -1048,12 +1048,10 @@ def ended(
     return outcomes
 
 
-def _taken_by(turns: set, thread: str, claim: dict) -> str:
-    """Why a fork's thread ended as `taken_over`: which turns of the session holding
-    the page by `claim` took `thread`, the main thread or another run of a fork
-    (`holding.holder`), as the page's diagnostics note it."""
-    stamps = agent_turn_stamps(claim)
-    running = running_turns(claim)
+def _taken_by(turns: set, thread: str, stamps: dict, running: set[str]) -> str:
+    """Why a fork's thread ended as `taken_over`: which turns took `thread`, the main
+    thread or another run of a fork (`holding.holder`, which takes `stamps` and
+    `running`), as the page's diagnostics note it."""
     takers = sorted(
         "the main thread"
         if (named := holder(turn, thread, stamps, running))["kind"] == "main"

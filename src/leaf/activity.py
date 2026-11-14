@@ -398,8 +398,7 @@ def agent_holds(obligation: dict) -> bool:
     in again (`hook_transport.pick_up_acknowledged`) until that turn ends; once it
     does, an update still owed is the main thread's input, which its next delivery
     hands over (`holding.left_by_agent_turns`)."""
-    held = obligation["holder"]
-    return held["kind"] == "fork" and held["state"] == "running"
+    return obligation["holder"]["kind"] == "fork"
 
 
 class Turn(NamedTuple):
@@ -664,14 +663,14 @@ def canonical_activity(
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. Each owed answer's
-    `holder`, and each thread's in `thread_holders`, names who has it, the main thread
-    or a fork (`holding.holder`).
+    `holder` names who owes it now, a running fork or the main thread, and each
+    thread's in `thread_holders` the turn that last took it (`holding.holder`).
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import holder, holding_turns, last_taken
+    from .holding import holder, holding_turns, last_taken, rounds
     from .thread_context import thread_names
     from .todos import TodoReading
 
@@ -710,9 +709,19 @@ def canonical_activity(
     stamps = present["agent_turns"]
     agents = running_agent_turns(stamps, present["session_alive"] is True, now)
     session = present.get("claim_session")
-    holders = holding_turns(events, session, agents)
-    took = last_taken(events, session)
+    found = rounds(events)
+    holders = holding_turns(events, session, agents, found)
+    took = last_taken(events, session, found)
     threads = thread_names(events)
+
+    def owes(item: dict) -> dict:
+        """Who owes the answer to `item` now (`agent_holds`): the running agent turn
+        that holds it, and otherwise the main thread."""
+        turn = holders.get(item["input"])
+        return holder(
+            turn if turn in agents else None, threads.get(item["input"]), stamps, agents
+        )
+
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents
     )
@@ -802,7 +811,7 @@ def canonical_activity(
     ]
     # An update an agent's running turn holds is in hand for that turn, whatever
     # the main thread's turn does.
-    in_agent_turn = [item for item in opened if holders.get(item["input"]) in agents]
+    in_agent_turn = [item for item in opened if owes(item)["kind"] == "fork"]
     handling = (in_this_turn if turn.running else []) + in_agent_turn
     for item in opened:
         if item in handling:
@@ -925,13 +934,7 @@ def canonical_activity(
                 **item,
                 "obligation": owing[item["input"]]["id"],
                 "answer": owed_answer(item),
-                # Who has it: the turn that holds it (`holding.holding_turns`), named.
-                "holder": holder(
-                    holders.get(item["input"]),
-                    threads.get(item["input"]),
-                    stamps,
-                    agents,
-                ),
+                "holder": owes(item),
             }
             for item in obligations
         ],

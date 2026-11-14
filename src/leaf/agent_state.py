@@ -6,11 +6,12 @@ The reading uses one transaction and holds the two lists the active view serves
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
-`activity.obligations` names each answer the agent owes: its update's record `id`; as
-`answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery; and as `holder`, who has it, the main
-thread or a fork, as each thread's `holder` names who has the thread
-(`holding.holder`). `source` states whether a document
+`activity.obligations` names each answer the agent owes: its update's record `id` and,
+as `answer`, the operation that answers it with the reference its delivery gave, so an
+agent recovers what it owes without the delivery. Each obligation record's `holder`
+names who on the agent's side owes it now, a running fork or the main thread, null for
+a record the agent doesn't owe, and each thread's `holder` the turn that last took the
+thread (`holding.holder`). `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
@@ -404,11 +405,7 @@ def page_state(
     state["activity"] = {
         **activity,
         "obligations": [
-            {
-                "id": item["obligation"],
-                "answer": item["answer"],
-                "holder": item["holder"],
-            }
+            {"id": item["obligation"], "answer": item["answer"]}
             for item in folded["obligations"]
         ],
     }
@@ -445,7 +442,11 @@ def page_state(
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
             thread["holder"] = folded["thread_holders"][thread["id"]]
-        state["obligations"] = view["obligations"]
+        owing = {item["obligation"]: item["holder"] for item in folded["obligations"]}
+        state["obligations"] = [
+            {**record, "holder": owing.get(record["id"])}
+            for record in view["obligations"]
+        ]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

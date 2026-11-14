@@ -44,11 +44,18 @@ pick up, answer or start on only the messages it holds or no turn holds
 (`refuse_unheld`), so a fork whose thread another turn took can neither take it
 back, nor answer it, nor show itself at work on it.
 
-Every report of who holds something names the turn as `holder` does: the session's
-main thread, or the fork that took the thread, by the name the main thread reaches it
-by, with whether its turn runs, closed or lapsed. `leaf page state` gives a `holder`
-for each answer the agent owes and for each thread (`activity.canonical_activity`),
-so a main thread recovering what it owes there can leave a running fork's work to it.
+`holder` names a turn for a reader: the session's main thread, or the fork that took
+the thread, by the name the main thread reaches it by, with whether its turn runs,
+closed or lapsed. `leaf page state` gives each thread the `holder` of the turn that
+last took it, and each answer the agent owes the `holder` that owes it now: a fork
+while its turn runs, and otherwise the main thread (`activity.canonical_activity`). So
+a main thread recovering what it owes there can leave a running fork's work to it.
+
+TODO(2026-11-14): read who answers each message once, here, as the main thread, a
+named fork, or a line fork still judging it, and have `activity.agent_holds`,
+`forks.kept_from_main` and `left_by_agent_turns` filter that reading, which page state
+then prints as it is; today a message kept back for a line fork reads as the main
+thread's. Page state could then also say which holder is the caller's own turn.
 
 `docs/forks.html`, "Who holds a message", explains the rule with the rest of the
 fork design; `session-lifetime.md`, "Turns and generations", is the contract other
@@ -128,8 +135,8 @@ def holding_turns(
     unpicked = []
     for thread, said in found.waiting.items():
         if picked := [newest[event["id"]] for event in said if event["id"] in newest]:
-            holder = max(picked)[1]
-            holders.update((event["id"], holder) for event in said)
+            newest_turn = max(picked)[1]
+            holders.update((event["id"], newest_turn) for event in said)
         else:
             unpicked.append(thread)
     if unpicked and running:
@@ -160,10 +167,13 @@ def _last_taken(
     return {thread: turn for thread, (_seq, turn) in last.items()}
 
 
-def last_taken(events: list[dict], session: str | None) -> dict[str, str | None]:
+def last_taken(
+    events: list[dict], session: str | None, found: Rounds | None = None
+) -> dict[str, str | None]:
     """The turn of `session` that last took each thread, by a pickup or an answer
-    (`_last_taken`)."""
-    return _last_taken(events, newest_pickups(events, session), rounds(events).answers)
+    (`_last_taken`), where `found` is the log's `rounds`, where the caller has them."""
+    found = rounds(events) if found is None else found
+    return _last_taken(events, newest_pickups(events, session), found.answers)
 
 
 def newest_pickups(
@@ -250,13 +260,13 @@ def refuse_unheld(
     found = rounds(events)
     holders = holding_turns(events, session, running, found)
 
-    def holder(input_id: str) -> str | None:
+    def held_by(input_id: str) -> str | None:
         if input_id in holders:
             return holders[input_id]
         answer = found.answered.get(input_id)
         return None if answer is None else answer.get("turn")
 
-    if taken := [i for i in input_ids if holder(i) not in (None, turn)]:
+    if taken := [i for i in input_ids if held_by(i) not in (None, turn)]:
         raise ReceiptRefused(taken_over(taken))
 
 

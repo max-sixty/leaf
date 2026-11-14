@@ -32,7 +32,7 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 - each such session's agent turns as this machine's state home holds them now
   (`leaf.state.AGENT_TURNS`): each turn's agent, the threads it took on the page,
   when it opened and was last renewed, and whether it runs, closed or lapsed
-  (`leaf.activity.running_agent_turns`), so the header says whether a fork is
+  (`leaf.activity.agent_turn_state`), so the header says whether a fork is
   running or stuck.
 
 A pickup, start or reply in the turn of a fork that took a thread's work, and a

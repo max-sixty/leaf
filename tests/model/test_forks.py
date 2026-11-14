@@ -501,25 +501,26 @@ def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
 
 
 def holders(page_dir) -> tuple[dict, dict]:
-    """Who `leaf page state` says has each answer the agent owes, by the input it
-    answers, and each thread, by its id."""
+    """Who `leaf page state` says owes each answer the agent owes, on its obligation
+    record, by the input it answers, and who last took each thread, by its id."""
     state = agent_state_model.cmd_page_state(page_dir)
     return (
         {
-            item["id"].removeprefix("update:"): item["holder"]
-            for item in state["activity"]["obligations"]
+            record["id"].removeprefix("update:"): record["holder"]
+            for record in state["obligations"]
+            if record["holder"] is not None
         },
         {thread["id"]: thread["holder"] for thread in state["threads"]},
     )
 
 
 def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
-    """`leaf page state` names who has each answer owed and each thread: a fork by
-    the name the main thread reaches it by, with whether its turn runs, lapsed or
-    closed, or the main thread. So a main thread recovering what it owes there,
-    as after a compaction, can tell a running fork's work from its own: a lapsed
-    fork's message the main thread's prompt takes in is the main thread's, and a
-    fork that gave its thread back leaves the main thread owing it."""
+    """`leaf page state` names who owes each answer the agent owes, a fork while its
+    turn runs and otherwise the main thread, and who last took each thread, a fork
+    with whether its turn runs, lapsed or closed, or the main thread. So a main
+    thread recovering what it owes there, as after a compaction, can tell a running
+    fork's work from its own: a lapsed fork's message, and one a fork gave back, is
+    the main thread's to answer."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -533,10 +534,10 @@ def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
     state_model.AGENT_TURNS.write(
         session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
     )
-    lapsed = {**running, "state": "lapsed"}
-    assert holders(claimed) == ({asked["id"]: lapsed}, {asked["id"]: lapsed})
-    context(capsys, "UserPromptSubmit")
     main = {"kind": "main"}
+    lapsed = {**running, "state": "lapsed"}
+    assert holders(claimed) == ({asked["id"]: main}, {asked["id"]: lapsed})
+    context(capsys, "UserPromptSubmit")
     assert holders(claimed) == ({asked["id"]: main}, {asked["id"]: main})
 
     other, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
@@ -546,7 +547,7 @@ def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
     forks_model.ended("s1", agent="agent-2", turn=None, answer=None, failed="it broke")
     closed = {"kind": "fork", "name": taken["agent"], "state": "closed"}
     owed, threads = holders(claimed)
-    assert (owed[other["id"]], threads[other["id"]]) == (closed, closed)
+    assert (owed[other["id"]], threads[other["id"]]) == (main, closed)
 
 
 def test_a_fork_whose_thread_was_taken_over_can_neither_answer_nor_start_it(

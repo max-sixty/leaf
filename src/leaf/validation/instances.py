@@ -23,6 +23,19 @@ from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
 
+# The `command` keywords HTML gives an element itself. Chromium, Firefox and WebKit
+# reflect these and `--` names and nothing else (`button.command`), in any case.
+_NATIVE_COMMANDS = frozenset(
+    {
+        "close",
+        "hide-popover",
+        "request-close",
+        "show-modal",
+        "show-popover",
+        "toggle-popover",
+    }
+)
+
 _GLOBAL_ATTRIBUTE = re.compile(r"class|style|title|lang|dir|aria-[a-z]+|data-(?!lf-).+")
 
 
@@ -517,6 +530,46 @@ def reference_errors(
                     )
                     for extra in named[1:]
                 )
+    return errors
+
+
+def invoker_errors(
+    parser: SourceDocument, registry: dict, ids: set, by_id: dict
+) -> list[Finding]:
+    """Each authored `commandfor`, which the browser leaves doing nothing, with no error,
+    when its target or command is wrong. `ids` and `by_id` are the namespace
+    `reference_errors` reads for the same document.
+
+    The browser finds a `commandfor` target in the button's own tree, the first element
+    with that id in tree order, where an `x-refers` reader looks in its message first and
+    then the page (`runtime/references.js`). A message stands in the page's tree, so a
+    button in one reaches the page's widgets, and the two readings agree on every id the
+    checks admit, since `ids-taken` and `ids-taken-by-messages` keep an id to one element
+    across the page and its messages. A live sample's document is its own tree, checked
+    here on its own ids."""
+    errors = []
+    for rec in parser.authoring.invokers:
+        target, command = rec["target"], rec["command"]
+        if target not in ids:
+            errors.append(
+                found_at("unknown-reference", rec, attr="commandfor", target=target)
+            )
+        elif command.startswith("--"):
+            declared = registry.get(by_id.get(target, {}).get("tag"), {}).get(
+                "x-commands", {}
+            )
+            if command not in declared:
+                errors.append(
+                    found_at(
+                        "undeclared-command",
+                        rec,
+                        command=command,
+                        target=target,
+                        declared=sorted(declared),
+                    )
+                )
+        elif command.lower() not in _NATIVE_COMMANDS:
+            errors.append(found_at("unknown-command", rec, command=command))
     return errors
 
 

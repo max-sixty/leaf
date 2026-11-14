@@ -10,12 +10,18 @@
    source revision or run. Each object value names the snapshot that supplied it
    (`suppliedSnapshot`), so whoever holds the value can name its revision.
 
-   This module keeps widget outputs, outside the application state: a mounted widget
-   derives each one, and no reading of the log or the page's other state depends on it.
-   Publishing one derives nothing, publishes no root and runs no selection, so only its
-   readers hear it. The proof that a reader has drawn is the one every `LeafElement`
-   has: its region is claimed in the stack that published (`requestUpdate`,
-   leaf-element.js), so the page reads as presented only after the draw.
+   A widget output is a property its element holds under the output's declared name,
+   as a form control holds `value`, and the element says it changed by dispatching
+   `change` on itself. Nothing is published to Leaf: a reader's input names the
+   producer (`reference`) and reads the one output of its contract off the element
+   standing under that id, again whenever that element says `change`, and resolves
+   the id again whenever a producer arrives or leaves, so it follows a replacement. A
+   reader that arrives late, or before its producer's module has loaded, reads what the
+   element holds then. Outputs stay outside the application state: no reading of the log
+   depends on one, so a change runs no fold and no selection, and only the readers of
+   that producer hear it. The proof that a reader has drawn is the one every
+   `LeafElement` has: its region is claimed in the stack that moved its reading
+   (`requestUpdate`, leaf-element.js), so the page reads as presented only after the draw.
 
    What a source shows moves only as state application delivers, and each element that
    draws data holds the data version until its region has drawn the delivery
@@ -27,23 +33,11 @@ import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
-import { registry } from "./registry.js";
-import { watchOwner } from "./arrivals.js";
+import { registry, tagsDeclaring } from "./registry.js";
+import { watchArrivals } from "./arrivals.js";
 import { referencedProjection, requireReference } from "./references.js";
 import { reportPageError } from "./layer-client.js";
 import { tick } from "./version-signal.js";
-import { OUTPUT, outputProducer, refuseOutput } from "./widget-output.js";
-
-window.addEventListener(OUTPUT, (event) => {
-  const element = outputProducer(event);
-  if (!element) return;
-  try {
-    const { output, value } = /** @type {CustomEvent} */ (event).detail;
-    acceptOutput(element, output, value);
-  } catch (error) {
-    refuseOutput(event, error);
-  }
-});
 
 /** A publication as `leaf.data.read_source` serves it, before widget delivery.
  * @typedef {NonNullable<import("../types/contract.js").ServedReading["data"]["sources"]>[string]} SourceReading
@@ -88,61 +82,45 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
-// A check subscribes before widgets run and keeps the values it exercises. The
-// production runtime retains no output history and does no schema validation here.
-/** @typedef {{element: Element, output: string, contract: string, value: unknown}} OutputNotice */
-/** @type {Set<(notice: OutputNotice) => void>} */
-const outputObservers = new Set();
-/** @param {(notice: OutputNotice) => void} observe */
-export function observeOutputs(observe) {
-  outputObservers.add(observe);
-  return () => outputObservers.delete(observe);
+// `standing` moves when an element that may hold an output arrives or leaves, so each
+// reader resolves its bound id again; one watch covers every such tag, started by the
+// first reader. Each producer a reader has resolved has a signal its `change` moves.
+const standing = signal(0);
+let producersWatched = "";
+function watchProducers() {
+  // A document adopts its registry once, so this starts one watch.
+  const tags = tagsDeclaring((entry) => Boolean(entry["x-output"])).join(",");
+  if (!tags || tags === producersWatched) return;
+  producersWatched = tags;
+  // An arrival is offered again when the nodes beside it change, which is no move.
+  /** @type {WeakSet<Element>} */
+  const stood = new WeakSet();
+  watchArrivals(tags, [], {
+    arrive(element) {
+      if (stood.has(element)) return;
+      stood.add(element);
+      tick(standing);
+    },
+    leave(element) {
+      stood.delete(element);
+      tick(standing);
+    },
+  });
 }
-
-// What each widget has published, kept with its element so a retained node returns with
-// it, and read only while the widget stands. `outputsMoved` says a reader's reading may
-// have moved: a producer's connection, or a value that differs from the one it held.
-/** @type {WeakMap<Element, {values: Map<string, OutputReading | null>, connected: boolean}>} */
-const outputOwners = new WeakMap();
-const outputsMoved = signal(0);
-/** @param {Element} element @param {string} output @param {unknown} value */
-function acceptOutput(element, output, value) {
-  const declaration = registry[element.localName]?.["x-output"]?.[output];
-  if (!declaration)
-    throw new Error(
-      `publishOutput(${element.localName}, ${output}) output is not declared by this widget`,
-    );
-  if (!element.id) throw new Error("publishOutput requires a widget id");
-  let owner = outputOwners.get(element);
-  if (!owner) {
-    const connectedOwner = { values: new Map(), connected: false };
-    owner = connectedOwner;
-    outputOwners.set(element, owner);
-    watchOwner(element, {
-      connect() {
-        connectedOwner.connected = true;
-        tick(outputsMoved);
-      },
-      disconnect() {
-        connectedOwner.connected = false;
-        tick(outputsMoved);
-      },
+/** @type {WeakMap<Element, ReturnType<typeof signal<number>>>} */
+const changes = new WeakMap();
+/** @param {Element} producer */
+function changeOf(producer) {
+  let said = changes.get(producer);
+  if (!said) {
+    const moved = (said = signal(0));
+    changes.set(producer, moved);
+    // A control inside the producer says `change` too; only the producer's own counts.
+    producer.addEventListener("change", (event) => {
+      if (event.target === producer) tick(moved);
     });
   }
-  const held = owner.values.get(output) ?? null;
-  const reading =
-    value === null
-      ? null
-      : share(held, { contract: declaration.contract, value: structuredClone(value) });
-  for (const observe of outputObservers)
-    observe({
-      element,
-      output,
-      contract: declaration.contract,
-      value: reading === null ? null : reading.value,
-    });
-  owner.values.set(output, reading);
-  if (owner.connected && reading !== held) tick(outputsMoved);
+  return said;
 }
 
 /** @typedef {{contract: string, source?: string, reference?: string}} DataInput */
@@ -196,29 +174,38 @@ function deliveredSource(source, declaration, input, accepted) {
   );
 }
 
-// The reading of a bound widget's output of `contract`, resolved in the reader's authored
-// scope each time an output moves, so it follows the instance standing under the bound
-// id. `page check` holds that widget to one output of the contract.
+// The reading of a bound widget's output of `contract`: what the element under the bound
+// id, resolved in the reader's authored scope, holds in the property its declaration
+// names for that contract. `page check` holds that widget to one output of the contract.
+// The value is copied as it is read, so a producer that changes its own object in place
+// and says `change` is heard, and an equal value keeps the reading it replaced.
 /** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
-function publishedOutput(element, attribute, widget, contract) {
-  const reading = computed(() => {
-    outputsMoved.value;
+function heldOutput(element, attribute, widget, contract) {
+  watchProducers();
+  /** @type {DataSnapshot | null} */
+  let held = null;
+  return computed(() => {
+    standing.value;
+    const producer = untracked(() => referencedProjection(element, attribute, widget));
+    if (!producer) return (held = null);
+    changeOf(producer).value;
     return untracked(() => {
-      const producer = referencedProjection(element, attribute, widget);
-      const owner = producer && outputOwners.get(producer);
-      if (!owner?.connected) return null;
-      for (const held of owner.values.values())
-        if (held?.contract === contract) return held;
-      return null;
+      const outputs = registry[producer.localName]?.["x-output"] ?? {};
+      const name = Object.keys(outputs).find((key) => outputs[key].contract === contract);
+      const value = name
+        ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (producer))[name]
+        : null;
+      held =
+        value === null || value === undefined
+          ? null
+          : share(held, {
+              contract,
+              value: structuredClone(value),
+              origin: { derived: [{ widget }] },
+            });
+      return held;
     });
   });
-  return computed(
-    /** @returns {DataSnapshot | null} */ () =>
-      reading.value && {
-        ...reading.value,
-        origin: { derived: [{ widget }] },
-      },
-  );
 }
 
 // The snapshot each delivered object value came from. An object is one delivery's copy,
@@ -276,7 +263,7 @@ export function dataReader(element, input, accepted) {
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget && declaration.reference
-      ? publishedOutput(element, declaration.reference, widget, declaration.contract)
+      ? heldOutput(element, declaration.reference, widget, declaration.contract)
       : null;
   /** @type {DataSnapshot | null} */
   let reported = null;

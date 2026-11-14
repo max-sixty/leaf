@@ -13,9 +13,11 @@
 // runs, so a first look (or a capture) reads the setup at once. Play continues from
 // the displayed moment; Replay restarts a finished film.
 //
-// Every paint publishes the moment it shows as the `frame` output (the chapter, its
-// caption and the run's status per step), which Leaf passes on only when it changed,
-// so the page can tell the current step beside the film.
+// Every paint holds the moment it shows in `frame`, the film's declared output (the
+// chapter, its caption and the run's status per step), and says `change`, so the page
+// can tell the current step beside the film; Leaf passes it on only where it differs.
+// A `--seek` command, such as a step button's `commandfor` press, holds the result of
+// the step its button's value names.
 
 import {
   compoundReadingRegionId,
@@ -29,7 +31,6 @@ import {
   offer,
   once,
   preserveReadingRegions,
-  publishOutput,
   registerReadingRegion,
   registerVisualParts,
   scrollIntoView,
@@ -116,6 +117,13 @@ customElements.define(
         if (e.pointerType !== "touch") this.#inspect(null);
       });
       this.addEventListener("keydown", (e) => this.#key(e));
+      this.addEventListener("command", (e) => {
+        const key = e.source?.value;
+        if (e.command !== "--seek" || this.#film.starts[key] === undefined) return;
+        this.#hold(key);
+        this.#paint();
+        this.#reveal();
+      });
 
       this.parts = registerVisualParts(this, () =>
         this.painter.parts().map(({ id, element, label }) => ({ id, element, label })),
@@ -214,13 +222,6 @@ customElements.define(
 
     seek(t) {
       this.#pauseAt(Math.max(0, Math.min(this.#film.total, t)));
-      this.#paint();
-      this.#reveal();
-    }
-
-    seekChapter(key) {
-      if (this.#film.starts[key] === undefined) return;
-      this.#hold(key);
       this.#paint();
       this.#reveal();
     }
@@ -462,12 +463,13 @@ customElements.define(
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
       this.parts.update();
-      publishOutput(this, "frame", {
+      this.frame = {
         chapter: fr.chapter,
         caption: fr.caption,
         captionTone: fr.captionTone,
         status: this.#film.status,
-      });
+      };
+      this.dispatchEvent(new Event("change"));
       // The composition replaces controls, so hand the user's place across under
       // the same line identity; the focus owner handles an already-moved user.
       if (

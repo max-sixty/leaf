@@ -369,13 +369,16 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
 
 
 # The main thread's last request as a fork's diagnostics name it: the newest row
-# stored as it went out, and the newest by the time of the fork, such as its reply.
+# stored as it went out, and the newest by the time of the fork, such as its reply,
+# and how much of its prompt its response left in the cache (the driver's
+# `STEP_USAGE`), as long as a session's first turn-end check comes in.
 RESENT = {
     "model": "claude-opus-5-5",
     "effort": "xhigh",
-    "messages": 12,
+    "messages": 200,
     "sent": "r1",
     "row": "r2",
+    "cached": 1000,
 }
 # The usage the driver's fork reports (`tests/claude_code_driver.mjs`).
 FORK_USAGE = {
@@ -386,7 +389,7 @@ FORK_USAGE = {
 }
 
 
-def main_thread_request(driven, messages: int = 12) -> None:
+def main_thread_request(driven) -> None:
     """The main thread's request and the rows it stored, which a fork resends, with a
     subagent's after them, which it doesn't."""
     row = {
@@ -396,7 +399,7 @@ def main_thread_request(driven, messages: int = 12) -> None:
     }
     driven.emit("session.append", {**row, "uuid": "r1"})
     step = {"turnId": "t1", "index": 0, "model": "claude-opus-5-5", "effort": "xhigh"}
-    driven.emit("turn.step", {**step, "messageCount": messages})
+    driven.emit("turn.step", {**step, "messageCount": RESENT["messages"]})
     driven.emit("session.append", {**row, "uuid": "r2"})
     driven.emit(
         "turn.step",
@@ -473,11 +476,13 @@ def test_a_turn_end_forks_the_conversation_for_the_clerk(
     driven.quit()
 
 
-# The usage of a fork that wrote the conversation to the cache again.
+# The usage of a fork that wrote the conversation to the cache again: it read only
+# the system prompt and tools, less than the main thread's request left there
+# (`RESENT`), and wrote the rest, here a conversation shorter than they are.
 REWROTE = {
     **FORK_USAGE,
-    "cache_read_input_tokens": 50,
-    "cache_creation_input_tokens": 9000,
+    "cache_read_input_tokens": 600,
+    "cache_creation_input_tokens": 400,
 }
 # A minute and a day, in `$.clock`'s milliseconds.
 MINUTE_MS = 60 * 1000
@@ -489,12 +494,12 @@ def checks(page_dir, monkeypatch, spawn, sessionless, tmp_path):
     """Run a new session's turn-end checks, all sessions sharing one plugin store
     (`store.json` in `tmp_path`),
     and return each check's effort. `later` moves `$.clock` on before the main
-    thread's request, and `idle` between that request and the checks; the request
-    carries `messages` messages, and the other options are the driver's."""
+    thread's request, and `idle` between that request and the checks; the other
+    options are the driver's."""
     store = tmp_path / "store.json"
     served = []
 
-    def run(session, turns, later=0, idle=0, messages=12, **options):
+    def run(session, turns, later=0, idle=0, **options):
         reply = json.dumps({"asks": [], "findings": []})
         driven = ClaudeCode(
             spawn, session, {"forkReply": reply, "store": str(store), **options}
@@ -502,7 +507,7 @@ def checks(page_dir, monkeypatch, spawn, sessionless, tmp_path):
         holding_page(driven, page_dir, monkeypatch, serve=not served)
         served.append(session)
         driven.send({"advance": later})
-        main_thread_request(driven, messages)
+        main_thread_request(driven)
         driven.send({"advance": idle})
         ended = {"answer": "Done.", "durationMs": 1, "isAborted": False}
         efforts = []
@@ -532,11 +537,12 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
 ):
     """Where Claude Code's per-message effort doesn't reach the model, a fork at
     another effort than the session's writes the conversation to the cache again
-    (#5891). Once a turn-end check's usage shows it wrote more of its prompt than it
-    read, each later fork on that backend goes at the session's own effort, which the
-    cache serves: in the same session, and from the first fork of a later one, which
-    so pays no rewrite to find that out again (#5906). Another route is another
-    backend, which asks at the changed effort."""
+    (#5891). Once a turn-end check's usage shows it read less from the cache than
+    the main thread's request left there, even in a conversation shorter than the
+    system prompt and tools it did read, each later fork on that backend goes at the
+    session's own effort, which the cache serves: in the same session, and from the
+    first fork of a later one, which so pays no rewrite to find that out again
+    (#5906). Another route is another backend, which asks at the changed effort."""
     assert checks("cc-rewrote-1", 2, forkUsage=REWROTE) == [LOW, SESSIONS]
     assert checks("cc-rewrote-2", 1) == [SESSIONS]
     assert checks("cc-rewrote-3", 1, env={"CLAUDE_CODE_USE_VERTEX": "1"}) == [LOW]
@@ -547,23 +553,21 @@ def test_a_fork_that_rewrote_the_cache_sends_later_forks_at_the_sessions_effort(
 
 
 @pytest.mark.parametrize(
-    ("later", "messages", "expected"),
+    ("later", "usage", "expected"),
     [
         # An answer some days old still holds.
-        (3 * DAY_MS, 12, [SESSIONS, SESSIONS]),
-        # A lapsed one asks again while the conversation is small, and a check that
-        # keeps the cache drops it.
-        (8 * DAY_MS, 12, [LOW, LOW]),
-        # In a large conversation that would cost a rewrite of it, so it holds.
-        (8 * DAY_MS, 400, [SESSIONS, SESSIONS]),
+        (3 * DAY_MS, FORK_USAGE, [SESSIONS, SESSIONS]),
+        # A lapsed one asks again, and a check that keeps the cache drops it.
+        (8 * DAY_MS, FORK_USAGE, [LOW, LOW]),
+        # One that rewrites the cache again renews it.
+        (8 * DAY_MS, REWROTE, [LOW, SESSIONS]),
     ],
 )
-def test_a_stored_rewrite_lapses(checks, later, messages, expected):
+def test_a_stored_rewrite_lapses(checks, later, usage, expected):
     """A backend that gains per-message effort is found again: a stored rewrite
-    lapses after some days, and the next check in a small conversation asks at the
-    changed effort, which here keeps the cache."""
+    lapses after some days, and the next check asks at the changed effort."""
     assert checks("cc-lapse-1", 1, forkUsage=REWROTE) == [LOW]
-    assert checks("cc-lapse-2", 2, later=later, messages=messages) == expected
+    assert checks("cc-lapse-2", 2, later=later, forkUsage=usage) == expected
 
 
 def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
@@ -612,11 +616,22 @@ def test_thread_replies_keep_a_lapsed_rewrite_until_a_check_asks_again(
     driven.quit()
 
 
-def test_a_check_after_the_cache_expired_stores_nothing(checks, tmp_path):
-    """A check made once the main thread's last request has left the cache writes
-    the conversation again at any effort, so its usage stores no answer."""
-    expired = checks("cc-cold", 2, forkUsage=REWROTE, idle=10 * MINUTE_MS)
-    assert expired == [LOW, LOW]
+@pytest.mark.parametrize(
+    "options",
+    [
+        # The main thread's last request has left the cache, so the check writes the
+        # conversation again at any effort.
+        {"forkUsage": REWROTE, "idle": 10 * MINUTE_MS},
+        # The API refused the check before reading any of it.
+        {"forkRefused": True},
+    ],
+)
+def test_a_check_that_shows_nothing_of_the_cache_stores_nothing(
+    checks, tmp_path, options
+):
+    """A check whose usage says nothing of how the cache took the changed effort
+    stores no answer, and the next check asks again."""
+    assert checks("cc-unshown", 2, **options) == [LOW, LOW]
     store = tmp_path / "store.json"
     assert not store.exists() or json.loads(store.read_text()) == {}
 

@@ -21,6 +21,7 @@ const {
   frameFor,
   browserScrolls,
   holdScroll,
+  readerScrolls,
   scrolling,
   setScroll,
   startReaderScroll,
@@ -493,21 +494,26 @@ test("an instant write reaches a box only where it moves it, and a stop writes w
   const moving = scroller(0, 300, 120);
   moving.box.dispatchEvent(new window.Event("scroll"));
   assert.equal(browserScrolls(moving.box), true);
+  assert.equal(readerScrolls(moving.box), false);
   setScroll(moving.box, { top: moving.box.scrollTop });
   assert.deepEqual(moving.writes, []);
   stopWhereItStands(moving.box);
   assert.deepEqual(moving.writes, [120, 120]);
   assert.equal(browserScrolls(moving.box), false);
   moving.box.dispatchEvent(new window.Event("scrollend"));
-  // The reader's input makes the box the browser's before it moves, and the end of a
-  // scroll heard while it still stands where the input found it ends nothing of theirs.
+  // The reader's input makes the box the browser's, and the reader's, before it moves,
+  // and the end of a scroll heard while it still stands where the input found it ends
+  // nothing of theirs.
   startReaderScroll(moving.box);
   assert.equal(browserScrolls(moving.box), true);
+  assert.equal(readerScrolls(moving.box), true);
   moving.box.dispatchEvent(new window.Event("scrollend"));
   assert.equal(browserScrolls(moving.box), true);
+  assert.equal(readerScrolls(moving.box), true);
   moving.box.scrollTo({ top: 60 });
   moving.box.dispatchEvent(new window.Event("scrollend"));
   assert.equal(browserScrolls(moving.box), false);
+  assert.equal(readerScrolls(moving.box), false);
   // Where the browser applied the input's scroll before the input was heard, as
   // Chromium can a wheel's, the input found the box where the page last heard it, so
   // the end of that scroll ends the reader's sequence.

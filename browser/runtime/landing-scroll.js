@@ -106,6 +106,7 @@ import {
   glideTo,
   glides,
   pageScroller,
+  placeKept,
   reachable,
   scrollGoal,
   startScroll,
@@ -122,15 +123,19 @@ import { setScroll } from "./arrivals.js";
  * @typedef {{box: Element, local: number, moved: number}} ScrollMove
  */
 // A smooth landing glides (scrolling.js, `glides`); only the reading band's vertical
-// moves are smooth, so it moves only scrollTop.
-/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior */
-const land = (box, by, behavior) => {
+// moves are smooth, so it moves only scrollTop. An instant one is the reader's choice
+// from its start (`startScroll`), unless it returns them to a place they had (`kept`,
+// scrolling.js, `placeKept`).
+/** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] */
+const land = (box, by, behavior, kept = false) => {
   const top = box.scrollTop + (by.top ?? 0);
   if (glides(box, behavior)) return glideTo(box, top);
   stopGlide(box);
   const { scrollTop, scrollLeft } = box;
   setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });
-  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) startScroll(box);
+  if (box.scrollTop === scrollTop && box.scrollLeft === scrollLeft) return;
+  if (kept) placeKept(box);
+  else startScroll(box);
 };
 
 // A destination's landing margin on one side. A range has none of its own and takes the
@@ -428,9 +433,9 @@ export function landedBox(where) {
 }
 
 /** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior */
-function scrollIntoReadingBand(where, holder, block, behavior) {
+function scrollIntoReadingBand(where, holder, block, behavior, kept = false) {
   for (const { box, local, moved } of readingBandMoves(where, holder, block).moves)
-    if (Math.abs(moved) >= 1) land(box, { top: local }, behavior);
+    if (Math.abs(moved) >= 1) land(box, { top: local }, behavior, kept);
 }
 
 // Reveal inner overflow before aligning its owning reading region. The ancestry
@@ -446,7 +451,12 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
 // its own strip or list while the page around it stays where the user reads. Native
 // `scrollIntoView({container: "nearest"})` is no substitute: Firefox still scrolls the
 // boxes around it (notes/browser-support.md, "Native reveal bounded to its scroller").
-/** @param {Destination | null | undefined} where @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null, sideways?: boolean}} [options] */
+// A reveal that returns the reader to a place they had, as a restore brings back the
+// control they were on, is `kept`: it is no choice of theirs, so a hold on their place
+// open meanwhile still keeps it (user-place.js, `holdUserPlace`). Counted as their
+// choice, a resize while a diff's new source drew took the hold's correction away and
+// left the control they were on 262px down.
+/** @param {Destination | null | undefined} where @param {{alignment?: Destination, behavior?: ScrollBehavior, block?: ScrollLogicalPosition, within?: Element | null, sideways?: boolean, kept?: boolean}} [options] */
 export function scrollIntoView(
   where,
   {
@@ -455,6 +465,7 @@ export function scrollIntoView(
     block = "start",
     within = null,
     sideways = true,
+    kept = false,
   } = {},
 ) {
   if (!where) return;
@@ -467,8 +478,8 @@ export function scrollIntoView(
   // start moves nothing: a call that moves nothing still reads as a scroll the gesture
   // made (tests/shift_watch.js, "Scrolls a gesture makes").
   for (const { box, by } of innerMoves(where, targetScroller, within, sideways))
-    if (by.left || by.top) land(box, by, "instant");
-  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior);
+    if (by.left || by.top) land(box, by, "instant", kept);
+  if (targetScroller) scrollIntoReadingBand(aligned, holder, block, behavior, kept);
 }
 
 // The moves the walk before a destination's reading region makes (`scrollIntoView`),

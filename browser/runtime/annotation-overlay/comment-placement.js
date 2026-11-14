@@ -66,8 +66,8 @@
    and the card carries its own close and step controls, so the row shows again once
    it closes. Neither choice reads the surface's own width or height, so the box and
    the card make the same one. Under or over (`place-under-or-over`), its inline start
-   follows `column`, independently of the block it keeps clear, and it keeps that
-   start as it widens. That clearance chooses the initial seat. Once seated, quoted
+   follows `column`, independently of the block it keeps clear. That clearance chooses
+   the initial seat. Once seated, quoted
    words carry both coordinates through scrolling, including out of view, even when the
    containing scrollport stays still (`scroll-with-text`). Held offsets use the
    passage's line and column, so renewing the seat cannot put it back beside a
@@ -551,11 +551,14 @@ export function commentPlacement() {
       clear.height,
     );
     // The compact editor and its sent card share one start, which leaves the surface
-    // its whole width, the measure or the boundary's where that is narrower.
-    const span = Math.min(cardMeasure(), boundary.width);
-    const inlineStart = unanchored
-      ? boundary.left
-      : clamp(column ?? box.right - span, boundary.left, boundary.right - span);
+    // its whole width in client pixels at its positioning scale: the measure, or the
+    // boundary's width where that is narrower.
+    /** @param {{x: number}} scale */
+    const inlineStart = (scale) => {
+      if (unanchored) return boundary.left;
+      const span = Math.min(cardMeasure() * scale.x, boundary.width);
+      return clamp(column ?? box.right - span, boundary.left, boundary.right - span);
+    };
     let heldIn = false;
     const attachment = ui.limitShift(() => ({
       mainAxis: !across,
@@ -579,7 +582,7 @@ export function commentPlacement() {
         return {
           data: {
             scale,
-            column: rects.reference.x + (inlineStart - box.left) / scale.x,
+            column: rects.reference.x + (inlineStart(scale) - box.left) / scale.x,
             attachmentInline:
               rects.reference.x + ((column ?? clear.left) - box.left) / scale.x,
             line:
@@ -667,7 +670,7 @@ export function commentPlacement() {
           carriedInline !== null
             ? boundary.right - (column ?? clear.left) - carriedInline
             : across
-              ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
+              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
               : side === "right"
                 ? boundary.right - box.right - gap
                 : clear.left - boundary.left - gap;

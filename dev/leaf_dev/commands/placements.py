@@ -9,7 +9,7 @@ card (`m` from the page's top or with the subject in view, a press on its margin
 marker or its words, by a finger in a touch window, or a comment the reader sends),
 what follows the opening,
 such as the agent's answer arriving or a scroll, and the windows it opens in, the
-1728×999 and 1000×700 ones unless it names others. Every case opens on one page,
+1728×999, 1440×900 and 1000×700 ones unless it names others. Every case opens on one page,
 `fixture()`, whose blocks span the subjects pages hold: a one-line, a three-line and a
 sixteen-line paragraph, a heading, a list, a choice widget, and a section holding a
 table wider than the column. Add a case for a shape someone meets: a line in `CASES`,
@@ -82,6 +82,7 @@ from leaf_dev.visits import said, visits
 OUT = ROOT / ".tmp" / "placements"
 
 WIDE = Window((1728, 999), description="a 1728px by 999px window")
+MIDDLE = WINDOWS["macbook"]
 NARROW = Window((1000, 700), description="a 1000px by 700px window")
 PHONE = WINDOWS["phone"]
 
@@ -152,7 +153,7 @@ class Case:
     typed: str = "Why a week?"
     arrives: str | None = None
     scroll: int = 0
-    windows: tuple[Window, ...] = (WIDE, NARROW)
+    windows: tuple[Window, ...] = (WIDE, MIDDLE, NARROW)
 
     def __post_init__(self):
         assert self.subject in SUBJECTS, f"{self.name}: add {self.subject} to SUBJECTS"

@@ -831,14 +831,11 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     assert acknowledged_through(page_dir) == last_deliverable_seq(page_dir)
 
 
-def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
+def test_one_tool_calls_hooks_do_its_work_once():
     """Claude Code runs the PreToolUse registration once for each of its `if`
     rules a command matches, at once, before the call; the first opens the turn a
     claim would join, and the rest leave it as they find it. Another call's hook
     does its work again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
 
     def before(call: str) -> None:
         hooks_model.cmd_hook(
@@ -1069,9 +1066,6 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
         assert woke.startswith(f"{claimed} has new input")
         assert acknowledged_through(claimed) == 0
         assert handed_over("p2") == updates
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
@@ -1379,9 +1373,6 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     comment may not have reached the model. The woken prompt's hook confirms what
     the transcript shows first, so it names the comment as owed rather than handing
     the delivery over again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")

@@ -91,13 +91,7 @@ export class SettledOptions {
     render(
       html`<span ${generated({ says: true })}
           >${names.length ? `Settled: ${names.join(", ")}` : "Settled"}</span
-        >${
-          changes
-            ? html`<span class="lf-settled-diff lf-chip lf-change-count"
-                >Δ${changes}</span
-              >`
-            : nothing
-        }`,
+        >${changes ? html`<span class="lf-settled-diff lf-chip lf-change-count">Δ${changes}</span>` : nothing}`,
       this.#row,
     );
   }

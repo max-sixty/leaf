@@ -312,12 +312,7 @@ customElements.define(
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}
                 aria-disabled=${busy ? "true" : nothing}
-                @click=${(/** @type {MouseEvent} */ event) =>
-                  retry(
-                    event.currentTarget instanceof HTMLElement
-                      ? event.currentTarget
-                      : null,
-                  )}
+                @click=${(/** @type {MouseEvent} */ event) => retry(event.currentTarget instanceof HTMLElement ? event.currentTarget : null)}
               ></button
               ><button
                 ${offeredAction("inline", "lf-file-editor-conflict")}

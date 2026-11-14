@@ -543,9 +543,7 @@ export class RecordingTimeline {
                             data-lf-cluster=${index}
                             .lfPreview=${saidOfAll(cluster.items, "moments")}
                             ?data-lf-current=${cluster.items.some((item) => item.current)}
-                            style="--lf-axis-at: ${fraction(
-                              cluster.items[0].at,
-                            )}; max-inline-size: ${this.#labelRoom(
+                            style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.moments,
                               index,
                               cluster,
@@ -570,9 +568,7 @@ export class RecordingTimeline {
                             data-lf-id=${cluster.items[0].id}
                             data-lf-cluster=${index}
                             .lfPreview=${saidOfAll(cluster.items, "inputs")}
-                            style="--lf-axis-at: ${fraction(
-                              cluster.items[0].at,
-                            )}; max-inline-size: ${this.#labelRoom(
+                            style="--lf-axis-at: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
                               cluster,
@@ -657,9 +653,7 @@ export class RecordingTimeline {
               <div class="lf-trace-playhead lf-on-axis" aria-hidden="true">
                 <span
                   class="lf-trace-playhead-handle"
-                  title=${
-                    quoted ? "Selected recorded time" : "Drag to scrub the recording"
-                  }
+                  title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
                 ></span>
               </div>
             </div>`,
@@ -668,8 +662,7 @@ export class RecordingTimeline {
         <div
           class="lf-trace-overview"
           title="Whole recording; drag to move the zoomed window"
-          @pointerdown=${(/** @type {PointerEvent} */ event) =>
-            this.#overviewPress(event)}
+          @pointerdown=${(/** @type {PointerEvent} */ event) => this.#overviewPress(event)}
         >
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>

@@ -283,18 +283,7 @@ class RepoFeed extends LeafElement {
     return html` <div class="feed-layout">
       <aside class="feed-sidebar" aria-label="Explore the feed">
         <nav class="feed-distance" aria-label="Closeness">
-          ${DISTANCES.map(
-            ([key, label]) =>
-              html`<button
-                ${offered()}
-                type="button"
-                aria-pressed=${this.distance === key}
-                @click=${() => this.choose("distance", key)}
-              >
-                <span>${label}</span
-                ><span class="feed-nav-dot" aria-hidden="true"></span>
-              </button>`,
-          )}
+          ${DISTANCES.map(([key, label]) => html`<button ${offered()} type="button" aria-pressed=${this.distance === key} @click=${() => this.choose("distance", key)}><span>${label}</span><span class="feed-nav-dot" aria-hidden="true"></span></button>`)}
         </nav>
         <p class="feed-aside-note">Follow a rabbit hole.<br />Leave the rest behind.</p>
         <details class="feed-about">
@@ -347,11 +336,11 @@ class RepoFeed extends LeafElement {
                     ${offered("feed-news")}
                     @click=${() => this.admit(freshCount)}
                   >
-                    ${
-                      freshCount
-                        ? `${freshCount} new ${freshCount === 1 ? "story" : "stories"}`
-                        : "Show refreshed stream"
-                    }<span aria-hidden="true"> ↑</span>
+                    ${freshCount ? `${freshCount} new ${freshCount === 1 ? "story" : "stories"}` : "Show refreshed stream"}<span
+                      aria-hidden="true"
+                    >
+                      ↑</span
+                    >
                   </button>`
                 : html`<button
                     ${offered("feed-refresh")}
@@ -367,22 +356,11 @@ class RepoFeed extends LeafElement {
           </div>
           <div class="feed-toolbar">
             <nav class="feed-topics" aria-label="Topics">
-              ${TOPICS.map(
-                ([key, label]) =>
-                  html`<button
-                    ${offered()}
-                    type="button"
-                    aria-pressed=${this.topic === key}
-                    @click=${() => this.choose("topic", key)}
-                  >
-                    ${label}
-                  </button>`,
-              )}
+              ${TOPICS.map(([key, label]) => html`<button ${offered()} type="button" aria-pressed=${this.topic === key} @click=${() => this.choose("topic", key)}>${label}</button>`)}
             </nav>
             <span class="feed-live"
-              ><span aria-hidden="true"></span>${
-                this.liveEnabled ? "Live exploration" : "Captured discoveries"
-              }</span
+              ><span aria-hidden="true"></span
+              >${this.liveEnabled ? "Live exploration" : "Captured discoveries"}</span
             >
           </div>
         </header>
@@ -393,13 +371,7 @@ class RepoFeed extends LeafElement {
             (item) => this.card(item),
           )}
         </div>
-        ${
-          !shown.length
-            ? html`<p class="feed-empty">
-                Quiet in this corner. Try Everything, or wander a little further.
-              </p>`
-            : nothing
-        }
+        ${!shown.length ? html`<p class="feed-empty">Quiet in this corner. Try Everything, or wander a little further.</p>` : nothing}
         <footer class="feed-end" aria-live="polite">
           ${
             pending
@@ -413,11 +385,7 @@ class RepoFeed extends LeafElement {
               : shown.length < this.filtered.length
                 ? html`<button ${offered("feed-more")} @click=${() => this.more()}>
                       Keep wandering <span aria-hidden="true">↓</span></button
-                    >${
-                      this.loading
-                        ? html`<p>Reading ahead for your next few finds…</p>`
-                        : nothing
-                    }`
+                    >${this.loading ? html`<p>Reading ahead for your next few finds…</p>` : nothing}`
                 : this.loading
                   ? html`<div class="feed-loading">
                       <span class="feed-loading-dots" aria-hidden="true"
@@ -446,13 +414,7 @@ class RepoFeed extends LeafElement {
                             Find more <span aria-hidden="true">↓</span>
                           </button>
                           <p>
-                            ${
-                              this.readAheadPaused
-                                ? "No strong finds in that batch. Continue to explore another pair of repositories."
-                                : this.liveEnabled
-                                  ? "More stories arrive as you scroll."
-                                  : "Explore live with a GitHub connection and an active agent session."
-                            }
+                            ${this.readAheadPaused ? "No strong finds in that batch. Continue to explore another pair of repositories." : this.liveEnabled ? "More stories arrive as you scroll." : "Explore live with a GitHub connection and an active agent session."}
                           </p>`
           }
         </footer>
@@ -519,11 +481,7 @@ class RepoFeed extends LeafElement {
           <time datetime=${item.at} title=${date.format(new Date(item.at))}
             >${item.kind === "project" ? `Updated ${when}` : when}</time
           >
-          ${
-            item.kind === "project"
-              ? html`<span class="feed-angle">Project to explore</span>`
-              : nothing
-          }
+          ${item.kind === "project" ? html`<span class="feed-angle">Project to explore</span>` : nothing}
           <span class="feed-angle">${angle}</span>
         </div>
         <h3>
@@ -555,14 +513,7 @@ class RepoFeed extends LeafElement {
               </p>
               <div class="feed-source-meta">
                 ${item.author} ·
-                ${item.kind === "project" ? "Repository updated " : ""}${date.format(
-                  new Date(item.at),
-                )}${
-                  item.kind === "pull_request"
-                    ? html` · +${item.additions} −${item.deletions} · ${item.files}
-                      files`
-                    : nothing
-                }
+                ${item.kind === "project" ? "Repository updated " : ""}${date.format(new Date(item.at))}${item.kind === "pull_request" ? html` · +${item.additions} −${item.deletions} · ${item.files} files` : nothing}
               </div>
               <p>
                 Retrieval priority: ${item.retrieval_score}.
@@ -570,41 +521,19 @@ class RepoFeed extends LeafElement {
                 is not an interest prediction.
               </p>
               <div class="feed-markdown">
-                ${
-                  !this.openedSources.has(item.id)
-                    ? nothing
-                    : !item.body
-                      ? html`<p>No description was included on GitHub.</p>`
-                      : markdownReady()
-                        ? unsafeHTML(sourceMarkdown(item))
-                        : html`<p>Opening source…</p>`
-                }
+                ${!this.openedSources.has(item.id) ? nothing : !item.body ? html`<p>No description was included on GitHub.</p>` : markdownReady() ? unsafeHTML(sourceMarkdown(item)) : html`<p>Opening source…</p>`}
               </div>
               <a
                 class="feed-source-link"
                 href=${item.source_url}
                 target="_blank"
                 rel="noreferrer"
-                >${
-                  item.kind === "project"
-                    ? "Read the project README"
-                    : "Continue on GitHub"
-                } <span aria-hidden="true">↗</span></a
+                >${item.kind === "project" ? "Read the project README" : "Continue on GitHub"}
+                <span aria-hidden="true">↗</span></a
               >
             </div>
           </details>
-          ${
-            !quoted(this)
-              ? html`<button
-                  ${offered("feed-ask")}
-                  type="button"
-                  title="Ask the agent how this connects to your work"
-                  @click=${() => this.ask(item)}
-                >
-                  Talk about this
-                </button>`
-              : nothing
-          }
+          ${!quoted(this) ? html`<button ${offered("feed-ask")} type="button" title="Ask the agent how this connects to your work" @click=${() => this.ask(item)}>Talk about this</button>` : nothing}
         </div>
       </div>
     </article>`;

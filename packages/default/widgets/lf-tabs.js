@@ -661,10 +661,7 @@ export class TabSet extends LeafElement {
             behavior: scrollBehavior(),
           });
         }}
-        >${actionTemplate(
-          to === "start" ? "previous" : "next",
-          "lf-tabstrip-scroll-icon",
-        )}</span
+        >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span
       ></span
     >`;
   }

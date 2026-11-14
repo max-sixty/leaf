@@ -85,12 +85,7 @@ customElements.define(
               <section class="pr-description">
                 <h4>Author's description</h4>
                 <div>
-                  ${unsafeHTML(
-                    renderMarkdown(
-                      record.description ||
-                        "No description was provided by the author.",
-                    ),
-                  )}
+                  ${unsafeHTML(renderMarkdown(record.description || "No description was provided by the author."))}
                 </div>
               </section>
               <table class="pr-checks">

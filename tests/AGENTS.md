@@ -311,7 +311,10 @@ allowance list.
   not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that.
+  delivers the news after that. An input also owns the first frame that reads its
+  rendering settled, which can paint after `rendered` returns, so a test that moves
+  the page itself after an input, to see the move reported, first waits for
+  `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
   does it the way a user

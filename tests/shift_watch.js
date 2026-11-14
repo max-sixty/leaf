@@ -88,7 +88,8 @@
 // alone, such as a clamp. The driver's own scroll before its next press counts only
 // on a box the gesture's own work scrolled too.
 //
-// Each trusted gesture owns its counted rendering until declared completion. A widget
+// Each trusted gesture owns its counted rendering until declared completion, and the
+// first frame that reads the loop settled (`lfInputRenderingOpen`). A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
@@ -1932,6 +1933,12 @@
     landing.add(rendering);
     renderings.push(rendering);
   };
+  // Whether an input's rendering, or a preparation's landing, is still open. An open
+  // rendering owns every frame up to the first one whose tick reads the loop settled,
+  // and that frame can paint after a reader outside the page has seen the loop
+  // settle. A test that moves the page itself, and expects the move reported, waits
+  // until this reads false.
+  window.lfInputRenderingOpen = () => open !== null || landing.size > 0;
   // The runtime publishes its observer on its entry script after this script runs.
   Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
     configurable: true,

@@ -1591,7 +1591,11 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
         )
         == "presented"
     )
-    # While the preparation waits, the press owns no other movement on the page.
+    # While the preparation waits, the press owns no other movement on the page, since
+    # its rendering closes without waiting for the preparation. The press still owns
+    # the first frame that reads the loop settled, which can paint after `rendered`
+    # returns, so the move waits for the watch to close the press's rendering.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     control.evaluate("node => node.style.marginTop = '40px'")
     rendered(page, facts=("updatesSettled",))
     judge_watches()
@@ -1608,6 +1612,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
 
     # Once it has landed, the press owns nothing further. (The watch names each node
     # once, so this move is the diff's own, which the landing moved for the press.)
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()

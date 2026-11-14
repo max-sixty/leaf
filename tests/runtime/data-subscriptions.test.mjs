@@ -325,7 +325,8 @@ test("data readiness does not wait for an unrelated widget region", async () => 
 // A widget holds an output as a property and says `change`; its readers use the same
 // LeafElement reader and presentation region as sources.
 let outputScenes = 0;
-function outputScene(draw) {
+// With `key`, the reader names its producer by that attribute, unique in a <section>.
+function outputScene(draw, key) {
   const suffix = ++outputScenes;
   const producerTag = `lf-output-${suffix}`;
   const consumerTag = `lf-consumer-${suffix}`;
@@ -333,12 +334,13 @@ function outputScene(draw) {
     [producerTag]: {
       "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
       "x-output": { rows: { contract: "rows" } },
+      ...(key ? { "x-unique": { [key]: "section" } } : {}),
     },
     [consumerTag]: {
       "x-data": {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      "x-refers": { for: {} },
+      "x-refers": { for: key ? { tag: producerTag, key } : {} },
     },
   });
   customElements.define(
@@ -450,6 +452,56 @@ test("an output's readers follow the element under their bound id, in their own 
   document.querySelector("main").append(late);
   await settleOutput();
   assert.deepEqual(readings.get("late").at(-1), { rows: ["held"] });
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a producer arriving or leaving under another name leaves a reader's reading alone", async () => {
+  const { producerTag, consumerTag } = outputScene(() => {});
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  const main = document.querySelector("main");
+  const feed = document.querySelector("#feed");
+  let reads = 0;
+  Object.defineProperty(feed, "rows", { get: () => (reads++, { rows: ["feed"] }) });
+  feed.dispatchEvent(new Event("change"));
+  await settleOutput();
+  const read = reads;
+  assert.ok(read > 0, "the reader reads what its producer holds");
+  const other = document.createElement(producerTag);
+  other.id = "other";
+  main.append(other);
+  await settleOutput();
+  other.remove();
+  await settleOutput();
+  assert.equal(reads, read, "another producer's arrival reaches only its own readers");
+  // The same move under the reader's own name is read again.
+  feed.remove();
+  await settleOutput();
+  main.prepend(feed);
+  await settleOutput();
+  assert.ok(reads > read);
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a keyed reader follows the member arriving under its key", async () => {
+  const readings = [];
+  const { producerTag, consumerTag } = outputScene(
+    (element, value) => readings.push(value),
+    "name",
+  );
+  document.body.innerHTML = `<main><section><${consumerTag} for="primary"></${consumerTag}></section></main>`;
+  await settleOutput();
+  assert.equal(readings.at(-1), null);
+  const member = document.createElement(producerTag);
+  member.setAttribute("name", "primary");
+  member.rows = { rows: ["member"] };
+  document.querySelector("section").append(member);
+  await settleOutput();
+  assert.deepEqual(readings.at(-1), { rows: ["member"] });
+  member.remove();
+  await settleOutput();
+  assert.equal(readings.at(-1), null);
   document.body.replaceChildren();
   await settleOutput();
 });

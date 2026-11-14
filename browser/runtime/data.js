@@ -15,7 +15,8 @@
    `change` on itself. Nothing is published to Leaf: a reader's input names the
    producer (`reference`) and reads the one output of its contract off the element
    standing under that id, again whenever that element says `change`, and resolves
-   the id again whenever a producer arrives or leaves, so it follows a replacement. A
+   the id again whenever a producer arrives or leaves under it, so it follows a
+   replacement. A
    reader that arrives late, or before its producer's module has loaded, reads what the
    element holds then. Outputs stay outside the application state: no reading of the log
    depends on one, so a change runs no fold and no selection, and only the readers of
@@ -82,10 +83,32 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
-// `standing` moves when an element that may hold an output arrives or leaves, so each
-// reader resolves its bound id again; one watch covers every such tag, started by the
-// first reader. Each producer a reader has resolved has a signal its `change` moves.
-const standing = signal(0);
+// A reader binds its producer by a name: an id, or for a keyed reference the value of
+// an attribute the producer's tag declares unique. The name's signal moves when an
+// element that may hold an output arrives or leaves under it, so only the readers of
+// that name resolve it again, and a page of many producers loads without each arrival
+// reaching every reader. One watch covers every such tag, started by the first reader.
+// Each producer a reader has resolved has a signal its `change` moves.
+/** @type {Map<string, {peek(): number, value: number}>} */
+const standing = new Map();
+/** @param {string} name */
+function standingUnder(name) {
+  let moved = standing.get(name);
+  if (!moved) standing.set(name, (moved = signal(0)));
+  return moved;
+}
+/** @param {Element} element */
+function moveStanding(element) {
+  const unique = registry[element.localName]?.["x-unique"] ?? {};
+  const names = [
+    element.id,
+    ...Object.keys(unique).map((key) => element.getAttribute(key)),
+  ];
+  for (const name of names) {
+    const moved = name ? standing.get(name) : undefined;
+    if (moved) tick(moved);
+  }
+}
 let producersWatched = "";
 function watchProducers() {
   // A document adopts its registry once, so this starts one watch.
@@ -99,11 +122,11 @@ function watchProducers() {
     arrive(element) {
       if (stood.has(element)) return;
       stood.add(element);
-      tick(standing);
+      moveStanding(element);
     },
     leave(element) {
       stood.delete(element);
-      tick(standing);
+      moveStanding(element);
     },
   });
 }
@@ -182,10 +205,11 @@ function deliveredSource(source, declaration, input, accepted) {
 /** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
 function heldOutput(element, attribute, widget, contract) {
   watchProducers();
+  const moved = standingUnder(widget);
   /** @type {DataSnapshot | null} */
   let held = null;
   return computed(() => {
-    standing.value;
+    moved.value;
     const producer = untracked(() => referencedProjection(element, attribute, widget));
     if (!producer) return (held = null);
     changeOf(producer).value;

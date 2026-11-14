@@ -324,3 +324,28 @@ jobs:
             .tmp/thread-snapshots/runs/
           if-no-files-found: ignore
           retention-days: 30
+
+  # The hooks check against each harness's newest release. `pnpm run check:hooks`
+  # checks `hooks/` against the Claude Code and Pi that `package.json` pins, which
+  # Dependabot moves weekly, while a user's Claude Code updates itself as each release
+  # ships. A release that refuses to load `hooks/claude-code.ts`, or changes the Pi API
+  # `hooks/pi.ts` uses, turns the daily run red for tend before the pin catches up. The
+  # check needs only Node, so the job sets up nothing else.
+  newest-harnesses:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install the newest Claude Code and Pi
+        run: pnpm add --save-dev @anthropic-ai/claude-code@latest @earendil-works/pi-coding-agent@latest
+
+      - name: Check the hooks against them
+        run: pnpm run check:hooks

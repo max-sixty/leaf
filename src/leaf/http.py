@@ -36,7 +36,6 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
-from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     missing_revision,
     revision_num,
@@ -1125,13 +1124,6 @@ class PageEndpoint:
 
     def _get(self) -> Response:
         path = self.path
-        if match := re.fullmatch(r"/api/files/([^/]+)", path):
-            if not self.source.writable:
-                return self._json(None)
-            try:
-                return self._json(read_file(self.page_dir, match[1]))
-            except FileBindingError as error:
-                return self._refuse(str(error))
         if probe_source := serving_runtime().probes.get(path):
             return self._content(200, "text/javascript; charset=utf-8", probe_source)
         if path == "/":
@@ -1272,17 +1264,6 @@ class PageEndpoint:
             return self._refuse(self.posted_error)
         return None
 
-    def _live_files_gate(self) -> Response | None:
-        try:
-            view_revision = self.requested_view_revision()
-        except ValueError as error:
-            return self._refuse(str(error))
-        if not self.source.writable or (
-            view_revision is not None and view_revision != self.source.active_revision()
-        ):
-            return self._refuse("This view cannot edit live files.", 403)
-        return None
-
     def _same_origin_gate(self) -> Response | None:
         expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
         if self.headers.get("Origin") != expected_origin:
@@ -1317,14 +1298,6 @@ class PageEndpoint:
             return self._json(generate(self.page_dir, self.posted))
         except LLMError as error:
             return self._json(error.json(), error.status)
-
-    def _save_file(self, name: str) -> Response:
-        try:
-            return self._json(save_file(self.page_dir, name, self.posted))
-        except StaleFileError as error:
-            return self._json({"error": str(error), "current": error.current}, 409)
-        except (FileBindingError, UnicodeEncodeError) as error:
-            return self._refuse(str(error))
 
     def _observe_user_view(self) -> Response:
         # Captured render previews are instruments, not the user's reading.
@@ -1429,11 +1402,9 @@ class PageEndpoint:
         return self._json_body(with_state(envelope, state, self.sent(state)), status)
 
     # Every POST a page answers, by path pattern. A route lists its gates in the
-    # order they refuse; its body is already read when the first one runs. File
-    # writes are mechanical editing, outside event admission and layer vocabulary,
-    # so only the mutable, same-origin page writes them. A sample allocates an
-    # independent page from the frozen reading and writes nothing to its parent, so
-    # a read-only preview creates one too.
+    # order they refuse; its body is already read when the first one runs. A sample
+    # allocates an independent page from the frozen reading and writes nothing to
+    # its parent, so a read-only preview creates one too.
     POST_ROUTES: Mapping[str, PostRoute] = {
         r"/api/connections/(?P<name>[^/]+)": PostRoute(
             _fetch_connection,
@@ -1441,10 +1412,6 @@ class PageEndpoint:
         ),
         "/api/llm": PostRoute(
             _generate, (_runtime_gate, _llm_gate, _same_origin_gate, _body_gate)
-        ),
-        r"/api/files/(?P<name>[^/]+)": PostRoute(
-            _save_file,
-            (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
         "/api/user-view": PostRoute(_observe_user_view, (_runtime_gate, _body_gate)),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),

@@ -70,10 +70,6 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
 - `user-views.lock` — the lock serializing writes to `user-views.json`, which freshness
   and activation also ignore.
 
-- `files.json` — local text-file grants written by `leaf file bind PAGE ID PATH`
-  (`file_bindings.py`). The bound files remain their own authority, outside revisions
-  and the log.
-
 - `data/` — one publication per source, `<source>.json`, which `leaf data set` writes
   and `leaf data clear` removes (`data.py`). The page holds a source exactly while its
   file exists.

@@ -493,38 +493,12 @@ const placementsRule = {
       arg.type === "ObjectExpression" ||
       arg.type === "SpreadElement" ||
       (arg.type === "Identifier" && /^opt/u.test(arg.name));
-    // CodeMirror's imported state effect asks its view's scroll handler to reveal;
-    // it is not the browser method. Resolve the binding so aliases work and a local
-    // element merely named EditorView does not gain an exception.
-    const editorReveal = (callee) => {
-      if (callee.object.type !== "Identifier") return false;
-      for (
-        let scope = context.sourceCode.getScope(callee);
-        scope;
-        scope = scope.upper
-      ) {
-        const binding = scope.set.get(callee.object.name);
-        if (!binding) continue;
-        return binding.defs.some(
-          (definition) =>
-            definition.type === "ImportBinding" &&
-            definition.node.imported?.name === "EditorView" &&
-            /(?:^|\/)vendor\/codemirror\.esm\.js$/u.test(
-              definition.parent.source.value,
-            ),
-        );
-      }
-      return false;
-    };
     return {
       CallExpression(node) {
         const { callee, arguments: args } = node;
         if (callee.type === "MemberExpression" && !callee.computed) {
           if (
-            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(
-              callee.property.name,
-            ) &&
-            !(callee.property.name === "scrollIntoView" && editorReveal(callee))
+            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(callee.property.name)
           )
             context.report({
               node,
@@ -1698,10 +1672,9 @@ export default [
         "error",
         [
           // Restores, each returning a box to an offset it held: a carried node's in
-          // its replacement, the adopted message body's, and CodeMirror's own view.
+          // its replacement, and the adopted message body's.
           "browser/runtime/carry.js",
           "browser/runtime/annotation-overlay/thread-preview.js",
-          "packages/file-editor/widgets/editor.js",
           // The trace's time axis is its scroll offset, which it sets and then expects.
           "packages/playwright/widgets/timeline.js",
         ],

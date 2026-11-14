@@ -241,22 +241,13 @@
       is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
     // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a
-    // line, with equal nodes it reuses from elsewhere in the same update, in either
-    // editor host. A line can get another line's break, and as the caret moves between
-    // two quoted lines, one line's marker element moves to the other and takes its `>`.
+    // line, with equal nodes it reuses from elsewhere in the same update. A line can get
+    // another line's break, and as the caret moves between two quoted lines, one line's
+    // marker element moves to the other and takes its `>`.
     (what, node) =>
       what === "children" &&
       is(node, "div.cm-line, div.cm-line *") &&
-      hosts(node).length > 0,
-    // CodeMirror's GutterElement.setMarkers restates its class as marker sets
-    // change, including when the resulting gutter class remains the same.
-    (what, node) => what === "class" && is(node, "div.cm-gutterElement"),
-    // CodeMirror's syncGutters reinserts the gutter beside unchanged content when
-    // its editor view updates.
-    (what, node) =>
-      what === "children" &&
-      is(node, "div.cm-scroller") &&
-      hosts(node)[0]?.localName === "lf-file-editor",
+      hosts(node)[0]?.localName === "leaf-text",
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     (what, node) => what !== "children" && node.localName?.startsWith("wa-"),

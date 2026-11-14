@@ -14,7 +14,6 @@ code of its own. Choose by what the state is:
 | Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
 | How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
 | Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
-| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
 take back, and that a comment on the page may be about. Keep in the tab what Undo should
@@ -202,20 +201,6 @@ server's grace period. For any other reading, use `clockValue((now) => reading)`
 `now` the server's time in milliseconds. Read them synchronously in `render()`, which
 then redraws as the time's reading changes.
 
-## Editing a bound file
-
-`boundFile(binding)` reads and writes a file the agent granted this page with
-`leaf file bind`. `read()` returns `{label, text, revision}`, with `text` in LF line
-endings. `save({revision, text})` writes only if the file is still at `revision`, and
-otherwise throws a `RequestError` whose `current` holds the newer file.
-`RequestError` also carries the HTTP `status` and response `body`; distinguish it
-with `instanceof` when handling a server refusal. `watch(callback)` calls
-back whenever the file may have changed on disk, the widget's own save included, so read
-it again then. `writable` is false in captured documents and exports. Editing the file
-records nothing in the page's log and takes no part in its Undo. The `file-editor`
-package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
-travel with the page.
-
 ## Authenticated HTTP connections
 
 An agent can write an integration as page-owned JavaScript, using a named host
@@ -246,7 +231,9 @@ paths beginning with one `/` are accepted. Leaf sends GET with the configured
 header, refuses redirects, limits responses to 1 MiB and uses a 15-second socket
 inactivity timeout.
 Transport and grant refusals reject the promise; upstream HTTP errors return their
-status and body. No request is retried automatically. The response exposes content
+status and body. When the page's server refuses a request, the promise rejects with a
+`RequestError`, which carries the HTTP `status` and response `body`; distinguish it
+with `instanceof`. No request is retried automatically. The response exposes content
 type, pagination/cache and rate-limit headers, not credentials or cookies.
 
 Each grant allows 200 requests by default (`--max-requests` sets its budget).

@@ -216,7 +216,7 @@ def paths_same(left: Path, right: Path) -> bool:
     return path_location(left) == path_location(right)
 
 
-def canonical_path(path: Path, *, strict: bool = False) -> Path:
+def canonical_path(path: Path) -> Path:
     """`path` resolved and spelled as the filesystem stores it.
 
     A case-insensitive volume opens `Notes.txt` when asked for `NOTES.TXT`, and
@@ -226,7 +226,7 @@ def canonical_path(path: Path, *, strict: bool = False) -> Path:
     spelling. Darwin names an open descriptor's stored path (`F_GETPATH`); on another
     platform the resolved path stands. Components below the deepest existing
     ancestor keep the spelling asked for, since nothing stores them yet."""
-    resolved = path.resolve(strict=strict)
+    resolved = path.resolve()
     if not hasattr(fcntl, "F_GETPATH"):
         return resolved
     ancestor, tail = resolved, []

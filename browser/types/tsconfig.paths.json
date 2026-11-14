@@ -28,9 +28,6 @@
       "/vendor/codemirror.esm.js": [
         "../../build/entries/codemirror/entry.mjs"
       ],
-      "/vendor/extensions.esm.js": [
-        "../../build/entries/file-editor/entry.mjs"
-      ],
       "/vendor/floating-ui.esm.js": [
         "../../build/entries/floating-ui/entry.mjs"
       ],
@@ -117,7 +114,6 @@
         "../../packages/detail/vendor/*",
         "../../packages/diagram/vendor/*",
         "../../packages/diff/vendor/*",
-        "../../packages/file-editor/vendor/*",
         "../../packages/file-tree/vendor/*",
         "../../packages/monitoring/vendor/*",
         "../../packages/motion/vendor/*",
@@ -135,7 +131,6 @@
         "../../packages/detail/widgets/*",
         "../../packages/diagram/widgets/*",
         "../../packages/diff/widgets/*",
-        "../../packages/file-editor/widgets/*",
         "../../packages/file-tree/widgets/*",
         "../../packages/monitoring/widgets/*",
         "../../packages/motion/widgets/*",

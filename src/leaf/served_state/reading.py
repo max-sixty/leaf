@@ -23,7 +23,6 @@ the read that wake prompts finds nothing moved for an entry rewritten in place.
 import hashlib
 from pathlib import Path
 
-from ..file_bindings import bound_paths
 from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
@@ -100,8 +99,8 @@ def page_roots(page_dir: Path) -> set[Path]:
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
     claimant session's lifecycle and forks' hand-overs (`forks.HANDED`), which
-    change what is deliverable, and each bound file. A watcher subscribes to these
-    by path, and follows a new set when the claim or the grants change."""
+    change what is deliverable. A watcher subscribes to these by path, and follows
+    a new set when the claim changes."""
     return {path for _name, path in _outside(page_dir)}
 
 
@@ -113,12 +112,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
         named.append(("$forks", session_file(claim["id"], "forks").resolve()))
-    return named + _bound(page_dir)
-
-
-def _bound(page_dir: Path) -> list[tuple[str, Path]]:
-    # Files a page binds for editing live outside it, so each is stamped by path.
-    return [(f"$file:{name}", path) for name, path in bound_paths(page_dir).items()]
+    return named
 
 
 def join_reading(files: str, presence: str) -> str:
@@ -174,9 +168,7 @@ def held_page_reading(page_dir: Path) -> str:
     the answer has to be cheap enough to ask many times a second. Activation keys on
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
-    without descending because its filenames are content-addressed. The state answer
-    also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
-    which binding moved.
+    without descending because its filenames are content-addressed.
     """
     return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
 
@@ -188,15 +180,16 @@ def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
 def record_reading(page_dir: Path) -> str:
     """Name durable page inputs with the same file stamps as live readings.
 
-    Claim, lease, stream and browser observations belong to a serving process.
-    A dormant publication excludes them, while bound external files still change
-    what its canonical state answers.
+    Claim, lease, stream and browser observations belong to a serving process, so
+    a dormant publication excludes them.
     """
-    stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
-    ]
-    stamps.extend((name, file_stamp(path)) for name, path in _bound(page_dir))
-    return _token(stamps)
+    return _token(
+        [
+            stamp
+            for stamp in _page_stamps(page_dir)
+            if stamp[0] not in PAGE_PROCESS_FILES
+        ]
+    )
 
 
 # What a page has accumulated rather than what its author wrote: the log, and the

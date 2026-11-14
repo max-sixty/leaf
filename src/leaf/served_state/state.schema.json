@@ -163,11 +163,6 @@
           "required": ["version"],
           "additionalProperties": false
         },
-        "files": {
-          "description": "Each bound file's stamp, by binding, which moves when the file may have: an editor reads its file only when this stamp does.",
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        },
         "status": {
           "description": "The agent's declaration, the newest `status` event (`activity.declaration`), as `presence.presence_with_activity` reads it; that module owns the presence fields below.",
           "type": "object",
@@ -337,7 +332,6 @@
         "seen",
         "source_error",
         "data",
-        "files",
         "status",
         "listening",
         "session_alive",
@@ -1864,27 +1858,6 @@
       "type": "object",
       "properties": { "path": { "type": "string" } },
       "required": ["path"],
-      "additionalProperties": false
-    },
-    "FileSnapshot": {
-      "description": "One bound file as `GET` and a successful `POST /api/files/<binding>` answer it (`file_bindings`): its name, its text with LF line endings, and the revision a save names.",
-      "type": "object",
-      "properties": {
-        "label": { "type": "string" },
-        "text": { "type": "string" },
-        "revision": { "type": "string" }
-      },
-      "required": ["label", "text", "revision"],
-      "additionalProperties": false
-    },
-    "StaleFile": {
-      "description": "A save refused because the file changed since the revision it named, with the file as it is now.",
-      "type": "object",
-      "properties": {
-        "error": { "type": "string" },
-        "current": { "$ref": "#/$defs/FileSnapshot" }
-      },
-      "required": ["error", "current"],
       "additionalProperties": false
     },
     "Refusal": {

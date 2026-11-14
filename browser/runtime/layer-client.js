@@ -264,18 +264,15 @@ export function completeState(answer, held) {
 // reloads is already settled there. Each caller says what that means for its request.
 export class LayerRefused extends Error {}
 
-/** The structured HTTP failure produced by requestJson, including a file conflict. */
+/** The structured HTTP failure produced by requestJson. */
 export class RequestError extends Error {
   /** @param {string} message
    * @param {{status: number; body: string; cause?: unknown;
-   *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined; retryAfter?: number | undefined}} details */
-  constructor(message, { status, body, cause, current, said, retryAfter }) {
+   *   retryAfter?: number | undefined}} details */
+  constructor(message, { status, body, cause, retryAfter }) {
     super(message, { cause });
     this.status = status;
     this.body = body;
-    this.current = current;
-    this.said = said;
     this.retryAfter = retryAfter;
   }
 }
@@ -296,11 +293,10 @@ function retryWait(response) {
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body, the wait a
-// server that can't take the request yet names (`retryAfter`) and, for a file the
-// server holds newer than the draft, its `current`. Whether to send it again is the
-// caller's: the server may already have run the request, since the website's edge
-// refuses a container's answer only after the container has handled it.
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and the wait
+// a server that can't take the request yet names (`retryAfter`). Whether to send it
+// again is the caller's: the server may already have run the request, since the
+// website's edge refuses a container's answer only after the container has handled it.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
  * @returns {Promise<T>} */
@@ -309,15 +305,13 @@ export async function requestJson(url, init, what) {
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  /** @param {string} message @param {unknown} cause
-   * @param {Pick<ConstructorParameters<typeof RequestError>[1], "current" | "said">} [details] */
-  const failed = (message, cause, details = {}) =>
+  /** @param {string} message @param {unknown} [cause] */
+  const failed = (message, cause) =>
     new RequestError(message, {
       status: response.status,
       body: text,
       cause,
       retryAfter: retryWait(response),
-      ...details,
     });
   let answer = null;
   if (
@@ -330,14 +324,10 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
-  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok) {
-    /** @type {import("../types/contract.js").ServedRefusal | import("../types/contract.js").ServedStaleFile | null} */
+    /** @type {import("../types/contract.js").ServedRefusal | null} */
     const refusal = answer;
-    throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, undefined, {
-      current: refusal && "current" in refusal ? refusal.current : undefined,
-      said: refusal?.error,
-    });
+    throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`);
   }
   return answer;
 }

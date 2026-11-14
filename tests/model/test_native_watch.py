@@ -137,35 +137,23 @@ def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
         watch.release()
 
 
-def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
-    page_dir, tmp_path
-):
+def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(page_dir):
     """The page's reading, which a tab polls, and its subscription, which its event
-    followers wake on, derive from one declaration of its inputs. A bound file
-    outside the page moves both, as does an authored edit or renaming the folder
-    that holds the bound file; `user-views.json`, which the server rewrites as a tab
-    reports its view, moves neither, and nor does reading an input, which inotify
-    reports as the server serves it.
+    followers wake on, derive from one declaration of its inputs. An authored edit
+    moves both; `user-views.json`, which the server rewrites as a tab reports its
+    view, moves neither, and nor does reading an input, which inotify reports as the
+    server serves it.
 
-    Where the volume ignores letter case, the page and the file are named in a
-    spelling other than the one on disk, which notifications report: both must
-    still wake the watchers."""
+    Where the volume ignores letter case, the page is named in a spelling other than
+    the one on disk, which notifications report: an edit must still wake the
+    watchers."""
     from leaf.cli import resolve_dir
-    from leaf.file_bindings import bind_file
     from leaf.file_changes import FileChanges, page_changes
     from leaf.served_state.reading import page_reading
 
-    def respelled(path):
-        alias = path.with_name(path.name.swapcase())
-        return alias if alias.exists() else path
-
-    folder = tmp_path / "notes"
-    folder.mkdir()
-    target = folder / "notes.txt"
-    target.write_text("hello\n")
     (page_dir / "page").mkdir(exist_ok=True)
-    page = resolve_dir(str(respelled(page_dir)), renew=False)
-    bind_file(page, "notes", respelled(target))
+    respelled = page_dir.with_name(page_dir.name.swapcase())
+    page = resolve_dir(str(respelled if respelled.exists() else page_dir), renew=False)
     changes, _generation = page_changes(page)
     # macOS reports some of the setup's writes well after a watcher starts, but in
     # order, so the page's subscription has heard them once the process's watcher
@@ -196,13 +184,6 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     assert classified(
         lambda: (page_dir / "page" / "extra.css").write_text("p {}"), STATED_TIMEOUT
     ) == (True, True)
-    assert classified(
-        lambda: target.write_text("edited outside Leaf\n"), STATED_TIMEOUT
-    ) == (True, True)
-    assert classified(lambda: folder.rename(tmp_path / "moved"), STATED_TIMEOUT) == (
-        True,
-        True,
-    )
 
 
 @contextlib.contextmanager

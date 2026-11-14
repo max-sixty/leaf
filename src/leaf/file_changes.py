@@ -497,7 +497,7 @@ def _page_plan(page: Path) -> tuple[set[Path], dict[Path, bool]]:
 
 def page_changes(page: Path) -> tuple[FileChanges, int]:
     """The process's subscription for a page, refreshed when the page's
-    subdirectories, its claim or its file grants move what it watches, and the
-    generation to wait from. An owner reads the page after taking both, and takes
-    them again after each wake, which is how a new subdirectory joins the watch."""
+    subdirectories or its claim move what it watches, and the generation to wait
+    from. An owner reads the page after taking both, and takes them again after
+    each wake, which is how a new subdirectory joins the watch."""
     return memo(page, _PageChanges).connect(page)

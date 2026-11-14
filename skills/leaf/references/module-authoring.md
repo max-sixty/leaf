@@ -8,8 +8,8 @@ files beside this one:
 - [module-reading.md](module-reading.md): the page's words, elements and declarations,
   content helpers for Markdown, code, images and icons, and page readings such as
   obligations and history;
-- [module-state.md](module-state.md): the widget controller, declared state, data
-  subscriptions, and editing a bound file;
+- [module-state.md](module-state.md): the widget controller, declared state, and data
+  subscriptions;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
   presses, previews, and text entry;
 - [module-scroll-and-motion.md](module-scroll-and-motion.md): reading regions,
@@ -430,7 +430,7 @@ face, symbol and name to an existing node. The roles are:
 - `"commit"`, the one press on a surface that commits the user's work.
 - `"mark"`, a small symbol at a corner of the thing it acts on, naming its `action`.
 - `"inline"`, a press read as part of its line of words, such as a quote's "Full
-  quote", drawn in the accent; one saying a warning takes `data-lf-tone="warn"`.
+  quote", drawn in the accent.
 - `"row"`, one row of a list or menu, washed under the pointer or the keys; the row the
   list stands on, such as a timeline's step, takes `aria-current`, drawn in the accent.
 - `"answer"`, one of a question's answers; the chosen one takes `aria-pressed="true"`.

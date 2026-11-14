@@ -74,7 +74,7 @@
     "x-retired-when": "reject"
   },
   "$languages": {
-    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget marks an attribute as naming a language with x-language, and composing the vocabulary writes this list into that attribute's `enum`, so a new tag that takes a language needs only that declaration. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
+    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget marks an attribute as naming a language with x-language, and composing the vocabulary writes this list into that attribute's `enum`, so a new tag that takes a language needs only that declaration. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files. A file whose extension is not listed shows uncolored.",
     "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",
     "names": [
       "bash",

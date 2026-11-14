@@ -458,8 +458,7 @@ Whenever a survey, a review or the nightly sweep reads a file, look for code tha
 makes Leaf harder to develop than it is worth:
 
 - **A mechanism users wouldn't miss.** Ask who would notice it gone and what it costs
-  the changes around it. `uv run leaf-dev usage` counts what the pages on this machine
-  used: each widget, package, command and `leaf` command. Code woven into the core runtime, the server or a shared
+  the changes around it. Code woven into the core runtime, the server or a shared
   contract costs every nearby change, so it must clear a much higher bar. Signs it
   doesn't: a hold, carry or special case for one widget or gesture spread across
   several owners; a public API whose only callers are tests or a single example; a

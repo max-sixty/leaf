@@ -70,6 +70,12 @@ def compose_page_registry(
         from .validation import validate_registry
 
         validate_registry(registry, source)
+    else:
+        # The reused validation read these declarations with the modules they had
+        # then, and a module file can go while its declaration stands.
+        from .widgets import validate_modules
+
+        validate_modules(registry, source)
     if fresh or page_declarations:
         # Examples validate against the vocabulary as pages read it, stamped.
         stamp_composition(registry)

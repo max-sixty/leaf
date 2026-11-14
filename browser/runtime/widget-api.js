@@ -58,6 +58,8 @@ export {
   onCurrentLocation,
   onPress,
   onPressAway,
+  openLayer,
+  openerOf,
   rove,
 } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";

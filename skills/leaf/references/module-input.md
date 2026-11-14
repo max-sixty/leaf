@@ -258,10 +258,11 @@ Chromium that makes every focus move restyle the page.
 
 ### Layers
 
-A widget closing its own layer, such as a list over its contents, calls
+A widget opening its own layer, such as a list over its contents, calls
+`openLayer(layer)`, which records where focus was, and closes it with
 `closeLayer(close, land)`. `close` hides it, and `land` puts the user where closing takes
-them, usually `() => handBack(opener)`, with `opener` the control the user came from.
-`handBack(...destinations)` lands on the first destination that can take focus. The layer's Escape is an ordinary command row.
+them, usually `() => handBack(openerOf(layer))`. `handBack(...destinations)` lands on the
+first destination that can take focus. The layer's Escape is an ordinary command row.
 
 Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 `modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.

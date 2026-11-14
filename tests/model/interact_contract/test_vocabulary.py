@@ -135,6 +135,30 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     )
 
 
+def test_a_module_that_goes_is_refused_by_a_composition_validated_with_it(page_dir):
+    """A module's file decides whether its tag is upgraded, so a declaration can stand
+    unchanged while what it relies on goes. A composition reusing the validation of
+    the same declarations still refuses it, where it would otherwise serve a stateful
+    widget with nothing to draw or send its state."""
+    layer = registry_storage.load_registry(page_dir)
+    declarations = {"lf-local": _stateful_page_declaration(page_dir)}
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    layer_paths = set(registry_storage.layer_widgets(record, page_dir))
+
+    held = registry_page.compose_page_registry(
+        layer, declarations, {*layer_paths, "page/widgets/lf-local.js"}
+    )
+    assert held.widget_sources["lf-local"] == "page/widgets/lf-local.js"
+
+    finding = registry_refusal(
+        lambda: registry_page.compose_page_registry(
+            layer, declarations, layer_paths, validated=(layer, declarations)
+        )
+    )
+    assert (finding.code, finding.at) == ("needs-module", "<lf-local>")
+
+
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
     """`$states` is what the browser reads for a verb's writer and the operation an
     admitted event records, so it derives neither. A page's own declaration is stamped

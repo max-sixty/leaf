@@ -19,6 +19,7 @@ from render_harness import (
     open_page,
     page_comment,
     panel_control,
+    resized,
     scroll_settled,
     sending,
     stamp_page,
@@ -28,6 +29,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 
@@ -148,7 +150,11 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
             },
         )
     page = open_page(browser, url)
-    page.set_viewport_size({"width": 1440, "height": 320})
+    # The short window moves the workspace's reading regions, and the page puts back
+    # the place it recorded before them on the frame after; scrolling to the source
+    # before that has the page undo it (version.js, `restoreShifted`).
+    resized(page, 1440, 320)
+    rendered(page)
     heading = page.locator("h1")
     heading.evaluate(
         """(node, top) => {

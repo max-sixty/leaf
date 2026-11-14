@@ -672,8 +672,12 @@ export function shownRect(item, clips) {
 /** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] */
 export function seenRect(item, clips, box = placeBox(item)) {
   const holder = placeHolder(item);
-  const shown = holder && clippedPlace(item, clips, box);
-  return holder && shown ? inFront(shown, holder) : null;
+  // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
+  // shows nothing in front of the user, and its walk goes unread.
+  const { offsetTop, height } = visualViewport;
+  if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
+  const shown = clippedPlace(item, clips, box);
+  return shown ? inFront(shown, holder) : null;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers

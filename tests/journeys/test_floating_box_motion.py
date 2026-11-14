@@ -27,7 +27,7 @@ from hypothesis import HealthCheck, Phase, example, given, settings
 from hypothesis import strategies as st
 from render_harness import open_page, resized, scroll_settled, write
 
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -65,15 +65,8 @@ EDITS = st.one_of(
 def at_rest(page, composer):
     """Wait until what the last input set moving in the box has stopped."""
     rendered(page)
-    page.wait_for_function(
-        """({box, ring}) => [box, ring].every(selector => {
-          const node = document.querySelector(selector);
-          return !node || !(node.closest('.lf-box-ground') ?? node)
-            .getAnimations({subtree: true})
-            .some(motion => Number.isFinite(motion.effect?.getComputedTiming().endTime));
-        })""",
-        arg=COMPOSERS[composer],
-    )
+    box, ring = COMPOSERS[composer]["box"], COMPOSERS[composer]["ring"]
+    wait_for_probe(page, "restingIn", box, ring.removesuffix(" > .lf-box-ring"))
 
 
 def open_composer(page, composer):

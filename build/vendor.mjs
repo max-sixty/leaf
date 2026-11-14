@@ -572,6 +572,24 @@ const bundles = {
     },
     adapt: [
       {
+        // A changed-word mark locates an edit only where the old and new lines are
+        // mostly the same. Where most of a pair changed, marks cover most of both
+        // lines and point at nothing, so the pair stays two plain rows. The cutoff is
+        // delta's `--max-line-distance` default: the share of both lines' characters
+        // the word diff removed or added.
+        file: /@pierre\/diffs\/dist\/utils\/renderDiffWithHighlighter\.js$/,
+        edit: (source) =>
+          seam(
+            source,
+            '\tif (lineDiffType === "word-line") {',
+            "\tlet leafChanged = 0;\n" +
+              "\tfor (const item of lineDiff) if (item.added || item.removed) leafChanged += item.value.length;\n" +
+              "\tif (leafChanged > 0.6 * (deletionLine.length + additionLine.length)) return;\n" +
+              '\tif (lineDiffType === "word-line") {',
+            "Pierre changed-word distance",
+          ),
+      },
+      {
         file: /@pierre\/diffs\/dist\/highlighter\/backends\/shiki\.js$/,
         edit: (source) =>
           seam(

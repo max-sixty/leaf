@@ -579,6 +579,16 @@ def batch_data(
         if durable is not None
         else {}
     )
+    about = (
+        waiting_about(durable.all_obligations["all"], durable.threads, durable.within)
+        if durable is not None and any(event["kind"] == "action" for event in batch)
+        else None
+    )
+    in_thread = (
+        waiting_in_thread(durable.all_obligations["all"], durable.threads)
+        if durable is not None and replies
+        else None
+    )
 
     captured = []
     for event in batch:
@@ -589,25 +599,15 @@ def batch_data(
         entry.pop("attempt", None)
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
-        if durable is not None and (
-            waiting := waiting_about(
-                event["widget"],
-                durable.all_obligations["all"],
-                durable.threads,
-                durable.within,
-            )
-            if event["kind"] == "action"
+        if (
+            waiting := about(event["widget"])
+            if about is not None and event["kind"] == "action"
             else [
                 question
                 for thread in known["threads"]
-                for question in waiting_in_thread(
-                    thread,
-                    event["seq"],
-                    durable.all_obligations["all"],
-                    durable.threads,
-                )
+                for question in in_thread(thread, event["seq"])
             ]
-            if _users_words_in_a_thread(event)
+            if in_thread is not None and _users_words_in_a_thread(event)
             else None
         ):
             entry["waiting"] = waiting
@@ -1151,7 +1151,8 @@ def deliverable(
     Stop hook where no adapter runs, hands over the rest
     (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
     the same before it folds its pages (`hook_transport.new_input`)."""
-    pending = unacknowledged(page.events, page.cursor)
+    cursor = page.cursor
+    pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
@@ -1171,7 +1172,7 @@ def deliverable(
     advice = [
         event
         for event in page.events
-        if event["seq"] > page.cursor
+        if event["seq"] > cursor
         and event["kind"] == "render"
         and not event["attention"]
         and event["id"] not in held
@@ -1202,10 +1203,11 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     if claim is None or turn_closed(claim):
         return set()
     seqs = {event["id"]: event["seq"] for event in page.events}
+    cursor = page.cursor
     handed = {
         event_id
         for event_id in handed_into_turn(page.events, claim["id"], claim["turn"])
-        if seqs[event_id] > page.cursor
+        if seqs[event_id] > cursor
     }
     if not handed:
         return set()

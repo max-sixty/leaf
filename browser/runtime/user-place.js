@@ -75,7 +75,13 @@ import {
   stuckBox,
 } from "./geometry.js";
 import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
-import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
+import {
+  carriersOf,
+  edgeAt,
+  holderOf,
+  returnTo,
+  scrollersOf,
+} from "./scroll-containers.js";
 import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
@@ -131,7 +137,7 @@ export function focusPlace() {
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
   if (box && seenRect(box, new Map())) return node;
-  const boxes = [...scrollersOf(node)];
+  const boxes = [...carriersOf(node)];
   const [list] = boxes;
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
   if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
@@ -279,11 +285,14 @@ export function holdPlace(node, standIn = () => null) {
 //
 // The keep yields to any scroll since the reading: a scroll the user or a landing chose
 // and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), so it never
-// overrides a scroll under way. It yields to the user's own act since too, a press or a
-// key anywhere but in the field held (focus.js, `onUserInput`), whose result is its own
-// to place: a disclosure the user opened while a diff waited on its syntax grammar
-// moved 140px when the keep put the line read back. Words typed into the field held
+// smooth scroll or a wheel's glide, or has yet to start for the reader's input
+// (arrivals.js, `browserScrolls`), in any box whose scroll moves the place, the page
+// included for a place in a box Leaf anchors to its words (`carriersOf`), so it never
+// overrides a scroll under way. It yields
+// to the user's own act since too, a press or a key anywhere but in the field held
+// (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
+// opened while a diff waited on its syntax grammar moved 140px when the keep put the
+// line read back. Words typed into the field held
 // grow it where it stands, and leave it kept; focus leaving a place it named leaves
 // nothing of that place to keep. The user's own gesture draws its result in its own task and
 // places it there, so nothing here holds against it. Where the boxes scrolling the
@@ -374,11 +383,12 @@ export function holdUserPlace() {
     if (acted || scrollChoices() !== choices) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const boxes = [...scrollersOf(holderOf(place))];
-      if (boxes.some(browserScrolls)) return;
-      if ((focus && focused() !== node) || still.has(boxes[0])) continue;
+      const holder = holderOf(place);
+      if ([...carriersOf(holder)].some(browserScrolls)) return;
+      const [scroller] = scrollersOf(holder);
+      if ((focus && focused() !== node) || still.has(scroller)) continue;
       if (hold()) return;
-      still.add(boxes[0]);
+      still.add(scroller);
     }
   };
 }

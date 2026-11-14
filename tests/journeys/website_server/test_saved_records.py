@@ -6,7 +6,6 @@ import os
 import shutil
 import subprocess
 import sys
-import urllib.error
 import urllib.request
 
 import pytest
@@ -35,7 +34,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     page_dir, tmp_path, monkeypatch
 ):
     """A container's replacement recovers the record, not a second state model."""
-    from leaf_website.storage import restore
+    from leaf_website.storage import PageStoreRefused, restore
 
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
@@ -196,9 +195,12 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         with PageTransaction(private):
             pass
         assert len(stored["publications"]) == count
-        # Storage failure prevents success; retries can commit the local log.
+        # Storage failure prevents success, naming the store's reason; retries can
+        # commit the local log.
         stored["fail"] = True
-        with pytest.raises(urllib.error.HTTPError):
+        with pytest.raises(
+            PageStoreRefused, match="/publication answered 503: page store unavailable"
+        ):
             append_command(
                 private,
                 {

@@ -315,6 +315,25 @@ cases:
   ask-step:
     fork: turn-end
     page: turn-end-check/pages/cache-chosen.html
+    # A closed ask on another subject, which the step doesn't follow up.
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T08:40:00+00:00"
+        title: Which query log to replay
+        obligation: true
+        text: >-
+          Should the comparison replay last week's query log, about 1.2 million
+          queries, or the last month's, about 5 million, which takes four times as
+          long?
+      - kind: resolve
+        author: user
+        parent: q1
+        id: r1
+        ts: "2026-11-03T08:45:00+00:00"
     conversation:
       - from: cache
       - *cache-reply
@@ -324,6 +343,86 @@ cases:
       expect:
         - kind: question
           words: *flag-step
+          thread: null
+    assert:
+      - *items
+  ask-follow-up:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:02:00+00:00"
+        title: Turning on the LRU cache in staging
+        obligation: true
+        text: >-
+          Setting staging flags needs your ops login, which this session doesn't
+          have. Run `./ops/flags set search.cache lru --env staging` from your
+          terminal.
+      - kind: resolve
+        author: user
+        parent: q1
+        id: r1
+        ts: "2026-11-03T09:03:00+00:00"
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Turn the LRU cache on in staging.
+      - tool: Bash
+        input:
+          command: ./ops/flags set search.cache lru --env staging
+          description: Turn the LRU cache on in staging
+        result: "error: staging flags need an ops token (OPS_TOKEN unset); run `ops login` first"
+        error: true
+      - tool: Bash
+        input:
+          command: >-
+            leaf thread create {page} --obligation --title "Turning on the LRU cache
+            in staging" --text "Setting staging flags needs your ops login, which this
+            session doesn't have. Run `./ops/flags set search.cache lru --env
+            staging` from your terminal."
+          description: Ask on the page for the staging flag
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Turning on the LRU cache in staging", "obligation": true}'
+      - assistant: Setting staging flags needs your ops login, so I've asked you on the page to run the command from your terminal.
+      - user: |-
+          <task-notification>
+          <summary>Leaf: new input</summary>
+          </task-notification>
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
+          "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
+          staging flags needs your ops login, which this session doesn't have. Run
+          `./ops/flags set search.cache lru --env staging` from your terminal."}]}],
+          "handling": {"h1": "The user resolved the thread."}, "events": [{"kind":
+          "resolve", "parent": "q1", "author": "user", "id": "r1", "handling":
+          ["h1"]}]}]}
+      - tool: Bash
+        input:
+          command: ./ops/flags get search.cache --all-envs
+          description: Check where the cache flag is set
+        result: |-
+          search.cache=lru (dev, set 2026-11-03T09:02Z)
+          search.cache unset (staging)
+      - assistant: |-
+          You closed the thread, but staging still doesn't have the LRU cache: the flag went to dev at 09:02, not staging. Run this from your terminal, with `--env staging`:
+
+          ```
+          ./ops/flags set search.cache lru --env staging
+          ```
+
+          I'll check staging once you have.
+    labels:
+      expect:
+        - kind: question
+          words: *flag-step
+          thread: q1
     assert:
       - *items
   ask-step-done:

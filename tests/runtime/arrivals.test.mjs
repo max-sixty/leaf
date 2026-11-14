@@ -23,6 +23,7 @@ const {
   holdScroll,
   scrolling,
   setScroll,
+  startReaderScroll,
   stopWhereItStands,
   watchScrollEnds,
 } = await import("/runtime/arrivals.js");
@@ -487,15 +488,35 @@ test("an instant write reaches a box only where it moves it, and a stop writes w
   assert.deepEqual(reversed.writes, [0]);
   reversed.box.remove();
   // While the browser drives a scroll in the box, a restated position still writes
-  // nothing, and only a stop writes where the box stands, which leaves it the script's.
+  // nothing, and only a stop writes where the box stands, smoothly and then at once,
+  // which leaves it the script's.
   const moving = scroller(0, 300, 120);
   moving.box.dispatchEvent(new window.Event("scroll"));
   assert.equal(browserScrolls(moving.box), true);
   setScroll(moving.box, { top: moving.box.scrollTop });
   assert.deepEqual(moving.writes, []);
   stopWhereItStands(moving.box);
-  assert.deepEqual(moving.writes, [120]);
+  assert.deepEqual(moving.writes, [120, 120]);
   assert.equal(browserScrolls(moving.box), false);
   moving.box.dispatchEvent(new window.Event("scrollend"));
+  // The reader's input makes the box the browser's before it moves, and the end of a
+  // scroll heard while it still stands where the input found it ends nothing of theirs.
+  startReaderScroll(moving.box);
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.scrollTo({ top: 60 });
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), false);
+  // Where the browser applied the input's scroll before the input was heard, as
+  // Chromium can a wheel's, the input found the box where the page last heard it, so
+  // the end of that scroll ends the reader's sequence.
+  moving.box.dispatchEvent(new window.Event("scroll"));
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  moving.box.scrollTo({ top: 200 });
+  startReaderScroll(moving.box);
+  assert.equal(browserScrolls(moving.box), true);
+  moving.box.dispatchEvent(new window.Event("scrollend"));
+  assert.equal(browserScrolls(moving.box), false);
   moving.box.remove();
 });

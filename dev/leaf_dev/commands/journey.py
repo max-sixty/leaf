@@ -2,7 +2,8 @@
 the page's own record and checked.
 
     uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
-                                   [--sandbox] [--preview]
+                                   [--sandbox] [--preview] [--forks]
+                                   [--case waiting|working]
 
 The user tells the agent that a release passed its deployment checks, asking it to
 record that on the board. How the page records it is the agent's call, as with a

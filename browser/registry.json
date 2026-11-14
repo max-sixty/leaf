@@ -221,21 +221,25 @@
     "description": "The semantic tints this layer paints, and the full list an author may use: validation refuses any other word, and the theme has a rule for each. A widget marks an attribute as naming a tone with x-tone, and composing the vocabulary writes this list into that attribute's `enum`, so a new tag taking a tone needs only that declaration. The list is short on purpose: a page that can tint anything conveys nothing, and the palette supports three. The author decides which facts get a tint, since only the author knows whether a value is good news; `ok` on one page and `danger` on another may mark the same word.",
     "names": ["ok", "warn", "danger"]
   },
-  "button.button": {
-    "description": "A button styled like Leaf's controls, for an action your page module handles along with any state. For a toggle, set `aria-pressed`, and `true` draws it selected.",
-    "x-example": "<button type=\"button\" class=\"button\" aria-pressed=\"true\">Anchored threads</button>"
+  "button.lf-btn, button.lf-btn.lf-commit": {
+    "description": "A button styled like Leaf's controls, for an action your page module handles along with any state; add `lf-commit` for the action that commits the page's work, as Leaf's own Send and Done do. For a toggle, set `aria-pressed`, and `true` draws it selected.",
+    "x-example": "<button type=\"button\" class=\"lf-btn\" aria-pressed=\"true\">Anchored threads</button>\n<button type=\"submit\" class=\"lf-btn lf-commit\">Generate</button>"
   },
   "[data-room]": {
     "description": "Space for changing one-line text, sized from newline-separated representative widest strings. Its only child holds the visible text. See page-layout.md, Space for changing text, for use and clipping limits.",
-    "x-example": "<button class=\"button\" data-room=\"Save&#10;Saving\u2026&#10;Saved\"><span>Save</span></button>"
+    "x-example": "<button class=\"lf-btn\" data-room=\"Save&#10;Saving\u2026&#10;Saved\"><span>Save</span></button>"
   },
-  "select.field, input.field": {
+  "select.lf-field, input.lf-field": {
     "description": "A labeled select or single-line text field for the page's own script, matching Leaf's buttons. Use the class rather than restyling the field in page CSS; page CSS only arranges the row.",
-    "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"field\"><option>Short exchange</option><option>Long exchange</option></select>"
+    "x-example": "<label for=\"preview-case\">Conversation</label>\n<select id=\"preview-case\" class=\"lf-field\"><option>Short exchange</option><option>Long exchange</option></select>"
   },
-  "label.choice": {
+  "label.lf-choice": {
     "description": "A compact native radio or checkbox with a clickable label. The label supplies the hit area and focus ring; the native mark shows selection without a surrounding box. Group radios by name. The page or widget owns changes to its value.",
-    "x-example": "<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"summary\" checked>Summary</label>\n<label class=\"choice\"><input type=\"radio\" name=\"detail\" value=\"full\">Full detail</label>"
+    "x-example": "<label class=\"lf-choice\"><input type=\"radio\" name=\"detail\" value=\"summary\" checked>Summary</label>\n<label class=\"lf-choice\"><input type=\"radio\" name=\"detail\" value=\"full\">Full detail</label>"
+  },
+  ".lf-scroll": {
+    "description": "A box the page's CSS scrolls, such as a wide trace given `overflow-x: auto`. Leaf contains its positioned descendants and adds keyboard access and continuation cues when its content exceeds it, measuring this box rather than every descendant. The page's CSS owns its overflow, including at breakpoints. Leaf fits an image, SVG or video to its container, so give media inside the box `max-width: none` to keep its drawn width.",
+    "x-example": "<div id=\"timeline\" class=\"lf-scroll\" style=\"overflow-x: auto\"><svg width=\"1600\" style=\"max-width: none\" height=\"120\" role=\"img\" aria-label=\"Every request across the hour\"></svg></div>"
   },
   "table": {
     "description": "Rows of one shape compared column by column, such as runs per configuration. On a page that wears the reading face, as a themed page does, columns size to their content, and a table wider than the measure wraps its cells, or scrolls inside itself once they can wrap no further, so set no widths or wrapping on it or its cells; a page without the face keeps the browser's table. Under the face, put identifiers such as test names and paths in `<code>`, which can break inside a cell; a bare identifier is one unbreakable word that holds its column wide and squeezes the others. `page check --render` warns when a table scrolls sideways while one of its cells wraps. A bare `<th>` is a column heading, drawn as a small muted label; `<th scope=\"row\">` names a row, in bold at the body's size. Add a `<caption>` when the section's heading doesn't say what the columns mean. For a few headline figures, put each figure in its own `dl` inside a `layout-tiles` block instead, and for alternatives the user picks between, use `lf-options`.",

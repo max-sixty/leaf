@@ -89,7 +89,6 @@ const outlineOf = (node) => documentOutline(authoredScope(node));
 /** @param {readonly unknown[] | undefined} kept @param {readonly unknown[]} key */
 const current = (kept, key) =>
   kept?.every((part, index) => part === key[index]) ?? false;
-export const pageOutline = () => documentOutline(pageDocument()).outline;
 /** The heading after `heading` in its document's outline, or null.
  * @param {Element} heading */
 export function headingAfter(heading) {
@@ -296,21 +295,35 @@ const level = (heading) => Number(heading.localName.slice(1));
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
-// distinguishable after a route leaves the page. Unique subjects keep the author's own
-// concise name. Page Map consumes this reading so navigation cannot add context that its
-// destination drops.
-/** @param {Element} target @param {readonly Element[]} [peers] @param {readonly Element[]} [outline] */
-export function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
-  const label = subjectLabel(target);
-  const repeated =
-    outline.includes(target) &&
-    peers.some(
-      (candidate) =>
-        candidate !== target &&
-        outline.includes(candidate) &&
-        subjectLabel(candidate) === label,
-    );
-  return { label, context: repeated ? regionLabel(target) : "" };
+// distinguishable after a route leaves the page: the name of that region, its context.
+// Unique subjects keep the author's own concise name, and take none. Page Map consumes
+// this reading so navigation cannot add context that its destination drops. A subject
+// is repeated where another of `peers` in the page's outline has its label; the peers
+// are counted by label once, so each target's context costs one lookup rather than a
+// walk of the others, and a target outside the outline reads no label at all.
+/** @param {readonly Element[]} peers @returns {(target: Element) => string} */
+export function outlineContexts(peers) {
+  const { at } = documentOutline(pageDocument());
+  /** @type {Map<Element, string>} */
+  const labels = new Map();
+  /** @param {Element} target */
+  const labelOf = (target) => {
+    const kept = labels.get(target);
+    if (kept !== undefined) return kept;
+    const label = subjectLabel(target);
+    labels.set(target, label);
+    return label;
+  };
+  const named = new Set(peers.filter((peer) => at.has(peer)));
+  /** @type {Map<string, number>} */
+  const counted = new Map();
+  for (const peer of named)
+    counted.set(labelOf(peer), (counted.get(labelOf(peer)) ?? 0) + 1);
+  return (target) => {
+    if (!at.has(target)) return "";
+    const others = (counted.get(labelOf(target)) ?? 0) - (named.has(target) ? 1 : 0);
+    return others > 0 ? regionLabel(target) : "";
+  };
 }
 
 // The name of the nearest region around a node that has one: a bounded block inside a

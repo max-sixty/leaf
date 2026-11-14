@@ -32,9 +32,7 @@ function readDocumentLayout() {
   // the one is never read as the other (root-headers.js).
   readPageHead();
   syncLayoutRegion();
-  const header =
-    [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
-    null;
+  const header = layoutHeader();
   if (header !== watchedHead) {
     headSizes ??= sizeObserver(scheduleDocumentLayout);
     if (watchedHead) headSizes.unobserve(watchedHead);
@@ -173,10 +171,15 @@ const title = () => {
 // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
 // stylesheet's to say; this reads its computed position.
 const HEAD = "--lf-layout-head-h";
+// Read off the box's children rather than by `:scope >`, which walks every element under
+// the box to find one of its children (passages.js, `partsOf`).
+const layoutHeader = () =>
+  [...(layoutBox()?.children ?? [])].find((child) => child.localName === "header") ??
+  null;
 const head = () => {
   const body = document.body;
   if (!body) return false;
-  const header = layoutBox()?.querySelector(":scope > header");
+  const header = layoutHeader();
   const value =
     header && getComputedStyle(header).position === "sticky"
       ? `${Math.ceil(header.getBoundingClientRect().height)}px`

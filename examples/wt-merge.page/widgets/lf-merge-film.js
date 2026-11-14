@@ -13,7 +13,8 @@
 // runs, so a first look (or a capture) reads the setup at once. Play continues from
 // the displayed moment; Replay restarts a finished film.
 //
-// Every paint dispatches `film-frame` with the chapter, its caption and the run's status,
+// Every paint publishes the moment it shows as the `frame` output (the chapter, its
+// caption and the run's status per step), which Leaf passes on only when it changed,
 // so the page can tell the current step beside the film.
 
 import {
@@ -28,6 +29,7 @@ import {
   offer,
   once,
   preserveReadingRegions,
+  publishOutput,
   registerReadingRegion,
   registerVisualParts,
   scrollIntoView,
@@ -208,11 +210,6 @@ customElements.define(
       this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;
-    }
-
-    // Dispatch film-frame for the current moment, for a listener that arrived late.
-    announce() {
-      this.#paint();
     }
 
     seek(t) {
@@ -465,17 +462,12 @@ customElements.define(
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
       this.parts.update();
-      this.dispatchEvent(
-        new CustomEvent("film-frame", {
-          bubbles: true,
-          detail: {
-            chapter: fr.chapter,
-            caption: fr.caption,
-            captionTone: fr.captionTone,
-            status: this.#film.status,
-          },
-        }),
-      );
+      publishOutput(this, "frame", {
+        chapter: fr.chapter,
+        caption: fr.caption,
+        captionTone: fr.captionTone,
+        status: this.#film.status,
+      });
       // The composition replaces controls, so hand the user's place across under
       // the same line identity; the focus owner handles an already-moved user.
       if (

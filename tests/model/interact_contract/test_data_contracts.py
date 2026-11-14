@@ -515,7 +515,6 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
                     "contract": "rows",
                     "source": "source",
                     "reference": "for",
-                    "output": "rows",
                 }
             },
             "x-refers": {"for": {}},
@@ -524,12 +523,13 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
 
     def errors(binding):
         document = SourceDocument(
-            f'<lf-producer id="feed"></lf-producer><lf-consumer id="consumer" {binding}></lf-consumer>'
+            '<lf-producer id="feed"></lf-producer><p id="plain">Words</p>'
+            f'<lf-consumer id="consumer" {binding}></lf-consumer>'
         )
         records = document.lf_elements
         by_id = {rec["attrs"]["id"]: rec for rec in records}
         return widget_errors(records, registry) + reference_errors(
-            records, registry, set(by_id), by_id, thread_ids=set()
+            records, registry, document.ids, by_id, thread_ids=set()
         )
 
     assert errors('for="feed"') == []
@@ -540,7 +540,16 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     registry["lf-consumer"]["x-data"]["rows"].pop("source")
     registry["lf-consumer"]["properties"].pop("source")
     assert errors('for="feed"') == []
-    registry["lf-producer"]["x-output"]["rows"]["contract"] = "other"
+    # The input reads the one output of its contract, whatever the producer names it.
+    registry["lf-producer"]["x-output"]["more"] = {"contract": "other"}
+    assert errors('for="feed"') == []
+    registry["lf-producer"]["x-output"]["more"]["contract"] = "rows"
+    several = errors('for="feed"')
+    assert [finding.code for finding in several] == ["output-contract"]
+    assert "'rows', 'more'" in str(several[0])
+    registry["lf-producer"]["x-output"] = {"rows": {"contract": "other"}}
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     registry["lf-producer"].pop("x-output")
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
+    assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
+    assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]

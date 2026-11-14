@@ -972,7 +972,9 @@ _TEXT = {
         f"{_line(at, v)}: input {v['input']!r} binds both an external source and widget output"
     ),
     "output-contract": lambda at, v: (
-        f"{_line(at, v)}: input {v['input']!r} requires output {v['output']!r} of {v['target']!r} with contract {v['contract']!r}"
+        f"{_line(at, v)}: input {v['input']!r} reads the one output of {v['target']!r}"
+        f" with contract {v['contract']!r}, and it declares "
+        + (", ".join(repr(name) for name in v["outputs"]) or "none")
     ),
     "shows-outside": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget outside its own'

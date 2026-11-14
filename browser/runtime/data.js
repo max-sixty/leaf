@@ -8,14 +8,21 @@
    `value` (element-data.js, "Bound values"). A widget-output binding yields
    `{contract, value, origin}` with derived-widget provenance, without a fabricated
    source revision or run. Each object value names the snapshot that supplied it
-   (`suppliedSnapshot`), so whoever holds the value can name its revision. Outputs join
-   the immutable application publication and the same presentation barrier as sources.
+   (`suppliedSnapshot`), so whoever holds the value can name its revision.
+
+   This module keeps widget outputs, outside the application state: a mounted widget
+   derives each one, and no reading of the log or the page's other state depends on it.
+   Publishing one derives nothing, publishes no root and runs no selection, so only its
+   readers hear it. The proof that a reader has drawn is the one every `LeafElement`
+   has: its region is claimed in the stack that published (`requestUpdate`,
+   leaf-element.js), so the page reads as presented only after the draw.
+
    What a source shows moves only as state application delivers, and each element that
    draws data holds the data version until its region has drawn the delivery
    (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
    fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
 
-import { computed, signal, untracked } from "/runtime/framework.js";
+import { computed, share, signal, untracked } from "/runtime/framework.js";
 import { runtime } from "./context.js";
 import { applicationState, whenApplicationRegionsPresented } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -92,22 +99,12 @@ export function observeOutputs(observe) {
   return () => outputObservers.delete(observe);
 }
 
-// Mounted widgets own their derived values. The publication holds the immutable
-// reading, while this weak lifetime record only lets a retained node return with it.
+// What each widget has published, kept with its element so a retained node returns with
+// it, and read only while the widget stands. `outputsMoved` says a reader's reading may
+// have moved: a producer's connection, or a value that differs from the one it held.
 /** @type {WeakMap<Element, {values: Map<string, OutputReading | null>, connected: boolean}>} */
 const outputOwners = new WeakMap();
-/** @type {WeakMap<Element, string>} */
-const outputKeys = new WeakMap();
-let outputSequence = 0;
-/** @param {Element} element */
-function outputKey(element) {
-  let key = outputKeys.get(element);
-  if (key === undefined) {
-    key = `output:${++outputSequence}`;
-    outputKeys.set(element, key);
-  }
-  return key;
-}
+const outputsMoved = signal(0);
 /** @param {Element} element @param {string} output @param {unknown} value */
 function acceptOutput(element, output, value) {
   const declaration = registry[element.localName]?.["x-output"]?.[output];
@@ -124,20 +121,19 @@ function acceptOutput(element, output, value) {
     watchOwner(element, {
       connect() {
         connectedOwner.connected = true;
-        for (const [name, reading] of connectedOwner.values)
-          applicationState.publishOutput(outputKey(element), name, reading);
+        tick(outputsMoved);
       },
       disconnect() {
         connectedOwner.connected = false;
-        for (const name of connectedOwner.values.keys())
-          applicationState.publishOutput(outputKey(element), name, null);
+        tick(outputsMoved);
       },
     });
   }
+  const held = owner.values.get(output) ?? null;
   const reading =
     value === null
       ? null
-      : { contract: declaration.contract, value: structuredClone(value) };
+      : share(held, { contract: declaration.contract, value: structuredClone(value) });
   for (const observe of outputObservers)
     observe({
       element,
@@ -146,65 +142,83 @@ function acceptOutput(element, output, value) {
       value: reading === null ? null : reading.value,
     });
   owner.values.set(output, reading);
-  if (owner.connected)
-    applicationState.publishOutput(outputKey(element), output, reading);
+  if (owner.connected && reading !== held) tick(outputsMoved);
 }
 
-/** @typedef {{contract: string, source?: string} & ({reference: string, output: string} | {reference?: never, output?: never})} DataInput */
-/** @param {Element} element @param {DataInput} declaration @param {string} input */
-function inputBinding(element, declaration, input) {
-  const source = declaration.source ? element.getAttribute(declaration.source) : null;
-  const referenced = declaration.reference
-    ? {
-        attribute: declaration.reference,
-        output: declaration.output,
-        widget: element.getAttribute(declaration.reference),
-      }
-    : null;
-  const widget = referenced?.widget;
-  if (source && widget)
-    throw new Error(
-      `<${element.localName}> input binds both an external source and widget output`,
-    );
-  if (declaration.reference) requireReference("data", element, declaration.reference);
+/** @typedef {{contract: string, source?: string, reference?: string}} DataInput */
+
+// The reading of one source, which moves only as state application delivers: the
+// accepted one claims the element's region inside the publication that accepts it, and
+// the delivered one draws, so a reading accepted for a revision still being activated
+// never draws into the document it replaces. The first read takes the accepted reading.
+/** @param {string} source @param {DataInput} declaration @param {string} input @param {() => void} accepted */
+function deliveredSource(source, declaration, input, accepted) {
   const selected = applicationState.select(
     /** @returns {DataSnapshot | null} */ (root) => {
-      if (source) {
-        const reading = Object.hasOwn(root.data.sources, source)
-          ? root.data.sources[source]
-          : null;
-        return reading
-          ? {
-              source,
-              ...reading,
-              origin: {
-                input,
-                source,
-                contract: declaration.contract,
-                revision: reading.revision,
-              },
-            }
-          : null;
-      }
-      if (!referenced?.widget) return null;
-      const producer = referencedProjection(
-        element,
-        referenced.attribute,
-        referenced.widget,
-      );
-      if (!producer) return null;
-      const key = outputKey(producer);
-      const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
-      const reading =
-        outputs && Object.hasOwn(outputs, referenced.output)
-          ? outputs[referenced.output]
-          : null;
+      const reading = Object.hasOwn(root.data.sources, source)
+        ? root.data.sources[source]
+        : null;
       return reading
-        ? { ...reading, origin: { derived: [{ widget: referenced.widget }] } }
+        ? {
+            source,
+            ...reading,
+            origin: {
+              input,
+              source,
+              contract: declaration.contract,
+              revision: reading.revision,
+            },
+          }
         : null;
     },
   );
-  return { source, widget, selected };
+  /** @type {(() => void) | null} */
+  let stopAccepted = null;
+  return computed(
+    () => {
+      deliveries.value;
+      return untracked(selected.read);
+    },
+    {
+      watched() {
+        let seen = untracked(selected.read);
+        stopAccepted = selected.subscribe((now) => {
+          if (now === seen) return;
+          seen = now;
+          accepted();
+        });
+      },
+      unwatched() {
+        stopAccepted?.();
+        stopAccepted = null;
+      },
+    },
+  );
+}
+
+// The reading of a bound widget's output of `contract`, resolved in the reader's authored
+// scope each time an output moves, so it follows the instance standing under the bound
+// id. `page check` holds that widget to one output of the contract.
+/** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
+function publishedOutput(element, attribute, widget, contract) {
+  const reading = computed(() => {
+    outputsMoved.value;
+    return untracked(() => {
+      const producer = referencedProjection(element, attribute, widget);
+      const owner = producer && outputOwners.get(producer);
+      if (!owner?.connected) return null;
+      for (const held of owner.values.values())
+        if (held?.contract === contract) return held;
+      return null;
+    });
+  });
+  return computed(
+    /** @returns {DataSnapshot | null} */ () =>
+      reading.value && {
+        ...reading.value,
+        origin: { derived: [{ widget }] },
+      },
+  );
 }
 
 // The snapshot each delivered object value came from. An object is one delivery's copy,
@@ -243,53 +257,38 @@ export function awaitsData(element) {
   );
 }
 
-// An element's reader of one bound input (element-data.js): the delivered source
-// reading, read through a selection of that source, so a render that reads it is drawn
-// again when the source moves. Markup owns the binding, captured at the first read, so
-// module code cannot turn a live attribute mutation into an unvalidated rebind; a
-// revision that rebinds mounts a new element.
+// An element's reader of one bound input (element-data.js), read through a signal, so a
+// render that reads it is drawn again when its reading moves. Markup owns the binding,
+// captured at the first read, so module code cannot turn a live attribute mutation into
+// an unvalidated rebind; a revision that rebinds mounts a new element.
 /** @param {Element} element @param {string} input @param {() => void} accepted @returns {() => DataSnapshot | null} */
 export function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
-  const { source, widget, selected } = inputBinding(element, declaration, input);
-  // What the element shows moves only as state application delivers, so a reading
-  // accepted for a revision still being activated never draws into the document it
-  // replaces. The first read takes the accepted reading.
-  /** @type {(() => void) | null} */
-  let stopAccepted = null;
-  const delivered = computed(
-    () => {
-      deliveries.value;
-      return untracked(selected.read);
-    },
-    {
-      watched() {
-        let seen = untracked(selected.read);
-        stopAccepted = selected.subscribe((now) => {
-          if (now === seen) return;
-          seen = now;
-          accepted();
-        });
-      },
-      unwatched() {
-        stopAccepted?.();
-        stopAccepted = null;
-      },
-    },
-  );
+  const source = declaration.source ? element.getAttribute(declaration.source) : null;
+  const widget = declaration.reference
+    ? element.getAttribute(declaration.reference)
+    : null;
+  if (source && widget)
+    throw new Error(
+      `<${element.localName}> input binds both an external source and widget output`,
+    );
+  if (declaration.reference) requireReference("data", element, declaration.reference);
+  const bound = source
+    ? deliveredSource(source, declaration, input, accepted)
+    : widget && declaration.reference
+      ? publishedOutput(element, declaration.reference, widget, declaration.contract)
+      : null;
   /** @type {DataSnapshot | null} */
   let reported = null;
   /** @type {{store: DataSnapshot, value: DataSnapshot} | null} */
   let copied = null;
   return () => {
-    // The accepted reading claims the element's region inside the publication that
-    // accepts it; the delivered one draws.
-    const sourceStore = widget ? selected.read() : delivered.value;
+    const sourceStore = bound?.value ?? null;
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
       reported = sourceStore;
       reportPageError(
-        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
+        `data source ${source} carries contract ${sourceStore.contract}; ` +
           `<${element.localName}> input ${input} requires ${declaration.contract}`,
       );
     }

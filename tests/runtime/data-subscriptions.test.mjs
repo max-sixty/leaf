@@ -335,7 +335,7 @@ function outputScene(draw) {
     },
     [consumerTag]: {
       "x-data": {
-        rows: { reference: "for", output: "rows", contract: "rows", property: "value" },
+        rows: { reference: "for", contract: "rows", property: "value" },
       },
       "x-refers": { for: {} },
     },

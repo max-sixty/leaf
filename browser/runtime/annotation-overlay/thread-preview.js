@@ -638,7 +638,7 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session */
   function measureThreadCard(room, cap, reading, session) {
-    preview.style.setProperty("max-width", layoutPx(room));
+    preview.style.setProperty("max-width", layoutPx(room, preview.currentCSSZoom));
     const transcript = session.transcript;
     // Growing a top-held card may reveal new words below, but must not reveal lines
     // the reader had already scrolled past. Leave that scroll travel in its transcript.
@@ -827,7 +827,10 @@ export function createThreadPreview({
             );
             preview.style.setProperty(
               "min-width",
-              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
+              layoutPx(
+                session.width === null ? Math.min(cardMinimum(), room) : room,
+                preview.currentCSSZoom,
+              ),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge

@@ -363,7 +363,9 @@ whole document. `keeps(node, name, value)` writes an attribute only when it woul
 back differently; pass booleans and counts as they are, and `null` to remove it.
 `keepsText(node, text)` and `keepsHidden(node, hidden)` do the same for words and
 `hidden`. Write a measured length into a style as `layoutPx(length)`, which rounds to
-layout's 1/64px; `atLayoutPrecision(length)` returns the rounded number.
+layout's 1/64px, or `layoutPx(length, box.currentCSSZoom)` for a box's own size, which
+a CSS zoom lays out in zoomed pixels; `atLayoutPrecision(length)` returns the rounded
+number.
 
 ## Contained examples and scoped appearance
 

@@ -117,7 +117,12 @@ export function timelineModel(host) {
 }
 
 /** The ruler's width and the labels' widest font determine geometry, independently
- * of the selected step. End labels read back from their mark when they fit. */
+ * of the selected step. A label's stroke stands at its event's moment, so the label
+ * reads on from its mark where it fits, back from it where it fits, and otherwise
+ * toward the roomier side, its words cut short at the ruler's edge. A label moved
+ * clear of its mark to show every word would leave its stroke at a time the event
+ * isn't, or no stroke at all; the step list below the chart gives every label
+ * whole. */
 /** @param {ReturnType<typeof timelineModel>} model @param {number} width @param {string} font */
 export function timelineLayout(model, width, font) {
   const span = Math.max(1, width - 2 * EDGE);
@@ -125,11 +130,11 @@ export function timelineLayout(model, width, font) {
   const rows = model.lanes.map((lane) => {
     const labels = lane.events.map((event) => {
       const anchor = EDGE + (event.at / model.duration) * span;
-      const size = Math.min(width, textWidth(event.label, font) + LABEL_CHROME);
-      const place =
-        anchor + size <= width ? "start" : anchor - size >= 0 ? "flip" : "end";
-      const left =
-        place === "start" ? anchor : place === "flip" ? anchor - size : width - size;
+      const wanted = textWidth(event.label, font) + LABEL_CHROME;
+      const ahead = width - anchor;
+      const place = wanted <= ahead || ahead >= anchor ? "start" : "flip";
+      const size = Math.min(wanted, place === "start" ? ahead : anchor);
+      const left = place === "start" ? anchor : anchor - size;
       return { id: event.id, left, size, place };
     });
     const rowOf = assignRows(

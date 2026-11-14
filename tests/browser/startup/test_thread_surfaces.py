@@ -89,7 +89,6 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
                 "property": "value",
             }
         },
-        "x-thread-surface": True,
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
@@ -520,7 +519,6 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
                 "property": "value",
             }
         },
-        "x-thread-surface": True,
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
@@ -676,7 +674,6 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
                 "property": "value",
             }
         },
-        "x-thread-surface": True,
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """

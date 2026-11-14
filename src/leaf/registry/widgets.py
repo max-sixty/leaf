@@ -371,7 +371,6 @@ def _validate_widget_interactions(
             "x-state",
             "x-verbatim",
             "x-shadow",
-            "x-thread-surface",
             "x-thread-seat",
             "x-history",
             "x-patch",

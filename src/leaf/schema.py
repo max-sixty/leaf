@@ -413,7 +413,6 @@ EXTENSION_SCHEMA = {
             "additionalProperties": False,
         },
         "x-state": STATE_SCHEMA,
-        "x-thread-surface": {"const": True},
         "x-unique": {
             "type": "object",
             "minProperties": 1,

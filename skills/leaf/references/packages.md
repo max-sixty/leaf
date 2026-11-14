@@ -253,16 +253,15 @@ since `page check` requires its value to name an element the page holds.
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Key                | Shipped example                                                |
-| ------------------ | -------------------------------------------------------------- |
-| `x-reading-role`   | `lf-pane`                                                      |
-| `x-visual`         | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
-| `x-bound`          | `lf-activity`                                                  |
-| `x-height`         | `lf-chart`                                                     |
-| `x-history`        | `lf-activity`                                                  |
-| `x-patch`          | `lf-tabs`                                                      |
-| `x-views`          | `lf-tabs`                                                      |
-| `x-thread-surface` | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
+| Key              | Shipped example                                                |
+| ---------------- | -------------------------------------------------------------- |
+| `x-reading-role` | `lf-pane`                                                      |
+| `x-visual`       | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
+| `x-bound`        | `lf-activity`                                                  |
+| `x-height`       | `lf-chart`                                                     |
+| `x-history`      | `lf-activity`                                                  |
+| `x-patch`        | `lf-tabs`                                                      |
+| `x-views`        | `lf-tabs`                                                      |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

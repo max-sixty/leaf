@@ -1483,7 +1483,7 @@ customElements.define(
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
     }
 
-    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // The widget's thread surface: Leaf asks for one outlet, or null, per target it hands over, and
     // the outlets this placement no longer uses come down once it commits.
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/thread/surfaces.js").OutletContext} context */
     threadOutlets(targets, { onCommit }) {

@@ -634,7 +634,7 @@ summary {
   }
 }
 /* The shared boxes of a registry-declared widget thread. The widget places it.
-   The same Thread view may be seated inside an x-thread-surface shadow tree, so this
+   The same Thread view may be seated inside a widget's shadow tree, so this
    whole vocabulary is in this file. */
 .lf-thread-seat {
   display: none;

@@ -230,8 +230,9 @@ gallery's `lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 
-A widget that declares `"x-thread-surface": true` shows threads beside its own projected
-data, as `lf-diff` does beside lines. Leaf calls its
+A widget whose element has a `threadOutlets` method shows threads beside its own
+projected data, as `lf-diff` does beside lines; the method is the declaration, and the
+registry says nothing. Leaf calls
 `threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
 with the threads anchored exactly to its data and the open comment box. Return, in the
 same order, an outlet for each target or `null`, or a promise of that array; an

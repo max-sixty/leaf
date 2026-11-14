@@ -15,14 +15,14 @@ vars:
 
     Read the public package references and show the supported code that seats them.
     Leaf should retain its normal conversations, drafts, and fallback for comments
-    whose rows aren't visible. Return the JavaScript and required registry declaration.
+    whose rows aren't visible. Return the JavaScript and any registry declaration it needs.
 assert:
   - type: llm-rubric
     metric: resolves-local-outlets
     value: |
-      Pass only if the widget declares x-thread-surface: true and implements
-      threadOutlets(targets) on the element, which Leaf calls, rather than registering
-      or unregistering a surface itself. threadOutlets uses Leaf's ordered target batch,
+      Pass only if the widget implements threadOutlets(targets) on the element, which
+      Leaf calls, rather than registering or unregistering a surface itself, and says
+      no registry key declares it. threadOutlets uses Leaf's ordered target batch,
       returns a matching array of outlets or null, and runs beginThreadSurface and
       endThreadSurface around the batch. It must let core retain the Thread/composer
       identities and perform placement, rather than enumerating/filtering the complete

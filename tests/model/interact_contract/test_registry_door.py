@@ -194,7 +194,6 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
         ("x-refers", {}),
         ("x-says", []),
         ("x-state", []),
-        ("x-thread-surface", False),
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
@@ -503,7 +502,6 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     [
         ("lf-options", "x-state", None),
         ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
-        ("lf-diff", "x-thread-surface", True),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):

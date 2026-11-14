@@ -607,7 +607,7 @@ function createApplication(dependencies) {
       throw error;
     }
   };
-  // The widgets declaring x-thread-surface, registered for as long as they stand, once
+  // The widgets with `threadOutlets`, registered for as long as they stand, once
   // the registry that names them has loaded.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */

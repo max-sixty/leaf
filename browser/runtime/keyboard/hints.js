@@ -296,11 +296,15 @@ export function seatHints(
   const clear = Math.max(gap, band);
   // Side by side, two chips stand `apart`, well clear of the 1px between one code's own
   // keycaps (`.lf-binding-sequence`, chrome.css), so a row of two-letter chips reads as
-  // codes: touching, `na` and `nd` read as `n a n d`. Stacked chips keep only `clear`,
+  // codes: touching, `na` and `ng` read as `n a n g`. Stacked chips keep only `clear`,
   // since a code reads across. Until 14 November 2026 chips could touch side by side.
   const apart = 6;
   /** @param {HintBox} box @returns {HintBox} */
-  const widened = (box) => ({ ...box, left: box.left - apart, right: box.right + apart });
+  const widened = (box) => ({
+    ...box,
+    left: box.left - apart,
+    right: box.right + apart,
+  });
   const edgeLeft = viewport.left + band;
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;

@@ -225,7 +225,7 @@ test("a before chip stands level with its target's first line, so each row in a 
 
 test("chips side by side stand further apart than a code's own keycaps", () => {
   // A film's slots each as wide as a two-letter chip, whose seats above them would touch:
-  // touching, `na` and `nd` read as `n a n d`.
+  // touching, `na` and `ng` read as `n a n g`.
   const slots = Array.from({ length: 8 }, (_, at) => box(100 + 30 * at, 100, 30, 60));
   const seated = seatHints(
     slots.map((target) => ({

@@ -289,8 +289,8 @@ touches:
   `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, or the watch between turns
   in `session.py`. Add `--sandbox` after a change to `bridge.py`, the README's "Agent
   sandboxes" settings, or what a `leaf` command needs from outside its page directory,
-  and `--forks` after a change to `forks.py` or the module's `lineFork`, and
-  `--fork-work` after one to `holding.py` or its `workFork`.
+  and `--forks` and `--fork-work` after a change to `forks.py`, `holding.py` or the
+  module's forks.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`), both: after a change to
   `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn
   in `service.py`. Add `--preview` for a change to preview startup or lifetime, and
@@ -315,12 +315,9 @@ the harness, the model's wait and generation, and the agent's other tools. Model
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole
 reply over enough runs to see past that spread.
 
-To find out what happened to one message, on a real page or in a journey's evidence
-directory, run `leaf-dev timeline PAGE --message ID`: it lays the page's log and
-diagnostics beside the Claude Code session's transcript and debug log, so it shows
-whether Leaf kept it back, what the line fork judged, which fork's turn held it, when
-Leaf handed it over, and what the session did meanwhile
-(`dev/leaf_dev/commands/timeline.py`).
+To trace one message, on a real page or in a journey's evidence directory, run
+`leaf-dev timeline PAGE --message ID`, which lays the page's log and diagnostics
+beside the session's transcript and debug log (`dev/leaf_dev/commands/timeline.py`).
 
 ## Compare checkout versions
 

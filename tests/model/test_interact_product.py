@@ -373,6 +373,58 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     )
 
 
+def test_a_fieldset_is_held_to_a_question_only_where_it_reads_as_one(page_dir):
+    """A fieldset around a widget that asks is the question's frame, so it needs the
+    heading in its legend and an id, as the widget frame does. Its tag says only that
+    it groups controls, so one that frames nothing asking is the author's own unless
+    its legend holds a heading over widgets that could ask."""
+    registry = registry_storage.load_registry(page_dir)
+    asking = (
+        '<lf-options id="g" choose>'
+        '<lf-option id="o"><strong>One</strong></lf-option>'
+        "</lf-options>"
+    )
+    inert = asking.replace(" choose", "")
+    for framed in (
+        f'<fieldset id="q"><legend><h2>Choose</h2></legend><p>Context.</p>{asking}</fieldset>',
+        f'<fieldset id="q"><legend><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup></legend>{asking}</fieldset>',
+        # A fieldset between a widget frame and its widget is the nearer frame.
+        f'<lf-ask id="outer"><h2>Choose</h2><fieldset id="q"><legend><h3>Part</h3></legend>{asking}</fieldset></lf-ask>',
+    ):
+        assert fragment_errors(framed, registry) == []
+
+    for plain in (
+        '<fieldset><legend>Delivery</legend><label><input type="radio" name="d"> Post</label></fieldset>',
+        '<fieldset><legend><h3>Delivery</h3></legend><input name="d"></fieldset>',
+        f'<fieldset id="kinds"><legend>Kinds</legend>{inert}</fieldset>',
+        f"<fieldset>{inert}</fieldset>",
+    ):
+        assert fragment_errors(plain, registry) == []
+
+    assert found(
+        fragment_errors(
+            f'<fieldset id="q"><legend><h2>Choose</h2></legend>{inert}</fieldset>',
+            registry,
+        ),
+        "empty-question",
+        "<fieldset>",
+        widgets=[{"at": "<lf-options id=g>", "line": 1, "lacks": {"choose": [True]}}],
+    )
+    for untitled in (
+        f'<fieldset id="q"><legend>Choose</legend>{asking}</fieldset>',
+        f'<fieldset id="q"><p>Context.</p>{asking}</fieldset>',
+    ):
+        codes = [error.code for error in fragment_errors(untitled, registry)]
+        assert codes == ["untitled-question"]
+    codes = [
+        error.code
+        for error in fragment_errors(
+            f"<fieldset><legend><h2>Choose</h2></legend>{asking}</fieldset>", registry
+        )
+    ]
+    assert codes == ["unnamed-question"]
+
+
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)

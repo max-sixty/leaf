@@ -838,6 +838,24 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     assert not body.find_all("div")
 
 
+def test_a_fieldset_framing_a_widget_that_asks_is_delivered_as_a_flow():
+    """A fieldset around a widget that asks is the question's frame and draws no box
+    of its own, so delivery paints it as an enclosing widget's tag declares
+    (`x-flow`), and as a flow it takes no width of its own. Any other fieldset keeps
+    the browser's."""
+    registry = {"lf-pick": {"x-awaits": {"value": "pick", "when": {"ask": [True]}}}}
+    source = (
+        '<fieldset id="asks" data-width="wide"><legend><h2>Which?</h2></legend>'
+        '<lf-pick id="a" ask></lf-pick></fieldset>'
+        '<fieldset id="inert"><legend>Kinds</legend><lf-pick id="b"></lf-pick></fieldset>'
+        '<fieldset id="plain"><legend>Delivery</legend><input name="d"></fieldset>'
+    )
+    tree = SourceDocument(mark_declared(source, registry, {})).tree
+    flows = [frame.attrs["id"] for frame in tree.select("[data-lf-flow]")]
+    assert flows == ["asks"]
+    assert not tree.select("[data-lf-space]")
+
+
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     """A new data widget gets the same pre-upgrade reading primitive without a tag list."""
     source = '<lf-new-source id="source"><pre>raw source</pre></lf-new-source><lf-literal id="literal">literal source</lf-literal>'

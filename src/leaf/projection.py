@@ -95,6 +95,20 @@ def enclosing_widgets(rec: dict):
         rec = rec["holder"]
 
 
+def standing_around(rec: dict):
+    """The lf-* elements and fieldsets standing around one, innermost first: each
+    step out to a holder passes the fieldsets the markup has between the two
+    (`frame`, `structure.FRAME_TAG`)."""
+    while rec is not None:
+        frame = rec["frame"]
+        while frame is not None:
+            yield frame
+            frame = frame["frame"]
+        rec = rec["holder"]
+        if rec is not None:
+            yield rec
+
+
 def enclosing_slot(rec: dict, registry: dict):
     """The innermost slot an element stands in and the widget whose decision
     retires it, or None where it stands in neither. The element itself counts:

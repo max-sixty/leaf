@@ -1529,3 +1529,66 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     assert ring["offset"] > 0, ring
     assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring
     assert ring["ring"]["left"] + ring["width"] < workspace["words"], (ring, workspace)
+
+
+FRAME_BOXES = """() => {
+  const box = (el) => {
+    const {x, y, width, height} = el.getBoundingClientRect();
+    return [x, y, width, height].map((n) => Math.round(n * 2) / 2);
+  };
+  const frame = document.getElementById('rollout');
+  return {
+    frame: box(frame),
+    heading: box(frame.querySelector('h2')),
+    wide: box(document.getElementById('evidence')),
+    options: box(document.getElementById('rollout-options')),
+    plainBorder: getComputedStyle(document.getElementById('delivery')).borderTopWidth,
+    focused: document.activeElement === frame,
+  };
+}"""
+
+
+def test_a_fieldset_around_a_widget_that_asks_is_the_question_frame(browser, serve):
+    """A fieldset whose legend holds the heading frames the widget that asks inside
+    it as an lf-ask does: going to the question lands on it and rings it, its box
+    begins at its heading, its blocks, one asking for more room among them, stand
+    where an lf-ask's do, and it draws none of the border and padding a browser
+    gives a fieldset. A fieldset around no widget that asks keeps them."""
+
+    def question(frame):
+        opening, closing = {
+            "lf-ask": ('<lf-ask id="rollout"><h2>Include runners?</h2>', "</lf-ask>"),
+            "fieldset": (
+                '<fieldset id="rollout"><legend><h2>Include runners?</h2></legend>',
+                "</fieldset>",
+            ),
+        }[frame]
+        return (
+            '<p id="before">Before the question.</p>'
+            f"{opening}<p>They need administrator-configured namespaces.</p>"
+            '<table id="evidence" data-width="wide">'
+            "<tr><td>Runners</td><td>12</td></tr></table>"
+            '<lf-options id="rollout-options" choose>'
+            '<lf-option id="include">Include them</lf-option>'
+            f'<lf-option id="later">Later</lf-option></lf-options>{closing}'
+            '<fieldset id="delivery"><legend>Delivery</legend>'
+            '<label><input type="radio" name="d"> Post</label></fieldset>'
+        )
+
+    boxes = {}
+    for frame in ("lf-ask", "fieldset"):
+        page = open_page(browser, serve(leaf_page("a question", question(frame))))
+        resized(page, 1280, 800)
+        page.keyboard.press("m")
+        expect(page.locator("#rollout")).to_have_attribute(
+            "data-lf-projected-location", ""
+        )
+        boxes[frame] = page.evaluate(FRAME_BOXES)
+        page.close()
+    assert boxes["fieldset"]["focused"], boxes
+    assert boxes["fieldset"]["plainBorder"] != "0px", boxes
+    for part in ("heading", "wide", "options"):
+        assert boxes["fieldset"][part] == boxes["lf-ask"][part], (part, boxes)
+    # A fieldset is a formatting context of its own, so its box keeps the bottom
+    # margin of its last block inside, where an lf-ask's passes through it.
+    assert boxes["fieldset"]["frame"][:3] == boxes["lf-ask"]["frame"][:3], boxes

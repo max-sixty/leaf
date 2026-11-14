@@ -73,6 +73,10 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
+# HTML's group of controls under a caption, its `<legend>`. Around a widget that asks
+# it is the question's frame (`obligations.framed`), so the element index keeps each
+# one beside the lf-* elements it stands around.
+FRAME_TAG = "fieldset"
 # The page-wide allocations the runtime reads from `body`, which a sample template
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
@@ -340,7 +344,10 @@ class SourceDocument:
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.all_ids = []
-        # {tag, line, attrs, parent, direct, children, text, body, holder}
+        # {tag, line, attrs, parent, direct, children, text, body, holder, frame}.
+        # `frame` is the innermost `fieldset` between the element and its holder, a
+        # {tag, line, start, attrs, holder, frame} record of its own that is in no
+        # other index, so nothing that reads lf-* elements or holders meets one.
         self.lf_elements = []
         self.samples = []
         # id → the record of the innermost lf-* element standing around it, an
@@ -351,8 +358,9 @@ class SourceDocument:
         # `passages.enclosing_ids`.
         self.holders = {}
         self._source = source
-        # The record of each lf-* element, by where its start tag begins, for the
-        # authoring walk: the parser hands out a new object per visit of an element.
+        # The record of each lf-* element and fieldset, by where its start tag begins,
+        # for the authoring walk: the parser hands out a new object per visit of an
+        # element.
         self._records = {}
         tree = (
             turbohtml.parse_fragment(
@@ -365,7 +373,7 @@ class SourceDocument:
         self.tree: turbohtml.Document = tree
         for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
-                self._index(child, holder=None, in_svg=False)
+                self._index(child, holder=None, frame=None, in_svg=False)
 
     @cached_property
     def authoring(self) -> "Authoring":
@@ -401,18 +409,33 @@ class SourceDocument:
     def _source_element(element) -> bool:
         return element.source_location is not None
 
-    def _index(self, element, *, holder: dict | None, in_svg: bool) -> None:
-        """Record ids, their holders, lf-* elements and live samples: all a
-        revision inventory scan reads, so the one walk construction takes."""
+    def _index(
+        self, element, *, holder: dict | None, frame: dict | None, in_svg: bool
+    ) -> None:
+        """Record ids, their holders, lf-* elements, the fieldsets around them and
+        live samples: all a revision inventory scan reads, so the one walk
+        construction takes."""
         tag = element.tag
         located = element.source_location is not None
         record = None
-        if located and (tag.startswith("lf-") or element.attrs.get("id")):
+        if located and (
+            tag.startswith("lf-") or tag == FRAME_TAG or element.attrs.get("id")
+        ):
             attrs = element_attrs(element)
             identity = attrs.get("id")
             if identity:
                 self.all_ids.append(identity)
                 self.holders[identity] = holder
+            if tag == FRAME_TAG and not in_svg:
+                frame = {
+                    "tag": tag,
+                    "line": self._position(element)[0],
+                    "start": _start(element),
+                    "attrs": attrs,
+                    "holder": holder,
+                    "frame": frame,
+                }
+                self._records[_start(element)] = frame
             if tag.startswith("lf-"):
                 parent = element.parent
                 record = {
@@ -427,6 +450,7 @@ class SourceDocument:
                     "text": False,
                     "body": "",
                     "holder": holder,
+                    "frame": frame,
                 }
                 self.lf_elements.append(record)
                 self._records[_start(element)] = record
@@ -436,14 +460,19 @@ class SourceDocument:
         if in_svg or (located and tag == "svg"):
             for child in element.children:
                 if isinstance(child, turbohtml.Element):
-                    self._index(child, holder=holder, in_svg=True)
+                    self._index(child, holder=holder, frame=frame, in_svg=True)
             return
 
         if record is not None:
             self._record_direct_contents(record, element)
         for child in element.children:
             if isinstance(child, turbohtml.Element):
-                self._index(child, holder=record or holder, in_svg=False)
+                self._index(
+                    child,
+                    holder=record or holder,
+                    frame=None if record else frame,
+                    in_svg=False,
+                )
 
         if tag == "template" and "data-sample" in element.attrs:
             self._sample_resources(element)

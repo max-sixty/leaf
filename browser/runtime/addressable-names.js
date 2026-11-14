@@ -7,7 +7,7 @@
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
-import { TEXT_BLOCK } from "./kernel-facts.js";
+import { marks, TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
 
@@ -48,6 +48,11 @@ export function addressableWord(addressable) {
   if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
+  // A fieldset is a group of controls. One the server reads as a question's frame,
+  // which delivery paints as a flow, is called what an enclosing widget's `x-word`
+  // calls it.
+  if (tag === "fieldset")
+    return addressable.hasAttribute(marks["x-flow"].paint) ? "question" : "group";
   return HTML_WORDS[tag] ?? tag;
 }
 
@@ -72,7 +77,7 @@ export function addressableSays(addressable) {
 // What names an element, where the authoring contract gives it a name
 // (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
 // attribute (the registry's `$attributes`), else a leading disclosure summary, heading,
-// or titled member's <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
+// or titled member's <strong>, looked for inside a leading <header>, <hgroup> or <legend> too. Leading means no words come
 // before it; elements may, as a titled member's comparison chips stand in the band
 // above its title and an eyebrow above a header's heading. The words are the ones the
 // author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase
@@ -96,7 +101,8 @@ function readLeadingTitle(container) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
     if (!(node instanceof Element) || uiInside(node, container)) continue;
     if (node.matches(TITLES)) return node;
-    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
+    if (["header", "hgroup", "legend"].includes(node.localName))
+      return leadingTitle(node);
   }
   return null;
 }

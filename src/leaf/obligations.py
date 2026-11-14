@@ -2,11 +2,12 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; an enclosing widget (`x-encloses`) contributes only
-prompt words and arrival. A `records` declaration expands a widget's bound external
-input using its data contract's record list and key. Each record owns the stable
-widget-and-unit identity and reads its own action coordinate; replacing that input
-changes membership without changing the answers of retained records.
+A widget source owns identity; a frame around it (`frames`: an enclosing widget, or
+a fieldset) contributes only prompt words and arrival. A `records` declaration
+expands a widget's bound external input using its data contract's record list and
+key. Each record owns the stable widget-and-unit identity and reads its own action
+coordinate; replacing that input changes membership without changing the answers of
+retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
@@ -53,7 +54,7 @@ as it ends one asked in words (`asked_in_a_message`)."""
 import hashlib
 import json
 from bisect import bisect_right
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from math import inf
 from typing import TYPE_CHECKING, NamedTuple
@@ -79,10 +80,12 @@ from leaf.projection import (
     obligation_value,
     page_reading,
     projected_action_holders,
+    standing_around,
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
+from leaf.structure import FRAME_TAG, SourceDocument
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -94,10 +97,73 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
-def encloses(entry: dict) -> bool:
-    """Whether this widget frames the obligations inside it (`x-encloses`): its leading
-    heading gives their prompt, and going to one of them lands on it."""
-    return bool(entry.get("x-encloses"))
+def frames(record: dict, registry: Mapping) -> bool:
+    """Whether this element frames the obligations inside it: its leading heading
+    gives their prompt, and going to one of them lands on it. A widget declares so
+    (`x-encloses`); a `fieldset` is one by what HTML makes it, a group of controls
+    under the caption its `<legend>` holds, so it needs no declaration. Leaf treats
+    one as a frame only where a widget inside it asks (`framed`, `asks`); any other
+    is the author's own."""
+    return record["tag"] == FRAME_TAG or bool(
+        (registry.get(record["tag"]) or {}).get("x-encloses")
+    )
+
+
+def unasked(rec: dict, entry: dict) -> dict:
+    """The `x-awaits.when` conditions a widget never met, as attribute and the values
+    it would ask at, or none where it asks, was asked, or can be made to ask.
+
+    The flag `x-awaits.retired` names is how an author ends an obligation already
+    asked, such as a settled decision kept with its context, so failing on it alone
+    leaves the widget counted. A condition a recorded value writes can still be met
+    by a gesture."""
+    awaits = entry["x-awaits"]
+    when = awaits.get("when") or {}
+    recorded = {
+        (spec.get("record") or {}).get("attr")
+        for spec in entry.get("x-state", {}).values()
+        if (spec.get("record") or {}).get("kind") == "value"
+    }
+    return {
+        attr: values
+        for attr, values in when.items()
+        if attr != awaits.get("retired")
+        and attr not in recorded
+        and not matches_when(rec["attrs"], {attr: values})
+    }
+
+
+def framed(
+    document: SourceDocument, registry: Mapping
+) -> list[tuple[dict, list[tuple[dict, dict]]]]:
+    """Each frame a document holds (`frames`), with the widgets inside it that can
+    ask, each beside what it lacks to ask (`unasked`): every enclosing widget, and
+    every fieldset standing around a widget that can ask.
+
+    A widget asks inside every frame around it, so a frame holding only a nested frame
+    is as full as that one; the nearest still gives the obligation its prompt. A
+    sample's widgets ask nothing beyond it (`shown_in`), so the walk stops there and a
+    frame inside the sample still counts them."""
+    regions = {
+        id(rec): (rec, []) for rec in document.lf_elements if frames(rec, registry)
+    }
+    for rec in document.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not local_obligation_entry(entry):
+            continue
+        for around in standing_around(rec):
+            if (registry.get(around["tag"]) or {}).get("x-exhibit"):
+                break
+            if frames(around, registry):
+                held = regions.setdefault(id(around), (around, []))[1]
+                held.append((rec, unasked(rec, entry)))
+    return list(regions.values())
+
+
+def asks(held: list[tuple[dict, dict]]) -> bool:
+    """Whether one of the widgets a frame holds (`framed`) asks, was asked, or can be
+    made to ask."""
+    return any(not lacks for _, lacks in held)
 
 
 def end_question(record: dict, ending: dict) -> None:
@@ -754,13 +820,19 @@ class _ObligationReducer:
 
     def _surface(self, record):
         """The reading and arrival region the user is sent to for this source: the
-        nearest enclosing widget (`x-encloses`) holding it, or the source
-        itself."""
-        holder = self._holder(record)
-        while holder:
-            if encloses(self.registry.get(holder["tag"]) or {}):
-                return holder
-            holder = self._holder(holder)
+        nearest frame holding it (`frames`), or the source itself. A fieldset the
+        author gave no id can't be named as one, which the page check reports
+        (`validation.instances.enclosing_errors`)."""
+        node = record
+        while node is not None:
+            frame = node["frame"]
+            while frame is not None:
+                if frame["attrs"].get("id"):
+                    return frame
+                frame = frame["frame"]
+            node = self._holder(node)
+            if node is not None and frames(node, self.registry):
+                return node
         return record
 
     def _record_inventory(self, record: dict) -> list[dict]:

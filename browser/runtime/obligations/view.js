@@ -7,8 +7,8 @@
    answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
-   the widget itself. The source owns the answer and the explicit context bindings.
+   its frame (an lf-ask or another widget declaring `x-encloses`, or a fieldset around
+   it), otherwise the widget itself. The source owns the answer and the explicit context bindings.
    Adding an enclosing widget changes neither the obligation nor its answer.
 
    Focus, through current-target.js, determines which obligation wears the location
@@ -462,14 +462,15 @@ export function createObligationView({
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
-  /** @param {Element} item @param {Element | null} context @param {Element} currentLocation */
-  function arrivalRegion(item, context, currentLocation) {
+  /** @param {Element} item @param {Element | null} frame @param {Element} currentLocation */
+  function arrivalRegion(item, frame, currentLocation) {
     // A unique declared context names the region even when taller than the screen:
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-encloses"];
-    if (declared && context === currentLocation) return context;
+    // `frame` is the context where the server named one apart from the source
+    // (`prompt.target`): an enclosing widget, or a fieldset around the source.
+    if (frame && frame === currentLocation) return frame;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -527,11 +528,9 @@ export function createObligationView({
         renderedOrder(block, item) < 0,
     );
     return (
-      [
-        declared ? context : null,
-        partOver(item),
-        closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
-      ].find(fits) ?? item
+      [frame, partOver(item), closestAcross(item, TEXT_BLOCK) ?? before.at(-1)].find(
+        fits,
+      ) ?? item
     );
   }
 
@@ -612,8 +611,9 @@ export function createObligationView({
       // A widget is arrived at once its source is drawn.
       if (!target || !source) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
+      const frame = next.source.id !== next.prompt.target ? context : null;
       return box
-        ? { target, box, region: arrivalRegion(source, context, target) }
+        ? { target, box, region: arrivalRegion(source, frame, target) }
         : { target, box: null, region: null };
     };
     const initial = destination();

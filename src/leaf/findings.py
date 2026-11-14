@@ -304,7 +304,7 @@ def _bearing(at: str, v: dict, value: str) -> str:
 
 
 def _conditions(lacks: dict) -> str:
-    """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
+    """The `x-awaits.when` conditions a widget never met (`obligations.unasked`)."""
     return " and ".join(
         " or ".join(
             f"`{attr}` is {'set' if value else 'unset'}"
@@ -953,8 +953,13 @@ _TEXT = {
     ),
     "empty-question": _empty_question,
     "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
-        " leading its content alone or in an <hgroup> or <header>"
+        f"{_line(at, v)}: this frame needs a heading to title its obligations, leading"
+        " its content alone or in an <hgroup> or <header>, and in a <fieldset> inside"
+        " its <legend>"
+    ),
+    "unnamed-question": lambda at, v: (
+        f"{_line(at, v)}: this fieldset frames a widget that asks, so it needs an id:"
+        " the question's title in On Me and the place going to it lands both name it"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'

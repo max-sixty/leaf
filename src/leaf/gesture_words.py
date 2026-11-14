@@ -22,7 +22,7 @@ action at or before the gesture, since an undone add frees its id for another.
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: a widget's `label`
 attribute (the registry's `$attributes`), else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
+inside a leading `<header>`, `<hgroup>` or `<legend>` too — the rule the browser's `addressableName` reads off
 the live page, read here off the document the gesture was made in.
 """
 
@@ -59,7 +59,8 @@ def _text(node) -> str:
 
 def leading_title_node(node: dict) -> dict | None:
     """The element that titles `node`: its first title element, looking inside a
-    leading <header> or <hgroup> and past other elements, until text intervenes."""
+    leading <header>, <hgroup> or <legend> and past other elements, until text
+    intervenes."""
     for child in node["content"]:
         if isinstance(child, str):
             if child.strip():
@@ -67,7 +68,7 @@ def leading_title_node(node: dict) -> dict | None:
             continue
         if child["tag"] in TITLES:
             return child
-        if child["tag"] in {"header", "hgroup"}:
+        if child["tag"] in {"header", "hgroup", "legend"}:
             return leading_title_node(child)
     return None
 

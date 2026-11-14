@@ -22,10 +22,20 @@ from leaf.work_reading import WorkReading
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
 
 
-def page(attrs="choose", context=None):
+# The two frames a question can stand in: the widget, and HTML's fieldset, whose
+# legend holds the heading.
+FRAMES = {
+    "lf-ask": '<lf-ask id="{id}"><h2>Which route?</h2>{content}</lf-ask>',
+    "fieldset": (
+        '<fieldset id="{id}"><legend><h2>Which route?</h2></legend>{content}</fieldset>'
+    ),
+}
+
+
+def page(attrs="choose", context=None, frame="lf-ask"):
     content = OPTIONS.format(attrs=attrs)
     if context:
-        content = f'<lf-ask id="{context}"><h2>Which route?</h2>{content}</lf-ask>'
+        content = FRAMES[frame].format(id=context, content=content)
     return model.leaf_page("Questions", content)
 
 
@@ -512,9 +522,35 @@ def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
     assert item["end"]["event"]["id"] == "second-end"
 
 
-def test_a_frame_around_a_decision_widget_stays_one_obligation():
-    [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
-    assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")
+@pytest.mark.parametrize("frame", FRAMES)
+def test_a_frame_around_a_decision_widget_stays_one_obligation(frame):
+    """The frame gives the widget's obligation its prompt and the place going to it
+    lands, whether it is the widget or a fieldset whose legend holds the heading."""
+    document = page(context="frame", frame=frame)
+    [item] = page_obligations(model.reading(document, []))["all"]
+    assert item["id"] == "widget:choice"
+    assert item["prompt"] == {"text": "Which route?", "target": "frame"}
+
+
+def test_a_fieldset_frames_only_through_the_widgets_between_it_and_the_source():
+    """The nearest frame gives the prompt, a fieldset where the markup has it among
+    the widgets around the source; one the author gave no id can't be named, so the
+    next frame out is."""
+    inner = FRAMES["fieldset"].format(
+        id="inner", content=OPTIONS.format(attrs="choose")
+    )
+    nested = model.leaf_page(
+        "Questions", f'<lf-ask id="outer"><h2>Outer</h2>{inner}</lf-ask>'
+    )
+    [item] = page_obligations(model.reading(nested, []))["all"]
+    assert item["prompt"] == {"text": "Which route?", "target": "inner"}
+
+    unnamed = model.leaf_page(
+        "Questions",
+        f'<lf-ask id="outer"><h2>Outer</h2>{inner.replace(' id="inner"', "")}</lf-ask>',
+    )
+    [item] = page_obligations(model.reading(unnamed, []))["all"]
+    assert item["prompt"] == {"text": "Outer", "target": "outer"}
 
 
 def lists(state) -> tuple[list, list, list]:

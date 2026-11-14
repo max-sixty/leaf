@@ -1,7 +1,9 @@
-/* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
+/* A question's frame, an lf-ask or a fieldset around a widget that asks (delivery
+ * paints that fieldset `data-lf-flow`, revision_delivery.py): a semantic reading and
+ * arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the current location ring says
- * are one lf-ask. What it holds doesn't arrange its options: the author lays them across
+ * are one question. What it holds doesn't arrange its options: the author lays them across
  * (`across`, options.css). It takes no width of its own: its blocks stand in the page's
  * flow (`x-flow`, layouts.css), so its words keep the prose's edge beside a block that
  * declares more room, and its box grows round that block. Otherwise its box keeps the
@@ -10,38 +12,77 @@ lf-ask {
   display: block;
 }
 @media screen {
-  lf-ask {
+  :is(lf-ask, :where(fieldset[data-lf-flow])) {
     box-sizing: border-box;
     max-inline-size: var(--lf-measure);
   }
 }
-/* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+/* A fieldset that frames a question gives up what a browser draws a fieldset with: the
+ * groove border, the padding inside it, the 2px inline margin, and the floor of its
+ * content's narrowest width, under which a wide block inside would hold the whole
+ * question past its column. Any other fieldset keeps them. Delivery paints the frames
+ * of a page; nothing paints a message's (`x-flow` is the document's, `$marks`), so
+ * there a fieldset around a widget that can ask is taken for one. */
+:is(fieldset[data-lf-flow], .lf-msg-body fieldset:has([data-lf-awaits])) {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+  /* A browser sets a fieldset's first legend on its border, shrunk to its words and
+   * laid out apart from the blocks after it, so the heading inside would keep its
+   * margins to itself. Without a box of its own the legend still captions the group,
+   * and its heading stands in the frame's flow as an lf-ask's leading heading does. */
+  & > legend {
+    display: contents;
+    --lf-full-height: inherit;
+  }
+}
+/* A fieldset is a formatting context of its own, so the top margin of the heading in
+ * its legend stays inside its box, where an lf-ask's collapses through to the block
+ * before it and the frame begins at its heading. The frame takes the heading level's
+ * margin, as an eyebrow before a heading does (reading/defaults.css), and the heading
+ * gives up its own. A frame filling a stated height lays its children out as a flex
+ * column, where an lf-ask keeps that margin inside too, so there neither moves; the
+ * legend passes the height on for its heading to hear. */
+@container not style(--lf-full-height: 1) {
+  fieldset[data-lf-flow]:has(> legend > h2:first-child) {
+    margin-block-start: var(--h2-start);
+  }
+  fieldset[data-lf-flow]:has(> legend > h3:first-child) {
+    margin-block-start: var(--h3-start);
+  }
+  fieldset[data-lf-flow] > legend > :is(h2, h3):first-child {
+    margin-block-start: 0;
+  }
+}
+/* A frame told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
  * full-height workspace's body is, gives its answer, the last of its children, what its
  * heading and context leave, and tells it so, so a widget composing its own regions
  * there, such as a playground, fills the window below a premise as well as straight
  * under the heading. The context keeps its own height, and the answer keeps at least
  * its own: a list of options takes its content's height below a long premise, and the
  * body scrolls, where a playground, which fits its parts to any height it is given,
- * says it may shrink (playground/defaults.css). Every child hears the height the lf-ask is
+ * says it may shrink (playground/defaults.css). Every child hears the height the frame is
  * told, the context's included, so the context is held at its own height: a playground
  * followed by a note is context, and would otherwise shrink to make room for the note and
  * draw its instruction over it. */
 @container style(--lf-full-height: 1) {
-  lf-ask {
+  :is(lf-ask, :where(fieldset[data-lf-flow])) {
     display: flex;
     flex-direction: column;
   }
-  lf-ask > * {
+  :is(lf-ask, :where(fieldset[data-lf-flow])) > *,
+  :where(fieldset[data-lf-flow]) > legend > * {
     flex: none;
   }
-  lf-ask:has(
+  :is(lf-ask, :where(fieldset[data-lf-flow])):has(
     > :nth-last-child(1 of :not(script, style, template)):not(
         :nth-child(1 of :not(script, style, template))
       )
   ) {
     --lf-full-height: inherit;
   }
-  lf-ask
+  :is(lf-ask, :where(fieldset[data-lf-flow]))
     > :nth-last-child(1 of :not(script, style, template)):not(
       :nth-child(1 of :not(script, style, template))
     ) {

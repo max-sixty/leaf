@@ -42,6 +42,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import CASCADE_LAYERS
+from .obligations import asks, framed
 from .passages import markdown_markup
 from .registry.contract import exhibits, is_element_name
 from .registry.kernel import kernel_marks
@@ -60,6 +61,7 @@ from .schema import (
     RENDER_CHECKS_DIR,
 )
 from .structure import (
+    FRAME_TAG,
     UTF8_BOM,
     SourceDocument,
     annotation_mode,
@@ -424,6 +426,13 @@ def mark_declared(
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
+    # A fieldset that frames a widget that asks is a flow (`x-flow`), as an enclosing
+    # widget's tag declares itself: the one mark a tag doesn't declare.
+    flows = {
+        region["start"]
+        for region, held in framed(SourceDocument(source), registry)
+        if region["tag"] == FRAME_TAG and asks(held)
+    }
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
@@ -436,17 +445,21 @@ def mark_declared(
         content = element.tag not in {"html", "body", "main"} and (
             element.closest("body") is not None
         )
+        start = location.start_tag
+        flow = declaration.get("x-flow") or (start.start_line, start.start_col) in flows
         marks = {}
         for key, mark in kernel_marks().items():
             declared = (
                 exhibits(attrs, declaration)
                 if key == "x-exhibit"
+                else flow
+                if key == "x-flow"
                 else declaration.get(key)
             )
             means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
             # A flow takes no width of its own (`x-flow`), whatever its markup says.
-            if key == "x-space" and declaration.get("x-flow"):
+            if key == "x-space" and flow:
                 continue
             if authored in attrs and means[mark["authored_on"]]:
                 value = attrs[authored]

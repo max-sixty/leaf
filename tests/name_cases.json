@@ -55,6 +55,16 @@
     "name": "Migration"
   },
   {
+    "id": "a fieldset is named by the heading in its legend",
+    "markup": "<fieldset id=\"it\"><legend><hgroup><p class=\"eyebrow\">Decision</p><h2>Which store?</h2></hgroup></legend><p>Context.</p></fieldset>",
+    "name": "Which store?"
+  },
+  {
+    "id": "a legend's bare words are no name",
+    "markup": "<fieldset id=\"it\"><legend>Delivery</legend><p>Context.</p></fieldset>",
+    "name": ""
+  },
+  {
     "id": "a widget's label names its element",
     "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",

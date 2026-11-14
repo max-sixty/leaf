@@ -58,9 +58,21 @@ const descriptor = {
 };
 // Where an obligation record stands (`standing.py`): open on the user, answered, or
 // withdrawn.
-const OPEN = { next_actor: "user", state: "waiting", reason: null, outcome: null };
-const ANSWERED = { next_actor: null, state: "done", reason: null, outcome: "done" };
-const WITHDRAWN = { ...ANSWERED, outcome: "dropped" };
+const OPEN = {
+  next_actor: "user",
+  state: "waiting",
+  reason: null,
+  outcome: null,
+  answered: false,
+};
+const ANSWERED = {
+  next_actor: null,
+  state: "done",
+  reason: null,
+  outcome: "done",
+  answered: true,
+};
+const WITHDRAWN = { ...ANSWERED, outcome: "dropped", answered: false };
 // The records the server publishes for a question the agent asked and for what an
 // update of the user's is owed, so a record made from them carries every field the
 // server sends.

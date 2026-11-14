@@ -1199,6 +1199,10 @@
         "state": { "$ref": "#/$defs/WorkState" },
         "reason": { "$ref": "#/$defs/WorkReason" },
         "outcome": { "$ref": "#/$defs/Outcome" },
+        "answered": {
+          "description": "Whether the answer its source takes stands on it (`standing.answered`): the user's own answer to a question, or the reply to an update, and not an end the agent recorded.",
+          "type": "boolean"
+        },
         "seen": {
           "description": "On an update: whether a turn of the agent's has taken it in.",
           "type": "boolean"
@@ -1228,7 +1232,8 @@
         "next_actor",
         "state",
         "reason",
-        "outcome"
+        "outcome",
+        "answered"
       ],
       "additionalProperties": false,
       "anyOf": [

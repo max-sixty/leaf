@@ -623,10 +623,8 @@ customElements.define(
       // arrives here while this one lacks focus, so none of them moves the card.
       const held = readings(card);
       const closed =
-        held.some(
-          (item) =>
-            item.state === "done" && item.outcome === "done" && item.end === null,
-        ) && !held.some((item) => item.state !== "done");
+        held.some((item) => item.answered) &&
+        !held.some((item) => item.state !== "done");
       const here = focused();
       const place = here && placeOf(here);
       const onCard =

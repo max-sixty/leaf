@@ -521,6 +521,32 @@ def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
     assert item["end"]["event"]["id"] == "second-end"
 
 
+def test_a_served_record_says_whether_its_own_answer_stands():
+    """Every reader takes `answered` from the record: the user's words answer a
+    question, and the agent's end of it, as answered elsewhere or withdrawn, is no
+    answer of theirs."""
+
+    def served(*later) -> dict:
+        state = model.reading(page(""), answered_in_words(*later))
+        [item] = served_obligations(state)["all"]
+        return item
+
+    words = {
+        "kind": "reply",
+        "id": "said",
+        "author": "user",
+        "parent": "asking",
+        "text": "Weekly",
+    }
+    end = {"kind": "todo_end", "author": "agent", "todo": "message:asking"}
+    assert served()["answered"] is False
+    assert served(words)["answered"] is True
+    elsewhere = served({**end, "id": "end", "outcome": "done"})
+    assert (elsewhere["outcome"], elsewhere["answered"]) == ("done", False)
+    withdrawn = served({**end, "id": "end", "outcome": "dropped"})
+    assert (withdrawn["outcome"], withdrawn["answered"]) == ("dropped", False)
+
+
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
     [item] = page_obligations(model.reading(page(context="frame"), []))["all"]
     assert (item["id"], item["prompt"]["target"]) == ("widget:choice", "frame")

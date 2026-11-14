@@ -363,7 +363,7 @@ function normalizedObligations(obligations, widgets, descriptors, pendingWithdra
       const verb = declaration?.value;
       if (!verb || !widget) return item;
       const completed =
-        answered(item) &&
+        item.answered &&
         !(item.answer?.event && pendingWithdrawals.has(item.answer.event.id));
       const { value, present } = obligationValue(widget, verb, completed, sourceUnit);
       const pendingValue =
@@ -393,12 +393,6 @@ function normalizedObligations(obligations, widgets, descriptors, pendingWithdra
     unanswered: all.filter((item) => item.state !== "done"),
   };
 }
-
-// Whether the answer a record's source takes stands on it (`standing.answered`): the
-// user's own answer, where an end the agent recorded is none.
-/** @param {ObligationRecord} item */
-const answered = (item) =>
-  item.state === "done" && item.outcome === "done" && item.end === null;
 
 /** @type {WireQueues} */
 const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
@@ -630,6 +624,7 @@ function localUpdates(workflows) {
           state: workflow.state,
           reason: workflow.reason,
           outcome: null,
+          answered: false,
           seen: false,
           workflow: workflow.id,
         });

@@ -66,7 +66,9 @@ def is_open(record: dict) -> bool:
 def answered(record: dict) -> bool:
     """Whether the answer its source takes stands on a record: the user's own answer to
     a question, or the reply to an update. An end the agent recorded, such as an answer
-    given elsewhere or a to-do's, is no such answer."""
+    given elsewhere or a to-do's, is no such answer. Every served record carries the
+    result as `answered` (`served_state.browser`), so the browser and packages read it
+    rather than repeat the rule."""
     return (
         record["state"] == "done"
         and record["outcome"] == "done"

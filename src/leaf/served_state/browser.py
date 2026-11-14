@@ -12,7 +12,7 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..standing import is_open, leading
+from ..standing import answered, is_open, leading
 from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -122,7 +122,12 @@ def browser_state(
         # The view's obligations are its own document's beside its frozen thread's, and
         # the page's updates' and to-dos', served once: a list row names a
         # record by its id.
-        items = viewed.all_obligations["all"] + work.records
+        # Each says whether its source's own answer stands on it, so no reader
+        # restates that rule.
+        items = [
+            {**record, "answered": answered(record)}
+            for record in (*viewed.all_obligations["all"], *work.records)
+        ]
         _apply_thread_attention(items, thread["threads"])
         documents[revision] = reading
         projection = reading.projection

@@ -225,18 +225,19 @@ including those with the agent. Each record looks like this:
   state: "done",      // waiting | running | blocked | done
   reason: null,       // what the state leaves out, such as why it is blocked
   outcome: "done",    // how a done one ended: done | failed | dropped
+  answered: true,     // whether its own answer stands on it
 }
 ```
 
-Every record says where it stands in those last four fields, the same words a thread,
-a plan step and the page's status use. An open one is `waiting` on its `next_actor`;
-one the agent has in hand is `running`; one that is owed while nothing moves it is
-`blocked`, with the `reason`: `stopped` or `interrupted` (its turn ended first),
-`quiet` (nothing has renewed it for a quarter of an hour), `undelivered` (no turn has
-taken it in), `terminal` (the agent's turn waits on the user in its own window) or
-`failed` (handed back to send again). A `done` one was answered when `outcome` is
-`done` and `end` is `null`, answered elsewhere when the agent's `end` stands in place of
-an answer, and withdrawn when `outcome` is `dropped`.
+Every record says where it stands in `next_actor`, `state`, `reason` and `outcome`, the
+same words a thread, a plan step and the page's status use. An open one is `waiting` on
+its `next_actor`; one the agent has in hand is `running`; one that is owed while nothing
+moves it is `blocked`, with the `reason`: `stopped` or `interrupted` (its turn ended
+first), `quiet` (nothing has renewed it for a quarter of an hour), `undelivered` (no
+turn has taken it in), `terminal` (the agent's turn waits on the user in its own window)
+or `failed` (handed back to send again). A `done` one is `answered` when the answer its
+source takes stands on it, was answered elsewhere when the agent's `end` stands in place
+of an answer, and was withdrawn when `outcome` is `dropped`.
 
 A widget's obligation takes its answer and completion from its `x-awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can

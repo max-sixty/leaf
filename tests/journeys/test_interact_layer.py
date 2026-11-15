@@ -579,7 +579,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
+    assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -618,8 +618,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             check=False,
         )
         assert ran.returncode == 0, ran.stderr
-        assert "re-initialized" not in ran.stderr
-        assert "older page protocol" not in ran.stderr
+        assert "re-initialized" not in ran.stdout + ran.stderr
+        assert "older page protocol" not in ran.stdout + ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
 
 

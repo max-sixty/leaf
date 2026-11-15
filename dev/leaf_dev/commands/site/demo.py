@@ -150,7 +150,7 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <html lang="en">
 <head>
 <title>Migration plan</title>
-<style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
+<style>#demo-metrics dl {{ margin: 0; padding: var(--lf-sp-3); border: 1px solid var(--lf-rule); }} #demo-metrics dt {{ color: var(--lf-muted); font: 500 var(--lf-t-6)/1.3 var(--lf-sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--lf-t-2)/1.3 var(--lf-sans); }} #demo-metrics dd small {{ font-size: var(--lf-t-6); }}</style>
 </head>
 <body>
 <main class="layout-column">
@@ -246,8 +246,9 @@ class DemoWaiter:
         )
 
     def receive(self) -> list[dict]:
-        """The user events of one delivery. A wait that ends without them has said
-        why on stderr, so the failure carries it."""
+        """The user events of one delivery. A wait that ends without them says why
+        in its `findings`, and stderr holds anything else it printed, so the failure
+        carries both."""
         stdout, stderr = self.process.communicate(timeout=10)
         harness = session_harness()
         hooked = harness is not None and harness.hooks_carry()
@@ -266,7 +267,7 @@ class DemoWaiter:
         if len(batches) != 1 or not batches[0]["events"]:
             raise RuntimeError(
                 f"the demo waiter exited {self.process.returncode} without one batch "
-                f"of user events\n{stderr}".rstrip()
+                f"of user events\n{stdout}{stderr}".rstrip()
             )
         if not hooked:
             subprocess.run(

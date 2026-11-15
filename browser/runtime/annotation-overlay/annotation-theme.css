@@ -10,7 +10,7 @@
  * paint and presses to its visible band.
  *
  * Packing seats rows level with their target and pushes arrivals into free room.
- * A rail row hangs --rail-hang beyond the column and unfolds rightward. A pin uses
+ * A rail row hangs --lf-rail-hang beyond the column and unfolds rightward. A pin uses
  * the clear seat the geometry owner found near its target and unfolds leftward.
  * A target clipped out of its region withholds its row from paint and tab order. */
 .lf-margin-projection {
@@ -59,9 +59,9 @@
   align-self: start;
   display: inline-flex;
   align-items: center;
-  gap: var(--margin-gap);
+  gap: var(--lf-margin-gap);
   white-space: nowrap;
-  padding-right: var(--focus-ring-room);
+  padding-right: var(--lf-focus-ring-room);
   pointer-events: auto;
 }
 /* Keep a new row measurable, but unpainted until layout gives it a posture. */
@@ -137,14 +137,14 @@
    26 cases at 390px. With the row the face, the aim lay over a neighbouring control's
    press on 9 of 270 sentences. */
 .lf-margin-cluster[data-lf-place="pin"] {
-  --margin-entry: max(26px, var(--aim-floor));
+  --lf-margin-entry: max(26px, var(--lf-aim-floor));
 }
 .lf-margin-receipt {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
   font-weight: 600;
 }
 .lf-margin-receipt[data-lf-margin-receipt="negative"] {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 /* Margin rows stand where the page leaves room for them, measured beside `main` by the
  * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
@@ -164,7 +164,7 @@
  * a strip given up would stand empty beside the panes; a workspace keeps the window. */
 @media screen and (width > 640px) {
   html[data-lf-live]:not([data-lf-layout~="workspace"]) body[data-rail="right"] {
-    padding-inline-end: var(--rail);
+    padding-inline-end: var(--lf-rail);
   }
 }
 @media print {

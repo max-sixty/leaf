@@ -4242,8 +4242,9 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     )
     try:
         assert started.exit_code == 0, started.output
-        assert [note["code"] for note in said(started.stderr)] == ["loopback-only"]
-        assert "--host NAME" in started.stderr
+        noted = said(started.stdout)["findings"]
+        assert [note["code"] for note in noted] == ["loopback-only"]
+        assert "--host NAME" in noted[0]["text"]
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output

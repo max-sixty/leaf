@@ -954,7 +954,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert started.stderr == ""
+        assert "findings" not in json.loads(started.stdout)
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output

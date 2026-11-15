@@ -4,11 +4,11 @@
  * moved (`changedPixels` states the rule). #3820 adopted BlazeDiff with no threshold
  * and anti-aliased pixels kept, so that subtle deliberate edits stayed visible, and
  * kept a floor that painted every changed pixel at least 16% amber. That floor made
- * the theme's soft shadows (`--raise-1`, `--raise-2`) look like changes. A box that
+ * the theme's soft shadows (`--lf-raise-1`, `--lf-raise-2`) look like changes. A box that
  * moves redraws its shadow's gradient a level or two at a time, and the floor painted
  * each of those pixels at about 16% amber, which read as a banded slab around the box.
  * On a triage-board card moved 3 px, the pixels at 10% amber or more were 7,681 with
- * no shadow, 11,049 under `--raise-1` and 17,075 under `--raise-2`; with no floor they
+ * no shadow, 11,049 under `--lf-raise-1` and 17,075 under `--lf-raise-2`; with no floor they
  * are 6,964, 6,792 and 6,766, and the 3,137 opaque pixels of the card's text and edges
  * are unchanged. So Pixels now paints an edit of under 10 levels below 10% amber,
  * faint enough to miss, and the reading describes a pair whose changes are all that

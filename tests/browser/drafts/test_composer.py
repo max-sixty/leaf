@@ -79,12 +79,12 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         else:
             face = glyph_action_face(send)
             assert face["press"] == "rgba(0, 0, 0, 0)", face
-            assert face["glyph"] == token_colour(page, "--accent"), face
+            assert face["glyph"] == token_colour(page, "--lf-accent"), face
             assert face["disc"] == "rgba(0, 0, 0, 0)", face
             send.hover()
             hovered = glyph_action_face(send)
             assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
-            assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
+            assert hovered["disc"] == token_colour(page, "--lf-accent-tint"), hovered
             with sending(page, f"the {box} message"):
                 send.click()
 

@@ -2602,8 +2602,8 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
     )
     out, err = failed.communicate(timeout=STATED_TIMEOUT)
 
-    assert failed.returncode != 0, out
-    assert "queue unsupported" in err
+    assert failed.returncode != 0, out + err
+    assert "queue unsupported" in out
     assert service_model.page_claim(page_dir) == previous
 
 

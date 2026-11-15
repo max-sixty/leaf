@@ -438,7 +438,7 @@ export function readFaces(field, display) {
     `.lf-face-gap.lf-face-share-3 { line-height: calc(${GAP} / 3) }`,
     `.lf-face-gap-above { padding-block-start: ${GAP} }`,
     `.lf-face-code { padding-inline: ${pre.inset} }`,
-    `.lf-face-quote { margin-inline-start: ${quote.indent}; --quote-inset: ${quote.inset} }`,
+    `.lf-face-quote { margin-inline-start: ${quote.indent}; --lf-quote-inset: ${quote.inset} }`,
     `.lf-face-quote-first { padding-block-start: ${quote.padStart}px }`,
     `.lf-face-gap-above.lf-face-quote-first { padding-block-start: calc(${GAP} + ${quote.padStart}px) }`,
     `.lf-face-quote-last { padding-block-end: ${quote.padEnd}px }`,

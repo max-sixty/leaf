@@ -1310,14 +1310,15 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     and, coming round, back at the head, while the item it opens starts in the window.
     Running with the page, the walk scrolled each item's start away, and a tab left
     past the window's foot, or read away from, was out of sight, so the next arrow let
-    go of it (keyboard/controller.js), focus fell to the page and no tab opened. Read
-    down an item, the list stays beside it, and the next arrow opens the next item at
-    its start."""
+    go of it (keyboard/controller.js), focus fell to the page and no tab opened. Walking
+    down, the next row shows under the open tab, so the list doesn't look ended there.
+    Read down an item, the list stays beside it, and the next arrow opens the next item
+    at its start."""
     views = "".join(
         f'<lf-tab id="item-{i}" label="Item {i}">'
         + "".join(f"<p>Item {i} reads on, paragraph {n}.</p>" for n in range(30))
         + "</lf-tab>"
-        for i in range(16)
+        for i in range(30)
     )
     source = leaf_page(
         "Long queue",
@@ -1334,28 +1335,31 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     tabs.first.click()
     expect(tabs.first).to_be_focused()
     # Down every tab and round to the first, then up round to the last and past it.
-    for key, landing in [("ArrowDown", i % 16) for i in range(1, 17)] + [
-        ("ArrowUp", 15),
-        ("ArrowUp", 14),
+    for key, landing in [("ArrowDown", i % 30) for i in range(1, 31)] + [
+        ("ArrowUp", 29),
+        ("ArrowUp", 28),
     ]:
         page.keyboard.press(key)
         tab = tabs.nth(landing)
         expect(tab).to_be_focused()
         expect(tab).to_have_attribute("aria-selected", "true")
         expect(tab).to_be_in_viewport(ratio=0.99)
+        # The row after it shows too, so the list doesn't look ended at the open tab.
+        if key == "ArrowDown" and landing < 29:
+            expect(tabs.nth(landing + 1)).to_be_in_viewport(ratio=0.99)
         page.wait_for_function(item_starts_in_view, arg=f"item-{landing}")
     # Read down the open item, then walk on from the list.
-    item = page.locator("#item-14").bounding_box()
+    item = page.locator("#item-28").bounding_box()
     assert item is not None
     page.mouse.move(item["x"] + item["width"] / 2, 300)
     page.mouse.wheel(0, 400)
     scroll_settled(page)
-    expect(page.locator("#item-14")).not_to_be_in_viewport(ratio=0.9)
-    expect(tabs.nth(14)).to_be_in_viewport(ratio=0.99)
+    expect(page.locator("#item-28")).not_to_be_in_viewport(ratio=0.9)
+    expect(tabs.nth(28)).to_be_in_viewport(ratio=0.99)
     page.keyboard.press("ArrowDown")
-    expect(tabs.nth(15)).to_be_focused()
-    expect(tabs.nth(15)).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(item_starts_in_view, arg="item-15")
+    expect(tabs.nth(29)).to_be_focused()
+    expect(tabs.nth(29)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(item_starts_in_view, arg="item-29")
 
 
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):

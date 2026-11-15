@@ -417,7 +417,9 @@ export function createPlayground(host) {
         // The words beside the input name it, so its preview, which says only what
         // its face and labels don't, repeats none of them. A span rather than a
         // `<label>`, since a press on the words selects them and works no control.
-        const labelId = `${host.id}-${name}-label`;
+        // Its id takes `lf-`, so a comment aimed at the words names the control
+        // rather than this generated span (anchor-resolution.js, `ADDRESSABLE`).
+        const labelId = `lf-${host.id}-${name}-label`;
         const select =
           kind === "choice" && control.getAttribute("appearance") === "select";
         if (!select)

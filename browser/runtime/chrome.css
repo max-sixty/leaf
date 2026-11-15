@@ -1105,7 +1105,6 @@ html[data-lf-region-capture]
     left: -1px;
     bottom: 100%;
     max-width: 40vw;
-    visibility: var(--lf-design-tag-visibility, visible);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1122,6 +1121,11 @@ html[data-lf-region-capture]
     bottom: auto;
     top: 0;
     border: 0;
+  }
+  /* The target picker's keys name the legend's corners while it stands (aim.js,
+     `armChanged`). */
+  .lf-legend.lf-picking .lf-legend-tag {
+    visibility: hidden;
   }
   /* Standing in the planes of the box it names (target-paint.js, `labelAim`), so a
      scroll carries the two together. */

@@ -3201,8 +3201,7 @@ export function createFloatingPanel({
       const { lfThread: key, lfMessage: message } = outlet.dataset;
       const thread = collection.threads.find((candidate) => candidate.key === key);
       const asked = thread?.msgs.find((candidate) => candidate.key === message);
-      if (thread && asked)
-        parts.message(thread.key, asked.key, outlet, { aside: true });
+      if (thread && asked) parts.message(thread.key, asked.key, outlet);
     }
   }
   /** @param {RouteFor<"thread">} route @param {import("./thread/primary-reader.js").PrimaryCollection} collection @param {import("./thread/primary-reader.js").NominationParts} parts */
@@ -5368,6 +5367,9 @@ export function createFloatingPanel({
       // The view makes room for the agent's answer to the user's last turn itself
       // (the growth under **Opened**), so the reader hands it over at once.
       answersAtOnce: true,
+      // The view's only message parts are On Me's cards, which stand aside from
+      // the conversation (messages.js, `HOLDS`).
+      messagesAside: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
       // reader, and the message they were on, goes.

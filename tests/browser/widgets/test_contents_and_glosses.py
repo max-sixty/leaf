@@ -1267,21 +1267,22 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     expect(first).not_to_have_attribute("aria-current", "location")
 
 
-# Each contents row's words and the marks it carries, for the rows carrying any.
+# Each contents row's words and the mark it wears, for the rows whose mark shows: the
+# outline's dot on its rule, or the map's halo round the row's marker.
 ROW_MARKS = """(toc) => Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
-  .map((row) => [row.querySelector('a').textContent.trim(),
-    [...row.querySelectorAll('[data-lf-toc-mark]')]
-      .filter((mark) => mark.checkVisibility())
-      .map((mark) => mark.dataset.lfTocMark).join(' ')])
-  .filter(([, marks]) => marks))"""
+  .filter((row) => row.dataset.lfTocMark && (
+    row.querySelector(':scope > .lf-toc-mark')?.checkVisibility()
+    || (row.checkVisibility() && getComputedStyle(row, '::before').display !== 'none'
+      && getComputedStyle(row, '::before').boxShadow !== 'none')))
+  .map((row) => [row.querySelector('a').textContent.trim(), row.dataset.lfTocMark]))"""
 # Where each shown row's link and marker stand, which no mark may move.
 ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
   .filter((row) => row.checkVisibility())
   .map((row) => [row.querySelector('a').getBoundingClientRect(),
     row.getBoundingClientRect()]
     .map((box) => [box.x, box.y, box.width, box.height].map(Math.round).join(',')))"""
-# The rows whose marks stand among their words rather than in the gutter before them.
-MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('[data-lf-toc-mark]')]
+# The rows whose outline dot stands among their words rather than on the rule before them.
+MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('.lf-toc-mark')]
   .filter((mark) => mark.checkVisibility())
   .map((mark) => {
     const holder = mark.closest('li, .lf-toc-start, summary, p');
@@ -1304,10 +1305,10 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
 ):
     """The runbook fixture holds open threads on its lede and under four headings, a
     resolved one under a fifth, a question waiting on the user in two sections, and an
-    earlier version. Each row of its contents marks its section's open threads and On me
-    items in the gutter before its words, beside the map's spine or the column outline's
-    rule, and its link previews how many, which a screen reader hears where Tab lands on
-    it; what stands before the first section is the map's title row's, and in the column,
+    earlier version. Each row of its contents wears one mark for its section, an On me
+    item outranking a thread: a halo round its marker on the map's spine, a haloed dot
+    on the column outline's rule. Its link previews how many of each, which a screen
+    reader hears where Tab lands on it; what stands before the first section is the map's title row's, and in the column,
     whose disclosure leaves that row out, its open toggle's. A thread arriving marks its
     section; the changes view draws each changed section as its stretch of the spine or
     the rule. No mark moves a row or stands among its words."""
@@ -1317,14 +1318,14 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     held = {
         "Record the baseline": "thread",
         "Create the new credentials": "thread",
-        "Switch the services": "thread on-me",
+        "Switch the services": "on-me",
         "Ledger": "thread",
         "Retire the old password": "on-me",
     }
     title = "Rotate the payments database credentials"
     # Each row's, the title row's, and the toggle's and the label's, which carry it.
     page.wait_for_function(
-        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 9",
+        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 8",
         arg=toc.element_handle(),
     )
     assert toc.evaluate(ROW_MARKS) == {title: "thread", **held}
@@ -1362,7 +1363,9 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         },
     )
     told(page)
-    expect(toc.locator("li", has_text="Confirm access").locator("i")).to_have_count(1)
+    expect(toc.locator("li", has_text="Confirm access")).to_have_attribute(
+        "data-lf-toc-mark", "thread"
+    )
     assert toc.evaluate(ROW_MARKS) == {
         title: "thread",
         **held,
@@ -1384,12 +1387,13 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     resized(page, 700, 900)
     rendered(page)
     expect(toc.locator("details")).not_to_have_attribute("open", "")
-    expect(toggle.locator("[data-lf-toc-mark]")).to_be_hidden()
+    expect(toggle.locator(".lf-toc-mark")).to_be_hidden()
     toggle.click()
     expect(toc.locator("details")).to_have_attribute("open", "")
     rendered(page)
     assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
-    expect(toggle.locator("[data-lf-toc-mark='thread']")).to_be_visible()
+    expect(toggle).to_have_attribute("data-lf-toc-mark", "thread")
+    expect(toggle.locator(".lf-toc-mark")).to_be_visible()
     assert toc.evaluate(MARKS_IN_WORDS) == []
     assert verify.evaluate(CHANGED)
     assert preview_parts(toggle, route="focus") == [
@@ -1441,7 +1445,8 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
     toc = page.locator("lf-toc")
     label = toc.locator(".lf-toc-heading")
     expect(toc.locator("summary")).to_be_hidden()
-    expect(label.locator("[data-lf-toc-mark='thread']")).to_be_visible()
+    expect(label).to_have_attribute("data-lf-toc-mark", "thread")
+    expect(label.locator(".lf-toc-mark")).to_be_visible()
     expect(toc.locator(".lf-toc-start")).to_be_hidden()
     assert toc.evaluate(ROW_MARKS) == {"Inputs": "thread"}
     assert toc.evaluate(MARKS_IN_WORDS) == []

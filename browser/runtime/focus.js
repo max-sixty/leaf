@@ -96,14 +96,26 @@ import {
  * @typedef {(...standIns: StandIn[]) => boolean | PromiseLike<boolean>} FocusRestore
  */
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The attributes `tabStopCandidates` reads: those `SEQUENTIAL` names, a host's
+// `tabindex`, and the `slot` and `name` that assign a host's children to its slots.
+/** @type {string[]} */
+export const TAB_STOP_MARKUP = [
+  ...new Set([
+    ...[...SEQUENTIAL.matchAll(/\[([\w-]+)/g)].map(([, name]) => String(name)),
+    "tabindex",
+    "slot",
+    "name",
+  ]),
+];
 // The elements under `root` whose markup puts them in the tab order (`TAB_STOP`), and
 // the embedded documents and players Tab enters, in order through open shadow trees as
 // rendered: a host's shadow tree in place of its children, and a slot's assigned
 // elements, or its fallback, in its place. A host its author took out of the order (a
 // negative `tabindex`) takes its whole tree out with it, so Tab skips what it renders.
-// With them come the shadow trees the walk crossed, which with `root` are all the
-// markup it read, so whoever keeps the answer knows what to watch (reach.js,
-// `holdsOwnStop`).
+// With them come what else the answer read, so whoever keeps it knows when to read
+// again (reach.js, `holdsOwnStop`): the shadow trees the walk crossed, which with `root`
+// hold all the markup it read, and the custom elements it met before their definition,
+// which may build a tree of their own as they upgrade.
 //
 // The walk steps from sibling to sibling, as browser/AGENTS.md ("One answer for each
 // question") says a walk does, and keeps its own stack: walked through a generator for
@@ -115,6 +127,8 @@ export function tabStopCandidates(root) {
   const candidates = [];
   /** @type {ShadowRoot[]} */
   const crossed = [];
+  /** @type {Element[]} */
+  const undefinedElements = [];
   // Where the walk stands in each level it has entered: the next of a slot's assigned
   // elements, or the next sibling of the tree's children.
   /** @type {({assigned: Element[], at: number} | {next: Element | null})[]} */
@@ -141,11 +155,17 @@ export function tabStopCandidates(root) {
       continue;
     }
     if (child.matches(SEQUENTIAL)) candidates.push(child);
+    if (
+      !child.shadowRoot &&
+      child.localName.includes("-") &&
+      !customElements.get(child.localName)
+    )
+      undefinedElements.push(child);
     const tabIndex = child.getAttribute("tabindex");
     if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
     enter(child);
   }
-  return { candidates, crossed };
+  return { candidates, crossed, undefinedElements };
 }
 // Whether one of those takes a Tab stop right now: enabled and drawn. A host that
 // delegates its focus is no stop of its own, since Tab enters its tree. Which stops Tab

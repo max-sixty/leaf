@@ -111,20 +111,28 @@ test("a box reads what it holds once, until that changes, and counts a stop lent
     assert.equal(outer.getAttribute("tabindex"), "0");
     assert.equal(inner.getAttribute("tabindex"), null);
 
-    // A layout notice asks again whether each box scrolls, and reads none of its lines.
-    const matches = Element.prototype.matches;
-    const read = new Set();
-    Element.prototype.matches = function (...selectors) {
-      if (lines.includes(this)) read.add(this);
-      return matches.apply(this, selectors);
+    // How many lines a paint after a layout notice reads.
+    const linesRead = async () => {
+      const matches = Element.prototype.matches;
+      const read = new Set();
+      Element.prototype.matches = function (...selectors) {
+        if (lines.includes(this)) read.add(this);
+        return matches.apply(this, selectors);
+      };
+      try {
+        layoutChanged(elsewhere);
+        await painted();
+      } finally {
+        Element.prototype.matches = matches;
+      }
+      return read.size;
     };
-    try {
-      layoutChanged(elsewhere);
-      await painted();
-    } finally {
-      Element.prototype.matches = matches;
-    }
-    assert.equal(read.size, 0, "a paint read the lines of a box that had not changed");
+    // A layout notice asks again whether each box scrolls, and reads none of its lines.
+    assert.equal(
+      await linesRead(),
+      0,
+      "a paint read the lines of a box that had not changed",
+    );
 
     // The inner box comes to scroll and takes a stop, which the outer box then holds,
     // in the same pass, so it gives its own back.
@@ -135,16 +143,55 @@ test("a box reads what it holds once, until that changes, and counts a stop lent
     assert.equal(outer.getAttribute("tabindex"), null);
     assert.equal(outer.hasAttribute("data-lf-lent-reach-stop"), false);
 
-    // A control put deep in the inner box is somewhere the user can stand.
+    // A control put deep in the inner box is somewhere the user can stand, which the
+    // next paint finds by reading the box's lines again.
     const control = document.createElement("button");
     control.tabIndex = 0;
     lines.at(-2)?.append(control);
-    layoutChanged(elsewhere);
-    await painted();
+    assert.ok((await linesRead()) > 0, "a paint read none of a changed box's lines");
     assert.equal(inner.getAttribute("tabindex"), null);
     assert.equal(inner.hasAttribute("data-lf-lent-reach-stop"), false);
   } finally {
     outer.remove();
+    elsewhere.remove();
+  }
+});
+
+test("a box reads again what it holds once a custom element in it is defined", async () => {
+  const tag = "x-reach-late-control";
+  const box = document.createElement("div");
+  box.className = "lf-scroll";
+  box.style.overflow = "auto";
+  const late = document.createElement(tag);
+  late.textContent = "A control a library draws once it registers.";
+  box.append(late);
+  const elsewhere = document.createElement("p");
+  holds(box, 1000);
+  document.body.append(box, elsewhere);
+  try {
+    reachScrollers(document.body);
+    await painted();
+    assert.equal(box.getAttribute("tabindex"), "0");
+
+    // Defined after the box was read, the element draws its control in a shadow tree,
+    // which changes nothing the box's watch hears.
+    customElements.define(
+      tag,
+      class extends HTMLElement {
+        constructor() {
+          super();
+          const control = document.createElement("button");
+          control.tabIndex = 0;
+          this.attachShadow({ mode: "open" }).append(control);
+        }
+      },
+    );
+    layoutChanged(elsewhere);
+    await painted();
+    assert.equal(box.getAttribute("tabindex"), null);
+    assert.equal(box.hasAttribute("data-lf-lent-reach-stop"), false);
+  } finally {
+    box.remove();
     elsewhere.remove();
   }
 });

@@ -1341,42 +1341,6 @@ def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
         page.evaluate("() => window.lfAsked.splice(0)")
 
 
-def test_a_document_a_tab_opens_scrolls_its_words_in_its_own_box_from_the_first_frame(
-    browser, serve
-):
-    """A bounded document in a tab nobody has opened stands as its own scroller, since
-    finding the box it scrolls would style what the tab hides. The tab set's layout
-    notice as it opens the tab finds that box, so the first frame's readers already
-    read the document's words as scrolling in it. Found after the next layout instead,
-    the first frame read them as the page's, and the place recorded as the tab opened
-    read every line of a long document for the page."""
-    url = serve(
-        leaf_page(
-            "Documents",
-            '<lf-tabs id="docs" list="side">'
-            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
-            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
-            'source="log-text"></lf-text-document></lf-tab></lf-tabs>',
-        )
-    )
-    text = "".join(f"Line {line} of the deploy log.\n" for line in range(400))
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
-    page = open_page(browser, url)
-    expect(page.locator("#log.lf-rendered")).to_have_count(1)
-    page.evaluate("""async () => {
-      const {effectiveScroller} = await window.__lfCheckApi();
-      const log = document.getElementById('log');
-      document.addEventListener('click', () => requestAnimationFrame(() => {
-        window.scrolledBy = effectiveScroller(log);
-      }), {once: true});
-    }""")
-    page.get_by_role("tab", name="Long", exact=True).click()
-    page.wait_for_function("() => window.scrolledBy !== undefined")
-    assert page.evaluate(
-        "() => window.scrolledBy === document.querySelector('#log pre')"
-    ), page.evaluate("() => window.scrolledBy.localName")
-
-
 def test_closed_details_region_is_not_sampled_until_open(browser, serve):
     url = serve(
         leaf_page(

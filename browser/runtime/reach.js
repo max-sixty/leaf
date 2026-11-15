@@ -3,7 +3,12 @@
 
 import { isElement, skipped, under } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
-import { tabStopCandidates, takesTabStop, wearsLentStop } from "./focus.js";
+import {
+  TAB_STOP_MARKUP,
+  tabStopCandidates,
+  takesTabStop,
+  wearsLentStop,
+} from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, userScrollport } from "./geometry.js";
 import { afterScript, nextRender, sizeObserver } from "./rendering.js";
@@ -58,15 +63,30 @@ const overflows = (el) =>
 // only whether one of them takes a stop now, which their style decides. A paint follows
 // a resize or a widget's layout notice, which adds or removes no control. Asked of the
 // whole tree on every paint, a text document's listing of 95,000 rows cost 40 ms a paint
-// in Chromium, five times as its tab opened. The box's tree and each shadow tree the walk
-// crossed are watched, and the changes since the last answer are read before each one,
-// so a stop this pass lends to a box inside counts for the box around it in the same
-// pass. A shadow tree a widget builds later inside the box, which no watch reaches, is
-// heard through the widget's layout notice (`LAYOUT`, below).
-/** @type {WeakMap<Node, Element[]>} */
+// in Chromium, five times as its tab opened.
+//
+// What the box holds is read again after any of these since the last reading:
+// - a change to the nodes in the box's tree, or in a shadow tree the walk crossed, or to
+//   an attribute the walk reads (`TAB_STOP_MARKUP`), heard by one observer whose
+//   records are read before each answer, so a stop this pass lends to a box inside
+//   counts for the box around it in the same pass;
+// - the definition of a custom element the walk met undefined, which may build a tree
+//   of its own as it upgrades, as a component library registering after the page's
+//   first paint does;
+// - a layout notice from a widget inside the box (`LAYOUT`, below), which may have built
+//   a shadow tree no watch reaches.
+// A shadow root attached later to an element that was already defined, with none of
+// these, is read at the box's next change. Until then the box keeps a stop it lent,
+// though Tab can reach a control inside it.
+/** @typedef {{candidates: Element[], undefinedElements: Element[]}} Held */
+/** @type {WeakMap<Node, Held>} */
 const heldControls = new WeakMap();
 const treeChanges = new MutationObserver(forgetHeld);
-const WATCHED_TREE = { subtree: true, childList: true, attributes: true };
+const WATCHED_TREE = {
+  subtree: true,
+  childList: true,
+  attributeFilter: TAB_STOP_MARKUP,
+};
 // A change of an element's attribute changes what the boxes around it hold, and a change
 // of the nodes under a box, or a tree crossed inside it, changes what it holds itself.
 /** @param {MutationRecord[]} records */
@@ -87,12 +107,14 @@ function forgetOver(node, climbed = new Set()) {
 function holdsOwnStop(el) {
   forgetHeld(treeChanges.takeRecords());
   let held = heldControls.get(el);
+  if (held?.undefinedElements.some(({ localName }) => customElements.get(localName)))
+    held = undefined;
   if (!held) {
-    const { candidates, crossed } = tabStopCandidates(el);
+    const { candidates, crossed, undefinedElements } = tabStopCandidates(el);
     for (const tree of [el, ...crossed]) treeChanges.observe(tree, WATCHED_TREE);
-    heldControls.set(el, (held = candidates));
+    heldControls.set(el, (held = { candidates, undefinedElements }));
   }
-  return held.some(takesTabStop);
+  return held.candidates.some(takesTabStop);
 }
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:

@@ -3,10 +3,10 @@ in the corner they leave free (response.css; text-field.js, `:state(corner-taken
 input.js, `data-lf-send-pointed` and `data-lf-send-armed`)."""
 
 import pytest
+from browser.margin import LONG_THREAD_PAGE, LONG_THREAD_ROOT
 from playwright.sync_api import expect
 from render_harness import open_page, sending
 
-from browser.margin import LONG_THREAD_PAGE, LONG_THREAD_ROOT
 from leaf.render_checks import rendered
 
 # How long the pointer rests on Send before it takes a press (input.js, `SEND_DWELL`).

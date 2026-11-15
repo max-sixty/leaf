@@ -45,6 +45,7 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -1616,3 +1617,93 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
         declare_idle(page)
     finally:
         cleanup_model.end_session("codex-thread")
+
+
+def test_codex_serializes_later_input_behind_the_offered_delivery(
+    codex_claimed_page, monkeypatch
+):
+    page = codex_claimed_page
+    append_carried_log_record(
+        page, {"kind": "comment", "id": "first", "author": "user", "text": "one"}
+    )
+    first = events_model.read_events(page)[-1]
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [first],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+    first_path, _ = current_codex_record("codex-thread")
+
+    queue_started = threading.Event()
+    release_queue = threading.Event()
+
+    def queue_delivery(_codex, _session, _prompt):
+        queue_started.set()
+        assert release_queue.wait(timeout=STATED_TIMEOUT)
+
+    monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
+    offering = threading.Thread(
+        target=lambda: codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None
+        )
+    )
+    offering.start()
+    assert queue_started.wait(timeout=STATED_TIMEOUT), (
+        "the offer never reached the Codex queue"
+    )
+    assert files_model.read_json(first_path)["state"] == "offering"
+
+    # A parallel step hook leaves the in-flight queue offer to its owner and
+    # cannot capture its still-unacknowledged events into a second record.
+    leases_model.mark_hooks("codex-thread")
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    prompt, _ = codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
+    assert prompt is None
+    assert len(codex_records("codex-thread")) == 1
+
+    append_carried_log_record(
+        page, {"kind": "comment", "id": "second", "author": "user", "text": "two"}
+    )
+    release_queue.set()
+    offering.join(timeout=STATED_TIMEOUT)
+    assert not offering.is_alive()
+    first_delivery = files_model.read_json(
+        first_path.parent / "history" / first_path.name
+    )
+    assert first_delivery["state"] == "queued"
+    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
+    assert [
+        event["id"] for batch in payload["batches"] for event in batch["events"]
+    ] == ["first"]
+
+    assert not codex_model.recover_codex_receipt("codex-thread")
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            service_model.unacknowledged(transaction.events, transaction.cursor),
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+    second_path, second_delivery = current_codex_record("codex-thread")
+    assert second_path != first_path
+    assert second_delivery["state"] == "collecting"
+    assert [
+        event["id"]
+        for batch in files_model.read_json(second_path)["batches"]
+        for event in batch["events"]
+    ] == ["second"]

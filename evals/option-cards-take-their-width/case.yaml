@@ -1,0 +1,49 @@
+# From session 2f10f4a1, whose user found three option cards set `across` in an
+# lf-ask "quite thin" at 1728px: `across` shares the group's width, the question keeps
+# the 720px column, so each card got 229px and its four-word title broke in two. None
+# of the six pages before it that set cards across gave the group a `data-width`.
+# The fix is guidance: the lf-options entry says a card of words reads at about 18rem,
+# so a row of three needs `data-width="wide"`. The subject is pointed at the entries
+# that state it, so the case measures whether an author who reads them follows it, not
+# whether ordinary use finds them. Base a2773d828 set `data-width` on the row in 1 of 4
+# Claude Code runs, and the entry stating the rule in 4 of 4; every run set `across`.
+description: option-cards-take-their-width
+metadata:
+  purpose:
+    "Asks: a row of option cards set side by side takes the width its cards need to
+    read, rather than a share of the reading column too small for a card's title."
+  tags:
+    - asks
+vars:
+  prompt: |
+    You are writing a Leaf page that reviews the shared build cache's settings, one
+    section per setting, each ending in a question for the user. The user said
+    earlier that they compare options most easily side by side. Read
+    `references/authoring-on-me.md` and the `lf-ask`, `lf-options` and `lf-option`
+    entries in `../../packages/default/registry.json` relative to the skill's base
+    directory, then write the section for this item.
+
+    Your notes:
+    - Item #4: the cache evicts every entry older than 7 days. CI's hit rate falls
+      from 81% on Mondays to 64% on Fridays as the week's branches push main's
+      entries out. The cache holds 410 GB of its 500 GB.
+    - The user decides the eviction rule:
+      - keep main's entries 30 days and others 7 (your recommendation; about 60 GB
+        more);
+      - evict the least recently used entries once the cache reaches 480 GB,
+        whatever their age;
+      - keep the 7-day rule, as today.
+
+    The page directory is not reachable from here, so reply with the section's HTML
+    fragment rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: row-takes-its-width
+    value: |
+      Find the `lf-options` group that asks which eviction rule to use. Pass only if
+      its three options stand side by side at a width that gives each card room for
+      its title: the `lf-options` element carries `across` and also
+      `data-width="wide"` or `data-width="available"`. Fail if it carries `across`
+      without a `data-width`, which leaves each card a third of the reading column.
+      Fail if it has no `across`, since the user asked to compare options side by
+      side.

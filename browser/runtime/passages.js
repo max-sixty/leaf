@@ -1906,15 +1906,20 @@ const changesTheReading = (record, reads) => {
 // read. A change forgets the reading of the document it lands in and that one alone
 // (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
 // all. What a reader keeps to know which reading it read is the record's `token`, an
-// empty object, so a key or a kept answer that outlives the reading holds none of it.
-/** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>}} DocumentReading */
+// empty object, so a key or a kept answer that outlives the reading holds none of it. An
+// answer that holds the page's nodes is kept on the record instead (`keptWithPageReading`),
+// so it goes with the reading it was derived from.
+/** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>, kept: Map<object, unknown>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
 let documents = new WeakMap();
 /** @param {Element} scope */
 function documentReading(scope) {
   let kept = documents.get(scope);
   if (!kept)
-    documents.set(scope, (kept = { token: {}, outline: null, within: new WeakMap() }));
+    documents.set(
+      scope,
+      (kept = { token: {}, outline: null, within: new WeakMap(), kept: new Map() }),
+    );
   return kept;
 }
 /** @param {Element | null} scope */
@@ -2055,6 +2060,17 @@ const holdsSlot = (node) =>
 export function pageReadingVersion() {
   catchUpReading();
   return documentReading(pageDocument()).token;
+}
+/** What a reader derives from the page's reading and keeps while that reading stands,
+ * under the reader's own `owner`: made by `make` for each new reading and dropped with
+ * the old one, so an answer holding the page's nodes keeps none past a revision that
+ * removes them.
+ * @template T @param {object} owner @param {() => T} make @returns {T} */
+export function keptWithPageReading(owner, make) {
+  catchUpReading();
+  const { kept } = documentReading(pageDocument());
+  if (!kept.has(owner)) kept.set(owner, make());
+  return /** @type {T} */ (kept.get(owner));
 }
 // What the watcher heard: each document a record changes the reading of forgets it, and
 // where the page's is among them, or an id moved where `elementById` looks, whoever keeps
@@ -2722,8 +2738,9 @@ const walkedTo = (node, root) => {
   return true;
 };
 // The container a heading heads, from where it stands on: what holds it, or what holds
-// the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
-// header heading the page's sections. What holds it is what the walk that records the
+// the `header` or `hgroup` it stands in, an `hgroup` in a `header` included, as naming's
+// leading title reads them (addressable-names.js) and as HTML's outline reads a page's
+// title in its header heading the page's sections. What holds it is what the walk that records the
 // outline came down from (`readingParent`): a slot for a heading assigned to one, so a
 // heading a widget's tree draws in its slot heads what is drawn after it there, and a
 // declared root's host for a heading at the top of that root.
@@ -2734,8 +2751,9 @@ const holder = (node) => {
 };
 /** @param {Element} heading */
 export const headed = (heading) => {
-  const at = holder(heading);
-  return at?.matches(HEADERS) ? holder(at) : at;
+  let at = holder(heading);
+  while (at?.matches(HEADERS)) at = holder(at);
+  return at;
 };
 // The page's text blocks in reading order, each with the run of the reading's segments it
 // holds there, from the frame and from each part `reads` answers true for: a reader of
@@ -2775,14 +2793,6 @@ function runsOf(segments, marks) {
   });
   runs.push(...marks.slice(m));
   return runs;
-}
-// The blocks of those runs, each once (`blockAt`).
-/** @param {(part: Element) => boolean} reads */
-export function pageBlocks(reads) {
-  /** @type {Set<Element>} */
-  const blocks = new Set();
-  for (const { block } of pageRuns(reads)) if (block) blocks.add(block);
-  return [...blocks];
 }
 // Where a passage's segments start and stop in that reading, as [start, stop). A passage
 // is `{node, start, end}` segments and every question about the region it covers is asked

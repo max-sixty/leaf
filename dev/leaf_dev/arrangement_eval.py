@@ -36,7 +36,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
-from leaf.structure import source_index
+from leaf.structure import source_index, splice
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, pane_readings, plain_html
@@ -325,9 +325,7 @@ def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
                 f'href="{escape(target, quote=True)}"',
             )
         )
-    for start, end, replacement in sorted(edits, reverse=True):
-        source = source[:start] + replacement + source[end:]
-    return source
+    return splice(source, edits)
 
 
 @contextmanager

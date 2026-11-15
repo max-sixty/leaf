@@ -484,12 +484,12 @@ marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
-elements whose text the ranges paint. The comment marks can land on any text, so
-their rules name only the root and each shadow host, whose highlight styles every
-element below inherits; where an engine has no highlight inheritance, `stylesheets.js`
-(`markSheet`) widens them to every element. In Chromium a custom property changing on
-`html` then restyles every element (`root-state.js` says what the root's writers set
-instead).
+elements whose text the ranges paint. The comment marks can land on any text, so the
+runtime marks each element holding marked words (`anchor-paint.js`, `holdWords`) and
+their rules name those. A rule on the root alone would reach other elements only
+where highlight styles inherit, and there it pins every mark to the root's tokens and
+`color-scheme`, and makes Chromium restyle every element when even a non-inheriting
+custom property changes on `html`.
 
 ### Layouts, styles and controls
 
@@ -636,6 +636,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
+| The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
@@ -650,6 +651,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
 | What the user sees of a node where the glides under way leave it                                      | `scroll-containers.js` `seenGlided`, `seenAhead`                                   |
+| Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
@@ -712,6 +714,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
+| Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
 | Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |

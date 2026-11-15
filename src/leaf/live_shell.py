@@ -19,6 +19,7 @@ from .files import (
     list_revisions,
     published_versions,
     revision_path,
+    version_name,
     version_revisions,
 )
 from .http import page_delivery
@@ -94,7 +95,7 @@ def write_live_shell(
 
     write(Path("index.html"), documents[active])
     for version in published_versions(page_dir, events):
-        write(Path("versions") / f"v{version}.html", documents[versions[version]])
+        write(Path("versions") / version_name(version), documents[versions[version]])
     for revision in list_revisions(page_dir):
         write(
             Path("revisions") / revision_path(page_dir, revision).name,

@@ -114,8 +114,58 @@ const highlighting = HighlightStyle.define([
   { tag: tags.comment, color: "var(--syn-comment)" },
   { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
 ]);
+/** What the editor holds of one file while another is open (`suspend`).
+ * @typedef {{state: import("@codemirror/state").EditorState,
+ *   scroll: {top: number, left: number}}} KeptFile */
+
 /** @param {string} filename */
 const isMarkdown = (filename) => langForPath(filename) === "markdown";
+
+/** The changes that fold `theirs`, a version of `base` written elsewhere, into
+ * `ours`, the reader's edit of `base`, where the two changed lines apart from each
+ * other; null where they changed the same or adjacent lines, which a line merge leaves
+ * for the reader to compare.
+ * @param {string} base @param {string} ours @param {string} theirs */
+function lineMerge(base, ours, theirs) {
+  const lines = EditorState.create({ doc: base }).doc;
+  /** @param {string} text */
+  const changes = (text) =>
+    diff(base, text).map((change) => ({
+      from: change.fromA,
+      to: change.toA,
+      insert: text.slice(change.fromB, change.toB),
+      first: lines.lineAt(change.fromA).number,
+      last: lines.lineAt(Math.max(change.fromA, change.toA - 1)).number,
+    }));
+  const mine = changes(ours),
+    other = changes(theirs);
+  if (
+    mine.some((a) => other.some((b) => a.first <= b.last + 1 && b.first <= a.last + 1))
+  )
+    return null;
+  const spec = (/** @type {typeof mine} */ list) =>
+    ChangeSet.of(
+      list.map(({ from, to, insert }) => ({ from, to, insert })),
+      base.length,
+    );
+  return spec(other).map(spec(mine));
+}
+
+/** `lineMerge` into what the editor keeps of a file while another is open, or null.
+ * @param {KeptFile} kept @param {string} base @param {string} theirs
+ * @returns {KeptFile | null} */
+export function mergeKept(kept, base, theirs) {
+  const changes = lineMerge(base, kept.state.doc.toString(), theirs);
+  return (
+    changes && {
+      ...kept,
+      state: kept.state.update({
+        changes,
+        annotations: Transaction.addToHistory.of(false),
+      }).state,
+    }
+  );
+}
 
 /** Create a file editor. External text changes use CodeMirror transactions,
  * mapping selection through the dependency's diff. Adopting changed external text
@@ -274,6 +324,25 @@ export function createEditor(
         replacing = false;
       }
     },
+    // Fold `theirs` into the text being edited (`lineMerge`), keeping the reader's
+    // selection and undo history; say whether it did.
+    /** @param {string} base @param {string} theirs */
+    merge(base, theirs) {
+      const changes = lineMerge(base, reading().doc.toString(), theirs);
+      if (!changes) return false;
+      replacing = true;
+      try {
+        dispatch({ changes, annotations: Transaction.addToHistory.of(false) });
+      } finally {
+        replacing = false;
+      }
+      return true;
+    },
+    // What the editor would keep of `text` read afresh, for a file not yet shown.
+    /** @param {string} text @returns {KeptFile} */
+    keep(text) {
+      return { state: state(text), scroll: { top: 0, left: 0 } };
+    },
     get readOnly() {
       return readonly;
     },
@@ -314,6 +383,37 @@ export function createEditor(
         originalLength,
       );
       dispatch({ effects: originalDocChangeEffect(reading(), changes) });
+    },
+    // Everything the editor holds of one file, its text, selection, undo history and
+    // scroll, for `resume` to put back when the reader returns to that file.
+    /** @returns {KeptFile} */
+    suspend() {
+      const port = view?.scrollDOM;
+      return {
+        state: reading(),
+        scroll: port ? { top: port.scrollTop, left: port.scrollLeft } : scroll,
+      };
+    },
+    // Show another file: what `suspend` kept of it, or else `text` with a history of
+    // its own, read from the top. Neither is an edit, so neither reports a change.
+    /** @param {KeptFile | null} kept
+     * @param {string} text @param {string} name */
+    resume(kept, text, name) {
+      const next = kept?.state ?? state(text);
+      markdown = isMarkdown(name);
+      scroll = kept?.scroll ?? { top: 0, left: 0 };
+      const settings = next.update({
+        effects: [
+          editable.reconfigure(readonlyExtension()),
+          language.reconfigure(markdown ? new LanguageSupport(markdownLanguage) : []),
+          hint.reconfigure(shownHint ? placeholder(shownHint) : []),
+        ],
+      }).state;
+      if (!view) retained = settings;
+      else {
+        view.setState(settings);
+        setScroll(view.scrollDOM, scroll);
+      }
     },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.

@@ -1,11 +1,14 @@
 {
   "lf-file-editor": {
-    "description": "An editor for one bound UTF-8 file on the machine serving the page, saving as the user types.",
-    "x-instructions": "Write the element empty, and bind its `binding` to a file with `leaf file bind PAGE BINDING PATH`.",
+    "description": "An editor for the bound UTF-8 files on the machine serving the page, one open at a time, saving as the user types.",
+    "x-instructions": "Write the element empty, and bind each id in `binding` to a file with `leaf file bind PAGE BINDING PATH`. Name several ids to edit several files; a `lf-file-tree` whose `for` names this editor lists them and opens the one picked.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "binding": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "binding": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)*$"
+      }
     },
     "required": ["id", "binding"],
     "additionalProperties": false,
@@ -13,6 +16,9 @@
     "x-upgrade": true,
     "x-shadow": true,
     "x-height": true,
+    "x-output": {
+      "files": { "contract": "file-list" }
+    },
     "x-example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>"
   }
 }

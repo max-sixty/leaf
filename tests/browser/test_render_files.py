@@ -7,6 +7,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    http_error_console,
     leaf_page,
     one_frame,
     open_page,
@@ -226,6 +227,141 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
     expect(editor).to_be_focused()
     page.keyboard.type("X")
     expect(editor).to_have_text("Original.HaXlf")
+
+
+def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
+    """A navigator naming the editor lists its files by their paths and opens the
+    one picked; leaving a file saves it at once, an agent's write to other lines of
+    it meanwhile joins that save, and returning finds the file as left."""
+    for folder in ("deploy", "docs"):
+        (tmp_path / folder).mkdir()
+    values = tmp_path / "deploy" / "values.yaml"
+    values.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 3\n")
+    runbook = tmp_path / "docs" / "runbook.md"
+    runbook.write_text("# Runbook\n")
+    url = serve(
+        leaf_page(
+            "Deploy files",
+            '<h1>Deploy files</h1><lf-file-tree id="files" for="config"></lf-file-tree>'
+            '<lf-file-editor id="config" binding="values runbook"></lf-file-editor>',
+        ),
+        packages=["file-editor", "file-tree"],
+    )
+    bind_file(serve.page_dir, "values", values)
+    bind_file(serve.page_dir, "runbook", runbook)
+    page = open_page(browser, live_url(url))
+    tree = page.locator("lf-file-tree")
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    name = widget.locator(".lf-file-editor-name")
+    expect(editor).to_contain_text("replicas: 3")
+    expect(name).to_have_text("deploy/values.yaml")
+    expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
+        "aria-selected", "true"
+    )
+
+    held = []
+
+    def hold(route):
+        if route.request.method == "POST":
+            held.append(route)
+            page.evaluate("window.heldFileWrites = true")
+        else:
+            route.continue_()
+
+    page.route("**/api/files/values", hold)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    page.keyboard.insert_text("4")
+    tree.get_by_role("treeitem", name="runbook.md").click()
+    page.wait_for_function("window.heldFileWrites")
+    values.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 4\n")
+    page.unroute("**/api/files/values", hold)
+    merged = "replicas: 4\n\nautoscaling:\n  minReplicas: 4\n"
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.status == 200
+            and response.request.post_data_json["text"] == merged
+        )
+    ):
+        held[0].continue_()
+    assert values.read_text() == merged
+    expect(name).to_have_text("docs/runbook.md")
+    expect(editor).to_contain_text("# Runbook")
+    expect(tree.get_by_role("treeitem", name="runbook.md")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    assert page.evaluate("location.hash") == "#config:runbook"
+
+    tree.get_by_role("treeitem", name="values.yaml").click()
+    expect(name).to_have_text("deploy/values.yaml")
+    expect(editor).to_have_text("replicas: 4autoscaling:  minReplicas: 4")
+    consume_browser_errors(page, http_error_console(409))
+
+
+def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):
+    """An agent's write to one part of the file while the reader's edit to another is
+    still unsaved joins the draft, and both reach the file, as a line merge would."""
+    file = tmp_path / "values.yaml"
+    file.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 3\n")
+    url = serve(
+        leaf_page(
+            "Values",
+            '<h1>Values</h1><lf-file-editor id="values-file" binding="values">'
+            "</lf-file-editor>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "values", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    held = []
+
+    def hold(route):
+        if route.request.method == "POST":
+            held.append(route)
+            page.evaluate("window.heldFileWrites = true")
+        else:
+            route.continue_()
+
+    page.route("**/api/files/values", hold)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    page.keyboard.insert_text("4")
+    page.wait_for_function("window.heldFileWrites")
+    file.write_text("replicas: 3\n\nautoscaling:\n  minReplicas: 4\n")
+    page.unroute("**/api/files/values", hold)
+    merged = "replicas: 4\n\nautoscaling:\n  minReplicas: 4\n"
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.status == 200
+            and response.request.post_data_json["text"] == merged
+        )
+    ):
+        held[0].continue_()
+    assert file.read_text() == merged
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    # The agent's line changed inside the region the reader was typing in; their own
+    # words stayed where they typed them.
+    page.evaluate("lfWordsJudged()")
+    consume_browser_errors(
+        page,
+        http_error_console(409),
+        {
+            "code": "words-left-screen",
+            "words": "replicas: 4autoscaling:  minReplicas: 3",
+        },
+    )
 
 
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(

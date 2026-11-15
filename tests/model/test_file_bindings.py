@@ -1,8 +1,10 @@
 """Explicit local-file grants, lossless saves, and the authenticated HTTP door."""
 
 import json
+import shutil
 import stat
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from threading import Event
 
 import pytest
@@ -22,6 +24,8 @@ from leaf.file_bindings import (
     FileBindingError,
     StaleFileError,
     bind_file,
+    bound_files,
+    labels,
     read_file,
     save_file,
 )
@@ -40,6 +44,7 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
     assert json.loads(result.output) == {
         "binding": "notes",
         "path": str(target.resolve()),
+        "label": "notes.md",
         "bytes": target.stat().st_size,
     }
     assert BINDINGS.read(page_dir / "files.json") == {
@@ -62,6 +67,56 @@ def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
         save_file(page_dir, "notes", {"revision": saved["revision"], "text": "mine\n"})
     assert stale.value.current["text"] == "external\n"
     assert target.read_text() == "external\n"
+
+
+def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tmp_path):
+    """One file reads as its name; several read as one tree below the deepest folder
+    holding them all, which a navigator lists, and never as a host path."""
+    for folder in ("deploy", "docs"):
+        (tmp_path / folder).mkdir()
+    values = tmp_path / "deploy" / "values.yaml"
+    values.write_text("replicas: 3\n")
+    runbook = tmp_path / "docs" / "runbook.md"
+    runbook.write_text("# Runbook\n")
+    assert bind_file(page_dir, "values", values)["label"] == "values.yaml"
+    assert bind_file(page_dir, "runbook", runbook)["label"] == "docs/runbook.md"
+    assert {
+        binding: file["label"] for binding, file in bound_files(page_dir).items()
+    } == {
+        "values": "deploy/values.yaml",
+        "runbook": "docs/runbook.md",
+    }
+    snapshot = read_file(page_dir, "values")
+    assert snapshot is not None
+    assert snapshot["label"] == "deploy/values.yaml"
+    assert labels(
+        {
+            "a": Path("/home/ana/proj/README.md"),
+            "b": Path("/srv/site/README.md"),
+            "c": Path("/srv/site/notes.md"),
+        }
+    ) == {"a": "proj/README.md", "b": "site/README.md", "c": "notes.md"}
+
+
+def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
+    """A grant inside the page names its file from there, so a copy of the page,
+    such as a published example in its visitor's container, edits its own copy."""
+    target = page_dir / "files" / "deploy" / "values.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("replicas: 3\n")
+    bind_file(page_dir, "values", target)
+    assert BINDINGS.read(page_dir / "files.json") == {
+        "bindings": {"values": "files/deploy/values.yaml"}
+    }
+    copy = tmp_path / "copy"
+    shutil.copytree(page_dir, copy)
+    current = read_file(copy, "values")
+    assert current is not None
+    save_file(
+        copy, "values", {"revision": current["revision"], "text": "replicas: 4\n"}
+    )
+    assert (copy / "files" / "deploy" / "values.yaml").read_text() == "replicas: 4\n"
+    assert target.read_text() == "replicas: 3\n"
 
 
 def test_file_saves_preserve_special_permission_bits(page_dir, tmp_path):
@@ -311,7 +366,12 @@ def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
     bind_file(page_dir, "notes", target)
 
     def stamps():
-        return json.loads(fetch(f"{server}/api/state")[1])["files"]
+        return {
+            binding: file["stamp"]
+            for binding, file in json.loads(fetch(f"{server}/api/state")[1])[
+                "files"
+            ].items()
+        }
 
     # The first state read activates the page, which moves its reading once.
     stamped = stamps()

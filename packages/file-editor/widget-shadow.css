@@ -132,6 +132,8 @@
  * on the content and the cue never receives pointer input. */
 :host(lf-file-editor) .cm-content {
   --lf-focus-box: .cm-editor;
+  /* The room a full-height allocation keeps for Leaf's panel (defaults.css). */
+  padding-block-end: calc(4px + var(--lf-file-editor-end-room, 0px));
 }
 :host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;

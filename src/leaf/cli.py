@@ -1059,8 +1059,8 @@ def file() -> None:
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(page_dir: Path, binding: str, path: Path) -> dict:
-    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
-    the file it grants, and its size in bytes."""
+    """Name ID in an <lf-file-editor>'s binding to edit PATH. Prints the binding,
+    the file it grants, the label the page shows for it and its size in bytes."""
     from leaf.file_bindings import bind_file
 
     return bind_file(page_dir, binding, path)

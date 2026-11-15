@@ -576,20 +576,16 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
 
 
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
-    """High-contrast mode keeps a real outline on the focused comment frame: the box
-    that wears the field's ring, the nearest declaring `--lf-wears-ring: 1` (focus.js,
-    `ringBox`), wherever a surface's styles stand it."""
+    """High-contrast mode keeps a real outline on the focused comment frame, the box
+    the runtime rings for the focused field (focus.js, `ringBox`)."""
     context = browser.new_context(
         viewport={"width": 420, "height": 800}, forced_colors="active"
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
     box = page_comment(page)
     focus = box.evaluate(
-        """el => {
-          let ring = el.parentElement;
-          while (ring && getComputedStyle(ring).getPropertyValue('--lf-wears-ring') !== '1')
-            ring = ring.parentElement;
-          const s = getComputedStyle(ring);
+        """async el => {
+          const s = getComputedStyle((await window.__lfCheckApi()).ringBox(el));
           return {style: s.outlineStyle, width: s.outlineWidth};
         }"""
     )

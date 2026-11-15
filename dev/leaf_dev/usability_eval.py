@@ -34,6 +34,7 @@ from leaf_dev.arms import (
     LiveChild,
     LiveSession,
     PageClient,
+    arm_python,
     blocks,
     completed,
     environment,
@@ -128,15 +129,7 @@ def arm_fixture(run: Run, action: str, *args: str) -> None:
     """Run the fixture module with the selected arm's Leaf and isolated state."""
     subprocess.run(
         [
-            "uv",
-            "run",
-            "-q",
-            "--no-dev",
-            "--project",
-            str(run.payload),
-            "--with",
-            str(ROOT / "dev"),
-            "python",
+            *arm_python(run.payload, dev=ROOT / "dev"),
             "-m",
             "leaf_dev.usability_fixture",
             action,

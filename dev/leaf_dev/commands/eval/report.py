@@ -41,7 +41,7 @@ from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
 from leaf_dev import LEAF_COMMAND, gallery
-from leaf_dev.arms import observed_sum
+from leaf_dev.arms import arm_python, observed_sum
 from leaf_dev.eval_records import judgments, run_samples
 from leaf_dev.regrade import ASPECTS, saved_comparison
 
@@ -594,12 +594,7 @@ def exported_output(
                 shutil.copytree(source, copied)
                 subprocess.run(
                     [
-                        "uv",
-                        "run",
-                        "--no-dev",
-                        "--project",
-                        sample["diagnostics"]["payload"],
-                        "python",
+                        *arm_python(Path(sample["diagnostics"]["payload"])),
                         "-c",
                         EXPORT_PHASE,
                         str(copied),

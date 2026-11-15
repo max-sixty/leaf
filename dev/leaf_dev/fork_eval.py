@@ -77,6 +77,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
+    arm_python,
     build_source,
     claude_child,
     environment,
@@ -298,7 +299,7 @@ class Leaf:
     def python(self, program: str, *args: str, stdin: str = "") -> Any:
         """What `program` prints, as JSON, run by the arm's Python."""
         result = subprocess.run(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", program, *args],
+            [*arm_python(self.payload), "-c", program, *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -313,7 +314,7 @@ class Leaf:
     def lane(self):
         """Hold the session's forks lane, as its pages follower does."""
         holder = subprocess.Popen(
-            [str(self.payload / ".venv/bin/python"), "-I", "-c", LANE, self.session],
+            [*arm_python(self.payload), "-c", LANE, self.session],
             env=self.env,
             text=True,
             stdin=subprocess.PIPE,

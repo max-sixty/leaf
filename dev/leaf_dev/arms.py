@@ -216,6 +216,19 @@ def run_leaf(
     return proc
 
 
+def arm_python(arm: Path, *, dev: Path | None = None) -> list[str]:
+    """The command that runs Python in `arm`'s own environment, the one its `bin/leaf`
+    syncs, so the arm's Leaf is what it imports: its interpreter, isolated from this
+    process's paths, or with `dev`, that `leaf_dev` tree laid over the environment by
+    `uv run`, for code that imports `leaf_dev` too, which a harness never installs."""
+    if dev is None:
+        return [str(arm / ".venv/bin/python"), "-I"]
+    return [
+        "uv", "run", "-q", "--no-dev", "--project", str(arm),
+        "--with-editable", str(dev), "python",
+    ]  # fmt: skip
+
+
 def pages(*roots: Path) -> list[Path]:
     """Initialized page directories under the private workspace or state homes."""
     return sorted({p.parent for root in roots for p in root.rglob("events.jsonl")})
@@ -415,9 +428,7 @@ def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) ->
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
     # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
-    subprocess.run(
-        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
-    )
+    subprocess.run([*arm_python(dest), "-m", "compileall", "-q", dest], check=True)
     return arm_commit(ref)
 
 
@@ -664,7 +675,7 @@ def retire_sessions(payload: Path, state: Path) -> None:
         return
     subprocess.run(
         [
-            str(payload / ".venv/bin/python"),
+            *arm_python(payload),
             "-c",
             """
 import json

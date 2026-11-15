@@ -125,7 +125,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         page_files=gallery_page_files,
     )
     exported = tmp_path / "exported.html"
-    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exporting_model.cmd_export(serve.page_dir, exported, None, runtime=True)
     entry = re.compile(
         r'(<script type="module" src=)"[^"]*"( data-lf-runtime></script>)'
     )

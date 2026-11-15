@@ -7,7 +7,14 @@
  * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
+import {
+  authoredScope,
+  documentOutline,
+  elementReading,
+  HEADING,
+  keptAnswer,
+  keptWithReading,
+} from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -128,9 +135,22 @@ function readLeadingTitle(container) {
 // a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
 // which stops at a question inside a section and lets a sub-heading after a question
 // title the section around both. Neither took a question with no section around it.
+//
+// The answer turns on headings and words anywhere around the heading, so it is kept
+// with its document's whole reading (`keptWithReading`), which any change to the
+// document forgets, a widget's data included. Kept with the heading's own part of the
+// page, it outlived a heading put before that part.
 /** @param {Element} heading @returns {Element} */
-export const titledElement = (heading) =>
-  keptAnswer(heading, "titled element", () => readTitledElement(heading));
+export function titledElement(heading) {
+  const kept = keptWithReading(
+    authoredScope(heading),
+    titledElement,
+    () => /** @type {WeakMap<Element, Element>} */ (new WeakMap()),
+  );
+  let titled = kept.get(heading);
+  if (!titled) kept.set(heading, (titled = readTitledElement(heading)));
+  return titled;
+}
 /** @param {Element} heading @returns {Element} */
 function readTitledElement(heading) {
   let titled = heading;
@@ -179,22 +199,31 @@ function hasWords(node) {
 }
 /** @param {Element} heading */
 const rank = (heading) => Number(heading.localName.slice(1));
-// The first heading an element holds, as the page reads it, and the highest rank among
-// the rest (7 where there are none), kept as long as the page reading stands
-// (`keptAnswer`), so the climbs of every heading read each element once.
+// The first heading an element holds, as its document reads it, and the highest rank
+// among the rest (7 where there are none). Read off the document's outline
+// (passages.js, `documentOutline`), which lists its headings in reading order, chrome
+// aside: each heading is credited to every element holding it, once for each reading
+// of the document (`keptWithReading`), so the answers cost the headings the document
+// holds rather than its elements. An element no document reads holds none. Rejected:
+// asking each element's tree for its headings, which walks every element under it,
+// again after any change to the page.
+const NO_HEADINGS = Object.freeze({ first: null, below: 7 });
 /** @param {Element} element @returns {{first: Element | null, below: number}} */
-const headingsIn = (element) =>
-  keptAnswer(element, "headings in", () => {
-    /** @type {Element | null} */
-    let first = null;
-    let below = 7;
-    for (const heading of element.querySelectorAll(HEADING)) {
-      if (uiInside(heading, element)) continue;
-      if (first) below = Math.min(below, rank(heading));
-      else first = heading;
-    }
-    return { first, below };
+function headingsIn(element) {
+  const scope = authoredScope(element);
+  const held = keptWithReading(scope, headingsIn, () => {
+    /** @type {Map<Element, {first: Element, below: number}>} */
+    const holders = new Map();
+    for (const heading of documentOutline(scope).outline)
+      for (let at = heading.parentElement; at; at = at.parentElement) {
+        const holder = holders.get(at);
+        if (holder) holder.below = Math.min(holder.below, rank(heading));
+        else holders.set(at, { first: heading, below: 7 });
+      }
+    return holders;
   });
+  return held.get(element) ?? NO_HEADINGS;
+}
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
 /** @param {Element} element */

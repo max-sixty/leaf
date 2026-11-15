@@ -110,7 +110,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
     rail = page.evaluate(
         """() => parseFloat(getComputedStyle(document.querySelector('main'))
-             .getPropertyValue('--rail'))"""
+             .getPropertyValue('--lf-rail'))"""
     )
     floor = 720 + 2 * rail
     places = set()
@@ -147,12 +147,12 @@ def test_a_page_s_own_body_and_column_units_keep_its_cards(browser, serve):
     its body still opens a card from its marker on a wide window. A column the page
     states as a percentage keeps its width, and with no window width of its own
     (tokens.css, `--lf-rail-room`) leaves cards opening at every width. Measuring the body
-    took the card from the first page, and registering `--col` as a length left the
+    took the card from the first page, and registering `--lf-col` as a length left the
     second a 0px column."""
     page = open_page(browser, serve(PANEL_PAGE, events=[_comment_on("lede")]))
     resized(page, 1440, 900)
     page.add_style_tag(
-        content=":root { --col: min(100%, 46rem) }"
+        content=":root { --lf-col: min(100%, 46rem) }"
         " body { max-width: 860px; margin-inline: auto }"
     )
     margins_laid_out(page)
@@ -170,7 +170,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
         "<h1>First rail allocation</h1>"
         '<p id="subject">A passage without an existing margin entry.</p>'
         '<p id="next-subject">Another passage beside the same rail.</p>',
-        head="<style>:root {--focus-ring-w:7px; --focus-ring-gap:4px}</style>",
+        head="<style>:root {--lf-focus-ring-w:7px; --lf-focus-ring-gap:4px}</style>",
     )
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True
@@ -247,7 +247,7 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         '<p id="passage">A passage to discuss.</p>',
         head=(
             "<style>main { box-sizing: border-box; width: 100%; "
-            "max-width: var(--wide); margin-inline: auto; }</style>"
+            "max-width: var(--lf-wide); margin-inline: auto; }</style>"
             if wide
             else ""
         ),

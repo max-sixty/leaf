@@ -68,13 +68,13 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-empty')")
 
     # A revision newly declaring an empty property or a `var()` shorthand puts it on.
-    page.evaluate("document.body.style.borderTop = '2px solid var(--ink)'")
+    page.evaluate("document.body.style.borderTop = '2px solid var(--lf-ink)'")
     (serve.page_dir / "index.html").write_text(
         LIVE_V2.replace(
             "<title>Live second</title>", "<title>Live more</title>"
         ).replace(
             empty,
-            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink);"
+            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--lf-ink);"
             " min-width: calc(1px + 1px",
         )
     )

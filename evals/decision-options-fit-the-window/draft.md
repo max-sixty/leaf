@@ -57,21 +57,21 @@ handoff and save it.
       .route-frames {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
         margin: 0;
       }
       .route-frames figure {
         margin: 0;
       }
       .route-frames figcaption {
-        color: var(--ink-2);
-        font-size: var(--t-6, 0.85em);
-        margin-top: var(--sp-1);
+        color: var(--lf-ink-2);
+        font-size: var(--lf-t-6, 0.85em);
+        margin-top: var(--lf-sp-1);
       }
       .route-frames img {
         display: block;
         width: 100%;
-        border: 1px solid var(--border-2);
+        border: 1px solid var(--lf-border);
         border-radius: var(--r-m, 6px);
       }
       @media (max-width: 720px) {

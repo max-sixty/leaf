@@ -221,7 +221,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --lf-accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [

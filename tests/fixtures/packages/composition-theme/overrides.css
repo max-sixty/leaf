@@ -1,45 +1,45 @@
 :root {
   color-scheme: light dark;
-  --paper: light-dark(#fff3d6, #201629);
-  --card: light-dark(#fffaf0, #2c2036);
-  --field: light-dark(#efe2f0, #382742);
-  --ink: light-dark(#281c43, #fff0d6);
-  --ink-2: light-dark(#49365d, #e6d3ed);
-  --muted: light-dark(#66526d, #c2accb);
-  --rule: light-dark(#cbb6cc, #5c4668);
-  --border-2: light-dark(#a38aa9, #80638d);
-  --accent: light-dark(#8a257c, #eea7dd);
+  --lf-paper: light-dark(#fff3d6, #201629);
+  --lf-card: light-dark(#fffaf0, #2c2036);
+  --lf-field: light-dark(#efe2f0, #382742);
+  --lf-ink: light-dark(#281c43, #fff0d6);
+  --lf-ink-2: light-dark(#49365d, #e6d3ed);
+  --lf-muted: light-dark(#66526d, #c2accb);
+  --lf-rule: light-dark(#cbb6cc, #5c4668);
+  --lf-border: light-dark(#a38aa9, #80638d);
+  --lf-accent: light-dark(#8a257c, #eea7dd);
 
   /* Marks, readable text, and grounds are separate semantic inputs. */
-  --ok: light-dark(#1d7657, #71d6a4);
-  --ok-ink: light-dark(#075b47, #9ee7b8);
-  --ok-tint: light-dark(#ddf3e4, #183b30);
-  --warn: light-dark(#9e620c, #eab75c);
-  --warn-ink: light-dark(#754a06, #f4cf81);
-  --warn-tint: light-dark(#fff0cc, #49351a);
-  --danger: light-dark(#b33155, #ed829e);
-  --danger-ink: light-dark(#8e2440, #ffb0c3);
-  --danger-tint: light-dark(#ffe2e9, #4a2433);
+  --lf-ok: light-dark(#1d7657, #71d6a4);
+  --lf-ok-ink: light-dark(#075b47, #9ee7b8);
+  --lf-ok-tint: light-dark(#ddf3e4, #183b30);
+  --lf-warn: light-dark(#9e620c, #eab75c);
+  --lf-warn-ink: light-dark(#754a06, #f4cf81);
+  --lf-warn-tint: light-dark(#fff0cc, #49351a);
+  --lf-danger: light-dark(#b33155, #ed829e);
+  --lf-danger-ink: light-dark(#8e2440, #ffb0c3);
+  --lf-danger-tint: light-dark(#ffe2e9, #4a2433);
 
   /* A pale count deliberately needs dark digits in both schemes. */
-  --badge-fill: light-dark(#e7cbff, #e1b5f6);
-  --badge-ink: light-dark(#241343, #341a48);
+  --lf-badge-fill: light-dark(#e7cbff, #e1b5f6);
+  --lf-badge-ink: light-dark(#241343, #341a48);
 
-  --code-bg: light-dark(#e3edf5, #1b2a3c);
-  --pre-bg: light-dark(#edf4fa, #111e2d);
-  --code-chrome: light-dark(#dae7f2, #24354b);
-  --code-ink: light-dark(#203e5b, #d9edff);
-  --code-muted: light-dark(#48647c, #aec6dd);
-  --code-border: light-dark(#a2b9cd, #49627b);
-  --syn-comment: light-dark(#52677b, #aec0d2);
-  --syn-keyword: light-dark(#752870, #edb0e9);
-  --syn-string: light-dark(#14604b, #8de1bb);
-  --syn-number: light-dark(#703b08, #f7ca8b);
-  --syn-name: light-dark(#284c95, #a8c9ff);
-  --syn-type: light-dark(#8a2b43, #ffb2c2);
+  --lf-code-bg: light-dark(#e3edf5, #1b2a3c);
+  --lf-pre-bg: light-dark(#edf4fa, #111e2d);
+  --lf-code-chrome: light-dark(#dae7f2, #24354b);
+  --lf-code-ink: light-dark(#203e5b, #d9edff);
+  --lf-code-muted: light-dark(#48647c, #aec6dd);
+  --lf-code-border: light-dark(#a2b9cd, #49627b);
+  --lf-syn-comment: light-dark(#52677b, #aec0d2);
+  --lf-syn-keyword: light-dark(#752870, #edb0e9);
+  --lf-syn-string: light-dark(#14604b, #8de1bb);
+  --lf-syn-number: light-dark(#703b08, #f7ca8b);
+  --lf-syn-name: light-dark(#284c95, #a8c9ff);
+  --lf-syn-type: light-dark(#8a2b43, #ffb2c2);
 
-  --serif: Georgia, serif;
-  --sans: Verdana, sans-serif;
-  --mono: "Courier New", monospace;
-  --r: 0.65rem;
+  --lf-serif: Georgia, serif;
+  --lf-sans: Verdana, sans-serif;
+  --lf-mono: "Courier New", monospace;
+  --lf-r: 0.65rem;
 }

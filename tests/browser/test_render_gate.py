@@ -627,8 +627,8 @@ RECURSIVE_ROWS_PAGE = leaf_page(
   </div>
 """,
     head="""<style>
-#rows { display: grid; gap: var(--sp-4); }
-#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+#rows { display: grid; gap: var(--lf-sp-4); }
+#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }
 </style>""",
     layout="workspace",
 )
@@ -1256,7 +1256,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
                 "a transition in a closed disclosure",
                 "<h1>Settles</h1><details><summary>More</summary>"
                 '<input id="hidden-field" style="transition: color 150ms; '
-                'color: var(--ink)"></details>',
+                'color: var(--lf-ink)"></details>',
             )
         ),
     )
@@ -2405,7 +2405,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
               }))"""
         )
         tokens = page.evaluate(
-            """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
+            """() => ['--lf-h2-start', '--lf-h3-start', '--lf-callout-margin-block'].map(name =>
               parseFloat(getComputedStyle(document.querySelector('main'))
                 .getPropertyValue(name)))"""
         )
@@ -2693,9 +2693,7 @@ RESTORE_ADOPTED = """async () => {
 # to follow it there. The rule states both floors; a control that hangs a reach leaves
 # the block floor to it, and one a flex or grid container could squeeze states it as
 # padding.
-AIM_FLOOR_RULE = (
-    "min-width: var(--aim-floor); min-height: var(--lf-face-floor, var(--aim-floor));"
-)
+AIM_FLOOR_RULE = "min-width: var(--lf-aim-floor); min-height: var(--lf-face-floor, var(--lf-aim-floor));"
 
 
 def aim_selectors():
@@ -4177,10 +4175,12 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     )
     syntax = unread_syntax(page)
     page.close()
-    assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
-        population["document"]
-    ), population
-    assert "var(--syn-number)" in population["shadow"], population
+    assert {
+        "var(--lf-syn-comment)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+    } <= set(population["document"]), population
+    assert "var(--lf-syn-number)" in population["shadow"], population
     assert population["comment"] == "italic", population
     readable, faint = population["names"]
     assert readable["style"] == faint["style"], population
@@ -4196,7 +4196,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     ):
         assert any(
             finding.scheme == appearance
-            and finding.values["style"].startswith(f"color: var(--syn-{color});")
+            and finding.values["style"].startswith(f"color: var(--lf-syn-{color});")
             and finding.values["ratio"] < 4.5
             for finding in syntax
         ), syntax

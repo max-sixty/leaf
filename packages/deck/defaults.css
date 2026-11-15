@@ -1,9 +1,9 @@
 lf-deck {
-  --lf-deck-bar-h: calc(var(--lf-line) + var(--sp-2));
+  --lf-deck-bar-h: calc(var(--lf-line) + var(--lf-sp-2));
   --lf-deck-edge: 6px;
   display: block;
   position: relative;
-  margin-block: var(--sp-3);
+  margin-block: var(--lf-sp-3);
 }
 /* A leaving card flies out past the deck's sides, and the deck's height follows the
    card that comes up; clip both to the deck, with room for the stack's edges, and only
@@ -16,10 +16,10 @@ lf-deck[data-lf-deck-flying] {
 .lf-deck-bar {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   min-block-size: var(--lf-deck-bar-h);
-  font: var(--font-small);
-  color: var(--muted);
+  font: var(--lf-font-small);
+  color: var(--lf-muted);
 }
 /* The marks stand over the count, so a count that grows, as with "· 1 on Claude",
    neither moves them nor squeezes them away on a phone. */
@@ -46,16 +46,16 @@ lf-deck[data-lf-deck-flying] {
   max-inline-size: 28px;
   block-size: 4px;
   border-radius: 2px;
-  background: var(--rule);
+  background: var(--lf-rule);
 }
 .lf-deck-pip[data-lf-state="done"] {
-  background: var(--ok);
+  background: var(--lf-ok);
 }
 .lf-deck-pip[data-lf-state="agent"] {
-  background: var(--muted);
+  background: var(--lf-muted);
 }
 .lf-deck-pip[data-lf-state="open"] {
-  background: var(--ink-2);
+  background: var(--lf-ink-2);
 }
 /* Where the cards stood once the pass is over: a quiet frame saying what is left, with
    the way back in as words, since no symbol says "go through what's left". */
@@ -64,11 +64,11 @@ lf-deck[data-lf-deck-flying] {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sp-2) var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px dashed var(--rule);
-  border-radius: var(--r);
-  color: var(--muted);
+  gap: var(--lf-sp-2) var(--lf-sp-3);
+  padding: var(--lf-sp-3) var(--lf-sp-4);
+  border: 1px dashed var(--lf-rule);
+  border-radius: var(--lf-r);
+  color: var(--lf-muted);
 }
 .lf-deck-end > p {
   margin: 0;
@@ -98,17 +98,17 @@ lf-deck[data-lf-deck-flying] {
       display: block;
       box-sizing: border-box;
       margin: 0;
-      padding: var(--sp-3) var(--sp-4);
-      border: 1px solid var(--rule);
-      border-radius: var(--r);
-      background: var(--card);
+      padding: var(--lf-sp-3) var(--lf-sp-4);
+      border: 1px solid var(--lf-rule);
+      border-radius: var(--lf-r);
+      background: var(--lf-card);
       --lf-deck-first-edge:
-        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--card),
-        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--rule);
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--lf-card),
+        0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--lf-rule);
       --lf-deck-second-edge:
-        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge)) var(--card),
+        0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge)) var(--lf-card),
         0 calc(2 * var(--lf-deck-edge)) 0 calc(-1 * var(--lf-deck-edge) + 1px)
-          var(--rule);
+          var(--lf-rule);
       /* A sideways touch drag is the card's; a vertical one still scrolls the page. */
       touch-action: pan-y;
     }

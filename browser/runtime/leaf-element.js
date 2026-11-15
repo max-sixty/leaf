@@ -389,8 +389,13 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** @param {Parameters<LitElement["updated"]>[0]} changed */
   updated(changed) {
     super.updated(changed);
-    // The render may have changed what this widget's commands read from its nodes.
-    untracked(() => integration?.paintKeysWithin(this));
+    // The render may have changed what this widget's commands read from the nodes it
+    // drew, which are its render root's: the element itself, its shadow tree, or the
+    // part it draws into, as a tab set's strip, whose paint reaches the element around
+    // it too. A draw leaves what the page wrote beside that part as it was, such as a
+    // tab set's panels, so their keys aren't read again: on #4781's page, reading
+    // every panel's document held each tab switch for over a second.
+    untracked(() => integration?.paintKeysWithin(this.renderRoot));
   }
 
   // Every failure is reported here, naming the widget; a claim's rejection then shows

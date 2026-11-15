@@ -71,7 +71,6 @@ from types import EllipsisType
 from . import codex
 from .codex import (
     APP_SERVER_ENV,
-    START_TIMEOUT,
     AppServerDeliveryUncertain,
     TurnFold,
     accept_codex_delivery,
@@ -297,11 +296,7 @@ class TaskConnection:
 
     def start(self) -> None:
         self.thread.start()
-        try:
-            outcome = self.ready.get(timeout=START_TIMEOUT)
-        except queue.Empty as error:
-            self.stop()
-            raise Refused("Codex App Server did not answer") from error
+        outcome = self.ready.get()
         if outcome is not None:
             self.stop()
             raise Refused(f"Codex App Server connection failed: {outcome}")
@@ -1076,7 +1071,6 @@ def preparing_adapter(harness: CodexHarness):
     with ExitStack() as preparation:
         from .session_runtime import selected_launcher
 
-        deadline = time.monotonic() + START_TIMEOUT
         while True:
             preparation.enter_context(flocked(launch_lock))
             launcher = selected_launcher(session_id)
@@ -1087,14 +1081,11 @@ def preparing_adapter(harness: CodexHarness):
                 or record.get("launcher") == str(launcher)
             ):
                 break
-            # The former adapter observes the selection on its next bounded
-            # pass. Let it take the start lock on its way out too, then retry
+            # The former adapter leaves at the top of its next pass, which can
+            # follow a 30 s wait between retries, and its lease goes as it exits.
+            # Let it take the start lock on its way out too, then retry
             # preparation under that lock rather than racing a third start.
             preparation.pop_all().close()
-            if time.monotonic() >= deadline:
-                raise Refused(
-                    "the former Leaf delivery adapter did not release its session"
-                )
             time.sleep(0.05)
         if record is not None:
             running = record["app_server"]
@@ -1126,7 +1117,6 @@ def preparing_adapter(harness: CodexHarness):
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),
-            deadline=time.monotonic() + START_TIMEOUT,
             launcher=launcher,
         ):
             pass

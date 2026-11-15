@@ -62,11 +62,17 @@ from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
 from leaf.harness import claude_code_config
-from leaf.holding import turn_threads
+from leaf.holding import reading
 from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
-from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
+from leaf.state import (
+    agent_turn_open,
+    agent_turns,
+    now_iso,
+    session_live,
+    session_record,
+)
 from leaf.thread_context import thread_names
 from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
@@ -393,9 +399,10 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
+    holding = reading(events, session, turns, running, live=session_live(record))
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
-        took = sorted(turn_threads(events, session, {turn}))
+        took = sorted(holding.took.get(turn, ()))
         if thread is not None and thread not in took:
             continue
         state = agent_turn_state(turn, turns, running)

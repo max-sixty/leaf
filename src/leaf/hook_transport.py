@@ -311,7 +311,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 if claim is None or claim["id"] != session_id:
                     continue
                 assert lifecycle is not None
-                pending = deliverable(page, work.obligations)
+                pending = deliverable(page, work)
                 watched = harness.watcher_live(listening=state["listening"])
                 # An owed update this owner holds no usable reference for, as when
                 # another session received it before the page changed hands, is
@@ -778,6 +778,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     Nothing else of the main thread's, its input, debt, reminders or the clerk's
     lines, reaches an agent."""
     from .delivery import current_responses
+    from .forks import page_holding
     from .holding import to_carry
     from .state import agent_turns, renew_agent_turn
 
@@ -795,7 +796,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
                     continue
                 if inputs := [
                     event
-                    for event in to_carry(page, turn)
+                    for event in to_carry(page_holding(page), turn)
                     if event["seq"] > through.get(str(page_dir), 0)
                 ]:
                     batches.append(

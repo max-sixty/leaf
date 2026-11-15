@@ -4,7 +4,7 @@ Claude Code's sandbox refuses what a `leaf` command needs: writes to the state h
 a port the user's browser reaches, Chrome for render checks, and on Linux the
 session's process and a server that outlives the command. Its hooks run outside the
 sandbox, so the hook Claude Code runs before a shell command naming `leaf`
-(`ensure`) starts a bridge for this install there, and `bin/leaf` hands each
+(`ensure`) starts a bridge there, and `bin/leaf` hands each
 command confined by Claude Code's sandbox (`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
 would, with its arguments, working directory and environment. Its output and exit
 status pass as they come, and so does its stdin, read beside the command, so a
@@ -28,11 +28,20 @@ hook's `if` rules (`hooks/hooks.json`) have Claude Code start it only before a
 command it reads as running `leaf` by name or by path, or one whose commands it
 cannot read.
 
-One bridge serves an install while any session a hook registered for it lives,
-by the lifetime its claims would record (`Harness.lifetime`): a background job
-outlives the worker hosting its current sitting, and its next sitting may run
-`leaf` from a script, before which no hook runs. The running bridge holds the
-install's lease (`leases.take_lease`). A hook registers its session before it
+One bridge serves every copy of Leaf that ships this file (`KEY`), and runs each
+command on the interpreter of the copy whose client sent it. Claude Code installs a
+plugin update as a new copy beside the one a running session loaded, and both
+copies reach the same bridge. The bridge serves while any session a hook
+registered with it lives, by the lifetime its claims would record
+(`Harness.lifetime`): a background job outlives the worker hosting its current
+sitting, and its next sitting may run `leaf` from a script, before which no hook
+runs. That script reaches this bridge where the later sitting's copy ships the
+same file. Each process of a session that lives as its own pid keeps its own
+registration. Each Leaf a hook passes through registers the session before
+handing the hook on (`hooks.main`). Where this file differs between the copy Claude Code
+loaded, whose client a sandboxed bare `leaf` runs, and the Leaf delivering for the
+session, both bridges then serve it. The running bridge holds its lease
+(`leases.take_lease`). A hook registers its session before it
 tries the lease, and a retiring bridge releases the lease before it reads the
 registrations again, so a session that registers meanwhile either keeps this
 bridge serving or has started the next one. A client counts a bridge up only once
@@ -67,8 +76,8 @@ from .state import PLUGIN_ROOT, STRING, Record, described, object_schema, state_
 ADDRESS = Record(
     "bridge",
     described(
-        "Where an installed tree's running bridge listens, in the state home's "
-        "`bridge/<key>.json`.",
+        "Where the running bridge of one version of `bridge.py` listens, in the "
+        "state home's `bridge/<key>.json`.",
         object_schema(
             {
                 "port": described(
@@ -92,9 +101,10 @@ REGISTRATION = Record(
     since=13,
 )
 
-# One bridge per installed tree: a plugin update is a new tree, whose sessions
-# reach its own bridge while the old one serves out the sessions still on it.
-KEY = hashlib.sha256(str(Path(__file__).resolve().parent).encode()).hexdigest()[:16]
+# Every copy that ships this file shares its bridge (module header). A copy that
+# changes the file, and so perhaps the frames below, starts a bridge of its own,
+# while the older one serves out the sessions registered with it.
+KEY = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
 
 # Both ways, each frame is a channel byte, a length, and that many bytes. The
 # client sends the request, then the command's stdin, ending with an empty frame,
@@ -142,15 +152,17 @@ def bridge_path(suffix: str) -> Path:
 
 
 def ensure(session: str, lifetime: dict) -> None:
-    """Register `session`, which lives as `lifetime` says, with this install's
+    """Register `session`, which lives as `lifetime` says, with this file's
     bridge, and start the bridge if none holds its lease. The started bridge
     inherits the lease."""
     # Only the user reads the bridge's directory, and with it the token.
     sessions = bridge_path("sessions")
     sessions.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     sessions.mkdir(exist_ok=True)
-    key = hashlib.sha256(session.encode()).hexdigest()[:32]
-    REGISTRATION.write(sessions / f"{key}.json", {"id": session, **lifetime})
+    registration = {"id": session, **lifetime}
+    named = json.dumps(registration, sort_keys=True).encode()
+    digest = hashlib.sha256(named).hexdigest()[:32]
+    REGISTRATION.write(sessions / f"{digest}.json", registration)
     if (lease := take_lease(bridge_path("lock"))) is None:
         return
     # Closing this copy leaves the lease held by the bridge's.
@@ -182,6 +194,11 @@ def live_sessions() -> bool:
 
 
 def serve(lease_fd: int) -> None:
+    # The sweep's lifetime rule, loaded while the copy that started this bridge
+    # stands: the bridge serves other copies and may outlive its own, and a sweep
+    # that failed to import would leave it serving for good.
+    from . import service  # noqa: F401
+
     lease = open(lease_fd, "rb")
     token = secrets.token_urlsafe(32)
     running: set[int] = set()
@@ -205,9 +222,11 @@ def serve(lease_fd: int) -> None:
             request = json.loads(frame[1])
             if not secrets.compare_digest(request["token"], token):
                 return
-            # `-I` keeps the agent's directory and PYTHONPATH from supplying `leaf`.
+            # The requesting copy's interpreter, so the command runs as that
+            # copy's Leaf. `-I` keeps the agent's directory and PYTHONPATH from
+            # supplying `leaf`.
             child = subprocess.Popen(
-                [sys.executable, "-I", "-m", "leaf", *request["argv"]],
+                [request["python"], "-I", "-m", "leaf", *request["argv"]],
                 cwd=request["cwd"],
                 env=request["env"],
                 stdin=subprocess.PIPE,
@@ -339,7 +358,7 @@ def run(argv: list[str]) -> int:
         env[STDIN_PIPED] = "1" if piped(0) else "0"
     except OSError:
         env[STDIN_PIPED] = "0"
-    request = {"argv": argv, "cwd": os.getcwd(), "env": env}
+    request = {"argv": argv, "cwd": os.getcwd(), "env": env, "python": sys.executable}
     # A bridge a hook has just started takes a moment to publish its address, and a
     # retiring one closes connections it has not accepted. Its pid may be in
     # another namespace, so only its acceptance says it is up.

@@ -254,7 +254,9 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     drawn = rings_drawn(page)
     worn = [(seen["who"].split(" ")[0], seen["rule"]) for seen in drawn if seen["here"]]
     assert [who for who, _rule in worn] == ["div.lf-margin-preview-card"], drawn
-    assert ".lf-page-thread" in worn[0][1], drawn
+    # The focused thread names the card as the box that shows its focus
+    # (`--lf-focus-box`), so the card's ring is the one a control's focus marks.
+    assert "[data-lf-control-focus-visible]" in worn[0][1], drawn
     assert not (faults := ring_faults(drawn, "on a card the keyboard opened")), (
         "\n".join(faults)
     )
@@ -2563,6 +2565,48 @@ def test_a_card_says_new_reply_for_an_answer_past_its_transcript_s_foot(browser,
     expect(press).to_have_text("New reply")
     turn("Thanks.")
     expect(press).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_wheel_up_a_card_as_its_answer_arrives_goes_where_it_takes_the_reader(
+    engine, request, serve
+):
+    """A reader at the card's end who wheels up its transcript as the answer to their
+    turn arrives goes where the wheel takes them, New reply standing for the answer
+    (thread-card.js, `#fitAnswer`). Firefox applies the wheel's scroll a frame or more
+    after the wheel, and the answer's placement, reading the reader at the end in
+    between, moved their turn into sight and cancelled the wheel."""
+    page, preview, transcript = open_long_thread(request.getfixturevalue(engine), serve)
+    press = preview.locator(".lf-new-reply")
+    preview.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text("And over the weekend?")
+    with sending(page, "the turn"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    rendered(page)
+    stood = transcript.evaluate("list => list.scrollTop")
+    assert transcript.evaluate("l => l.scrollHeight - l.clientHeight") - stood <= 2
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": LONG_THREAD_ROOT["id"],
+            "revision": 1,
+            "text": "It would. " + "Someone stays on call through Sunday. " * 60,
+        },
+    )
+    holding(page, held, 1, "the answer")
+    transcript.hover()
+    page.mouse.wheel(0, -300)
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    expect(press).to_have_text("New reply")
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    assert transcript.evaluate("list => list.scrollTop") < stood - 200
 
 
 @pytest.mark.parametrize("progress", [False, True])

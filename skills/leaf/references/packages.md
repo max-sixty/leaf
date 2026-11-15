@@ -95,12 +95,18 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 Choose a stylesheet by the contribution it makes. A package may supply any combination;
 adding a widget does not change its theme styling.
 
-| Sheet               | Document                           | Declared shadow trees | A page without Leaf |
-| ------------------- | ---------------------------------- | --------------------- | ------------------- |
-| `defaults.css`      | `lf-base`                          | —                     | `lf-base`           |
-| `widget-shadow.css` | `lf-base`                          | `lf-shadow`           | `lf-base`           |
-| `overrides.css`     | Page-wide in `lf-overrides`        | —                     | —                   |
-| `chrome.css`        | Leaf's chrome, above its own rules | —                     | —                   |
+| Sheet               | Document                           | Declared shadow trees                 | A page without Leaf |
+| ------------------- | ---------------------------------- | ------------------------------------- | ------------------- |
+| `defaults.css`      | `lf-base`                          | A thread's transcript, in `lf-shadow` | `lf-base`           |
+| `widget-shadow.css` | `lf-base`                          | `lf-shadow`                           | `lf-base`           |
+| `overrides.css`     | Page-wide in `lf-overrides`        | —                                     | —                   |
+| `chrome.css`        | Leaf's chrome, above its own rules | —                                     | —                   |
+
+A widget can seat a thread in its shadow tree, as a diff does a line's, so a declared
+shadow tree takes `defaults.css` within `@scope (.lf-thread-transcript)`, in `lf-shadow`
+after its `widget-shadow.css`, as it follows that sheet in the document: a message's
+markup wears the same look there as in the document, and the widget's own elements take
+none of it.
 
 A page without Leaf links the layer's `portable.css`, served beside `/widgets/`, for
 its widgets' look (`module-authoring.md`, "A widget that also runs off Leaf"). It holds

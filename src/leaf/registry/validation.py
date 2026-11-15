@@ -207,9 +207,6 @@ def _validate_data_contract(contract: str, declaration: dict, path) -> None:
                 expression=expression,
                 error=str(error),
             ) from error
-    records = declaration.get("records") or {}
-    if len(set(records.values())) != len(records):
-        raise registry_error("contract-records", path, contract=contract)
     try:
         check_schema(declaration["schema"])
     except SchemaError as error:

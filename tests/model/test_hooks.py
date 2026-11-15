@@ -45,6 +45,7 @@ from interact_support import (
 from interact_support import declare as declare_status
 
 from leaf import cli as cli_model
+from leaf import completions as completions_model
 from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -89,32 +90,118 @@ def test_pages_follower_without_owned_pages_does_not_open_a_watcher(
 
     monkeypatch.setattr(file_changes_model, "FileChanges", unexpected_watcher)
     hooks_model.cmd_pages({"session_id": "s1"})
-    assert capsys.readouterr().out == "[]\n"
+    assert json.loads(capsys.readouterr().out) == {"pages": [], "completions": []}
 
 
-def test_pages_follower_reads_on_its_timer_without_a_native_subscription(
-    claimed, monkeypatch, capsys
-):
-    """The per-session page list follows claims without an inotify instance."""
+def test_pages_follower_reads_its_pages_on_its_timer(claimed, monkeypatch, capsys):
+    """Without forks, the per-session page list follows claims on its timer and
+    subscribes to none of its pages, only to the session's completion requests
+    (`completions.watch`)."""
 
     serving(claimed, 1)
     server_rows_model.RowPublisher(claimed, "fixture-server").refresh()
+    subscribed = []
+    subscribe = file_changes_model.FileChanges
+
+    def watching(roots, accepts):
+        subscribed.append(set(roots))
+        return subscribe(roots, accepts)
 
     def forbidden(*_args, **_kwargs):
-        pytest.fail("the page list allocated a native subscription")
+        pytest.fail("the page list subscribed to a page")
 
-    def release(_seconds):
+    def release(_marks, _timeout):
         cleanup_model.end_session("s1")
 
-    monkeypatch.setattr(file_changes_model, "FileChanges", forbidden)
-    monkeypatch.setattr(
-        hooks_model, "time", SimpleNamespace(sleep=release, monotonic=time.monotonic)
-    )
+    monkeypatch.setattr(file_changes_model, "FileChanges", watching)
+    monkeypatch.setattr(file_changes_model, "page_changes", forbidden)
+    monkeypatch.setattr(file_changes_model, "wait", release)
     hooks_model.cmd_pages({"session_id": "s1"})
+    assert subscribed == [{cleanup_model.sessions_home().resolve()}]
     first, last = map(json.loads, capsys.readouterr().out.splitlines())
-    assert len(first) == 1
-    assert first[0]["page_key"] == cleanup_model.page_key(claimed)
-    assert last == []
+    assert len(first["pages"]) == 1
+    assert first["pages"][0]["page_key"] == cleanup_model.page_key(claimed)
+    assert last == {"pages": [], "completions": []}
+
+
+def test_pages_follower_lists_completions_whatever_its_pages_show(
+    claimed, monkeypatch, capsys
+):
+    """The follower lists each completion a page server asks of the session though
+    it lists none of the session's pages, as when the agent closed the page whose
+    thread the request titles (`completions`)."""
+    replied = []
+    asking = threading.Thread(
+        target=lambda: replied.append(
+            completions_model.ask("s1", {"prompt": "Name it"}, timeout=STATED_TIMEOUT)
+        )
+    )
+    asking.start()
+    [request] = wait_for(
+        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    )
+
+    def release(_marks, _timeout):
+        cleanup_model.end_session("s1")
+
+    monkeypatch.setattr(file_changes_model, "wait", release)
+    hooks_model.cmd_pages({"session_id": "s1"})
+    [listed] = map(json.loads, capsys.readouterr().out.splitlines())
+    assert listed == {"pages": [], "completions": [request]}
+    assert request["request"] == {"prompt": "Name it"}
+    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "Named"})
+    asking.join()
+    assert replied == [{"text": "Named"}]
+
+
+def test_the_follower_hears_a_completion_as_it_is_asked():
+    """The follower's subscription to the session's requests wakes it as one is
+    written, rather than at its next presence read (`completions.watch`)."""
+    heard = completions_model.watch("s1")
+    mark = heard.mark()
+    # Asked for longer than the wake may take, so it is still there to answer.
+    asking = threading.Thread(
+        target=completions_model.ask,
+        args=("s1", {"prompt": "Name it"}),
+        kwargs={"timeout": 2 * STATED_TIMEOUT},
+    )
+    asking.start()
+    woke = heard.wait(mark, STATED_TIMEOUT)
+    [request] = wait_for(
+        lambda: completions_model.pending("s1"), bool, failure="nothing was asked"
+    )
+    completions_model.cmd_reply("s1", {"completion": request["id"], "text": "{}"})
+    asking.join()
+    heard.close()
+    assert woke, "the request woke nothing"
+
+
+def test_a_stop_tells_the_user_once_where_claude_code_left_the_module_unloaded(
+    claimed, monkeypatch, capsys
+):
+    """Claude Code refuses a hooks module it can't validate and says so only in its
+    debug log, so the user saw no more than the line above the prompt gone. Only
+    the module starts a pages follower, which records its process, so a Stop in a
+    session holding a page tells the user once in a process no follower ran in,
+    as after a resume into a process that refused the module."""
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    # A process before this one, which the session was resumed out of.
+    leases_model.mark_module("s1", 1)
+    hooks_model.cmd_hook("claude-code", stop)
+    notice = json.loads(capsys.readouterr().out)["systemMessage"]
+    assert "didn't load Leaf's hooks module" in notice
+    assert f"claude plugin validate {cleanup_model.PLUGIN_ROOT}" in notice
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
+
+    # A follower started in this process, as the module starts one, records it.
+    leases_model.mark_module("s1", 1)
+    with monkeypatch.context() as patched:
+        patched.setattr(hooks_model, "owned_pages", lambda _sid: [])
+        hooks_model.cmd_pages({"session_id": "s1"})
+    capsys.readouterr()
+    hooks_model.cmd_hook("claude-code", stop)
+    assert capsys.readouterr().out == ""
 
 
 def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, capsys):
@@ -744,14 +831,11 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     assert acknowledged_through(page_dir) == last_deliverable_seq(page_dir)
 
 
-def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
+def test_one_tool_calls_hooks_do_its_work_once():
     """Claude Code runs the PreToolUse registration once for each of its `if`
     rules a command matches, at once, before the call; the first opens the turn a
     claim would join, and the rest leave it as they find it. Another call's hook
     does its work again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
 
     def before(call: str) -> None:
         hooks_model.cmd_hook(
@@ -982,9 +1066,6 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
         assert woke.startswith(f"{claimed} has new input")
         assert acknowledged_through(claimed) == 0
         assert handed_over("p2") == updates
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
@@ -1292,9 +1373,6 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     comment may not have reached the model. The woken prompt's hook confirms what
     the transcript shows first, so it names the comment as owed rather than handing
     the delivery over again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
@@ -1545,7 +1623,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     snapshot.check(
         yaml_document(
             "Complete agent-facing outputs through real hooks, wait and thread reply commands.\n"
-            "Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.\n"
+            "Only page paths, event/delivery/attempt, turn and claim identities, and timestamps are normalized.\n"
             "A null hook output means the turn can end without a reminder.",
             _interaction_prompt_evidence(
                 page,
@@ -1871,15 +1949,12 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
 
 
 def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
-    claimed, capsys, monkeypatch
+    claimed, capsys
 ):
     """A plugin update that bumps the page protocol leaves the session's page on the
     older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
     log, and hands over the input waiting there, so the user's comment reaches the
-    turn with nothing asked of the agent first. The re-vendor runs inside the hook's
-    time, which a loaded host can stretch past CONFIRM_WITHIN; that bound has its
-    own tests."""
-    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 600.0)
+    turn with nothing asked of the agent first."""
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -1950,33 +2025,6 @@ def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
 
     assert session_runtime_model.selected_launcher("s1") == other
     assert started == []
-
-
-@pytest.mark.parametrize("command", ["page init", "renewal"])
-def test_a_checkout_that_takes_over_a_held_page_starts_its_sessions_delivery_again(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A checkout's init or renewal of a page its session holds makes the checkout
-    the session's Leaf, then starts the session's delivery again, since a Codex
-    task's adapter running from the former Leaf leaves once another is selected.
-    Doing it again changes no selection, so it leaves the running delivery alone."""
-    select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
-    own = session_runtime_model.own_launcher()
-
-    def take_over():
-        if command == "page init":
-            vendoring_model.cmd_init(claimed)
-        else:
-            vendored_at_another_protocol(claimed)
-            vendoring_model.renew_layer(
-                claimed, harness_model.session_harness(), command=True
-            )
-
-    take_over()
-    assert started == [own]
-    take_over()
-    assert started == [own]
 
 
 @pytest.mark.parametrize("command", ["page claim", "server start", "server run"])

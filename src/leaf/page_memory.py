@@ -72,8 +72,8 @@ def once[T](held: dict, key, read: Callable[[], T]) -> T:
 
     Of several threads that ask at once for a key `held` lacks, the first makes the
     reading and the rest wait for it, where `functools.cache` lets each make its own.
-    A page server meets that on a cold start: a diff page sends one deferred load per
-    file as it opens, and each needs the page's layer."""
+    A page server meets that when requests reach it together before it has composed
+    the page's layer, which each of them needs."""
     entry = held.get(key) or held.setdefault(key, _Once())
     return entry.get(read)
 

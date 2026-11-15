@@ -370,31 +370,32 @@ function createApplication(dependencies) {
   };
   // A direct draw can show what the presenter's last paint did not read, such as the
   // age of a message in a card a gesture just opened, so it follows its own reads until
-  // the presenter's next paint reads them all again, and a change to one, such as the
-  // clock, repaints through the presenter.
-  let following = () => {};
+  // the presenter's next paint reads them all again, or until its caller stops it, and
+  // a change to one, such as the clock, repaints through the presenter.
+  /** @type {Set<() => void>} */
+  const following = new Set();
   const forget = () => {
-    following();
-    following = () => {};
+    for (const stop of following) stop();
   };
-  /** @template T @param {() => T} draw @returns {T} */
+  /** @template T @param {() => T} draw @returns {{drawn: T, stop: () => void}} */
   const follow = (draw) => {
     let first = true;
     /** @type {T | undefined} */
     let drawn;
-    const stop = effect(() => {
+    const stopEffect = effect(() => {
       if (first) {
         first = false;
         drawn = draw();
       } else untracked(() => void marginPresentation?.present());
     });
-    // The draw may itself have drawn something directly, which follows its own reads.
-    const nested = following;
-    following = () => {
-      nested();
-      stop();
+    // The draw may itself have drawn something directly, which follows its own reads
+    // beside this one; a follow stopped leaves the set, so nothing it drew stays held.
+    const stop = () => {
+      following.delete(stop);
+      stopEffect();
     };
-    return /** @type {T} */ (drawn);
+    following.add(stop);
+    return { drawn: /** @type {T} */ (drawn), stop };
   };
   const renderAnnotations = () => {
     forget();
@@ -447,7 +448,8 @@ function createApplication(dependencies) {
     pageMapDialogContains: dependencies.annotationCommands.pageMapDialogContains,
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
     // A card a gesture opens draws its thread outside the presenter's paint, and
-    // follows what it read, its messages' ages among them.
+    // follows what it read, its messages' ages among them, until the card draws again
+    // or closes (thread-preview.js, `stopDraw`).
     renderMarginThread: (host, thread, outlets) =>
       follow(() => renderMarginThread(host, thread, inlineView, outlets)),
     placedAt: dependencies.anchorPlacement.placedAt,

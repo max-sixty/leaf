@@ -10,9 +10,10 @@ asks for a title as soon as it can reach the harness's model:
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the generator the claimant's harness supplies
   (`Harness.title_generator`), which is the harness's widget inference
-  (`inference`): a `claude -p` Haiku request for Claude Code, an App Server of
-  its own for Codex, whichever transport carries the task's turns, and a
-  `pi --print` run on the model the user configured for Pi;
+  (`inference`): for Claude Code a completion on Haiku through the claimant
+  session's own model client, which Leaf's hooks module makes (`completions`), an
+  App Server of its own for Codex, whichever transport carries the task's turns,
+  and a `pi --print` run on the model the user configured for Pi;
 - the website's host, as the Worker dispatches the user's update in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
   (`app_server_title`), whether the update starts a turn or waits for a running one
@@ -59,9 +60,11 @@ title the thread, then the passage the thread is on and its first spoken message
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
 the context the harness loads by default, except the AGENTS.md in Codex's home,
-which no App Server setting leaves out (codex-cli 0.160). Every harness answers in
-the same schema, which Pi is told in its system prompt (`inference.pi_generate`).
-The request runs beside the agent's work and never delays it.
+which no App Server setting leaves out (codex-cli 0.160), and the identity block
+Claude Code puts before the system prompt. Every harness answers in the same
+schema, which Claude Code and Pi are told at the end of the system prompt
+(`inference.answering`). The request runs beside the agent's work and never delays
+it.
 
 The title is fitted to one line and the title limit (`thread.fit_title`), and written
 as the session that holds the page's claim, and only while the thread is still

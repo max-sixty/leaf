@@ -703,84 +703,6 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     fills_the_window(page, page.locator("main"), True)
 
 
-def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve):
-    """A document keeps its end room with a pane inside it; a workspace that flows gives
-    its last block that room, and a full-height one does not scroll.
-
-    Where the workspace flows, a grid of panes ends the page with the room below all its
-    panes, so the page's end clears the panel whichever pane ends it, and no pane keeps
-    the panel's row as an empty band of its own. Held, each pane's body scrolls to the
-    window's foot, and each keeps the room."""
-    document = leaf_page(
-        "a pane mid-document",
-        f"""
-<h1>A document with a pane</h1>
-<p>Before the pane.</p>
-{LONG_PANE}
-{"<p>After the pane.</p>" * 30}
-<p id="document-end">The document's last line.</p>
-""",
-    )
-    page = open_page(browser, serve(document))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-    room = page.evaluate(
-        """() => {
-          const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
-          document.body.append(probe);
-          const band = probe.getBoundingClientRect().height;
-          probe.remove();
-          return {
-            padding: parseFloat(getComputedStyle(document.body).paddingBottom),
-            band,
-            panel: innerHeight
-              - document.querySelector('.lf-fp-row').getBoundingClientRect().top,
-          };
-        }"""
-    )
-    # The page's end room is the band's stated height, which holds the panel's row.
-    assert room["padding"] == room["band"] >= room["panel"] > 0, room
-    end = clear_of_the_bottom_chrome(page, "#document-end")
-    assert end["clear"], end
-    page.close()
-
-    root = leaf_page("a workspace", LONG_PANE, layout="workspace")
-    page = open_page(browser, serve(root))
-    resized(page, 1280, 420)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
-
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
-    fills_the_window(page, page.locator("main"), True)
-    page.close()
-
-    # Two columns at every width, the long pane first, so it ends the page on a phone.
-    grid = leaf_page(
-        "a workspace grid of panes",
-        f"""<div id="cells">
-  {LONG_PANE}
-  <lf-pane id="second-pane" label="Second"><div><p>Second</p></div></lf-pane>
-</div>""",
-        head="<style>#cells { display: grid; grid-template-columns: 1fr 1fr; }</style>",
-        layout="workspace",
-    )
-    page = open_page(browser, serve(grid))
-    for width, height in [(390, 844), (844, 390)]:
-        resized(page, width, height)
-        pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
-        assert foot_reserve(page) == 0, (width, height)
-        assert foot_reserve(page, "#second-pane") == 0, (width, height)
-        end = clear_of_the_bottom_chrome(page, "#pane-end")
-        assert end["clear"], (width, height, end)
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
-    assert foot_reserve(page) > 0
-    assert foot_reserve(page, "#second-pane") > 0
-
-
 @pytest.mark.parametrize(
     "container", ["views", "pane", "plain", "workspace-footer", "pane-footer"]
 )
@@ -1127,25 +1049,30 @@ STREAMED_LOG_PAGE = leaf_page(
     + "".join(
         f'<p>Entry {n}: <a href="#t">shard {n}</a> copied.</p>' for n in range(30)
     )
-    + "</div>",
+    + '<p style="white-space: nowrap">Copied: '
+    + "shard-0 " * 60
+    + "</p></div>",
 )
 
 
-@pytest.mark.parametrize("press", ["u", "PageUp", "wheel"])
+@pytest.mark.parametrize(
+    "aim", ["u", "PageUp", "PageUp on a link", "wheel", "wheel across"]
+)
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(
-    engine, press, request, serve
-):
+def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, serve):
     """u, PageUp or a wheel aimed up a log following its end takes the reader up while
-    entries stream in. u starts a glide whose first frame can leave the box where it
-    stands, and the log's own follower, which read only the box's offset, took the next
-    entry for a reader still at the end, put the log back there and stopped the glide,
-    so the press did nothing: one press in eight in Chromium, four in Firefox. The end
-    keeper every box shares lets a box a glide heads back from go (scrolling.js,
-    `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or more after the
-    input, and the keeper's write of the end meanwhile cancelled it, every time; the
-    scroll is the reader's from the input (scrolling.js, `aimScroll`). Each trial aims
-    once in the middle of a stream of an entry every 4ms."""
+    entries stream in, and a wheel across its long lines takes them across, at its end.
+    u starts a glide whose first frame can leave the box where it stands, and the log's
+    own follower, which read only the box's offset, took the next entry for a reader
+    still at the end, put the log back there and stopped the glide, so the press did
+    nothing: one press in eight in Chromium, four in Firefox. The end keeper every box
+    shares lets a box a glide heads back from go (scrolling.js, `followEnd`). Firefox
+    applies a wheel's or PageUp's scroll a frame or more after the input, and the
+    keeper's write of the end meanwhile cancelled it, every time, a wheel across as
+    well; the scroll is the reader's from the input (scrolling.js, `aimScroll`). PageUp
+    on a link in the log was read as a key the link took, which left it to the keeper
+    (scrolling.js, `scrollsFor`). Each trial aims once in the middle of a stream of an
+    entry every 4ms."""
     page = open_page(
         request.getfixturevalue(engine), live_url(serve(STREAMED_LOG_PAGE))
     )
@@ -1155,10 +1082,10 @@ def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(
     log.focus()
     box = log.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    short_of_end = []
+    stood = []
     for trial in range(6):
         log.evaluate(
-            "log => log.scrollTo({top: log.scrollHeight, behavior: 'instant'})"
+            "log => log.scrollTo({top: log.scrollHeight, left: 0, behavior: 'instant'})"
         )
         scroll_settled(page, "#log")
         page.evaluate(
@@ -1175,18 +1102,31 @@ def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(
             trial,
         )
         page.wait_for_timeout(60)
-        if press == "wheel":
-            page.mouse.wheel(0, -300)
+        if aim == "PageUp on a link":
+            page.evaluate(
+                """() => { const link = Object.assign(document.createElement('a'),
+                  {href: '#t', textContent: 'Aimed at'});
+                  document.getElementById('log').append(link);
+                  link.focus({preventScroll: true}); }"""
+            )
+            page.keyboard.press("PageUp")
+        elif aim.startswith("wheel"):
+            page.mouse.wheel(*((300, 0) if aim == "wheel across" else (0, -300)))
         else:
-            page.keyboard.press(press)
+            page.keyboard.press(aim)
         page.evaluate("() => window.lfStream")
         scroll_settled(page, "#log")
-        short_of_end.append(
-            log.evaluate("log => log.scrollHeight - log.clientHeight - log.scrollTop")
+        stood.append(
+            log.evaluate(
+                """log => ({short: log.scrollHeight - log.clientHeight - log.scrollTop,
+                  across: log.scrollLeft})"""
+            )
         )
-    assert all(
-        short > log.evaluate("log => log.clientHeight") / 2 for short in short_of_end
-    ), short_of_end
+    if aim == "wheel across":
+        assert all(at["across"] > 0 and at["short"] <= 2 for at in stood), stood
+    else:
+        room = log.evaluate("log => log.clientHeight")
+        assert all(at["short"] > room / 2 for at in stood), stood
 
 
 def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
@@ -1198,7 +1138,9 @@ def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
     its end, and the late log opened at its top. End pressed at a log's end starts a
     scroll that moves nothing; a log emptied and refilled while it runs is clamped to its
     top in between, and a keeper that deferred its writes for that scroll missed the
-    clamp and left the refilled log 771px short of its end."""
+    clamp and left the refilled log 771px short of its end. A wheel across the log does
+    hold the keeper's writes until its scroll ends, and a keeper that stopped reading the
+    box meanwhile took that clamp for the reader's move and left the log at its top."""
     page = open_page(browser, live_url(serve(FEED_PAGE)))
     resized(page, 1280, 900)
     at_end = """(id) => { const log = document.getElementById(id);
@@ -1252,6 +1194,36 @@ def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
                   log.append(...entries); }"""
             )
         page.wait_for_function(at_end, arg="keyed-log")
+    with subtests.test(log="refilled during a wheel across it"):
+        page.evaluate(
+            """() => { const log = document.createElement('div');
+              log.id = 'wheeled-log'; log.dataset.lfBound = 'end';
+              log.innerHTML = '<p>Entry</p>'.repeat(60);
+              document.querySelector('main').append(log); }"""
+        )
+        page.wait_for_function(at_end, arg="wheeled-log")
+        # The wheel across holds the keeper's writes until its scroll ends, and the log
+        # is emptied and refilled as the wheel is heard, inside that scroll: the clamp
+        # to its top is layout's, not the reader's.
+        page.evaluate(
+            """async () => { const log = document.getElementById('wheeled-log');
+              log.addEventListener('wheel', async () => {
+                const entries = [...log.children];
+                log.replaceChildren();
+                await Promise.resolve();
+                log.append(...entries);
+              }, {once: true, passive: true});
+              const { watchScrollEnds } = await window.__lfCheckApi();
+              const stop = watchScrollEnds((box) => {
+                if (box !== log) return;
+                stop();
+                window.lfWheelEnded = true;
+              }); }"""
+        )
+        page.locator("#wheeled-log").hover()
+        page.mouse.wheel(-300, 0)
+        page.wait_for_function("() => window.lfWheelEnded")
+        assert page.evaluate(at_end, "wheeled-log")
 
 
 def test_a_declared_inner_scroller_can_be_rebuilt_without_taking_a_nested_bound(

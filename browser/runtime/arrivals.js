@@ -333,7 +333,10 @@ const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
 /** @param {Element | null} box */
 function announceScroll(box) {
-  if (box) inSequence(box);
+  if (box) {
+    heardAt.set(box, standing(box));
+    inSequence(box);
+  }
   for (const listener of scrollListeners) listener(box);
 }
 // Complete a scroll write and publish the position that will paint. Native scroll
@@ -359,22 +362,23 @@ export function setScroll(box, options) {
   if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
 // Stop the scroll the browser drives in a box, leaving the box where it stands, as a
-// landing does before it places its destination (scrolling.js, `stopScroll`) and a glide
-// before it takes over a wheel's motion (`glideTo`). It is the one scroll write meant to
-// move nothing, which the write watch knows by this name (tests/write_watch.js,
-// `EXPECTED_SCROLLS`). An instant write alone stops too little: no instant write, even
-// one that moves the box, stops the smooth scroll a key such as PageDown sets off, in
-// Chromium or Firefox, and Firefox doesn't stop any smooth scroll for a write of the
-// position the page last saw (Chromium 158 and Firefox 159). So a `m` pressed as
-// PageDown moved the page lost its landing to PageDown. A smooth write takes the box
-// from whatever moves it, in both, and the instant one after ends that write's own
-// motion where the box stands.
+// landing does before it places its destination (scrolling.js, `stopBrowserScroll`)
+// and a glide before it takes over a wheel's motion (`glideTo`). It is the one scroll
+// write meant to move nothing, which the write watch knows by this name
+// (tests/write_watch.js, `EXPECTED_SCROLLS`). An instant write alone stops too little:
+// no instant write, even one that moves the box, stops the smooth scroll a key such as
+// PageDown sets off, in Chromium or Firefox, and Firefox doesn't stop any smooth scroll
+// for a write of the position the page last saw (Chromium 158 and Firefox 159). So a
+// `m` pressed as PageDown moved the page lost its landing to PageDown. A smooth write
+// takes the box from whatever moves it, in both, and the instant one after ends that
+// write's own motion where the box stands.
 /** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };
   box.scrollTo({ ...at, behavior: "smooth" });
   box.scrollTo({ ...at, behavior: "instant" });
   placed.set(box, at);
+  heardAt.set(box, standing(box));
 }
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
 // stands, once the browser clamps it to the box's range.
@@ -514,6 +518,10 @@ const holds = new Map();
 // Where a script last put each box (`setScroll`), until the box's sequence ends.
 /** @type {WeakMap<Element, {top: number, left: number}>} */
 const placed = new WeakMap();
+// Where the page last heard each box stand: at its scroll events, Leaf's own writes and
+// stops (`startReaderScroll`).
+/** @type {WeakMap<Element, {top: number, left: number, fromEnd: number}>} */
+const heardAt = new WeakMap();
 /** @param {Element} box @returns {Sequence} */
 function sequenceIn(box) {
   let sequence = sequences.get(box);
@@ -566,16 +574,32 @@ export function holdScroll(box) {
 // applied before the input, and layout ends its own move, as a clamp when a log loses
 // its oldest entries carries the box up with them. Where the input moves nothing, as a
 // wheel at an edge doesn't, the sequence ends after the quiet spell.
-/** @param {Element} box */
+//
+// Where the input found the box is where the page last heard it stand (`heardAt`), not
+// where it stands as the input's listener runs: Chromium can apply a wheel's scroll
+// before it dispatches the wheel, and read from there the input's own `scrollend`
+// would end nothing, leaving the box the browser's for the quiet spell after its
+// scroll ended. A move the page has yet to hear of is the input's or layout's; a clamp
+// keeps the box's end where the page last heard it, so its `scrollend` still ends
+// nothing of the reader's.
+// It returns where the input found the box.
+/** @param {Element} box @returns {{top: number, left: number, fromEnd: number}} */
 export function startReaderScroll(box) {
   placed.delete(box);
-  sequenceIn(box).reader = {
-    top: box.scrollTop,
-    left: box.scrollLeft,
-    fromEnd: fromEnd(box),
-  };
+  const now = standing(box);
+  const heard = heardAt.get(box);
+  const found =
+    heard && (heard.top !== now.top || heard.left !== now.left) ? heard : now;
+  sequenceIn(box).reader = found;
   inSequence(box);
+  return found;
 }
+/** @param {Element} box */
+const standing = (box) => ({
+  top: box.scrollTop,
+  left: box.scrollLeft,
+  fromEnd: fromEnd(box),
+});
 /** @param {Element} box */
 const fromEnd = (box) => box.scrollHeight - box.clientHeight - box.scrollTop;
 /** @param {Element} box */
@@ -600,6 +624,11 @@ export const browserScrolls = (box) => {
   const at = placed.get(box);
   return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
 };
+// Whether the reader's input has set `box` scrolling: a sequence it started
+// (`startReaderScroll`), from the input, before the browser moves the box, until the
+// sequence ends. A sequence layout starts, as a clamp does, is not the reader's.
+/** @param {Element} box */
+export const readerScrolls = (box) => Boolean(sequences.get(box)?.reader);
 /** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
   endListeners.add(listener);

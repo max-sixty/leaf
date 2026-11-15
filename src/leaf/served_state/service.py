@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_data, read_source
+from ..data import read_data
 from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
@@ -28,7 +28,6 @@ from ..files import (
 from ..passages import SourceReading
 from ..projection import page_reading
 from ..provenance import revision_places, saved_after
-from ..registry.storage import require_registry
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
@@ -57,8 +56,6 @@ class PageSource(Protocol):
     def active_revision(self) -> int | None: ...
     def artifact(self, revision: int) -> RevisionArtifact: ...
     def revision(self, revision: int) -> SourceReading: ...
-    def active_registry(self) -> dict: ...
-    def data_source(self, source: str, registry: dict) -> dict | None: ...
     def events(self) -> list[dict]: ...
     def published_versions(self, events: list[dict]) -> set[int]: ...
 
@@ -107,12 +104,6 @@ class LivePage:
 
     def revision(self, revision: int) -> SourceReading:
         return read_revision(self.page_dir, revision)
-
-    def active_registry(self) -> dict:
-        return require_registry(self.page_dir)
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return read_source(self.page_dir, source, registry)
 
     def events(self) -> list[dict]:
         return read_events(self.page_dir)

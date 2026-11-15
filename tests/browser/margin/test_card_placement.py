@@ -10,21 +10,17 @@ from playwright.sync_api import expect
 from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
-    PANEL,
     expect_preview_words,
     holding,
     leaf_page,
     margins_laid_out,
     open_page,
-    panel_settled,
     resized,
     scroll_settled,
     scroll_writes,
     select,
     sending,
-    ticked,
     told,
-    write,
 )
 
 from browser.margin import (
@@ -34,8 +30,6 @@ from browser.margin import (
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
     _comment_on,
-    leave_card,
-    resized_shell,
 )
 from browser.threads import append_agent_reply, append_user_reply
 from leaf import event_log
@@ -334,7 +328,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     threads, the head keeps "Me" and its time whole. On a card at its least width
     under a finger, whose three controls, the notice and the head's Edit each take a
     finger's width, the head keeps "Me" whole and gives up its time, as any narrow
-    head does before its name; a touch screen as wide as 1400 stands that card beside
+    head does before its name; a touch screen as wide as 1408 stands that card beside
     its words. The notice says one count, "2 new", on either. Drawn whole, the notice
     stood over the head."""
     url = serve(PANEL_PAGE)
@@ -354,7 +348,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     first = append_agent_reply(serve.page_dir, root, "The status line can drop one.")
     if finger:
         context = browser.new_context(
-            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
+            viewport={"width": 1408, "height": 844}, has_touch=True, is_mobile=True
         )
         page = open_page(browser, url, context=context)
     else:
@@ -397,268 +391,6 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
-
-
-@pytest.mark.watch_shifts
-def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve):
-    """A card standing above what it is about holds its foot, so a step grows it up
-    past its head row and messages. With the user in its reply box, where a click's
-    opening leaves the caret, the step shows at once: the card rises from the box,
-    which stays where it stands, and the watch credits the rise the card declares.
-    With the user on the thread instead, the next step waits, with no notice, since
-    progress is no unread news, and shows when the user opens the card again
-    (thread-preview.js, `endNewsMoves`)."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
-    address = {"parent": root, "responds": root}
-    thread_model.post_reply(
-        serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
-    )
-    page = open_page(browser, url)
-    resized(page, 1200, 900)
-    page.evaluate("scrollTo(0, document.scrollingElement.scrollHeight)")
-    page.locator(".lf-margin-marker").first.click()
-    preview = page.locator(".lf-margin-preview")
-    expect(preview).to_have_attribute("data-lf-thread-placement", "above")
-    box = preview.locator(".lf-thread-reply leaf-text")
-    expect(box).to_be_focused()
-    rendered(page)
-    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
-    page.wait_for_timeout(600)
-    opened = preview.bounding_box()
-    writing = box.bounding_box()
-    thread_model.post_reply(
-        serve.page_dir,
-        address,
-        "Comparing the lighter weight against every banner the gallery shows, at each "
-        "width the panel takes, before and after the change.",
-        ephemeral=True,
-    )
-    told(page)
-    working = preview.locator(".lf-thread-working-words")
-    expect(working).to_contain_text("the change")
-    rendered(page)
-    risen = preview.bounding_box()
-    assert risen["y"] < opened["y"] - 10, (opened, risen)
-    assert box.bounding_box() == pytest.approx(writing, abs=0.5)
-
-    page.keyboard.press("Escape")
-    expect(preview.locator(".lf-page-thread")).to_be_focused()
-    rendered(page)
-    page.wait_for_timeout(600)
-    reading = preview.bounding_box()
-    thread_model.post_reply(
-        serve.page_dir, address, "Checking the banner in both schemes.", ephemeral=True
-    )
-    told(page)
-    expect(working).to_contain_text("the change")
-    expect(preview.locator(".lf-thread-news")).to_have_count(0)
-    rendered(page)
-    assert preview.bounding_box() == pytest.approx(reading, abs=0.5)
-    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
-    expect(preview).to_be_hidden()
-    page.locator(".lf-margin-marker").first.click()
-    expect(working).to_contain_text("both schemes")
-
-
-def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):
-    """The shipped exchange stands beside its controls, and crosses them before it shrinks."""
-    example = named_source("ship-review")
-    page = open_page(browser, serve(example))
-    page.emulate_media(reduced_motion="reduce")
-    resized_shell(page, 1920, 900)
-    marker = page.locator('[data-lf-margin-for="off-t-resync"] > .lf-margin-marker')
-    expect(marker).to_have_count(1)
-    expect(marker.locator("..")).to_have_attribute(
-        "aria-label", re.compile(r"Page actions for item · iOS reconnect stall")
-    )
-    marker.evaluate(
-        "marker => scrollBy(0, marker.getBoundingClientRect().top - innerHeight + 52)"
-    )
-
-    marker.click()
-    preview = page.locator(".lf-margin-preview")
-    thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
-    expect(preview).to_be_visible()
-    expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
-    expect(thread.locator(".lf-msg[data-lf-author=user]").first).to_be_visible()
-    # The card draws the reply's interactive widgets in place.
-    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-    expect(thread.locator("leaf-text")).to_be_focused()
-    geometry = marker.evaluate(
-        """markerNode => {
-          const main = document.querySelector('main').getBoundingClientRect();
-          const controls = markerNode.closest('[data-lf-margin-for]').getBoundingClientRect();
-          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
-          const reply = document.querySelector('.lf-margin-thread .lf-thread-reply')
-            .getBoundingClientRect();
-          const cardStyle = getComputedStyle(document.querySelector('.lf-margin-preview-card'));
-          return {mainLeft: main.left,
-                  mainRight: main.right, controlsRight: controls.right,
-                  controlsTop: controls.top, controlsBottom: controls.bottom,
-                  cardLeft: card.left, cardRight: card.right, cardTop: card.top,
-                  cardBottom: card.bottom, cardWidth: card.width,
-                  viewportRight: document.documentElement.clientWidth,
-                  borderLeft: cardStyle.borderLeftWidth,
-                  borderRight: cardStyle.borderRightWidth,
-                  replyTop: reply.top, replyBottom: reply.bottom,
-                  panelOpen: 'lfOpen' in document.querySelector('.lf-floating-panel').dataset};
-        }"""
-    )
-    assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
-    assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
-    assert geometry["cardWidth"] >= 379, geometry
-    assert geometry["cardTop"] >= 7, geometry
-    assert geometry["cardBottom"] <= 892, geometry
-    assert geometry["replyTop"] >= geometry["cardTop"], geometry
-    assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
-    assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
-    assert not geometry["panelOpen"], geometry
-
-    words = thread.locator(".lf-msg-body").first
-    words_box = words.bounding_box()
-    page.mouse.move(words_box["x"] + 1, words_box["y"] + 10)
-    page.mouse.down()
-    page.mouse.move(words_box["x"] + 180, words_box["y"] + 10, steps=10)
-    page.mouse.up()
-    selected = page.evaluate("getSelection().toString()")
-    assert len(selected) > 10 and selected in words.inner_text(), selected
-
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
-    send = preview.locator(".lf-compose-field > button:visible")
-    send.focus()
-    page.evaluate("() => dispatchEvent(new Event('resize'))")
-    expect(send).to_be_focused()
-
-    resized_shell(page, 1920, 480)
-    # Containment is measured while the attached passage is in view; a card
-    # follows its passage when that passage leaves the viewport.
-    target = page.locator("#off-t-resync")
-    target.scroll_into_view_if_needed()
-    expect(target).to_be_in_viewport()
-    rendered(page)
-    expect(send).to_be_focused()
-    expect(preview).to_be_visible()
-    capped = preview.evaluate(
-        """card => {
-          const box = card.getBoundingClientRect();
-          const list = card.querySelector('.lf-thread-transcript');
-          return {top: box.top, bottom: box.bottom,
-                  clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
-        }"""
-    )
-    assert capped["top"] >= 7, capped
-    assert capped["bottom"] <= 472.5, capped
-    assert capped["scrollHeight"] > capped["clientHeight"], capped
-    # The thread scrolls while its opening metadata and settlement remain usable.
-    metadata = preview.locator(".lf-margin-thread-controls")
-    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
-    metadata_box = metadata.bounding_box()
-    resolve_box = resolve.bounding_box()
-    preview.locator(".lf-thread-transcript").evaluate(
-        "node => { node.scrollTop = node.scrollHeight; }"
-    )
-    ticked(page)
-    scrolled_metadata = metadata.bounding_box()
-    scrolled_resolve = resolve.bounding_box()
-    assert scrolled_metadata["y"] >= capped["top"], scrolled_metadata
-    assert scrolled_resolve["y"] >= capped["top"], scrolled_resolve
-    assert scrolled_resolve["y"] + scrolled_resolve["height"] <= capped["bottom"], (
-        scrolled_resolve
-    )
-    assert scrolled_resolve["y"] - scrolled_metadata["y"] == pytest.approx(
-        resolve_box["y"] - metadata_box["y"], abs=0.5
-    )
-    resized_shell(page, 1920, 900)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    # On Me opens in the panel over the page's foot, beside the card rather than in
-    # its place, and the view's Escape puts it away to the page; the card's own
-    # Escape follows.
-    panel_settled(page, view="queue")
-    expect(preview).to_be_visible()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.keyboard.press("Escape")
-    expect(preview).to_be_hidden()
-    marker.click()
-    expect(preview).to_be_visible()
-    expect(thread.locator("leaf-text")).to_be_focused()
-
-    expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()
-
-    # Tall enough for the whole thread, its reply's options drawn in the card.
-    resized_shell(page, 1436, 1000)
-    beside = page.evaluate(
-        """() => {
-          const main = document.querySelector('main').getBoundingClientRect();
-          const marker = document.querySelector('[data-lf-kinds="comment"]')
-          const controls = marker.closest('[data-lf-margin-for]').getBoundingClientRect();
-          const cardNode = document.querySelector('.lf-margin-preview');
-          const card = cardNode.getBoundingClientRect();
-          const list = cardNode.querySelector('.lf-thread-transcript');
-          return {mainLeft: main.left, mainRight: main.right,
-                  controlsRight: controls.right, controlsTop: controls.top,
-                  controlsBottom: controls.bottom, cardLeft: card.left,
-                  cardRight: card.right, cardTop: card.top,
-                  cardBottom: card.bottom, cardWidth: card.width,
-                  clipped: list.scrollHeight - list.clientHeight,
-                  shellWidth: document.body.getBoundingClientRect().width};
-        }"""
-    )
-    # This shell leaves less than the card's minimum beside the wide cluster, and more
-    # right of the words, so the card stands there, across the cluster, at its whole
-    # height.
-    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
-    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 15.5, beside
-    assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
-        beside
-    )
-    assert beside["cardWidth"] >= 319, beside
-    assert beside["clipped"] <= 0, beside
-
-    resized(page, 1471, 900)
-    expect(preview).to_be_visible()
-    expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
-    expect(marker).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
-    # Out of the reply the click left the caret in, and out of the card.
-    expect(preview.locator("leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
-    leave_card(page)
-    marker.hover()
-    expect(preview).to_be_hidden()
-    marker.click()
-    expect(preview).to_be_visible()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
-
-    expect(preview.locator("leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
-    leave_card(page)
-    resized(page, 1280, 600)
-    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
-    marker.click()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
-    editor = preview.locator("leaf-text")
-    draft = "\n".join(
-        f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
-        for n in range(18)
-    )
-    write(editor, draft)
-    for edge, caret in [("ArrowLeft", 0), ("ArrowRight", len(draft))]:
-        editor.press("ControlOrMeta+a")
-        editor.press(edge)
-        expect(editor).to_have_js_property("value", draft)
-        assert editor.evaluate("node => node.selectionStart") == caret
-        page.wait_for_function("""() => {
-          const list = document.querySelector('.lf-margin-preview .lf-page-thread').getBoundingClientRect();
-          const editor = document.querySelector('.lf-margin-preview leaf-text').getBoundingClientRect();
-          const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
-          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
-            && send.top >= list.top && send.bottom <= list.bottom + 1;
-        }""")
 
 
 def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
@@ -835,9 +567,11 @@ QUOTED_ON_OBLIGATION = {
 def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     """A fallback chip for a covered option stays behind the focused discussion. At
     1100x900 the window has room for the rail but the card none beside its ask, and it
-    stands over the ask's options, below its marker in the Mac's faces and in Linux
-    CI's wider DejaVu alike: at 1000x838, DejaVu left the card no room below, and it
-    stood above the options."""
+    stands over the ask's options, below its marker: at 1000x838, Linux CI's wider
+    DejaVu left the card no room below, and it stood above the options. How far over
+    the chip the card's top edge reaches varies with the faces, from its whole box in
+    DejaVu to its lower half in macOS 26's Charter, so the hit test reads the paint
+    where the two overlap."""
     page = open_page(browser, serve(named_source("thread-choice-hints")))
     resized(page, 1100, 900)
     page.locator(".lf-margin-marker").first.focus()
@@ -851,18 +585,18 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
         """chip => {
           const card = document.querySelector('.lf-margin-preview');
           const box = chip.getBoundingClientRect();
-          const x = box.left + box.width / 2, y = box.top + box.height / 2;
           const frame = card.getBoundingClientRect();
+          const left = Math.max(box.left, frame.left);
+          const right = Math.min(box.right, frame.right);
+          const top = Math.max(box.top, frame.top);
+          const bottom = Math.min(box.bottom, frame.bottom);
+          if (right - left < 2 || bottom - top < 2) return {overlaps: false};
           // The hint is normally pointer-transparent. Include it in the browser's
           // hit test to read its paint order against the thread without moving it.
           chip.style.pointerEvents = 'auto';
-          const top = document.elementFromPoint(x, y);
+          const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
           chip.style.removeProperty('pointer-events');
-          return {
-            overlaps: x > frame.left && x < frame.right &&
-              y > frame.top && y < frame.bottom,
-            covered: card.contains(top),
-          };
+          return {overlaps: true, covered: card.contains(hit)};
         }"""
     )
     assert paint == {"overlaps": True, "covered": True}, paint

@@ -85,6 +85,7 @@ import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
+import { landGlides } from "../scrolling.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
@@ -477,6 +478,16 @@ export function createResponseSurface({
   function letGoOfFab() {
     const land = landingFromBar(true);
     closeLayer(() => showFab(null), land);
+  }
+  // A send lands the user itself, on the conversation it opens (selection.js, `send`),
+  // so the bar its settlement takes down lands no one. The call it returns lets go of
+  // a user the send landed nowhere, while they still stand in the bar and no other
+  // anchor has taken it.
+  function takeDownFab() {
+    closeLayer(() => showFab(null));
+    return () => {
+      if (!fabAnchor.value && fabBar.contains(fabFocused())) letGo();
+    };
   }
   // The bar's whole paint for the anchor it stands on, or for none: whether it shows,
   // whether only its target is chosen, which responses it offers, and what it is called.
@@ -991,13 +1002,6 @@ export function createResponseSurface({
   const rereadAfterAction = () =>
     pagePresses.kept()?.action ? selectionChanged : null;
 
-  // Touch handles and browser selection commands do not owe the page a mouseup or keyup.
-  // During a pointer drag, the completed gesture below remains the one that snaps and
-  // places the passage; presses on the action surface must not retract their own target.
-
-  // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same response bar. Typing in
-  // a box never does, whatever is selected elsewhere.
-
   // The response surface getting out of the way of a press away from it (focus.js,
   // `onPressAway`), which is a fact about the press rather than about who receives it, so
   // a press the aim or a design mode claims from the page puts it away too. A press on
@@ -1042,19 +1046,6 @@ export function createResponseSurface({
     setReact(false);
   }
 
-  // What a plain click on the page means, decided once. Design mode explicitly changes the
-  // grammar, and a visible mark opens its thread. Unadorned authored content keeps the
-  // browser's native meaning; Comment targeting belongs to Alt-click, `s`, and the visual
-  // proxies instead.
-  //
-  // Once, because the hit-test reads layout and opening the panel rewrites it. Two handlers
-  // each asking `markAt` looked independent and were not: the first one's setPanel() reflowed
-  // the document out from under the second, which then missed the very mark it had just
-  // opened and raised the comment field on top of it — leaving an element anchor set, which
-  // midComposition() reads, so the page quietly stopped following new versions. The rule this
-  // file already carries covers it: a guard that reads state another function wrote is a sign
-  // the two are one function.
-
   const fabAnchorAt = () => fabAnchor.value;
   const fabFrameAt = () => placement?.frame() ?? null;
   const fabPointAt = () => fabPointIn(fabTargetAt());
@@ -1078,6 +1069,7 @@ export function createResponseSurface({
     landFabFocus,
     showFab,
     letGoOfFab,
+    takeDownFab,
     createComment,
     landSent,
     refreshThread,
@@ -1085,6 +1077,9 @@ export function createResponseSurface({
     drawingEdits,
   });
 
+  // Touch handles and browser selection commands do not owe the page a mouseup or keyup.
+  // During a pointer drag, the completed gesture below remains the one that snaps and
+  // places the passage; presses on the action surface must not retract their own target.
   function selectionChanged() {
     const automatic = programmaticSelection(getSelection());
     const press = pagePresses.kept();
@@ -1228,6 +1223,8 @@ export function createResponseSurface({
         updateFab();
       });
     });
+    // Selections made from the keyboard (shift-arrows, ⌘A) deserve the same response bar.
+    // Typing in a box never does, whatever is selected elsewhere.
     document.addEventListener("keyup", (ev) => {
       if (dismissedSelectionKeyup) {
         dismissedSelectionKeyup = false;
@@ -1243,6 +1240,16 @@ export function createResponseSurface({
       } else observeSelection();
     });
     onPressAway(pressedAway, standDown);
+    // What a plain click on the page means, decided once. Design mode explicitly changes
+    // the grammar, and a visible mark opens its thread. Unadorned authored content keeps
+    // the browser's native meaning; Comment targeting belongs to Alt-click, `s`, and the
+    // visual proxies instead.
+    //
+    // Once, because the hit-test reads layout and opening a thread rewrites it: a second
+    // handler asking `markAt` after the first had opened the mark's thread would miss
+    // that mark and raise the comment field over it, leaving an element anchor set, which
+    // `midComposition` reads (engagement.js), so the page would stop following new
+    // versions.
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
       const target = eventSource(ev);
@@ -1423,7 +1430,14 @@ export function createResponseSurface({
         ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
         rest: here,
-        go: () => commentOnTarget(here),
+        // The box's placement measures its target where it stands, so the glides under
+        // way land first (scrolling.js, `landGlides`): `c` pressed as `m` sets off
+        // opens the box beside the ask where `m` lands it, where a box placed mid-glide
+        // took the side with room then and ended off screen with focus in it.
+        go: () => {
+          landGlides();
+          commentOnTarget(here);
+        },
       };
     // The page's own box is the floating panel's field.
     return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
@@ -1526,6 +1540,8 @@ export function createResponseSurface({
       const selection = pageSelection();
       const anchor = selection ? selectionAnchor(selection) : null;
       if (hasQuote(anchor)) {
+        // Placed beside the words as they stand, like a target's box below.
+        landGlides();
         commentOnSelection(anchor);
         return;
       }

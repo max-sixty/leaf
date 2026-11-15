@@ -77,6 +77,8 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  addressableLabel,
+  afterScript,
   setScroll,
   actionTemplate,
   agentName,
@@ -238,10 +240,14 @@ export class TabSet extends LeafElement {
     /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
       if (!next) return;
-      // The strip is always on screen; focus scrolling a stuck tab back to its place
-      // in flow would move the view being left before the switch records it.
+      // Native focus scrolling would carry a stuck tab back to its place in flow and
+      // move the view being left before the switch records it. So the tab comes into
+      // the window after the switch (`#showTab`), once the focus paint marks its ring,
+      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
+      // sight, the tab would lose focus to the next key (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
+      afterScript(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
@@ -594,6 +600,14 @@ export class TabSet extends LeafElement {
     this.#pageFlow = this.#parts
       ? this.#root
       : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    // The strip is named as the chrome names the set (`addressableLabel`): its author's
+    // `aria-label`, else the nearest element holding it that has a name, such as its
+    // section. The page's navigation stands in no section, and the page's title names it.
+    keeps(
+      this.#strip,
+      "aria-label",
+      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+    );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active.value) {
@@ -667,7 +681,9 @@ export class TabSet extends LeafElement {
   // `scroll-padding` (the package theme). A row runs past where it holds more names
   // than it shows. A side list's column runs past only where it scrolls on its own,
   // in a workspace that fills the window (base.css), and the tab comes into it the
-  // same way, down the column.
+  // same way, down the column. Elsewhere the column runs with the page, past the
+  // window's foot, so the walk, which puts focus on the tab, shows it in the window
+  // too (`within` null). A stuck strip's tab already shows there.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is
   // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
@@ -679,8 +695,8 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
-  /** @param {HTMLElement | undefined} btn */
-  #showTab(btn) {
+  /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
+  #showTab(btn, within = this.#strip) {
     const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
@@ -694,7 +710,7 @@ export class TabSet extends LeafElement {
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
       run.style.setProperty("--lf-tab-group-size", layoutPx(size));
-      scrollIntoView(btn, { block: "nearest", within: strip });
+      scrollIntoView(btn, { block: "nearest", within });
       return;
     }
     const range = label && document.createRange();
@@ -704,7 +720,7 @@ export class TabSet extends LeafElement {
     }
     scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
-      within: strip,
+      within,
     });
   }
 

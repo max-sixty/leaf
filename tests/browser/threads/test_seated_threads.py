@@ -13,7 +13,6 @@ from render_harness import (
     RELEASE_FOCUS,
     consume_browser_errors,
     expect_preview_words,
-    http_error_console,
     leaf_page,
     open_page,
     reported_browser_errors,
@@ -475,6 +474,9 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
+    # The edit reveals its caret in the editor's next frame (editor-view.js), so the
+    # scroll away waits for it: made before it, the reveal brings the box back.
+    rendered(page)
     read = thread.locator(".lf-msg p", has_text="The second paragraph")
     page.evaluate(
         """([node, at]) => document.scrollingElement.scrollBy({
@@ -999,20 +1001,18 @@ def _seat_manifest(patch):
 
 
 def _refused_file(serve, page):
-    """The file's next deferred patch fails to load, so its error box takes the place
+    """The file's next patch describes another file, so its error box takes the place
     of the lines it had."""
-    page.route(
-        "**/api/deferred*",
-        lambda route: route.fulfill(status=500, json={"error": "unavailable"}),
-    )
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        _seat_manifest(SEAT_DIFF.replace('+return "new"', '+return "newer"')),
+        _seat_manifest(SEAT_DIFF.replace("app.py", "other.py")),
     )
     told(page)
-    expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, http_error_console(500))
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "does not contain that one file"
+    )
+    consume_browser_errors(page, '<lf-diff id="patch"> failed: ')
 
 
 def _refused_patch(serve, page):

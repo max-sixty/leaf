@@ -31,13 +31,12 @@ from pathlib import Path
 from tempfile import TemporaryFile
 from types import SimpleNamespace
 from typing import BinaryIO
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
@@ -261,26 +260,8 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    registry = snapshot.context.registry
-    assert registry is not None
     paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
-    for source_name, reading in snapshot.context.data["sources"].items():
-        value = reading.get("value")
-        spec = deferred_records(value, reading["contract"], registry)
-        if spec is not None:
-            paths.update(
-                "api/deferred?"
-                + urlencode(
-                    {
-                        "source": source_name,
-                        "source_revision": reading["revision"],
-                        "key": record[spec["key"]],
-                    }
-                )
-                for record in value[spec["items"]]
-                if spec["deferred"] in record
-            )
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:

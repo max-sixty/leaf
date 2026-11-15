@@ -18,7 +18,7 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
-from .forks import forked, lane_since
+from .forks import kept_back_threads, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -33,7 +33,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home, turn_closed
+from .state import agent_turn_stamps, now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -273,7 +273,7 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
         "input_wakes": bool(active and claim_harness(active).input_wakes()),
         # When the claimant's fork lane came up, or None while none runs
-        # (`forks.lane_since`), which decides the threads a fork holds (`forked`).
+        # (`forks.lane_since`), which decides the threads Leaf keeps back (`kept_back`).
         "fork_lane": lane_since(active["id"]) if active else None,
     }
 
@@ -340,9 +340,15 @@ def presence_with_activity(
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
-        # The user's waiting messages a fork of the claimant's conversation has taken
-        # on, which read On it while their delivery stands (`forks.forked`).
-        "forked": sorted(forked(page_dir, events, cursor, active)),
+        # The user's waiting messages Leaf keeps back from the claimant's main thread
+        # while a line fork judges them (`forks.kept_back`), whose threads the activity
+        # fold reads as the line fork's, and which read On it
+        # (`holding.Holding.forked`).
+        "kept_back": sorted(
+            input_id
+            for thread in kept_back_threads(page_dir, events, cursor, active)
+            for input_id in thread.inputs
+        ),
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.
@@ -375,6 +381,10 @@ def presence_with_activity(
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
+        # The turns of the agents the claiming session runs beside its main thread,
+        # such as a fork that took a thread's work, which a pickup or start names as
+        # it names the main thread's (`agent_turn_stamps`).
+        "agent_turns": agent_turn_stamps(claim) if claim else {},
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that

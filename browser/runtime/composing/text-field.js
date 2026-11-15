@@ -81,8 +81,8 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
- * It is drawn in the theme's muted ink; a box that wants another face for it styles
- * `::part(placeholder)`, which a slotted child inherits. The words are hidden from
+ * It is drawn in the theme's quiet ink (`--quiet`); a box that wants another face for
+ * it styles `::part(placeholder)`, which a slotted child inherits. The words are hidden from
  * assistive technology, which reads them as the content node's `aria-placeholder`.
  * A child in slot `end` is a press of the box's own at the placeholder's far end, such
  * as a Resolve's Next thread: it wears the placeholder's face and stands exactly while the
@@ -232,7 +232,7 @@ sheet.replaceSync(`
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
   .lf-field-placeholder { pointer-events: none; display: flex; align-items: baseline;
-    block-size: 1lh; contain: inline-size; color: var(--muted); }
+    block-size: 1lh; contain: inline-size; color: var(--quiet); }
   .lf-field-placeholder-words { flex: 1 1 auto; min-width: 0; white-space: nowrap;
     overflow-x: clip; text-overflow: ellipsis; }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }

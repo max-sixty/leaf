@@ -566,13 +566,12 @@ LAYER_FACTS = {
                         "description": _NONEMPTY,
                         "schema": {"type": "object"},
                         "instructions": INSTRUCTIONS_SCHEMA,
-                        # Null reads as absent (`data.deferred_records`).
+                        # Null reads as absent (`data_contracts.payload_error`).
                         "records": {
                             "type": ["object", "null"],
                             "properties": {
                                 "items": _NONEMPTY,
                                 "key": _NONEMPTY,
-                                "deferred": _NONEMPTY,
                             },
                             "required": ["items", "key"],
                             "additionalProperties": False,
@@ -748,7 +747,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
 # front of it, which reads the layer and session kinds from the site manifest
-# `leaf-dev site` writes: a static miss under a session directory is a file the
+# `leaf-dev site build` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)

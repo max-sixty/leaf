@@ -1,111 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Buffer } from "node:buffer";
-import { gzipSync } from "node:zlib";
 
-// The context reads export delivery once, when its modules load. Supply the same
-// captured payload an exported page carries before importing the runtime graph: the
-// manifest the reading delivers, and each deferred field as its own gzipped JSON body,
-// a span of the one embedded data file.
-const exported = document.createElement("script");
-exported.type = "application/json";
-exported.dataset.lfRuntime = "";
-exported.dataset.lfOffline = "";
-const reading = {
-  contract: "optional-payload",
-  revision: "r1",
-  value: { files: [{ key: "metadata" }, { key: "empty" }, { key: "text" }] },
-};
-const data = { version: "v1", sources: { files: reading } };
-const bodies = [null, { contents: "evidence" }].map((value) =>
-  gzipSync(JSON.stringify(value)),
-);
-const [empty, text] = bodies.map((body, index) => [
-  index ? bodies[0].length : 0,
-  body.length,
-]);
-exported.textContent = JSON.stringify({
-  data: `data:application/gzip;base64,${Buffer.concat(bodies).toString("base64")}`,
-  deferred: { files: { empty, text } },
-});
-document.head.append(exported);
 const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
-const { loadDeferred } = await import("/runtime/deferred-value.js");
 const { adoptRegistry } = await import("/runtime/registry.js");
 const { createDataProjection } = await import("/runtime/projection/data.js");
 const { LeafElement, nothing } = await import("/runtime/widget-api.js");
-exported.remove();
-adoptRegistry({
-  $data: {
-    contracts: {
-      "optional-payload": {
-        records: { items: "files", key: "key", deferred: "patch" },
-      },
-    },
-  },
-  "lf-files": {
-    "x-data": {
-      files: { contract: "optional-payload", source: "source", property: "value" },
-    },
-  },
-});
 createDataProjection({ invalidateDom() {} });
-customElements.define(
-  "lf-files",
-  class extends LeafElement {
-    render() {
-      return nothing;
-    }
-  },
-);
-
-// The manifest a widget bound to the files source is handed.
-async function deliveredManifest() {
-  acceptData(data, 1);
-  document.body.innerHTML =
-    '<main><lf-files id="files" source="files"></lf-files></main>';
-  await notifyDataSubscribers();
-  return document.querySelector("#files").value;
-}
-
-test("offline deferred reads refuse absent payloads while retaining valid null", async () => {
-  const manifest = await deliveredManifest();
-  assert.equal(await loadDeferred(manifest, "empty"), null);
-  const evidence = await loadDeferred(manifest, "text");
-  assert.deepEqual(evidence, { contents: "evidence" });
-  evidence.contents = "changed copy";
-  assert.deepEqual(await loadDeferred(manifest, "text"), { contents: "evidence" });
-  for (const key of ["metadata", "unknown"])
-    await assert.rejects(
-      loadDeferred(manifest, key),
-      new RegExp(`defers no field of record '${key}'`),
-    );
-  // Only a value Leaf delivered names the revision its records belong to.
-  await assert.rejects(
-    loadDeferred(structuredClone(manifest), "text"),
-    /needs a source value Leaf delivered/,
-  );
-});
-
-test("a deferred manifest refuses a rebound contract or invalid source at the same revision", async () => {
-  const manifest = await deliveredManifest();
-  for (const change of ["contract", "validity"]) {
-    const candidate = structuredClone(data);
-    candidate.version = change;
-    if (change === "contract") candidate.sources.files.contract = "another-contract";
-    else {
-      delete candidate.sources.files.value;
-      candidate.sources.files.error = "source is no longer valid";
-    }
-    acceptData(candidate, 1);
-    await assert.rejects(
-      loadDeferred(manifest, "text"),
-      /source files revision r1 changed before loading deferred text/,
-    );
-  }
-  acceptData(data, 1);
-  assert.deepEqual(await loadDeferred(manifest, "text"), { contents: "evidence" });
-});
 
 test("a widget's marks become its datums, and a nested widget keeps its own", () => {
   adoptRegistry({

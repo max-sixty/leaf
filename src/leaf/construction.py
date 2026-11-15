@@ -12,7 +12,7 @@ state`'s current `state`.
 from copy import deepcopy
 from pathlib import Path
 
-from .data import data_manifest, deferred_records, source_file
+from .data import source_file
 from .projection import (
     AuthoredOrders,
     StateProjection,
@@ -36,9 +36,7 @@ def event_origin(event: dict) -> dict:
     }
 
 
-def input_readings(
-    attrs: dict, entry: dict, stored: dict, page_dir: Path, registry: dict
-) -> dict:
+def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> dict:
     """Read the current value of the source that constructs each input."""
     inputs = {}
     for name, spec in entry.get("x-data", {}).items():
@@ -66,18 +64,8 @@ def input_readings(
         if "error" in reading:
             inputs[name]["error"] = reading["error"]
         if "value" in reading:
-            inputs[name]["value"] = data_manifest(
-                reading["value"], spec["contract"], registry
-            )
+            inputs[name]["value"] = reading["value"]
             inputs[name]["updated"] = reading["updated"]
-            if records := deferred_records(
-                reading["value"], spec["contract"], registry
-            ):
-                inputs[name]["deferred"] = {
-                    **records,
-                    "file": str(source_file(page_dir, source)),
-                    "revision": reading["revision"],
-                }
     return inputs
 
 
@@ -125,7 +113,7 @@ def constructed_content(
             entry = registry.get(node["tag"], {})
             if entry.get("x-upgrade"):
                 node["vocabulary"] = node["tag"]
-            inputs = input_readings(node["attrs"], entry, stored, page_dir, registry)
+            inputs = input_readings(node["attrs"], entry, stored, page_dir)
             if inputs:
                 node["inputs"] = inputs
             prepare(node["content"], identity or parent)

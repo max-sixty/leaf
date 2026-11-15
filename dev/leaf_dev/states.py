@@ -32,6 +32,7 @@ from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
+    QUOTE_RANGE,
     WINDOWS,
     Window,
     go_to_threads,
@@ -40,7 +41,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.corpus import sources as corpus_sources
+from leaf_dev.commands.generate.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -611,22 +612,15 @@ PREVIEW_DWELL_MS = 400
 
 
 def word_lines(page: Page, words: str) -> list[dict]:
-    """The boxes of the first `words` the page's text holds within one text node, one
-    for each line they lie on, with their paragraph scrolled to the window's middle."""
+    """The boxes of the first `words` the page's text holds, one for each line they
+    lie on, with the element their first word is in scrolled to the window's middle."""
     return page.evaluate(
-        """(words) => {
-          const walker = document.createTreeWalker(document.querySelector('main'),
-            NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            const at = node.data.indexOf(words);
-            if (at < 0) continue;
-            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
-            const range = document.createRange();
-            range.setStart(node, at);
-            range.setEnd(node, at + words.length);
-            return [...range.getClientRects()].map((box) => box.toJSON());
-          }
-        }""",
+        f"""(words) => {{
+          const range = ({QUOTE_RANGE})(document.querySelector('main'), words);
+          range.startContainer.parentElement.scrollIntoView(
+            {{block: 'center', behavior: 'instant'}});
+          return [...range.getClientRects()].map((box) => box.toJSON());
+        }}""",
         words,
     )
 
@@ -704,18 +698,21 @@ def link_preview(page: Page) -> None:
     settle(page)
 
 
-def open_card(page: Page, marker: Locator) -> None:
-    """The margin card `marker` opens, by a click on it. The margin is fixed to the
-    window and anchored to the page, so Playwright's scroll into view leaves a marker
-    below the window where it is: the page scrolls it up instead."""
+def open_card(page: Page, marker: Locator) -> float:
+    """The margin card `marker` opens, by a click on it, returning the page's scroll
+    just before the click. The margin is fixed to the window and anchored to the page,
+    so Playwright's scroll into view leaves a marker below the window where it is: the
+    page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
         " if (box.top < 0 || box.bottom > innerHeight)"
         " scrollBy(0, box.top - innerHeight / 3); }"
     )
     settle(page)
+    before = page.evaluate("scrollY")
     marker.click()
     page.wait_for_function(OPEN_CARD)
+    return before
 
 
 def thread_by_marker(page: Page) -> None:
@@ -2471,16 +2468,13 @@ def draft_long_edit(page: Page) -> None:
     expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
     body = page.locator("#rn-cli .lf-draft-body")
     expect(body).to_contain_text("Line 59:")
-    word = """el => {
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
-      const at = node.data.indexOf('Line 30:');
-      const range = document.createRange();
-      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+    word = f"""el => {{
+      const range = ({QUOTE_RANGE})(el, 'Line 30:');
+      range.setStart(range.startContainer, range.startOffset + 3);
+      range.setEnd(range.startContainer, range.startOffset + 1);
       const box = range.getBoundingClientRect();
       return [box.x + box.width / 2, box.y + box.height / 2];
-    }"""
+    }}"""
     point = body.evaluate(word)
     page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
     scroll_settled(page)
@@ -2599,10 +2593,16 @@ def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     sample = page.locator("#bg-live-sample")
+    # As a reader scrolling toward it brings it, half a window below the window, where
+    # its page starts and takes its height before they reach it.
+    sample.evaluate(
+        "sample => scrollBy(0, sample.getBoundingClientRect().top - 1.5 * innerHeight)"
+    )
+    sample.evaluate("sample => sample.ready")
+    sample.scroll_into_view_if_needed()
     expect(
         sample.frame_locator("iframe").locator("#bg-live-sample-copy")
     ).to_be_visible()
-    sample.scroll_into_view_if_needed()
 
 
 def interactive_sample(page: Page) -> None:

@@ -35,11 +35,6 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
-from .data import (
-    DataError,
-    StaleDataError,
-    deferred_value,
-)
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -524,15 +519,9 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data it holds by `Leaf-Data-Version`, and an answer whose data
-        is still that version leaves out its sources for the tab to restore
-        (`completeState` in `layer-client.js`), since data moves only when an agent
-        sets it. What a tab is sent of the rest is `sent`'s to say.
+        What a tab is sent of it is `sent`'s to say.
         """
-        state = self._state_service().page_state(view_revision)
-        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
-            state["data"] = {"version": state["data"]["version"]}
-        return state
+        return self._state_service().page_state(view_revision)
 
     def sent(self, state: dict) -> dict:
         """What a tab is sent of `state`, addressed at this page's root
@@ -545,6 +534,13 @@ class PageEndpoint:
         markup twice. The log travels apart from the reading, as only the events
         after the held reading's, so only the events sent are addressed, rather than
         every message's markup the session has logged.
+
+        A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
+        it still holds leaves out its sources for the tab to restore (`completeState`
+        in `layer-client.js`), as leaf.page's edge does for the answers it stores
+        (`prepareStateDelivery` in `worker/src/storage.ts`). Only a whole answer is
+        cut, and only once its reading is remembered whole, since a patch carries just
+        the sources that changed since the held reading.
 
         A capture's readings are whole and unnamed: a render check reads them, or
         leaf.page saves them as a published page's responses, one for each revision,
@@ -559,6 +555,10 @@ class PageEndpoint:
                 scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
             )
         )
+        if "since" not in answer and (
+            self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
+        ):
+            answer = {**answer, "data": {"version": answer["data"]["version"]}}
         return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
     def page_comparison(
@@ -592,29 +592,6 @@ class PageEndpoint:
         if raw in (None, ""):
             raise ValueError("view sequence is required")
         return _query_int(raw, "view sequence", 0)
-
-    def deferred_value(self) -> dict:
-        """One contract-declared payload from the source revision the tab holds."""
-
-        def required(name: str) -> str:
-            value = self.query.get(name, [None])[-1]
-            if not isinstance(value, str) or not value:
-                raise ValueError(f"{name} is required")
-            return value
-
-        source = required("source")
-        revision = required("source_revision")
-        key = required("key")
-        view_revision = self.named_revision()
-        registry = (
-            self._registry(view_revision)
-            if view_revision is not None
-            else self.source.active_registry()
-        )
-        reading = self.source.data_source(source, registry)
-        return deferred_value(
-            reading, registry, source=source, revision=revision, key=key
-        )
 
     def _news(self) -> Response:
         """A finite reading of the files and presence a visible page is watching.
@@ -1186,14 +1163,6 @@ class PageEndpoint:
                 "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
             )
             return answer
-        if path == "/api/deferred":
-            try:
-                deferred = self.deferred_value()
-            except StaleDataError as error:
-                return self._json({"error": str(error)}, 409)
-            except (DataError, ValueError) as error:
-                return self._json({"error": str(error)}, 400)
-            return self._json(deferred)
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()

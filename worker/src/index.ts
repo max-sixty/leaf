@@ -231,12 +231,6 @@ export class LeafWebsiteSession extends Container<Env> {
             url.searchParams.get("revision") ||
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
-        } else if (path === "api/deferred") {
-          path += `?${new URLSearchParams({
-            source: url.searchParams.get("source") ?? "",
-            source_revision: url.searchParams.get("source_revision") ?? "",
-            key: url.searchParams.get("key") ?? "",
-          })}`;
         }
         const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;

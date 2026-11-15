@@ -221,8 +221,10 @@ export function createMarginProjection({
 
   generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
+  // A group, not a toolbar: a toolbar is one tab stop walked across, while each entry
+  // an open cluster shows takes Tab of its own and the markers walk up and down.
   const toolbar = el("div", "lf-margin-toolbar");
-  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("role", "group");
   toolbar.setAttribute(
     "aria-label",
     "Changes, threads, items on me, delivery status, and activity",

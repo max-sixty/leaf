@@ -545,7 +545,12 @@ def test_leaf_changes_the_words_the_user_reads_or_nothing(
             "The cutoff lives in jobs/backfill.py:88.",
             "The cutoff lives in jobs/backfill.py:90!",
         ),
+        # Replacement words written as markup, which Leaf writes as text alone, so
+        # a link would show as its tag.
+        ("Ship dark.", 'Ship <a href="https://example.com/pull/12">#12</a>.'),
+        ("Ship dark.", "Ship <code>--dark</code>."),
     ],
+    ids=["unshown", "repeated", "crossing", "link", "code"],
 )
 def test_a_fix_leaf_cant_place_reaches_the_agent_as_the_finding(
     claimed, capsys, words, replacement

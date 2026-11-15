@@ -36,7 +36,10 @@ default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
-in capture.
+in capture. Leaf reads printed letters before the page's listeners, and other keys when
+they reach its listener on `document`. A key aimed inside `body` whose default is
+already prevented by then is the page's, and Leaf takes no step for it
+(`controller.js`).
 
 ## Escape
 

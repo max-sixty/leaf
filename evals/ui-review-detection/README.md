@@ -11,7 +11,7 @@ An experiment stays only while someone will run it again (`dev/AGENTS.md`,
 on productivity, and because each new reviewer model or browser tool can be compared on
 the same frozen pairs. Its tasks measure whether models identify specific viewer defects
 and distinguish repaired controls. The ordinary
-`leaf-dev eval` catalog continues to score shipped instructions and agent loops.
+`leaf-dev eval run` catalog continues to score shipped instructions and agent loops.
 
 `promptfooconfig.mjs` is the whole experiment's Promptfoo config. A column is one model
 on one arm, and a row is one candidate. `hooks.mjs` is its setup and teardown: before

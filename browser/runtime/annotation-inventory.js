@@ -246,7 +246,7 @@ export function createAnnotationInventory({
   // threads stand there together, by what they are about, and everything else about the
   // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
-  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // row's its first comment gave it, a passage's from its words, `passageRows`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
   // name it.
   /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */

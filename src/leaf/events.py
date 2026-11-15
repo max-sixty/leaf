@@ -571,9 +571,9 @@ def summary_gap(thread: dict, summaries: list) -> list[dict]:
     message counts where the panel draws it whole: a spoken turn no summary covers,
     other than progress a later reply completed (`progress_completions`), which is
     drawn nowhere. Pending progress is drawn, so it counts, and a reaction is a mark
-    on another message, so it doesn't. Only `covers` is read of each summary, so a
-    caller can weigh a range it has not written, and a summary of hidden progress
-    alone is drawn nowhere, so nothing stands above it."""
+    on another message, so it doesn't. A summary of completed progress alone is drawn
+    nowhere, so no message stands above it. Only `covers` is read of each summary, so
+    a caller can weigh a range it has not written."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     completed = progress_completions(thread)
     drawn = [m for m in spoken_turns(thread) if m["id"] not in completed]

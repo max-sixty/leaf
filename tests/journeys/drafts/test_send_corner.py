@@ -33,7 +33,8 @@ KEEP_ROOTS = """(() => {
 
 # Send as the user meets it, beside the last row of the field's words: whether it shows,
 # whether a press at its middle reaches it, the size of its disc, and where that row
-# stands and ends.
+# stands and where its last glyph ends. A space at a row's end hangs past the line, so
+# it says nothing about where the line lets words run.
 CORNER = """field => {
   const send = field.querySelector(':scope > .lf-compose-submit');
   const words = field.querySelector(':scope > leaf-text');
@@ -42,6 +43,11 @@ CORNER = """field => {
   const lines = window.__lfRoots.get(words).querySelectorAll('.cm-line');
   const text = document.createRange();
   text.selectNodeContents(lines[lines.length - 1]);
+  const walk = document.createTreeWalker(lines[lines.length - 1], NodeFilter.SHOW_TEXT);
+  for (let node; (node = walk.nextNode()); ) {
+    const glyph = node.data.search(/\\S\\s*$/);
+    if (glyph >= 0) text.setEnd(node, glyph + 1);
+  }
   const row = [...text.getClientRects()].filter(rect => rect.width).at(-1);
   return {
     taken: words.matches(':state(corner-taken)'),
@@ -76,14 +82,17 @@ def _open_panel_field(page):
 
 
 def _type_to_the_corner(page, field):
-    """Type the sentence a character at a time until the last row reaches Send, and
-    return the character that reached it."""
+    """Type the sentence a character at a time until the last row's words run into
+    Send's column, and return the reading there. The caret after the words counts
+    toward the corner too, so in some faces it takes the corner a character or more
+    before the words do; only words in the corner keep it once the caret goes."""
     for character in SENTENCE * 3:
         page.keyboard.type(character)
         rendered(page)
-        if field.evaluate(CORNER)["taken"]:
-            return character
-    raise AssertionError("three sentences never reached Send's corner")
+        reading = field.evaluate(CORNER)
+        if reading["rowEnd"] > reading["sendStart"]:
+            return reading
+    raise AssertionError("three sentences never ran the words into Send's column")
 
 
 def _arrive(page, at):
@@ -120,15 +129,18 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     free = field.evaluate(CORNER)
     assert free["shown"] and free["presses"], free
 
-    reached = _type_to_the_corner(page, field)
-    taken = field.evaluate(CORNER)
-    assert taken["rowEnd"] > taken["sendStart"], "the words stop short of Send's column"
-    assert not taken["shown"] and not taken["presses"], taken
+    taken = _type_to_the_corner(page, field)
+    assert taken["taken"] and not taken["shown"] and not taken["presses"], taken
 
-    # The row leaves the corner free again, and Send fades back into it.
-    page.keyboard.press("Backspace")
+    # The row leaves the corner free again, the words and the caret after them, and
+    # Send fades back into it.
+    erased = 0
+    while field.evaluate(CORNER)["taken"]:
+        page.keyboard.press("Backspace")
+        rendered(page)
+        erased += 1
     page.wait_for_function("() => __lfSendFades.includes(false)")
-    page.keyboard.type(reached)
+    page.keyboard.type(taken["value"][-erased:])
     rendered(page)
     assert field.evaluate(CORNER)["taken"]
 

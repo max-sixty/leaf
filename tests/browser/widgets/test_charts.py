@@ -956,7 +956,7 @@ def test_a_chart_s_preview_keeps_its_side_from_point_to_point(engine, request, s
 }""",
     ).replace('<lf-chart id="swings">', '<lf-chart id="swings" data-height="320">')
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(
             leaf_page(
                 "swings",
@@ -972,7 +972,11 @@ def test_a_chart_s_preview_keeps_its_side_from_point_to_point(engine, request, s
     for k in range(48):
         x = drawing["x"] + drawing["width"] * (0.04 + 0.92 * k / 47)
         page.mouse.move(x, drawing["y"] + drawing["height"] / 2)
-        page.wait_for_timeout(250 if k == 0 else 30)
+        # The first point waits out the pointer's rest; each after it reads at once.
+        if k == 0:
+            dwelt(page)
+        else:
+            render_checks_model.rendered(page)
         side = page.evaluate(
             """() => {
               const tip = document.getElementById('lf-preview');
@@ -1138,6 +1142,8 @@ def test_a_finger_that_slides_onto_a_point_after_the_long_press_presses_nothing(
     touch("touchStart", away)
     page.wait_for_timeout(600)
     long_press(page, {"x": away[0], "y": away[1]})
+    # Whatever the press drew has drawn before the preview is read as absent.
+    render_checks_model.rendered(page)
     expect(preview).to_be_hidden()
     touch("touchMove", (point[0] + 38, point[1]))
     expect(preview).to_be_visible()

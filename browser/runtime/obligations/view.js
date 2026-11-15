@@ -74,7 +74,7 @@ import { revealAddressed } from "../anchor-resolution.js";
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
  * focusForNavigation: typeof import("../focus.js").focusDestination,
- * presentedControl?: ((control: Element) => Element | null) | undefined,
+ * presentedControl: (control: Element) => Element,
  * announce: (words: string) => void, repaint: () => void}} dependencies */
 export function createObligationView({
   prepareNavigationStep,
@@ -140,8 +140,6 @@ export function createObligationView({
     });
     return obligationNodes(item);
   }
-  /** @param {HTMLElement} control */
-  const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   /** @type {Set<string>} */
   const answeringAll = new Set();
   /** @type {Map<string, string>} */
@@ -316,7 +314,7 @@ export function createObligationView({
             control.getAttribute("aria-pressed") === "true" ||
             control.getAttribute("aria-checked") === "true" ||
             (control.localName === "input" && control.checked),
-          press: () => nativePress(presentedActionControl(control))?.(),
+          press: () => nativePress(presentedControl(control))?.(),
         }),
     );
   }
@@ -398,7 +396,7 @@ export function createObligationView({
       !source || [...item.getClientRects()].some((rect) => rect.width && rect.height)
         ? item
         : (source.querySelector(OBLIGATION_CONTROL) ??
-          actionsOf(record).map(({ control }) => presentedActionControl(control))[0] ??
+          actionsOf(record).map(({ control }) => presentedControl(control))[0] ??
           source);
     reviewedThrough = review ? target : null;
     return target;
@@ -554,9 +552,7 @@ export function createObligationView({
       !!band &&
       readable(item) &&
       shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
-      actionsOf(record).every(({ control }) =>
-        readable(presentedActionControl(control)),
-      )
+      actionsOf(record).every(({ control }) => readable(presentedControl(control)))
     );
   }
 

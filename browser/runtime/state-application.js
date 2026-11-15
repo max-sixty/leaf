@@ -19,6 +19,7 @@ import {
 import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
 import { afterOwedFrame } from "./rendering.js";
+import { countTraffic } from "./traffic.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -89,10 +90,12 @@ export function createStateApplication({
   /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
     inHand.add(state);
+    countTraffic("received");
     try {
       return await applyState(state);
     } finally {
       inHand.delete(state);
+      countTraffic("applied");
     }
   }
 

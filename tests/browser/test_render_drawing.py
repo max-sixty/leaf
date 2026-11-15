@@ -16,6 +16,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
+    delivered,
     field_press,
     leaf_page,
     open_page,
@@ -633,7 +634,8 @@ def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
     page.mouse.up()
     submit = page.locator(".lf-composer .lf-compose-submit")
     expect(submit).to_have_attribute("aria-disabled", "false")
-    with sending(page, "the drawing the keyboard sent"):
+    # Applying its answer waits on the held timers, so the trip ends at the answer.
+    with sending(page, "the drawing the keyboard sent", until=delivered):
         page.keyboard.press("ControlOrMeta+Enter")
     assert page.evaluate("() => window.__releaseHeldTimers()")
 

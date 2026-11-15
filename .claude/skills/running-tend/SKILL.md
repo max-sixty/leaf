@@ -18,11 +18,10 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Load `/developing-leaf`, and apply its **Weigh what a change adds** and `AGENTS.md`'s
-**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
-pull requests land on this review alone. Once a change moves Leaf toward a coherent
-architecture, its claimed path works and what it adds is worth keeping, the review
-is done. Reserve findings for architectural seams, cross-runtime invariants, public
+Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
+issue** to the verdict; most of Tend's own pull requests land on this review alone.
+Once a change moves Leaf toward a coherent architecture, its claimed path works and
+what it adds is worth keeping, the review is done. Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions anywhere the change reaches, additions that cost more
 than they buy, or a central claim or test that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
@@ -325,7 +324,7 @@ qualifies, keep the result in the run summary; do not post a digest.
 
 ## Nightly: regular maintenance
 
-In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each file
+In the rolling survey, apply `AGENTS.md`'s "Regular maintenance" to each file
 you review. Propose a removal that takes a feature away in an issue for the
 maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
 
@@ -377,11 +376,11 @@ run report.
 Sweep one area for capabilities implemented more than once, taking the area by ISO
 week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
 and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
-`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
-directory, so list the questions the area's helpers, constants, selectors, style
-rules and inline checks answer, and search the whole tree for other answers to each,
-as its **What it repeats** says. Consolidate each set into one home with every caller
-moved, in one pull request for the area; leave a set another open pull request is
+`tests/` and `worker/`. Copies seldom share a name or a directory, so list the
+questions the area's helpers, constants, selectors, style rules and inline checks
+answer, and search the whole tree for other answers to each, as `AGENTS.md`'s **What
+it repeats** says. Consolidate each set into one home with every caller moved, in one
+pull request for the area; leave a set another open pull request is
 changing to a later sweep. In the description, name each copy's introducing pull
 request (`git log -S`), so the copies added since the area's last sweep show what
 review let through.

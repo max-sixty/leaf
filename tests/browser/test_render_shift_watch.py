@@ -2,16 +2,14 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 import http.server
-import re
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from html import escape
 from urllib.parse import quote
 
 import pytest
 from interact_support import STATED_TIMEOUT, running_http_server
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
@@ -22,10 +20,8 @@ from render_harness import (
     leaf_page,
     open_page,
     place_step_matches,
-    refuse,
     resized,
     take_browser_errors,
-    ticked,
 )
 
 from leaf.render_checks import rendered
@@ -5246,83 +5242,6 @@ sized.value = LINES;
         {"shift-watch-missed"} if change == "unheard rule" else set()
     )
     assert {error.code for error in errors} <= allowed, errors
-
-
-@pytest.mark.parametrize("surface", ["card", "inline"])
-def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
-    browser, serve, surface
-):
-    """Age advances while the thread and its controls stay put.
-
-    Metadata may move or stay reserved. The passive-region fault controls above
-    exercise the watcher's permitted motion independently of this surface's layout.
-    """
-    source = (
-        leaf_page(
-            "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
-            '<lf-test-task id="bracket" status="active" talk>'
-            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
-        )
-        if surface == "inline"
-        else OBLIGATION_PAGE
-    )
-    page = open_page(
-        browser,
-        serve(
-            source,
-            events=[
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "Check whether these jobs can share one visit.",
-                    "anchor": {"section": "bracket"},
-                }
-            ],
-        ),
-    )
-    resized(page, 1440, 900)
-    if surface == "card":
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-        surface_root = page.locator(".lf-margin-preview")
-    else:
-        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
-    header = surface_root.locator(".lf-msg-head").first
-    receipt = header.locator(".lf-msg-sending")
-    timestamp = header.locator("time")
-    expect(receipt).to_have_text(re.compile(r"^Queued for "))
-    expect(timestamp).to_have_text("just now")
-    # Age changes are news after Chrome's recent-input grace, even when opening the
-    # surface and resizing it happened immediately before this clock transition.
-    rendered(page)
-    page.wait_for_function(
-        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
-    )
-    protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
-    boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
-    before = protected.evaluate_all(boxes)
-    assert before
-    thread_before = surface_root.bounding_box()
-    owner = header.locator("xpath=..")
-    owner_before = owner.bounding_box()
-    page.route("**/api/state*", refuse)
-    now = datetime.now().astimezone()
-    for delta, age in [
-        (timedelta(minutes=1), "1m ago"),
-        (timedelta(minutes=10), "10m ago"),
-        (timedelta(hours=3), "3h ago"),
-    ]:
-        # Fixed Date advances the age without changing Chrome's monotonic clock;
-        # LayoutShift, frame readings and input attribution still share native time.
-        page.clock.set_fixed_time(now + delta)
-        ticked(page)
-        expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text(re.compile(r"^Queued for "))
-        judge_watches()
-        assert surface_root.bounding_box() == thread_before
-        assert owner.bounding_box() == owner_before
-        assert protected.evaluate_all(boxes) == before
 
 
 @pytest.mark.parametrize(

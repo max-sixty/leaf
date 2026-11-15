@@ -555,14 +555,16 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-/** @param {Element} control @returns {HTMLLabelElement[]} */
+// The elements labelling a form control: its `<label>`s, and what `aria-labelledby`
+// names, as a playground's words beside its range do.
+/** @param {Element} control @returns {Element[]} */
 function labelsOf(control) {
   const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
     control
   );
-  return labels ? [...labels] : [];
+  return [...(labels ?? []), ...(control.ariaLabelledByElements ?? [])];
 }
-// The text of the `<label>`s naming a form control, less the control's own where a label
+// The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more
 // than a face's worth (`FACE`).
 /** @param {Element} control */

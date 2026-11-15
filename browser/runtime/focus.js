@@ -105,11 +105,10 @@ const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // markup it read, so whoever keeps the answer knows what to watch (reach.js,
 // `holdsOwnStop`).
 //
-// The walk keeps its own stack, since a generator delegating through each level cost a
-// listing of 95,000 rows 40 ms in Chromium to this walk's 15. It steps from sibling to
-// sibling and never reads `children`: Chromium keeps the collection `children` returns
-// for as long as its element lives, so a walk through `children` of a text document
-// whose tab opened kept 35 MB of collections for the life of the page.
+// The walk steps from sibling to sibling, as browser/AGENTS.md ("One answer for each
+// question") says a walk does, and keeps its own stack: walked through a generator for
+// each element, a listing of 96,000 rows took Firefox 54 to 60 ms and Chromium about
+// 40 ms.
 /** @param {Element | Document | ShadowRoot} root */
 export function tabStopCandidates(root) {
   /** @type {Element[]} */

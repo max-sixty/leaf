@@ -341,7 +341,10 @@ def test_playground_range_preserves_preview_focus_without_cancelling_native_drag
             page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
             page.mouse.down()
             if ending == "cancel":
-                slider.dispatch_event("pointercancel")
+                # Through a handle: a role locator's `dispatch_event` reads the
+                # slider's `aria-labelledby` in the page's world as well as Playwright's
+                # own, which crashes Firefox (microsoft/playwright#43967).
+                slider.element_handle().dispatch_event("pointercancel")
             else:
                 candidate.evaluate(
                     "e => {const replacement=e.cloneNode(true);replacement.setAttribute('value','Second candidate');e.replaceWith(replacement)}"

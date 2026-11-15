@@ -7,7 +7,13 @@
  * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
+import {
+  authoredScope,
+  documentOutline,
+  elementReading,
+  HEADING,
+  keptAnswer,
+} from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -179,22 +185,38 @@ function hasWords(node) {
 }
 /** @param {Element} heading */
 const rank = (heading) => Number(heading.localName.slice(1));
-// The first heading an element holds, as the page reads it, and the highest rank among
-// the rest (7 where there are none), kept as long as the page reading stands
-// (`keptAnswer`), so the climbs of every heading read each element once.
+// The first heading an element holds, as its document reads it, and the highest rank
+// among the rest (7 where there are none). Read off the document's outline
+// (passages.js, `documentOutline`), which lists its headings in reading order, chrome
+// aside, and is rebuilt only from the pieces of the page a change lands in: each
+// heading is credited to every element holding it, once for each outline, so the
+// answers cost the headings the page holds rather than its elements. An element no
+// document reads holds none.
+//
+// Replaced: asking each element's tree for its headings, kept while the page's
+// reading stood. That walked every element under it, and any change to the page
+// forgot it, so a page title's climb walked the whole page again after each change:
+// 126 ms of the load of `leaf-dev bench documents` at 256, as each of its 34 text
+// documents drew.
+/** @type {WeakMap<readonly Element[], Map<Element, {first: Element, below: number}>>} */
+const holders = new WeakMap();
+const NO_HEADINGS = Object.freeze({ first: null, below: 7 });
 /** @param {Element} element @returns {{first: Element | null, below: number}} */
-const headingsIn = (element) =>
-  keptAnswer(element, "headings in", () => {
-    /** @type {Element | null} */
-    let first = null;
-    let below = 7;
-    for (const heading of element.querySelectorAll(HEADING)) {
-      if (uiInside(heading, element)) continue;
-      if (first) below = Math.min(below, rank(heading));
-      else first = heading;
-    }
-    return { first, below };
-  });
+function headingsIn(element) {
+  const { outline } = documentOutline(authoredScope(element));
+  let held = holders.get(outline);
+  if (!held) {
+    held = new Map();
+    for (const heading of outline)
+      for (let at = heading.parentElement; at; at = at.parentElement) {
+        const holder = held.get(at);
+        if (holder) holder.below = Math.min(holder.below, rank(heading));
+        else held.set(at, { first: heading, below: 7 });
+      }
+    holders.set(outline, held);
+  }
+  return held.get(element) ?? NO_HEADINGS;
+}
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
 /** @param {Element} element */

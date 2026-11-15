@@ -134,17 +134,16 @@ def _completed_tasks(
     """
     if len(set(completes)) != len(completes):
         raise Refused("--completes names each widget at most once")
-    todos = TodoReading(events).owed
-    on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
-    unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
+    todos = [(todo, todo["source"]["subject"]) for todo in TodoReading(events).owed]
+    on_widgets = [(todo, on) for todo, on in todos if on["kind"] == "widget"]
+    unearned = sorted(set(completes) - {on["id"] for _todo, on in on_widgets})
     if unearned:
         # An author who has just recorded a user's answer on a widget, such as a
         # playground's submitted settings, reaches for --completes to finish it; the
         # version that records an answer takes it in by itself.
         mine = "; ".join(
-            f"{todo['id']} on {todo['subject'].get('id') or todo['subject']['kind']}"
-            f" ({todo['title']})"
-            for todo in todos
+            f"{todo['id']} on {on.get('id') or on['kind']} ({todo['prompt']['text']})"
+            for todo, on in todos
         )
         raise Refused(
             "no open to-do on "
@@ -154,16 +153,16 @@ def _completed_tasks(
             + ". A user's answer on a widget needs no --completes: the version that"
             " records it takes it in; end a to-do on the page with `leaf task end`"
         )
-    completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
+    completed = [(todo, on) for todo, on in on_widgets if on["id"] in completes]
     not_later = sorted(
-        {todo["subject"]["id"] for todo in completed if revision <= todo["revision"]}
+        {on["id"] for todo, on in completed if revision <= todo["revision"]}
     )
     if not_later:
         raise Refused(
             f"revision r{revision} is not later than the open to-do on "
             + ", ".join(repr(widget) for widget in not_later)
         )
-    return sorted(todo["id"] for todo in completed)
+    return sorted(todo["id"] for todo, _on in completed)
 
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:

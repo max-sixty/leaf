@@ -190,14 +190,15 @@ export const groupingLabel = (grouping) =>
       ? "By kind"
       : "By place";
 // The ids of the items a plan step names, its own and its steps', in the plan's order;
-// and whether a step, or one under it, is the user's.
+// and whether a step, or one under it, names something asked of the user.
 /** @param {PlanStep} step @returns {string[]} */
 const namedIn = (step) => [
   ...(step.item ? [step.item.id] : []),
   ...step.steps.flatMap(namedIn),
 ];
 /** @param {PlanStep} step @returns {boolean} */
-const givesUser = (step) => step.owner === "user" || step.steps.some(givesUser);
+const givesUser = (step) =>
+  step.item?.kind === "obligation" || step.steps.some(givesUser);
 
 /** @param {{
  * arriveAtRecord: ReturnType<typeof import("./obligations/view.js").createObligationView>["arriveAtRecord"],
@@ -499,7 +500,11 @@ export function createQueueWalk({
   function arriveAt(stop) {
     if (stop.kind === "obligation") {
       const record = readObligations().byId.get(stop.id);
-      if (!record || hasObligationSource(record, "update"))
+      if (
+        !record ||
+        hasObligationSource(record, "update") ||
+        hasObligationSource(record, "todo")
+      )
         return Promise.resolve(false);
       return arriveAtRecord(record);
     }

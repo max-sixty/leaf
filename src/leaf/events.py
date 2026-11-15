@@ -230,7 +230,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
     so what a closure ended stayed ended until then (`provenance.saved_after`);
     only the server reads it. ``resolved`` is the closing that stands at the end of
-    the log, or null.
+    the log, or null. ``answered_by`` is the closing that answers for a closed thread
+    (`_ClosureHistory.answering`), or null; only the server reads it (`owed_turns`).
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every obligation, workflow, summary, and title
@@ -340,6 +341,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "turns": [],
                 "closures": [],
                 "resolved": None,
+                "answered_by": None,
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
@@ -391,6 +393,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["rewritten_from"] = None
     for thread in threads.values():
         thread["resolved"] = closures.standing(thread)
+        thread["answered_by"] = closures.answering(thread)
     return threads
 
 
@@ -418,6 +421,21 @@ class _ClosureHistory:
         """The closing that decides the thread now, or None while it is open."""
         held = self._held.get(thread["id"])
         return held[-1][3] if held and held[-1][2] else None
+
+    def answering(self, thread: dict) -> dict | None:
+        """The newest closing that answers for the thread, of those in force since
+        it last stood open, or None: any closing but the user's own resolve, which
+        takes the thread off their list and settles nothing the agent owes
+        (`owed_turns`). The user resolving a thread the agent already closed leaves
+        the agent's closing answering for it."""
+        for _place, _identity, closes, event in reversed(
+            self._held.get(thread["id"], ())
+        ):
+            if not closes:
+                break
+            if event["kind"] != "resolve" or event["author"] != "user":
+                return event
+        return None
 
     def step(self, at: float | None, put: list, out: list) -> None:
         """Take out of force each event `out` names, put each `(thread, event,
@@ -613,8 +631,8 @@ def unanswered_turns(thread: dict) -> list[dict]:
     Turns, not marks: a reaction is a mark on a message rather than a word in the
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here; `awaits_agent` adds it. A user's revision is a turn here
-    (`exchange`).
+    not enter here: `owed_turns` says which closings settle these turns. A user's
+    revision is a turn here (`exchange`).
 
     The batches are those of the thread's history (`settled_through`), so taking
     back a turn an answer settled leaves the turns before it settled; only the turns
@@ -693,16 +711,28 @@ def unanswered_agent_turn(thread: dict) -> dict | None:
     return owed[-1] if owed else None
 
 
-def awaits_agent(thread: dict) -> bool:
-    """Whether an open thread's next word is the agent's (`unanswered_turns`).
+def owed_turns(thread: dict) -> list[dict]:
+    """The turns the agent owes an answer now, in a closed thread as in an open one,
+    oldest first (`unanswered_turns`).
+
+    The user's resolve takes a thread off their list and settles nothing the agent
+    owes in it. A request made before it stays owed, and the reply that answers it
+    reopens the thread, so the result returns to where the user asked for it. The
+    user chose this on 2026-11-14 over a resolve that dropped the request, which
+    lost the result of work they had asked for and then tidied away; cancelling a
+    request takes their words. Every other closing answers for the thread: the
+    agent's own resolve, which says the thread wants no answer, and the user's
+    answer on a widget whose `resolves` names the thread, the decision the agent
+    offered them there. From such a closing until the thread reopens it owes
+    nothing (``answered_by``), and reopening it puts the turns back.
 
     This reading says nothing about whether the user owes a word: an ordinary agent
-    message may leave the open thread awaiting nobody, while one holding a widget
-    that asks, such as an `lf-options`, awaits the user. The browser
-    does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and obligations open on the thread, so the panel, its filters and the
-    margin read one answer to whose turn it is."""
-    return bool(not thread["resolved"] and unanswered_turns(thread))
+    message may leave the thread awaiting nobody, while one holding a widget that
+    asks, such as an `lf-options`, awaits the user. The browser does not receive it:
+    each browser Thread's `attention` aggregates this turn with the workflows and
+    obligations open on the thread, so the panel, its filters and the margin read
+    one answer to whose turn it is."""
+    return [] if thread["answered_by"] else unanswered_turns(thread)
 
 
 def seat_root(thread: dict) -> str | None:

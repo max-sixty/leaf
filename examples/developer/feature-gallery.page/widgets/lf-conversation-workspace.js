@@ -277,15 +277,14 @@ customElements.define(
     }
     paintObligations() {
       const items = readObligations();
-      const answered = items.all.filter((item) => item.status === "answered");
+      // An obligation's own answer stands on it; one the agent ended names its end.
+      const answered = items.all.filter((item) => item.answered);
       // Counts cover every obligation; this summary lists completed widget choices, not the
       // words that answered a question (an lf-ask).
       const labels = items.all
         .filter(
           (item) =>
-            item.source.kind === "widget" &&
-            !answeredInWords(item) &&
-            item.status === "answered",
+            item.source.kind === "widget" && !answeredInWords(item) && item.answered,
         )
         .map(answerWords)
         .filter(Boolean);

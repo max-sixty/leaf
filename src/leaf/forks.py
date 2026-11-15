@@ -62,12 +62,12 @@ a new fork.
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment Leaf
 starts keeping a thread back, and while the line stands, the thread's waiting
-messages read On it (`forked`, which `served_state.work` serves as their workflows'
-`at_work`, so every surface showing whether the agent is at work agrees), as the user
-chose on 2026-11-05. That word is all the line fork changes: as a receipt's progress
-the line takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges
-or holds a turn reads the message's delivery. A start would read as the session's
-turn, renewing it after an interrupt and holding the message at Working before the
+messages read On it (`forked`, which `activity` reads as a waiting update `running`,
+so every surface showing whether the agent is at work agrees), as the user chose on
+2026-11-05. That word is all the line fork changes: as a receipt's progress the line
+takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges or holds
+a turn reads the message's delivery. A start would read as the session's turn,
+renewing it after an interrupt and holding the message at Working before the
 session had it, which hid it from the nudge and the overdue count.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
@@ -1003,7 +1003,7 @@ def ended(
                         continue
                     name = fork_name(thread)
                     subject = {"kind": "thread", "id": thread}
-                    owing = [t for t in owed if t["subject"] == subject]
+                    owing = [t for t in owed if t["source"]["subject"] == subject]
                     todos = [t for t in owing if t["id"] in own]
                     answered = [found.answered[i] for i in inputs if keepers[i] is None]
                     ending: Ending = (
@@ -1080,7 +1080,9 @@ def _answered(
     message in the thread `where` names, and opened `todos` there, which the session
     now owes; and that the thread owes nothing, unless the user has written there
     since (`waiting`) or a to-do on it is open (`owing`)."""
-    listed = " and ".join(f"the to-do “{t['title']}” ({t['id']})" for t in todos)
+    listed = " and ".join(
+        f"the to-do “{t['prompt']['text']}” ({t['id']})" for t in todos
+    )
     return (
         f"Your fork {name} answered the user's message in {where}"
         + (

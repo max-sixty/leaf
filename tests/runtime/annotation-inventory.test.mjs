@@ -17,7 +17,7 @@ const obligation = (id) => ({
 
 const inventoryOf = (user = []) =>
   createAnnotationInventory({
-    readObligations: () => ({ user }),
+    readObligations: () => ({ all: user, user }),
     placedAt: () => null,
     openThread() {},
     goToObligation() {},
@@ -116,7 +116,7 @@ test("a quoted passage is keyed once while its target's words are unchanged", ()
     point: null,
   };
   const inventory = createAnnotationInventory({
-    readObligations: () => ({ user: [] }),
+    readObligations: () => ({ all: [], user: [] }),
     placedAt: () => placement,
     openThread() {},
     goToObligation() {},

@@ -194,7 +194,7 @@ def live_leaves(among: set[Path] | None = None) -> list:
     for candidate, record, info in live_servers(among):
         try:
             row = read_row(candidate, info, record=record)
-            if row is not None and row["activity"]["kind"] != "closed":
+            if row is not None and row["activity"]["presence"] != "closed":
                 leaves.append(
                     (
                         candidate,

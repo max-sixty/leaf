@@ -22,28 +22,32 @@ settled, and emits two readings of them, each the one home of its facts:
   these records rather than deciding again. `activity.turn_obligations` decides how long
   an owed update holds the agent's turn.
 
-- A **workflow** for each unsettled update: its delivery. `stage` says how far it has
-  reached the agent (Sent, Queued, Delivered, Working, Replying), which the margin, the
-  Page Map and a thread's receipt show. `obligation` names the record it serves, or is
+- A **workflow** for each unsettled update: its delivery, the evidence of how far it
+  has reached the agent. `pickup` is the furthest a harness has carried it, `queued` or
+  `opened` into a turn, and `held_by` the start in force on it; `activity` reads them
+  with the claim and serves where it stands (`standing`), which the margin, the Page
+  Map and a thread's receipt show. `obligation` names the record it serves, or is
   null for an update that owes nothing. `receipt_refs` maps each claim the update was
   delivered under to the newest `answer.ref` a pickup recorded for it
   (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
   onto the owed answer. An update no delivery has carried has no ref.
 
-A record exists only for an update an operation names: the newest unanswered turn in an
-open thread, the newest unsettled owed action on a widget's unit, an update a harness
-handed back, and every input a reply answered. When the user sends two messages in a row
-in a thread, the reply to the newer one answers both, so the older one publishes no
-record and its workflow names the newer one's. A widget action that answers no
-obligation, such as an edit to a user-owned draft or a moved card, owes nothing and
-publishes none. The log goes on applying it to later readings of the document, and
-`page check` makes the next version write any part of it the markup must record. Its
-receipt shows until the document takes it in: on the page, until the markup records it
-or a later version's note takes it in (`page_action_unsettled`); in a thread's frozen
-markup, which no version rewrites, until the agent's next message in that thread or a
-resolution after it. A settled page action leaves the inventory: its widget's own record
-carries its ending. An unanswered turn in a thread the user resolved first publishes
-none.
+A record exists only for an update an operation names: the newest turn the agent owes in
+a thread (`events.owed_turns`), the newest unsettled owed action on a widget's unit, an
+update a harness handed back, and every input a reply answered. When the user sends two
+messages in a row in a thread, the reply to the newer one answers both, so the older one
+publishes no record and its workflow names the newer one's. A widget action that answers
+no obligation, such as an edit to a user-owned draft or a moved card, owes nothing and
+publishes none. The log goes on applying it to later readings of the document, and `page
+check` makes the next version write any part of it the markup must record. Its receipt
+shows until the document takes it in: on the page, until the markup records it or a
+later version's note takes it in (`page_action_unsettled`); in a thread's frozen markup,
+which no version rewrites, until the agent's next message in that thread or a resolution
+after it. A settled page action leaves the inventory: its widget's own record carries
+its ending. A turn or an owed action the user's resolve closed over keeps its record and
+its workflow, since that resolve settles nothing the agent owes; a closing that answers
+for the thread, such as the agent's own resolve, leaves none (`events.owed_turns`). An
+update handed back waits on the user, so closing the thread over it retires it.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
@@ -57,8 +61,8 @@ widget is owed, and `obligations` decides when that is.
 
 When a harness gives up on an update, `thread.fail_answer` writes the failure, a
 reply in the thread or a failed pickup of a page action, each carrying `failure`.
-The update's record then waits on the user, and its workflow stays at `answered` with
-the failed response, until the user acts again or the markup records the action.
+The update's record then waits on the user, and its workflow keeps the failed
+response (`handed_back`), until the user acts again or the markup records the action.
 """
 
 from bisect import bisect_right
@@ -66,13 +70,14 @@ from itertools import accumulate
 from operator import itemgetter
 from typing import NamedTuple
 
+from . import standing
 from .events import (
     conversation_turns,
     exchange,
     is_answer,
+    owed_turns,
     settled_through,
     turn_message,
-    unanswered_turns,
 )
 from .obligations import collection, update_obligation
 from .projection import (
@@ -109,11 +114,11 @@ def attention_reading(readings) -> dict:
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
-        if item["stage"] == "working"
+        if item["held_by"] is not None
     ] + [
-        (todo["id"], todo["subject"])
+        (todo["id"], todo["source"]["subject"])
         for todo in work.log.owed
-        if todo["subject"]["kind"] != "page"
+        if todo["source"]["subject"]["kind"] != "page"
     ]
     inputs = [
         (source, spec)
@@ -290,13 +295,12 @@ def handed_over(
     are no longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 
-    This is one interaction-scoped projection over the document and log: append
-    means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Delivered (stage `picked_up`), and a `start` naming the update means Working
-    (`todos.item_starts`). Replies
-    and authored state settle the source update, so the workflow disappears instead
-    of becoming a second outcome surface; a failed response instead keeps an
-    answered workflow, whose record waits on the user. Consecutive inputs retain
+    This is one interaction-scoped projection over the document and log: a harness
+    queue's acceptance is its `queued` pickup, entry into an exact agent turn its
+    `opened` one, and a `start` naming the update holds it (`todos.item_starts`).
+    Replies and authored state settle the source update, so the workflow disappears
+    instead of becoming a second outcome surface; a failed response instead keeps a
+    handed-back workflow, whose record waits on the user. Consecutive inputs retain
     distinct workflows even though the thread's single response obligation is
     addressed to the newest one, whose record each of them names.
     """
@@ -328,8 +332,9 @@ def handed_over(
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
     for todo in log.owed:
-        if todo["running"] and todo["subject"]["kind"] == "widget":
-            widget_starts.setdefault(todo["subject"]["id"], []).append(todo["running"])
+        subject = todo["source"]["subject"]
+        if todo["line"] and subject["kind"] == "widget":
+            widget_starts.setdefault(subject["id"], []).append(todo["line"])
 
     def delivered_at(source: dict) -> int:
         delivery = deliveries.get(source["id"], {})
@@ -381,15 +386,7 @@ def handed_over(
         opened = delivery.get("opened")
         queued = delivery.get("queued")
         start = holding(source, target, delivered_at(source))
-        if start:
-            stage, evidence = "working", start
-        elif opened:
-            stage, evidence = "picked_up", opened
-        elif queued:
-            stage, evidence = "queued", queued
-        else:
-            stage, evidence = "sent", source
-        fallback = opened or queued
+        pickup = opened or queued
         return {
             "id": source["id"],
             "input": source["id"],
@@ -399,35 +396,18 @@ def handed_over(
             "subject": target,
             "coordinate": coordinate,
             "obligation": obligation,
-            "stage": stage,
-            "ts": evidence.get("ts"),
-            "fallback_stage": (
-                "picked_up" if opened else "queued" if queued else "sent"
-            ),
-            "fallback_ts": (fallback.get("ts") if fallback else source.get("ts")),
-            "delivery_seq": fallback["seq"] if fallback else None,
-            "delivery_session": fallback.get("session") if fallback else None,
-            "delivery_turn": fallback.get("turn") if fallback else None,
+            "pickup": "opened" if opened else "queued" if queued else None,
+            "ts": (pickup or source).get("ts"),
+            "delivery_seq": pickup["seq"] if pickup else None,
+            "delivery_session": pickup.get("session") if pickup else None,
+            "delivery_turn": pickup.get("turn") if pickup else None,
             "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
             "detail_seq": start["seq"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,
-            "activity": (
-                [
-                    {
-                        "kind": "working",
-                        "detail": start["text"],
-                        "ts": start["ts"],
-                        "session": start.get("session"),
-                        "turn": start.get("turn"),
-                    }
-                ]
-                if start
-                else []
-            ),
-            "condition": None,
             "response": None,
+            "handed_back": False,
             "held_by": start,
             "started_by": [
                 {
@@ -443,34 +423,25 @@ def handed_over(
     def failed(
         source: dict, target: dict, coordinate: list[str], record: dict, obligation: str
     ) -> dict:
-        """The update a harness failure record returned to the user: answered, with a
-        failed response, serving the record that is now the user's to send again."""
+        """The update a harness failure record returned to the user, with the failed
+        response, serving the record that is now the user's to send again."""
         returned = workflow(
             source, target, coordinate, obligation=obligation, covering=[]
         )
         returned.update(
             {
-                "stage": "answered",
                 "ts": record["ts"],
                 "detail": None,
                 "detail_seq": None,
                 "agent": record.get("agent"),
                 "session": record.get("session"),
-                "activity": [
-                    {
-                        "kind": "response",
-                        "detail": None,
-                        "ts": record["ts"],
-                        "session": record.get("session"),
-                        "turn": record.get("turn"),
-                    }
-                ],
-                "condition": {"kind": "failed", "operation": "response"},
                 "response": {
                     "id": record["id"],
                     "attempt": record.get("attempt"),
                     "state": "failed",
                 },
+                "handed_back": True,
+                "held_by": None,
             }
         )
         return returned
@@ -478,15 +449,17 @@ def handed_over(
     workflows = []
     for thread_id, thread in threads.items():
         turns = exchange(thread)
-        if thread["resolved"]:
-            continue
         target = {"kind": "thread", "id": thread_id}
         coordinate = ["thread", thread_id]
         # A failed answer stands until the user says something since that still
-        # stands, or the agent settles a turn said since, whatever became of it.
+        # stands, or the agent settles a turn said since, whatever became of it. It
+        # waits on the user, so closing the thread over it retires it. One that
+        # fails in a thread already closed still stands: the user's resolve left the
+        # request owed, and nothing else would tell them no answer is coming.
         superseded = max(
             [settled_through(thread)]
             + [message["seq"] for message in turns if message["author"] != "agent"]
+            + ([thread["resolved"]["seq"]] if thread["resolved"] else [])
         )
         for source in turns:
             response = failed_responses.get(source["id"])
@@ -502,7 +475,7 @@ def handed_over(
                 )
             )
             workflows.append(failed(source, target, coordinate, response, handed_back))
-        unanswered_inputs = unanswered_turns(thread)
+        unanswered_inputs = owed_turns(thread)
         if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response
@@ -561,14 +534,17 @@ def handed_over(
         # owed action, and for an action that owes nothing any agent turn after it, which
         # has taken the action in as a later version takes in a page action. A reaction
         # is no turn, and a harness's failure reply says no answer is coming rather
-        # than answering. The resolution in force on the thread settles the actions
-        # made before it, and the answer that resolved it; an action made after it is
-        # delivered like any other and keeps its receipt.
+        # than answering. The closing in force on the thread takes in the actions
+        # made before it that owe nothing. An owed one it settles only where it
+        # answers for the thread (`events.owed_turns`): the user's own resolve
+        # leaves it owed, as it leaves a message. An action made after the closing
+        # is delivered like any other and keeps its receipt.
         thread_id = thread_reading.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
-        if not thread or (
-            thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
-        ):
+        if not thread:
+            return False
+        closing = thread["answered_by"] if owed else thread["resolved"]
+        if closing and closing["seq"] >= source["seq"]:
             return False
         if thread_id not in settling:
             turns = [
@@ -610,9 +586,9 @@ def handed_over(
             item = obligation_by_source.get(
                 (source["widget"], coordinate[1])
             ) or obligation_by_source.get((source["widget"], None))
-            if item is not None and item["status"] == "open":
+            if item is not None and standing.is_open(item):
                 continue
-            owed = item is not None and item["status"] == "answered"
+            owed = item is not None and standing.answered(item)
             actions.append(
                 (
                     source,
@@ -658,6 +634,12 @@ def handed_over(
             deliveries.get(source["id"], {}).get("failed")
             or failed_responses.get(source["id"])
         )
+        # Closing the thread over a frozen action handed back retires it, as it
+        # retires a message handed back.
+        if gave_up and not on_page:
+            closing = threads[thread_reading.thread_by_widget[target["id"]]]["resolved"]
+            if closing and closing["seq"] > gave_up["seq"]:
+                continue
         obligation = (
             publish(
                 update_obligation(
@@ -690,7 +672,9 @@ def handed_over(
     # Every input a reply answered keeps its record, answered by its first answer in
     # the log, in the thread that answer stands in, whether or not the thread is
     # resolved: the agent's list's Done. An input handed back since holds its open
-    # record instead.
+    # record instead. A reply that promises the work rather than delivering it (its
+    # `todo`) is no answer to list as done: the to-do it opens is what the request is
+    # still owed, and that record lands in Done when the agent ends it.
     by_id = {event["id"]: event for event in events}
     thread_of = {
         message["id"]: thread_id
@@ -700,6 +684,7 @@ def handed_over(
     for reply in events:
         if (
             not is_answer(reply)
+            or "todo" in reply
             or reply["id"] not in thread_of
             or f"update:{reply['responds']}" in records
         ):

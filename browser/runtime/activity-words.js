@@ -21,15 +21,24 @@ import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
  * asks?: boolean, summaryParts?: Said[], explanationParts?: Said[], addsParts?: Said[],
  * publication?: Publication | null}} Status */
 
-/** @type {Record<import("../types/contract.js").ServedActivity["kind"], string>} */
-const TONE = {
-  working: "working",
-  listening: "listening",
-  stalled: "away",
-  away: "away",
-  unheld: "",
-  closed: "",
-};
+// The leaf's tone for where the agent's side stands (`activity.py`): at work, or held
+// by a dialog in its own window; there with nothing stalled; stalled or between turns;
+// and no tone where no session holds the page or the agent closed it.
+/** @param {Pick<Activity, "presence" | "state" | "reason">} activity */
+const toneOf = ({ presence, state, reason }) =>
+  atWork({ state, reason })
+    ? "working"
+    : presence === "here"
+      ? state === "blocked"
+        ? "away"
+        : "listening"
+      : presence === "away"
+        ? "away"
+        : "";
+// Whether the agent's turn is at work, or would be but for a dialog the user answers
+// in its own window.
+/** @param {Pick<Activity, "state" | "reason">} activity */
+const atWork = ({ state, reason }) => state === "running" || reason === "terminal";
 // Every step the server may report (`ServedWorkKind`) has its words here, in Leaf's
 // voice, since the harness observed the step and the agent said none of them
 // (glossary.md, "Reader-facing words"), but for a reply being written, the agent's own
@@ -44,13 +53,13 @@ const WORK_WORDS = {
   awaiting_user: "Question waiting",
   replying: "Writing a reply",
 };
-// What each canonical count says the agent owes, in the order a reader is told.
+// What each canonical count says the agent owes, in the order a reader is told: the
+// answers by where their update stands, and those no turn has taken in.
 const COUNT_PHRASES = {
-  active: "being worked on",
-  handling: "owed on delivered updates",
-  queued: "owed on queued updates",
-  picked_up: "owed on delivered updates; no current turn observed",
-  pending: "owed on updates awaiting delivery",
+  running: "being worked on",
+  waiting: "owed",
+  blocked: "owed on updates that stopped",
+  unseen: "owed on updates awaiting delivery",
 };
 /** @param {Activity["counts"]} counts @param {(keyof typeof COUNT_PHRASES)[]} kinds */
 const phrased = (counts, kinds) =>
@@ -61,28 +70,33 @@ const phrased = (counts, kinds) =>
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
-// - `left` says the turn's ending retired the belief, and `silentSince` dates the
-//   silence by the reading's own `ts`, which the server already sets to that ending
-//   for a dropped claim.
+// - `working` says the agent's turn is at work, or held by a dialog in its own window
+//   (`waits`), which only the user's answer there frees.
+// - `left` says the turn's ending retired the belief (reason `stopped`, or
+//   `interrupted`), and `silentSince` dates the silence by the reading's own `ts`,
+//   which the server already sets to that ending.
 // - `work` names the step, said by whoever says it, and where a dialog in the agent's
-//   own window holds it (`awaiting`), that the user answers it in the terminal, since
-//   nothing on the page does.
-// - `waiting` phrases the queued and pending updates, in that order, and `owed` the
-//   other counts, for a seat with room to say them beside `waiting`.
+//   own window holds it, that the user answers it in the terminal, since nothing on
+//   the page does.
+// - `waiting` phrases the updates no turn has taken in, and `owed` the answers by
+//   where their update stands, for a seat with room to say them beside `waiting`.
 /** @param {{activity: import("../types/contract.js").ServedState["others"][number]["activity"]}} reading */
 export function activityFacts({ activity }) {
   const { counts } = activity;
+  const waits = activity.reason === "terminal";
   return Object.freeze({
-    tone: TONE[activity.kind],
+    tone: toneOf(activity),
+    working: atWork(activity),
+    waits,
     work: saidBy(
       activity.observed_kind === "replying" ? "agent" : "leaf",
       WORK_WORDS[activity.observed_kind ?? "working"] +
-        (activity.awaiting ? " in the terminal" : ""),
+        (waits ? " in the terminal" : ""),
     ),
-    left: Boolean(activity.dropped),
+    left: activity.reason === "stopped" || activity.reason === "interrupted",
     silentSince: ago(activity.ts),
-    waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
-    owed: Object.freeze(phrased(counts, ["active", "handling", "picked_up"])),
+    waiting: Object.freeze(phrased(counts, ["unseen"])),
+    owed: Object.freeze(phrased(counts, ["running", "waiting", "blocked"])),
   });
 }
 
@@ -149,29 +163,31 @@ const appendParts = (parts, more) => {
 };
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
-// actionable distinction: working, listening, away, or nobody holding the page. How many
+// actionable distinction: at work, there, away, or nobody holding the page. How many
 // updates are waiting or saved is the disclosure's; the row counts what waits on each
 // side instead (`queueWords`). The third wording is what the sentence says that the
 // summary does not, for a seat that shows both (`pageStatus`, `adds`), and the fourth
 // whether the words ask the user to act (`pageStatus`, `asks`), which only a wording
 // that asks sets. Only the agent's `detail` is in its voice; the rest is Leaf's.
 /** @param {{dated: string, detail: string, detailSource: Activity["detail_source"],
- * invite: string, kind: Activity["kind"], overdue: number, saved: string,
- * waits: boolean, work: Said}} input
+ * invite: string, presence: Activity["presence"], blocked: boolean, nudge: boolean,
+ * saved: string, working: boolean, waits: boolean, work: Said}} input
  * @returns {[Words, Words, Words, boolean?]} */
 function statusWords({
   dated,
   detail,
   detailSource,
   invite,
-  kind,
-  overdue,
+  presence,
+  blocked,
+  nudge,
   saved,
+  working,
   waits,
   work,
 }) {
-  if (kind === "closed") return ["Done with this page", "Done with this page.", ""];
-  if (kind === "unheld") {
+  if (presence === "closed") return ["Done with this page", "Done with this page.", ""];
+  if (presence === "gone") {
     const meanwhile = `${saved} They're picked up next time.`;
     return [
       "Not on this page right now",
@@ -192,7 +208,7 @@ function statusWords({
   // 28 October 2026). Rejected: Leaf's guess at them ("Got your comment", "Working on
   // it"), which put Leaf's words in the agent's mouth; the update's own label already
   // says it was Delivered. The step the harness observed stays in the disclosure.
-  if (kind === "working") {
+  if (working) {
     const sentence = detail ? [agentLine(detail, detailSource)] : [];
     // A wait the user answers in the terminal leads, ahead of the sentence it
     // interrupts, since it is the one thing on the line the user must act on.
@@ -206,8 +222,9 @@ function statusWords({
   // update still on its way says so on its own label and in the explanation's count,
   // so the line keeps the invitation (the user's choice, 26 October 2026, over a
   // separate "listening" while one was).
-  if (kind === "listening") return [invite, invite, ""];
-  if (kind === "stalled")
+  if (presence === "here" && !blocked) return [invite, invite, ""];
+  // What the agent had in hand stopped or went quiet while something still takes input.
+  if (presence === "here")
     return [
       dated,
       [dated, ...(detail ? [": ", agentLine(detail, detailSource)] : []), `. ${saved}`],
@@ -216,10 +233,11 @@ function statusWords({
         saved,
       ],
     ];
-  // Away is only worth a nudge once input has stalled (`counts.overdue`): the
-  // session's next turn picks up whatever it finds, and Leaf messages a harness it
-  // can reach once it has seen the turn end.
-  return overdue
+  // Away is only worth a nudge once an owed update is stranded, which makes the
+  // page's next move the user's (`activity.py`): the session's next turn picks up
+  // whatever it finds, and Leaf messages a harness it can reach once it has seen the
+  // turn end.
+  return nudge
     ? [
         "Not answering — nudge the terminal",
         `${dated}. ${saved} Nothing is answering them, so nudge the terminal.`,
@@ -298,15 +316,17 @@ export function pageStatus(state, options = {}) {
     };
   if (!state) throw new Error("A reached page status needs its accepted reading");
   const { activity, publication = null } = state;
+  const facts = activityFacts(state);
   // On Leaf's website any comment starts the agent (`leaf_website`), so whenever it
   // isn't working it listens: no session holds a copy until its first comment, and one
   // that has gone quiet since starts again at the next. Its work reads as on any page,
   // and the introduction and its links join the explanation (`statusModel`).
-  const onCall = Boolean(publication) && activity.kind !== "working";
-  const kind = onCall ? "listening" : activity.kind;
+  const onCall = Boolean(publication) && !facts.working;
+  const presence = onCall ? "here" : activity.presence;
+  const blocked = !onCall && activity.state === "blocked";
+  const kind = statusKind(presence, facts.working, blocked);
   // The line of work a quiet copy's last session left no longer stands.
   const detail = onCall ? "" : activity.detail;
-  const facts = activityFacts(state);
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = "Updates are saved.";
@@ -314,7 +334,7 @@ export function pageStatus(state, options = {}) {
     ? `Last checked in ${facts.silentSince}`
     : "Haven't checked in yet";
   const ended = `Stopped${facts.silentSince ? " " + facts.silentSince : ""}`;
-  const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
+  const age = facts.working && activity.ts ? ago(activity.ts) : "";
   const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
     dated: facts.left ? ended : checkedIn,
     detail,
@@ -322,10 +342,12 @@ export function pageStatus(state, options = {}) {
     invite: publication
       ? "Ready — comment to revise this copy"
       : "Ready — select text to comment",
-    kind,
-    overdue: activity.counts.overdue,
+    presence,
+    blocked,
+    nudge: activity.next_actor === "user",
     saved,
-    waits: Boolean(activity.awaiting),
+    working: facts.working,
+    waits: facts.waits,
     work: facts.work,
   });
   const summaryParts = textParts(summaryWords);
@@ -344,14 +366,14 @@ export function pageStatus(state, options = {}) {
     append(activity.observed, true);
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     append(`${facts.waiting.join(" · ")}.`);
-  const actionableWork = activity.awaiting ? activity.observed_kind : null;
+  const actionableWork = facts.waits ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, which
   // the work's words say (`activityFacts`), and the page is the one place the user may
   // be looking instead, so the status asks.
-  const waitsThere = Boolean(actionableWork) && kind === "working";
+  const waitsThere = Boolean(actionableWork) && facts.working;
   return {
     kind,
-    tone: TONE[kind],
+    tone: onCall ? "listening" : facts.tone,
     summary: wordsText(summaryParts),
     summaryParts,
     explanation: wordsText(explanationParts),
@@ -394,7 +416,7 @@ function queueKinds(items) {
       byWords.set(nouns, group);
     }
     group.count++;
-    const title = item.todo ? item.todo.title : null;
+    const title = item.kind === "todo" ? item.obligation.prompt.text : null;
     if (title !== null) {
       if (group.titles.length) group.titles.push(leafSays(" · "));
       group.titles.push(agentSays(title));
@@ -431,6 +453,24 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   ];
 }
 const WITHOUT_QUEUES = new Set(["broken", "refused", "faulted", "unreachable"]);
+
+// Each reading of a reached page the user acts on differently, by a name of its own,
+// since a change of name is what the status announces (page-status.js): the agent at
+// work, there and ready, there with its work stalled, away, holding the page no
+// longer, or done with it.
+/** @param {Activity["presence"]} presence @param {boolean} working @param {boolean} blocked */
+const statusKind = (presence, working, blocked) =>
+  presence === "closed"
+    ? "closed"
+    : presence === "gone"
+      ? "unheld"
+      : working
+        ? "working"
+        : presence === "here"
+          ? blocked
+            ? "stalled"
+            : "listening"
+          : "away";
 
 // What the chrome shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the leaf's
@@ -482,8 +522,9 @@ export function statusModel(status, queues, agent) {
 // each in the `voice` of whoever said it. The wording is the seat's.
 /** @param {{activity: import("../types/contract.js").ServedState["others"][number]["activity"]}} entry */
 export function leafRow(entry) {
-  const { kind, counts, detail } = entry.activity;
+  const { presence, detail } = entry.activity;
   const facts = activityFacts(entry);
+  const blocked = entry.activity.state === "blocked";
   // The user opens this panel to find which page needs them, so a row says what the
   // agent last said, in its own words (`recording the demo`): three pages waiting
   // rendered as three identical rows said least about the one row they are here to
@@ -502,23 +543,19 @@ export function leafRow(entry) {
   // A wait the user answers in the terminal leads, as the status's does, so a blocked
   // page doesn't read as a busy one.
   const primary =
-    kind === "working"
-      ? entry.activity.awaiting
-        ? stated(facts.work)
-        : own
-      : kind === "listening"
-        ? [leafSays("Ready")]
-        : kind === "stalled"
-          ? stated(leafSays(silence))
-          : kind === "away"
-            ? [leafSays(counts.overdue ? silence : "Away")]
-            : [
-                leafSays(
-                  kind === "unheld"
-                    ? "Not on this page right now"
-                    : "Done with this page",
-                ),
-              ];
+    presence === "closed"
+      ? [leafSays("Done with this page")]
+      : presence === "gone"
+        ? [leafSays("Not on this page right now")]
+        : facts.working
+          ? facts.waits
+            ? stated(facts.work)
+            : own
+          : presence === "here"
+            ? blocked
+              ? stated(leafSays(silence))
+              : [leafSays("Ready")]
+            : [leafSays(entry.activity.next_actor === "user" ? silence : "Away")];
   const waiting = facts.waiting.join(" · ");
   const parts = waiting
     ? [...primary, leafSays(primary.length ? ` · ${waiting}` : waiting)]

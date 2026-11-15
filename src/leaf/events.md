@@ -298,6 +298,13 @@ thread and restores its unanswered widget and message obligations, as an `unreso
 does;
 reactions and failure receipts leave it closed.
 
+The user's `resolve` takes a thread off their list. It retires the questions the agent
+asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
+theirs on a widget in a thread message, that the agent has not answered stays owed, and
+the reply that answers it reopens the thread (`events.owed_turns`). The agent's
+`resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
+names it: from either until the thread reopens, the thread owes nothing.
+
 A harness that gives up on an update writes the failure its answer takes
 (`thread.fail_answer`): a reply for a message, or a failed `pickup` for an answer owed
 to a page obligation, each carrying `failure`, a harness-owned code. Only the harness
@@ -316,8 +323,8 @@ While a thread is open, the user's message after a state-answered obligation in 
 that obligation to the agent, still open, until the agent answers that turn or ends the
 to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
 a page obligation does the same, so an obligation the user has commented on leaves their
-On Me list while the reply owed to the comment stands on the agent's, and a promised
-to-do keeps that obligation the agent's even after the thread is resolved
+On Me list while the reply owed to the comment stands on the agent's, or the to-do a
+reply promised, and stays off it when the user resolves the thread
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and

@@ -681,7 +681,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     # applies after the pick's send comes back.
     expect_obligations_answered(page, "1/2")
     first, second = questions()
-    assert first["status"] == "answered"
+    assert first["answered"]
     assert first["answer"]["value"] == ["first-a"]
     assert second["answer"] is None
     page.keyboard.press("m")

@@ -40,15 +40,17 @@ does, which left On Me full until the agent had read each reply, and over asking
 under a new id, which left the plan step reading done. Asking again is the declaration
 asking is, an `obligation` naming the questions, rather than a second one beside it.
 
-A record's `status` is one of four, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
-message asks that the agent ended `done` because the user answered on another surface,
-with no answer value; and `withdrawn`, an obligation the document no longer makes or a
-question an agent message asks that the agent ended `dropped`. A page widget's
-obligation never takes `answered_elsewhere`: an answer given elsewhere goes into the
-widget's declared state in a revision, which records the value itself. No revision
-can write the state of a widget frozen in a message, so the agent ends its question
-as it ends one asked in words (`asked_in_a_message`)."""
+A record says where it stands in the fields every record does (`standing`), and this
+module is their producer for what the user owes. An open one is `waiting` on its next
+actor. A `done` one ended one of three ways: answered, its typed answer in the record
+(`standing.answered`); answered elsewhere, a question an agent message asks that the
+agent ended `done` because the user answered on another surface, with its `end` and no
+answer value; or `dropped`, an obligation the document no longer makes or a question an
+agent message asks that the agent ended `dropped`. A page widget's obligation is never
+answered elsewhere: an answer given elsewhere goes into the widget's declared state in
+a revision, which records the value itself. No revision can write the state of a
+widget frozen in a message, so the agent ends its question as it ends one asked in
+words (`asked_in_a_message`)."""
 
 import hashlib
 import json
@@ -59,9 +61,10 @@ from math import inf
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import quote
 
+from leaf import standing
 from leaf.events import (
-    awaits_agent,
     is_reaction,
+    owed_turns,
     report_settled_at,
     taken_back,
     unanswered_agent_turn,
@@ -83,6 +86,7 @@ from leaf.projection import (
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
+from leaf.standing import ended, is_open, on
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -104,11 +108,15 @@ def end_question(record: dict, ending: dict) -> None:
     """Retire a question asked in a thread message that the agent ended with
     `todo_end`: `done` where the user answered it on another surface, `dropped`
     where it no longer applies. An end records no answer value."""
-    record["status"] = (
-        "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
-    )
+    record.update(ended("done" if ending["outcome"] == "done" else "dropped"))
     record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
-    record["next_actor"] = None
+
+
+def ended_as(record: dict) -> str:
+    """How a done obligation ended, in a refusal's words."""
+    if record["outcome"] == "dropped":
+        return "withdrawn"
+    return "answered" if record["end"] is None else "answered elsewhere"
 
 
 def question_ids(message: dict) -> list[str]:
@@ -134,12 +142,11 @@ def settle_by_words(
     if ending is not None:
         end_question(record, ending)
     elif answer is not None:
-        record["status"] = "answered"
+        record.update(ended("done"))
         record["answer"] = {
             "value": {key: answer[key] for key in ("text", "token") if key in answer},
             "event": event_reference(answer),
         }
-        record["next_actor"] = None
 
 
 class ObligationRegistration(NamedTuple):
@@ -204,7 +211,7 @@ def collection(records: list[dict]) -> dict:
     return {
         "all": records,
         "user": [record for record in records if record["next_actor"] == "user"],
-        "unanswered": [record for record in records if record["status"] == "open"],
+        "unanswered": [record for record in records if is_open(record)],
     }
 
 
@@ -219,8 +226,9 @@ def update_obligation(
 ) -> dict:
     """The record an update the user handed over publishes: `source` is the input's
     event id, `subject` the thread or widget it stands on. Open while someone owes it
-    a move, `answered` once `answer`, the reply that answered it, stands. Its prompt
-    names no words of its own: a row reads its thread's or widget's name."""
+    a move, done once `answer`, the reply that answered it, stands. Its prompt
+    names no words of its own: a row reads its thread's or widget's name. `activity`
+    adds how far the agent has got with an open one (`seen`, `line`, `workflow`)."""
     return {
         "id": f"update:{source}",
         "source": {"kind": "update", "id": source, "subject": subject},
@@ -228,9 +236,10 @@ def update_obligation(
         "message": message,
         "prompt": {"text": None, "target": subject["id"]},
         "answer": {"value": None, "event": event_reference(answer)} if answer else None,
-        "status": "answered" if answer else "open",
         "end": None,
-        "next_actor": next_actor,
+        **(ended("done") if answer else on(next_actor)),
+        "seen": answer is not None,
+        "workflow": None,
     }
 
 
@@ -387,30 +396,34 @@ def obligation_answered(
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
-    """The anchors of threads the agent owes: an open one whose next word is
-    the agent's, or one holding an open to-do, the work a reply there promised
-    (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
+    """The anchors of threads the agent owes: one holding a turn the agent has
+    not answered (`events.owed_turns`), or an open to-do, the work a reply there
+    promised (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
 
     An open obligation such a thread is about is the agent's turn rather than the user's:
     the user has said something about it and waits on the answer, so it leaves
     their list until the agent answers. A reply that promises work settles the
-    message but leaves the obligation the agent's until the agent ends the to-do,
-    through a resolution too, so a decision the user put off until other work lands
-    stays off their list. Neither is an answer, since the widget's state is untouched,
-    and the obligation stays open, its controls live. The browser receives the lists this leaves rather than deciding
-    again, so On Me's count and `page state` cannot disagree about whose turn it is.
+    message but leaves the obligation the agent's until the agent ends the to-do.
+    Both hold through the user's resolve, which takes the thread off their list and
+    settles nothing the agent owes, so a decision the user put off until an answer
+    or other work lands stays off their list. Neither is an answer, since the
+    widget's state is untouched, and the obligation stays open, its controls live.
+    The browser receives the lists this leaves rather than deciding again, so On
+    Me's count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the obligation's
     words, a design note, or one the agent opened that the user has answered. A to-do
     the agent opened on an element is not a thread's and holds nothing: work on a
     section doesn't say whether the user's decision there waits on it."""
     promised = {
-        todo["subject"]["id"] for todo in owed if todo["subject"]["kind"] == "thread"
+        todo["source"]["subject"]["id"]
+        for todo in owed
+        if todo["source"]["subject"]["kind"] == "thread"
     }
     return [
         anchor
         for identity, thread in threads.items()
-        if (awaits_agent(thread) or identity in promised)
+        if (owed_turns(thread) or identity in promised)
         and (anchor := thread["anchor"])
         and anchor.get("section")
     ]
@@ -498,7 +511,6 @@ def waiting_about(
         record
         for record in records
         if record["thread"] is not None
-        and record["status"] == "open"
         and record["next_actor"] == "user"
         and answered_in_words(record)
     ]
@@ -815,12 +827,12 @@ class _ObligationReducer:
                 unit=unit,
             )
             held = self.projection.actions.get((owner, unit, verb))
-            status = (
-                "answered"
+            stands = (
+                ended("done")
                 if answered
-                else "open"
+                else on("user")
                 if self.local[id(record)]
-                else "withdrawn"
+                else ended("dropped")
             )
             result.append(
                 {
@@ -843,9 +855,8 @@ class _ObligationReducer:
                     }
                     if present
                     else None,
-                    "status": status,
                     "end": None,
-                    "next_actor": "user" if status == "open" else None,
+                    **stands,
                 }
             )
         return result
@@ -970,12 +981,12 @@ class _ObligationReducer:
                 continue
             surface = self._surface(record)
             entry = self._entry(record)
-            status = (
-                "answered"
+            stands = (
+                ended("done")
                 if answered
-                else "open"
+                else on("user")
                 if self.local[id(record)]
-                else "withdrawn"
+                else ended("dropped")
             )
             value_verb = entry["x-awaits"]["value"]
             value, has_content = obligation_value(
@@ -1017,9 +1028,8 @@ class _ObligationReducer:
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
                     else None,
-                    "status": status,
                     "end": None,
-                    "next_actor": "user" if status == "open" else None,
+                    **stands,
                 }
             )
         return records
@@ -1104,9 +1114,8 @@ def thread_obligation_readings(
             "message": message["id"],
             "prompt": {"text": first[question], "target": None},
             "answer": None,
-            "status": "open",
             "end": None,
-            "next_actor": "user",
+            **on("user"),
         }
         for question, (identity, message) in newest.items()
     )
@@ -1114,9 +1123,11 @@ def thread_obligation_readings(
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
     for todo in log.owed:
-        if todo["subject"]["kind"] == "thread":
-            identity = todo["subject"]["id"]
-            newest_todo[identity] = max(newest_todo.get(identity, 0), todo["seq"])
+        subject = todo["source"]["subject"]
+        if subject["kind"] == "thread":
+            newest_todo[subject["id"]] = max(
+                newest_todo.get(subject["id"], 0), todo["seq"]
+            )
     readings: dict[str, ThreadAnswers] = {}
     for record in records:
         thread = threads[record["thread"]]
@@ -1125,12 +1136,12 @@ def thread_obligation_readings(
         answers = readings[record["thread"]]
         in_words = answered_in_words(record)
         asked = answers.seq(record["message"])
-        if record["status"] == "open" and in_words:
+        if is_open(record) and in_words:
             answer = answers.first_answer(record["message"])
             settle_by_words(record, asked, answer, log.ends.get(record["id"]))
         # No revision can write a frozen widget's state, so an answer in words
         # retires its question through the agent's end, as for a question in words.
-        elif record["status"] == "open" and (ending := log.ends.get(record["id"])):
+        elif is_open(record) and (ending := log.ends.get(record["id"])):
             end_question(record, ending)
         if record["next_actor"] is None:
             continue
@@ -1192,7 +1203,7 @@ def settled_by_message(records: list[dict]) -> dict[str, list[dict]]:
     whatever it says, so these are what the agent reads it against."""
     settled: dict[str, list[dict]] = {}
     for record in records:
-        if answered_in_words(record) and record["status"] == "answered":
+        if answered_in_words(record) and standing.answered(record):
             settled.setdefault(record["answer"]["event"]["id"], []).append(
                 {"id": record["id"], "text": record["prompt"]["text"]}
             )
@@ -1228,7 +1239,7 @@ def waiting_in_thread(
     asked: dict[str, list[tuple[int, dict]]] = {}
     messages: dict[str, dict[str, dict]] = {}
     for record in records:
-        if record["source"]["kind"] != "widget" or record["status"] != "open":
+        if record["source"]["kind"] != "widget" or not is_open(record):
             continue
         if (thread := record["thread"]) is None:
             continue

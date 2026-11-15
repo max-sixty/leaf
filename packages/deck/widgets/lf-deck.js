@@ -99,8 +99,7 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 
 // Whether a card's obligations, by the reading, wait on the user.
 /** @param {ReturnType<typeof obligationsIn>} held */
-const waitsOn = (held) =>
-  held.some((item) => item.status === "open" && item.next_actor === "user");
+const waitsOn = (held) => held.some((item) => item.next_actor === "user");
 
 /** @typedef {(card: HTMLElement) => ReturnType<typeof obligationsIn>} DeckReadings */
 
@@ -450,7 +449,7 @@ customElements.define(
         return void focusDestination(this.#again, "move");
       }
       const waiting = this.#readings()?.(card).find(
-        (item) => item.status === "open" && item.next_actor === "user",
+        (item) => item.next_actor === "user",
       );
       if (waiting) obligationActions.open(waiting.id);
       else focusDestination(card, "move");
@@ -565,7 +564,7 @@ customElements.define(
         const held = readings?.(each);
         if (!held?.length) return "";
         if (waits(each)) return "waiting";
-        return held.some((item) => item.status === "open") ? "agent" : "done";
+        return held.some((item) => item.state !== "done") ? "agent" : "done";
       };
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
@@ -624,8 +623,8 @@ customElements.define(
       // arrives here while this one lacks focus, so none of them moves the card.
       const held = readings(card);
       const closed =
-        held.some((item) => item.status === "answered") &&
-        !held.some((item) => item.status === "open");
+        held.some((item) => item.answered) &&
+        !held.some((item) => item.state !== "done");
       const here = focused();
       const place = here && placeOf(here);
       const onCard =

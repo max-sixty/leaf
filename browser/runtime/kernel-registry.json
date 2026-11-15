@@ -374,7 +374,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed, and your answer reopens the thread."
         }
       ],
       "unresolve": [

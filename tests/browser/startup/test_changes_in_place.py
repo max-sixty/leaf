@@ -778,7 +778,7 @@ def test_the_agent_at_work_on_a_passage_marks_its_place(browser, serve):
     expect(bars).to_have_attribute("data-lf-for", "b")
     stalled = page.evaluate(
         """async () => (await (await fetch('/api/state')).json()).workflows
-          .filter(w => w.at_work && w.condition?.kind === 'stale').length"""
+          .filter(w => w.state === 'blocked' && w.reason === 'quiet').length"""
     )
     assert stalled == 1, "the quiet start was not read as work gone quiet"
     # The bar stands in the margin beside its block and takes no room from it.

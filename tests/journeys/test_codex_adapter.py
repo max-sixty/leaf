@@ -282,7 +282,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"},
         )
         assert capsys.readouterr().out == ""
-        assert [item["stage"] for item in owed_answers(page)] == ["picked_up"]
+        assert [(item["state"], item["seen"]) for item in owed_answers(page)] == [
+            ("waiting", True)
+        ]
         hooks_model.cmd_hook(
             "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
         )
@@ -1610,8 +1612,8 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
         assert claim_record_11 is not None
         assert claim_record_11["turn_closed"] == closed
         queued = activity_reading(page)
-        assert queued["kind"] == "working"
-        assert [item["stage"] for item in queued["obligations"]] == ["queued"]
+        assert queued["state"] == "running"
+        assert [item["queued"] for item in queued["obligations"]] == [True]
 
         declare_idle(page)
     finally:

@@ -500,7 +500,7 @@ function question(element) {
   if (!element.id || !registry[element.localName]) return null;
   const item = readObligations().byId.get(`widget:${element.id}`);
   if (!hasObligationSource(item, "widget")) return null;
-  if (item.status !== "open") return { words: obligationEnding(item), settled: true };
+  if (item.state === "done") return { words: obligationEnding(item), settled: true };
   return item.next_actor === "user"
     ? { words: leafSays("Waiting on me"), settled: false }
     : null;

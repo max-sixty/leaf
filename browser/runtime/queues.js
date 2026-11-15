@@ -3,8 +3,8 @@
  * the queues (`served_state.queues`) and the application publisher places this tab's sends
  * against them. An obligation is answered only through its source, a widget's own
  * controls or a reply in its thread, so no row offers a control of Leaf's own to end
- * it. Every row but a to-do's names an obligation record and carries it
- * (`obligation`). */
+ * it. Every row names an obligation record and carries it (`obligation`), which says
+ * where the item stands. */
 import { agentSays, saidBy } from "./voice.js";
 
 // An On list's name, for whoever it is on: the user's On Me, or On <agent>. A list's
@@ -55,11 +55,20 @@ export const itemNoun = (item) =>
 // the end it gave its own to-do are its acts, in its voice; Leaf says how anything
 // else on the user's list ended (voice.js).
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
-/** @param {import("./framework/application.js").DoneItem} item */
+/** @param {import("./framework/snapshot.js").Immutable<import("./framework/application.js").CurrentQueueItem>} item */
 export const itemOutcome = (item) =>
   item.kind === "update"
     ? agentSays("Answered")
     : saidBy(
         item.owner === "agent" ? "agent" : "leaf",
-        OUTCOMES[item.state] ?? item.state,
+        OUTCOMES[item.obligation.outcome ?? "done"],
       );
+
+// When a finished list item ended, and the detail its ending gave: the agent's end of
+// a question or a to-do, or the answer's own time.
+/** @param {import("./framework/snapshot.js").Immutable<import("./framework/application.js").CurrentQueueItem>} item */
+export const itemEnding = ({ obligation }) =>
+  Object.freeze({
+    ended: (obligation.end ?? obligation.answer)?.event?.ts ?? null,
+    detail: obligation.end?.detail ?? null,
+  });

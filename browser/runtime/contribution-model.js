@@ -102,13 +102,6 @@ const kinds = {
     indication: true,
     voice: "leaf",
   },
-  queued: {
-    label: "Up next",
-    icon: "pickup",
-    priority: 3,
-    indication: true,
-    voice: "leaf",
-  },
   pickup: {
     label: "Delivered",
     icon: "pickup",

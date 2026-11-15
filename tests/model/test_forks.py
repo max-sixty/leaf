@@ -135,8 +135,8 @@ def context(capsys, event: str) -> str:
 
 
 def forked(page_dir) -> list[str]:
-    """The waiting messages the page's reading words On it, as a fork's, which its
-    served workflows read as `at_work`."""
+    """The waiting messages the page's reading words On it, as a fork's, which
+    `activity` reads as `running`."""
     work = read_page(page_dir, events_model.read_events(page_dir)).work
     return sorted(work.holding.forked())
 
@@ -282,12 +282,13 @@ def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
         delivery_model.record_receipt(page, page.events[-1]["seq"])
     state = reading(claimed)
     [owed] = state["activity"]["obligations"]
-    assert (owed["input"], owed["stage"], owed["condition"]) == (
+    assert (owed["input"], owed["state"], owed["reason"], owed["seen"]) == (
         asked["id"],
-        "picked_up",
+        "running",
         None,
+        True,
     )
-    assert state["activity"]["kind"] == "working"
+    assert state["activity"]["state"] == "running"
     assert activity_model.turn_obligations(state, watched=False) == []
     context(capsys, "UserPromptSubmit")
     assert [
@@ -319,8 +320,8 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
     )
     state_model.close_session_turn("s1")
     activity = reading(claimed)["activity"]
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
+    assert (activity["state"], activity["detail"]) == (
+        "running",
         "reading pyproject.toml",
     )
 
@@ -370,8 +371,8 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
     todos_model.cmd_start(claimed, reply["id"], "profiling the cold start")
     activity = reading(claimed)["activity"]
     assert activity["obligations"] == []
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
+    assert (activity["state"], activity["detail"]) == (
+        "running",
         "profiling the cold start",
     )
 
@@ -390,12 +391,14 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
     assert "answered" in told and "“Profile the cold start”" in told
     assert "which you now owe" in told and "owes nothing" not in told
     [todo] = reading(claimed)["activity"]["todos"]
-    assert (todo["id"], todo["title"], todo["session"], todo["running"]) == (
-        reply["id"],
-        "Profile the cold start",
-        "s1",
-        None,
-    )
+    # The start the fork's turn wrote is quiet once that turn has ended.
+    assert (
+        todo["id"],
+        todo["prompt"]["text"],
+        todo["session"],
+        todo["state"],
+        todo["reason"],
+    ) == (reply["id"], "Profile the cold start", "s1", "blocked", "quiet")
 
 
 def test_the_forks_leaf_commands_are_marked_to_act_in_its_turn(claimed, lane, capsys):

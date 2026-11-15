@@ -566,7 +566,7 @@ def steps(
         escaped = (
             f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
             f"{'a' if cc.listening() else 'no'} watch running, the page reads "
-            f"{activity(page)}"
+            f"{' and '.join(activity(page))}"
         )
         # The stopped turn never read the comment, so the watch after Escape wakes for
         # it, and a turn of its own answers it.

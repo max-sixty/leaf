@@ -686,12 +686,12 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           const item = reading.all.find(q => q.id === 'widget:only');
           return {
             value: item.answer.value,
-            status: item.status,
+            state: item.state,
             unanswered: reading.unanswered.some(q => q.id === item.id),
           };
         }"""
     )
-    assert pending == {"value": ["first"], "status": "open", "unanswered": True}
+    assert pending == {"value": ["first"], "state": "waiting", "unanswered": True}
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -717,7 +717,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
             source: item.source,
             prompt: item.prompt,
             value: item.answer.value,
-            status: item.status,
+            answered: item.answered,
           };
         }"""
     )
@@ -726,7 +726,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         "source": {"kind": "widget", "id": "only", "tag": "lf-options"},
         "prompt": {"text": "Pick one", "target": "only-decision"},
         "value": ["first"],
-        "status": "answered",
+        "answered": True,
     }
 
     page.keyboard.press("g")

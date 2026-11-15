@@ -128,7 +128,7 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert page_state(page_dir)["pending"] == 0
     [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["stage"] == "picked_up"
+    assert (workflow["state"], workflow["seen"]) == ("waiting", True)
 
     pi.quit()
     turn_record_3 = cleanup_model.session_record("pi-s1")
@@ -159,18 +159,18 @@ def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
         failure="the watch notification did not finish",
     )
 
-    def stage() -> str:
+    def seen() -> bool:
         [workflow] = page_state(page_dir)["workflows"]
-        return workflow["stage"]
+        return workflow["seen"]
 
     turn_record_4 = cleanup_model.session_record("pi-s1")
     assert turn_record_4 is not None
     interrupted_turn = turn_record_4["turn"]
-    assert stage() != "picked_up"
+    assert not seen()
     # Pi emits a turn boundary for the cancelled tool before agent_settled.
     # That boundary still has the old aborted signal and cannot take input.
     assert pi.emit("turn_end", aborted=True) is None
-    assert stage() != "picked_up"
+    assert not seen()
     turn_record_5 = cleanup_model.session_record("pi-s1")
     assert turn_record_5 is not None
     assert turn_record_5["turn"] == interrupted_turn
@@ -179,7 +179,7 @@ def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
     turn_record_6 = cleanup_model.session_record("pi-s1")
     assert turn_record_6 is not None
     assert turn_record_6["turn"] != interrupted_turn
-    assert stage() == "picked_up"
+    assert seen()
 
 
 def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):

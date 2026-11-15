@@ -1,14 +1,17 @@
 # Added when `page state` stopped copying each to-do into its On list row and into
 # its thread's `attention`: a row names its to-do by `id`, and the record, with its
-# `title` and `running` start, is in `todos`. Scores conversation-loop.md, "The On
-# lists", reading those rows. The reading below lists `todos` in another order than
-# the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
+# title and the start in force on it, is in `obligations`. Scores conversation-loop.md,
+# "The On lists", reading those rows. The reading below lists the to-dos in another order
+# than the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
 # base passed 2 of 2 on the shrunk reading, both at 45ee9550e and again at b734b68b2
 # after items became obligations, and the change passed 2 of 2 each time.
 # The owed reply's row was rewritten at 6a66b9b7b as `page state` prints it: an
 # `update` row naming its obligation record, which joins `obligations`. Not
 # rescored. When to-dos on the user went (2026-11-03), the phone build became a
-# question in a thread and to-dos lost their `owner`. Not rescored.
+# question in a thread and to-dos lost their `owner`. Not rescored. On 2026-11-14 the
+# reading took the one vocabulary: to-dos became obligation records standing `waiting`
+# or `running`, and a thread's `attention` the id of the record that speaks for it. Not
+# rescored.
 description: on-lists-read-todo-records
 metadata:
   purpose: "Conversation loop: the agent reads On Me and its own list from `page state`,
@@ -24,7 +27,7 @@ vars:
     resumed after a break, and the user wrote in the terminal: "Where are we? What's
     waiting on me, and what are you still doing?" You ran
 
-        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, todos, queues, threads: [.threads[] | {id, title, attention}]}'
+        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, queues, threads: [.threads[] | {id, title, attention}]}'
 
     and it printed:
 
@@ -33,52 +36,55 @@ vars:
       "source": {"error": null, "live": true},
       "obligations": [
         {"id": "widget:deploy-window", "source": {"kind": "widget", "id": "deploy-window", "tag": "lf-options"},
-         "thread": null, "message": null, "status": "open", "next_actor": "user",
+         "thread": null, "message": null, "next_actor": "user",
+         "state": "waiting", "reason": null, "outcome": null,
          "prompt": {"text": "Which window should the deploy go out in?", "target": "deploy-window"},
          "answer": null, "end": null},
         {"id": "message:9f3a21c0", "source": {"kind": "message", "id": "9f3a21c0"},
-         "thread": "b2e40d17", "message": "9f3a21c0", "status": "open", "next_actor": "user",
+         "thread": "b2e40d17", "message": "9f3a21c0", "next_actor": "user",
+         "state": "waiting", "reason": null, "outcome": null,
          "prompt": {"text": "Try the build on your phone, and reply once it installs.", "target": null},
          "answer": null, "end": null},
         {"id": "update:a83f0e5d", "source": {"kind": "update", "id": "a83f0e5d", "subject": {"kind": "thread", "id": "5aa04c19"}},
-         "thread": "5aa04c19", "message": "a83f0e5d", "status": "open", "next_actor": "agent",
+         "thread": "5aa04c19", "message": "a83f0e5d", "next_actor": "agent",
+         "state": "waiting", "reason": null, "outcome": null, "seen": true, "workflow": "a83f0e5d",
          "prompt": {"text": null, "target": "5aa04c19"},
-         "answer": null, "end": null}
-      ],
-      "todos": [
-        {"id": "0d2c55aa", "subject": {"kind": "thread", "id": "c71e9b04"},
-         "title": "Write the migration note", "state": "open", "seq": 41, "ts": "2026-10-19T15:02:11+00:00",
-         "agent": "Claude", "session": "s-7731", "revision": 3, "running": null, "outcome": null, "thread": "c71e9b04"},
-        {"id": "4be81d02", "subject": {"kind": "widget", "id": "p95-chart"},
-         "title": "Rebuild the latency chart", "state": "open", "seq": 33, "ts": "2026-10-19T14:21:07+00:00",
-         "agent": "Claude", "session": "s-7731", "revision": 2,
-         "running": {"id": "e6610f3a", "item": "4be81d02", "text": "Re-running the benchmark", "seq": 44,
-                     "ts": "2026-10-19T15:10:30+00:00", "turn": "t-19", "agent": "Claude", "session": "s-7731"},
-         "outcome": null, "thread": null}
+         "answer": null, "end": null},
+        {"id": "0d2c55aa", "source": {"kind": "todo", "id": "0d2c55aa", "subject": {"kind": "thread", "id": "c71e9b04"}},
+         "thread": "c71e9b04", "message": null, "next_actor": "agent",
+         "state": "waiting", "reason": null, "outcome": null,
+         "prompt": {"text": "Write the migration note", "target": "c71e9b04"},
+         "answer": null, "end": null, "line": null,
+         "seq": 41, "ts": "2026-10-19T15:02:11+00:00", "agent": "Claude", "session": "s-7731", "revision": 3},
+        {"id": "4be81d02", "source": {"kind": "todo", "id": "4be81d02", "subject": {"kind": "widget", "id": "p95-chart"}},
+         "thread": null, "message": null, "next_actor": "agent",
+         "state": "running", "reason": null, "outcome": null,
+         "prompt": {"text": "Rebuild the latency chart", "target": "p95-chart"},
+         "answer": null, "end": null,
+         "line": {"id": "e6610f3a", "item": "4be81d02", "text": "Re-running the benchmark", "seq": 44,
+                  "ts": "2026-10-19T15:10:30+00:00", "turn": "t-19", "agent": "Claude", "session": "s-7731"},
+         "seq": 33, "ts": "2026-10-19T14:21:07+00:00", "agent": "Claude", "session": "s-7731", "revision": 2}
       ],
       "queues": {
         "on_user": [
           {"kind": "widget", "id": "widget:deploy-window", "owner": "user",
-           "subject": {"kind": "widget", "id": "deploy-window"}, "thread": null, "also": [], "live": false},
+           "subject": {"kind": "widget", "id": "deploy-window"}, "thread": null, "also": []},
           {"kind": "message", "id": "message:9f3a21c0", "owner": "user",
-           "subject": {"kind": "thread", "id": "b2e40d17"}, "thread": "b2e40d17", "also": [], "live": false}
+           "subject": {"kind": "thread", "id": "b2e40d17"}, "thread": "b2e40d17", "also": []}
         ],
         "on_agent": [
           {"kind": "update", "id": "update:a83f0e5d", "owner": "agent",
-           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "also": [], "live": false},
+           "subject": {"kind": "thread", "id": "5aa04c19"}, "thread": "5aa04c19", "also": []},
           {"kind": "todo", "id": "4be81d02", "owner": "agent",
-           "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "live": true},
+           "subject": {"kind": "widget", "id": "p95-chart"}, "thread": null, "also": []},
           {"kind": "todo", "id": "0d2c55aa", "owner": "agent",
-           "subject": {"kind": "thread", "id": "c71e9b04"}, "thread": "c71e9b04", "live": false}
+           "subject": {"kind": "thread", "id": "c71e9b04"}, "thread": "c71e9b04", "also": []}
         ]
       },
       "threads": [
-        {"id": "5aa04c19", "title": "Why does p99 spike at 14:00?",
-         "attention": {"kind": "waiting", "reason": "workflow", "workflow": "a83f0e5d"}},
-        {"id": "c71e9b04", "title": "Schema change for the latency table",
-         "attention": {"kind": "waiting", "reason": "todo", "workflow": null, "todo": "0d2c55aa"}},
-        {"id": "b2e40d17", "title": "Phone build",
-         "attention": {"kind": "needs_user", "reason": "obligation", "workflow": null}}
+        {"id": "5aa04c19", "title": "Why does p99 spike at 14:00?", "attention": "update:a83f0e5d"},
+        {"id": "c71e9b04", "title": "Schema change for the latency table", "attention": "0d2c55aa"},
+        {"id": "b2e40d17", "title": "Phone build", "attention": "message:9f3a21c0"}
       ]
     }
     ```

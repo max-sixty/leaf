@@ -102,9 +102,8 @@ function responseFailures(workflows) {
   const failures = new Map();
   for (const workflow of workflows) {
     if (
-      workflow.condition?.operation !== "response" ||
-      (workflow.condition.kind !== "failed" &&
-        workflow.condition.kind !== "interrupted")
+      workflow.state !== "blocked" ||
+      (workflow.reason !== "failed" && workflow.reason !== "interrupted")
     )
       continue;
     const source = workflow.response;
@@ -113,7 +112,7 @@ function responseFailures(workflows) {
     if (!key) continue;
     failures.set(key, {
       key,
-      kind: workflow.condition.kind,
+      kind: workflow.reason,
       input: workflow.input,
       thread: workflow.thread,
       seq: workflow.seq,

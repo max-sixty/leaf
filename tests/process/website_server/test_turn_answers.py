@@ -195,7 +195,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         [reply] = [event for event in events if event["kind"] == "reply"]
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
-    assert workflow["condition"] == {"kind": "failed", "operation": "response"}
+    assert (workflow["state"], workflow["reason"]) == ("blocked", "failed")
     [record] = [
         item
         for item in state["browser"]["views"][str(state["active"]["revision"])][

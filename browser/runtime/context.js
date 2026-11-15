@@ -144,7 +144,6 @@ const part = {
   workflows: readPart((root) => root.effective.workflows),
   view: readPart((root) => root.effective.view),
   undo: readPart((root) => root.effective.view?.undo ?? []),
-  todos: readPart((root) => root.authoritative?.browser.todos ?? []),
   events: readPart((root) => root.authoritative?.events ?? []),
   revisionLabels: readPart((root) => root.authoritative?.revision_labels),
 };
@@ -223,9 +222,6 @@ export const runtime = {
   // The gestures that can still be taken back, newest first; empty between versions.
   get undo() {
     return part.undo();
-  },
-  get todos() {
-    return part.todos();
   },
   // The log as the adopted reading holds it; an event carrying an `attempt` is the
   // receipt of the gesture that sent it.

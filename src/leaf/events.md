@@ -371,14 +371,15 @@ to-do is made from an obligation.
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. It replaces the
-  summaries it overlaps whole, and every spoken turn older than the last summary then
-  in force must lie in a summary, apart from the thread's opening message and
-  progress a later reply completed (`events.summary_gap`). This holds for a fold
-  without prose too. The refusal names the range admission would take, the requested
-  one widened over every message it would leave, and a delivery's `summary_hint`
-  names only a range admission takes. `text` may be empty and `label` defaults to
-  “Earlier discussion”. `events.active_summaries` says which summaries stand. A
-  summary answers, resolves, settles and marks read nothing.
+  summaries it overlaps whole, and every spoken turn older than the last drawn
+  summary then in force must lie in a summary, apart from the thread's opening
+  message and progress a later reply completed (`events.summary_range`). This holds
+  for a fold without prose too. The refusal names the range admission would take:
+  the requested one widened over every message it would leave. A delivery's
+  `summary_hint` is the range admission takes for the run it suggests, so it may
+  replace a summary in force to close a gap above it. `text` may be empty and
+  `label` defaults to “Earlier discussion”. `events.active_summaries` says which
+  summaries stand. A summary answers, resolves, settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,
   `todo`, markup, failure or anchor transition and takes part in no turn, settlement or
   reopening. Posted to an update the agent owes, it carries `start: {item}`, in the

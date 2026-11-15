@@ -294,34 +294,27 @@ def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
         )
 
     def retried(start: str, end: str) -> tuple:
-        """The message the refusal says the range leaves and the range it names,
-        once that range is admitted."""
+        """The range the refusal names, once that range is admitted."""
         [refusal] = summarize(start, end)
         assert refusal.code == "summary-gap"
         taken = (refusal.values["take_from"], refusal.values["take_through"])
         assert summarize(*taken) == []
-        return refusal.values["left"], *taken
+        return taken
 
     # Admitted from `first`, with the reaction and completed progress still above it.
-    assert retried(second["id"], third["id"]) == (first["id"], first["id"], third["id"])
+    assert retried(second["id"], third["id"]) == (first["id"], third["id"])
     # The same range again would replace that summary and leave `first` above it.
-    assert retried(second["id"], third["id"]) == (first["id"], first["id"], third["id"])
+    assert retried(second["id"], third["id"]) == (first["id"], third["id"])
 
     pending = say("agent", "Checking the east.", ephemeral=True)
     north = say("user", "And the north?")
     south = say("user", "Or the south?")
-    assert retried(north["id"], south["id"]) == (
-        pending["id"],
-        pending["id"],
-        south["id"],
-    )
+    assert retried(north["id"], south["id"]) == (pending["id"], south["id"])
 
 
-@pytest.mark.parametrize(
-    ("start", "left"), [(1, 4), (2, 1)], ids=["from-its-start", "from-inside-it"]
-)
+@pytest.mark.parametrize("start", [1, 2], ids=["from-its-start", "from-inside-it"])
 def test_a_summary_inside_an_earlier_one_leaves_no_gap_above_a_later_one(
-    page_dir, start, left
+    page_dir, start
 ):
     """A summary replaces those it overlaps whole, so one that ends inside an earlier
     summary would uncover that summary's tail above a later one. The refusal names
@@ -360,12 +353,7 @@ def test_a_summary_inside_an_earlier_one_leaves_no_gap_above_a_later_one(
     assert summarize(m[6], m[10]) == []
     [refusal] = summarize(m[start], m[3])
     taken = (refusal.values["take_from"], refusal.values["take_through"])
-    assert (refusal.code, refusal.values["left"], *taken) == (
-        "summary-gap",
-        m[left],
-        m[1],
-        m[5],
-    )
+    assert (refusal.code, *taken) == ("summary-gap", m[1], m[5])
     assert summarize(*taken) == []
     read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), m[0]])
     assert read.exit_code == 0, read.output
@@ -564,21 +552,21 @@ def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("reply_text", "suggested"),
+    ("reply_text", "widened"),
     [
-        pytest.param("y" * 1000, True, id="older-run-qualifies"),
-        pytest.param("Short.", False, id="older-run-too-short"),
+        pytest.param("y" * 1000, False, id="older-run-long-enough"),
+        pytest.param("Short.", True, id="older-run-too-short"),
     ],
 )
 def test_a_summary_hint_names_only_a_range_admission_takes(
-    page_dir, reply_text, suggested
+    page_dir, reply_text, widened
 ):
-    """The hint keeps the rule admission keeps, so following it is never refused and
+    """The hint is the range admission takes, so following it is never refused and
     never leaves older discussion in full above a summary (#5531). A rewrite that
-    retires a summary leaves its run uncovered above a later one. The hint names that
-    run, or nothing where it is too short to suggest, though a run after the later
-    summary qualifies. Built from uncovered messages, it never overlaps a summary in
-    force."""
+    retires a summary leaves its run uncovered above a later one. Where that run is
+    long enough, the hint names it. Where it is too short, the hint names the next
+    long-enough run widened over it, replacing the later summary between them, so a
+    short stretch left above a summary doesn't stop every later hint."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -604,27 +592,25 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
         page_view_model.PageView(page_dir).within,
     )
     assert [summary["id"] for summary in digest["summaries"]] == [later["id"]]
-
-    def summarize(start: str, end: str) -> list:
-        return command_findings(
+    hint = digest["summary_hint"]
+    if widened:
+        assert hint == {"from": reply["id"], "through": newer[4]["id"]}
+    else:
+        assert hint == {"from": root["id"], "through": reply["id"]}
+    assert (
+        command_findings(
             "thread",
             "summarize",
             page_dir,
             "--from",
-            start,
+            hint["from"],
             "--through",
-            end,
+            hint["through"],
             "--text",
             "Earlier.",
         )
-
-    if suggested:
-        assert digest["summary_hint"] == {"from": root["id"], "through": reply["id"]}
-        assert summarize(root["id"], reply["id"]) == []
-    else:
-        assert "summary_hint" not in digest
-        [refusal] = summarize(newer[0]["id"], newer[4]["id"])
-        assert (refusal.code, refusal.values["left"]) == ("summary-gap", reply["id"])
+        == []
+    )
 
 
 @pytest.mark.parametrize(

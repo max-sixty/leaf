@@ -1862,8 +1862,8 @@ _TEXT = {
         "summary must cover at least two messages in thread order"
     ),
     "summary-gap": lambda at, v: (
-        f"summary would leave message {v['left']!r} unsummarized above a summary,"
-        " and only the thread's opening message may stay there; summarize"
+        "summary would leave messages unsummarized above a summary, and only the"
+        " thread's opening message may stay there; summarize"
         f" --from {v['take_from']!r} --through {v['take_through']!r}, with prose that"
         " covers the added messages too"
     ),

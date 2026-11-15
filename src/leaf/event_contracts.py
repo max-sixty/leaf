@@ -17,7 +17,7 @@ from leaf.events import (
     build_threads,
     note_settlements,
     spoken_turns,
-    summary_gap,
+    summary_range,
     taken_back,
     undo_error,
     unshown,
@@ -699,18 +699,11 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
     # The summaries in force once this one stands: those it overlaps it replaces whole.
     candidate = {**event, "seq": events[-1]["seq"] + 1}
     after = active_summaries([*events, candidate], {thread["id"]: thread})
-    if left := summary_gap(thread, after[thread["id"]]):
-        # The range admission takes: this one widened over every message it leaves.
-        # Whatever that wider range replaces lies inside it, so it leaves none.
-        edges = [messages.index(message["id"]) for message in (left[0], left[-1])]
+    asked = (event["from"], event["through"])
+    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
         return Finding(
             "summary-gap",
-            values={
-                **named,
-                "left": left[0]["id"],
-                "take_from": messages[min(start, *edges)],
-                "take_through": messages[max(end, *edges)],
-            },
+            values={**named, "take_from": taken[0], "take_through": taken[1]},
         )
     return None
 

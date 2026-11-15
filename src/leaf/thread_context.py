@@ -13,7 +13,7 @@ from leaf.events import (
     event_coordinate,
     progress_completions,
     retractions,
-    summary_gap,
+    summary_range,
     taken_back,
 )
 from leaf.passages import enclosing_ids
@@ -498,13 +498,14 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. The suggested range is one exact,
-        # contiguous uncovered run before it, so following the hint can never hide
-        # a new message or create a summary on top of one already in force.
-        # Completed progress is not drawn, so a run folds it; pending
-        # progress is still being said, so a run stops at it. The hint names the
-        # earliest run that is long enough and that admission would take: one whose
-        # summary leaves no message in full above any summary (`events.summary_gap`).
+        # Keep the newest exchange verbatim. The hint starts from the earliest run
+        # of uncovered messages before it that is long enough to suggest. Completed
+        # progress is not drawn, so a run folds it; pending progress is still being
+        # said, so a run stops at it. The hint is the range admission takes for that
+        # run (`events.summary_range`): widened over any message it would leave in
+        # full above a summary, replacing the summaries in force in between. So
+        # following it is never refused, and a short stretch a retired summary left
+        # above a later one doesn't stop every later hint.
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
         completed = progress_completions(threads[t])
         ids = [message["id"] for message in threads[t]["msgs"]]
@@ -531,22 +532,15 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                     len(run) >= 4
                     or sum(len(message.get("text", "")) for message in run) >= 2000
                 )
-                and not summary_gap(
-                    threads[t],
-                    [
-                        *summaries,
-                        {"covers": ids[at[run[0]["id"]] : at[run[-1]["id"]] + 1]},
-                    ],
-                )
             ),
             [],
         )
         if candidate:
+            start, end = candidate[0]["id"], candidate[-1]["id"]
+            folded = {"covers": ids[at[start] : at[end] + 1]}
+            start, end = summary_range(threads[t], [*summaries, folded], start, end)
             # The range only: what the agent does with it is a `handling` clause.
-            digest["summary_hint"] = {
-                "from": candidate[0]["id"],
-                "through": candidate[-1]["id"],
-            }
+            digest["summary_hint"] = {"from": start, "through": end}
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         carried.append(digest)

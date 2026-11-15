@@ -620,13 +620,21 @@ def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser,
     context = browser.new_context(
         viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
     )
-    page = open_page(browser, serve(PAGE), context=context)
-    # The card over a passage stands over its paragraph, here from two thirds down the
-    # window whatever the paragraph's height, so it rises within its room.
+    # The card over a passage stands over its paragraph. Paragraphs above it let the
+    # page scroll it two thirds down the window, so the card rises within its room.
+    filler = "<p>A paragraph above the passage, so the page can scroll it down.</p>"
+    page = open_page(
+        browser,
+        serve(PAGE.replace('<p id="long">', filler * 8 + '<p id="long">', 1)),
+        context=context,
+    )
     page.locator(FIRST_LINE.block).evaluate(
         "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.65)"
     )
     rendered(page)
+    assert page.locator(FIRST_LINE.block).evaluate(
+        "el => el.getBoundingClientRect().top > innerHeight * 0.6"
+    )
     FIRST_LINE.open(page, False)
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "data-lf-placement", re.compile("top-start")

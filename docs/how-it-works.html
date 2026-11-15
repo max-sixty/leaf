@@ -353,6 +353,13 @@ flowchart TD
                     contracts, the bundled packages and the registry keys.
                   </td>
                 </tr>
+                <tr>
+                  <th scope="row"><a href="/forks/">Forks</a></th>
+                  <td>
+                    How Leaf answers thread messages in Claude Code with forks of the
+                    session's conversation, and which parts are built.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </section></lf-tab
@@ -1282,6 +1289,11 @@ flowchart TD
                 naming the turn it came from. When a fork fails or its answer isn't the
                 JSON Leaf asked for, Leaf writes nothing and records the failure in
                 Claude Code's debug log.
+              </p>
+              <p id="fork-threads">
+                Leaf also forks the conversation when the user writes in a thread, to
+                post the agent's working line within seconds and, where the work allows,
+                to do it beside the session. <a href="/forks/">Forks</a> explains how.
               </p>
             </details>
             <details id="host-entry-points">
@@ -2479,7 +2491,10 @@ flowchart TD
                     The agent started work on the update and named the work in one line,
                     as a progress message in its thread or with
                     <code>leaf task start</code>, or started a to-do on the update's
-                    widget.
+                    widget. In Claude Code, a thread message also reads On it while a
+                    fork of the conversation writes the agent's working line, and from
+                    that line until the agent answers (<a href="/forks/#path">Forks</a
+                    >).
                   </td>
                 </tr>
                 <tr id="stages-replying">

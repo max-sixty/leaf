@@ -197,6 +197,39 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
     expect(threads[1]).to_be_focused()
 
 
+def test_the_thread_walk_goes_on_from_a_card_still_carried_in(browser, serve):
+    """A walk that changes the card's thread carries the card's list from where the last
+    thread's card stood to the new one's place (box-motion.js), drawn above the window
+    while the page has scrolled down to it. A key pressed meanwhile is meant for the card
+    the walk reached, so `T` steps back from it rather than letting go of it and opening
+    it again. The card's tween is held long, so the key lands once the glide has ended
+    and while the carry runs."""
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1."), ("p41", "Paragraph 41.")])
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.add_style_tag(
+        content=".lf-margin-preview-card { --lf-motion-box-resize: 600s }"
+    )
+    threads = [
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
+        for root in roots
+    ]
+    page.keyboard.press("t")
+    expect(threads[0]).to_be_focused()
+    page.keyboard.press("t")
+    expect(threads[1]).to_be_focused()
+    scroll_settled(page)
+    assert threads[1].evaluate(
+        "thread => thread.querySelector('leaf-text').getBoundingClientRect().bottom < 0"
+    ), "the card's reply box shows, so the key is at the card without the carry"
+    page.keyboard.press("Shift+t")
+    expect(threads[0]).to_be_focused()
+
+
 def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     """Escape reads what stands in front of the user, not how they got there.
 

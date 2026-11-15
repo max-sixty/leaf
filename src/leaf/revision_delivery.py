@@ -44,7 +44,7 @@ import turbohtml
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
 from .registry.contract import exhibits, is_element_name
-from .registry.kernel import kernel_marks
+from .registry.kernel import authored_inert, kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -443,12 +443,12 @@ def mark_declared(
                 if key == "x-exhibit"
                 else declaration.get(key)
             )
-            means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
-            # A flow takes no width of its own (`x-flow`), whatever its markup says.
-            if key == "x-space" and declaration.get("x-flow"):
+            inert = authored and authored_inert(key, declaration, content=content)
+            # A flow takes no width of its own, whatever its markup says.
+            if inert == "flow":
                 continue
-            if authored in attrs and means[mark["authored_on"]]:
+            if authored in attrs and not inert:
                 value = attrs[authored]
             elif declared:
                 value = (

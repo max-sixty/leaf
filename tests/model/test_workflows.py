@@ -847,6 +847,16 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "activity": [],
         "condition": None,
         "response": None,
+        "held_by": {
+            "id": "start-1",
+            "item": "input-1",
+            "text": "Old work",
+            "seq": 1,
+            "ts": (now - timedelta(minutes=20)).isoformat(),
+            "agent": "Leaf guide",
+            "session": "session-1",
+            "turn": "turn-1",
+        },
     }
     present = {
         "status": {"state": "idle", "ts": now.isoformat()},
@@ -856,6 +866,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
+        "agent_turns": {},
     }
     reply = {
         "state": "active",

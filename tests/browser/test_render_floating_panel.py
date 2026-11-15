@@ -2052,6 +2052,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     assert long["panel"] >= long["window"] * 0.1, long
 
 
+# The field's place is its words': while the caret is in it, its slot runs out to the
+# panel's edges for its ring, and the words stay put (floating-panel.css).
 GROWTH = """() => {
   const view = document.querySelector('.lf-fp-view[data-lf-route=thread]');
   const box = (node) => node.getBoundingClientRect();
@@ -2063,7 +2065,7 @@ GROWTH = """() => {
     height: box(view).height,
     cap: parseFloat(getComputedStyle(view.parentElement).maxHeight),
     bottom: box(view).bottom,
-    field: box(document.querySelector('.lf-fp-field')).top,
+    field: box(document.querySelector('.lf-fp-field leaf-text')).top,
     turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
                    foot ? box(foot).top - box(turn).bottom : box(view).bottom - box(turn).bottom],
     foot: foot && box(foot).bottom,
@@ -6249,9 +6251,10 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     """Asking to write reaches the panel's field from any state it stands in: `c`
-    unfolds a panel folded to the leaf and rings the field as an anchored comment box is
-    ringed, so the move shows, and Resume writing comes back to a reply left unsent in a
-    thread the user has since closed, in the same field."""
+    unfolds a panel folded to the leaf and makes the field the box the words go in, out
+    to the panel's top, right and bottom edges with its ring just inside them and a
+    ground lighter than the panel's, so the move shows; and Resume writing comes back to
+    a reply left unsent in a thread the user has since closed, in the same field."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -6263,10 +6266,20 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     page.keyboard.press("c")
     expect(panel).to_have_attribute("data-lf-rest", "row")
     expect(field(page)).to_be_focused()
-    ring = page.locator(".lf-fp-field .lf-compose-field").evaluate(
-        "box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth]"
+    face = page.locator(".lf-fp-field").evaluate(
+        """box => {
+          const style = getComputedStyle(box);
+          const card = document.querySelector('.lf-fp-card');
+          const at = box.getBoundingClientRect(), edge = card.getBoundingClientRect();
+          return [style.outlineStyle, style.outlineWidth, style.outlineOffset,
+            style.backgroundColor !== getComputedStyle(card).backgroundColor,
+            [at.top - edge.top, edge.right - at.right, edge.bottom - at.bottom]
+              .map(Math.round)];
+        }"""
     )
-    assert ring == ["solid", "2px"], f"the field holding the caret wears {ring}"
+    assert face == ["solid", "2px", "-2px", True, [0, 0, 0]], (
+        f"the field holding the caret wears {face}"
+    )
     page.keyboard.press("Escape")
 
     page.locator("body").focus()

@@ -1957,13 +1957,15 @@ textarea.lf-field {
    stands at its fraction of the axis (`--lf-axis-at`) inside the drawing's edge
    (`--lf-axis-edge`, set to `AXIS_EDGE` pixels; none where a drawing sets none), so it
    holds at any width, a printed page's included. The box it stands in is as wide as
-   the axis. */
+   the axis. `--lf-axis-x` is where it stands, measured from the box's start, for a
+   widget that fits a label to the room on either side of it. */
 :is(.lf-on-axis, .lf-axis-tick, .lf-axis-gridline) {
-  position: absolute;
-  left: calc(
+  --lf-axis-x: calc(
     var(--lf-axis-edge, 0px) + var(--lf-axis-at, 0) *
       (100% - 2 * var(--lf-axis-edge, 0px))
   );
+  position: absolute;
+  left: var(--lf-axis-x);
 }
 /* The ruler: a tick at each time, where a major tick runs the ruler's height and
    carries its time, and the last one reads back from its tick (`data-lf-flip`) where

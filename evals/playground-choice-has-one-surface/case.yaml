@@ -11,6 +11,7 @@ description: playground-choice-has-one-surface
 metadata:
   purpose: "Playground: each design decision has one selection surface; presets
     compose independently adjustable parameters."
+  authoring: true
   tags:
     - playground
 vars:
@@ -61,11 +62,9 @@ vars:
         </lf-playground-output>
       </lf-playground>
 
-    Finish the draft for handoff so the user can try the candidates and choose
-    which treatment to implement. Use the installed leaf:leaf skill and read
-    ../../packages/playground/instructions/author.md relative to its base directory.
-    The page directory is not reachable here, so reply with the HTML and any
-    page module needed for the choice and implementation request.
+    Write the page from that draft and finish it for handoff, so the user can try
+    the candidates and choose which treatment to implement. Placeholders can stand
+    for the samples' bodies.
 assert:
   - type: llm-rubric
     metric: one-selection-surface

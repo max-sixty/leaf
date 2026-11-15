@@ -3,9 +3,10 @@
 # Historical exact-layout rubric: Claude Code base 9/9 (c20bf406f twice, c71562813 once),
 # head 9/9. The current rubric judges reading flow instead of a Layout class.
 # The case now authors the page and names nothing to read: at 0e538e29d, 2 of 2
-# Claude Code authors read the playground's instructions themselves and 1 of 2
-# passed. The other put the incident-log appendix inside Root cause, where the
-# request places it, and disclosure-reading-cost read that as breaking the sequence.
+# Claude Code authors read the playground's instructions themselves. Both put the
+# incident-log appendix at the end of Root cause, where the request places it;
+# disclosure-reading-cost passed one and failed the other, so it now says that place
+# is allowed, and the regraded run passed 2 of 2.
 description: exhibit-playground-stays-in-the-column
 metadata:
   purpose: "Arranging a page: a document read top to bottom keeps its reading flow, with the retry-policy playground beside the explanation it supports."
@@ -50,5 +51,7 @@ assert:
     value: |
       Pass if the independent-retries qualification is visible beside the schedule
       without opening a disclosure, while the substantial optional incident log is
-      available behind a clearly labeled disclosure. Fail if the short qualification
-      is hidden or if the optional log interrupts the seven-section reading sequence.
+      available behind a clearly labeled disclosure. The log's disclosure may stand
+      at the end of Root cause, where the request puts it. Fail if the short
+      qualification is hidden or if the optional log interrupts the seven-section
+      reading sequence.

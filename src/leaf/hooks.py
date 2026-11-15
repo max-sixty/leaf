@@ -444,7 +444,7 @@ def cmd_pages(payload: dict) -> None:
     module's digest, and whether that module is this Leaf's. So a message admission
     found with no lane (`forks.kept_from_main_at_admission`) says whether forks were
     off, the module stale, or the follower that held the lane gone
-    (`leaf-dev timeline`)."""
+    (`leaf-dev logs timeline`)."""
     sid = payload.get("session_id") or ""
     from .harness import ClaudeCodeHarness
     from .leases import mark_module

@@ -20,6 +20,7 @@ from render_harness import (
     LONG_PAGE,
     compare_with,
     consume_browser_errors,
+    fetch_whole_state,
     leaf_page,
     nudge,
     open_page,
@@ -775,8 +776,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     crossed = []
 
     def older_events_with_new_data(route):
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         if state["data"]["version"] == older["data"]["version"]:
             route.fulfill(status=response.status, json=state)
             return

@@ -17,8 +17,8 @@ import { isHTML, isElement } from "./shadow-tree.js";
 import { elementBox } from "./shown-box.js";
 
 /** @typedef {import('./rect.js').Box} Box
- * @typedef {{band: Box | null, axes: {x: boolean, y: boolean}, positioned: boolean,
- * block: Element | null | undefined, scrolls: boolean}} ClipEntry
+ * @typedef {{band: Box | null, axes: {x: boolean, y: boolean},
+ * placer: Element | null | undefined, scrolls: boolean}} ClipEntry
  * @typedef {Map<Element, ClipEntry>} ClipCache
  * @typedef {{box: Element, axes: {x: boolean, y: boolean}, scrolls: boolean,
  * covered: boolean, footed: boolean, band: Box | null}} ClipCut */
@@ -408,10 +408,33 @@ export function stuckBox(node, within = null) {
 /** @param {Element} el @param {CSSStyleDeclaration} [style] */
 export const fixedInWindow = (el, style = getComputedStyle(el)) =>
   style.position === "fixed" && (!isHTML(el) || el.offsetParent === null);
+// The box that places a box positioned out of flow, past every box between them, which
+// neither moves nor clips it: its containing block, its offset parent as above, or null
+// for a box fixed in the window, which rides no box. Undefined for a box in flow, which
+// its rendered parent places.
+/** @param {Element} el @param {CSSStyleDeclaration} [style] @returns {Element | null | undefined} */
+export const placedBy = (el, style = getComputedStyle(el)) =>
+  isHTML(el) && (style.position === "fixed" || style.position === "absolute")
+    ? el.offsetParent
+    : undefined;
 // A box stuck in the window: fixed there, and placed by no anchor.
 /** @param {Element} el @param {CSSStyleDeclaration} [style] */
 export const inWindow = (el, style = getComputedStyle(el)) =>
   isHTML(el) && fixedInWindow(el, style) && !style.positionAnchor.startsWith("--");
+// The box a sticky box moves within, its containing block: the first box around it that
+// holds blocks, past `display: contents` and inline wrappers, or `stop` where the climb
+// reaches it first.
+/** @param {Element} sticky @param {Element | null} [stop] */
+export function stickyHolder(sticky, stop = null) {
+  let parent = renderedParent(sticky);
+  while (
+    parent &&
+    parent !== stop &&
+    /^(contents|inline)$/.test(getComputedStyle(parent).display)
+  )
+    parent = renderedParent(parent);
+  return parent;
+}
 // Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 /** @param {Element} sticky */
@@ -427,15 +450,8 @@ function sticks(sticky) {
   const padTop = Number.parseFloat(room.paddingTop) || 0;
   const padBottom = Number.parseFloat(room.paddingBottom) || 0;
   const box = sticky.getBoundingClientRect();
-  // The holder is the box the sticky stands in: past any `display: contents` wrapper,
-  // and where that is the scroller itself, its scrolled content rather than its frame.
-  let parent = renderedParent(sticky);
-  while (
-    parent &&
-    parent !== scroller &&
-    getComputedStyle(parent).display === "contents"
-  )
-    parent = renderedParent(parent);
+  // Where that holder is the scroller itself, its scrolled content rather than its frame.
+  const parent = stickyHolder(sticky, scroller);
   const content = band.top - scroller.scrollTop;
   const holder =
     parent === scroller
@@ -1135,10 +1151,8 @@ function clipWalk(item, clips, held, stop) {
               : clippingAxes(getComputedStyle(a)),
           // Read here rather than out of shownBand, whose answer is a band and is the
           // render gate's too: what clips a box and what a box is positioned against are
-          // two facts, and one of them is this walk's alone.
-          positioned:
-            isHTML(a) && ["fixed", "absolute"].includes(getComputedStyle(a).position),
-          block: isHTML(a) ? a.offsetParent : undefined,
+          // two facts.
+          placer: placedBy(a),
           scrolls: scrollContainer(a),
         }),
       );
@@ -1164,9 +1178,9 @@ function clipWalk(item, clips, held, stop) {
       });
     }
     if (c.scrolls) holder = renderedParent(a);
-    if (!escaped && c.positioned) {
+    if (!escaped && c.placer !== undefined) {
       escaped = true;
-      containing = c.block;
+      containing = c.placer;
     }
   }
   return { cuts, fixed: escaped && !containing };

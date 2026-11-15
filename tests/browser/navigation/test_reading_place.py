@@ -618,6 +618,74 @@ def test_a_reading_after_a_scroll_reads_the_words_a_sticky_box_holds(browser, se
     assert {"toc0", "p200"} <= set(page.evaluate(on_screen))
 
 
+def test_a_reading_after_a_scroll_reads_a_sticky_box_anywhere_its_block_lets_it_move(
+    browser, serve
+):
+    """A sticky box moves within its containing block: past an inline wrapper to the
+    block around it, and through the whole of a pane it stands in directly. So a reading
+    after a scroll of the page, or of the pane, still finds the words the sticky box holds
+    in the window."""
+    source = leaf_page(
+        "Sticky boxes",
+        '<section style="height: 3000px"><span>'
+        '<p id="wrapped" style="position: sticky; top: 100px; margin: 0">'
+        "Sticky words inside an inline wrapper, held in the window by sticking.</p>"
+        "</span></section>"
+        '<div id="pane" data-bound="start" style="height: 300px; overflow: auto">'
+        '<p id="heading" style="position: sticky; top: 0; margin: 0; background: white">'
+        "Sticky words standing directly in the pane, at its top as it scrolls.</p>"
+        + "".join(
+            f'<p id="row{n}">Row {n} of the pane, with words enough to name a place.</p>'
+            for n in range(60)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    page_reading = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "wrapped" in page.evaluate(page_reading)
+    page.evaluate("() => scrollTo({ top: 1000, behavior: 'instant' })")
+    rendered(page)
+    assert "wrapped" in page.evaluate(page_reading)
+    pane_reading = """async () => {
+      const api = await window.__lfCheckApi();
+      const region = api.readingRegions().find((each) => each.body.id === "pane");
+      return [...api.blocksOnScreen(region)].map(([block]) => block.id);
+    }"""
+    page.evaluate(
+        """() => document.getElementById("pane").scrollIntoView({ behavior: "instant" })"""
+    )
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 1500; }")
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+
+
+def test_a_reading_finds_words_placed_against_a_box_outside_the_pane_holding_them(
+    browser, serve
+):
+    """A positioned box is placed by its containing block, past a pane between them that
+    neither scrolls nor clips it: words fixed against a transformed section stand in the
+    window though the pane holding them is far below it."""
+    source = leaf_page(
+        "Placed words",
+        '<section style="transform: translateZ(0); height: 5000px; display: flow-root">'
+        '<div style="overflow: auto; height: 200px; margin-top: 3000px">'
+        '<p id="placed" style="position: fixed; top: 100px; left: 0; margin: 0">'
+        "Words positioned against their containing block, drawn in the window.</p>"
+        "</div></section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert page.evaluate(on_screen) == ["placed"]
+
+
 def test_a_reading_after_a_scroll_reads_words_the_browser_skipped_until_then(
     browser, serve
 ):
@@ -657,10 +725,32 @@ def test_a_reading_after_a_scroll_reads_words_the_browser_skipped_until_then(
     }
 
 
+def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
+    """Opening a disclosure shows what it held, though its box keeps its size, so the next
+    reading of the screen finds those words."""
+    source = leaf_page(
+        "A disclosure",
+        '<details id="fold" style="height: 200px">'
+        '<summary aria-label="More"></summary>'
+        '<p id="held">Words the disclosure shows once it opens, in a box that keeps its'
+        " size.</p></details>"
+        '<div style="height: 1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "held" not in page.evaluate(on_screen)
+    page.evaluate("() => { document.getElementById('fold').open = true; }")
+    rendered(page)
+    assert "held" in page.evaluate(on_screen)
+
+
 def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser, serve):
     """A rearrangement that changes no size, such as a view swap moving words in from far
     below, is said with `layoutChanged`, and the next reading of the screen finds the
-    words it brought."""
+    words it brought, after each such notice from the box."""
     source = leaf_page(
         "A rearranged page",
         '<section id="area" style="position: relative; height: 5000px">'
@@ -670,6 +760,8 @@ def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser,
         "Words that stay where they stood through the swap.</p>"
         '<p id="past" style="position: absolute; top: 1100px; margin: 0">'
         "Words just below the window, which stay too.</p>"
+        '<p id="later" style="position: absolute; top: 2500px; margin: 0">'
+        "Words a second swap brings into the window from further below.</p>"
         "</section>",
     )
     page = open_page(browser, serve(source))
@@ -685,6 +777,13 @@ def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser,
         }"""
     )
     assert page.evaluate(reading) == "incoming"
+    on_screen = """async () => {
+      const area = document.getElementById("area");
+      document.getElementById("later").style.transform = "translateY(-2300px)";
+      (await window.__lfWidgetApi()).layoutChanged(area);
+      return [...(await window.__lfCheckApi()).blocksOnScreen()].map(([block]) => block.id);
+    }"""
+    assert "later" in page.evaluate(on_screen)
 
 
 def test_a_reading_in_a_scaled_pane_follows_its_scroll(browser, serve):

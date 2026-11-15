@@ -162,8 +162,11 @@ def save_screens(
     try:
         whole(page, "desktop")
         saved.extend((shot, obligation_label) for shot in obligation_shots)
-        settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
-        whole(page, "resized desktop, the widest window")
+        # A desktop already at the widest window has those screens; a second pass
+        # would save the same files again under the same names.
+        if desktop["width"] != max(SWEEP_WIDTHS):
+            settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
+            whole(page, "resized desktop, the widest window")
         for width, selector, said in reading.arrangement:
             settle_at(page, width, desktop["height"])
             page.evaluate(

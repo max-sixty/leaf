@@ -3,6 +3,9 @@ import test from "node:test";
 import { createAnnotationInventory } from "/runtime/annotation-inventory.js";
 import { contributionEntry } from "/runtime/contribution-controls.js";
 import { registerContribution } from "/runtime/contributions.js";
+import { resolvedPassage } from "/runtime/resolved-target.js";
+import { applicationState } from "/runtime/semantic-state.js";
+import { servedState, servedThread } from "../served.mjs";
 
 const obligation = (id) => ({
   id,
@@ -77,6 +80,71 @@ test("a kept item acts through the capabilities of the latest reading", () => {
     assert.equal(kept, entry);
     assert.notEqual(inventory.sourceItem(item), held);
   } finally {
+    document.body.replaceChildren();
+  }
+});
+
+// A passage's row is keyed from a reading of its target's words, which a change to
+// another part of the page leaves as they were, as a closed tab's document drawing does:
+// the collection that follows reads none of the target's elements.
+test("a quoted passage is keyed once while its target's words are unchanged", () => {
+  applicationState.identify(1);
+  document.body.innerHTML =
+    '<main><p id="other">Other words</p><div id="doc" data-lf-projection="w" ' +
+    'data-lf-datum="doc"><p>Alpha <b>beta</b> gamma <b>beta</b></p></div></main>';
+  const doc = document.getElementById("doc");
+  const second = doc.querySelectorAll("b")[1].firstChild;
+  const comment = {
+    id: "c1",
+    seq: 1,
+    ts: "2026-09-19T12:00:00+00:00",
+    author: "user",
+    revision: 1,
+    kind: "comment",
+    text: "Which beta?",
+    attention: true,
+    content_version: "c1",
+  };
+  const thread = servedThread([comment], {
+    anchor: { section: "doc", datum: "doc", quote: "beta" },
+  });
+  applicationState.adopt(
+    servedState({ browser: { views: { 1: { thread: { threads: [thread] } } } } }),
+  );
+  const placement = {
+    ...resolvedPassage({ place: doc, segments: [{ node: second, start: 0, end: 4 }] }),
+    point: null,
+  };
+  const inventory = createAnnotationInventory({
+    readObligations: () => ({ user: [] }),
+    placedAt: () => placement,
+    openThread() {},
+    goToObligation() {},
+    scrollToElement() {},
+  });
+  const { matches } = Element.prototype;
+  let asked = 0;
+  Element.prototype.matches = function (selector) {
+    if (doc.contains(this) && this !== doc) asked += 1;
+    return matches.call(this, selector);
+  };
+  const collected = () => {
+    asked = 0;
+    const entry = inventory.collect().find((each) => each.targetId === "doc");
+    return { asked, key: entry.key };
+  };
+  try {
+    const first = collected();
+    assert.match(first.key, /\["beta",1\]$/, "the second copy of its words");
+    document.getElementById("other").firstChild.data = "Other words edited";
+    assert.deepEqual(collected(), { asked: 0, key: first.key });
+    // A change to the words it stands in reads them again.
+    doc.querySelector("b").firstChild.data = "delta";
+    const moved = collected();
+    assert.ok(moved.asked > 0);
+    assert.match(moved.key, /\["beta",0\]$/, "now the first copy of its words");
+  } finally {
+    Element.prototype.matches = matches;
     document.body.replaceChildren();
   }
 });

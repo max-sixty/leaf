@@ -5,7 +5,7 @@ the agent's turn ended, to check the page against the conversation. The main
 session carries on separately and never reads this exchange. Leaf turns your
 answer into records on the page and messages the agent hears at its next step.
 Don't call tools and don't continue the work: answer from the conversation above
-and the page state below.
+and the page state below, straight away and without thinking it over.
 
 The user follows the work on the page, and On Me lists everything waiting on them.
 Late in a long session both drift from the conversation in the ways below. Name only
@@ -17,9 +17,9 @@ Leaf's guidance for asking, the agent's own, comes after this check: what goes O
 Me (`conversation-loop.md`, "The On lists") and how a question reads in a thread.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
-hasn't answered it since. Leaf puts each ask On Me as the agent's own, in a new
-thread opened by the agent's message, and the agent takes the user's reply or
-withdraws the ask. For each, give:
+hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
+message in a thread, and the agent takes the user's reply or withdraws the ask. For
+each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
   "Reloading the plugin").
@@ -33,6 +33,11 @@ withdraws the ask. For each, give:
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.
+- `again`: where the ask asks again a question the page asked before, such as a
+  step the user took that didn't work or a question their reply left standing, that
+  question's id from the page state below. Leaf asks it again in its thread, under
+  its id, and reopens the thread if it was closed, so the user meets it with what
+  came before. Otherwise empty, and Leaf opens a new thread for it.
 - `quote`: the agent's words that leave it to the user.
 
 ## Findings for the agent

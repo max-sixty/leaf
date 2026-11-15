@@ -97,6 +97,19 @@ import { chromeRoot } from "./chrome.js";
 // watch gives it back in the same mutation checkpoint (`keepParts`).
 /** @type {WeakMap<Element, string>} */
 const anchorNames = new WeakMap();
+// Each name back to the anchor Leaf gave it, forgotten once that anchor is collected, so
+// the map holds only anchors still alive.
+/** @type {Map<string, WeakRef<Anchor>>} */
+const named = new Map();
+const collected = new FinalizationRegistry((/** @type {string} */ name) => {
+  if (!named.get(name)?.deref()) named.delete(name);
+});
+/** @param {string} name @param {Anchor} anchor */
+const holdName = (name, anchor) => {
+  if (named.get(name)?.deref() === anchor) return;
+  named.set(name, new WeakRef(anchor));
+  collected.register(anchor, name);
+};
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
 /** @param {string} name */
@@ -153,6 +166,7 @@ export function anchorReading(el, name) {
   if (!isElement(el)) return { name: el.name };
   name ??= anchorNames.get(el) ?? nextName();
   anchorNames.set(el, name);
+  holdName(name, el);
   if (el.getRootNode() !== document)
     return partNamed(el) ? { el, name } : { el, name, write: name, part: true };
   const written = inlineStyle(el).anchorName;
@@ -195,7 +209,9 @@ export function nameable(el) {
 // the document's. A target in a shadow tree anchors as itself where the
 // document can name it (`nameable`), and otherwise through the host holding its tree; a
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
-// drawing; a `display: contents` target through its first shown part. Wherever it
+// drawing, and so does the drawing's HTML in a `foreignObject`, which Chromium anchors
+// nothing to (notes/browser-support.md, "An anchor inside an SVG foreignObject in
+// Chromium"); a `display: contents` target through its first shown part. Wherever it
 // anchors, what stands against it is written as insets from the anchor's box.
 /** @param {Element} target */
 function outsideScopes(target) {
@@ -214,8 +230,10 @@ function outsideScopes(target) {
 /** @param {Element} target */
 export function anchorElement(target) {
   let el = outsideScopes(target);
-  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
+  for (let at = /** @type {Node | null} */ (el); isElement(at); at = renderedParent(at))
+    if (at.localName === "foreignObject") el = at;
   while (el instanceof SVGElement && el.ownerSVGElement) el = el.ownerSVGElement;
+  for (let host; !nameable(el) && (host = shadowHost(el.getRootNode()));) el = host;
   if (el !== target) return el;
   const [part] = shownParts(target);
   return part && part !== target ? part : target;
@@ -369,6 +387,7 @@ function contentStart(scroller) {
       },
     };
     starts.set(scroller, handle);
+    holdName(handle.name, handle);
   }
   const { name } = handle;
   if (scroller.getRootNode() === document) keeps(scroller, START, name);
@@ -380,6 +399,14 @@ function contentStart(scroller) {
 // own scroll carries it too, or the anchor itself.
 /** @param {Anchor} anchor */
 export const anchorHolder = (anchor) => (isElement(anchor) ? anchor : anchor.scroller);
+
+// The anchor Leaf gave `name`, while it stands in the document; null for a name Leaf
+// didn't give.
+/** @param {string} name @returns {Anchor | null} */
+export const anchorNamed = (name) => {
+  const anchor = named.get(name)?.deref();
+  return anchor && anchorHolder(anchor).isConnected ? anchor : null;
+};
 
 // The name `el` answers to as an anchor, given it first where it has none.
 /** @param {Anchor} el */

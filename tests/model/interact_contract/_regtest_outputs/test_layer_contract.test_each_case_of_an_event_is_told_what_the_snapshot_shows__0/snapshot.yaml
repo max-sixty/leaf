@@ -1304,8 +1304,7 @@ resolve:
     kind: resolve
   told:
     - text: >-
-        The user closed the thread. You owe no reply there; a to-do you opened on
-        it stays open until you end it.
+        The user resolved the thread.
 
 unresolve:
   event:

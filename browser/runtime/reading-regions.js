@@ -52,13 +52,13 @@
    every other. Mechanical returns, programmatic arrivals and scrolling are not
    choices of another passage. Each consumer interprets that target in its own
    domain. */
-import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shadow-tree.js";
+import { isElement, skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
-import { reachReadingScroller } from "./reach.js";
+import { holdReach, reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
@@ -90,6 +90,19 @@ const depthOf = (node) => {
 
 /** @template {ReadingRegion} T @param {T | undefined} region @returns {region is T} */
 const live = (region) => Boolean(region?.host.isConnected && region.body.isConnected);
+// The regions each host holds and each body shows, in the order they registered, so a
+// question about the regions around a node climbs from it rather than asking each one.
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byHost = new WeakMap();
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byBody = new WeakMap();
+/** @param {RegionRegistration} region */
+const current = (region) => regions.get(region.id) === region && live(region);
+/** @param {Node | null | undefined} node @param {WeakMap<Element, RegionRegistration[]>} index */
+function* regionsAround(node, index) {
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at)) yield* (index.get(at) ?? []).filter(current);
+}
 
 // Three questions about a region's visibility, each asked where its cost and answer fit:
 // `concealed` reads the page's own attributes alone, so the inventory decides what to
@@ -144,9 +157,19 @@ export function registerReadingRegion({
   };
   const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
+  byHost.set(host, [...(byHost.get(host) ?? []), region]);
+  byBody.set(body, [...(byBody.get(body) ?? []), region]);
   sizes.observe(host);
   return () => {
     if (regions.get(id) === region) regions.delete(id);
+    byHost.set(
+      host,
+      (byHost.get(host) ?? []).filter((other) => other !== region),
+    );
+    byBody.set(
+      body,
+      (byBody.get(body) ?? []).filter((other) => other !== region),
+    );
     sizes.unobserve(host);
     stopReaching();
   };
@@ -231,13 +254,9 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
+// The region whose host is nearest around `node`: the first its climb meets.
 /** @param {Node | null | undefined} node */
-const regionAt = (node) => {
-  const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
-    .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
-  return region;
-};
+const regionAt = (node) => regionsAround(node, byHost).next().value ?? undefined;
 
 /** @param {Node | null | undefined} node */
 export const readingRegionFor = (node) => {
@@ -385,13 +404,8 @@ export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
   if (regionScrollBehavior(region) === "bounded") return region.body;
-  const containing = [...regions.values()]
-    .filter(
-      (candidate) =>
-        candidate !== region &&
-        live(candidate) &&
-        renderedUnder(region.host, candidate.body),
-    )
+  const containing = [...regionsAround(region.host, byBody)]
+    .filter((candidate) => candidate !== region)
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
 }
@@ -409,17 +423,6 @@ export const scrollerFor = (el) => {
 };
 
 installScrollerLookup(scrollerFor);
-
-// The boxes a scroll passes to once each inner one is spent, as native input chains it
-// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
-// scroll still chains to the page, the box its containing block, the viewport, scrolls.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollChainOf(node) {
-  let last = null;
-  for (last of scrollersOf(node)) yield last;
-  if (last !== pageScroller) yield pageScroller;
-}
 
 /** @param {RegionTarget} regionOrNode */
 export function shownRegionBounds(regionOrNode) {
@@ -456,6 +459,7 @@ export async function preserveReadingRegions(owner, change) {
     retained: compositionTransitions.has(owner),
   });
   compositionTransitions.set(owner, transition);
+  const releaseReach = holdReach(owner);
   let completed = false;
   try {
     await change();
@@ -468,6 +472,7 @@ export async function preserveReadingRegions(owner, change) {
         phase: "after",
         cancelled: !completed || !owner.isConnected,
       });
+      releaseReach();
     }
   }
 }

@@ -149,13 +149,13 @@ export function layerHeaders(headers) {
  * }} Held */
 
 // A state request names what the tab holds, and the answer leaves that out for its
-// reader to restore from the same holding (http.py, `page_state` and `sent`). An answer
-// at the data version the tab names leaves out its sources, since data moves only when
-// an agent sets it. An answer to a request naming the reading the tab adopted, by its
-// `browser.basis.key`, may instead carry only the changes since that reading and the
-// events logged after it (`served_state/tail.py`). A newer reading can be adopted while
-// a request is out, so its reader captures the holding before asking and completes the
-// answer from that.
+// reader to restore from the same holding (http.py, `sent`). An answer to a request
+// naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
+// changes since that reading, each data source that changed among them, and the
+// events logged after it (`served_state/tail.py`). A whole answer at the data version
+// the tab names leaves out its sources, since data moves only when an agent sets it.
+// A newer reading can be adopted while a request is out, so its reader captures the
+// holding before asking and completes the answer from that.
 /** @returns {Held} */
 export const heldReading = () => ({ data: runtime.data, state: runtime.state });
 /** @param {Held} held */
@@ -242,20 +242,21 @@ function patched(reading, patch) {
   return /** @type {T} */ (root);
 }
 
-// The whole answer: its data sources, and for an answer carrying the changes since the
-// reading its request named, the rest restored from that reading, which is exactly
-// the answer the server would have sent whole.
+// The whole answer: for an answer carrying the changes since the reading its request
+// named, that reading with them applied, which is exactly the answer the server would
+// have sent whole; else the answer, with the sources of the data it named restored.
 /** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
 export function completeState(answer, held) {
-  const sources = answer.data.sources ?? held.data.sources;
-  if (!("since" in answer)) return { ...answer, data: { ...answer.data, sources } };
-  const { since, patch, events, data } = answer;
+  if (!("since" in answer)) {
+    const sources = answer.data.sources ?? held.data.sources;
+    return { ...answer, data: { ...answer.data, sources } };
+  }
+  const { since, patch, events } = answer;
   const prior = held.state;
   if (!prior || prior.browser.basis.key !== since.key)
     throw new Error("The state answer extends a reading this tab did not name");
   return {
     ...patched(prior, patch),
-    data: { ...data, sources },
     events: events.length ? [...prior.events, ...events] : prior.events,
   };
 }
@@ -461,8 +462,12 @@ const KEEPALIVE_BYTES = 60_000;
 // error report below, which deliberately doesn't — share the request rather than
 // anything about the sending: same path, same method, same encoding, so a door that
 // moved would move for all of them. Whether a send waits on the one before it belongs
-// to the caller.
-/** @param {import("../types/contract.js").BrowserCommand} event */
+// to the caller. The answer's headers decide at once whether the page takes it at all,
+// and the trip ends once its body is read, decoded or not, so `acked` counts a post
+// whose answer the page holds, as `heard` does a read's. A `503`'s plain-text body says
+// nothing the page reads, so its trip ends with its headers.
+/** @param {import("../types/contract.js").BrowserCommand} event
+ * @returns {Promise<{response: Response, decoded: {answer: any} | {error: unknown}} | null>} */
 export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -470,44 +475,54 @@ export const postEvent = async (event, held = heldReading()) => {
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   const body = JSON.stringify(event);
-  let response;
   try {
-    response = await fetch(pageUrl("api/event"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": "application/json",
-        ...heldHeaders(held),
-      }),
-      body,
-      // A gesture sent as the tab closes, such as the edit a playground records on
-      // leaving, still reaches the log: a keepalive request outlives its document,
-      // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
-      // keepalive bodies in flight and the browser refuses a request past that, so a
-      // longer message goes out tied to its document.
-      keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
-    });
+    let response;
+    try {
+      response = await fetch(pageUrl("api/event"), {
+        method: "POST",
+        headers: layerHeaders({
+          "Content-Type": "application/json",
+          ...heldHeaders(held),
+        }),
+        body,
+        // A gesture sent as the tab closes, such as the edit a playground records on
+        // leaving, still reaches the log: a keepalive request outlives its document,
+        // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+        // keepalive bodies in flight and the browser refuses a request past that, so a
+        // longer message goes out tied to its document.
+        keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
+      });
+    } catch (error) {
+      recordInteraction("event_response", {
+        kind: event.kind,
+        attempt: event.attempt ?? null,
+        error: String(error),
+      });
+      throw error;
+    }
     recordInteraction("event_response", {
       kind: event.kind,
       attempt: event.attempt ?? null,
       status: response.status,
     });
-  } catch (error) {
-    recordInteraction("event_response", {
-      kind: event.kind,
-      attempt: event.attempt ?? null,
-      error: String(error),
-    });
-    throw error;
+    if (!admitResponse(response)) return null;
+    // A refused key is no answer to the event: the server read none of it, so the send
+    // failed the way a lost connection fails and is retried as one. The page status
+    // names the link that ends it.
+    if (response.status === KEY_REFUSED)
+      throw new Error("the server refused this page's key");
+    /** @type {{answer: any} | {error: unknown}} */
+    const decoded =
+      response.status === 503
+        ? { error: "503" }
+        : await response.json().then(
+            (answer) => ({ answer }),
+            (error) => ({ error }),
+          );
+    return { response, decoded };
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  // A refused key is no answer to the event: the server read none of it, so the send
-  // failed the way a lost connection fails and is retried as one. The page status names
-  // the link that ends it.
-  if (response.status === KEY_REFUSED)
-    throw new Error("the server refused this page's key");
-  return response;
 };
 
 // Pasted pixels become page content before their Markdown reference enters a draft.

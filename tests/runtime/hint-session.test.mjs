@@ -14,6 +14,8 @@ import test from "node:test";
 import { createHintSession, codedHints } from "/runtime/keyboard/hints.js";
 import { setQuickShortcuts } from "/runtime/keyboard/bindings.js";
 import { liveEl } from "/runtime/notifications.js";
+import { mountRepaint } from "/runtime/repaint.js";
+import { nextRender } from "/runtime/rendering.js";
 import { html } from "/runtime/framework.js";
 
 // Three letters, so a fourth link branches: a, s, da, ds.
@@ -51,6 +53,9 @@ function hintMap(t, names) {
     return links.get(name);
   };
   let inView = names;
+  // Links in the scene whose chips have no room to show, and the filter on the map.
+  let covered = new Set();
+  let keep = () => true;
   const taken = [];
   const session = createHintSession({
     layer,
@@ -62,9 +67,11 @@ function hintMap(t, names) {
       );
     },
     identity: (candidate) => candidate.member,
+    kept: (candidate) => keep(candidate),
     scene: () => ({}),
     layout: (candidates, { current }) =>
-      candidates.map((candidate) => {
+      candidates.flatMap((candidate) => {
+        if (covered.has(candidate.name)) return [];
         const target = candidate.member.getBoundingClientRect();
         return {
           candidate,
@@ -104,6 +111,20 @@ function hintMap(t, names) {
     taken,
     links,
     show: (names) => (inView = names),
+    cover: (names) => (covered = new Set(names)),
+    filter: (matches) => {
+      keep = matches;
+      return session.narrow();
+    },
+    // Moves a link down the page, as a layout that reflows it does.
+    move: (name, by) => {
+      const node = links.get(name);
+      const box = node.getBoundingClientRect();
+      node.getBoundingClientRect = () =>
+        new DOMRect(box.x, box.y + by, box.width, box.height);
+    },
+    seat: (code) =>
+      layer.querySelector(`[data-code="${code}"]`).closest(".lf-chip-seat"),
     tab: () => walk.runKey("Tab"),
     shiftTab: () => walk.runKey("Shift+Tab"),
     enter: () => choose.run(),
@@ -349,4 +370,77 @@ test("a disarmed map paints nothing and is read fresh when armed again", (t) => 
   assert.equal(map.session.prefix(), "");
   map.session.paint();
   assert.deepEqual(map.shown(), ["a"]);
+});
+
+test("a filter narrows the map to the members it keeps, their codes and seats unchanged", (t) => {
+  const map = hintMap(t, ["one", "two", "three", "four"]);
+  map.session.arm();
+  map.session.paint();
+  const seat = map.seat("ds");
+  const stood = seat.style.cssText;
+  const kept = map.filter(({ name }) => name.startsWith("t"));
+  assert.deepEqual(
+    kept.map(({ name, code }) => [name, code]),
+    [
+      ["two", "s"],
+      ["three", "da"],
+    ],
+  );
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["s", "da"]);
+  map.filter(() => true);
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
+  assert.equal(map.seat("ds"), seat);
+  assert.equal(seat.style.cssText, stood);
+});
+
+// The walk's rows stand on whether the filtered map holds anyone, so a re-read that
+// empties or refills it asks for the keys again even while the unfiltered scene still
+// holds members.
+test("a re-read that empties or refills a filtered map repaints the keys", async (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
+  let frames = 0;
+  const frame = () => new Promise((resolve) => nextRender(resolve));
+  mountRepaint({ reflectKeys: () => frames++ });
+  t.after(() => mountRepaint({}));
+  map.session.arm();
+  map.filter(({ name }) => name.startsWith("t"));
+  map.session.paint();
+  await frame();
+  assert.equal(map.canChoose(), false);
+
+  for (const scene of [["one"], ["one", "two"]]) {
+    map.show(scene);
+    map.session.invalidate();
+    await frame();
+    const before = frames;
+    map.session.paint();
+    await frame();
+    assert.ok(frames > before, `no repaint after the map read ${scene}`);
+  }
+  assert.deepEqual(map.shown(), ["s"]);
+});
+
+test("a target a layout moves is seated again where it now stands", (t) => {
+  const map = hintMap(t, ["one", "two"]);
+  map.session.arm();
+  map.session.paint();
+  const stood = map.seat("s").style.cssText;
+  map.move("two", 100);
+  map.session.paint();
+  assert.notEqual(map.seat("s").style.cssText, stood);
+});
+
+test("a heard target that loses its chip's room retires the walk", (t) => {
+  const map = hintMap(t, ["one", "two"]);
+  map.session.arm();
+  map.session.paint();
+  map.tab();
+  map.session.paint();
+  assert.equal(map.current(), "a");
+  map.cover(["one"]);
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["s"]);
+  assert.equal(map.canChoose(), false);
 });

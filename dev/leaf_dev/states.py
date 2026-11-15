@@ -32,6 +32,7 @@ from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
+    QUOTE_RANGE,
     WINDOWS,
     Window,
     go_to_threads,
@@ -40,7 +41,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.corpus import sources as corpus_sources
+from leaf_dev.commands.generate.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -610,29 +611,51 @@ def control_preview(page: Page) -> None:
 PREVIEW_DWELL_MS = 400
 
 
+def word_lines(page: Page, words: str) -> list[dict]:
+    """The boxes of the first `words` the page's text holds, one for each line they
+    lie on, with the element their first word is in scrolled to the window's middle."""
+    return page.evaluate(
+        f"""(words) => {{
+          const range = ({QUOTE_RANGE})(document.querySelector('main'), words);
+          range.startContainer.parentElement.scrollIntoView(
+            {{block: 'center', behavior: 'instant'}});
+          return [...range.getClientRects()].map((box) => box.toJSON());
+        }}""",
+        words,
+    )
+
+
+STOP_PASSAGE = "The trusted supervisor owns shutdown."
+
+
 def thread_preview(page: Page) -> None:
     """The open thread's passage mark under a resting pointer, which previews who wrote
     its last message and when, that message's opening line and where the thread stands
     (thread/messages.js, `threadPreview`)."""
-    line = page.evaluate(
-        """(words) => {
-          const walker = document.createTreeWalker(document.querySelector('main'),
-            NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            const at = node.data.indexOf(words);
-            if (at < 0) continue;
-            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
-            const range = document.createRange();
-            range.setStart(node, at);
-            range.setEnd(node, at + words.length);
-            return range.getClientRects()[0].toJSON();
-          }
-        }""",
-        "The trusted supervisor owns shutdown.",
-    )
+    line = word_lines(page, STOP_PASSAGE)[0]
     page.mouse.move(line["left"] - 20, line["top"] - 20)
     page.mouse.move(line["left"] + 10, line["top"] + line["height"] / 2, steps=3)
     page.wait_for_timeout(PREVIEW_DWELL_MS)
+    settle(page)
+
+
+def passage_reaction(page: Page) -> None:
+    """A passage the user reacted to, selected by pointer and answered with `e` and
+    `1`, in the item below the stop thread's commented passage, so a reaction's mark
+    and a comment's stand at rest side by side."""
+    lines = word_lines(page, "reject symlink path components")
+    first, last = lines[0], lines[-1]
+    page.mouse.move(first["left"] + 1, first["top"] + first["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(last["right"] - 1, last["top"] + last["height"] / 2, steps=8)
+    page.mouse.up()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    page.keyboard.press("Escape")
+    page.mouse.move(0, 0)
+    word_lines(page, STOP_PASSAGE)
     settle(page)
 
 
@@ -675,18 +698,21 @@ def link_preview(page: Page) -> None:
     settle(page)
 
 
-def open_card(page: Page, marker: Locator) -> None:
-    """The margin card `marker` opens, by a click on it. The margin is fixed to the
-    window and anchored to the page, so Playwright's scroll into view leaves a marker
-    below the window where it is: the page scrolls it up instead."""
+def open_card(page: Page, marker: Locator) -> float:
+    """The margin card `marker` opens, by a click on it, returning the page's scroll
+    just before the click. The margin is fixed to the window and anchored to the page,
+    so Playwright's scroll into view leaves a marker below the window where it is: the
+    page scrolls it up instead."""
     marker.evaluate(
         "m => { const box = m.getBoundingClientRect();"
         " if (box.top < 0 || box.bottom > innerHeight)"
         " scrollBy(0, box.top - innerHeight / 3); }"
     )
     settle(page)
+    before = page.evaluate("scrollY")
     marker.click()
     page.wait_for_function(OPEN_CARD)
+    return before
 
 
 def thread_by_marker(page: Page) -> None:
@@ -2194,6 +2220,14 @@ def card_message_by_keyboard(page: Page) -> None:
     raise AssertionError("Next On Me never reached a card's message")
 
 
+def card_ask_by_keyboard(page: Page) -> None:
+    """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
+    ask, so the location ring stands round it inside the card's transcript."""
+    page.keyboard.press("m")
+    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    settle(page)
+
+
 def element_thread_open(page: Page) -> None:
     """The same element while the user is in its thread, opened from its margin card:
     the contour that says which element the thread is about, beside the heading's
@@ -2434,16 +2468,13 @@ def draft_long_edit(page: Page) -> None:
     expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
     body = page.locator("#rn-cli .lf-draft-body")
     expect(body).to_contain_text("Line 59:")
-    word = """el => {
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
-      const at = node.data.indexOf('Line 30:');
-      const range = document.createRange();
-      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+    word = f"""el => {{
+      const range = ({QUOTE_RANGE})(el, 'Line 30:');
+      range.setStart(range.startContainer, range.startOffset + 3);
+      range.setEnd(range.startContainer, range.startOffset + 1);
       const box = range.getBoundingClientRect();
       return [box.x + box.width / 2, box.y + box.height / 2];
-    }"""
+    }}"""
     point = body.evaluate(word)
     page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
     scroll_settled(page)
@@ -2562,10 +2593,16 @@ def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     sample = page.locator("#bg-live-sample")
+    # As a reader scrolling toward it brings it, half a window below the window, where
+    # its page starts and takes its height before they reach it.
+    sample.evaluate(
+        "sample => scrollBy(0, sample.getBoundingClientRect().top - 1.5 * innerHeight)"
+    )
+    sample.evaluate("sample => sample.ready")
+    sample.scroll_into_view_if_needed()
     expect(
         sample.frame_locator("iframe").locator("#bg-live-sample-copy")
     ).to_be_visible()
-    sample.scroll_into_view_if_needed()
 
 
 def interactive_sample(page: Page) -> None:
@@ -3070,6 +3107,7 @@ STATES = (
     State("plan-card", "review-a-plan", card_by_pointer),
     State("control-preview", "review-a-plan", control_preview),
     State("thread-preview", "review-a-plan", thread_preview),
+    State("passage-reaction", "review-a-plan", passage_reaction),
     State("age-preview", "review-a-plan", age_preview),
     State("link-preview", "feature-gallery", link_preview),
     State("reaction-palette", "ship-review", reaction_palette),
@@ -3377,6 +3415,12 @@ STATES = (
         window=WINDOWS["phone"],
     ),
     State("ship-thread", "ship-review", element_thread),
+    State(
+        "ship-card-ask-keyboard",
+        "ship-review",
+        card_ask_by_keyboard,
+        region=".lf-margin-preview",
+    ),
     State(
         "ship-card-message-keyboard",
         "ship-review",

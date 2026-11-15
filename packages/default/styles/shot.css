@@ -7,9 +7,9 @@ lf-shot {
   flex-direction: column;
   min-inline-size: 0;
   min-block-size: 0;
-  margin: var(--sp-3) 0;
+  margin: var(--lf-sp-3) 0;
   container: lf-shot / inline-size;
-  --lf-shot-gap: var(--sp-2);
+  --lf-shot-gap: var(--lf-sp-2);
   --lf-shot-label-height: var(--lf-line);
 }
 .lf-shot-toolbar {
@@ -17,8 +17,8 @@ lf-shot {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   grid-template-areas: "before actions after";
   align-items: center;
-  gap: var(--sp-1);
-  padding-block: max(var(--sp-1), var(--lf-reach-room));
+  gap: var(--lf-sp-1);
+  padding-block: max(var(--lf-sp-1), var(--lf-reach-room));
   flex: none;
   /* As wide as the frames it names, and centred over them as they are, however much
      spare room a capture narrower than its box leaves; its tools hold the axis as a
@@ -28,13 +28,13 @@ lf-shot {
   max-inline-size: 100%;
   margin-inline: auto;
   anchor-scope: --lf-shot-options;
-  font: var(--font-compact);
+  font: var(--lf-font-compact);
 }
 .lf-shot-actions,
 .lf-shot-tools {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--lf-sp-1);
   min-inline-size: 0;
 }
 .lf-shot-actions {
@@ -42,7 +42,7 @@ lf-shot {
 }
 .lf-shot-scale-options > .lf-btn {
   /* Selection changes the face, never the width of its words. */
-  font: var(--font-choice);
+  font: var(--lf-font-choice);
   white-space: nowrap;
 }
 .lf-shot-toolbar > .lf-shotcap[data-lf-state="before"] {
@@ -55,7 +55,7 @@ lf-shot {
 }
 .lf-shot-scale {
   flex: none;
-  min-inline-size: var(--aim-floor);
+  min-inline-size: var(--lf-aim-floor);
   anchor-name: --lf-shot-options;
 }
 /* The options hang below their trigger, or above it where the window has no room
@@ -67,15 +67,15 @@ lf-shot {
   position-area: bottom span-left;
   position-try-fallbacks: flip-block;
   inset: auto;
-  margin: var(--sp-2) 0;
+  margin: var(--lf-sp-2) 0;
   inline-size: max-content;
   max-inline-size: calc(100vw - 32px);
-  padding: var(--sp-2);
-  font: var(--font-compact);
+  padding: var(--lf-sp-2);
+  font: var(--lf-font-compact);
 }
 .lf-shot-scale-options {
   display: flex;
-  gap: var(--sp-1);
+  gap: var(--lf-sp-1);
 }
 .lf-shot-scale-options > button {
   flex: 1;
@@ -83,8 +83,8 @@ lf-shot {
 .lf-shotchoice {
   display: flex;
   font: inherit;
-  /* Its mark stands on the scale choices' edge (controls.css, `--choice-pad`). */
-  margin-inline-start: calc(-1 * var(--choice-pad));
+  /* Its mark stands on the scale choices' edge (controls.css, `--lf-choice-pad`). */
+  margin-inline-start: calc(-1 * var(--lf-choice-pad));
 }
 .lf-shotchoice[hidden] {
   display: none;
@@ -100,20 +100,23 @@ lf-shot {
 .lf-shot-open[data-lf-focus-visible] {
   outline: none;
 }
-.lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
+.lf-shotframe .lf-shot-open {
+  --lf-focus-box: .lf-shotframe;
+}
+.lf-shotframe[data-lf-control-focus-visible] {
   /* The source can scroll beyond its frame; focus stays on the visible image, at a
      region's gap (base.css). */
   --lf-wears-ring: 1;
-  outline: var(--focus-ring);
-  --lf-ring-at: var(--focus-region-gap);
+  outline: var(--lf-focus-ring);
+  --lf-ring-at: var(--lf-focus-region-gap);
 }
 .lf-shot-pixel-key {
-  border-block-start: 1px solid var(--rule);
-  margin-block-start: var(--sp-2);
-  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--lf-rule);
+  margin-block-start: var(--lf-sp-2);
+  padding-block-start: var(--lf-sp-2);
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: var(--lf-sp-1);
 }
 .lf-shot-pixel-key > * {
   font: inherit;
@@ -124,7 +127,7 @@ lf-shot {
   block-size: 0.75em;
   margin-inline: calc((var(--wa-form-control-toggle-size) - 0.75em) / 2);
   flex: none;
-  border-radius: var(--r-s);
+  border-radius: var(--lf-r-s);
 }
 /* The source blocks and controls fit one row down to this width, including
    touch targets. Reserve a second row only below that combined width. */
@@ -168,7 +171,7 @@ lf-shot {
 }
 .lf-shotstage {
   /* Keep the shared image frame's shadow inside the scrollport. */
-  --lf-shot-frame-room: calc(var(--raise-1-drop) + var(--raise-1-blur));
+  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
   padding: var(--lf-shot-frame-room);
   /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;
@@ -206,7 +209,7 @@ lf-shot {
 .lf-shotframe {
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
   border: 1px solid transparent;
-  background: var(--card);
+  background: var(--lf-card);
   overflow: clip;
 }
 @media screen {
@@ -237,7 +240,7 @@ lf-shot {
   display: none;
   align-items: center;
   block-size: var(--lf-shot-label-height);
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--lf-rule);
 }
 lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
@@ -255,8 +258,8 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   display: block;
   min-inline-size: 0;
   max-inline-size: 100%;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--r);
+  padding: var(--lf-sp-1) var(--lf-sp-2);
+  border-radius: var(--lf-r);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,17 +267,17 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
 }
 .lf-shotcap[data-lf-state="before"],
 .lf-shot-frame-label[data-lf-state="before"] {
-  background: var(--del-tint);
-  color: var(--danger-ink);
+  background: var(--lf-del-tint);
+  color: var(--lf-danger-ink);
 }
 .lf-shotcap[data-lf-state="after"],
 .lf-shot-frame-label[data-lf-state="after"] {
-  background: var(--add-tint);
-  color: var(--ok-ink);
+  background: var(--lf-add-tint);
+  color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {
   background: transparent;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* The window onto the capture: a crop to its focus hides the rest of the plane on
    purpose, so the image's coordinates are its own (`--lf-drawing`). */
@@ -284,7 +287,7 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   overflow: clip;
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
-  background: var(--card);
+  background: var(--lf-card);
 }
 .lf-shotplane {
   position: absolute;
@@ -326,20 +329,20 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   block-size: calc(var(--lf-shot-frame-height) + 2px);
   --divider-width: 2px;
   --handle-size: 30px;
-  --wa-color-surface-default: var(--card);
-  --wa-color-neutral-on-quiet: var(--ink-2);
-  --wa-focus-ring: var(--focus-ring);
+  --wa-color-surface-default: var(--lf-card);
+  --wa-color-neutral-on-quiet: var(--lf-ink-2);
+  --wa-focus-ring: var(--lf-focus-ring);
   --wa-focus-ring-offset: 1px;
 }
 .lf-shotcomparison::part(divider) {
-  background: var(--ink-2);
+  background: var(--lf-ink-2);
 }
 .lf-shotcomparison .lf-shotframe {
   box-shadow: none;
 }
 .lf-shotcomparison::part(handle) {
-  border: 1px solid var(--ink-2);
-  box-shadow: var(--raise-1);
+  border: 1px solid var(--lf-ink-2);
+  box-shadow: var(--lf-raise-1);
   opacity: 0.52;
 }
 /* Reading an image with the pointer over it keeps the handle faint. Only aiming
@@ -375,10 +378,10 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
   top: max(0px, calc(var(--lf-shot-y) - 3px));
   right: max(0px, calc(100% - var(--lf-shot-x) - var(--lf-shot-w) - 3px));
   bottom: max(0px, calc(100% - var(--lf-shot-y) - var(--lf-shot-h) - 3px));
-  border: 1px solid var(--warn);
+  border: 1px solid var(--lf-warn);
 }
 .lf-shotdiff > span[data-lf-shot-mark="moved"] {
-  border-color: var(--accent);
+  border-color: var(--lf-accent);
 }
 lf-shot:not([data-lf-shot-outlines="true"]) .lf-shotdiff {
   display: none;
@@ -394,7 +397,7 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
   top: var(--lf-shot-focus-y);
   width: var(--lf-shot-focus-width);
   height: var(--lf-shot-focus-height);
-  border: 2px solid var(--accent);
+  border: 2px solid var(--lf-accent);
 }
 .lf-shotpixels {
   display: none;
@@ -426,7 +429,7 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
 }
 .lf-shot-pixel-mask,
 .lf-shot-key-swatch {
-  background: var(--warn);
+  background: var(--lf-warn);
 }
 @container style(--lf-full-height:1) {
   lf-shot {
@@ -507,6 +510,6 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
     block-size: auto;
   }
   .lf-shotframe {
-    margin-block-end: var(--sp-3);
+    margin-block-end: var(--lf-sp-3);
   }
 }

@@ -10,9 +10,9 @@ import { pageRange, selectEnds, selectionBackward } from "../native-selection.js
 import { COLLAPSE } from "../kernel-facts.js";
 import {
   closestAcross,
-  pageText,
   pageWords,
   pointAt,
+  readingHolding,
   segmentBlock,
   segmentsIn,
   spanIn,
@@ -119,7 +119,7 @@ const sameRun = (left, right) =>
 const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
 
 // An EDGE in the reading: a position inside it that holds no character.
-/** @param {ReturnType<typeof pageText>} reading @param {number} i */
+/** @param {import("../passages.js").PageReading} reading @param {number} i */
 const edgeAt = (reading, i) =>
   i >= 0 && i < reading.raw.length && pointAt(reading, i) === null;
 
@@ -132,7 +132,7 @@ function rawOffset(positions, at) {
   return offset;
 }
 
-/** @param {ReturnType<typeof pageText>} reading @param {number} at @param {boolean} back */
+/** @param {import("../passages.js").PageReading} reading @param {number} at @param {boolean} back */
 function snapOut(reading, at, back) {
   const { raw, fences } = reading;
   const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
@@ -175,7 +175,7 @@ function snapOut(reading, at, back) {
 // wraps collapse to spaces, and edges between inline text nodes disappear. `from` keeps
 // the path back to the DOM reading. A declared generated label is a separate speaking run
 // even when it sits flush inside the same block.
-/** @param {ReturnType<typeof pageText>} reading @param {number} lo @param {number} hi @returns {[number, number]} */
+/** @param {import("../passages.js").PageReading} reading @param {number} lo @param {number} hi @returns {[number, number]} */
 function snapSentence(reading, lo, hi) {
   const { raw, fences } = reading;
   /** @param {number} i */
@@ -299,25 +299,33 @@ export function snapSelection() {
   if (!sel) return;
   const range = pageRange(sel);
   const segments = segmentsIn(range);
-  if (!segments.length) return;
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
-  let lo = snapOut(reading, start, true);
-  let hi = snapOut(reading, stop, false);
-  [lo, hi] = snapSentence(reading, lo, hi);
+  const first = segments[0];
+  const last = segments.at(-1);
+  if (!first || !last) return;
+  // Each end snaps in the reading it stands in, a part's or the frame's (passages.js,
+  // `pageText`); a sentence snaps only within one.
+  const head = readingHolding(first.node);
+  const tail = readingHolding(last.node);
+  const [start] = spanIn(head, [first]);
+  const [, stop] = spanIn(tail, [last]);
+  let lo = snapOut(head, start, true);
+  let hi = snapOut(tail, stop, false);
+  if (head === tail) [lo, hi] = snapSentence(head, lo, hi);
   if (lo === start && hi === stop) return;
-  /** @param {number} offset @param {boolean} end @returns {[Node, number]} */
-  const boundary = (offset, end) => {
+  /** @param {import("../passages.js").PageReading} reading @param {number} offset @param {boolean} end @returns {[Node, number]} */
+  const boundary = (reading, offset, end) => {
     const point = pointAt(reading, offset);
     if (!point) throw new Error("A snapped passage boundary no longer names page text");
     return [point.node, point.offset + Number(end)];
   };
   /** @type {[Node, number]} */
-  const head =
-    lo === start ? [range.startContainer, range.startOffset] : boundary(lo, false);
+  const from =
+    lo === start
+      ? [range.startContainer, range.startOffset]
+      : boundary(head, lo, false);
   /** @type {[Node, number]} */
-  const tail =
-    hi === stop ? [range.endContainer, range.endOffset] : boundary(hi - 1, true);
-  if (selectionBackward(sel, range)) selectEnds(tail, head);
-  else selectEnds(head, tail);
+  const to =
+    hi === stop ? [range.endContainer, range.endOffset] : boundary(tail, hi - 1, true);
+  if (selectionBackward(sel, range)) selectEnds(to, from);
+  else selectEnds(from, to);
 }

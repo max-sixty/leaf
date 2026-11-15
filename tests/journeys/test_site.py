@@ -76,7 +76,7 @@ from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -322,11 +322,11 @@ def test_product_pages_select_the_sources_packages(site):
         ], page.name
 
 
-@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+@pytest.mark.parametrize("name", ["index", "using", "how-it-works"])
 def test_published_product_page_renders(site, browser, name):
     """The render gate passes the published product pages: the landing page, a
-    reference page of prose, tables, code and a sample, and the page that holds
-    every widget the docs use. The other routes share their sheet and parts, and
+    guide of prose, tables and a live sample, and the page that holds every widget
+    the docs use. The other routes share their sheet and parts, and
     `test_every_product_route_is_a_live_leaf_page` opens each of them."""
     product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:
@@ -1259,7 +1259,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:
@@ -1319,25 +1319,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             560,
         ]
 
-    developer_galleries = page.locator("#developer-galleries")
-    expect(developer_galleries).to_be_visible()
-    developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == {source.stem for source in published_pages()}
-    assert page.evaluate(
-        "() => Boolean(document.querySelector('#pages')"
-        ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
-        " & Node.DOCUMENT_POSITION_FOLLOWING)"
-    )
-    product_gallery = developer_galleries.locator("#product-gallery")
-    expect(product_gallery).to_contain_text("Core product gallery")
-    expect(product_gallery).to_contain_text("core interactions to try live")
-    expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
-    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
-    expect(threads_gallery).to_contain_text("Four live panel views")
-    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, browser):
@@ -1415,6 +1399,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
             expect(samples).to_have_count(3)
+            # A sample starts its page as it nears the window, and these stand in a
+            # shut tab.
+            render_checks_model.start_near_work(page)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:

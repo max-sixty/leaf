@@ -4,13 +4,12 @@ import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
 export { overIn, SAID, UI_MARKS, uiInside, inUi } from "./shadow-tree.js";
 import {
-  isElement,
-  isHTML,
   excludedByInert,
   byRenderedOrder,
   composedParentNode,
   hostIn,
   renderedOrder,
+  renderedOrdering,
   renderedParent,
   renderedUnder,
   shadowHost,
@@ -23,6 +22,7 @@ export {
   composedParentNode,
   hostIn,
   renderedOrder,
+  renderedOrdering,
   renderedParent,
   renderedUnder,
   shadowHost,
@@ -71,13 +71,6 @@ export const shadowRootsIn = (root) =>
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
   );
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Geometry walks the children that paint here: a host's shadow tree and a slot's
-// assigned (or fallback) content, rather than the separate light-DOM ownership tree.
-/** @param {Node} node */
-export const renderedChildren = (node) =>
-  isHTML(node, "slot")
-    ? node.assignedNodes({ flatten: true })
-    : (isElement(node) ? (node.shadowRoot ?? node) : node).childNodes;
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer

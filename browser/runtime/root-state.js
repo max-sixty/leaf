@@ -6,12 +6,10 @@
    from names or serialized values. Each door writes only what changes the root: a
    restated value on `html` or `body` restyles the whole document all the same.
 
-   A custom property that changes on `html` or `body` restyles every element in
-   Chromium, registered and non-inheriting or not, since the comment marks' universal
-   `::highlight()` rules (annotation-marks.css) give every element highlight styles
-   that Chromium recomputes below an element whose custom properties change. So a
-   value only the root reads, or one that changes with the user's input, is written as
-   the plain property it sets, as the floating panel's band is
+   In Chromium, a custom property that changes on `html` restyles every element, since
+   every element inherits it, unless it is registered as non-inheriting. So a value only
+   the root reads, or one that changes with the user's input, is written as the plain
+   property it sets, as the floating panel's band is
    (floating-panel.js, `followBox`), and a custom property only for a token the page's
    CSS inherits that changes as rarely as its source, such as a page tab strip's
    height (root-headers.js). */

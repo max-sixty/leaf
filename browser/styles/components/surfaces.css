@@ -83,12 +83,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
  * gives other labels (.tag, figcaption), with figures of one width. */
 .lf-error {
-  border: 1px solid var(--danger);
-  background: var(--danger-tint);
-  color: var(--danger-ink);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-danger);
+  background: var(--lf-danger-tint);
+  color: var(--lf-danger-ink);
+  border-radius: var(--lf-r);
   padding: 8px 12px;
-  font: var(--font-ui);
+  font: var(--lf-font-ui);
   font-variant-numeric: tabular-nums;
   white-space: normal;
   --lf-block-frame: 1;
@@ -114,11 +114,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   min-width: var(--lf-key-badge-size);
   height: var(--lf-key-badge-size);
   padding: 0 4px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r-s);
-  background: var(--chip);
-  color: var(--ink-2);
-  font: var(--font-code);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r-s);
+  background: var(--lf-chip);
+  color: var(--lf-ink-2);
+  font: var(--lf-font-code);
   text-align: center;
   white-space: nowrap;
   display: inline-flex;
@@ -233,14 +233,15 @@ a[data-lf-external]::after,
    carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
    get no band. */
 :where([data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])) {
-  outline: var(--focus-ring);
-  outline-offset: var(--lf-ring-at, var(--focus-ring-gap));
+  outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-ring-at, var(--lf-focus-ring-gap));
 }
 /* A focused box whose band something would cover or cut, such as positioned content
    painting over its outline or a scrollport clipping it, wears the band on a later box
    laid over it, its ::after, one band inside its edge. Two kinds of box draw it:
    - a ring frame (`.lf-ring-frame`) for the child that holds focus, such as the box
-     around a scroller of positioned lines, and a pane for its body (base.css). It
+     around a scroller of positioned lines, and a pane for its body (base.css). Each
+     child names it as the box that shows its focus (`--lf-focus-box`, base.css), and it
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
@@ -249,9 +250,10 @@ a[data-lf-external]::after,
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
    a grid area. */
-:is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
-  > :not(header, footer)[data-lf-focus-visible]
-) {
+:is(.lf-ring-frame, [data-lf-reading-role="pane"]) > :not(header, footer) {
+  --lf-focus-box: .lf-ring-frame, [data-lf-reading-role=pane];
+}
+:is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
 .lf-ring-overlay[data-lf-focus-visible],
@@ -261,16 +263,14 @@ a[data-lf-external]::after,
 }
 :where(
   .lf-ring-overlay[data-lf-focus-visible],
-  :is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
-    > :not(header, footer)[data-lf-focus-visible]
-  )
+  :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible]
 )::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
+  outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-focus-ring-inset);
 }
 /* Every mark on a box is drawn by the box itself, as its outline, so it moves with the
    box through every scroll, transform and layout change in every engine, and passes
@@ -292,8 +292,9 @@ a[data-lf-external]::after,
   [data-lf-mark],
   [data-lf-projected-location]
 ) {
-  --lf-band-gap: var(--lf-ring-at, var(--focus-region-gap));
-  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent));
+  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
+  outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
+    var(--lf-band-ink, var(--lf-accent));
   outline-offset: var(--lf-band-gap);
 }
 :where(
@@ -303,7 +304,8 @@ a[data-lf-external]::after,
   [data-lf-mark]:not([data-lf-mark="focus"]),
   [data-lf-projected-location]
 ) {
-  outline: var(--lf-band-w, var(--focus-ring-w)) solid var(--lf-band-ink, var(--accent)) !important;
+  outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
+    var(--lf-band-ink, var(--lf-accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
 :where(a[href], button, input, select, textarea, summary, [role]):where(
@@ -313,18 +315,19 @@ a[data-lf-external]::after,
   [data-lf-mark],
   [data-lf-projected-location]
 ) {
-  --lf-band-gap: var(--lf-ring-at, var(--focus-ring-gap));
+  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-ring-gap));
 }
 /* The margin trace takes its own ink, and an action's target alone a quieter line. */
 :where([data-lf-traced]) {
-  --lf-band-ink: var(--target-trace-ink);
+  --lf-band-ink: var(--lf-target-trace-ink);
 }
 :where([data-lf-mark="action"]:not([data-lf-traced])) {
-  --lf-band-ink: var(--mark-contour-ink);
+  --lf-band-ink: var(--lf-mark-contour-ink);
   --lf-band-w: 1px;
 }
 /* Any other mark on the box keeps the accent over those two: the aim, a comment's
-   mark, the proxy or location ring, or the focus ring the box wears. */
+   mark, the proxy or location ring, or the focus ring the box wears, its own or a
+   control's in it. */
 :where(
   :is([data-lf-traced], [data-lf-mark="action"]):is(
     [data-lf-aimed],
@@ -332,11 +335,11 @@ a[data-lf-external]::after,
     [data-lf-projected-location],
     [data-lf-mark]:not([data-lf-mark="action"]),
     [data-lf-focus-visible],
-    :has(> [data-lf-focus-visible])
+    [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-ink: var(--accent);
-  --lf-band-w: var(--focus-ring-w);
+  --lf-band-ink: var(--lf-accent);
+  --lf-band-w: var(--lf-focus-ring-w);
 }
 /* A forced palette draws marks in its highlight, as it does the focus ring
    (tokens.css). */
@@ -354,7 +357,7 @@ a[data-lf-external]::after,
 /* The aim's veil fills the box and the gap round it, so it and its brackets read as
    one box. */
 :where([data-lf-aimed]) {
-  --lf-aim-veil: color-mix(in srgb, var(--accent) 4%, transparent);
+  --lf-aim-veil: color-mix(in srgb, var(--lf-accent) 4%, transparent);
   box-shadow:
     inset 0 0 0 100vmax var(--lf-aim-veil),
     0 0 0 max(0px, var(--lf-band-gap)) var(--lf-aim-veil);
@@ -375,10 +378,10 @@ a[data-lf-external]::after,
     [data-lf-proxied],
     [data-lf-mark~="focus"],
     [data-lf-focus-visible],
-    :has(> [data-lf-focus-visible])
+    [data-lf-control-focus-visible]
   )
 ) {
-  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--focus-ring-w)));
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
   clip-path: polygon(
     evenodd,
     -9999px -9999px,
@@ -412,8 +415,8 @@ a[data-lf-external]::after,
   [data-lf-mark],
   [data-lf-projected-location]
 ) {
-  --lf-shape-ink: var(--lf-band-ink, var(--accent));
-  --lf-shape-w: var(--lf-band-w, var(--focus-ring-w));
+  --lf-shape-ink: var(--lf-band-ink, var(--lf-accent));
+  --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
   clip-path: none;
   box-shadow: none;
@@ -439,8 +442,8 @@ a[data-lf-external]::after,
   vector-effect: non-scaling-stroke !important;
 }
 :where(svg [data-lf-mark]:not([data-lf-mark~="focus"])) {
-  --lf-band-ink: var(--mark-contour-ink);
-  --lf-band-w: var(--mark-contour-w);
+  --lf-band-ink: var(--lf-mark-contour-ink);
+  --lf-band-w: var(--lf-mark-contour-w);
 }
 /* A landing clears the sticky headers stacked over what it lands on. Its scroller's
    `scroll-padding` clears those over the whole scroller (the head room, a page tab
@@ -467,7 +470,7 @@ a[data-lf-external]::after,
    stood past its pane's foot, and a code block's Copy past its top. */
 :where(:focus, [data-lf-focus]),
 ::part(lf-focus) {
-  scroll-margin: var(--focus-ring-landing);
+  scroll-margin: var(--lf-focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
    scroller's landing band can count as covered: the root's band starts
@@ -490,7 +493,7 @@ a[data-lf-external]::after,
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
       var(
         --lf-head-inset,
-        calc(var(--focus-ring-landing) + var(--lf-landing-room, 0px))
+        calc(var(--lf-focus-ring-landing) + var(--lf-landing-room, 0px))
       ) -
       var(--lf-landing-room, 0px)
   );
@@ -501,7 +504,7 @@ a[data-lf-external]::after,
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(
     :not([aria-disabled="true"], :disabled)
   ) {
-  box-shadow: var(--offer-hover-shadow);
+  box-shadow: var(--lf-offer-hover-shadow);
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: not-allowed;
@@ -514,7 +517,7 @@ a[data-lf-external]::after,
    all of them presses a user has to land on with a mouse, and none of them a
    control anybody chose the size of.
 
-   --aim-floor is the length, and tokens.css asks the pointer query that sets it once,
+   --lf-aim-floor is the length, and tokens.css asks the pointer query that sets it once,
    so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
    reaction and a margin entry stand in the page and in declared widget trees as well
    as in the chrome, and a floor written inside the chrome's scope left every one of
@@ -561,12 +564,11 @@ a[data-lf-external]::after,
   )
 ),
 .lf-btn,
-.button,
 button.lf-inline-action,
 .lf-react,
 .lf-margin-entry {
-  min-width: var(--aim-floor);
-  min-height: var(--lf-face-floor, var(--aim-floor));
+  min-width: var(--lf-aim-floor);
+  min-height: var(--lf-face-floor, var(--lf-aim-floor));
 }
 /* A control a line tall or shorter meets the aim floor with a reach: a box of its own
    that paints nothing, standing out from its face to the floor on each axis the face
@@ -593,7 +595,6 @@ button.lf-inline-action,
 }
 :where(
   .lf-btn,
-  .button,
   button.lf-icon-action,
   button.lf-inline-action,
   button.lf-mark-action,
@@ -604,7 +605,7 @@ button.lf-inline-action,
   &::after {
     content: "";
     position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2);
+    inset: min(0px, (100% - var(--lf-aim-floor)) / 2);
   }
 }
 /* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
@@ -614,14 +615,14 @@ button.lf-inline-action,
 :is(.lf-icon-action, .lf-mark-action).lf-ui::part(button)::after {
   content: "";
   position: absolute;
-  inset: min(0px, (100% - var(--aim-floor)) / 2);
+  inset: min(0px, (100% - var(--lf-aim-floor)) / 2);
 }
 /* A native summary retains its list marker and centers its content within the
    target floor. Extra hit area surrounds the label rather than trailing it. */
 summary {
   align-content: center;
 }
-/* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
+/* --lf-entry-floor under every field, beside --lf-aim-floor under every aim. iOS Safari zooms
    the page onto a text field set under 16px as the field takes focus, and leaves the page
    zoomed once it is done: tapping the comment field jumped the view, then left the user
    panning sideways across a page wider than the screen. The zoom answers the field's
@@ -631,7 +632,7 @@ summary {
    because at a zero floor the rule would still pull every field to its surroundings. */
 @media (pointer: coarse) {
   :is(input, textarea, leaf-text, select) {
-    font-size: max(var(--entry-floor), 1em) !important;
+    font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
 /* The shared boxes of a registry-declared widget thread. The widget places it.
@@ -639,7 +640,7 @@ summary {
    whole vocabulary is in this file. */
 .lf-thread-seat {
   display: none;
-  margin-top: var(--sp-2);
+  margin-top: var(--lf-sp-2);
   overflow-wrap: anywhere;
 }
 /* A box a thread draws one of its parts in where its container stands the part
@@ -652,9 +653,9 @@ summary {
   box-sizing: border-box;
   min-width: 0;
   position: relative;
-  padding: var(--sp-1);
-  font: var(--font-ui);
-  color: var(--ink);
+  padding: var(--lf-sp-1);
+  font: var(--lf-font-ui);
+  color: var(--lf-ink);
   overflow-wrap: anywhere;
 }
 /* A whole thread holding focus wears a quiet ground. A primary reader's part is one
@@ -665,8 +666,8 @@ summary {
    control to its own ring. */
 .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
   outline: none;
-  border-radius: var(--r);
-  --lf-ground: var(--focus-surface);
+  border-radius: var(--lf-r);
+  --lf-ground: var(--lf-focus-surface);
   background: var(--lf-ground);
 }
 /* The thread itself holding focus wears the ring, inset over the quiet ground its
@@ -681,15 +682,15 @@ summary {
    holding focus would vanish; the thread wears the ring instead. */
 @media (forced-colors: active) {
   .lf-page-thread:not(.lf-primary-part, [data-lf-thread-view] *)[data-lf-focus-within] {
-    outline: var(--focus-ring);
-    --lf-ring-at: var(--focus-ring-inset);
+    outline: var(--lf-focus-ring);
+    --lf-ring-at: var(--lf-focus-ring-inset);
   }
 }
 .lf-say {
   display: none;
   align-items: flex-end;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  gap: var(--lf-sp-2);
+  margin-top: var(--lf-sp-3);
 }
 .lf-say leaf-text {
   flex: 1;
@@ -702,7 +703,7 @@ summary {
    thread stands a gap below them: flush, a reply being written there and the box
    under it read as two fields of one thread. */
 .lf-thread-seat > :is(.lf-page-thread, .lf-resolved-threads) ~ .lf-say {
-  margin-top: var(--sp-3);
+  margin-top: var(--lf-sp-3);
 }
 /* Adjacent whole threads are ruled apart; parts belong to their author's
    transcript. A seat contains only whole cards, its resolved group and reply row;
@@ -714,7 +715,7 @@ summary {
     > .lf-page-thread:not([inert])
     ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
 ) {
-  margin-top: var(--sp-3);
+  margin-top: var(--lf-sp-3);
 }
 :is(
   .lf-page-thread:not(.lf-primary-part, [inert])
@@ -725,9 +726,9 @@ summary {
 )::before {
   content: "";
   position: absolute;
-  inset-inline: var(--sp-1);
-  inset-block-start: calc(-1 * var(--sp-2));
-  border-top: 1px solid var(--rule);
+  inset-inline: var(--lf-sp-1);
+  inset-block-start: calc(-1 * var(--lf-sp-2));
+  border-top: 1px solid var(--lf-rule);
   pointer-events: none;
 }
 /* Every conversation shares its reading edge, including a floating draft. The
@@ -745,7 +746,7 @@ summary {
   /* A message's controls, symbols as tall as the thread's own, one group at its
      head's end (controls.css). */
   --lf-msg-control-size: var(--lf-icon-action-face);
-  --lf-msg-control-width: max(var(--lf-msg-control-size), var(--aim-floor));
+  --lf-msg-control-width: max(var(--lf-msg-control-size), var(--lf-aim-floor));
   --lf-msg-edit-gap: 4px;
   /* The widest a news notice beside a message head's words stands: a primary
      reader's, in a message head or a part, and a margin card's, in its controls row
@@ -765,7 +766,7 @@ summary {
   position: relative;
   min-width: 0;
   anchor-scope: --lf-thread-headline, --lf-thread-message-controls;
-  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--aim-floor));
+  --lf-thread-action-room: max(var(--lf-msg-head-height), var(--lf-aim-floor));
   --lf-thread-notice-room: var(--lf-msg-head-height);
 }
 
@@ -787,7 +788,7 @@ summary {
   --lf-msg-rest-ground: transparent;
   --lf-msg-ground: color-mix(
     in srgb,
-    var(--hi-tint) calc(var(--lf-msg-arrival) * 100%),
+    var(--lf-hi-tint) calc(var(--lf-msg-arrival) * 100%),
     var(--lf-msg-rest-ground)
   );
   background-color: var(--lf-msg-ground);
@@ -804,17 +805,17 @@ summary {
    message's controls (controls.css), unless it sticks. */
 :where(.lf-msg-head) {
   position: relative;
-  clip-path: inset(-100vh calc(-1 * var(--sp-2)) -100vh -100vw);
+  clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
 }
 :is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   min-block-size: var(--lf-msg-head-height);
   box-sizing: border-box;
   min-width: 0;
   white-space: nowrap;
-  font: var(--font-small);
+  font: var(--lf-font-small);
 }
 .lf-thread-working-head {
   overflow: hidden;
@@ -866,7 +867,7 @@ summary {
 }
 .lf-primary-part {
   position: relative;
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
 }
 .lf-primary-part[data-lf-part="reply"] {
   padding-block-start: 28px;
@@ -905,12 +906,12 @@ summary {
   overflow: clip visible;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: var(--font-name);
+  font: var(--lf-font-name);
   line-height: 0;
-  color: var(--ink);
+  color: var(--lf-ink);
   &::before {
     content: "\200b" / "";
-    font: var(--font-small);
+    font: var(--lf-font-small);
   }
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
@@ -946,8 +947,8 @@ summary {
   inset-block-end: calc(anchor(var(--lf-fold-foot) end) - 7px);
   inset-inline-start: calc(anchor(var(--lf-fold-head) start) - 12px);
   inset-inline-end: calc(anchor(var(--lf-fold-head) end) - var(--lf-group-ring-end));
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
   pointer-events: none;
 }
 .lf-summary-checkpoint {
@@ -965,12 +966,12 @@ summary {
 .lf-summary-label {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--muted);
-  font: var(--font-status);
+  color: var(--lf-muted);
+  font: var(--lf-font-status);
 }
 .lf-summary-text {
-  color: var(--ink-2);
-  font: var(--font-ui);
+  color: var(--lf-ink-2);
+  font: var(--lf-font-ui);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -986,7 +987,7 @@ summary {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: var(--aim-floor);
+  min-height: var(--lf-aim-floor);
   max-inline-size: 100%;
   flex-shrink: 0;
   padding: 4px 0;
@@ -1009,8 +1010,8 @@ summary {
 }
 .lf-summary-required {
   margin-top: 6px;
-  color: var(--turn-ink);
-  font: var(--font-heading);
+  color: var(--lf-turn-ink);
+  font: var(--lf-font-heading);
 }
 /* A progress run's face, the working message among them: its latest step, where it
    was said (thread/transcript.js). It takes a message's head and body faces, but its
@@ -1026,10 +1027,10 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: var(--font-message);
+  font: var(--lf-font-message);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
-  color: color-mix(in srgb, var(--ink) 50%, transparent);
+  color: color-mix(in srgb, var(--lf-ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   animation: lf-sheen 2s ease-in-out infinite alternate;
@@ -1039,7 +1040,7 @@ summary {
    than a title's, so it reads as a step under way rather than as the thread's name. */
 .lf-thread-name-pending {
   font-weight: 400;
-  color: color-mix(in srgb, var(--ink) 50%, transparent);
+  color: color-mix(in srgb, var(--lf-ink) 50%, transparent);
   animation: lf-sheen 2s ease-in-out infinite alternate;
 }
 /* The one continuous animation, which marks work under way (browser/AGENTS.md,
@@ -1055,7 +1056,7 @@ summary {
 @keyframes lf-sheen {
   from,
   to {
-    color: var(--ink);
+    color: var(--lf-ink);
     mask-image: linear-gradient(
       110deg,
       rgb(0 0 0 / var(--lf-sheen-rest, 0.5)) 42%,
@@ -1101,21 +1102,21 @@ summary {
 .lf-thread-controls {
   position: absolute;
   position-anchor: --lf-thread-headline;
-  inset-inline-start: calc(anchor(right) + var(--sp-2));
+  inset-inline-start: calc(anchor(right) + var(--lf-sp-2));
   inset-block-start: anchor(center);
   translate: 0 -50%;
   inline-size: var(--lf-thread-action-room);
   block-size: var(--lf-thread-action-room);
   display: flex;
   align-items: center;
-  font: var(--font-small);
+  font: var(--lf-font-small);
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
   > .lf-msg-head {
   anchor-name: --lf-thread-headline;
-  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--lf-sp-2));
 }
 /* The header's words leave a notice of news its room before the message's controls. */
 .lf-thread-content:has(> .lf-thread-controls)
@@ -1124,7 +1125,7 @@ summary {
   > .lf-msg-head
   > .lf-msg-control-room {
   anchor-name: --lf-thread-message-controls;
-  margin-inline-start: calc(var(--lf-thread-notice-room) + var(--sp-2));
+  margin-inline-start: calc(var(--lf-thread-notice-room) + var(--lf-sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -1134,8 +1135,8 @@ summary {
   anchor-name: --lf-thread-headline;
   min-height: var(--lf-thread-action-room);
   box-sizing: border-box;
-  margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
+  margin-inline-end: calc(var(--lf-thread-action-room) + var(--lf-sp-2));
+  padding-inline-end: calc(var(--lf-thread-notice-room) + var(--lf-sp-2));
 }
 /* Next unread is an inline press (controls.css) after its symbol, on the line its
    container gives the thread (thread-card.js). It keeps its seat once none is left,
@@ -1165,15 +1166,18 @@ summary {
   --lf-head-inset: 0px;
   bottom: 0;
   padding-block-start: 10px;
-  background: linear-gradient(transparent, var(--lf-awaited-ground, var(--paper)) 10px);
+  background: linear-gradient(
+    transparent,
+    var(--lf-awaited-ground, var(--lf-paper)) 10px
+  );
 }
 .lf-awaited > .lf-new-reply {
   display: flex;
   align-items: center;
   gap: 4px;
   margin: 0 auto;
-  min-height: max(var(--lf-msg-head-height), var(--aim-floor));
-  font: var(--font-small);
+  min-height: max(var(--lf-msg-head-height), var(--lf-aim-floor));
+  font: var(--lf-font-small);
 }
 .lf-thread-meta-actions {
   display: inline-flex;
@@ -1205,7 +1209,7 @@ summary {
   isolation: isolate;
   position-anchor: --lf-thread-headline;
   inset-inline-start: calc(
-    anchor(left) + var(--lf-thread-news-start, 0px) + var(--sp-2)
+    anchor(left) + var(--lf-thread-news-start, 0px) + var(--lf-sp-2)
   );
   inset-block-start: anchor(center);
   translate: 0 -50%;
@@ -1214,12 +1218,12 @@ summary {
     0px,
     min(
       calc(
-        anchor-size(width) - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) -
-          anchor-size(--lf-thread-message-controls width, calc(-1 * var(--sp-2)))
+        anchor-size(width) - var(--lf-thread-news-start, 0px) - 2 * var(--lf-sp-2) -
+          anchor-size(--lf-thread-message-controls width, calc(-1 * var(--lf-sp-2)))
       ),
       calc(
         var(--lf-thread-news-visible-end, anchor-size(width)) -
-          var(--lf-thread-news-start, 0px) - var(--sp-2)
+          var(--lf-thread-news-start, 0px) - var(--lf-sp-2)
       )
     )
   );
@@ -1249,7 +1253,7 @@ summary {
    (`NEWS_ROOM`, held-news.js; `data-lf-room`, controls.css), so a count that grows
    keeps to that room. */
 button.lf-thread-news {
-  font: var(--font-heading);
+  font: var(--lf-font-heading);
   font-variant-numeric: tabular-nums;
 }
 .lf-thread-news > span {
@@ -1258,23 +1262,31 @@ button.lf-thread-news {
   text-overflow: ellipsis;
 }
 .lf-msg-head time {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* A deleted message keeps its place, saying so in Leaf's voice (messages.js). */
 .lf-msg-deleted {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* A thread projected inline uses the same receipt emphasis as the panel. Its words take
    their speaker's face (controls.css), so the colour alone sets them apart. */
 .lf-msg-head .lf-msg-failure {
-  color: var(--warn-ink);
+  color: var(--lf-warn-ink);
 }
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
+}
+/* The line under a question the agent ended, saying how it ended (thread-card.js). It
+   stands on its own line, which wraps, since the agent's note on where or why runs to a
+   sentence that the head's single line would cut. */
+.lf-msg-ending {
+  margin: var(--lf-sp-1) 0 0;
+  color: var(--lf-ink-2);
+  font: var(--lf-font-small);
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
@@ -1294,8 +1306,8 @@ button.lf-thread-news {
 .lf-quote-label {
   margin: 0;
   padding-inline: var(--lf-thread-text-inset) 8px;
-  color: var(--muted);
-  font: var(--font-status);
+  color: var(--lf-muted);
+  font: var(--lf-font-status);
   overflow-wrap: anywhere;
 }
 .lf-thread-quote-head:not([hidden]) {
@@ -1303,16 +1315,16 @@ button.lf-thread-news {
   justify-items: start;
   gap: 4px;
   margin: 0 0 12px;
-  font: var(--font-compact);
+  font: var(--lf-font-compact);
 }
 .lf-thread-quote {
   margin: 0;
   padding-block: 2px;
   padding-inline: calc(var(--lf-thread-text-inset) - 1px) 8px;
-  border-inline-start: 1px solid var(--border-2);
+  border-inline-start: 1px solid var(--lf-border);
   min-width: 0;
-  color: var(--muted);
-  font: var(--font-compact);
+  color: var(--lf-muted);
+  font: var(--lf-font-compact);
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1331,7 +1343,7 @@ button.lf-thread-news {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-block-start: max(0px, (var(--aim-floor) - 1lh) / 2 - 8px);
+  margin-block-start: max(0px, (var(--lf-aim-floor) - 1lh) / 2 - 8px);
   min-height: 0;
   padding: 0;
 }

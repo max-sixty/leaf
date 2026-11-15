@@ -101,8 +101,8 @@ lf-sample {
   width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
-  padding-left: var(--sp-4);
-  border-left: 3px solid var(--border-2);
+  padding-left: var(--lf-sp-4);
+  border-left: 3px solid var(--lf-border);
   --lf-block-frame: 1;
 }
 /* Containment does not apply to a table, so the sample cannot be the size container
@@ -116,11 +116,11 @@ lf-sample > * {
 lf-sample::before,
 lf-sample > [data-lf-said="label"] {
   display: table-caption;
-  margin-bottom: var(--sp-1);
-  font: var(--font-label);
+  margin-bottom: var(--lf-sp-1);
+  font: var(--lf-font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* The note is the sample's own label: from the attribute, or from an authored label
  * child, which takes any prefix itself. A quoted sample's opens with "quoted", which
@@ -178,8 +178,8 @@ lf-sample:has(> template[data-sample]) {
 .lf-sample-exhibit {
   display: flex;
   flex-direction: column;
-  padding-left: var(--sp-4);
-  border-left: 3px solid var(--border-2);
+  padding-left: var(--lf-sp-4);
+  border-left: 3px solid var(--lf-border);
 }
 .lf-sample-controls {
   margin-bottom: 10px;
@@ -202,11 +202,11 @@ lf-sample:has(> template[data-sample]) {
   position: relative;
   flex: 1 1 10em;
   min-width: 0;
-  min-height: max(1lh, var(--aim-floor));
+  min-height: max(1lh, var(--lf-aim-floor));
   align-content: center;
   white-space: nowrap;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 .lf-sample-failure {
   margin: 0;
@@ -227,17 +227,17 @@ lf-sample:has(> template[data-sample]) {
   inset: 0 0 auto;
   z-index: 1;
   white-space: normal;
-  background: var(--paper);
-  border-bottom: 1px solid var(--border-2);
+  background: var(--lf-paper);
+  border-bottom: 1px solid var(--lf-border);
 }
 .lf-sample-frame {
   display: block;
   box-sizing: content-box;
   width: auto;
   height: 32rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-paper);
 }
 /* While the user is on the frame, their keys go to the sample's page rather than this
  * one, and its gutter takes the focus ring's colour to say so, whether a press or a Tab
@@ -245,11 +245,14 @@ lf-sample:has(> template[data-sample]) {
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
  * both read the runtime's marks (focus.js, `inputInFrame`). */
-.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
-  border-left-color: var(--accent);
+.lf-sample-exhibit > .lf-sample-frame {
+  --lf-focus-box: .lf-sample-exhibit;
+}
+.lf-sample-exhibit[data-lf-control-focus] {
+  border-left-color: var(--lf-accent);
 }
 @media (forced-colors: active) {
-  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  .lf-sample-exhibit[data-lf-control-focus] {
     border-left-color: Highlight;
   }
 }
@@ -268,16 +271,16 @@ lf-sample[window] .lf-sample-frame {
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: max(var(--sp-3), env(safe-area-inset-top))
-    max(var(--sp-3), env(safe-area-inset-right))
-    max(var(--sp-3), env(safe-area-inset-bottom))
-    max(var(--sp-3), env(safe-area-inset-left));
-  background: var(--paper);
+  padding: max(var(--lf-sp-3), env(safe-area-inset-top))
+    max(var(--lf-sp-3), env(safe-area-inset-right))
+    max(var(--lf-sp-3), env(safe-area-inset-bottom))
+    max(var(--lf-sp-3), env(safe-area-inset-left));
+  background: var(--lf-paper);
   overflow: hidden;
   overscroll-behavior: contain;
 }
 .lf-sample-view:modal::backdrop {
-  background: var(--paper);
+  background: var(--lf-paper);
 }
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;

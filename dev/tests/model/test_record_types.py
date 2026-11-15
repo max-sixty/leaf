@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from leaf.server import SERVICE
 from leaf_dev import ROOT
-from leaf_dev.commands import record_types
+from leaf_dev.commands.generate import record_types as record_types
 
 
 def test_record_types_follow_schema_changes(tmp_path, monkeypatch):

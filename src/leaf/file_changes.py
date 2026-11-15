@@ -13,20 +13,18 @@ A process holds one watchdog observer. Each directory its subscriptions want is
 scheduled on it once per recursion mode, however many subscriptions want it, and
 the observer hands each event to every subscription that accepts a path it names.
 Directories join and leave the observer while it runs, so subscribing disturbs no
-other subscription. On Linux watchdog shares one inotify instance across the
-process, and each directory takes one watch, each directory of a recursive tree
-included. The per-user instance limit (`fs.inotify.max_user_instances`, 128 unless
-raised) is the one that ran out when Leaf held a watcher per page (issue #4812);
-the watch limit is far larger. Each scheduled directory costs the process an idle
+other subscription. On Linux the observer holds one inotify instance, and each
+directory takes one watch, each directory of a recursive tree included. The
+per-user instance limit (`fs.inotify.max_user_instances`, 128 unless raised) is
+the one that ran out when Leaf held a watcher per page (issue #4812); the watch
+limit is far larger. Each scheduled directory costs the process an idle
 thread.
 
 Page subscriptions take no tree. The page's reading stamps every directory in its
 trees, so a new one moves the reading, its owner subscribes again, and the
-directory joins the observer. watchdog 7.0's recursive watch on Linux never
-watches a directory moved into its tree from outside, and skips without raising a
-directory beneath its root that the kernel refuses a watch, so nothing falls back
-to polling, and reporting what that directory holds can then raise on the thread
-that reads for every watch in the process, which stops them all. A recursive
+directory joins the observer. watchdog's recursive watch on Linux skips without
+raising a directory beneath its root that the kernel refuses a watch, so nothing
+falls back to polling and that directory's changes go unheard. A recursive
 subscription suits only an owner that can afford to stop hearing changes and whose
 trees can be too large for a thread per directory, such as a developer's
 preview.
@@ -391,32 +389,9 @@ def _native_observer() -> "BaseObserver":
 
 
 def _polling_observer() -> "BaseObserver":
-    """watchdog's polling observer.
+    """watchdog's polling observer."""
+    from watchdog.observers.polling import PollingObserver
 
-    On Linux watchdog 7.0 opens its process's inotify instance as its
-    `watchdog.observers` package is imported, so where the kernel has none left to
-    give, that import fails, and the polling observer's with it. The package is
-    then imported again with watchdog's platform check saying this isn't Linux, so
-    its platform selection picks polling and opens no instance. That leaves
-    watchdog's `Observer` bound to polling for the rest of the process, so
-    `_native_observer` names the inotify observer, whose import asks the kernel for
-    an instance again.
-
-    TODO(2026-11-03): delete this repair, and import `PollingObserver` directly, once
-    a watchdog release fixes https://github.com/gorakhargosh/watchdog/issues/1389."""
-    try:
-        from watchdog.observers.polling import PollingObserver
-    except OSError as error:
-        if error.errno != errno.EMFILE:
-            raise
-        from watchdog.utils import platform
-
-        linux = platform.is_linux
-        platform.is_linux = lambda: False  # ty: ignore[invalid-assignment] -- restored below
-        try:
-            from watchdog.observers.polling import PollingObserver
-        finally:
-            platform.is_linux = linux
     return PollingObserver()
 
 

@@ -6,7 +6,6 @@ import os
 import shutil
 import subprocess
 import sys
-import urllib.error
 import urllib.request
 
 import pytest
@@ -14,6 +13,7 @@ from interact_support import (
     PAGE,
     append_command,
     publish,
+    revision_root,
     running_http_server,
 )
 from process.website_server import (
@@ -35,7 +35,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     page_dir, tmp_path, monkeypatch
 ):
     """A container's replacement recovers the record, not a second state model."""
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, PageStoreRefused, restore
 
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
@@ -54,10 +54,10 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-        # Restore installs the inherited transaction provider before serving.
-        restore(site)
-        assert os.environ["LEAF_PAGE_COMMIT"] == "leaf_website.storage:publish"
+        # A container restored from its store publishes every commit there, as its
+        # `main` declares (`storage.PUBLISHER`).
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
         chosen = append_command(
             private,
             {
@@ -162,11 +162,8 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert state["activity"].get("next_transition_at") is None
         assert body("api/news").decode() == state["reading"]
         assert b"Revised plan" in body("")
-        [private_entry] = [
-            key
-            for key in publication["responses"]
-            if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
-        ]
+        private_entry = revision_root(private, 2).lstrip("/") + "/leaf.js"
+        assert private_entry in publication["responses"]
         assert (
             body(private_entry) == serving_runtime().resources({}, {})["/leaf.js"].data
         )
@@ -196,9 +193,12 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         with PageTransaction(private):
             pass
         assert len(stored["publications"]) == count
-        # Storage failure prevents success; retries can commit the local log.
+        # Storage failure prevents success, naming the store's reason; retries can
+        # commit the local log.
         stored["fail"] = True
-        with pytest.raises(urllib.error.HTTPError):
+        with pytest.raises(
+            PageStoreRefused, match="/publication answered 503: page store unavailable"
+        ):
             append_command(
                 private,
                 {

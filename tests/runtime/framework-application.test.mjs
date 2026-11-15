@@ -315,6 +315,34 @@ test("one widget selection publishes optimistic state without writable access", 
   stop();
 });
 
+// A publication costs what it changed: one that moves no part a widget reads, such as
+// a comment's, reads no widget again, and one that moves a widget's part reads it.
+test("a publication that moves no widget's part reads no widget again", () => {
+  const app = setup();
+  let reads = 0;
+  const counted = {
+    ...descriptor,
+    get id() {
+      reads += 1;
+      return descriptor.id;
+    },
+  };
+  const selected = app.selectWidget(counted);
+  const stop = selected.subscribe(() => {});
+  const before = selected.read();
+  const unread = reads;
+  app.enqueue(
+    { kind: "comment", attempt: "aside", text: "Elsewhere", revision: 1 },
+    "now",
+  );
+  assert.equal(reads, unread);
+  assert.equal(selected.read(), before);
+  app.enqueue(action("first"), "now");
+  assert.ok(reads > unread);
+  assert.equal(outcomeOf(selected.read().state), "accept");
+  stop();
+});
+
 test("widget actions await a complete reading after loading or failed history", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);

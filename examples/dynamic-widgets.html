@@ -8,8 +8,8 @@
     />
     <style>
       .experiment-status {
-        color: var(--accent);
-        font: 600 var(--t-6)/1.4 var(--sans);
+        color: var(--lf-accent);
+        font: 600 var(--lf-t-6)/1.4 var(--lf-sans);
         text-transform: uppercase;
         letter-spacing: 0.09em;
       }
@@ -22,7 +22,7 @@
       .source-details pre {
         white-space: pre-wrap;
         overflow-wrap: anywhere;
-        font-size: var(--t-6);
+        font-size: var(--lf-t-6);
       }
       lf-widget-builder {
         display: block;
@@ -40,9 +40,9 @@
         resize: vertical;
         padding: 12px;
         font: inherit;
-        color: var(--ink);
-        background: var(--card);
-        border: 1px solid var(--border-2);
+        color: var(--lf-ink);
+        background: var(--lf-card);
+        border: 1px solid var(--lf-border);
         border-radius: 8px;
       }
       .builder-actions {
@@ -53,12 +53,12 @@
         margin-block: 12px;
       }
       .builder-status {
-        color: var(--muted);
-        font-size: var(--t-5);
+        color: var(--lf-muted);
+        font-size: var(--lf-t-5);
       }
       .builder-help {
-        color: var(--muted);
-        font-size: var(--t-6);
+        color: var(--lf-muted);
+        font-size: var(--lf-t-6);
       }
       .builder-preview {
         position: relative;
@@ -79,7 +79,7 @@
         min-width: 0;
       }
       .comparison-lane h2 {
-        font-size: var(--t-4);
+        font-size: var(--lf-t-4);
         margin-block: 12px 6px;
       }
       .lane-status {
@@ -101,12 +101,12 @@
         pointer-events: none;
       }
       .builder-error {
-        color: var(--ink);
-        border-inline-start: 3px solid var(--accent);
+        color: var(--lf-ink);
+        border-inline-start: 3px solid var(--lf-accent);
         padding-inline-start: 12px;
       }
       .builder-empty {
-        color: var(--muted);
+        color: var(--lf-muted);
         padding-block: 24px;
       }
     </style>
@@ -127,7 +127,7 @@
           <textarea id="widget-request" name="request" required maxlength="8000">
 Help me choose a storage plan and keep my decision. Local works offline with 10 GB for free. Cloud syncs across devices with 100 GB for $8 per month. Make the tradeoffs easy to compare.</textarea>
           <div class="builder-actions">
-            <button class="button primary" type="submit" id="widget-generate">
+            <button class="lf-btn lf-commit" type="submit" id="widget-generate">
               Create widgets
             </button>
             <span class="builder-status" id="widget-status" role="status"

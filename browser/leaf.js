@@ -87,8 +87,10 @@ import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createThreadLanding,
   declareThreadKeys,
+  landIn,
+  landInThread,
+  returnToThread,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -347,8 +349,7 @@ async function boot() {
       floatingPanel?.clearFor(destination, landed) ?? null,
     announce,
   });
-  const landing = createThreadLanding();
-  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere() ?? null);
+  declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
@@ -423,8 +424,8 @@ async function boot() {
       restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
-    landInThread: (...args) => landing.landInThread(...args),
-    landSent: (...args) => landing.landSent(...args),
+    landInThread,
+    landSent: returnToThread,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -473,10 +474,14 @@ async function boot() {
     annotationFocus: app.overlay?.mapFocusTarget,
   });
 
+  // The control the user sees for `control`: the margin's copy of one it presents.
+  /** @param {Element} control */
+  const presentedControl = (control) =>
+    app.overlay?.presentedControl(control) ?? control;
   // The obligation view is constructed below by its owner factory; all accesses above are inert closures.
   items = createObligationView({
     focusForNavigation,
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+    presentedControl,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
@@ -492,9 +497,7 @@ async function boot() {
     announce,
   });
   createChangeWalk();
-  const commandHints = createCommandHints({
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
-  });
+  const commandHints = createCommandHints({ presentedControl });
 
   const currentTarget = createCurrentTarget({
     currentLocationIn: items.currentLocationIn,
@@ -524,7 +527,7 @@ async function boot() {
   responseSurface = createResponseSurface({
     rememberSelection: passageSelection.remember,
     createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-    landIn: landing.landIn,
+    landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
@@ -551,7 +554,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: landing.landSent,
+    landSent: returnToThread,
     wireInput: inputs.wireInput,
     drawingEdits,
   });
@@ -680,6 +683,7 @@ async function boot() {
     leavesOffered,
     marginEntries: app.overlay ?? null,
     placeThreadEdge,
+    stepReading: navigation.stepReading,
   });
   const currentLocationPainters = {
     markHere: items.markHere,

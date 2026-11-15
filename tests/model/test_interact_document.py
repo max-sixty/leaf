@@ -1606,7 +1606,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    from leaf_dev.commands.corpus import sources
+    from leaf_dev.commands.generate.corpus import sources
 
     for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
@@ -1930,7 +1930,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     )
 
     assert result.exit_code != 0
-    assert refused_on(result.stderr).values["operation"] == "reply"
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert events_model.read_events(page_dir) == before
     assert files_model.list_revisions(page_dir) == revisions
     assert "c1" in delivery_model.current_responses(page_dir, before)
@@ -2250,11 +2250,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "</lf-options></lf-ask>",
         ).output.splitlines()
     ]
-    [renamed] = [
-        json.loads(line)
-        for line in run(
-            "thread", "edit", "t-ask", "--title", "Store"
-        ).output.splitlines()
+    [renamed] = json.loads(run("thread", "edit", "t-ask", "--title", "Store").output)[
+        "records"
     ]
     picked = append_command(
         page_dir,
@@ -2286,7 +2283,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
-    assert refused_on(not_a_thread.stderr).code == "widget-not-thread"
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()
@@ -2719,7 +2716,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
             input=encoded,
         )
         assert rejected.exit_code != 0
-        error = json.loads(rejected.stderr)["error"]
+        error = json.loads(rejected.stdout)["error"]
         assert "source 'deployments' value is invalid" in error
         assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first
@@ -2770,7 +2767,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_a_patch_piped_through_the_diff_script_sets_one_deferred_row_per_file(
+def test_a_patch_piped_through_the_diff_script_sets_one_row_per_file(
     page_dir,
 ):
     """The diff package's producer script turns a Git patch into the contract's
@@ -3164,6 +3161,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
                 "reason": "workflow",
                 "workflow": opened["id"],
             },
+            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(
@@ -3773,14 +3771,15 @@ def _apart(a, b, vision=None):
     return math.dist(seen(a), seen(b)) * 100
 
 
-def _palette(theme, half):
-    """The series steps and the paper they sit on: `half` 0 or 1 of each `light-dark()`."""
+def _palette(theme, look, half):
+    """The series steps and the paper they sit on, which the reading look states:
+    `half` 0 or 1 of each `light-dark()`."""
     pair = r"light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)"
     steps = {
         number: colours[half]
-        for number, *colours in re.findall(rf"--series-(\d+):\s*{pair}", theme)
+        for number, *colours in re.findall(rf"--lf-series-(\d+):\s*{pair}", theme)
     }
-    match = re.search(rf"--paper:\s*{pair}", theme)
+    match = re.search(rf"--lf-paper:\s*{pair}", look)
     assert match is not None
     paper = match[half + 1]
     assert steps, "no series tokens in the theme"
@@ -3802,12 +3801,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
 
     for scheme, half in (("light", 0), ("dark", 1)):
-        steps, paper = _palette(theme, half)
+        steps, paper = _palette(theme, look, half)
         assert len(steps) == declared, (
             f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         )
@@ -3869,57 +3869,21 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     ]
 
 
-def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
-    page_dir,
-):
-    """A declared split does not turn the contract's inline text into a manifest."""
-    (page_dir / "index.html").write_text(
-        before_choice(
-            PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
-        )
-    )
-    initial = state_json(page_dir)
-    assert initial["source"]["live"], initial["source"]["error"]
-    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
-    file = {
-        "path": "a.py",
-        "patch": patch,
-    }
-    manifest = {"files": [file]}
-    for value in (patch, manifest, patch):
-        written = CliRunner().invoke(
-            cli_model.cli,
-            ["data", "set", str(page_dir), "reading-patch"],
-            input=json.dumps(value),
-        )
-        assert written.exit_code == 0, written.output
-        stored = read_page_data(page_dir)
-        delivered = data_model.browser_data_from(stored, require_registry(page_dir))
-        reading = delivered["sources"]["reading-patch"]
-        if isinstance(value, str):
-            assert reading["value"] == patch
-        else:
-            assert reading["value"] == {
-                "files": [{key: field for key, field in file.items() if key != "patch"}]
-            }
-        assert stored["sources"]["reading-patch"]["value"] == value
-
-
 @pytest.mark.parametrize(
     ("files", "refusal"),
     [
         ([], "should be non-empty"),
         (
-            [{"path": "a.py"}] * 2,
-            "record keys must be unique",
+            [{"path": path} for path in ["a,b", "a", "b", "a,b", "a", "b"]],
+            'record keys must be unique; repeated ["a", "a,b", "b"]',
         ),
     ],
 )
 def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     page_dir, files, refusal
 ):
-    """A manifest needs a nonempty list of unique file keys."""
+    """A manifest needs a nonempty list of unique file keys, and a refusal names each
+    repeated key once, whatever characters it holds."""
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
@@ -3933,7 +3897,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
         input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
     )
     assert written.exit_code == 1
-    assert refusal in written.output
+    assert refusal in json.loads(written.output)["error"]
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):

@@ -121,7 +121,7 @@
           }
         },
         "revision_labels": {
-          "description": "Each revision's public name, `vN` or a draft's, by revision number (`files.revision_label`).",
+          "description": "Each revision's public name, `vN` or a draft's, by revision number (`files.revision_labels`).",
           "type": "object",
           "additionalProperties": { "type": "string" }
         },
@@ -134,7 +134,7 @@
           "type": ["string", "null"]
         },
         "data": {
-          "description": "The page's data sources as a browser reads them (`data.browser_data_from`). An answer to a tab that names this `version` in `Leaf-Data-Version` leaves out `sources`, which the tab restores from the reading it holds.",
+          "description": "The page's data sources, each with its value (`data.read_data`). A whole answer to a tab that names this `version` in `Leaf-Data-Version` leaves out `sources`, which the tab restores from the reading it holds; a `Tail` carries only the sources that changed.",
           "type": "object",
           "properties": {
             "version": { "type": "string" },
@@ -211,8 +211,8 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
-        "forked": {
-          "description": "The user's waiting messages a fork of the claimant's conversation has taken on (`forks.forked`).",
+        "kept_back": {
+          "description": "The user's waiting messages Leaf keeps back from the claimant's main thread while a line fork judges them (`forks.kept_back`).",
           "type": "array",
           "items": { "type": "string" }
         },
@@ -247,6 +247,20 @@
         "turn_takes_input": {
           "description": "Whether an open turn of the claimant's takes new input before it ends (`Harness.turn_takes_input`).",
           "type": "boolean"
+        },
+        "agent_turns": {
+          "description": "The turns of the agents the claimant's session runs beside its main thread, such as a fork that took a thread's work, by turn id: the agent's id in its harness, or null until the harness starts it, when each was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "agent": { "type": ["string", "null"] },
+              "renewed": { "type": "string" },
+              "closed": { "type": ["string", "null"] }
+            },
+            "required": ["agent", "renewed", "closed"],
+            "additionalProperties": false
+          }
         },
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
@@ -343,7 +357,7 @@
         "session_alive",
         "live_turn",
         "cursor",
-        "forked",
+        "kept_back",
         "pending",
         "agent",
         "claim_session",
@@ -352,6 +366,7 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
+        "agent_turns",
         "input_wakes",
         "fork_lane",
         "session_cwd",
@@ -401,7 +416,7 @@
         },
         "url": { "description": "The revision's address.", "type": "string" },
         "label": {
-          "description": "Its public name, `vN` or a draft's (`files.revision_label`).",
+          "description": "Its public name, `vN` or a draft's (`files.revision_labels`).",
           "type": "string"
         },
         "executable": {
@@ -644,7 +659,7 @@
           }
         },
         "at_work": {
-          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`forks.forked`).",
+          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`holding.Holding.forked`).",
           "type": "boolean"
         },
         "thread": {
@@ -1728,7 +1743,7 @@
           "additionalProperties": false
         },
         "patch": {
-          "description": "The changes from that reading to this one, in order. They leave out `events` and `data`.",
+          "description": "The changes from that reading to this one, in order, data sources included, each source's `value` only where its `revision` moved. They leave out `events`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Change" }
         },
@@ -1736,10 +1751,9 @@
           "description": "The events logged after that reading's `through_seq`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
-        },
-        "data": { "$ref": "#/$defs/Reading/properties/data" }
+        }
       },
-      "required": ["since", "patch", "events", "data"],
+      "required": ["since", "patch", "events"],
       "additionalProperties": false
     },
     "Change": {

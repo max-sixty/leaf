@@ -410,6 +410,15 @@ def wait_until_ready(
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
 
 
+def start_near_work(page, state: dict | None = None, **ready) -> None:
+    """Start the work the page holds back until the reader nears its node, such as
+    each live sample's page, and wait until the page has taken it in, as
+    `wait_until_ready` waits with `state` and `ready`. A check reads every document the
+    page can show, not only those near the window it opened at."""
+    evaluate_probe(page, "startNearWork")
+    wait_until_ready(page, state, **ready)
+
+
 def install_window_errors(page, heard) -> None:
     """Hand `heard` each error the page's windows raise with no exception behind it,
     as `{"text": ..., "resizeLoop": ...}`, from navigation on.

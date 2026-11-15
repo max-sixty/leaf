@@ -40,6 +40,7 @@ from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.events import build_threads
+from leaf.revisioning import activate_source
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -602,7 +603,7 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
     reply = json.loads(result.stdout)
     assert reply["anchor"]["quote"] == "Beta"
     # The reply tells its author where the revision moved the thread it left alone.
-    [moved] = [json.loads(line) for line in result.stderr.splitlines()]
+    [moved] = json.loads(result.stdout).get("findings", [])
     assert (moved["code"], moved["values"]) == (
         "relocated-anchor",
         {"thread": roots[1]["id"], "section": "wording"},
@@ -685,7 +686,7 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
             ["thread", "reply", str(page_dir), roots[0]["id"], *options],
         )
         assert result.exit_code == 0, result.output
-        return [json.loads(line) for line in result.stderr.splitlines()]
+        return json.loads(result.stdout).get("findings", [])
 
     [moved] = reply("--quote", "Beta", "--text", "Revised this.")
     assert (moved["code"], moved["values"]) == (
@@ -1032,7 +1033,7 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
     )
 
     assert mixed.exit_code != 0
-    assert refused_on(mixed.stderr).code == "detach-with-target"
+    assert refused_on(mixed.stdout).code == "detach-with-target"
 
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
@@ -1069,7 +1070,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stderr).code == "no-anchor"
+    assert refused_on(detached.stdout).code == "no-anchor"
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -1085,7 +1086,7 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
         ],
     )
     assert moved.exit_code != 0
-    assert refused_on(moved.stderr).code == "withdrawn-parent"
+    assert refused_on(moved.stdout).code == "withdrawn-parent"
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
@@ -1125,7 +1126,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
 
     assert moved.exit_code != 0
-    assert refused_on(moved.stderr).code == "held-anchor"
+    assert refused_on(moved.stdout).code == "held-anchor"
 
     detached = CliRunner().invoke(
         cli_model.cli,
@@ -1140,7 +1141,56 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stderr).code == "held-anchor"
+    assert refused_on(detached.stdout).code == "held-anchor"
+
+
+def test_detach_after_a_reader_already_activated_the_removal(page_dir):
+    """An open tab activates saved source when it polls, and that activation detaches
+    a thread whose passage the edit removed. The agent's `--detach` reply that follows
+    finds the thread as it asked, so it lands, and the thread keeps the anchor it
+    was detached from."""
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    anchor = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Placed here").output
+    )["anchor"]
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Drop this?",
+            "anchor": anchor,
+        },
+    )
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha</p>', "")
+    )
+    activate_source(page_dir)
+    assert (
+        build_threads(events_model.read_events(page_dir), {})[root["id"]]["anchor"]
+        is None
+    )
+
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, root["id"]),
+            "--detach",
+            "--text",
+            "Removed this.",
+        ],
+    )
+
+    assert detached.exit_code == 0, detached.output
+    thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
+    assert thread["anchor"] is None
+    assert thread["detached_from"] == root["anchor"]
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

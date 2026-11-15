@@ -1,7 +1,10 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
 
-import os
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
+
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -28,7 +31,7 @@ class Window:
     description: str = ""
 
 
-# The windows a tool opens a page in by name, as `eval --viewport large` or
+# The windows a tool opens a page in by name, as `eval run --viewport large` or
 # `stills --viewport phone` does. `tab`, and stills and probe for a state that names
 # no window of its own (`states.State`), open `macbook` unless told another. An eval
 # author's request and a judge's instructions give a window's description, which
@@ -52,7 +55,8 @@ WINDOWS = {
     ),
 }
 
-# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
+# The fixed fontconfig that lays text out in DejaVu faces on Linux
+# (`linux_font_environment`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -76,14 +80,16 @@ def require_linux_fonts():
                 )
 
 
-def use_linux_fonts():
-    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
-    browser and leaf this process starts from here on; elsewhere the host's faces
-    serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev pins`), so the two measure the same text."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+def linux_font_environment() -> dict[str, str]:
+    """The environment that lays text out in the DejaVu faces the fixed fontconfig
+    names, in every browser and leaf a process holding it starts; empty off Linux,
+    where the host's faces serve. The suite runs under it, and so does a command whose
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
+    if sys.platform != "linux":
+        return {}
+    require_linux_fonts()
+    return {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)}
 
 
 @contextmanager
@@ -103,6 +109,14 @@ def headless_shell(**options):
 
 
 ENGINES = ("chromium", "firefox", "webkit", "ios")
+
+# Firefox's own smooth scroll reads the host's reduced-motion setting, which a
+# context's `reduced_motion` emulates only for the page's media queries. On a host
+# that asks for reduced motion, every smooth scroll lands in one step while the page
+# reads no preference, and a test that needs a scroll under way never has one; the
+# nightly macOS runner's three Firefox failures of that kind reproduce exactly with
+# this pref at 1. So Firefox answers no preference, as the page's context does.
+FIREFOX_PREFS = {"ui.prefersReducedMotion": 0}
 
 
 def engine_option(command):
@@ -155,7 +169,9 @@ def launch(engine: str, scheme: str = "light"):
     else:
         with (
             sync_playwright() as playwright,
-            getattr(playwright, engine).launch() as browser,
+            getattr(playwright, engine).launch(
+                **({"firefox_user_prefs": FIREFOX_PREFS} if engine == "firefox" else {})
+            ) as browser,
         ):
             yield browser
 
@@ -349,6 +365,29 @@ def settle(page: Page) -> None:
         settle(page)
 
 
+# The range of the first run of `words` in the text under `root`, across text nodes
+# as a passage may run, or null where the text holds none: a JavaScript function's
+# source, which a page script embeds as `({QUOTE_RANGE})(root, words)`.
+QUOTE_RANGE = """(root, words) => {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let text = "";
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    nodes.push([node, text.length]);
+    text += node.data;
+  }
+  const start = text.indexOf(words);
+  if (start < 0) return null;
+  const at = (offset) => {
+    const [node, base] = nodes.findLast(([, base]) => base <= offset);
+    return [node, offset - base];
+  };
+  const range = document.createRange();
+  range.setStart(...at(start));
+  range.setEnd(...at(start + words.length));
+  return range;
+}"""
+
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
 # drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
@@ -423,7 +462,7 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 }"""
 
 
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+def scroll_settled(page, scroller=None, axis="y"):
     """Wait for stable scroll position after the caller observes scroll initiation.
 
     The helper cannot distinguish a finished scroll from one not yet issued.
@@ -437,14 +476,14 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, SCROLL_STILL_FRAMES])
     except PlaywrightTimeout:
         where = scroller or "the document"
         held = page.evaluate(
             "() => globalThis.__lfScrollStill ?? null",
         )
         raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
+            f"{where} never held one position for {SCROLL_STILL_FRAMES} frames: gave up on {held}"
         ) from None
 
 
@@ -552,7 +591,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `verify-site` do, takes this
+    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

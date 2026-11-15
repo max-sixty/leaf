@@ -43,7 +43,7 @@ import weakref
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import cache
+from functools import cache, wraps
 from pathlib import Path
 from socket import gethostname
 from types import SimpleNamespace
@@ -65,7 +65,14 @@ from interact_support import (
 )
 from model_folds import leaf_page
 from PIL import Image
-from playwright.sync_api import BrowserContext, Frame, Page, expect
+from playwright.sync_api import (
+    BrowserContext,
+    Frame,
+    Locator,
+    Page,
+    Touchscreen,
+    expect,
+)
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -754,13 +761,13 @@ class Traffic:
     second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
-    That is delivery. Whether the page then applied the returned state is a separate
-    product fact asserted on the surface that needs it.
+    That is delivery. `received` and `applied` count the states those answers and the
+    page's reads carried, as the page takes each in hand and finishes applying it.
 
     The count is the document's: a navigation starts it over with the page that carries
     it, and a page that has not booted reads as nothing sent."""
 
-    KEYS = ("sends", "acked", "asked", "heard", "pending")
+    KEYS = ("sends", "acked", "asked", "heard", "received", "applied", "pending")
 
     def __init__(self, page):
         self.page = page
@@ -788,7 +795,8 @@ class Traffic:
     def describe(reading):
         return (
             f"sends={reading.sends} acked={reading.acked} "
-            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard}"
+            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard} "
+            f"received={reading.received} applied={reading.applied}"
         )
 
     def __str__(self):
@@ -839,24 +847,41 @@ def _until(page, fact, wanted):
             continue
 
 
-# A browser trip is over when every post the page issued has ended and the outbox holds
-# no attempt without an outcome. Each half misses what the other names. A gesture's
-# request failure ends its post but not its delivery, because the outbox keeps the same
-# attempt and retries; `acked` alone would return on that ambiguous edge. A post that
-# skips the outbox — a bookkeeping event such as `read` (delivery.js), the page's own
-# `error` report, a media upload (layer-client.js) — leaves `pending` empty while it is
-# still on the wire; `pending` alone returns before the server has it. A test that
-# holds requests on a route must release every one, that report included.
-# Neither says whether the runtime then applied the response state; tests assert that
-# on the affected page surface.
-def heard_back(reading):
+# A browser trip is over when every post the page issued has ended, the outbox holds no
+# attempt without an outcome, and the page has applied every state an answer carried.
+# Each part misses what the others name. A gesture's request failure ends its post but
+# not its delivery, because the outbox keeps the same attempt and retries; `acked` alone
+# would return on that ambiguous edge. A post that skips the outbox — a bookkeeping
+# event such as `read` (delivery.js), the page's own `error` report, a media upload
+# (layer-client.js) — leaves `pending` empty while it is still on the wire; `pending`
+# alone returns before the server has it. And the page adopts the server's reading of a
+# gesture after its attempt leaves `pending`, once the frame painting the gesture has
+# drawn (state-application.js), so a read straight after delivery alone finds the
+# tab's own copy: a pending thread id, an Undo not yet offered. A test that holds
+# requests on a route must release every one, that report included.
+def answered(reading):
     """Whether one ledger reading says what the page sent has all come back."""
     return reading.acked == reading.sends and not reading.pending
 
 
+def heard_back(reading):
+    """Whether one ledger reading says what the page sent has all come back, and the
+    page has finished applying the state it brought."""
+    return answered(reading) and reading.applied == reading.received
+
+
 def round_trip(page):
-    """Wait for what this page has sent to have come back to it."""
+    """Wait for what this page has sent to have come back to it, and for the page to
+    have finished applying the server's reading the answers carried; a reading it
+    failed to show is a browser problem the `browser` fixture reports."""
     _until(page, heard_back, "heard back what it sent")
+
+
+def delivered(page):
+    """Wait for what this page has sent to have come back to it, but not for the page
+    to apply what the answers carried: for a test that holds that application on
+    purpose, behind a module, a timer or a frame it has yet to release."""
+    _until(page, answered, "heard back what it sent")
 
 
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so
@@ -867,11 +892,12 @@ def round_trip(page):
 # slow enough to lose the race. Naming the gesture's own send first is the arrangement
 # that closes the window; `_until` is what waits on it.
 @contextmanager
-def sending(page, what):
+def sending(page, what, *, until=round_trip):
     """Enclose a gesture whose own event has to be in the wire before its trip is over.
 
-    Waits for one further send to enter the wire, then for everything the page has sent
-    to come back, so a log or state read behind the block is a read of this gesture.
+    Waits for one further send to enter the wire, then for the trip to end (`until`:
+    `round_trip`, or `delivered` where the test holds the page's application of the
+    answer), so a log or state read behind the block is a read of this gesture.
     `what` names the send for the failure a wait that runs out raises. The ledger is the
     document's, so a gesture that navigates cannot be enclosed here: the count it would
     wait to grow starts over with the new document.
@@ -879,7 +905,7 @@ def sending(page, what):
     sends = _traffic(page).sends
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
-    round_trip(page)
+    until(page)
 
 
 def back_gesture(page):
@@ -938,19 +964,38 @@ def holding(page, held, count, what):
 
 @contextmanager
 def held_frames(page):
-    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent.
+
+    The page's frame clock, each frame's timestamp and `performance.now()`, stands still
+    while held, so a motion a press sets off stands where it started however long the
+    hold lasts. The hold yields `step`, which runs the frames held so far in one real
+    frame, a frame's length (1/60 s) on, so a press after it meets the motion that far
+    along on a fast machine or a slow one. Leaving the hold rejoins real time and runs
+    the frames still held."""
     page.evaluate(
         """() => {
           const frame = requestAnimationFrame.bind(window);
           const cancel = cancelAnimationFrame.bind(window);
+          let clock = performance.now();
           const held = new Map();
           let handle = 1e6;
+          performance.now = () => clock;
           window.requestAnimationFrame = callback => {
             held.set(++handle, callback);
             return handle;
           };
           window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafStepFrame = () => new Promise(resolve => frame(() => {
+            clock += 1000 / 60;
+            const due = [...held.values()];
+            held.clear();
+            for (const callback of due) {
+              try { callback(clock); } catch (error) { reportError(error); }
+            }
+            resolve();
+          }));
           window.leafReleaseFrames = () => {
+            delete performance.now;
             window.requestAnimationFrame = frame;
             window.cancelAnimationFrame = cancel;
             for (const callback of held.values()) frame(callback);
@@ -959,7 +1004,7 @@ def held_frames(page):
         }"""
     )
     try:
-        yield
+        yield lambda: page.evaluate("leafStepFrame()")
     finally:
         page.evaluate("leafReleaseFrames()")
 
@@ -1498,7 +1543,8 @@ def watched(page, *, java_script_enabled=True):
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
-    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    `__leafWatchFinding` binding: DOM writes that change nothing and scroll writes that
+    move nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), typed words leaving the screen without a key or press
     (`words_watch.js`), and a row sized by the occupant that took a seat in it
@@ -1792,11 +1838,15 @@ def confirming_resize_notices(page, attempt, again=None):
 
     A platform notice seen once under load is not a page fault; one that the
     confirming attempt, `again` or else `attempt` itself, repeats is, reported with the
-    `confirmation` value `recurred`, as the render gate reports one. Everything else
-    remains on the page from the attempt that reported it, and anything arriving after
-    this helper returns remains strict.
+    `confirmation` value `recurred`, as the render gate reports one. Every other
+    problem stands once: the confirming attempt's record starts empty, and a problem
+    only the first attempt raised is kept beside it, so one a load raises each time,
+    as a widget's refusal, isn't counted twice. Anything arriving after this helper
+    returns remains strict. What the page wrote to its server's log is not this
+    helper's: the log only grows, and a test reading it sees both loads' writes.
     """
     errors = page.lf_errors
+    start = len(errors)
 
     def noticed(act):
         # A test that adjudicates the page's notices itself keeps its own list.
@@ -1814,11 +1864,20 @@ def confirming_resize_notices(page, attempt, again=None):
     notices = noticed(attempt)
     if not notices:
         return
+    first = errors[start:]
+    del errors[start:]
     try:
         confirming_notices = noticed(again or attempt)
     except Exception:
         errors.extend(notice for notice in notices if notice not in errors)
         raise
+    finally:
+        repeated = errors[start:]
+        for problem in first:
+            if problem in repeated:
+                repeated.remove(problem)
+            else:
+                errors.append(problem)
     if confirming_notices:
         errors.append(confirming_notices[0].but(values={"confirmation": "recurred"}))
 
@@ -1879,9 +1938,11 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          // A working indicator may keep animating while the panel has settled.
+          // A working indicator may keep animating while the panel has settled, and
+          // a scroll-driven animation follows the scroll rather than the clock.
           const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
-            Number.isFinite(move.effect?.getComputedTiming().endTime));
+            move.timeline === document.timeline
+            && Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;
@@ -1894,11 +1955,47 @@ def panel_settled(page, open=True, view=None):
     )
 
 
-# Chromium counts a tap that lands near the page's previous one within about 400 ms
-# as the next in a run of taps (a click's `detail` above 1). This bound clears it.
+# Chromium counts a touch tap as the next in a run of taps (a click's `detail` above 1,
+# and a `dblclick`) when it lands within about 25 px of the page's previous tap and
+# less than about 400 ms after it, as measured on Playwright's Chromium.
 TAP_RUN_S = 0.5
-# When each page's latest tap ended, on the host's monotonic clock.
-_last_tap = weakref.WeakKeyDictionary()
+
+
+def fresh_taps():
+    """Make every tap Playwright sends a fresh press, never the next in a run of taps.
+
+    A person reads what one press did before making the next, and a mouse click
+    states its own count, but a touch tap takes Chromium's. So two taps a test sends
+    back to back near one spot are a double tap wherever the page answers fast
+    enough, and the floating panel presses nothing for a run's later press on a
+    control its first press drew there (floating-panel.js, `runOfClicks`): a test that
+    tapped the menu open and then the row that opened under the finger passed only on
+    a host slow enough to space them. So each tap through `Locator.tap` or
+    `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
+    passed since the page's previous tap, however far apart they land: Playwright
+    doesn't report where a locator's tap lands, and its target can move before or
+    after the tap. Touches sent as raw CDP events, as a finger hold is, go unspaced,
+    so a test of a double tap sends those. The session's Playwright fixture calls this
+    once, before any page exists.
+    """
+    # When each page's touchscreen last tapped, on the host's monotonic clock.
+    tapped = weakref.WeakKeyDictionary()
+
+    def fresh(tap, touchscreen):
+        @wraps(tap)
+        def fresh_tap(self, *args, **kwargs):
+            screen = touchscreen(self)
+            since = time.monotonic() - tapped.get(screen, -math.inf)
+            time.sleep(max(0, TAP_RUN_S - since))
+            try:
+                return tap(self, *args, **kwargs)
+            finally:
+                tapped[screen] = time.monotonic()
+
+        return fresh_tap
+
+    Locator.tap = fresh(Locator.tap, lambda locator: locator.page.touchscreen)
+    Touchscreen.tap = fresh(Touchscreen.tap, lambda screen: screen)
 
 
 def press_visible(page, control, *, touch=False):
@@ -1908,23 +2005,13 @@ def press_visible(page, control, *, touch=False):
     visible fixed control. Coordinates exercise the user's visible route directly.
     A frame's bounding box is already in its owning page's coordinates; input
     goes through that page while the control stays scoped to its document.
-
-    Each press is a fresh one, as a person's reading between presses makes it. A
-    mouse click states its own count; a tap takes Chromium's, so a tap waits out the
-    run the page's previous tap began. Otherwise a control a tap's view brought under
-    the finger would take the next tap as the run's second, which the floating panel
-    presses nothing for (floating-panel.js, `runOfClicks`).
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page = page.page if isinstance(page, Frame) else page
     if touch:
-        remaining = _last_tap.get(page, -TAP_RUN_S) + TAP_RUN_S - time.monotonic()
-        if remaining > 0:
-            time.sleep(remaining)
         page.touchscreen.tap(x, y)
-        _last_tap[page] = time.monotonic()
     else:
         page.mouse.click(x, y)
 
@@ -2596,6 +2683,33 @@ def primed(browser, prepare):
     return SimpleNamespace(new_page=new_page, version=getattr(browser, "version", ""))
 
 
+def clocked(browser):
+    """`browser`, opening each page on a clock the test runs forward (`dwelt`),
+    installed before navigation so that every timer the runtime sets, and every
+    `performance.now` it reads, is the clock's. Otherwise the clock keeps real time."""
+    return primed(browser, lambda page: page.clock.install())
+
+
+def dwelt(page, *timers):
+    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/preview.js:
+    `DWELL` by default, `WARM`, `HOLD`) have run one after another and what they
+    decided has drawn, whatever the machine's speed: the repaints that set them, then
+    the page's clock run forward by their sum as the page's runtime states them, then
+    the repaints they queued. The page's clock is installed (`clocked`, or on its
+    context)."""
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate(
+            """async (names) => {
+              const {PREVIEW_TIMERS} = await window.__lfCheckApi();
+              return names.reduce((sum, name) => sum + PREVIEW_TIMERS[name], 0);
+            }""",
+            list(timers or ("DWELL",)),
+        )
+    )
+    rendered(page)
+
+
 @pytest.fixture
 def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.
@@ -3093,10 +3207,10 @@ def root_overflow(page) -> float:
 
 
 def wide_width(page) -> float:
-    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    """The page's `--lf-wide` in pixels: the theme derives it from the code size, and a
     page may restate it, so a width check reads it rather than copying the number."""
     return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-wide'))"
     )
 
 

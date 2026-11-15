@@ -4,6 +4,7 @@ import json
 import re
 import shlex
 from pathlib import Path
+from typing import get_args
 
 import click
 from click.testing import CliRunner
@@ -12,6 +13,7 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import forks as forks_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
@@ -93,11 +95,15 @@ def links(name: str) -> set[tuple[str, str]]:
 
 def test_extension_references_follow_the_concepts_they_explain():
     extending = {href for href, _ in links("extending")}
-    assert {"/registry/", "/event-log/"} <= extending
-    assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
+    assert {"#keys", "/how-it-works/#event-log"} <= extending
+    # The developer galleries are listed beside the bundled packages they show.
+    assert {
+        "/examples/feature-gallery/",
+        "/examples/thread-panel-gallery/",
+    } <= extending
+    assert {("/extending/#keys", "registry"), ("#event-log", "event log")} <= links(
         "how-it-works"
     )
-    assert "/extending/" in {href for href, _ in links("registry")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
@@ -129,7 +135,8 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-EVENT_LOG = named_source("event-log")
+# The event log is How it works' "Event log" tab.
+EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
@@ -348,6 +355,19 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["x-awaits"]["answered"],
         },
     }
+
+
+def test_the_forks_guide_lists_the_judgments_and_endings_forks_keeps():
+    """The guide's sorting table names each judgment the line fork can answer
+    (`forks.ANSWER`), and its endings table each outcome `forks.ended` gives a
+    thread, so a judgment or outcome added to the code fails here until the guide,
+    the design's reference, says what it means."""
+    tree = SourceDocument(named_source("forks").read_text()).tree
+    answer: dict = forks_model.ANSWER
+    judgments = {code.text for code in tree.select("table#sorting-table td code")}
+    assert judgments == set(answer["properties"]["work"]["enum"])
+    endings = [code.text for code in tree.select("table#endings tbody th code")]
+    assert sorted(endings) == sorted(get_args(forks_model.Ending))
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

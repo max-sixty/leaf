@@ -15,8 +15,10 @@
    projected onto the block beside any scope its owner declares, so the hints, the
    command reference and `aria-keyshortcuts` name it. A link or button inside the block
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
-   of the Tab sequence. Focus need not be on the control, so every copy's result also
-   takes the status line.
+   of the Tab sequence. A document code block is a Tab stop whether or not the browser
+   has drawn it, and Tab onto one the browser skipped prepares Copy as focus lands.
+   Focus need not be on the control, so every copy's result also takes the status
+   line.
    A document block's control stands in chrome and passes under the page's sticky
    headers as block-controls.js says.
    The control follows the common pattern for code copy: hidden at rest, and shown while
@@ -28,7 +30,7 @@
    room, since room made for it would move the page's content (`../AGENTS.md`,
    "Nothing Leaf draws moves the page's content"). */
 import { capitalized } from "./words.js";
-import { copyControl, copyTrigger } from "./copy-control.js";
+import { copyControl, pressCopy } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import {
@@ -133,8 +135,7 @@ function declareCopy(pre, copy, noun) {
         id: "code.copy",
         keys: ["Enter"],
         title: `copy ${noun}`,
-        when: () => Boolean(copyTrigger(copy)),
-        run: () => copyTrigger(copy)?.click(),
+        run: () => pressCopy(copy),
       },
     ]),
   );
@@ -205,6 +206,7 @@ export function watchCodeBlocks() {
     const prepared = blocks
       .filter((pre) => {
         if (pre.getRootNode() !== document) return false;
+        claimReachStop(pre);
         if (skipped(pre)) {
           if (!wired.has(pre) && !deferred.has(pre)) {
             deferred.add(pre);
@@ -237,7 +239,6 @@ export function watchCodeBlocks() {
       if (leafSurface(pre)) move(parent, copy, pre.nextSibling);
       else standInChrome(copy, pre, levels);
       copy.tabIndex = -1;
-      claimReachStop(pre);
       if (!wired.has(pre)) {
         const events = new AbortController();
         wired.set(pre, events);

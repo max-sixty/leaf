@@ -11,14 +11,14 @@
   align-items: center;
   gap: 0.5rem 1rem;
   padding: var(--lf-file-editor-head-pad) 1rem;
-  border-bottom: 1px solid var(--border-2);
+  border-bottom: 1px solid var(--lf-border);
 }
 :host(lf-file-editor) .lf-file-editor-name {
   flex: 1;
   min-width: 0;
   overflow: auto;
   white-space: nowrap;
-  font: var(--font-title);
+  font: var(--lf-font-title);
 }
 :host(lf-file-editor) .lf-file-editor-status {
   flex: 0 0 10rem;
@@ -26,11 +26,11 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   /* The slot is as tall as a finger's floor leaves after the header's padding, so the
    * press of a status control, which spans the padding too, meets that floor. */
-  min-block-size: max(1lh, var(--aim-floor) - 2 * var(--lf-file-editor-head-pad));
+  min-block-size: max(1lh, var(--lf-aim-floor) - 2 * var(--lf-file-editor-head-pad));
   white-space: nowrap;
 }
 /* A status control stands in the slot's line, so it takes no block aim floor of its
@@ -82,7 +82,7 @@
   flex-direction: column;
   gap: 1px;
   padding: 4px;
-  font: var(--font-ui);
+  font: var(--lf-font-ui);
 }
 :host(lf-file-editor) .lf-file-editor-choices:popover-open {
   display: flex;
@@ -92,7 +92,7 @@
 }
 /* A row is packed against the menu's edge, so its ring is drawn inset. */
 :host(lf-file-editor) .lf-file-editor-choices .lf-btn {
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 :host(lf-file-editor) .lf-file-editor-edit {
   min-width: 0;
@@ -105,9 +105,9 @@
   flex-direction: column;
   min-block-size: 0;
   padding: 0.75rem 1rem 1rem;
-  --lf-ground: var(--paper);
+  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
-  border-top: 1px solid var(--border-2);
+  border-top: 1px solid var(--lf-border);
 }
 :host(lf-file-editor) .lf-file-editor-compared[hidden] {
   display: none;
@@ -115,8 +115,8 @@
 :host(lf-file-editor) .lf-file-editor-legend {
   flex: none;
   margin: 0 0 0.6rem;
-  font: var(--font-small);
-  color: var(--muted);
+  font: var(--lf-font-small);
+  color: var(--lf-muted);
 }
 :host(lf-file-editor) .lf-file-editor-comparison {
   flex: 1;
@@ -124,25 +124,28 @@
 }
 :host(lf-file-editor) .cm-editor {
   height: 100%;
-  font-size: var(--code-size);
+  font-size: var(--lf-code-size);
 }
 /* The scrollport clips a content outline on every side. Carry its one shared
  * focus cue inside the editor frame, above the scroller's own stacking context
  * (its positioned gutters otherwise cover the left edge). Editing focus stays
  * on the content and the cue never receives pointer input. */
+:host(lf-file-editor) .cm-content {
+  --lf-focus-box: .cm-editor;
+}
 :host(lf-file-editor) .cm-content[data-lf-focus-visible] {
   outline: none;
 }
-:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible])::after {
+:host(lf-file-editor) .cm-editor[data-lf-control-focus-visible]::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
+  outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-focus-ring-inset);
 }
-:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus-visible]) {
+:host(lf-file-editor) .cm-editor[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
 /* The editing region keeps the height the host states while typing grows the file. */

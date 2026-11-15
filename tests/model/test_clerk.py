@@ -33,7 +33,7 @@ def asked() -> dict:
     return question
 
 
-def reply(page, *titles: str, passage: str = "") -> str:
+def reply(page, *titles: str, passage: str = "", again: str = "") -> str:
     return json.dumps(
         {
             "asks": [
@@ -42,6 +42,7 @@ def reply(page, *titles: str, passage: str = "") -> str:
                     "title": title,
                     "text": f"{title}: which would you like?",
                     "passage": passage,
+                    "again": again,
                     "quote": title,
                 }
                 for title in titles
@@ -133,13 +134,71 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     )
     question = asked()
     assert (
-        "don't ask these again:\n- A PR for this branch: which would you like? (dropped)"
-        in question["prompt"]
+        f'- message:{wrote[1]["id"]}, in "A PR for this branch", dropped: A PR for '
+        "this branch: which would you like?" in question["prompt"]
     )
     reasked = clerk_model.take_answer(
         "s1", reply(page, "A PR for this branch"), question["basis"]
     )
     assert reasked["wrote"] == []
+
+
+def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys):
+    """The user closed a question's thread without replying, and the agent asks it
+    again in chat, as when the step they took didn't work. The next fork sees the
+    closed question with its id, and an ask naming that id asks it again in its
+    thread as the agent's message, which reopens the thread and puts the question
+    back On Me under its own id, standing on the new message. An id Leaf can't ask
+    again leaves the ask a thread of its own."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    first = clerk_model.take_answer(
+        "s1", reply(page, "Reloading the plugin"), asked()["basis"]
+    )["wrote"][0]
+    question = f"message:{first['id']}"
+    append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": first["id"]}
+    )
+    hook(capsys, "PostToolBatch")
+
+    basis = asked()
+    assert (
+        f'- {question}, in "Reloading the plugin", closed by the user unanswered: '
+        "Reloading the plugin: which would you like?" in basis["prompt"]
+    )
+    again = clerk_model.take_answer(
+        "s1",
+        reply(page, "Reloading the plugin in the other session", again=question),
+        basis["basis"],
+    )["wrote"]
+    assert [(r["kind"], r["parent"], r["obligation"]) for r in again] == [
+        ("reply", first["id"], [question])
+    ]
+    state = cmd_page_state(claimed)
+    assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
+    assert [(row["id"], row["also"]) for row in state["queues"]["on_user"]] == [
+        (question, [])
+    ]
+    [record] = [o for o in state["obligations"] if o["id"] == question]
+    assert (record["message"], record["next_actor"]) == (again[0]["id"], "user")
+    # The next fork reads it On Me in the words it is asked in now.
+    assert (
+        '- a reply to the agent\'s message in "Reloading the plugin": Reloading the '
+        "plugin in the other session: which would you like?" in asked()["prompt"]
+    )
+    context = hook(capsys, "PostToolBatch")
+    assert (
+        f"On Me again, as {question}, with your message {again[0]['id']} in its "
+        f"thread on {page}," in context
+    )
+    assert f"leaf task end {page} {question} dropped" in context
+
+    elsewhere = clerk_model.take_answer(
+        "s1", reply(page, "The retry limit", again="message:nowhere"), basis["basis"]
+    )["wrote"]
+    assert [(r["kind"], r["title"]) for r in elsewhere] == [
+        ("comment", "The retry limit")
+    ]
 
 
 def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys):
@@ -486,7 +545,12 @@ def test_leaf_changes_the_words_the_user_reads_or_nothing(
             "The cutoff lives in jobs/backfill.py:88.",
             "The cutoff lives in jobs/backfill.py:90!",
         ),
+        # Replacement words written as markup, which Leaf writes as text alone, so
+        # a link would show as its tag.
+        ("Ship dark.", 'Ship <a href="https://example.com/pull/12">#12</a>.'),
+        ("Ship dark.", "Ship <code>--dark</code>."),
     ],
+    ids=["unshown", "repeated", "crossing", "link", "code"],
 )
 def test_a_fix_leaf_cant_place_reaches_the_agent_as_the_finding(
     claimed, capsys, words, replacement

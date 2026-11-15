@@ -8,9 +8,10 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory.
 
-   Each collection reads the whole page, and an entry stays the same object from one
-   collection to the next for as long as what it is made from holds still (`keptEntry`),
-   so a reader learns whether an entry changed by comparing the two. */
+   Each collection reads the whole page's records, and the words of a target only where
+   they changed (`passageRows`). An entry stays the same object from one collection to
+   the next for as long as what it is made from holds still (`keptEntry`), so a reader
+   learns whether an entry changed by comparing the two. */
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
@@ -26,6 +27,7 @@ import {
   findEach,
   GENERATED,
   inChrome,
+  keptAnswer,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -39,7 +41,7 @@ import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
-import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
+import { outlineContexts } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
@@ -49,7 +51,7 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { scrollBehavior } from "./motion.js";
@@ -61,6 +63,11 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+
+// The words of every obligation's row, one reading for all of them, so a collection
+// finds each row's words unchanged by identity rather than by reading them
+// (`captureItem`).
+const WAITING_ON_ME = leafSays("Waiting on me");
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -239,7 +246,7 @@ export function createAnnotationInventory({
   // threads stand there together, by what they are about, and everything else about the
   // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
-  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // row's its first comment gave it, a passage's from its words, `passageRows`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
   // name it.
   /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
@@ -277,9 +284,46 @@ export function createAnnotationInventory({
   // passage starts among the target's words, heard as they are read, and every place each
   // passage's words stand in them, found by one pass for all of them. So a paragraph
   // holding many quoted passages costs its words and its passages, not their product.
+  //
+  // A passage's key is kept, under where it starts and what it says, for as long as the
+  // target's words are unchanged (passages.js, `keptAnswer`). So a collection reads a
+  // target again only where its words changed or a passage in it is new. Every change to
+  // the page starts a collection, a closed tab's document drawing included, and a change
+  // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
+  // collection, one comment on a 4 MB text document read that document again each time
+  // another of 30 drew, 200 ms each in Chromium.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
+    // Each key by the passage's first text node, then by where it starts there and what
+    // it says.
+    /** @type {Map<Text, Map<string, string>>} */
+    const kept = keptAnswer(target, "passage rows", () => new Map());
+    const asked = quoted.map((passage) => ({
+      passage,
+      node: passage[0].node,
+      key: `${passage[0].start} ${quoteFrom(passage)}`,
+    }));
+    const unkeyed = asked.filter(({ node, key }) => !kept.get(node)?.has(key));
+    if (unkeyed.length) {
+      const read = readPassageRows(
+        target,
+        unkeyed.map(({ passage }) => passage),
+      );
+      unkeyed.forEach(({ node, key }, at) =>
+        kept.set(
+          node,
+          (kept.get(node) ?? new Map()).set(key, /** @type {string} */ (read[at])),
+        ),
+      );
+    }
+    return asked.map(
+      ({ node, key }) => /** @type {string} */ (kept.get(node)?.get(key)),
+    );
+  }
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function readPassageRows(target, quoted) {
     // How many of the target's words stand before each passage's first character, as
     // reading the target only up to there would say: all of them where the passage
     // starts in none of its text nodes.
@@ -435,6 +479,7 @@ export function createAnnotationInventory({
   function collectEntries() {
     /** @type {Groups} */
     const groups = new Map();
+    const labelOf = perTarget(addressableLabel);
     /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
@@ -502,19 +547,20 @@ export function createAnnotationInventory({
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
     const hasPlace = (item) => Boolean(obligationPlace(item).node);
     const placed = () => readObligations().user.filter(hasPlace);
-    for (const item of placed()) {
+    for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
+      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
         // The group this row stands in already names the obligation; the row says why it is
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
-        words: leafSays("Waiting on me"),
+        words: WAITING_ON_ME,
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows: the widget's name.
-        label: addressableLabel(target) || null,
+        label: labelOf(target) || null,
         activate: () => {
           const items = placed();
           const next = items.find((candidate) => candidate.id === id);
@@ -720,7 +766,6 @@ export function createAnnotationInventory({
       }
     }
 
-    const outline = pageOutline();
     const collected = [...groups.values()];
     const subjects = collected
       .filter((group) => !group.subject)
@@ -730,15 +775,19 @@ export function createAnnotationInventory({
     passages.clear();
     /** @type {typeof lastEntries} */
     const nextEntries = new Map();
-    const subjectOf = perTarget((target) =>
-      outlineSubjectFor(target, subjects, outline),
-    );
-    const labelOf = perTarget(addressableLabel);
+    const contextOf = perTarget(outlineContexts(subjects));
+    // Each group's place read once for the sort, and each node's climb once in it.
+    const places = new Map(collected.map((group) => [group, placeIn(group)]));
+    const order = renderedOrdering();
+    /** @param {Group} group */
+    const placeOfGroup = (group) =>
+      /** @type {ReturnType<typeof placeIn>} */ (places.get(group));
     entries = Object.freeze(
       collected
-        .sort((left, right) => readingOrder(placeIn(left), placeIn(right)))
+        .sort((left, right) =>
+          readingOrder(placeOfGroup(left), placeOfGroup(right), order),
+        )
         .map((group) => {
-          const subject = subjectOf(group.target);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
           if (group.passage) passages.set(group.key, group.passage);
@@ -749,7 +798,7 @@ export function createAnnotationInventory({
             targetId: group.target.id,
             title: labelWords(
               [
-                group.subject ? null : subject.context,
+                group.subject ? null : contextOf(group.target),
                 group.word,
                 group.subject ?? labelOf(group.target),
                 // A pointed row is named by the words it stands by, so it and the

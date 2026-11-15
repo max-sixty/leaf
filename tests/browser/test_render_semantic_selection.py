@@ -138,6 +138,60 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
+def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
+    """The picker's map names what the window shows, and a closed tab's panel shows
+    nothing, so the map reads none of the boxes in it: the browser lays the panel out
+    to answer each read, and on a page of thirty 4 MB text documents in tabs the first
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    `shownParts`). Its words take a hint once their tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two">'
+                '<p id="closed-words">Words in the closed tab.</p></lf-tab></lf-tabs>',
+            )
+        ),
+    )
+    closed = page.locator("#closed-words")
+    expect(closed).to_be_hidden()
+    page.evaluate("""() => {
+      window.closedReads = [];
+      for (const name of ['getBoundingClientRect', 'getClientRects']) {
+        const read = Element.prototype[name];
+        Element.prototype[name] = function (...args) {
+          if (this.parentElement?.closest('lf-tab[hidden]'))
+            closedReads.push(`${name} ${this.localName}`);
+          return read.apply(this, args);
+        };
+      }
+    }""")
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).not_to_have_count(0)
+    assert page.evaluate("closedReads") == []
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+
+    page.get_by_role("tab", name="Two", exact=True).click()
+    expect(closed).to_be_visible()
+    page.keyboard.press("s")
+    expect(hints).not_to_have_count(0)
+    # A target's hint stands by its upper-left corner (keyboard/hints.js, `seatHints`).
+    assert page.evaluate(
+        """() => {
+          const words = document.getElementById('closed-words').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-picker-hint')].some((hint) => {
+            const box = hint.getBoundingClientRect();
+            return Math.abs(box.top - words.top) < 40 && Math.abs(box.left - words.left) < 60;
+          });
+        }"""
+    ), "the opened tab's words took no hint"
+
+
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
@@ -448,9 +502,13 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
     page.keyboard.press(last[0])
-    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(last[0]) for code in held))
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -604,10 +662,13 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
-    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
-    tail = next(code for code in codes if len(code) > 1)
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    tail = next(code for code in held if len(code) > 1)
     page.keyboard.press(tail[0])
-    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(tail[0]) for code in held))
     continued = page.locator(
         f'.lf-target-picker-hint[data-lf-hint-code="{tail}"] .lf-binding-sequence'
     )

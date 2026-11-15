@@ -69,7 +69,7 @@ Known functional limitations and accepted visual differences in current browsers
 are recorded in [Browser support gaps](notes/browser-support.md).
 
 The first run syncs the plugin's uv environment through your configured package
-index. Render checks use the executable named by
+index. Render checks and exports use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.
@@ -148,12 +148,16 @@ that task gives it to the agent to pass on.
 
 ## Explore and extend
 
-- [How it works](https://leaf.page/how-it-works/): comments, decisions, live
-  revisions, and the widgets a page can use.
 - [Examples](https://leaf.page/examples/): proposals, editable drafts, release
   workspaces, and code reviews.
-- [Extending](https://leaf.page/extending/): choose between page-local changes,
-  reusable packages, and Leaf's shared kernel. Your agent can build a widget a
-  task needs and use it in later pages.
+- [Using a page](https://leaf.page/using/): the floating panel, threads, On Me, and
+  the keyboard and touch routes.
+- [How it works](https://leaf.page/how-it-works/): the exchange between agent and
+  page, the event log, revisions, how each status is decided, the keys' exact rules
+  and the browser runtime.
+- [Extending](https://leaf.page/extending/): the widgets a page can use, themes and
+  layouts, then the choice between page-local changes, reusable packages, and
+  Leaf's shared kernel. Your agent can build a widget a task needs and use it in
+  later pages.
 - [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
   Leaf page.

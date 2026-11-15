@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { renderedOrder } from "/runtime/shadow.js";
+import { renderedOrder, renderedOrdering } from "/runtime/shadow.js";
 import { stepFrom } from "/runtime/current-target.js";
 import { inPageOrder } from "/runtime/thread/placement.js";
 
@@ -59,6 +59,44 @@ test("a host's shadow tree comes before a child no slot takes", () => {
     assert.ok(renderedOrder(loose, innerA) > 0);
     assert.ok(renderedOrder(innerA, loose) < 0);
   }
+  main.remove();
+});
+
+// A sort of the page's places reads each climb and each child list once
+// (`renderedOrdering`), and must put every pair where `renderedOrder` does.
+test("a sort's ordering answers every pair as rendered order does", () => {
+  const { main, section, held, widget, innerA, innerB, ...rest } = page();
+  const slot = document.createElement("slot");
+  widget.shadowRoot.insertBefore(slot, innerB);
+  const slotted = document.createElement("p");
+  const loose = document.createElement("p");
+  widget.append(slotted, loose);
+  slot.name = "kept";
+  slotted.slot = "kept";
+  const fallback = document.createElement("span");
+  slot.append(fallback);
+  const words = document.createTextNode("words");
+  held.append(words);
+  const nodes = [
+    main,
+    section,
+    held,
+    words,
+    widget,
+    widget.shadowRoot,
+    innerA,
+    slot,
+    slotted,
+    fallback,
+    innerB,
+    loose,
+    rest.first,
+    rest.last,
+  ];
+  const order = renderedOrdering();
+  for (const a of nodes)
+    for (const b of nodes)
+      assert.equal(Math.sign(order(a, b)), Math.sign(renderedOrder(a, b)));
   main.remove();
 });
 

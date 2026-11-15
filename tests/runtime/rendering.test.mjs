@@ -39,6 +39,7 @@ const {
   nextFrame,
   cancelRender,
   afterScript,
+  afterOwedFrame,
   afterSettling,
   sizeObserver,
   renderingState,
@@ -181,6 +182,33 @@ test("the next frame asked for outside a pass is the one about to paint", async 
   nextFrame(() => (ran = true));
   await update();
   assert.equal(ran, true);
+});
+
+// A long task arriving on its own, such as the server's reading, while a gesture's
+// frame is still owed waits for that frame, so the gesture's result paints first.
+test("a task waiting on the frame already asked for runs once that frame has painted", async () => {
+  await update();
+  const order = [];
+  void afterOwedFrame().then(() => order.push("nothing owed"));
+  await null;
+  assert.deepEqual(order, ["nothing owed"]);
+  nextRender(() => order.push("frame"));
+  void afterOwedFrame().then(() => order.push("task"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(order, ["nothing owed"]);
+  await update();
+  assert.deepEqual(order, ["nothing owed", "frame", "task"]);
+  // A page nobody sees paints no frame to wait for.
+  nextRender(() => {});
+  Object.defineProperty(document, "hidden", { value: true, configurable: true });
+  try {
+    void afterOwedFrame().then(() => order.push("hidden"));
+    await null;
+    assert.equal(order.at(-1), "hidden");
+  } finally {
+    delete document.hidden;
+  }
+  await update();
 });
 
 test("a chain that keeps asking finishes on the next frame", async () => {

@@ -93,9 +93,7 @@ class ThreadSurface:
         """Read the chosen root before sending; page comments have no anchor."""
         parent = None
         if self.kind == "reply":
-            parent = self.messages.first.evaluate(
-                "node => node.dataset.mid ?? node.dataset.lfEvent"
-            )
+            parent = self.messages.first.evaluate("node => node.dataset.lfEvent")
             assert parent, "the chosen thread has no durable root identity"
         return {"kind": self.kind, "parent": parent, "anchor": None}
 
@@ -198,15 +196,10 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
 
     def observe(stage):
         rendered(page)
+        # A held appearance follows its finite entry motion, which the page's settling
+        # waits out. Observe geometry here, before screenshot's animation handling can
+        # move the captured region.
         wait_for_probe(page, "pageSettled")
-        # A held appearance follows its finite entry motion. Observe geometry here,
-        # before screenshot's animation handling can move the captured region.
-        page.wait_for_function(
-            """node => !node.getAnimations({subtree: true}).some(move =>
-              move.playState !== 'finished' && move.playState !== 'idle'
-                && Number.isFinite(move.effect.getComputedTiming().endTime))""",
-            arg=shown.region.element_handle(),
-        )
         # Send/open has already initiated any landing scroll. Scroll belongs to
         # the browser, and its smooth travel is not a Web Animation.
         if page.locator(PANEL_THREAD).count():

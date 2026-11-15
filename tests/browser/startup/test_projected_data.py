@@ -20,6 +20,7 @@ from render_harness import (
     LONG_PAGE,
     compare_with,
     consume_browser_errors,
+    fetch_whole_state,
     leaf_page,
     nudge,
     open_page,
@@ -307,6 +308,10 @@ customElements.define('lf-feed', class extends LeafElement {
     page.locator("#title").click(click_count=3)
     expect(draft).to_be_visible()
     expect(draft).to_have_js_property("value", "")
+    # The title's box stands under it at the full measure, over the rows, so Escape
+    # puts it away before the row is aimed at again.
+    page.keyboard.press("Escape")
+    expect(draft).to_be_hidden()
     data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
@@ -771,8 +776,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     crossed = []
 
     def older_events_with_new_data(route):
-        response = route.fetch()
-        state = response.json()
+        response, state = fetch_whole_state(route)
         if state["data"]["version"] == older["data"]["version"]:
             route.fulfill(status=response.status, json=state)
             return
@@ -1313,7 +1317,12 @@ def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         const path = new URL(url, location.href).pathname;
-        if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
+        const revision = document.querySelector('meta[name="lf-revision"]')?.content;
+        if (
+          revision === '2' &&
+          path.startsWith('/revisions/') &&
+          path.endsWith('/registry.json')
+        ) {
           window.__lfRevisionRegistryBlocked = true;
           return new Promise(resolve => {
             window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));

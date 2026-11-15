@@ -201,9 +201,11 @@ page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
 Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`. Pass work that starts now but need not delay
+`afterPresentation(() => …)`, or until they come near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Checks and tests that wait for the page wait for both.
+`deferredArrival(promise)`. Checks and tests that wait for the page wait for the work
+each has started; `page check --render` starts what `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.
@@ -471,8 +473,7 @@ and a comment's quote doesn't run across them into the author's words. Don't wri
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 A module writes `data-lf-room` where a page writes `data-room` (`page-layout.md`,
-"Space for changing text"), and `lf-choice` where it writes `choice`, so the page's
-CSS for them reaches only its own controls.
+"Space for changing text"), so the page's CSS for it reaches only its own controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

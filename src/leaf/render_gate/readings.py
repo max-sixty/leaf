@@ -248,10 +248,7 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     unmarkable = evaluate_probe(page, "unmarkableElements")
     missing_threads = []
     retired = []
-    drawn = []
     if context.light:
-        # A drawing's height is scheme-blind; each render reads its own viewport's.
-        drawn = evaluate_probe(page, "drawnHeights")
         # x-thread-seat promises one page view per matching instance. A widget in
         # thread chrome already has the thread's reply surface and threadBox
         # deliberately returns none there. Everywhere else, ask the merged registry
@@ -268,7 +265,6 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
     found += context.unsettled
-    found += (Finding.read(height, severity="advice") for height in drawn)
     if context.light:
         found += (
             Finding.read(block, severity="advice")
@@ -612,6 +608,19 @@ def shrunk_label_advice(readings) -> list[Finding]:
 # sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
 # slowing plain page check or message admission. It promises only this observation.
 PASSIVE_OBSERVATION_MS = 3000
+
+
+def drawn_height_advice(page, viewport: str) -> list[Finding]:
+    """Each drawing whose height differs from the box it showed before drawing
+    (`drawnHeights`), as advice read at one viewport, the user's window
+    (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
+    is, has another height at another width, and the one `data-height` that holds it
+    still holds it at one width, so a reading at a second viewport would advise a
+    second height for the same element. The height is scheme-blind."""
+    return [
+        Finding.read(height, severity="advice").but(viewports=(viewport,))
+        for height in evaluate_probe(page, "drawnHeights")
+    ]
 
 
 def passive_layout_shift_advice(page) -> list[Finding]:

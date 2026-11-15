@@ -60,6 +60,7 @@ const browserGlobals = Object.fromEntries(
     "DOMPoint",
     "DOMRect",
     "Document",
+    "DocumentTimeline",
     "Element",
     "ErrorEvent",
     "Event",
@@ -1523,7 +1524,7 @@ export default [
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: ["dev/leaf_dev/commands/verify_site_browser.js", "dev/leaf_dev/painted.js"],
+    files: ["dev/leaf_dev/commands/site/verify_browser.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1836,6 +1837,11 @@ export default [
   {
     files: ["src/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
+  },
+  {
+    // The script an export draws its page with (`exporting.static_document`).
+    files: ["src/leaf/static-export.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {
     // Properties the layer and its packages reach only through their owner. A file

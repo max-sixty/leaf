@@ -23,11 +23,10 @@ Before reading the diff, invoke `/developing-leaf` with the Skill tool and read 
 names them). Their rules are the architecture the verdict checks, so a review that has
 not read them can't tell a seam from a simplification.
 
-Apply `/developing-leaf`'s **Weigh what a change adds** and `AGENTS.md`'s
-**Stage** and **Fix the underlying issue** sections to the verdict; most of Tend's own
-pull requests land on this review alone. Once a change moves Leaf toward a coherent
-architecture, its claimed path works and what it adds is worth keeping, the review
-is done. Reserve findings for architectural seams, cross-runtime invariants, public
+Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
+issue** to the verdict; most of Tend's own pull requests land on this review alone.
+Once a change moves Leaf toward a coherent architecture, its claimed path works and
+what it adds is worth keeping, the review is done. Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions anywhere the change reaches, additions that cost more
 than they buy, or a central claim or test that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
@@ -276,8 +275,9 @@ Each nightly run, scan the
 [Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
 [OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
-[Codex releases](https://github.com/openai/codex/releases), and
-[Codex product changelog](https://developers.openai.com/codex/changelog/).
+[Codex releases](https://github.com/openai/codex/releases),
+[Codex product changelog](https://developers.openai.com/codex/changelog/), and
+[Pi releases](https://github.com/earendil-works/pi/releases).
 Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. Report a source that cannot be read in the
 run summary rather than treating it as having no changes. Search open and closed
@@ -329,15 +329,42 @@ qualifies, keep the result in the run summary; do not post a digest.
 
 ## Nightly: regular maintenance
 
-In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each file
+In the rolling survey, apply `AGENTS.md`'s "Regular maintenance" to each file
 you review. Propose a removal that takes a feature away in an issue for the
 maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
+
+## Review-runs: benchmark costs that grow
+
+Root `AGENTS.md`, **Responsiveness**, sets how fast each cost may grow with the page,
+and the daily scheduled `ci` run's `bench` job measures those costs. Nothing passes or
+fails on its readings (`tests/AGENTS.md`, **Results do not depend on execution
+speed**), because a CI runner's speed varies from run to run and no single threshold
+separates a regression from a slow runner. So this review weighs the readings in place
+of a cutoff.
+
+Read the report of the latest scheduled run (`gh run list -w ci -e schedule`). Its
+`bench-report-*` artifact holds the browser, documents and server tables, each reading
+by size with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
+`dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
+at 64 sections.
+
+Judge from several runs whether a cost grows with the page faster than that rule
+allows, or rises across runs at the same size, by more than the runner's noise
+explains. The table marks `!` beside each exponent above its reading's `limit`.
+The header of `dev/leaf_dev/commands/bench.py` says which readings a busy runner
+stretches; an exponent compares sizes within one run, so a slow runner moves it less
+than the readings themselves. Where a cost grows, open an issue that names the reading, its
+values at each size, the runs compared, and the commits between the last run that read
+it at its earlier level and the first that read it higher. Where an open issue already
+tracks that cost, add only what it lacks, and leave one labelled `backlog` alone
+(**Leave backlog issues to the maintainer**). Say in the run summary which runs you
+compared, whether or not anything grew.
 
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
 `test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
 runs either moves to `tests/journeys/` or gets faster; a journey within the browser
 budget in both moves to `tests/browser/` when its boundary is one page. A single
 reading moves nothing, since one run's time includes contention. Open one pull
@@ -354,11 +381,11 @@ run report.
 Sweep one area for capabilities implemented more than once, taking the area by ISO
 week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
 and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
-`tests/` and `worker/`. Load `/developing-leaf`. Copies seldom share a name or a
-directory, so list the questions the area's helpers, constants, selectors, style
-rules and inline checks answer, and search the whole tree for other answers to each,
-as its **What it repeats** says. Consolidate each set into one home with every caller
-moved, in one pull request for the area; leave a set another open pull request is
+`tests/` and `worker/`. Copies seldom share a name or a directory, so list the
+questions the area's helpers, constants, selectors, style rules and inline checks
+answer, and search the whole tree for other answers to each, as `AGENTS.md`'s **What
+it repeats** says. Consolidate each set into one home with every caller moved, in one
+pull request for the area; leave a set another open pull request is
 changing to a later sweep. In the description, name each copy's introducing pull
 request (`git log -S`), so the copies added since the area's last sweep show what
 review let through.

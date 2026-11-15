@@ -380,6 +380,14 @@ graph LR
 </pre></lf-diagram>
 """,
 )
+# A drawing that can't narrow to a desktop column: a row of six calls side by side,
+# named by identifiers no wrapping shortens, in a top-down layout, which Pele doesn't
+# turn. Where a drawing still outgrows its box, it scrolls there.
+FAN_OUT = """\
+flowchart TD
+  Gate[handle_request] --> A[read_session_cookie] &amp; B[check_request_origin] &amp; C[verify_signed_token]
+  Gate --> D[load_session_record] &amp; E[apply_rate_limit] &amp; F[write_audit_entry]
+"""
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
 # against 720 — and a board beside it held to `wide` by its own `data-width`, so what the
 # assertions turn on is the width each declares rather than that both are widgets.
@@ -404,6 +412,16 @@ graph LR
 </lf-board>
 """,
 )
+# A drawing no layout fits in a 760px window, so its box scrolls and takes a tab stop of
+# its own.
+SCROLLING_DIAGRAM_PAGE = leaf_page(
+    "scrolling diagram",
+    f"""
+<h1 id="t">Calls</h1>
+<lf-diagram id="flow"><pre>
+{FAN_OUT}</pre></lf-diagram>
+""",
+)
 # What a diagram is doing with the width it was given, beside what the board on the same
 # page is doing with the width it was given: the drawing's own size, the box around it,
 # and whether that box had to scroll. Whether the page did is `root_overflow`'s.
@@ -414,13 +432,13 @@ DIAGRAM_ROOM = """() => {
     const main = document.querySelector('main'), ms = getComputedStyle(main);
     // The room an available block takes: the shell's width less a gutter each side.
     const room = parseFloat(ms.getPropertyValue('--lf-shell-width'))
-        - 2 * parseFloat(ms.getPropertyValue('--col-pad'));
+        - 2 * parseFloat(ms.getPropertyValue('--lf-col-pad'));
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,
              room,
              wide: parseFloat(getComputedStyle(document.body)
-                       .getPropertyValue('--wide')),
+                       .getPropertyValue('--lf-wide')),
              board: board.getBoundingClientRect().width,
              column: main.querySelector('h1').getBoundingClientRect().width,
              scrolls: holder.scrollWidth > holder.clientWidth };
@@ -462,7 +480,7 @@ CHART_PAGE = leaf_page(
   ariaLabel: "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17",
   fx: {label: null},
   y: {grid: true, label: "merged"},
-  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  color: {legend: true, range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   marks: [
     Plot.barY(
       [["apps", [12, 19, 14]], ["infra", [7, 11, 17]]].flatMap(([team, row]) =>
@@ -484,7 +502,7 @@ CHART_PAGE = leaf_page(
   marks: [
     Plot.barX(
       [{area: "platform infrastructure", open: 42}, {area: "billing", open: 19}],
-      {x: "open", y: "area", fill: "var(--series-1)"},
+      {x: "open", y: "area", fill: "var(--lf-series-1)"},
     ),
   ],
 }""",
@@ -493,7 +511,7 @@ CHART_PAGE = leaf_page(
                 "c-stack",
                 """{
   ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
-  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  color: {range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   y: {tickFormat: (hours) => `${hours}h`},
   marks: [
     Plot.barY(
@@ -520,7 +538,7 @@ CHART_PAGE = leaf_page(
         {week: "2026-06-08", hours: 26},
         {week: "2026-06-15", hours: 19},
       ],
-      {x: "week", y: "hours", stroke: "var(--series-1)"},
+      {x: "week", y: "hours", stroke: "var(--lf-series-1)"},
     ),
   ],
 }""",
@@ -554,7 +572,7 @@ CHART_MARKS = """(id) => {
     const probe = document.createElement('span');
     document.body.append(probe);
     const tokens = [1, 2].map((n) => {
-        probe.style.color = `var(--series-${n})`;
+        probe.style.color = `var(--lf-series-${n})`;
         return getComputedStyle(probe).color;
     });
     probe.remove();
@@ -600,7 +618,7 @@ MESSAGE_CHART = """{
   marks: [
     Plot.barY(
       [{quarter: "Q1", merged: 12}, {quarter: "Q2", merged: 19}],
-      {x: "quarter", y: "merged", fill: "var(--series-1)"},
+      {x: "quarter", y: "merged", fill: "var(--lf-series-1)"},
     ),
   ],
 }"""
@@ -616,7 +634,7 @@ CHART_IN_A_MESSAGE_PAGE = leaf_page(
 # so this is the ordinary case rather than a corner.
 DIAGRAM_AND_RAIL_PAGE = leaf_page(
     "diagram and rail",
-    """
+    f"""
 <h1 id="t">Sessions</h1>
 <lf-suggestion id="sug-copy">
   <lf-old><p id="old-line">Refill every feeder each morning.</p></lf-old>
@@ -629,14 +647,7 @@ graph LR
   F --> H
 </pre></lf-diagram>
 <lf-diagram id="flow"><pre>
-graph LR
-  R[request] --> C{cookie valid?}
-  C -->|yes| S[read session from Redis]
-  S -->|hit| H[handle]
-  S -->|miss/outage| F[verify signed fallback]
-  F --> H
-  C -->|no| L[login]
-</pre></lf-diagram>
+{FAN_OUT}</pre></lf-diagram>
 """,
 )
 
@@ -1038,7 +1049,7 @@ graph LR
 ).replace(
     "</head>",
     "<style>.nested-frame > .nested-frame { --lf-block-frame: 1; "
-    "border-inline-start: 1px solid var(--rule); padding-inline-start: 1rem; }"
+    "border-inline-start: 1px solid var(--lf-rule); padding-inline-start: 1rem; }"
     "</style></head>",
 )
 
@@ -1125,31 +1136,28 @@ RAIL_BANDS = """() => {
 # A drawing inside a tab panel: the panel's card is the frame a wide exhibit may not
 # leave, the graph is drawn wider than the frame's own inset, and no room the page has
 # can be given to it — so scrolling is the layer's honest answer. Beside it a line of
-# code short enough to fit, which must carry no mark. The cut box is a drawing on purpose: a cut line of code announces itself by being a
-# line, where a graph that continues past its edge looks exactly like a graph that ends
-# there.
+# code short enough to fit, which must carry no mark. The cut box is a drawing on
+# purpose: a cut line of code announces itself by being a line, where a graph that
+# continues past its edge looks exactly like a graph that ends there.
 CUT_BOXES_PAGE = leaf_page(
     "cut boxes",
-    """
+    f"""
 <h1 id="t">Flow</h1>
 <lf-tabs id="views">
   <lf-tab id="flow-tab" label="Behaviour">
     <lf-diagram id="flow"><pre>
-graph LR
-  R[a request arrives at the edge] --> C{is the session cookie still valid?}
-  C -->|yes| S[read the session record from Redis]
-  S -->|hit| H[hand the request to the application]
-  C -->|no| L[send the user to the login page]
-</pre></lf-diagram>
+{FAN_OUT}</pre></lf-diagram>
   </lf-tab>
 </lf-tabs>
 <pre id="short">one short line</pre>
 """,
 )
 # A five-step plan drawn left to right, the shape three agent-written pages gave their
-# plan, and the same five steps drawn top-down beside it: the chain runs past the room a
-# 1440px window gives it, and the stack fits the column, so it is the control a shaded
-# edge must not appear on.
+# plan, and the same five steps drawn top-down beside it: laid out left to right the
+# chain runs past the room a 1440px window gives it, and the stack fits the column. The
+# row of calls still outgrows the column once laid out for it, so it is the drawing a
+# fade marks, and the stack is the control a fade must not appear on. The two branches
+# side by side fit a desktop column as written and a phone's only drawn compactly.
 PLAN_STEPS = """\
   A[1. Snapshot the primary and restore it on the new cluster] --> B[2. Start logical replication from the old primary]
   B --> C[3. Verify row counts and checksums on every table]
@@ -1160,12 +1168,20 @@ LONG_CHAIN_PAGE = leaf_page(
     "long chain",
     f"""
 <h1 id="t">Plan</h1>
+<lf-diagram id="calls"><pre>
+{FAN_OUT}</pre></lf-diagram>
 <lf-diagram id="chain"><pre>
 flowchart LR
 {PLAN_STEPS}</pre></lf-diagram>
 <lf-diagram id="stack"><pre>
 flowchart TD
 {PLAN_STEPS}</pre></lf-diagram>
+<lf-diagram id="branches"><pre>
+flowchart TD
+  W[Agent writes the page] --> C{{Does the markup pass the check?}}
+  C -->|yes| D[Browser draws the widgets and the page]
+  C -->|no| F[Agent fixes the markup and tries again]
+</pre></lf-diagram>
 """,
 )
 

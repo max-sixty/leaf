@@ -19,6 +19,7 @@ import ssl
 import tarfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -30,19 +31,20 @@ from pathlib import Path
 from tempfile import TemporaryFile
 from types import SimpleNamespace
 from typing import BinaryIO
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
+from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
@@ -54,6 +56,13 @@ from leaf.state import STRING, Record, described, object_schema, page_key, state
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
 UPLOADS = 8
+
+
+class PageStoreRefused(OSError):
+    """A call the page store answered with an error, carrying the store's reason
+    (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
+    records as its detail. An `OSError`, as urllib's own errors are, so callers
+    handle it as they handle the store being unreachable."""
 
 
 @contextmanager
@@ -76,7 +85,12 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
     )
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate) if certificate else None
-    with urllib.request.urlopen(request, context=context, timeout=60) as response:
+    try:
+        response = urllib.request.urlopen(request, context=context, timeout=60)
+    except urllib.error.HTTPError as error:
+        reason = error.read().decode(errors="replace").strip()
+        raise PageStoreRefused(f"{path} answered {error.code}: {reason}") from error
+    with response:
         yield response
 
 
@@ -112,10 +126,12 @@ class _BlobSet:
             return self.buffer.read(length)
 
 
-def restore(site_root: Path) -> None:
-    """Restore before serving, from the snapshot contract in worker/src/storage.ts."""
+def restore(site_root: Path) -> bool:
+    """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
+    say whether a page store backs the site, as the container then declares its
+    commits are published there (`PUBLISHER`)."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+        return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
 
     started = time.monotonic()
@@ -179,7 +195,7 @@ def restore(site_root: Path) -> None:
             chunks=len(blobs.offsets),
             bytes=sum(length for _, length in blobs.offsets.values()),
         )
-    os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
+    return True
 
 
 def _upload(blobs: _BlobSet, digest: str) -> None:
@@ -248,41 +264,22 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    registry = snapshot.context.registry
-    assert registry is not None
     paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
-    for source_name, reading in snapshot.context.data["sources"].items():
-        value = reading.get("value")
-        spec = deferred_records(value, reading["contract"], registry)
-        if spec is not None:
-            paths.update(
-                "api/deferred?"
-                + urlencode(
-                    {
-                        "source": source_name,
-                        "source_revision": reading["revision"],
-                        "key": record[spec["key"]],
-                    }
-                )
-                for record in value[spec["items"]]
-                if spec["deferred"] in record
-            )
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
-        name = snapshot.revision_names[item]
-        paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: under the identity of
-        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
-        served = (
-            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
-        )
+        paths.add(f"revisions/{snapshot.revision_names[item]}")
+        # Where the container serves the revision's resources, which the revisions
+        # that differ only in their document share. Media answers at the page root
+        # (below), never there.
+        served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
-            paths.add(f"{served}{logical}")
+            if not logical.startswith(f"/{MEDIA_DIR}/"):
+                paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )
@@ -363,6 +360,11 @@ PUBLISHED = Record(
     ),
     since=13,
 )
+
+
+# The page commit provider (`leaf.service`) a container declares once it has restored
+# its pages, so every transaction its leaf processes finish publishes its record.
+PUBLISHER = "leaf_website.storage:publish"
 
 
 def publish(page: PageTransaction) -> None:

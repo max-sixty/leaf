@@ -67,10 +67,11 @@ Fix it and post again. Where Leaf has no browser, the failure reaches you instea
 `error` event when the user opens the thread; answer with a corrected reply.
 
 A thread shows in a narrow card or panel, so a paragraph that reads fine in chat is a
-wall there. Say what changed or where to look in a sentence or two, give each further
-point a short paragraph or item of its own, and put a question you ask on its own
-line; the page carries the evidence. Record a decision, result, or deferred work on
-the page and link it from the reply with a fragment link such as
+wall there. The user should take in at a glance what a message tells them and what it
+asks of them. A message is generally a sentence or two; where it has several points,
+such as the options a question weighs, give each a short paragraph or item, and a
+question a line of its own. The page carries the evidence. Record a decision, result,
+or deferred work on the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
 opens any tab or group hiding it. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
@@ -258,7 +259,10 @@ summarize the earlier discussion as part of answering new input, without waiting
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
 with `leaf page state <page> <message>` and choose a contiguous range that fits the
 topic, starting and ending on spoken messages rather than reactions. Leave out
-messages whose wording still matters to the current exchange. Summarize the range's
+messages whose wording still matters to the current exchange. No message but the
+thread's first may stay unsummarized above any summary. Leaf refuses a range that
+would leave one there, a fold without prose included, and names a wider range it
+accepts; write that summary to cover the added messages too. Summarize the range's
 decisions, reasoning, and open questions in Markdown prose, and put its outcomes in
 the page too:
 

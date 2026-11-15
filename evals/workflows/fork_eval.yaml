@@ -10,7 +10,9 @@
 # shares its words with its positive case. A stale label's `edit` is the words its
 # fix must remove, or null where the turn-end check's prompt asks for no edit
 # (skills/leaf/references/turn-end-check.md). A reply case judges the working line
-# the fork posted as it handed the message to the session.
+# the fork posted as it handed the message to the session, and its label `work`
+# says who should do the work: `take` where a fork of the session could do it
+# beside the session without touching or awaiting what the session is doing.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -232,6 +234,21 @@ conversations:
         59	        # Fill the cache with the 10,000 most frequent queries from yesterday's log.
         60	        for query in await top_queries(10_000):
         61	            self._store[query.key] = await self._search(query)
+  # The claude-code journey's start (`leaf-dev journey run claude-code`): the session
+  # serves the user's page and handles their comments on it by revising its source.
+  board:
+    - user: >-
+        I wrote a Leaf page at {page}. Serve it so I can review it in my browser, and
+        handle the comments I leave on it.
+    - tool: Bash
+      input:
+        command: leaf server start {page} && leaf page open {page}
+        description: Start the Leaf server and open the page
+      result: '{"url": "http://127.0.0.1:57477/?t=8YBmQvVWW-rx16WNmxen0Q", "page": "{page}"}'
+    - assistant: >-
+        Your Release triage page is being served at http://127.0.0.1:57477/?t=8YBmQvVWW-rx16WNmxen0Q.
+        Each comment you leave comes back to this session, and I'll answer it and
+        revise the page.
 
 # The agent's replies more than one case ends a turn with.
 replies:
@@ -315,6 +332,25 @@ cases:
   ask-step:
     fork: turn-end
     page: turn-end-check/pages/cache-chosen.html
+    # A closed ask on another subject, which the step doesn't follow up.
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T08:40:00+00:00"
+        title: Which query log to replay
+        obligation: true
+        text: >-
+          Should the comparison replay last week's query log, about 1.2 million
+          queries, or the last month's, about 5 million, which takes four times as
+          long?
+      - kind: resolve
+        author: user
+        parent: q1
+        id: r1
+        ts: "2026-11-03T08:45:00+00:00"
     conversation:
       - from: cache
       - *cache-reply
@@ -324,6 +360,86 @@ cases:
       expect:
         - kind: question
           words: *flag-step
+          thread: null
+    assert:
+      - *items
+  ask-follow-up:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:02:00+00:00"
+        title: Turning on the LRU cache in staging
+        obligation: true
+        text: >-
+          Setting staging flags needs your ops login, which this session doesn't
+          have. Run `./ops/flags set search.cache lru --env staging` from your
+          terminal.
+      - kind: resolve
+        author: user
+        parent: q1
+        id: r1
+        ts: "2026-11-03T09:03:00+00:00"
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Turn the LRU cache on in staging.
+      - tool: Bash
+        input:
+          command: ./ops/flags set search.cache lru --env staging
+          description: Turn the LRU cache on in staging
+        result: "error: staging flags need an ops token (OPS_TOKEN unset); run `ops login` first"
+        error: true
+      - tool: Bash
+        input:
+          command: >-
+            leaf thread create {page} --obligation --title "Turning on the LRU cache
+            in staging" --text "Setting staging flags needs your ops login, which this
+            session doesn't have. Run `./ops/flags set search.cache lru --env
+            staging` from your terminal."
+          description: Ask on the page for the staging flag
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Turning on the LRU cache in staging", "obligation": true}'
+      - assistant: Setting staging flags needs your ops login, so I've asked you on the page to run the command from your terminal.
+      - user: |-
+          <task-notification>
+          <summary>Leaf: new input</summary>
+          </task-notification>
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
+          "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
+          staging flags needs your ops login, which this session doesn't have. Run
+          `./ops/flags set search.cache lru --env staging` from your terminal."}]}],
+          "handling": {"h1": "The user resolved the thread."}, "events": [{"kind":
+          "resolve", "parent": "q1", "author": "user", "id": "r1", "handling":
+          ["h1"]}]}]}
+      - tool: Bash
+        input:
+          command: ./ops/flags get search.cache --all-envs
+          description: Check where the cache flag is set
+        result: |-
+          search.cache=lru (dev, set 2026-11-03T09:02Z)
+          search.cache unset (staging)
+      - assistant: |-
+          You closed the thread, but staging still doesn't have the LRU cache: the flag went to dev at 09:02, not staging. Run this from your terminal, with `--env staging`:
+
+          ```
+          ./ops/flags set search.cache lru --env staging
+          ```
+
+          I'll check staging once you have.
+    labels:
+      expect:
+        - kind: question
+          words: *flag-step
+          thread: q1
     assert:
       - *items
   ask-step-done:
@@ -569,8 +685,8 @@ cases:
       - *items
 
   why-ci:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -584,11 +700,13 @@ cases:
         anchor:
           section: ft-lede
           quote: fails in about 1 run in 30 on CI and never on a laptop
+    labels:
+      work: take
     assert:
       - *line
   meaning:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -602,11 +720,13 @@ cases:
         anchor:
           section: ft-cause-body
           quote: launches the warmup as a background task
+    labels:
+      work: take
     assert:
       - *line
   work-request:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -620,11 +740,13 @@ cases:
         anchor:
           section: ft-cause
           quote: Cause
+    labels:
+      work: hand_over
     assert:
       - *line
   user-decides:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     log:
       - kind: comment
         author: agent
@@ -660,11 +782,13 @@ cases:
         parent: q1
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
+    labels:
+      work: hand_over
     assert:
       - *line
   still-running:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -690,11 +814,13 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
+    labels:
+      work: hand_over
     assert:
       - *line
   work-out:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -708,11 +834,13 @@ cases:
         anchor:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
+    labels:
+      work: take
     assert:
       - *line
   still-deciding:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -731,5 +859,113 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
+    labels:
+      work: hand_over
+    assert:
+      - *line
+  # The journey's `fork-lookup` question, after the session recorded a passed release
+  # in the page's source and ended its turn.
+  source-edited:
+    fork: line
+    page: line-fork/pages/release-board.html
+    conversation:
+      - from: board
+      - &leaf-input
+        user: |-
+          <task-notification>
+          <summary>Leaf: new input</summary>
+          </task-notification>
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
+          "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
+          "agent", "text": "recording that release bf40b427 passed its deployment
+          checks on the board", "ephemeral": true}]}], "handling": {"h1": "Do the
+          work, put the result on the page, and answer with `leaf thread reply
+          <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or
+          two, linking the section that shows it."}, "events": [{"kind": "comment",
+          "author": "user", "id": "r1", "text": "Release bf40b427 passed its
+          deployment checks. Record that on the board, and tell me when it's done.",
+          "handling": ["h1"], "answer": {"kind": "reply", "parent": "r1", "ref":
+          "d1:0:r1"}}]}]}
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: |-
+            <dd><strong>2 days</strong></dd>
+                      </dl>
+          new_string: |-
+            <dd><strong>2 days</strong></dd>
+                      </dl>
+                      <dl id="count-deploy-checks" class="metric">
+                        <dt>deployment checks, release <code>bf40b427</code></dt>
+                        <dd><strong>passed</strong></dd>
+                      </dl>
+        result: The file {page}/index.html has been updated successfully.
+      - tool: Bash
+        input:
+          command: |-
+            cat > reply.md <<'EOF'
+            Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).
+
+            The cards and columns are unchanged.
+            EOF
+            leaf thread reply d1:0:r1 --done --file reply.md
+          description: Post the reply, which also checks and publishes the edit
+        result: '{"kind": "reply", "author": "agent", "parent": "r1", "id": "r3", "revision": 2, "text": "Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).\n\nThe cards and columns are unchanged.\n"}'
+      - assistant: >-
+          I've recorded on the board that release bf40b427 passed its deployment
+          checks: a new tile in the status panel, beside the countdown to the
+          Thursday cut. I didn't change any cards or columns. The update is live, and
+          I've answered your comment on the page.
+    thread: w1
+    waiting: &count-cards
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: How many cards does this page's source hold? Count them in the file.
+        anchor:
+          section: rt-lede
+    labels:
+      work: take
+    assert:
+      - *line
+  # The same question while the session is part way through a change to the page's
+  # source that changes the count.
+  source-editing:
+    fork: line
+    page: line-fork/pages/release-board.html
+    conversation:
+      - from: board
+      - *leaf-input
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "r1", "title": "Splitting the webhook retries card", "anchor":
+          {"section": "card-retry"}, "resolved": null, "messages": [{"id": "r2",
+          "author": "agent", "text": "splitting the webhook retries card into one per
+          partner", "ephemeral": true}]}], "handling": {"h1": "Do the work, put the
+          result on the page, and answer with `leaf thread reply <answer.ref>
+          <declaration> --file reply.md`: what changed, in a sentence or two, linking
+          the section that shows it."}, "events": [{"kind": "comment", "author":
+          "user", "id": "r1", "text": "Split this card into one card per partner that
+          rate limits us: Acme, Globex and Initech.", "anchor": {"section":
+          "card-retry"}, "handling": ["h1"], "answer": {"kind": "reply", "parent":
+          "r1", "ref": "d1:0:r1"}}]}]}
+      - assistant: Splitting the webhook retries card into three, one per partner, starting with Acme.
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: <lf-card id="card-retry">Webhook retries ignore Retry-After</lf-card>
+          new_string: <lf-card id="card-retry-acme">Acme rate limits our webhook retries, which ignore Retry-After</lf-card>
+        result: The file {page}/index.html has been updated successfully.
+    thread: w1
+    waiting: *count-cards
+    labels:
+      work: hand_over
     assert:
       - *line

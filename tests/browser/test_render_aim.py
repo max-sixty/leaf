@@ -396,7 +396,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    assert expanded["width"] > compact["width"]
+    # It opens at the full measure, so it grows only downward as words arrive.
+    assert expanded["width"] == compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -869,12 +870,13 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
 
 
-def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
-    """A comment box sizes to its words, so each key past its least width widens it;
-    the box stands at its new width in the frame the key lands, as a textarea sized to
-    its words does (box-motion.js, "Whose change it is"). Each key used to start a
-    tween that trailed the caret, and the field's cut hid most of the glyph just
-    typed until the tween caught up."""
+def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
+    """A comment box opens at the full measure and grows only downward, so a key that
+    takes it a new line stands it at its new height in the frame the key lands, as a
+    textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
+    used to start a tween that trailed the caret, and the field's cut hid what was
+    just typed until the tween caught up. A line taken at the window's foot is
+    `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
         serve(
@@ -887,42 +889,37 @@ def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1000, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page)
+    open_compact_comment(page, "The first line")
+    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    least = box.bounding_box()["width"]
-    # Words until the box has begun to widen past its least width.
-    for word in "the window is too short for what we see in practice".split():
-        page.keyboard.type(f"{word} ")
-        rendered(page)
-        if box.bounding_box()["width"] > least + 0.5:
-            break
-    else:
-        pytest.fail(f"the box never widened past {least}px")
-    wide = box.bounding_box()["width"]
+    tall = box.bounding_box()["height"]
     page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("m")
     page.wait_for_function(
-        "wide => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().width > wide + 0.5",
-        arg=wide,
+        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height > tall + 0.5",
+        arg=tall,
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
     drawn = page.evaluate(
-        """() => {
+        r"""() => {
           const ground = document.querySelector('.lf-fab-ground');
-          const right = /inset\\(([^r)]*)/
+          const [top, right = top, bottom = top] = /inset\(([^r)]*)/
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
-            .trim().split(/\\s+/).map(Number.parseFloat)[1];
+            .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
           return {
-            right: ground.getBoundingClientRect().right - right + 1,
+            bottom: ground.getBoundingClientRect().bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    assert drawn["right"] == pytest.approx(
-        box.bounding_box()["x"] + box.bounding_box()["width"], abs=0.5
+    stands = box.bounding_box()
+    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
+        drawn,
+        stands,
     )
     assert drawn["cut"] in ("", "none"), drawn
 
@@ -1023,6 +1020,10 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
           return field.scrollHeight > field.clientHeight;
         }"""
     )
+    # The field's growth to its cap queues one more reveal of the caret at the end,
+    # which runs at the field's next scroll; let it run before scrolling the field to
+    # its top, or it scrolls the field back down and the wheel below moves the page.
+    rendered(page)
     box = bar.bounding_box()
     ceiling = page.evaluate(SHOWN_TOP)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
@@ -1939,10 +1940,10 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
-    # on nothing where there is none (claimPress), so the hand and the arrow are those two
-    # states, read where the user's pointer is, since the aim declares the cursor on body
-    # and the promise is only kept if it arrives at the glyphs. `auto` is the resting
-    # state: unarmed, the browser draws an I-beam over words.
+    # on nothing where there is none (claimPress), so the hand says it takes one, read
+    # where the user's pointer is, since the promise is only kept if it arrives at the
+    # glyphs. Where a press takes nothing the page keeps its own cursor (chrome.css).
+    # `auto` is the resting state: unarmed, the browser draws an I-beam over words.
     with subtests.test(case="the cursor says whether a press would take anything"):
         at_pointer = """([x, y]) =>
             getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -1967,7 +1968,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
 
         page.mouse.move(*in_gap)
         expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-        assert page.evaluate(at_pointer, in_gap) == "default", (
+        assert page.evaluate(at_pointer, in_gap) == "auto", (
             "the aim had nothing to take and the hand promised a press anyway"
         )
 
@@ -2009,6 +2010,27 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         }""",
             arg=first,
         )
+        page.keyboard.up("Alt")
+
+    # A mouse that leaves the window stands over nothing a press could take, though the
+    # key is still down, so the box and the hand come off with it.
+    with subtests.test(case="a pointer leaving the window takes the promise with it"):
+        on_item = page.locator("#p2").evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.left + 20, r.top + r.height / 2]; }"
+        )
+        page.mouse.move(*on_item)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        expect(page.locator("[data-lf-over-item]")).to_have_count(1)
+        page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("
+            "'pointerout', {bubbles: true, composed: true, pointerType: 'mouse',"
+            " relatedTarget: null}))",
+            on_item,
+        )
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        expect(page.locator("[data-lf-over-item]")).to_have_count(0)
         page.keyboard.up("Alt")
 
     # What ⌥ arms is the page. An aim that reached into the chrome would take the panel
@@ -3268,7 +3290,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--accent")
+    accent = token_colour(page, "--lf-accent")
     assert_drawn_in(page.locator("#outer-surface"), accent, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
@@ -3318,7 +3340,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert_drawn_in(inner, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(inner, token_colour(page, "--lf-mark-contour-ink"), 1.5)
 
 
 def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
@@ -3490,13 +3512,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     surface.click(position={"x": 20, "y": 20})
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
 
@@ -3515,7 +3537,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -3644,7 +3666,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink-2); }
   </style>""",
             )
         ),
@@ -3652,7 +3674,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     resized(page, 1100, 900)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
 
     def boundary(node, brackets):
@@ -3706,7 +3728,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="field" type="text" value="Ada"></p>
+<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3759,7 +3781,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3772,7 +3794,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     page.locator("#component").evaluate(
         """host => {
           host.attachShadow({mode:'open'}).innerHTML = `<style>
-            button:focus-visible { outline:var(--focus-ring); outline-offset:3px; }
+            button:focus-visible { outline:var(--lf-focus-ring); outline-offset:3px; }
           </style><button id="private">Private control</button>`;
         }"""
     )
@@ -3805,8 +3827,8 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
@@ -4263,7 +4285,7 @@ HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
     "<h2 id='head' style='position: sticky; top: var(--lf-safe-top); height: 40px;"
-    " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
+    " margin: 0; background: var(--lf-paper)'>Head</h2><p id='p0'>",
 ).replace("</p>\n</main>", "</p></section>\n</main>", 1)
 
 
@@ -4518,9 +4540,9 @@ OFF_FLOW_PAGE = leaf_page(
     "off flow",
     "<h1 id='t'>Off flow</h1>"
     "<nav id='nav' style='position: sticky; top: var(--lf-top);"
-    " background: var(--paper)'>Contents</nav>"
+    " background: var(--lf-paper)'>Contents</nav>"
     "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
-    " background: var(--paper)'>A fixed bar.</div>"
+    " background: var(--lf-paper)'>A fixed bar.</div>"
     "<div id='pop' popover='manual' style='top: 120px; left: 40px; margin: 0'>"
     "<p id='inpop'>Inside the popover.</p></div>"
     + "".join(

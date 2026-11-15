@@ -15,7 +15,7 @@
 
       .alert-board {
         display: grid;
-        gap: var(--sp-4);
+        gap: var(--lf-sp-4);
         min-width: 0;
         container: alert-board / inline-size;
       }
@@ -23,12 +23,12 @@
       .alert-totals {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-        gap: var(--sp-2) var(--sp-3);
+        gap: var(--lf-sp-2) var(--lf-sp-3);
         margin: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
       }
 
       .alert-total {
@@ -38,48 +38,48 @@
       }
 
       .alert-total dt {
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
       .alert-total dd {
         margin: 0;
-        color: var(--muted);
-        font: var(--t-6) / 1.3 var(--sans);
+        color: var(--lf-muted);
+        font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
       .alert-total strong {
-        color: var(--ink);
-        font-size: var(--t-4);
+        color: var(--lf-ink);
+        font-size: var(--lf-t-4);
       }
 
       .alert-total[data-tone="danger"] strong {
-        color: var(--danger-ink);
+        color: var(--lf-danger-ink);
       }
 
       .alert-total[data-tone="ok"] strong {
-        color: var(--ok-ink);
+        color: var(--lf-ok-ink);
       }
 
       .alert-pair {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        gap: var(--sp-2);
+        gap: var(--lf-sp-2);
       }
 
       .alert-evidence,
       .alert-settings {
         min-width: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
       }
 
       .alert-settings {
         display: grid;
         align-content: start;
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
       }
 
       @container alert-board (min-width: 40rem) {
@@ -93,7 +93,7 @@
 
         .alert-pair {
           grid-template-columns: minmax(0, 3fr) minmax(12rem, 2fr);
-          gap: var(--sp-3);
+          gap: var(--lf-sp-3);
         }
       }
 
@@ -102,62 +102,62 @@
         flex-wrap: wrap;
         align-items: baseline;
         justify-content: space-between;
-        gap: var(--sp-1) var(--sp-3);
+        gap: var(--lf-sp-1) var(--lf-sp-3);
       }
 
       .alert-head h3 {
         margin: 0;
-        font-size: var(--t-5);
+        font-size: var(--lf-t-5);
       }
 
       .alert-today,
       .alert-what,
       .alert-note,
       .alert-owner {
-        color: var(--ink-2);
-        font: var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.4 var(--lf-sans);
       }
 
       .alert-what {
-        margin: var(--sp-1) 0 var(--sp-2);
+        margin: var(--lf-sp-1) 0 var(--lf-sp-2);
       }
 
       .alert-note,
       .alert-owner {
-        margin: var(--sp-2) 0 0;
+        margin: var(--lf-sp-2) 0 0;
       }
 
       .alert-replay {
         width: 100%;
         margin: 0;
-        font-size: var(--t-6);
+        font-size: var(--lf-t-6);
       }
 
       .alert-replay tr.chosen > * {
-        background: var(--accent-tint);
+        background: var(--lf-accent-tint);
         font-weight: 650;
       }
 
       .alert-outcome {
-        margin: var(--sp-2) 0 0;
-        padding: var(--sp-1) var(--sp-2);
-        border-radius: var(--r);
-        font: 600 var(--t-6) / 1.4 var(--sans);
+        margin: var(--lf-sp-2) 0 0;
+        padding: var(--lf-sp-1) var(--lf-sp-2);
+        border-radius: var(--lf-r);
+        font: 600 var(--lf-t-6) / 1.4 var(--lf-sans);
       }
 
       .alert-outcome[data-tone="danger"] {
-        background: var(--danger-tint);
-        color: var(--danger-ink);
+        background: var(--lf-danger-tint);
+        color: var(--lf-danger-ink);
       }
 
       .alert-outcome[data-tone="warn"] {
-        background: var(--warn-tint);
-        color: var(--warn-ink);
+        background: var(--lf-warn-tint);
+        color: var(--lf-warn-ink);
       }
 
       .alert-outcome[data-tone="ok"] {
-        background: var(--ok-tint);
-        color: var(--ok-ink);
+        background: var(--lf-ok-tint);
+        color: var(--lf-ok-ink);
       }
     </style>
     <script type="module">

@@ -416,7 +416,7 @@ FOLDED = leaf_page(
 <p id="d">Delta reads one way.</p>
 <lf-tabs id="views"><lf-tab id="notes" label="Notes"><p id="note">The only note goes.</p>
 </lf-tab><lf-tab id="others" label="Others"><p id="other">Another stays.</p></lf-tab></lf-tabs>
-<div id="pane" class="scroll" style="max-height: 8rem; overflow-y: auto">
+<div id="pane" class="lf-scroll" style="max-height: 8rem; overflow-y: auto">
 <p id="lead">The lead goes.</p><p id="tall">{TALL}</p></div>
 <p id="long">{LONG}</p>
 <p id="end">The end goes.</p>

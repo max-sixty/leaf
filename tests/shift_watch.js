@@ -88,15 +88,37 @@
 // alone, such as a clamp. The driver's own scroll before its next press counts only
 // on a box the gesture's own work scrolled too.
 //
-// Each trusted gesture owns its counted rendering until declared completion. A widget
+// Each trusted gesture owns its counted rendering until declared completion, and the
+// first frame that reads the loop settled (`lfInputRenderingOpen`). A widget
 // preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
-// began one only when its declaration carries that input's exact callback source.
+// began one when its declaration carries that input's exact callback source, and when
+// the runtime declares one in any IntersectionObserver delivery while the input's
+// rendering is open and no news has landed: the delivery reports that rendering. The
+// case it serves is a tab, a link or a jump bringing a live sample's frame near the
+// window, where the sample's page starts (presentation.js, `whenNear`) and its landing
+// is the frame fitting that page. Like any landing, it owns every move from the task
+// that settles it until the loop settles again, so a page script's move in the task
+// after the fit is the input's too; one after the landing settles is reported.
 // Native effects it began retain their sampled displacement within their subtree.
+// An effect a ResizeObserver delivery begins in the frame its rendering first draws,
+// news still unlanded, is one it began, from that moment: a box that follows its own
+// layout starts there, after the frame's tick, as box-motion.js carries a floating
+// box's parts, and a long frame can end that effect, or news land, before the next
+// tick reads it. The runtime holds news that arrives while the gesture is unresolved
+// until that frame paints (state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued
-// lifetime never owns unrelated page movement.
+// lifetime never owns unrelated page movement. A script re-times motion by cancelling
+// an effect and beginning another in its place in the same task. The new effect
+// continues that motion where it has the cancelled effect's target and moving
+// properties, ends at the same values in its last keyframe, and starts within a pixel
+// of each translation the cancelled effect drew when cancelled. It keeps the cancelled
+// effect's beginning and owners, though news may have sealed their credit since. Its
+// sampled translation runs on from the cancelled effect's, never through the return
+// to underlying style that no frame drew between them. One that starts or ends
+// elsewhere is new motion.
 // Native scroll effects belong to their retained scroll source, regardless of the
 // gesture that created them. Stable timeline bindings and translation trajectories
 // credit only source-collinear travel bounded by that source's viewport scroll.
@@ -147,9 +169,11 @@
 // left the set, except a scroll-driven one, which moves only as the scroll and
 // layout announced here move it; input, focus, scroll, drag, resize, load, reset,
 // beforetoggle and contentvisibilityautostatechange events; the emulated media tests
-// change; this frame's own visibility; the press a pointer released on taking or
-// leaving `:active`, which a tap keeps on a timer after its last event and a button's
-// press feedback scales; and the calls that restyle without a DOM
+// change; this frame's own visibility; the press a pointer released, on its node or
+// on the element at its release point (such as the link a heading's tap shows),
+// taking or leaving `:active`, which a tap keeps on a timer after its last event and
+// a button's press feedback scales; and the
+// calls that restyle without a DOM
 // write (custom states, constructed and adopted sheets, form-control values and
 // ranges, animation mutators). A child cannot
 // observe every change in its embedding page, so child-frame readings remain
@@ -195,7 +219,23 @@
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
 (() => {
-  const { listen } = window.lfWatchPlatform;
+  const { listen, microtask: endOfTask } = window.lfWatchPlatform;
+  // Whether an IntersectionObserver delivery is running: the browser's report of the
+  // rendering before it, which no callback source carries (Each trusted gesture, above).
+  let reportingIntersections = 0;
+  const NativeIntersectionObserver = window.IntersectionObserver;
+  window.IntersectionObserver = class extends NativeIntersectionObserver {
+    constructor(callback, options) {
+      super(function (...args) {
+        reportingIntersections++;
+        try {
+          return callback.apply(this, args);
+        } finally {
+          reportingIntersections--;
+        }
+      }, options);
+    }
+  };
   // A native paint/task checkpoint retires only evidence it has judged. Execution
   // time says nothing about whether Chrome has delivered an earlier painted shift.
   let retainedFrom = -Infinity;
@@ -723,24 +763,33 @@
   ].map((query) => matchMedia(query));
   for (const query of presentationMedia) query.addEventListener("change", announce);
   // A tap's `:active` comes and goes on the browser's timer, after the pointer's last
-  // event, so the node a pointer released on is asked each frame whether it still is.
+  // event, on what stood under the finger when the browser took the tap: the node the
+  // press began on, which a touch pointer stays captured to, or a control the press
+  // showed there, as a heading's tap shows its link. So each frame asks whether the
+  // node and the element now at the release point are pressed. A cancelled pointer
+  // reports no place.
   let released = null;
+  const pressed = ({ node, at }) =>
+    [node, at && document.elementFromPoint(...at)]
+      .map((each) => each?.matches(":active") ?? false)
+      .join();
   for (const type of ["pointerup", "pointercancel"])
     listen(
       window,
       type,
       (event) => {
         const node = event.composedPath()[0];
-        released =
-          node instanceof Element ? { node, pressed: node.matches(":active") } : null;
+        const at = type === "pointerup" ? [event.clientX, event.clientY] : null;
+        released = node instanceof Element ? { node, at } : null;
+        if (released) released.state = pressed(released);
       },
       { capture: true, passive: true },
     );
   const pressChanged = () => {
     if (!released) return false;
-    const pressed = released.node.matches(":active");
-    if (pressed === released.pressed) return false;
-    released.pressed = pressed;
+    const state = pressed(released);
+    if (state === released.state) return false;
+    released.state = state;
     return true;
   };
   // Page state that matches selectors or applies style without a DOM write.
@@ -1140,6 +1189,8 @@
       ),
       consumers,
     });
+    continueMotion(animation);
+    if (moves(animation)) deliveredBy()?.own.add(animation);
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -1160,6 +1211,8 @@
       if (beginning) {
         beganAt.set(this, { at });
         if (origin) origins.set(this, origin);
+        continueMotion(this);
+        if (moves(this)) deliveredBy()?.own.add(this);
       }
       return result;
     };
@@ -1255,20 +1308,128 @@
   };
   // A cancelled no-fill effect returns to its underlying style before the next
   // frame. Keep both sides of that native change while the effect still names its
-  // target; getAnimations() no longer includes it after cancel().
+  // target; getAnimations() no longer includes it after cancel(). The side before is
+  // what it drew at the cut, which an effect the same task begins in its place may
+  // continue from (`continueMotion`), so the effect and that reading are kept until
+  // the task ends.
+  let cuts = null;
   const cancel = Animation.prototype.cancel;
   Animation.prototype.cancel = function (...args) {
     const applied =
       this.effect?.target &&
       moves(this) &&
       this.effect.getComputedTiming().progress !== null;
-    if (applied) readMotion(nativePerformance.now());
+    const at = nativePerformance.now();
+    if (applied) readMotion(at);
+    const drawn = animated.get(this)?.at(-1);
     const result = cancel.apply(this, args);
     if (applied) {
       readMotion(nativePerformance.now(), this);
       announce();
+      if (drawn?.at === at) {
+        if (!cuts) {
+          cuts = [];
+          endOfTask(() => {
+            cuts = null;
+          });
+        }
+        cuts.push({ animation: this, drawn });
+      }
     }
     return result;
+  };
+  // Each translation a reading holds, by what it moves: the target's own properties
+  // and each bound consumer's translate.
+  const placements = (reading) =>
+    new Map([
+      ...Object.entries(reading.values).map(([property, value]) => [
+        property,
+        animationTranslation(property, value),
+      ]),
+      ...reading.consumers.flatMap((consumer) =>
+        consumer
+          ? [[consumer.node, animationTranslation("translate", consumer.value)]]
+          : [],
+      ),
+    ]);
+  // Whether a replacement starts where the cancelled effect was drawn, each translation
+  // within the pixel `moved` ignores.
+  const startsWhereDrawn = (drawn, start) => {
+    const was = placements(drawn),
+      now = placements(start);
+    return (
+      was.size > 0 &&
+      was.size === now.size &&
+      [...was].every(([key, at]) => {
+        const next = now.get(key);
+        return (
+          at &&
+          next &&
+          Math.abs(next.left - at.left) < 1 &&
+          Math.abs(next.top - at.top) < 1
+        );
+      })
+    );
+  };
+  // The last keyframe's value of each key that moves an effect's target, a geometric
+  // property or a custom property a translation reads.
+  const destination = (animation) => {
+    const read = new Set(
+      [
+        ...(translationBindings.get(animation) ?? "").matchAll(/var\(\s*(--[-\w]+)/g),
+      ].map((match) => match[1]),
+    );
+    for (const { key } of inheritedBindings(animation)) read.add(key);
+    return JSON.stringify(
+      Object.entries(animation.effect?.getKeyframes().at(-1) ?? {}).filter(
+        ([key]) => GEOMETRY.test(key) || read.has(key),
+      ),
+    );
+  };
+  // A replacement that continues a cancelled effect (the header's "Each trusted
+  // gesture") takes three things from it. It takes the cancelled effect's ledger up to
+  // the cut, so a comparison across the cut reads one trajectory. It takes its
+  // beginning, so `begun` gives it to the input that began the cancelled one. And it
+  // takes its owners, whose credit news may have sealed since.
+  const continuations = new WeakMap();
+  const continueMotion = (replacement) => {
+    if (!cuts) return;
+    const target = replacement.effect?.target;
+    const properties = animationProperties(replacement);
+    const end = destination(replacement);
+    const same = (other) =>
+      other.length === properties.length &&
+      other.every((property) => properties.includes(property));
+    const index = cuts.findIndex(
+      ({ animation }) =>
+        animation !== replacement &&
+        animation.effect?.target === target &&
+        same(animationProperties(animation)) &&
+        destination(animation) === end,
+    );
+    if (index === -1) return;
+    const { animation: cancelled, drawn } = cuts[index];
+    readMotion(nativePerformance.now());
+    const readings = animated.get(replacement);
+    if (!readings?.length || !startsWhereDrawn(drawn, readings[0])) return;
+    cuts.splice(index, 1);
+    const history = animated.get(cancelled);
+    animated.set(replacement, [
+      ...history.slice(0, history.indexOf(drawn) + 1),
+      ...readings,
+    ]);
+    beganAt.set(replacement, beganAt.get(cancelled));
+    // A replayed effect that an earlier one had continued begins a motion of its own,
+    // so that link no longer leads anywhere (and would loop `continued`).
+    continuations.delete(replacement);
+    continuations.set(cancelled, replacement);
+    for (const rendering of renderings)
+      if (rendering.own.has(cancelled)) rendering.own.add(replacement);
+  };
+  // The effect a motion runs on now: the last replacement that continued it.
+  const continued = (animation) => {
+    while (continuations.has(animation)) animation = continuations.get(animation);
+    return animation;
   };
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
@@ -1716,6 +1877,27 @@
   const renderings = [];
   const inputRenderings = new WeakMap();
   let open = null;
+  // Each frame's tick is counted, and the open rendering notes the frame it first
+  // draws in while news has not sealed it (`drawsIn`). A ResizeObserver delivery
+  // follows that tick in the same frame, so the effects it begins are the
+  // rendering's own as they begin (`deliveredBy`).
+  let frameCount = 0;
+  let delivering = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    constructor(callback) {
+      super((entries, observer) => {
+        delivering++;
+        try {
+          return callback(entries, observer);
+        } finally {
+          delivering--;
+        }
+      });
+    }
+  };
+  const deliveredBy = () =>
+    delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
@@ -1755,7 +1937,11 @@
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
       const source = window.lfInputWork.current();
-      const owner = source && inputRenderings.get(source.event);
+      const owner = source
+        ? inputRenderings.get(source.event)
+        : reportingIntersections && open && !open.told
+          ? open
+          : null;
       if (owner) preparing.set(preparation, owner);
       return;
     }
@@ -1776,6 +1962,12 @@
     landing.add(rendering);
     renderings.push(rendering);
   };
+  // Whether an input's rendering, or a preparation's landing, is still open. An open
+  // rendering owns every frame up to the first one whose tick reads the loop settled,
+  // and that frame can paint after a reader outside the page has seen the loop
+  // settle. A test that moves the page itself, and expects the move reported, waits
+  // until this reads false.
+  window.lfInputRenderingOpen = () => open !== null || landing.size > 0;
   // The runtime publishes its observer on its entry script after this script runs.
   Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
     configurable: true,
@@ -1809,6 +2001,8 @@
       if (open.last && settled()) end();
       else open.last = settled();
     }
+    frameCount++;
+    if (open?.first && !open.told) open.drawsIn = frameCount;
     for (const rendering of landing) {
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);
@@ -2996,7 +3190,6 @@
   // asks the same questions of the same animations and ancestors, and nothing the watch
   // does in one task restyles the page or edits an effect, so an answer read once holds
   // until the task ends.
-  const endOfTask = window.lfWatchPlatform.microtask;
   const forTask = (read) => {
     let kept = null;
     return (key) => {
@@ -3184,7 +3377,7 @@
         });
     }
     const seen = new Map();
-    for (const animation of new Set(animations)) {
+    for (const animation of new Set(animations.map(continued))) {
       const target = animation.effect.target;
       if (!target) continue;
       const samples = animated.get(animation);
@@ -3351,10 +3544,12 @@
       ...ancestryAt(node, to),
       node,
     ]);
-    const candidates = new Set([
-      ...selected,
-      ...renderings.flatMap((rendering) => [...rendering.own]),
-    ]);
+    selected = selected.map(continued);
+    const candidates = new Set(
+      [...selected, ...renderings.flatMap((rendering) => [...rendering.own])].map(
+        continued,
+      ),
+    );
     const endpoint = (sample) =>
       sample ? { at: sample.at, values: sample.values } : null;
     return [...candidates]

@@ -58,8 +58,8 @@ export const targetElement = (resolved) =>
 // Where a target stands in the page's reading order: the node it stands by, the
 // element it points into or its passage's first text node or its element, and where in
 // that node its passage starts; and the order two such places are read in, by the
-// page's rendered order (shadow.js, `renderedOrder`), then, in one text node, by where
-// each starts. Every list of the page's targets is in this order: the margin's entries
+// page's rendered order (shadow.js, `renderedOrder`, or the `renderedOrdering` a sort
+// of many passes), then, in one text node, by where each starts. Every list of the page's targets is in this order: the margin's entries
 // (annotation-inventory.js) and the threads a passage's mark names (anchor-paint.js).
 /** @param {ResolvedTarget | null | undefined} resolved @param {Element | null} [point] */
 export const readingPlace = (resolved, point = null) => {
@@ -69,12 +69,16 @@ export const readingPlace = (resolved, point = null) => {
     start: first?.start ?? -1,
   };
 };
-/** @param {ReturnType<typeof readingPlace>} left @param {ReturnType<typeof readingPlace>} right */
-export function readingOrder(left, right) {
+/**
+ * @param {ReturnType<typeof readingPlace>} left
+ * @param {ReturnType<typeof readingPlace>} right
+ * @param {(a: Node, b: Node) => number} [nodeOrder]
+ */
+export function readingOrder(left, right, nodeOrder = renderedOrder) {
   if (left.node !== right.node) {
     if (!left.node) return 1;
     if (!right.node) return -1;
-    const order = renderedOrder(left.node, right.node);
+    const order = nodeOrder(left.node, right.node);
     if (order) return order;
   }
   return left.start - right.start;

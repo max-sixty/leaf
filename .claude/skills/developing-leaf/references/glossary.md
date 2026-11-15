@@ -28,7 +28,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Reply** | A message in a conversation, including an answer or an unprompted message |
 | **Delivery** | How far an update has got toward the agent: **Queued for Claude** until a harness has queued it (**Up next**, stage `queued`) or handed it into the agent's turn (**Delivered**, stage `picked_up`), all in Leaf's italic voice. Delivered doesn't mean work has begun |
 | **Queued for Claude** | An update no harness has queued or opened into a turn (stages `sending` and `sent`), whether or not the log has accepted it, in Leaf's italic voice with the agent's name; past the pickup grace it reads **Still queued for Claude** |
-| **Launching agent container** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The container starts for that update, which waits seconds; updates sent after it reach the running container |
+| **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
 | **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
@@ -81,7 +81,7 @@ Visible copy is personal, not technical: it speaks of the user, the agent and th
 never of the machinery between them. Say what the user did (“Moved to Done”) or what
 the agent is doing, not that something was sent, logged, stored or retried. Name the
 machinery only where the user must act on it, as an unreachable server asks them to keep
-the tab open, or where it alone explains a wait, as “Launching agent container” does.
+the tab open.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**
 or **reaction**; in protocol text a widget's is an **action**, after its
@@ -141,7 +141,7 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Content frame** | `body > main`, the box a page Layout arranges and its reading column when its scroll behavior is `flow` |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
-| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
+| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--lf-wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | An `aside > .layout-track` beside a `.layout-column` body in `.layout-sidebar`: supporting material in the left margin where both fit, stacked otherwise |
@@ -235,7 +235,7 @@ its link's preview counts them.
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `base.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--lf-focus-ring` in `base.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 | **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |

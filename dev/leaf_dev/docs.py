@@ -12,6 +12,8 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   the build reads, the pinned one unless a draft's is handed in;
 - `.example-description` inside a catalog link (`a.example-link`): the example's
   `<meta name="description">`;
+- `.example-packages` inside a catalog link: each bundled package whose element the
+  example's markup uses, in package order;
 - `table#all-verbs`'s body: every `x-state` verb the kernel and the bundled packages
   declare, in registry order;
 - `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
@@ -32,7 +34,7 @@ from pathlib import Path
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
-from leaf.structure import SourceDocument
+from leaf.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
@@ -52,8 +54,8 @@ EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.
 SITE_NAV = (
     ("/", "leaf"),
     ("/examples/", "Examples"),
+    ("/using/", "Using"),
     ("/how-it-works/", "How it works"),
-    ("/ui/", "UI"),
     ("/extending/", "Extending"),
     ("https://github.com/max-sixty/leaf", "GitHub"),
 )
@@ -79,7 +81,7 @@ def media_url(source: Path) -> str:
 
 def catalog_preview(assets: Path, name: str) -> Path:
     """Where an asset tree holds one example's catalog preview
-    (`leaf_dev.commands.refresh_previews`)."""
+    (`leaf_dev.commands.site.previews`)."""
     return assets / "examples" / f"example-{name}.jpg"
 
 
@@ -137,6 +139,21 @@ def verb_rows() -> list[str]:
                     "<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>"
                 )
     return rows
+
+
+def example_packages(source: Path) -> str:
+    """The bundled packages whose elements an example's markup uses."""
+    tree = SourceDocument(source.read_text(encoding="utf-8")).tree
+    used = []
+    for path in sorted(PACKAGES.glob("*/registry.json")):
+        tags = [
+            key
+            for key in json.loads(path.read_text(encoding="utf-8"))
+            if key.startswith("lf-")
+        ]
+        if any(tree.select(tag) for tag in tags):
+            used.append(path.parent.name)
+    return " · ".join(used)
 
 
 def registry_keys() -> dict[str, str]:
@@ -200,7 +217,7 @@ def schema_reference(ref: str) -> str:
         label = f"{owner}'s <code>{field}</code>" if field else name or "served state"
         return f'<a href="#served-{target or "state"}">{label}</a>'
     if uri == "leaf:verb":
-        return '<a href="/registry/#x-state">x-state verb</a>'
+        return '<a href="/extending/#x-state">x-state verb</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
     kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
@@ -505,9 +522,10 @@ def inputs(source: Path) -> list[Path]:
     ]
     composed = tree.select("table#all-verbs, nav.reference-index, div.reference-list")
     schemas = tree.select("div.schema-list")
+    packaged = tree.select("a.example-link .example-packages")
     return [
         *examples,
-        *(registries() if composed else []),
+        *(registries() if composed or packaged else []),
         *([SERVED_SCHEMA, INTERACTION_SCHEMA, KERNEL_REGISTRY] if schemas else []),
     ]
 
@@ -561,6 +579,8 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
             _, description = document_metadata(EXAMPLES / f"{name}.html")
             for caption in link.select(".example-description"):
                 fill(caption, html.escape(description, quote=False))
+            for packages in link.select(".example-packages"):
+                fill(packages, example_packages(EXAMPLES / f"{name}.html"))
     for body in document.tree.select("table#all-verbs > tbody"):
         fill(body, verb_rows())
     for nav in document.tree.select("nav.reference-index"):
@@ -571,6 +591,4 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         name = listing.attrs["data-schemas"]
         assert isinstance(name, str)
         fill(listing, SCHEMA_LISTS[name]())
-    for start, end, text in sorted(edits, reverse=True):
-        markup = markup[:start] + text + markup[end:]
-    return markup
+    return splice(markup, edits)

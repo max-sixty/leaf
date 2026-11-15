@@ -388,7 +388,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     ]
 
     exported = tmp_path / "review.html"
-    exporting_model.cmd_export(review_dir, exported, None)
+    exporting_model.cmd_export(review_dir, exported, None, runtime=True)
     data_text = data_model.source_file(review_dir, "journey-run").read_text()
     assert capture_key not in exported.read_text(encoding="utf-8")
     assert capture_key not in data_text
@@ -571,3 +571,46 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     expect(case.locator(".lf-vr-title")).to_be_focused()
     expect(case.locator(".lf-vr-title")).to_have_text(record["cases"][1]["title"])
     expect(case.locator(".lf-vr-title")).to_be_in_viewport()
+
+
+@pytest.mark.parametrize("height", [600, 760])
+def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
+    browser, serve, height
+):
+    """A focused comment editor remains reachable when its visual-review seat narrows."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1366, 768)
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-case-button").nth(1).click()
+    datum = widget.locator('[data-lf-datum="keep-mobile-destinations"]')
+    comment_on_target(page, datum)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep the destinations together")
+    page.keyboard.press("Shift+ArrowLeft")
+    caret = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    assert_keyboard_focus(page, field)
+
+    # Resizing alone must keep the focused editor in view. The reader has not scrolled.
+    resized(page, 390, height)
+    expect(field).to_have_js_property("value", "Keep the destinations together")
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
+    assert_keyboard_focus(page, field)
+
+    # A shorter window changes the visible band even when the inline seat's
+    # width and scroll container stay the same.
+    resized(page, 390, height - 120)
+    assert_keyboard_focus(page, field)
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
+
+    # Native scrolling can leave the same editor focused. The next reflow must
+    # keep that newer reading instead of pulling the draft back into view.
+    page.mouse.wheel(0, -10000)
+    page.wait_for_function("document.scrollingElement.scrollTop === 0")
+    scroll_settled(page)
+    expect(field).to_be_focused()
+    assert field.evaluate("node => node.getBoundingClientRect().bottom > innerHeight")
+    resized(page, 420, height - 120)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep the destinations together")

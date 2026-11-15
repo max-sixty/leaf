@@ -57,6 +57,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -74,6 +75,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.http import assets_path
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
@@ -166,10 +168,9 @@ def append_carried_log_record(page_dir, event):
 
 
 def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a page's server answers revision `revision`'s resources: under the
-    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
-    name = files_model.revision_path(page_dir, revision).stem
-    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+    """Where a page's server answers revision `revision`'s resources
+    (`http.assets_path`)."""
+    return assets_path(execution_identity(read_artifact(page_dir, revision)))
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -1735,15 +1736,25 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 
 @pytest.fixture(autouse=True)
-def _each_test_composes_its_own_layers():
+def _hook_bounds_take_the_suites_deadline(monkeypatch):
+    """A hook bounds the work it does by its harness's timeout: a page server's
+    start and the inline handover after it share `hook_transport.CONFIRM_WITHIN`,
+    10 s from the hook's start. A start takes about 1 s on an idle host and over
+    5 s on a loaded runner, so in process the bound takes `STATED_TIMEOUT`, and a
+    test whose subject is the bound sets its own (tests/AGENTS.md, "Results do not
+    depend on execution speed")."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", STATED_TIMEOUT)
+
+
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
     A process holds each selection's composition and vocabulary for its life
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held."""
-    yield
-    layer_model._composed.cache_clear()
-    layer_model._vocabulary.cache_clear()
+    a package at a path an earlier test's package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_compositions", {})
+    monkeypatch.setattr(layer_model, "_vocabularies", {})
 
 
 def retire_bridge(lock):
@@ -2094,6 +2105,52 @@ def claimed(page_dir, monkeypatch, context_record):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     return page_dir
+
+
+@contextmanager
+def claude_code_module(session: str, reply: str | dict):
+    """Stand in for Leaf's Claude Code hooks module (`hooks/claude-code.ts`), which
+    `test_interact_claude_code_module.py` holds to the same: answer each completion
+    `session` is asked (`completions`) with the text `reply`, or the failure it
+    names (`{"failed": …}`), as the model's usage of 300 tokens in and 12 out, and
+    yield the requests it took, each with its `id` and `request`."""
+    from leaf import completions
+
+    asked = []
+    done = threading.Event()
+    answered = reply if isinstance(reply, dict) else {"text": reply}
+    queued = completions.watch(session)
+
+    def answer() -> None:
+        while not done.is_set():
+            mark = queued.mark()
+            for request in completions.pending(session):
+                asked.append(request)
+                completions.cmd_reply(
+                    session,
+                    {
+                        "completion": request["id"],
+                        **answered,
+                        "usage": {
+                            "input_tokens": 300,
+                            "output_tokens": 12,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0,
+                        },
+                        "elapsed_ms": 900,
+                    },
+                )
+            # A tenth of a second at most, so the context's exit ends the thread.
+            queued.wait(mark, 0.1)
+
+    worker = threading.Thread(target=answer, daemon=True)
+    worker.start()
+    try:
+        yield asked
+    finally:
+        done.set()
+        worker.join()
+        queued.close()
 
 
 def _launched_as(monkeypatch, argv: list[str]) -> None:
@@ -2447,11 +2504,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )
@@ -2581,16 +2638,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:
@@ -2970,6 +3029,8 @@ def _interaction_prompt_evidence(page, value):
                 if key in {"ts", "created_at"}
                 else "<attempt>"
                 if key == "attempt"
+                else "<turn>"
+                if key == "turn" and isinstance(child, str)
                 else "<claim-session>"
                 if key == "claim" and child is not None
                 else stable(child)

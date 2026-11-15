@@ -337,7 +337,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
                   wordsRight: words.right, cardLeft: card.left, cardRight: card.right,
                   cardWidth: card.width, viewport: innerWidth,
                   preferred: parseFloat(getComputedStyle(cardNode)
-                    .getPropertyValue('--thread-card')),
+                    .getPropertyValue('--lf-thread-card')),
                   bottomChrome: bottomChrome.length,
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
@@ -345,14 +345,14 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
     # The rail beside this cluster is short of the card's minimum; the room right of the
     # words is not, so the card takes its measure there, beside the words and across
     # the cluster, where the comment box would stand (comment-placement.js).
-    assert geometry["viewport"] - 8 - (geometry["controlsRight"] + 8) < 320, geometry
+    assert geometry["viewport"] - 8 - (geometry["controlsRight"] + 16) < 320, geometry
     assert geometry["placement"] == "right", geometry
     assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
         geometry
     )
-    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
-        geometry
-    )
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["wordsRight"] + 16, abs=0.5
+    ), geometry
     assert geometry["cardLeft"] < geometry["controlsLeft"], geometry
     assert geometry["cardRight"] <= geometry["viewport"] - 7.5, geometry
     assert geometry["bottomChrome"] > 0, geometry
@@ -414,7 +414,7 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
                       cardTop: card.top, cardWidth: card.width, coveredControls,
                       targetTop: target.top, targetBottom: target.bottom,
                       preferred: parseFloat(getComputedStyle(cardNode)
-                        .getPropertyValue('--thread-card'))};
+                        .getPropertyValue('--lf-thread-card'))};
             }"""
         )
         # With room for its whole measure, the card clears both its words and its cluster,
@@ -422,7 +422,7 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
         assert geometry["placement"] == "right", geometry
         assert (
             geometry["cardLeft"]
-            >= max(geometry["controlsRight"], geometry["targetRight"]) + 8 - 0.5
+            >= max(geometry["controlsRight"], geometry["targetRight"]) + 16 - 0.5
         ), geometry
         assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
             geometry
@@ -503,17 +503,17 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
               return {placement: cardNode.dataset.lfThreadPlacement,
                       cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
                       wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
-                      minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
-                      preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                      minimum: parseFloat(style.getPropertyValue('--lf-thread-card-min')),
+                      preferred: parseFloat(style.getPropertyValue('--lf-thread-card')),
                       clipped: list.scrollHeight - list.clientHeight};
             }"""
         )
-        room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
+        room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 16)
         assert geometry["wordsRight"] < geometry["pinRight"], geometry
         assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
         assert geometry["placement"] == "right", geometry
         assert geometry["cardLeft"] == pytest.approx(
-            geometry["wordsRight"] + 8, abs=0.5
+            geometry["wordsRight"] + 16, abs=0.5
         ), geometry
         # A compact marker can end inside the gap beside the words, especially with
         # Linux's narrower fonts. Width priority removes the marker's clearance; it
@@ -541,15 +541,15 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
                       cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
                       clipped: list.scrollHeight - list.clientHeight,
                       wordsLeft: words.left, viewport: innerWidth,
-                      minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+                      minimum: parseFloat(style.getPropertyValue('--lf-thread-card-min'))};
             }"""
         )
         words = page.evaluate(WORDS_RIGHT)
-        assert geometry["viewport"] - 8 - (words + 8) < geometry["minimum"], geometry
-        assert geometry["wordsLeft"] - 16 >= geometry["minimum"], geometry
+        assert geometry["viewport"] - 8 - (words + 16) < geometry["minimum"], geometry
+        assert geometry["wordsLeft"] - 24 >= geometry["minimum"], geometry
         assert geometry["placement"] == "left", geometry
         assert geometry["cardRight"] == pytest.approx(
-            geometry["wordsLeft"] - 8, abs=0.5
+            geometry["wordsLeft"] - 16, abs=0.5
         ), geometry
         assert geometry["cardLeft"] >= 7.5, geometry
         assert geometry["cardWidth"] >= geometry["minimum"] - 0.5, geometry

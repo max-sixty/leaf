@@ -6,6 +6,7 @@ export { floatingPlacement, floatingUi, floatingSelections } from "./floating.js
 export {
   commentBoundary,
   COMMENT_GAP,
+  subjectGap,
   cardMinimum,
   makeRoom,
 } from "./comment-placement.js";

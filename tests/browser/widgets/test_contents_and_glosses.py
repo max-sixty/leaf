@@ -1280,7 +1280,7 @@ ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
   .map((row) => [row.querySelector('a').getBoundingClientRect(),
     row.getBoundingClientRect()]
     .map((box) => [box.x, box.y, box.width, box.height].map(Math.round).join(',')))"""
-# The rows whose marks stand among their words rather than in the gutter before them.
+# The rows whose outline dot stands among their words rather than on the rule before them.
 MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('.lf-toc-mark')]
   .filter((mark) => mark.checkVisibility())
   .map((mark) => {

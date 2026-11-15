@@ -242,6 +242,71 @@ def test_a_wait_takes_the_suites_deadline(path):
 
 
 @by_module
+def test_no_assertion_rests_on_a_sleep(path):
+    """A sleep says nothing about the work it waits out, so no assertion reads what a
+    sleep left (tests/AGENTS.md, "Absences").
+
+    On a slower machine the effect lands after the sleep: a check that it is absent
+    passes with the bug present, and a check that it is there fails on a correct
+    product. So a sleep (`time.sleep`, `wait_for_timeout`) is never followed, past
+    assignments, by an `assert`, an `expect`, or a returned value in the same block. The
+    test waits for the operation's own completion, or for a later event ordered after
+    it, or runs the page's clock past the timer instead. A sleep that paces a poll, or
+    spaces two gestures the browser tells apart by time, is followed by something else,
+    and this leaves it alone. The check reads that one shape; a reviewer reads a sleep
+    whose assertion comes later."""
+
+    def sleeps(statement) -> bool:
+        return (
+            isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, (ast.Attribute, ast.Name))
+            and getattr(
+                statement.value.func, "attr", getattr(statement.value.func, "id", None)
+            )
+            in {"sleep", "wait_for_timeout"}
+        )
+
+    def asserts(statement) -> bool:
+        return (
+            isinstance(statement, ast.Assert)
+            or (isinstance(statement, ast.Return) and statement.value is not None)
+            or (
+                isinstance(statement, ast.Expr)
+                and isinstance(statement.value, ast.Call)
+                and isinstance(statement.value.func, ast.Attribute)
+                and statement.value.func.attr.startswith(("to_", "not_to_"))
+            )
+        )
+
+    tree, named = _read(path)
+    rested = []
+    for node in ast.walk(tree):
+        for block in (
+            getattr(node, field, None) for field in ("body", "orelse", "finalbody")
+        ):
+            if not isinstance(block, list):
+                continue
+            for index, statement in enumerate(block):
+                if not sleeps(statement):
+                    continue
+                after = next(
+                    (
+                        s
+                        for s in block[index + 1 :]
+                        if not isinstance(s, (ast.Assign, ast.AnnAssign))
+                    ),
+                    None,
+                )
+                if after is not None and asserts(after):
+                    rested.append(
+                        f"{named}:{statement.lineno} {ast.unparse(statement)}, then "
+                        + ast.unparse(after).split("\n", 1)[0][:80]
+                    )
+    assert not rested, "\n".join(rested)
+
+
+@by_module
 def test_no_test_ends_a_process_with_sigkill(path):
     """SIGKILL gives a process no chance to end what it started, so a test ends one
     by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture

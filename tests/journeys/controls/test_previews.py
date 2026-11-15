@@ -16,6 +16,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
+    clocked,
+    dwelt,
     leaf_page,
     long_press,
     open_page,
@@ -291,7 +293,7 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
             {"section": "prose", "quote": "marked words"},
         ],
     )
-    page = open_page(request.getfixturevalue(engine), url)
+    page = open_page(clocked(request.getfixturevalue(engine)), url)
     page.locator("#info").evaluate(
         "el => { el.lfPreview = () => ({name: 'Facts about the card'}); }"
     )
@@ -327,7 +329,7 @@ def test_a_thread_s_words_in_a_widget_preview_it_unless_the_widget_draws_them(
     itself, as code's, preview nothing, and the thread's margin entry previews it."""
     url = serve(leaf_page("Widget words", WIDGET_WORDS))
     _comment_on(serve.page_dir, WIDGET_THREADS.values())
-    page = open_page(request.getfixturevalue(engine), url)
+    page = open_page(clocked(request.getfixturevalue(engine)), url)
     word = page.locator(PREVIEW).locator(".lf-preview-word")
     rendered(page)
     readings = {
@@ -381,14 +383,14 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     page.evaluate("() => { window.landed = document.activeElement; }")
-    page.wait_for_timeout(300)
+    rendered(page)
     expect(tip).to_be_hidden()
     page.keyboard.press("Tab")
     expect(tip).to_have_text("Placed here")
     page.keyboard.press("m")
     page.wait_for_function("() => document.activeElement === window.landed")
     expect(card).to_be_visible()
-    page.wait_for_timeout(300)
+    rendered(page)
     expect(tip).to_be_hidden()
 
 
@@ -403,7 +405,7 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
     can't see, a button's whose hidden notes run past a face, and one's that shows only
     the start of its name."""
     page = open_page(
-        request.getfixturevalue(engine),
+        clocked(request.getfixturevalue(engine)),
         serve(
             leaf_page(
                 "Faces",
@@ -480,10 +482,10 @@ def test_a_preview_says_nothing_its_target_shows_whole(engine, request, serve):
         "#contents",
     ):
         tab_onto(page.locator(quiet))
-        page.wait_for_timeout(300)
+        rendered(page)
         expect(tip).to_be_hidden()
         page.locator(quiet).hover()
-        page.wait_for_timeout(400)
+        dwelt(page)
         expect(tip).to_be_hidden()
         page.mouse.move(0, 0)
     for cut, says in (

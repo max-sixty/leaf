@@ -150,5 +150,7 @@ def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
     inside.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
     at = page.evaluate("scrollY")
     page.keyboard.press("d")
-    page.wait_for_timeout(300)
+    # The frame answers a call made after the press on the port its spent step would
+    # take, so a step the frame passed on has reached this page by the answer.
+    window.evaluate("sample => sample.restoreCurrentLocation()")
     assert page.evaluate("scrollY") == at

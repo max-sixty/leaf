@@ -5,7 +5,6 @@ A check on a page of millions of elements finds its controls as
 notes/browser-support.md, "Walking every element of a page of millions in Chromium",
 says."""
 
-import os
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -56,7 +55,8 @@ WINDOWS = {
     ),
 }
 
-# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
+# The fixed fontconfig that lays text out in DejaVu faces on Linux
+# (`linux_font_environment`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -80,14 +80,16 @@ def require_linux_fonts():
                 )
 
 
-def use_linux_fonts():
-    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
-    browser and leaf this process starts from here on; elsewhere the host's faces
-    serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev placement pins`), so the two measure the same text."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+def linux_font_environment() -> dict[str, str]:
+    """The environment that lays text out in the DejaVu faces the fixed fontconfig
+    names, in every browser and leaf a process holding it starts; empty off Linux,
+    where the host's faces serve. The suite runs under it, and so does a command whose
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
+    if sys.platform != "linux":
+        return {}
+    require_linux_fonts()
+    return {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)}
 
 
 @contextmanager

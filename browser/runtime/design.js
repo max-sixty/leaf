@@ -150,14 +150,15 @@ export function createDesignMode({
   // cursor's paint stand in attributes of their own (page-paint.js). A repaint that heard
   // either would never stop,
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
-  // the start of a scroller's words (`data-lf-content-start`) moves nothing either.
+  // the start of a scroller's words (`data-lf-content-start`) or the elements holding
+  // marked words moves nothing either.
   const authoredClasses = (/** @type {string | null} */ value) =>
     (value ?? "")
       .split(/\s+/)
       .filter((name) => name && !name.startsWith("lf-"))
       .sort()
       .join(" ");
-  const { aimed, traced, proxied, location, overMark, aiming, overItem } =
+  const { aimed, traced, proxied, location, overMark, aiming, overItem, markedWords } =
     RUNTIME_PAINT_ATTRIBUTE;
   const unmoving = new Set([
     "data-lf-content-start",
@@ -168,6 +169,7 @@ export function createDesignMode({
     overMark,
     aiming,
     overItem,
+    markedWords,
   ]);
   const movesPage = (/** @type {MutationRecord} */ r) =>
     !inChrome(r.target) &&

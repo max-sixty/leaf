@@ -472,12 +472,12 @@ marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
 A `::highlight()` rule with no originating element adds to the restyle of every
 element, on every page, whether or not the highlight has a range there. Name the
-elements whose text the ranges paint. The comment marks can land on any text, so
-their rules name only the root and each shadow host, whose highlight styles every
-element below inherits; where an engine has no highlight inheritance, `stylesheets.js`
-(`markSheet`) widens them to every element. In Chromium a custom property changing on
-`html` then restyles every element (`root-state.js` says what the root's writers set
-instead).
+elements whose text the ranges paint. The comment marks can land on any text, so the
+runtime marks each element holding marked words (`anchor-paint.js`, `holdWords`) and
+their rules name those. A rule on the root alone would reach other elements only
+where highlight styles inherit, and there it pins every mark to the root's tokens and
+`color-scheme`, and makes Chromium restyle every element when even a non-inheriting
+custom property changes on `html`.
 
 ### Layouts, styles and controls
 

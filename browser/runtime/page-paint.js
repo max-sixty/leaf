@@ -64,6 +64,9 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",
+  // An element holding words a passage highlight paints, which the highlights' rules
+  // name (annotation-overlay/anchor-paint.js, `holdWords`; annotation-marks.css).
+  markedWords: "data-lf-marked-words",
 });
 
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({

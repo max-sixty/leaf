@@ -79,7 +79,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { pageScroller, stopGlide } from "../scrolling.js";
+import { landGlides } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -463,7 +463,10 @@ export function createGoToSequence({
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
     if (on && !goToActive && claimsEsc(focused())) return;
-    if (on) stopGlide(pageScroller);
+    // The map waits for a still scene, so the glides under way land at once, where the
+    // map typed after them would read the page (scrolling.js, `landGlides`); stopped
+    // where they stood, `g` pressed as `t` set off left the page short of the thread.
+    if (on) landGlides();
     goToActive = on;
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
     targetFilter = null;

@@ -124,10 +124,12 @@ class _BlobSet:
             return self.buffer.read(length)
 
 
-def restore(site_root: Path) -> None:
-    """Restore before serving, from the snapshot contract in worker/src/storage.ts."""
+def restore(site_root: Path) -> bool:
+    """Restore before serving, from the snapshot contract in worker/src/storage.ts, and
+    say whether a page store backs the site, as the container then declares its
+    commits are published there (`PUBLISHER`)."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
-        return
+        return False
     from leaf_website import SITE_MANIFEST, elapsed_ms, log_agent
 
     started = time.monotonic()
@@ -191,7 +193,7 @@ def restore(site_root: Path) -> None:
             chunks=len(blobs.offsets),
             bytes=sum(length for _, length in blobs.offsets.values()),
         )
-    os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
+    return True
 
 
 def _upload(blobs: _BlobSet, digest: str) -> None:
@@ -357,6 +359,11 @@ PUBLISHED = Record(
     ),
     since=13,
 )
+
+
+# The page commit provider (`leaf.service`) a container declares once it has restored
+# its pages, so every transaction its leaf processes finish publishes its record.
+PUBLISHER = "leaf_website.storage:publish"
 
 
 def publish(page: PageTransaction) -> None:

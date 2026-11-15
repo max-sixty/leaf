@@ -967,13 +967,8 @@ class AppServerEvents:
 
     @staticmethod
     def final_text(turn: dict) -> str:
-        """Return a completed turn's reply: its final answer, or nothing for a turn
-        with none, whatever its opening said."""
-        return "\n\n".join(_final_answer(turn))
-
-    @staticmethod
-    def reply_so_far(turn: dict) -> str:
-        """Return the reply a still-running turn has written."""
+        """Return the reply a turn, running or completed, has written: its final
+        answer, or nothing for a turn with none, whatever its opening said."""
         return "\n\n".join(_final_answer(turn))
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
@@ -1422,7 +1417,7 @@ class TurnFold:
         elif self.reply_stream is not None:
             # An opening the turn completed while nobody was reading posts now.
             self.reply_stream.open(self.events.said_opening())
-            self.reply_stream.restore(self.events.reply_so_far(turn))
+            self.reply_stream.restore(self.events.final_text(turn))
 
     def absorb(self, message: dict) -> dict | None:
         """Fold one notification into this turn's readings, and put them on the page."""

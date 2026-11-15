@@ -646,6 +646,14 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * a card's share of the row had shrunk a capture 580px wide to 248px. Each rule
    * suited the pages that prompted it and failed the next.
    *
+   * The row's width is the author's too: cards take the group's width, which the
+   * group's `data-width` widens (the `lf-options` instructions say which a row needs).
+   * Widening a row of three to 18rem a card here was weighed on 14 November 2026 and
+   * left out. A question's box grows round a block marked `data-lf-space`, which
+   * delivery paints from `data-width`, so a row this sheet widened stood past the box
+   * and its arrival ring cut through the third card; and a card holding a picture
+   * needs more than the 18rem a card of words does, which only the author sees.
+   *
    * Each column's floor chooses between the two. While the width holds every option at
    * 14rem, the floor is one option's share of the width less its share of the gaps
    * between cells (`--lf-option-count`), so all fit one row; otherwise it is the whole

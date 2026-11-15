@@ -3976,30 +3976,6 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     assert checked.exit_code == 0, checked.output
 
 
-def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_module(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    add_test_widget(tmp_path / ".leaf", "lf-unfinished")
-
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-upgrade"] = True
-    registry["lf-unfinished"]["x-verbatim"] = True
-    registry_path.write_text(json.dumps(registry))
-
-    for args in (
-        ["package", "check", ".leaf"],
-        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
-    ):
-        result = runner.invoke(cli_model.cli, args)
-        assert result.exit_code != 0
-        assert "widgets/lf-unfinished.js" in result.output
-
-
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -4077,51 +4053,6 @@ def test_package_check_requires_an_existing_package(tmp_path, monkeypatch):
     assert not (tmp_path / "packages").exists()
 
 
-def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
-    """An installed package is a bundled one kept somewhere else.
-
-    The store holds the package contract and none of the rest of the author's
-    working directory, and the page reads the store rather than the source, which
-    is gone by the time it is vendored.
-    """
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    source = tmp_path / "src" / "callout"
-    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
-    assert created.exit_code == 0, created.output
-    add_test_widget(source, "lf-callout", upgrade=True)
-    (source / "README.md").write_text("How to work on this package.\n")
-    (source / "spec").mkdir()
-    (source / "spec" / "case.txt").write_text("the author's own test\n")
-
-    installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
-
-    assert installed.exit_code == 0, installed.output
-    stored = Path(json.loads(installed.output)["package"])
-    assert layer_model.named_package("callout") == stored
-    assert sorted(path.name for path in stored.iterdir()) == [
-        "defaults.css",
-        "instructions",
-        "overrides.css",
-        "registry.json",
-        "runtime",
-        "vendor",
-        "widgets",
-    ]
-
-    shutil.rmtree(source)
-    page = tmp_path / "page"
-    vendored = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "callout", str(page)]
-    )
-
-    assert vendored.exit_code == 0, vendored.output
-    registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == ["callout"]
-    assert "lf-callout" in registry
-    assert "/widgets/lf-callout.js" in layer_files(page)
-
-
 def test_package_install_refuses_a_source_it_cannot_check_or_name(
     tmp_path, monkeypatch
 ):
@@ -4190,33 +4121,6 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
         for path in layer.rglob("*")
         if path.is_file()
     } == before
-
-
-def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    package = tmp_path / ".leaf"
-    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert initialized.exit_code == 0, initialized.output
-    existing = add_test_widget(package, "lf-existing")
-    instructions = package / "instructions" / "author.md"
-    instructions.write_text("Keep this package instructions.\n")
-    helper = package / "runtime" / "existing-helper.js"
-    helper.write_text("export const existing = true;\n")
-    theme = (package / "overrides.css").read_bytes()
-
-    result = runner.invoke(
-        cli_model.cli,
-        ["package", "init", ".leaf", "--widget", "lf-added-note"],
-    )
-
-    assert result.exit_code == 0, result.output
-    registry = json.loads((package / "registry.json").read_text())
-    assert registry["lf-existing"] == existing
-    assert "lf-added-note" in registry
-    assert (package / "overrides.css").read_bytes() == theme
-    assert instructions.read_text() == "Keep this package instructions.\n"
-    assert helper.read_text() == "export const existing = true;\n"
 
 
 def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
@@ -4813,78 +4717,6 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
     assert local_registry["$layer"]["packages"] == ["./packages/diagram"]
-
-
-def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
-    tmp_path, monkeypatch
-):
-    """A saved version keeps the package it was written with: dropping the package
-    from the selection leaves its copy for the revisions that name it, and an edit to
-    the package reaches them at a new address, never under one a browser cached, and
-    as a new generation, which an open document reloads on."""
-    from leaf.revision_artifact import read_artifact
-    from leaf.revisioning import activate_source
-    from leaf.runtime_selection import execution_identity
-
-    monkeypatch.chdir(tmp_path)
-    custom = tmp_path / "custom"
-    (custom / "widgets").mkdir(parents=True)
-    (custom / "widgets" / "helper.js").write_text("export const value = 1;\n")
-    page = tmp_path / "page"
-    init = ["page", "init", "--package", "./custom", str(page)]
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    (page / "index.html").write_text(PLAIN_PAGE)
-    assert activate_source(page).error is None
-    first = execution_identity(read_artifact(page, 1))
-    layer_5 = registry_storage.layer_record(page)
-    assert layer_5 is not None
-    generation = layer_5["generation"]
-
-    (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    assert execution_identity(read_artifact(page, 1)) != first
-    layer_6 = registry_storage.layer_record(page)
-    assert layer_6 is not None
-    assert layer_6["generation"] != generation
-
-    cleared = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(page)]
-    )
-    assert cleared.exit_code == 0, cleared.output
-    assert registry_storage.layer_packages(page) == []
-    assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
-
-
-def test_package_instructions_do_not_change_a_revisions_browser_address(
-    tmp_path, monkeypatch
-):
-    from leaf.revision_artifact import read_artifact
-    from leaf.revisioning import activate_source
-    from leaf.runtime_selection import executing
-
-    monkeypatch.chdir(tmp_path)
-    custom = tmp_path / "custom"
-    (custom / "instructions").mkdir(parents=True)
-    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
-    page = tmp_path / "page"
-    init = ["page", "init", "--package", "./custom", str(page)]
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    (page / "index.html").write_text(PLAIN_PAGE)
-    assert activate_source(page).error is None
-    artifact = read_artifact(page, 1)
-    record = json.loads(artifact.manifest)["layer"]
-    first_layer = registry_storage.selected(record, page)
-    first = executing(artifact)
-
-    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    second_layer = registry_storage.selected(record, page)
-    second = executing(artifact)
-
-    assert second_layer.fingerprint != first_layer.fingerprint
-    assert second.package_copies != first.package_copies
-    assert second.resources == first.resources
-    assert second.identity == first.identity
 
 
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:

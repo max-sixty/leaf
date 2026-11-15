@@ -1,7 +1,10 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
 
-import os
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
+
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -52,7 +55,8 @@ WINDOWS = {
     ),
 }
 
-# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
+# The fixed fontconfig that lays text out in DejaVu faces on Linux
+# (`linux_font_environment`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -76,14 +80,16 @@ def require_linux_fonts():
                 )
 
 
-def use_linux_fonts():
-    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
-    browser and leaf this process starts from here on; elsewhere the host's faces
-    serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev placement pins`), so the two measure the same text."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+def linux_font_environment() -> dict[str, str]:
+    """The environment that lays text out in the DejaVu faces the fixed fontconfig
+    names, in every browser and leaf a process holding it starts; empty off Linux,
+    where the host's faces serve. The suite runs under it, and so does a command whose
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
+    if sys.platform != "linux":
+        return {}
+    require_linux_fonts()
+    return {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)}
 
 
 @contextmanager
@@ -456,7 +462,7 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 }"""
 
 
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+def scroll_settled(page, scroller=None, axis="y"):
     """Wait for stable scroll position after the caller observes scroll initiation.
 
     The helper cannot distinguish a finished scroll from one not yet issued.
@@ -470,14 +476,14 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, SCROLL_STILL_FRAMES])
     except PlaywrightTimeout:
         where = scroller or "the document"
         held = page.evaluate(
             "() => globalThis.__lfScrollStill ?? null",
         )
         raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
+            f"{where} never held one position for {SCROLL_STILL_FRAMES} frames: gave up on {held}"
         ) from None
 
 

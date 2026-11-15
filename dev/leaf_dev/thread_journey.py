@@ -93,9 +93,7 @@ class ThreadSurface:
         """Read the chosen root before sending; page comments have no anchor."""
         parent = None
         if self.kind == "reply":
-            parent = self.messages.first.evaluate(
-                "node => node.dataset.mid ?? node.dataset.lfEvent"
-            )
+            parent = self.messages.first.evaluate("node => node.dataset.lfEvent")
             assert parent, "the chosen thread has no durable root identity"
         return {"kind": self.kind, "parent": parent, "anchor": None}
 

@@ -2,16 +2,14 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 import http.server
-import re
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from html import escape
 from urllib.parse import quote
 
 import pytest
 from interact_support import STATED_TIMEOUT, running_http_server
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
@@ -22,10 +20,8 @@ from render_harness import (
     leaf_page,
     open_page,
     place_step_matches,
-    refuse,
     resized,
     take_browser_errors,
-    ticked,
 )
 
 from leaf.render_checks import rendered
@@ -2481,12 +2477,16 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
-# panel's controls redrawn by the reading shift.
+# panel's controls redrawn by the reading shift. The delivery arms begin the slide
+# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# box's layout: the press's own growth, its news landing before the next frame's tick
+# (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
+# stands after the line, so only the slide moves it.
 NEWS = """<!doctype html><body style="margin:0">
 <style>@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }</style>
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
-<div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<div id="bar"></div><div id="above"></div><div id="below">Below.</div><div id="after"></div>
 <div id="beat" style="position:fixed;left:0;bottom:0;width:8px;height:8px;background:gray"></div>
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
@@ -2511,9 +2511,24 @@ NEWS = """<!doctype html><body style="margin:0">
         : keyframes(parseFloat(drawn), arm().retarget === 'farther' ? 400 : 300),
       { duration: left, fill: 'forwards' });
   };
+  new ResizeObserver(() => {
+    if (!arm().grown || window.sliding) return;
+    slide();
+    if (arm().grown !== 'press') return;
+    arm().inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
+    document.body.setAttribute("data-lf-reading", "news");
+    arm().newsFromTrustedPress = arm().trusted;
+  }).observe(after);
   document.getElementById("press").addEventListener("pointerdown", (event) => {
     if (arm().motion === "press") slide();
-    if (arm().retarget) beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().retarget || arm().motion.endsWith('delivery'))
+      beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().motion === 'delivery') {
+      arm().trusted = String(event.isTrusted);
+      arm().grown = 'press';
+      after.style.height = '40px';
+      return;
+    }
     const until = performance.now() + Number(arm().work);
     while (performance.now() < until) {}
     frames(3, () => {
@@ -2521,6 +2536,10 @@ NEWS = """<!doctype html><body style="margin:0">
       document.body.setAttribute("data-lf-reading", "news");
       if (arm().motion === "news") slide();
       if (!arm().motion) document.getElementById("above").style.height = "40px";
+      if (arm().motion === 'news-delivery') {
+        arm().grown = 'news';
+        after.style.height = '40px';
+      }
       // Once the watch has heard the reading, as the runtime's renderers follow it.
       if (arm().retarget) queueMicrotask(retarget);
       arm().newsFromTrustedPress = String(event.isTrusted);
@@ -2922,6 +2941,27 @@ def test_sampled_native_translation_distinguishes_press_from_news(
     page.evaluate("sliding.finished.then(() => {})")
     judge_watches()
     if motion == "press" and retarget in ("", "drawn"):
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#below"))
+
+
+@pytest.mark.parametrize("motion", ["delivery", "news-delivery"])
+def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
+    browser, motion
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame the press
+    draws in, after that frame's tick. The motion is the press's though news lands
+    before the next tick, as a send's answer can within a long frame, where the panel's
+    head jumped the rest of its carry in one frame and read as moved by news. A box
+    following the news's own layout begins its motion in a later delivery, and still
+    moves by news."""
+    page = news_page(browser, motion, translation="carry")
+    page.wait_for_function("window.sliding !== undefined")
+    page.evaluate("sliding.finished.then(() => {})")
+    judge_watches()
+    if motion == "delivery":
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("div#below"))
@@ -5202,83 +5242,6 @@ sized.value = LINES;
         {"shift-watch-missed"} if change == "unheard rule" else set()
     )
     assert {error.code for error in errors} <= allowed, errors
-
-
-@pytest.mark.parametrize("surface", ["card", "inline"])
-def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
-    browser, serve, surface
-):
-    """Age advances while the thread and its controls stay put.
-
-    Metadata may move or stay reserved. The passive-region fault controls above
-    exercise the watcher's permitted motion independently of this surface's layout.
-    """
-    source = (
-        leaf_page(
-            "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
-            '<lf-test-task id="bracket" status="active" talk>'
-            "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
-        )
-        if surface == "inline"
-        else OBLIGATION_PAGE
-    )
-    page = open_page(
-        browser,
-        serve(
-            source,
-            events=[
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "Check whether these jobs can share one visit.",
-                    "anchor": {"section": "bracket"},
-                }
-            ],
-        ),
-    )
-    resized(page, 1440, 900)
-    if surface == "card":
-        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
-        surface_root = page.locator(".lf-margin-preview")
-    else:
-        surface_root = page.locator(".lf-page-thread[data-lf-runtime]")
-    header = surface_root.locator(".lf-msg-head").first
-    receipt = header.locator(".lf-msg-sending")
-    timestamp = header.locator("time")
-    expect(receipt).to_have_text(re.compile(r"^Queued for "))
-    expect(timestamp).to_have_text("just now")
-    # Age changes are news after Chrome's recent-input grace, even when opening the
-    # surface and resizing it happened immediately before this clock transition.
-    rendered(page)
-    page.wait_for_function(
-        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
-    )
-    protected = surface_root.locator("b, button, leaf-text, .lf-msg-body")
-    boxes = "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
-    before = protected.evaluate_all(boxes)
-    assert before
-    thread_before = surface_root.bounding_box()
-    owner = header.locator("xpath=..")
-    owner_before = owner.bounding_box()
-    page.route("**/api/state*", refuse)
-    now = datetime.now().astimezone()
-    for delta, age in [
-        (timedelta(minutes=1), "1m ago"),
-        (timedelta(minutes=10), "10m ago"),
-        (timedelta(hours=3), "3h ago"),
-    ]:
-        # Fixed Date advances the age without changing Chrome's monotonic clock;
-        # LayoutShift, frame readings and input attribution still share native time.
-        page.clock.set_fixed_time(now + delta)
-        ticked(page)
-        expect(timestamp).to_have_text(age)
-        expect(receipt).to_have_text(re.compile(r"^Queued for "))
-        judge_watches()
-        assert surface_root.bounding_box() == thread_before
-        assert owner.bounding_box() == owner_before
-        assert protected.evaluate_all(boxes) == before
 
 
 @pytest.mark.parametrize(

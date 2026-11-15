@@ -8,7 +8,8 @@ A serving context holds this result once; its browser selects the same objects.
 
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply
+from ..activity import canonical_activity, canonical_stream_reply, present_holding
+from ..holding import Holding
 from ..projection import FrozenThreadReading, page_reading
 from ..service import no_stream
 from ..standing import strength
@@ -27,6 +28,9 @@ class WorkState(NamedTuple):
     records: list[dict]
     live_reply: dict | None
     presence: dict
+    # Who holds each thread, as the fold read it (`activity.present_holding`), which
+    # `leaf page state` names and delivery filters.
+    holding: Holding
 
     @property
     def obligations(self) -> list[dict]:
@@ -92,6 +96,7 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
+    holding = present_holding(present, events, now)
     activity = canonical_activity(
         present,
         durable.workflows,
@@ -102,6 +107,7 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
+        holding=holding,
     )
     workflows = (
         served_workflows(activity["workflows"], durable.thread, durable.updates)
@@ -123,5 +129,11 @@ def work_state(
         for todo in log.todos
     ]
     return WorkState(
-        durable, activity, workflows, activity["records"] + todos, reply, present
+        durable,
+        activity,
+        workflows,
+        activity["records"] + todos,
+        reply,
+        present,
+        holding,
     )

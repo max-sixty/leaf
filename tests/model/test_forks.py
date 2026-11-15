@@ -135,10 +135,10 @@ def context(capsys, event: str) -> str:
 
 
 def forked(page_dir) -> list[str]:
-    """The waiting messages the page's served reading words On it."""
-    return presence_model.presence(page_dir, events_model.read_events(page_dir))[
-        "forked"
-    ]
+    """The waiting messages the page's reading words On it, as a fork's, which
+    `activity` reads as `running`."""
+    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    return sorted(work.holding.forked())
 
 
 def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session(
@@ -505,7 +505,7 @@ def test_the_newest_pickup_holds_a_thread_so_a_lapsed_fork_takes_nothing_back(
 
 def holders(page_dir) -> tuple[dict, dict]:
     """Who `leaf page state` says owes each answer the agent owes, on its obligation
-    record, by the input it answers, and who last took each thread, by its id."""
+    record, by the input it answers, and who holds each thread, by its id."""
     state = agent_state_model.cmd_page_state(page_dir)
     return (
         {
@@ -518,13 +518,24 @@ def holders(page_dir) -> tuple[dict, dict]:
 
 
 def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
-    """`leaf page state` names who owes each answer the agent owes, a fork while its
-    turn runs and otherwise the main thread, and who last took each thread, a fork
-    with whether its turn runs, lapsed or closed, or the main thread. So a main
-    thread recovering what it owes there, as after a compaction, can tell a running
-    fork's work from its own: a lapsed fork's message, and one a fork gave back, is
-    the main thread's to answer."""
-    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    """`leaf page state` names who holds each thread: the line fork while Leaf keeps
+    it back, a fork with whether its turn runs, lapsed or closed, or the main thread;
+    and on each answer the agent owes, who owes it now: its thread's line fork or
+    running fork, and otherwise the main thread. So a main thread recovering what it owes
+    there, as after a compaction, can tell a running fork's work, and a message a
+    line fork is judging, from its own: a lapsed fork's message, and one a fork gave
+    back, is the main thread's to answer."""
+    asked = said(claimed, "Does the suggest service cache?")
+    main = {"kind": "main"}
+    line = {"kind": "line"}
+    assert holders(claimed) == ({asked["id"]: line}, {asked["id"]: line})
+    taken = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("looking into the cache", "take"),
+        failed=None,
+        work_forks=True,
+    )
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
@@ -537,7 +548,6 @@ def test_page_state_names_who_has_each_answer_and_thread(claimed, lane, capsys):
     state_model.AGENT_TURNS.write(
         session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
     )
-    main = {"kind": "main"}
     lapsed = {**running, "state": "lapsed"}
     assert holders(claimed) == ({asked["id"]: main}, {asked["id"]: lapsed})
     context(capsys, "UserPromptSubmit")
@@ -621,14 +631,16 @@ def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
 
 
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
-    claimed, lane, monkeypatch
+    claimed, lane, monkeypatch, capsys
 ):
     """The main thread is sovereign: its answer to a message a running fork holds
     takes the thread over at once, with whatever answer reference it uses, since
-    the answer names the turn that posted it. The fork's later reply with that
-    reference is refused rather than handed the main thread's answer as the repeat
-    of its own, and so are its start on the message and a message of its own in
-    the thread that answers nothing. Its end reports the thread
+    the answer names the turn that posted it. A command acting as the main thread
+    goes through on the fork's thread and says beside its result which fork it
+    acted beside, and, for an answer, that it took the thread. The fork's later
+    reply with that reference is refused rather than handed the main thread's answer
+    as the repeat of its own, and so are its start on the message and a message of
+    its own in the thread that answers nothing. Its end reports the thread
     taken over, which the main thread isn't told of, and the thread's next message
     goes to a new fork rather than to that one, resumed."""
     asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
@@ -636,8 +648,17 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
     clerk_model.heard("s1", clerk_model.queued("s1"))
+    capsys.readouterr()
+    fork = f"fork leaf-{asked['id']}"
+    assert todos_model.cmd_start(claimed, asked["id"], "checking the cache")
+    beside = capsys.readouterr().err
+    assert f"{fork} holds this thread" in beside, beside
     ref = answer_ref(claimed, asked["id"])
     answer = thread_model.post_response(ref, "Yes, for an hour.", asks_back=False)
+    took = capsys.readouterr().err
+    assert f"{fork} held this thread" in took and f"SendMessage {fork[5:]}" in took, (
+        took
+    )
     claim = service_model.page_claim(claimed)
     assert answer is not None and claim is not None
     assert answer["turn"] == claim["turn"]
@@ -670,6 +691,133 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
     assert clerk_model.queued("s1") == []
     more = said(claimed, "And the autocomplete service?", parent=asked["id"])
     assert "resume" not in taken_again(claimed, asked["id"], more)
+
+
+def held_by_a_running_fork(page_dir, text: str) -> tuple[dict, str]:
+    """The user's message in a thread a fork took and is still running in, and what
+    a command acting as the main session hears it is told beside its result."""
+    asked, taken = taken_by_a_fork(page_dir, text)
+    forks_model.started(
+        "s1", basis(page_dir, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    return asked, f"fork {taken['agent']} holds this thread"
+
+
+def test_a_message_beside_a_forks_answer_leaves_the_fork_holding_the_thread(
+    claimed, lane, capsys
+):
+    """Only an answer, which responds to a message, takes a thread. A message of the
+    main session's own in a thread a running fork has answered responds to nothing,
+    so the fork still holds the thread, which the message says beside its result
+    rather than that it took it."""
+    asked, holds = held_by_a_running_fork(claimed, "Which Python does it need?")
+    ran = CliRunner().invoke(
+        cli_model.cli,
+        ["--agent-id", "agent-1", "thread", "reply", answer_ref(claimed, asked["id"])]
+        + ["--done", "--text", "Python 3.12 or later."],
+    )
+    assert ran.exit_code == 0, ran.output
+    capsys.readouterr()
+    thread_model.post_reply(claimed, {"parent": asked["id"]}, "3.13 works too.")
+    beside = capsys.readouterr().err
+    assert holds in beside and "took the thread" not in beside, beside
+
+
+def test_a_command_from_outside_the_session_hears_of_the_fork_holding_the_thread(
+    claimed, lane, capsys, monkeypatch
+):
+    """A command acting as the main session hears of the fork that holds its thread
+    whoever runs it, a terminal outside the session included, whose commands name no
+    session."""
+    asked, holds = held_by_a_running_fork(claimed, "Does the suggest service cache?")
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+    capsys.readouterr()
+    assert todos_model.cmd_start(claimed, asked["id"], "checking the cache")
+    beside = capsys.readouterr().err
+    assert holds in beside, beside
+
+
+def test_a_start_on_a_to_do_in_a_forks_thread_hears_of_the_fork(claimed, lane, capsys):
+    """A to-do attached to a thread stands in that thread, so a start on it in the
+    main session's name, as on one of the thread's messages, hears of the running
+    fork that holds the thread."""
+    asked, holds = held_by_a_running_fork(claimed, "Does the suggest service cache?")
+    todo = todos_model.cmd_create(claimed, asked["id"], "Check the cache config")
+    capsys.readouterr()
+    assert todos_model.cmd_start(claimed, todo["id"], "checking the config")
+    beside = capsys.readouterr().err
+    assert holds in beside, beside
+
+
+def test_only_a_commands_own_write_hears_of_the_line_fork_holding_its_thread(
+    claimed, lane, capsys
+):
+    """While Leaf keeps a thread back, a command acting as the main session hears of
+    the line fork that holds it, and Leaf's own post of the line fork's working
+    message, in the claimant's name, says nothing beside it."""
+    asked = said(claimed, "Why a 2-second poll?")
+    capsys.readouterr()
+    assert todos_model.cmd_start(claimed, asked["id"], "reading the poll")
+    beside = capsys.readouterr().err
+    assert "a line fork holds this thread" in beside, beside
+    handed = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("reading the poll code"),
+        failed=None,
+    )
+    assert handed["outcome"] == "hand_over"
+    assert "fork-holds-thread" not in capsys.readouterr().err
+
+
+def test_a_session_that_ended_names_its_forks_threads_and_hands_nothing_on(
+    claimed, lane
+):
+    """A session that has ended still names the fork that held each thread in
+    `leaf page state`, but holds nothing for delivery: the message its fork picked
+    up is no input for it, as the fold's and the page's readings agree."""
+    asked, _holds = held_by_a_running_fork(claimed, "Does the suggest service cache?")
+    state_model.end_session("s1")
+    _owed, threads = holders(claimed)
+    assert threads[asked["id"]]["kind"] == "fork"
+    assert deliverable(claimed) == []
+    with PageTransaction(claimed) as page:
+        assert not forks_model.page_holding(page).live
+        assert delivery_model.deliverable(page, received=False) == []
+
+
+def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer():
+    """A thread's holder is the turn whose pickup of one of its waiting messages is
+    newest, even where another turn picked up an older message of the thread later,
+    as a late acknowledgement does: the turn that took the waiting messages holds
+    them."""
+    events = [
+        {"kind": "comment", "id": "c1", "author": "user", "seq": 1},
+        {
+            "kind": "reply",
+            "id": "a1",
+            "author": "agent",
+            "parent": "c1",
+            "responds": "c1",
+            "turn": "t0",
+            "seq": 2,
+        },
+        {"kind": "reply", "id": "u2", "author": "user", "parent": "a1", "seq": 3},
+        *(
+            {
+                "kind": "pickup",
+                "phase": "opened",
+                "session": "s1",
+                "turn": turn,
+                "events": [input_id],
+                "seq": seq,
+            }
+            for seq, turn, input_id in ((4, "waiting", "u2"), (5, "older", "c1"))
+        ),
+    ]
+    held = holding_model.reading(events, "s1", {}, set(), live=True).hold("c1")
+    assert (held.turn, held.picked) == ("waiting", True)
 
 
 def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeypatch):
@@ -1239,8 +1387,8 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     claim = service_model.page_claim(claimed)
     assert claim is not None
     with PageTransaction(claimed) as page:
-        held = holding_model.holding_turns(page.events, "s1", set())
-    assert held[more["id"]] == claim["turn"]
+        held = forks_model.page_holding(page).of(more["id"])
+    assert (held.turn, held.picked) == (claim["turn"], True)
 
     late = CliRunner().invoke(
         cli_model.cli, ["--agent-id", "agent-1", "delivery", "ack", stale]
@@ -1248,7 +1396,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     assert late.exit_code != 0
     assert "no longer holds" in late.output
     with PageTransaction(claimed) as page:
-        assert holding_model.holding_turns(page.events, "s1", set()) == held
+        assert forks_model.page_holding(page).of(more["id"]) == held
 
 
 def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):

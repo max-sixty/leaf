@@ -779,13 +779,16 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
 
     def reminders(page: PageTransaction) -> list[dict]:
         from .holding import running_turns
+        from .state import agent_turn_stamps
 
         claim = page.active_claim
         key = (
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            frozenset(running_turns(claim)) if claim else frozenset(),
+            frozenset(running_turns(agent_turn_stamps(claim)))
+            if claim
+            else frozenset(),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))

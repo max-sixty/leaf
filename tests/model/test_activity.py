@@ -456,6 +456,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_closed": None,
         "turn_takes_input": False,
         "agent_turns": {},
+        "kept_back": [],
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -488,6 +489,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (waiting["state"], waiting["reason"], waiting["observed_kind"]) == (
         "blocked",
@@ -501,6 +503,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (
         thinking["presence"],
@@ -546,6 +549,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )["workflows"]
     assert (ended["state"], ended["reason"]) == ("blocked", "stopped")
 

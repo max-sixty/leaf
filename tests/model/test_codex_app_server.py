@@ -1442,6 +1442,25 @@ def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
         codex_model.recv_notification(socket, long_ago, 120.0)
 
 
+def test_a_request_waits_for_its_answer_however_long_it_takes():
+    """A full-history resume of a long task takes tens of seconds on a loaded
+    machine, so a request sets no bound of its own on its answer."""
+
+    class Slow:
+        """Answers later than any bound a reader could set."""
+
+        def send(self, _data):
+            pass
+
+        def recv(self, timeout=None):
+            if timeout is not None:
+                raise TimeoutError
+            return json.dumps({"id": 1, "result": {"thread": {"id": "codex-thread"}}})
+
+    answer = codex_model.app_server_request(Slow(), "thread/resume", 1, {})
+    assert answer == {"thread": {"id": "codex-thread"}}
+
+
 def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):
     comment = append_carried_log_record(
         page_dir,

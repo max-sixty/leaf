@@ -135,13 +135,8 @@ its result, put it on the page, move finished work out of the open work
 (`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
 that asked, linking to the result.
 
-Workers return results to you and leave the page alone. The server, the watcher,
-acknowledgements, replies, starts, status, `index.html`, and stamps stay yours. The
-exceptions are a command hub worker (the `worker` value from
-`leaf page instructions <page>`) and a Codex watcher task
-(`references/codex-watcher.md`). Say so in each brief, since a worker that inherits
-your conversation inherits the page too. Work that needs its own conversation with
-the user belongs in its own session, with its own page.
+Work that needs its own conversation with the user belongs in its own session, with
+its own page.
 
 Decisions built from a worker's report tend to keep the report's shape, and the
 brief sets that shape. When the user will decide on what a worker finds, such as an

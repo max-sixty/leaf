@@ -230,7 +230,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
         def send(self, message):
             pass
 
-        def recv(self, timeout):
+        def recv(self, timeout=None):
             return next(messages)
 
         def close(self):

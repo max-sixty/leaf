@@ -341,6 +341,16 @@ only a registry entry, its module and theme rules. Everything else reads registr
 declarations, never lists of tag names. Layer-wide facts live under `$` keys;
 each tag's entry is its complete schema.
 
+### Wait for the event that ends the work
+
+Code waits for a response, a process's exit, a lease's release or a socket's
+close, so a slow machine only makes the wait longer. A deadline stands only
+where an outside party imposes one, such as a harness's hook timeout or a peer
+that can hang without closing, or to cap a cost. It is that party's whole
+budget, which every step under it shares, and it sits at least ten times above
+the work on a loaded machine. Where a slower path exists, expiry takes it rather
+than failing.
+
 ## Working on the repository
 
 When the user is to choose among designs, show the candidates side by side and

@@ -959,6 +959,7 @@ def test_fresh_exact_reply_supersedes_an_older_quiet_start():
         "listening": True,
         "session_alive": True,
         "agent_turns": {},
+        "kept_back": [],
     }
     reply = {
         "state": "active",
@@ -986,6 +987,7 @@ def test_fresh_exact_reply_supersedes_an_older_quiet_start():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
+        holding=activity_model.present_holding(present, [], now.isoformat()),
     )
     [projected] = activity["workflows"]
     assert (projected["state"], projected["reason"]) == ("running", "replying")

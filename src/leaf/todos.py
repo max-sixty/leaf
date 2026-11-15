@@ -389,18 +389,33 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     page (`state.acting_turn`): the claimant's, or that of an agent the session runs
     beside it, such as a fork that took a thread's work. That is what lets the turn end
     over the update it started (`activity.started_in_turn`) and what ends the start's
-    hold with the turn. Another session's start names none: a
-    Claude Code subagent runs as its parent's session, so workers leave starts to the
-    session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
+    hold with the turn. Another session's start names none. A Claude Code subagent
+    runs as its parent's session, so a worker's start is the main thread's.
+    `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
     start consumer reads either form through `start_reading`. A start on a page
-    declared `idle` reopens it (`activity.declaration`)."""
+    declared `idle` reopens it (`activity.declaration`). A start any other writer
+    makes on a message, or a to-do, in a thread a fork holds says so beside the record
+    (`holding.authorize`)."""
     from .event_contracts import append_admitted
+    from .findings import note
+    from .forks import page_holding
     from .holding import authorize
     from .state import acting_turn
 
-    # A fork shows itself at work only on what its turn holds.
-    authorize(page, identity.get("session"), [item])
+    # A fork shows itself at work only on what its turn holds; the thread a to-do
+    # stands on is the to-do's subject.
+    on = next(
+        (
+            todo["source"]["subject"]["id"]
+            for todo in TodoReading(page.events).todos
+            if todo["id"] == item and todo["source"]["subject"]["kind"] == "thread"
+        ),
+        None,
+    )
+    beside = authorize(
+        page, page_holding(page), identity.get("session"), [item], thread=on
+    )
     turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,
@@ -413,6 +428,8 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
             **({"turn": turn} if turn else {}),
         },
     )
+    if beside is not None:
+        note(beside)
     return record
 
 

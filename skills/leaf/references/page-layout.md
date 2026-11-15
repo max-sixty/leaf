@@ -128,11 +128,12 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 </main>
 ```
 
-Use a `layout-column` body for a reading document with wider exhibits. Where its
+Use a `layout-column` body for a reading document with wider exhibits. Its prose
+stands where a column page's would, moving toward the end only as far as the sidebar
+needs, and exhibits use the body's width on either side of it. Where its
 sidebar comes before the body and its track holds only the contents map, under a mouse
-the sidebar narrows to the map's spine: the map shows its labels over the page when
-the reader points at it, the prose starts just past the spine, and exhibits use the
-remaining body width. Under touch, after the body, or with anything else in the track, the sidebar
+the sidebar narrows to the map's spine, and the map shows its labels over the page when
+the reader points at it. Under touch, after the body, or with anything else in the track, the sidebar
 keeps a column's room. So put a status the
 reader should see at once at the top of the body rather than beside the map. For a
 board or dashboard, the body can instead be an ordinary `div` with the page's own

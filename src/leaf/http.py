@@ -49,7 +49,7 @@ from .interaction_log import admit_batch, append_interactions, client_records
 from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
-from .page_memory import memo
+from .page_memory import memo, once
 from .passages import SourceReading
 from .presence import live_servers
 from .refusals import Refused
@@ -193,14 +193,14 @@ def assets_path(identity: str) -> str:
 
 
 class _Executions:
-    """The execution identity of each of a page's revisions this process has
-    computed, by revision name (`PageEndpoint._identity`). Within one process an
-    identity changes only when the page's package copies are replaced, which
-    `page init` does with the page's server stopped, and serving a document records
-    its revision's identity again."""
+    """What this process has learned of where a page's executions answer: a
+    revision that executes under each identity it computed (`PageEndpoint._identity`),
+    and the identity the search for an address found for each revision it tried
+    (`PageEndpoint._addressed`)."""
 
     def __init__(self) -> None:
-        self.identities: dict[str, str] = {}
+        self.revisions: dict[str, str] = {}
+        self.searched: dict = {}
 
 
 def page_delivery(
@@ -988,11 +988,10 @@ class PageEndpoint:
         return reading.registry["$layer"]["generation"]
 
     def _identity(self, revision: int) -> str:
-        """The identity `revision` executes under in this process, kept for
-        `_addressed`."""
+        """The identity `revision` executes under here, kept for `_addressed`."""
         identity = execution_identity(self._artifact(revision))
-        memo(self.page_dir, _Executions).identities[self._revision_name(revision)] = (
-            identity
+        memo(self.page_dir, _Executions).revisions[identity] = self._revision_name(
+            revision
         )
         return identity
 
@@ -1000,17 +999,25 @@ class PageEndpoint:
         """The execution whose resources answer at `identity` (`assets_path`), or None
         where no revision of the page executes under it here.
 
-        Every revision executing under one identity serves the same bytes there. A tab
-        most often shows the newest revision, or one sharing its identity, so the
-        newest are tried first; each identity computed is kept, so a tab showing an
-        older revision costs one walk of the revisions after it, not one per request."""
-        known = memo(self.page_dir, _Executions).identities
+        Every revision executing under one identity serves the same bytes there.
+        Serving a document records its revision under its identity (`_identity`), so
+        the requests its load makes find it at once. An address this process hasn't
+        served, such as one a tab from before a restart names, is searched for among
+        the revisions, newest first. The search computes each revision's identity once
+        however many requests ask at the same time (`page_memory.once`), and keeps it,
+        so an address no revision answers costs one search in this process."""
+        held = memo(self.page_dir, _Executions)
         names = self.source.revision_names
+        if (
+            (known := held.revisions.get(identity)) is not None
+            and names.get(revision := revision_num(known)) == known
+            and (executed := named_execution(self._artifact(revision), identity))
+        ):
+            return executed
         for revision in sorted(names, reverse=True):
-            computed = known.get(names[revision])
-            if computed is None:
-                computed = self._identity(revision)
-            if computed == identity and (
+            if once(
+                held.searched, names[revision], partial(self._identity, revision)
+            ) == identity and (
                 executed := named_execution(self._artifact(revision), identity)
             ):
                 return executed
@@ -1078,7 +1085,9 @@ class PageEndpoint:
         match = re.fullmatch(
             r"/revisions/(?P<identity>[0-9a-f]+)/(?P<resource>.+)", self.path
         )
-        if match is None:
+        # Media answers at the page root (`DeliveryAddress`), so the identity covers
+        # none of it and this address serves none.
+        if match is None or match["resource"].startswith(f"{MEDIA_DIR}/"):
             return None
         artifact = self._addressed(match["identity"])
         if artifact is None:

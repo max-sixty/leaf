@@ -44,6 +44,7 @@ from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
@@ -271,12 +272,14 @@ def _responses(
             continue
         paths.add(f"revisions/{snapshot.revision_names[item]}")
         # Where the container serves the revision's resources, which the revisions
-        # that differ only in their document share.
+        # that differ only in their document share. Media answers at the page root
+        # (below), never there.
         served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
-            paths.add(f"{served}{logical}")
+            if not logical.startswith(f"/{MEDIA_DIR}/"):
+                paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )

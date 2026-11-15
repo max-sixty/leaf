@@ -24,8 +24,8 @@ than reading a newer server's state with older code (`runtime/layer-client.js`).
 
 An execution's identity (`executing`) covers every byte a page server answers under
 the address it gives the execution's resources (`http.assets_path`): the runtime, the
-composed layer and vocabulary, and the files the revision captured. So a cached
-address never names other bytes. The identity covers nothing of the document itself,
+composed layer and vocabulary, and the files the revision captured, apart from media,
+which answers at the page root. So a cached address never names other bytes. The identity covers nothing of the document itself,
 so the revisions an agent saves as it edits a page's prose share one address, and a
 reload after one of them fetches none of the runtime again.
 
@@ -296,16 +296,19 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     )
     layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
     # Agent instructions belong to the composition's fingerprint, but only the
-    # browser's bytes belong to its immutable resource address. The revision's
-    # captured files are served at the same address, so the identity covers each by
-    # the digest its manifest records, and covers each widget alias, whose module
-    # names its implementation at that address. Media answers at the page root under
-    # a name that is its own digest, so the identity leaves it out, and a revision
-    # that adds an image keeps the address.
+    # browser's bytes belong to its immutable resource address: the layer's files,
+    # digested once for every revision that selects the layer, and this revision's
+    # vocabulary. The revision's captured files are served at the same address, so
+    # the identity covers each by the digest its manifest records, and covers each
+    # widget alias, whose module names its implementation at that address. Media
+    # answers at the page root under a name that is its own digest, never at this
+    # address, so the identity leaves it out and a revision that adds an image keeps
+    # the address.
     identity = files_identity(
         {
             "runtime": runtime.identity.encode(),
-            **{path: resource.data for path, resource in layer.items()},
+            "layer": composition.files_digest.encode(),
+            "/registry.json": layer["/registry.json"].data,
             **{
                 f"capture:{path}": captured["digest"].encode()
                 for path, captured in manifest["resources"].items()

@@ -970,6 +970,10 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     source = tmp_path / "large.mp4"
     source.write_bytes(data)
     path = media_model.cmd_media(page_dir, [source])[0]["path"]
+    # A page file is captured whole and answers beside the runtime, where media never
+    # does.
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "large.mp4").write_bytes(data)
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</main>", f'<video controls preload="none" src="{path}"></video></main>'
@@ -1004,7 +1008,7 @@ def test_document_startup_and_media_ranges_do_not_read_whole_recordings(
     monkeypatch.setattr(io, "open", observe)
     assert fetch(server)[0] == 200
     assert reads == []
-    for route in (path, captured + path):
+    for route in (path, captured + "/page/large.mp4"):
         conn = http.client.HTTPConnection(urllib.parse.urlsplit(server).netloc)
         try:
             conn.request("HEAD", route + f"?t={TOKEN}")
@@ -1775,6 +1779,8 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
+    # Media answers only at the page root, so the identity names none of it.
+    assert cache_control(f"{root}{media[0]['path']}") == (404, "no-cache")
     assert cache_control("/revisions/0123456789abcdef/leaf.js") == (404, "no-cache")
     assert cache_control(f"{revision}/leaf.js") == (404, "no-cache")
 

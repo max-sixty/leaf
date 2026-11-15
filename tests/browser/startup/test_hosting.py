@@ -941,31 +941,34 @@ def _glides(page, serve, held, release):
         )
     )
     wait_until_ready(page)
-    # Whether each frame stood in view at the reading that found it near, which is
-    # when its sample starts (geometry.js, `nearObserver`).
-    page.evaluate("""() => {
-      const near = new IntersectionObserver(entries => {
-        for (const {isIntersecting, boundingClientRect: box, target} of entries) {
-          if (!isIntersecting) continue;
-          near.unobserve(target);
-          target.seenAsNear = box.bottom > 0 && box.top < innerHeight;
-        }
-      }, {rootMargin: '100%', scrollMargin: '600px'});
-      for (const frame of document.querySelectorAll('lf-sample iframe'))
-        near.observe(frame);
+    # Whether each frame stood where its resize would be seen as its sample started,
+    # which says "Loading sample…" in the task that starts it.
+    page.evaluate("""async () => {
+      const {growthIsSeen} = await window.__lfWidgetApi();
+      for (const sample of document.querySelectorAll('lf-sample')) {
+        const frame = sample.querySelector('iframe');
+        const status = sample.querySelector('.lf-sample-status');
+        const started = new MutationObserver(() => {
+          if (!status.textContent) return;
+          started.disconnect();
+          frame.seenAsStarted = growthIsSeen(frame);
+        });
+        started.observe(status, {childList: true, characterData: true, subtree: true});
+      }
     }""")
     page.mouse.click(1150, 300)
     page.keyboard.press("t")
     page.evaluate(STILL)
     holding(page, held, 2, "both samples' documents")
     assert page.locator("#place").evaluate(IN_VIEW)
-    # On a busy host the glide can land in a frame or two, before the browser's reading
-    # finds the samples near: then the sample above the thread starts in view, as after
-    # an instant walk, and its fit is the reader's and moves the thread, on main too.
+    # On a busy host the glide can land in a frame or two, or the browser deliver its
+    # reading after the glide has landed: then the sample above the thread starts in
+    # view, as after an instant walk, and its fit is the reader's and moves the thread,
+    # on main too.
     if page.evaluate("""async () => {
       const {growthIsSeen} = await window.__lfWidgetApi();
       return [...document.querySelectorAll('lf-sample iframe')]
-        .some(frame => frame.seenAsNear && growthIsSeen(frame));
+        .some(frame => frame.seenAsStarted && growthIsSeen(frame));
     }"""):
         pytest.skip("the glide landed before the sample above the thread came near")
     return ["first-source", "second-source"]

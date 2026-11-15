@@ -117,7 +117,9 @@ const askingAllNear = new Set();
  * a gesture brought the node near: at the reading the user's latest input was a key, a
  * press or typing (focus.js, `latestInputIsGesture`) and no scroll was under way, and
  * since then no box that scrolls the node has scrolled and none is scrolling
- * (arrivals.js, `scrolling`).
+ * (arrivals.js, `scrolling`). A busy browser can deliver the reading after the page
+ * has moved on, as a glide does, so the node must also still stand where the reading
+ * found it.
  * Layout carrying the node, as another box's resize does, leaves it standing; the
  * page's arrival, the reader's scroll, a glide and a fling's momentum do not. What
  * `start` returns, if anything, is the landing of work that moves what the reader
@@ -133,7 +135,8 @@ export function whenNear(node, start) {
   const { promise: read, resolve: land } = Promise.withResolvers();
   deferredArrival(read);
   const observer = nearObserver((entries) => {
-    if (entries.some(({ isIntersecting }) => isIntersecting)) run();
+    const reading = entries.find(({ isIntersecting }) => isIntersecting);
+    if (reading) run(reading);
     land();
   });
   const stop = () => {
@@ -141,10 +144,14 @@ export function whenNear(node, start) {
     nearing.delete(run);
     land();
   };
-  const run = () => {
+  /** @param {IntersectionObserverEntry} [reading] */
+  const run = (reading) => {
     nearing.delete(run);
     observer.disconnect();
-    const brought = latestInputIsGesture() && !scrolling();
+    const brought =
+      latestInputIsGesture() &&
+      !scrolling() &&
+      (!reading || standsAt(node, reading.boundingClientRect));
     const scrolled = scrolledAround(node);
     const landing = start(
       () => brought && !scrolling() && scrolledAround(node) === scrolled,
@@ -163,6 +170,13 @@ export function whenNear(node, start) {
   // Work a check has already asked for starts once its owner has its step.
   if (allNear) queueMicrotask(() => nearing.has(run) && run());
   return stop;
+}
+
+// Whether `node` stands where `box`, an earlier reading of it, found it.
+/** @param {Element} node @param {DOMRectReadOnly} box */
+function standsAt(node, box) {
+  const now = node.getBoundingClientRect();
+  return Math.abs(now.top - box.top) < 1 && Math.abs(now.left - box.left) < 1;
 }
 
 // Where each box around `node` stands scrolled, for telling whether any has scrolled.

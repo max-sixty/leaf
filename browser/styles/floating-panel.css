@@ -1742,7 +1742,9 @@
      of the message asking it holds the widget (messages.js, `data-lf-holds`), whichever
      drawing holds it as threads open and close beside On Me (floating-panel.js,
      `onItemCard`). A message the card carries (`data-lf-carried`) holds widgets of its
-     own, not the card's. */
+     own, not the card's. The rule reads the drawing's mark rather than asking `:has()`
+     whether the widget stands in the outlet, since Firefox 159 kept the choices hidden
+     after the widget moved out (notes/browser-support.md, 2026-11-15). */
   .lf-fp-on-item:has(.lf-fp-asked:not([data-lf-carried]) .lf-msg[data-lf-holds])
     .lf-fp-answers
     > :is(.lf-fp-answer, .lf-fp-commit) {

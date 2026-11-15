@@ -867,8 +867,8 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     expect(card).to_be_focused()
     expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
     expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
-    # The options themselves: the card's choices for them stand hidden beside them.
-    expect(card.locator(".lf-fp-answer")).to_have_count(2)
+    # The options themselves, with no second set of choices beside them.
+    rendered(page)
     expect(card.locator(".lf-fp-answer:visible")).to_have_count(0)
     with sending(page, "the pick"):
         page.keyboard.press("1")
@@ -960,13 +960,17 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     expect(thread.locator("#ship-friday")).to_have_attribute("chosen", "")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes(
-    browser, serve
+    request, serve, engine
 ):
     """While On Me stands open, a margin card opening on the thread that asks a choice
     takes the choice from On Me's card, and closing it may leave the choice there. The
     card shows the choice once throughout: the options themselves while its drawing of
-    the message holds them, else its choices, never both and never neither."""
+    the message holds them, else its choices, never both and never neither. Firefox
+    kept the choices hidden after the choice left the card under a rule asking where the
+    choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
+    its match moves out, in Firefox")."""
     url = serve(
         leaf_page(
             "anchored choice",
@@ -989,7 +993,7 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "</lf-options>",
         },
     )
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     resized(page, 1440, 900)
     view = open_on_me(page)
     card = on_card(page, "widget:ship")
@@ -1003,8 +1007,7 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
         })""")
 
     expect(card.locator("#ship")).to_be_visible()
-    # The card draws its choices once its drawing of the message stands.
-    expect(card.locator(".lf-fp-answer")).to_have_count(2)
+    rendered(page)
     assert shown() == {"options": True, "choices": 0}
     # The walk opens the thread's margin card beside the passage, On Me still open.
     page.keyboard.press("m")

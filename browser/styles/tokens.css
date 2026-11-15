@@ -659,8 +659,23 @@
   --lf-mark-contour-ink: color-mix(in srgb, var(--lf-accent) 72%, var(--lf-paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover, or that
-     a reaction the user added rests on. */
-  --lf-accent-tint: color-mix(in srgb, var(--lf-accent) 12%, var(--lf-card));
+     a reaction the user added rests on. It is the card with a tenth of the accent in
+     it, and the accent goes in at several times its chroma, so the tint keeps the
+     accent's hue: mixed in as it stands, a blue and a cream card cancel to grey,
+     which reads as a disabled control. The chroma is capped at the reading accent's,
+     so a vivid brand colour tints no more strongly than the default does. */
+  --lf-accent-tint: light-dark(
+    color-mix(
+      in oklab,
+      var(--lf-card) 92%,
+      oklch(from var(--lf-accent) l calc(min(c, 0.085) * 3.65) h)
+    ),
+    color-mix(
+      in oklab,
+      var(--lf-card) 90%,
+      oklch(from var(--lf-accent) l calc(min(c, 0.068) * 5.4) h)
+    )
+  );
   /* Status marker and text are independent theme inputs. In particular, a warning
      dot's color need not provide readable small text on its ground. A status ground
      is seven parts the page's paper and three a colour of the status's hue, so it

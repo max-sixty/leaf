@@ -479,6 +479,16 @@ export function createResponseSurface({
     const land = landingFromBar(true);
     closeLayer(() => showFab(null), land);
   }
+  // A send lands the user itself, on the conversation it opens (selection.js, `send`),
+  // so the bar its settlement takes down lands no one. The call it returns lets go of
+  // a user the send landed nowhere, while they still stand in the bar and no other
+  // anchor has taken it.
+  function takeDownFab() {
+    closeLayer(() => showFab(null));
+    return () => {
+      if (!fabAnchor.value && fabBar.contains(fabFocused())) letGo();
+    };
+  }
   // The bar's whole paint for the anchor it stands on, or for none: whether it shows,
   // whether only its target is chosen, which responses it offers, and what it is called.
   // Comment returns from the bar's choice state to this same field. With only a target
@@ -1059,6 +1069,7 @@ export function createResponseSurface({
     landFabFocus,
     showFab,
     letGoOfFab,
+    takeDownFab,
     createComment,
     landSent,
     refreshThread,

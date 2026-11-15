@@ -2334,7 +2334,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
     )
-    agent_said(
+    answered = agent_said(
         serve.page_dir,
         root,
         "The workshop fits, including a fifteen-minute break.",
@@ -2353,7 +2353,9 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     said = agent_said(
         serve.page_dir, root, "The room stays free until seven. " * 4, responds=asked
     )
-    summarize_thread(serve.page_dir, asked, said, "The room is free until seven.")
+    summarize_thread(
+        serve.page_dir, answered, said, "It fits, and the room is free until seven."
+    )
     agent_said(serve.page_dir, root, "Booked it for the afternoon.")
     page = floating(browser, url)
     page.locator("body").focus()

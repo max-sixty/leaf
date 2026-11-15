@@ -1,5 +1,6 @@
 """A native browser trace remains truthful when turned into commentable Leaf evidence."""
 
+import io
 import json
 import runpy
 from pathlib import Path
@@ -7,6 +8,7 @@ from zipfile import ZipFile
 
 import pytest
 from click.testing import CliRunner
+from PIL import Image
 from playwright.sync_api import expect
 
 from leaf.cli import cli
@@ -96,8 +98,11 @@ def test_unsupported_or_mixed_trace_formats_refuse(
 def test_native_call_identity_connects_input_and_phase_captures(
     media_page, tmp_path, version
 ):
-    """Both formats use native callId edges, irrespective of separate stepId."""
+    """Both formats use native callId edges, irrespective of separate stepId, and a
+    phase's screenshot becomes page media with its original bytes."""
     trace = tmp_path / "identity.zip"
+    screenshot = io.BytesIO()
+    Image.new("RGB", (4, 3), "white").save(screenshot, "PNG")
     events = [
         {"type": "context-options", "version": version, "origin": "library"},
         {
@@ -130,6 +135,14 @@ def test_native_call_identity_connects_input_and_phase_captures(
             },
         },
         {
+            "type": "screenshot",
+            "callId": "step@click",
+            "phase": "action",
+            "pageId": "page@one",
+            "timestamp": 3,
+            "file": "shots/click.png",
+        },
+        {
             "type": "aria-snapshot",
             "callId": "step@click",
             "phase": "action",
@@ -145,6 +158,7 @@ def test_native_call_identity_connects_input_and_phase_captures(
         events[2]["stepId"] = "separate-step@click"
     with ZipFile(trace, "w") as archive:
         archive.writestr("trace.trace", "\n".join(map(json.dumps, events)))
+        archive.writestr("shots/click.png", screenshot.getvalue())
         archive.writestr(
             "aria/click.json",
             json.dumps(
@@ -172,6 +186,9 @@ def test_native_call_identity_connects_input_and_phase_captures(
     assert phase["timestamp"] == 3
     assert phase["tree"]["timestamp"] == 4
     assert phase["tree"]["nodes"][0]["name"] == "Approve"
+    [image] = value["images"]
+    assert phase["imageId"] == image["id"]
+    assert (media_page / image["url"].lstrip("/")).read_bytes() == screenshot.getvalue()
 
 
 def test_native_parent_graph_omits_missing_labels_and_refuses_cycles(

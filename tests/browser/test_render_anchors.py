@@ -1,6 +1,7 @@
 """Selection, passage, syntax, and version-travel tests."""
 
 import json
+import math
 import re
 from html import escape
 from pathlib import Path
@@ -87,7 +88,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
+from leaf.render_checks import evaluate_probe, rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
@@ -2351,9 +2352,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ]
     assert changed_lines
     assert all(line["linePaint"] != line["prePaint"] for line in changed_lines)
-    assert before["linePaint"] != after["linePaint"], (
-        "additions and deletions need distinct semantic fills"
-    )
 
     inline_paint = [paint for line in changed_lines for paint in line["markPaint"]]
     assert inline_paint
@@ -2364,6 +2362,72 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in changed_lines
         for background, _ in line["markPaint"]
     ), "inline changes need a stronger fill than their changed line"
+
+    # An added row and a removed row differ at a glance in either scheme: about as far
+    # apart in Oklab as GitHub's light rows (0.057), where 16% of the muted status
+    # colours mixed into the canvas left them 0.032 apart and near grey. A changed word's
+    # mark stands at least that far from its row, so it still picks out the word. The
+    # browser converts each paint to Oklab itself, whatever form the theme states it in.
+    read_paints = """() => {
+      const root = document.querySelector('#patch').shadowRoot;
+      const probe = document.body.appendChild(document.createElement('i'));
+      const oklab = paint => {
+        probe.style.color = `oklab(from ${paint} l a b)`;
+        return getComputedStyle(probe).color
+          .match(/-?\\d*\\.?\\d+(?:e-?\\d+)?/g).slice(0, 3).map(Number);
+      };
+      const read = kind => {
+        const line = root.querySelector(
+          `.lf-diff-line[data-line-type="${kind}"]:has([data-diff-span])`);
+        return {
+          row: oklab(getComputedStyle(line).backgroundColor),
+          mark: oklab(getComputedStyle(line.querySelector('[data-diff-span]'))
+            .backgroundColor),
+        };
+      };
+      const paints = {
+        canvas: oklab(getComputedStyle(root.querySelector('pre')).backgroundColor),
+        added: read('change-addition'),
+        removed: read('change-deletion'),
+      };
+      probe.remove();
+      return paints;
+    }"""
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paints = page.evaluate(read_paints)
+        added, removed = paints["added"], paints["removed"]
+        apart = math.dist(added["row"], removed["row"])
+        assert apart >= 0.05, f"{scheme}: added and removed rows {apart:.3f} apart"
+        for kind in ("added", "removed"):
+            stands = math.dist(paints[kind]["mark"], paints[kind]["row"])
+            assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
+
+    # A theme or page sets the code inputs apart from the scheme (package-themes.md,
+    # "Theme colors"), as dark code on a light page does. The rows take their lightness
+    # from the code canvas rather than the scheme, so they stand a step from it and the
+    # code on them reads as it does on the canvas.
+    dark_code = {
+        "--lf-pre-bg": "#1b1b1a",
+        "--lf-code-ink": "#e8e7e3",
+        "--lf-syn-comment": "#cac2b3",
+        "--lf-syn-keyword": "#efafa0",
+        "--lf-syn-string": "#9dc4dd",
+        "--lf-syn-number": "#a8c4e2",
+        "--lf-syn-name": "#cdb2e8",
+        "--lf-syn-type": "#e6bc88",
+    }
+    restyle = """tokens => Object.entries(tokens).forEach(([name, value]) =>
+      value ? document.documentElement.style.setProperty(name, value)
+        : document.documentElement.style.removeProperty(name))"""
+    page.evaluate(restyle, dark_code)
+    paints = page.evaluate(read_paints)
+    assert paints["canvas"][0] < 0.3, "the dark code tokens never reached the canvas"
+    for kind in ("added", "removed"):
+        step = paints[kind]["row"][0] - paints["canvas"][0]
+        assert abs(step) < 0.1, f"a {kind} row {step:+.3f} in lightness from dark code"
+    assert evaluate_probe(page, "unreadSyntax") == []
+    page.evaluate(restyle, dict.fromkeys(dark_code, ""))
 
     # Pierre's inline comparison is language-independent. Dockerfile is intentionally
     # plain in Leaf's registry, but the edited dependency is still called out.

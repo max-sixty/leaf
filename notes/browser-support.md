@@ -364,6 +364,31 @@ open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
 removing this entry.
 
+### An `auto` box under a fold in Firefox
+
+A box with `content-visibility: auto` whose ancestor skips its content, as a
+`hidden="until-found"` panel or a shut `<details>` does, should skip nothing itself
+until the fold opens, when the browser decides which such boxes are in view. On
+2026-11-14 Playwright Firefox 159.0 (build 1572) instead reported every such box
+drawn (`contentvisibilityautostatechange` with `skipped: false`) as the fold closed
+or the box arrived under it, kept them drawn as the fold opened, and reported the
+ones out of view over the following frames. In a 300px scroller holding 50 such
+boxes of five 20px rows, under either fold, all 50 reported drawn while folded and
+46 reported skipped on opening; with the boxes `content-visibility: visible` while
+folded, none reported anything until the fold opened, then 4 drawn and 46 skipped.
+Playwright Chromium 158.0.8127.18 (build 1254) reported nothing under a fold either
+way, then 17 drawn and 33 skipped.
+
+A text document's runs are `visible` under a fold
+(`packages/default/styles/text-document.css`), so a closed tab Firefox opens reads
+and colours only the runs in view; with `auto` there, opening a tab of 95,000 lines
+on #4781's page held the main thread for 6.6 s rather than 2 s, the page reading and
+colouring every line. `test_opening_a_closed_tab_draws_only_the_lines_in_view` in
+`tests/browser/widgets/test_code_and_documents.py` fails in Firefox without the rule,
+drawing all 32 runs of its document in the first frame after the press. Recheck by
+deleting the rule's `content-visibility: visible` and running that test: once its
+Firefox arm passes, the rule can go.
+
 ### Native focus and scrolling inside samples
 
 An opaque sample's sandbox isolates DOM and storage, but authored JavaScript's

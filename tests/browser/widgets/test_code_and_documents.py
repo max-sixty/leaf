@@ -550,6 +550,48 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     assert not page.evaluate(TOKENS_IN, "#doc-1 code")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engine):
+    """Opening a tab nobody opened draws only the runs of its document's lines that are
+    in view, in every frame from the press on. Firefox took the runs under the closed
+    tab for drawn and kept them so as it opened, drawing every line of a long document
+    for the first frames and reading and colouring every one of them
+    (notes/browser-support.md, "An `auto` box under a fold in Firefox")."""
+    url = serve(
+        leaf_page(
+            "Documents",
+            '<lf-tabs id="docs" list="side">'
+            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            "</lf-tabs>",
+        )
+    )
+    text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(4000))
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#log.lf-rendered")).to_have_count(1)
+    runs = page.locator("#log .lf-text-document-run")
+    assert runs.count() > 20
+    # How many runs draw their lines in each of the 20 frames from the press.
+    page.evaluate("""() => {
+      const runs = [...document.querySelectorAll('#log .lf-text-document-run')];
+      window.drawnRuns = [];
+      const frame = () => {
+        window.drawnRuns.push(runs.filter((run) =>
+          run.firstElementChild.checkVisibility({contentVisibilityAuto: true})).length);
+        if (window.drawnRuns.length < 20) requestAnimationFrame(frame);
+      };
+      addEventListener('pointerdown', () => requestAnimationFrame(frame),
+        {capture: true, once: true});
+    }""")
+    page.get_by_role("tab", name="Long", exact=True).click()
+    page.wait_for_function("() => window.drawnRuns.length >= 20")
+    drawn = page.evaluate("window.drawnRuns")
+    assert drawn[-1] > 0, drawn
+    assert max(drawn) == drawn[-1], drawn
+
+
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,

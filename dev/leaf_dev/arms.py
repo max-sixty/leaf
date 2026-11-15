@@ -319,11 +319,11 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         yield copies
 
 
-def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base a command compares
+def merge_base() -> str:
+    """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
         capture_output=True,
         text=True,
         check=True,
@@ -1176,7 +1176,7 @@ class LiveSession:
                 return True
         return self.answered > since
 
-    def during(self, action, before=None):
+    def during(self, action):
         """Run `action` while the driver records and observes the child's output,
         and return what it returns."""
         done: queue.Queue = queue.Queue()
@@ -1191,7 +1191,7 @@ class LiveSession:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         try:
-            for _ in self.records(idle=0.5, before=before):
+            for _ in self.records(idle=0.5):
                 if not worker.is_alive():
                     break
         finally:

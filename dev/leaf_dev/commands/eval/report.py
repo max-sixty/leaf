@@ -746,7 +746,7 @@ def grade_summary(sample: dict) -> str:
     )
 
 
-def overview(found: dict, *, table_id: str = "overview") -> str:
+def overview(found: dict) -> str:
     """Every sample is reachable, including single arms and uneven repetitions."""
     rows = []
     for subject, columns in found.items():
@@ -763,7 +763,7 @@ def overview(found: dict, *, table_id: str = "overview") -> str:
                     f'<td data-label="Output"><a href="#{anchor}">View output</a></td></tr>'
                 )
     return (
-        f'<table id="{table_id}" class="sample-table" data-width="available"><thead><tr>'
+        '<table id="overview" class="sample-table" data-width="available"><thead><tr>'
         '<th scope="col">Task</th><th scope="col">Version</th>'
         '<th scope="col">Checks</th><th scope="col">Recorded reviews</th>'
         '<th scope="col">Output</th></tr></thead><tbody>'

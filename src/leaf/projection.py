@@ -338,6 +338,8 @@ def state_projection(
     # the walk rather than per event; `InForce` decides each coordinate's winner.
     in_force = InForce(enclosing_of(spk), floors, withdrawn)
     specs = {}
+    # Each widget verb's current definition, read once for every event that names it.
+    definitions = {}
     for event in events:
         if event["kind"] not in verb_writers():
             continue
@@ -346,17 +348,28 @@ def state_projection(
         rec = byid.get(event["widget"])
         if rec is None:
             continue
-        spec = event_spec(registry.get(rec["tag"], {}), event)
-        if spec is None:
+        verb = (event["widget"], event["kind"], event["action"])
+        if verb not in definitions:
+            spec = event_spec(registry.get(rec["tag"], {}), event)
+            definitions[verb] = (
+                None
+                if spec is None
+                else (
+                    spec,
+                    state_definition(
+                        rec["tag"],
+                        registry[rec["tag"]],
+                        spec,
+                        attrs=rec["attrs"],
+                        registry=registry,
+                    ),
+                )
+            )
+        definition = definitions[verb]
+        if definition is None:
             continue
+        spec, current = definition
         recorded = event["meaning"].get("state")
-        current = state_definition(
-            rec["tag"],
-            registry[rec["tag"]],
-            spec,
-            attrs=rec["attrs"],
-            registry=registry,
-        )
         if not same_state_operation(recorded, current):
             continue
         # Admission already checked this payload. Only a changed domain needs

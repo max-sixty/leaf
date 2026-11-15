@@ -252,9 +252,11 @@
   syntax: "*";
   inherits: false;
 }
-/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
- * room it reaches past the box. None inherits, so a box inside a marked one is marked
- * only as it is itself. */
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink, the
+ * room it reaches past the box and the aim's veil. None inherits, so a box inside a
+ * marked one is marked only as it is itself, and marking a box restyles that box
+ * alone: an inherited veil restyled all 150,000 elements of a long text document each
+ * time ⌥ aimed at it, 370 ms in Firefox. */
 @property --lf-band-gap {
   syntax: "*";
   inherits: false;
@@ -268,6 +270,10 @@
   inherits: false;
 }
 @property --lf-band-room {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-aim-veil {
   syntax: "*";
   inherits: false;
 }

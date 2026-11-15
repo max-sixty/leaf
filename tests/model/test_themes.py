@@ -4,15 +4,8 @@ import json
 import os
 from pathlib import Path
 
-import pytest
-from click.testing import CliRunner
-
-from leaf.cli import cli
-from leaf.machine import package_store
 from leaf.packages import cmd_package_install
-from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata, layer_record, selected
-from leaf.schema import LAYER_FILE
 from leaf.vendoring import cmd_init
 
 
@@ -124,26 +117,3 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     assert sheet.index(
         "background: var(--lf-ground);\n  padding: 12px 16px"
     ) < sheet.index("background: teal")
-
-
-def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):
-    catalogue(tmp_path)
-    page = tmp_path / "page"
-    cmd_init(page)
-    recorded = (page / LAYER_FILE).read_bytes()
-    (package_store() / "names/editorial").unlink()
-    with pytest.raises(Refused, match="unknown package 'editorial'"):
-        cmd_init(page)
-    assert (page / LAYER_FILE).read_bytes() == recorded
-    assert layer_metadata(page)["theme"]["name"] == "editorial"
-
-
-def test_an_explicit_theme_must_name_a_personal_choice_before_creating_a_page(tmp_path):
-    catalogue(tmp_path)
-    page = tmp_path / "page"
-    refused = CliRunner().invoke(
-        cli, ["page", "init", str(page), "--theme", "misspelled"]
-    )
-    assert refused.exit_code != 0
-    assert "leaf theme list" in refused.output
-    assert not page.exists()

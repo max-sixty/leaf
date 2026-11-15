@@ -30,6 +30,15 @@ later change, so the guarantee is owed to the paths users take often: a rare pat
 user takes in at a glance may move what is on screen rather than carry a mechanism of its
 own (`../SOUL.md`, "Keep the foundation small and extensible").
 
+A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
+places the user can be with changes that can arrive. A new rule joins it as a place, a
+change or a move the user chose, and takes no browser test of its own, so each rule is
+stated once and a new surface costs one row. Run the cases a change adds or touches by
+`-k` before handing over: a new row leaves the test function as it was, so a pull
+request's `test` job doesn't select it (`../tests/AGENTS.md`, "Run what the change
+needs"). A separate test is for what those cases don't measure, such as that news the
+rule draws at once is drawn.
+
 - **Controls stay where the user aims.** A state change may repaint any box. What a
   press changes grows or shrinks its box away from the edge the box holds (next spec),
   whatever was pressed, so a pressed control between that edge and the change stays
@@ -64,9 +73,12 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
   once, the rare path the user chose to let move what follows it (2026-11-04). An
   exception the user chose stays with its owner, as the floating panel's growth for an
-  answer the user waits for (`floating-panel.js`) does. Check:
-  `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`, and
-  `threadsListing` in `floating-panel.js` for the rows of Threads.
+  answer the user waits for (`floating-panel.js`) does. Where news grows a thread's own
+  box, the panel's view or a margin card, the growth may carry the box's secondary
+  controls, such as Resolve or a message's pencil, from under a pointer resting on one;
+  the words the user is writing and their Send stay (the user's choice, 2026-11-14).
+  Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
+  and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
   nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
@@ -625,6 +637,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What stands for a node in one tree: the node, or the host of the shadow tree holding it               | `shadow-tree.js` `hostIn`                                                          |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
+| The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
@@ -639,6 +652,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
 | Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past the chrome's covers, `shownRect`                    |
 | What the user sees of a node where the glides under way leave it                                      | `scroll-containers.js` `seenGlided`, `seenAhead`                                   |
+| Land the glides under way for a key whose work reads the page where it stands                         | `scrolling.js` `landGlides`                                                        |
 | Whether a size change there would move what is seen                                                   | `geometry.js` `growthIsSeen`, `growthAfterIsSeen`                                  |
 | When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
 | How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |

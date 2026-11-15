@@ -30,7 +30,7 @@
   cursor: auto;
 }
 /* The chrome stands after the body, which carries the arm, so a mark in the chrome
-   reads it as a sibling's and draws the armed arrow. */
+   reads it as a sibling's and draws the arrow while the page is armed. */
 body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   cursor: default;
 }

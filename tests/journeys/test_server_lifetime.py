@@ -31,6 +31,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -495,3 +496,55 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     # Explicit stop crosses that server's release barrier before returning.
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
+
+
+def test_a_background_jobs_server_lives_as_long_as_the_job(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """A background job runs each sitting on a worker its daemon retires between
+    them, so a claim naming that worker's pid takes the page down an hour after
+    every turn. The job's record is the lifetime instead: the page stays held
+    and served whatever became of the process that claimed it, including the
+    SessionEnd Claude Code runs as the worker retires, and retires when the job
+    is deleted — which takes the record and may leave the directory."""
+    job = tmp_path / "job"
+    job.mkdir()
+    cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert service_model.claim_page(page_dir)
+    assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
+    assert read_record(page_dir / "service.json")["lifetime"] == "session"
+    cleanup_model.end_harness_instance("bg-job")
+    turn_record = cleanup_model.session_record("bg-job")
+    assert turn_record is not None
+    assert turn_record["turn_closed"] is not None
+    assert not reaper_retires(page_dir, monkeypatch)
+    assert server_model.running_server(page_dir)
+    assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
+    assert presence_model.presence(page_dir, [])["session_alive"] is True
+
+    (job / "state.json").unlink()
+    assert reaper_retires(page_dir, monkeypatch)
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        lambda running: not running,
+        failure="the background-job server stayed up after its job was deleted",
+    )
+    assert service_model.owned_pages("bg-job") == []
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
+
+
+def test_a_server_exits_when_its_session_is_hard_killed(
+    page_dir, session_process, managed_server
+):
+    owner = session_process()
+    server = managed_server(page_dir, "abandoned", owner.pid)
+    owner.terminate()
+    owner.wait(timeout=STATED_TIMEOUT)
+
+    server.wait(timeout=STATED_TIMEOUT)
+    assert server.returncode == 0, server.stderr.read()
+    assert read_record(page_dir / "service.json")["enabled"] is True
+    assert not leases_model.lock_is_held(page_dir / "server.lock")

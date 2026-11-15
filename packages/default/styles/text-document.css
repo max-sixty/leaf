@@ -77,9 +77,10 @@ lf-text-document .lf-text-document-run > * {
   padding-inline: calc((var(--lf-number-digits) + 4) * 1ch + 2px) 1ch;
   counter-increment: lf-line;
 }
-/* A run counts on from the lines before it. The count starts on its first row: a
-   skipped run's style containment keeps a count its own box starts from its rows, and
-   every run after the first numbered its rows from 1. */
+/* A run counts on from the lines before it, which its first row holds
+   (lf-text-document.js, `number`). The count starts on that row: a skipped run's style
+   containment keeps a count its own box starts from its rows, and every run after the
+   first numbered its rows from 1. */
 lf-text-document .lf-text-document-run > :first-child {
   counter-reset: lf-line var(--lf-lines-before);
 }

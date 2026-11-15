@@ -365,7 +365,7 @@ projection, thread and pending models import no DOM or application services.
 literal paths; only the widget and interaction loaders compute theirs.
 
 Each module owns one concern and states it in its header, so read the headers to find
-an owner (`head -n 3 browser/runtime/*.js browser/runtime/*/*.js`). "One answer for each
+an owner (`find runtime -name '*.js' | xargs head -n 3`). "One answer for each
 question", below, indexes the owners a caller asks, and `keyboard/AGENTS.md` covers the
 keyboard's.
 

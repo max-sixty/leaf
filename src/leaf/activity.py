@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
+# How long an agent turn is believed while no agent runs it yet (`agent_turn_end`).
+STARTING_GRACE = timedelta(minutes=1)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.
 WORK_KINDS = frozenset(
@@ -376,10 +378,15 @@ def running_agent_turns(
 def agent_turn_end(stamp: dict) -> datetime:
     """When an agent turn ended by its stamp (`state.agent_turn_stamps`): its close,
     or, while it is open, its last renewal plus the working grace, when it lapses
-    unless something renews it."""
+    unless something renews it. A turn no agent runs yet, which Leaf opened for one
+    its harness is starting (`state.unnamed_agent_turns`), has `STARTING_GRACE`
+    instead: a start is named within seconds, so one never named, as when the step
+    that took the thread timed out or the module was reloaded, has lost its agent,
+    and its thread goes back to the main thread."""
     if stamp["closed"] is not None:
         return datetime.fromisoformat(stamp["closed"])
-    return datetime.fromisoformat(stamp["renewed"]) + WORKING_GRACE
+    grace = WORKING_GRACE if stamp["agent"] is not None else STARTING_GRACE
+    return datetime.fromisoformat(stamp["renewed"]) + grace
 
 
 def agent_turn_state(

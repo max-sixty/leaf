@@ -1701,6 +1701,32 @@ def hook_answer(capsys, command: str, agent: str, tool_use: str) -> dict | None:
     return json.loads(out)["hookSpecificOutput"] if out else None
 
 
+def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
+    claimed, lane, capsys
+):
+    """A turn Leaf opened for a fork the module never names, as when the step that
+    took the thread timed out or the module was reloaded, has lost its agent. It
+    counts for `STARTING_GRACE`, while a worker's `leaf` command is asked to run
+    again in case it is the starting fork's, and then lapses: the thread is the main
+    thread's again, and no worker's command waits on it."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    worker = hook_answer(capsys, "leaf page state p", "worker-7", "w1")
+    assert worker is not None and worker["permissionDecision"] == "deny"
+    turns = state_model.agent_turns("s1")
+    long_ago = datetime.now().astimezone() - activity_model.STARTING_GRACE
+    turns[taken["turn"]]["renewed"] = long_ago.isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    owed, threads = holders(claimed)
+    assert (owed[asked["id"]], threads[asked["id"]]["state"]) == (
+        {"kind": "main"},
+        "lapsed",
+    )
+    assert deliverable(claimed) == [asked["id"]]
+    assert hook_answer(capsys, "leaf page state p", "worker-7", "w2") is None
+
+
 def test_an_ended_forks_later_command_stays_its_own_and_is_refused(
     claimed, lane, capsys
 ):

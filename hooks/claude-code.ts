@@ -543,16 +543,38 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
 // the end of the run reports: the turn by its id, since the run can end before Leaf
 // hears which agent runs it (`forks.started`). `$.state` keeps them, which a reload
 // of this module's code leaves standing, so a fork made before a reload still ends
-// its turn (types/leaf-state.d.ts).
+// its turn (types/leaf-state.d.ts). A fork whose run ended stays, with how it ended,
+// until Leaf has closed its turn (`endFork`).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
-type Fork = { started: number; turn: string };
+type Run = { answer: string } | { failed: string };
+type Fork = { started: number; turn: string; ended?: Run };
 
 // How each run ended, by agent id, of the agents that ended while a spawn was in
 // flight and the module hadn't registered: a fork whose run ends before
 // `$.agent.spawn` returns its id (`workFork`). It holds anything only while a spawn
 // is in flight (`spawning`), so the session's other subagents leave nothing here.
-const endedEarly = new Map<string, { answer: string } | { failed: string }>();
+const endedEarly = new Map<string, Run>();
 let spawning = 0;
+
+/** Tell Leaf that the run of the fork `agentId`, kept as `fork`, ended as
+ * `fork.ended` says, which closes its turn (`forks.ended`), and forget the fork only
+ * once Leaf has heard: a step that failed, as one past its timeout, leaves it for the
+ * next main-loop turn's end to tell again, rather than its turn running on unseen
+ * until it lapses. Leaf closes a turn once, so hearing twice changes nothing. */
+async function endFork($: EngineInterface, agentId: string, fork: Fork) {
+  if (fork.ended === undefined) return;
+  try {
+    const session = await sessionOf($);
+    const now = await $.clock.now();
+    await forkStep($, session, {
+      ended: { agent: agentId, turn: fork.turn, ...fork.ended },
+      elapsed_ms: now - fork.started,
+    });
+    await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
+  } catch (error) {
+    $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, { to: "debug" });
+  }
+}
 
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
 async function changeForks(
@@ -807,7 +829,8 @@ export const register: Register = (on) => {
   });
 
   // The run of a fork this module spawned ending, which closes the turn Leaf keeps
-  // for it; any other agent's ends with nothing for Leaf to do.
+  // for it; any other agent's ends with nothing for Leaf to do. A main-loop turn
+  // ending tells Leaf again of each fork's end it hasn't heard of yet.
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
@@ -818,21 +841,18 @@ export const register: Register = (on) => {
         if (spawning > 0) endedEarly.set(agentId, run);
         return completed;
       }
-      await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
-      const session = await sessionOf($);
-      const now = await $.clock.now();
-      void forkStep($, session, {
-        ended: { agent: agentId, turn: fork.turn, ...run },
-        elapsed_ms: now - fork.started,
-      }).catch((error) =>
-        $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {
-          to: "debug",
-        }),
-      );
+      if (fork.ended !== undefined) return completed;
+      const ended = { ...fork, ended: run };
+      await changeForks($, (forks) => ({ ...forks, [agentId]: ended }));
+      void endFork($, agentId, ended);
       return completed;
     }
     const session = await sessionOf($);
     follow($, session);
+    for (const [agentId, fork] of Object.entries(
+      (await $.state.get(FORKS)).value ?? {},
+    ))
+      if (fork.ended !== undefined) void endFork($, agentId, fork);
     // Only a turn the model answered: an interrupted one has no reply to read.
     // Leaf, not the band, says whether the session holds a page: the band may not
     // yet list one the turn's last command claimed, and `--if-claimed` answers a

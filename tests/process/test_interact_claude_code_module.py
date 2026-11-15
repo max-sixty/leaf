@@ -856,6 +856,31 @@ def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
     driven.quit()
 
 
+def test_a_forks_end_leaf_did_not_hear_of_is_told_again_as_the_next_turn_ends(
+    spawn, sessionless
+):
+    """The module forgets a fork only once Leaf has heard its run end: a step that
+    failed, as one past its timeout, leaves the fork in `$.state` with how it ended,
+    and the next main-loop turn's end tells Leaf again, rather than the fork's turn
+    running on unseen until it lapses."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-ends-again",
+        {
+            "state": {"forks": {"agent-7": {"started": 1, "turn": "t7"}}},
+            "forkStepFails": "ended",
+        },
+    )
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.settle()
+    driven.quit()
+
+
 def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
     page_dir, monkeypatch, spawn, sessionless
 ):

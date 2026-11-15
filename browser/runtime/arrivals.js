@@ -362,16 +362,16 @@ export function setScroll(box, options) {
   if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
 }
 // Stop the scroll the browser drives in a box, leaving the box where it stands, as a
-// landing does before it places its destination (scrolling.js, `stopScroll`) and a glide
-// before it takes over a wheel's motion (`glideTo`). It is the one scroll write meant to
-// move nothing, which the write watch knows by this name (tests/write_watch.js,
-// `EXPECTED_SCROLLS`). An instant write alone stops too little: no instant write, even
-// one that moves the box, stops the smooth scroll a key such as PageDown sets off, in
-// Chromium or Firefox, and Firefox doesn't stop any smooth scroll for a write of the
-// position the page last saw (Chromium 158 and Firefox 159). So a `m` pressed as
-// PageDown moved the page lost its landing to PageDown. A smooth write takes the box
-// from whatever moves it, in both, and the instant one after ends that write's own
-// motion where the box stands.
+// landing does before it places its destination (scrolling.js, `stopBrowserScroll`)
+// and a glide before it takes over a wheel's motion (`glideTo`). It is the one scroll
+// write meant to move nothing, which the write watch knows by this name
+// (tests/write_watch.js, `EXPECTED_SCROLLS`). An instant write alone stops too little:
+// no instant write, even one that moves the box, stops the smooth scroll a key such as
+// PageDown sets off, in Chromium or Firefox, and Firefox doesn't stop any smooth scroll
+// for a write of the position the page last saw (Chromium 158 and Firefox 159). So a
+// `m` pressed as PageDown moved the page lost its landing to PageDown. A smooth write
+// takes the box from whatever moves it, in both, and the instant one after ends that
+// write's own motion where the box stands.
 /** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };

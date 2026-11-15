@@ -330,7 +330,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
-    const authored = stageAuthoredStates(template.content, new Map());
+    const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
     const nodes = Object.freeze([...template.content.childNodes]);

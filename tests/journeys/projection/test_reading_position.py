@@ -68,8 +68,6 @@ def test_live_news_keeps_the_reading_draft_in_the_thread_being_written_in(
     reading = page.locator("#reading")
     expect(reading).to_be_in_viewport()
     rendered(page)
-    # Keep Chrome's native clock and deliver news after its 500 ms input grace period.
-    page.wait_for_timeout(600)
     place = reading.bounding_box()
     box = editor.bounding_box()
     assert place and box

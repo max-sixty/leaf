@@ -1,9 +1,27 @@
 """A captured revision as one HTML file that opens offline.
 
-The export packages the captured revision, its resources, the exporting Leaf's
-runtime (`runtime_selection`), and a state reading of the page, which that runtime
-reads, into one file. Neighboring live pages are omitted: their access URLs grant
-machine-wide server access and have no place in an offline record.
+Every export starts from one package (`export_document`): the captured revision, its
+resources, the exporting Leaf's runtime (`runtime_selection`), and a state reading of
+the page, which that runtime reads. Neighboring live pages are omitted: their access
+URLs grant machine-wide server access and have no place in an offline record.
+
+Most exports are read rather than operated, so by default the file is the page the
+package draws, not the package (`static_document`): the host's browser boots the
+package once, and the file keeps the page's markup with each widget in its current
+state, what each fold draws once opened, its images and fonts as data URLs, and no
+script. It shows the same with scripts off, and it leaves out the runtime, which is
+nearly all of a package's bytes. With `runtime` the file is the package, for a reader
+who should operate the widgets.
+
+Widgets draw only in the browser, so a file without the runtime needs either a browser
+at export time or a second, script-free renderer for every widget. A browser keeps one
+renderer and asks nothing of a package; the host already supplies one for `page check
+--render`. Its cost is that what a widget computes while drawing keeps the desktop
+window it was drawn in (`render_checks.RENDER_VIEWPORT`): on a phone a chart shrinks to
+fit rather than redrawing, and a contents list the runtime folds for a narrow window
+stays open. The file's CSS adapts the rest to its reader's window and color scheme. A
+renderer per widget would need no browser, but every package, a third party's too,
+would have to keep it matching the first.
 
 An export goes to people who shouldn't see what the user and the agent said to each
 other, so the file holds the page and none of the conversation. Its reading is folded
@@ -20,8 +38,8 @@ surface off, which hid the discussion from the page's reader and left it readabl
 the file's source. Showing the threads read-only would put the discussion in front of
 the same people.
 
-Its resource owner allocates one object URL per embedded body before handing the
-composed document to the native HTML parser; Leaf's normal
+The package's resource owner allocates one object URL per embedded body before handing
+the composed document to the native HTML parser; Leaf's normal
 runtime then boots from that document. The normal composer also supplies the
 scripts-off record: authored text, layout and alt text, with an explanation that
 embedded graphics, fonts and recordings require JavaScript. Media is
@@ -81,6 +99,13 @@ from leaf.service import PageTransaction
 from leaf.structure import UTF8_BOM, SourceDocument
 
 ResourceReader = Callable[[str], Resource]
+
+DRAWING = Path(__file__).with_name("static-export.js")
+# Where the browser opens the package to draw it. An https origin is a secure context,
+# as a file is, and `.invalid` never resolves, so a request the page makes beyond
+# itself fails as it would offline. The address's path is `/`, so the drawing carries
+# no local path, as the page's storage scope would from a file (`prepaint.js`).
+DRAWING_URL = "https://leaf.invalid/"
 
 
 def _data_url(resource: Resource) -> str:
@@ -473,10 +498,56 @@ def export_document(
     return fallback[:body] + note + fallback[body:]
 
 
+def static_document(package: str) -> str:
+    """The page `package` (`export_document`) draws, as one file with no script.
+
+    The host's browser opens the package at the fixed desktop window
+    (`render_checks.RENDER_VIEWPORT`) and waits until the page is ready, as any reader
+    outside it does. It then opens the page's folds, waiting again after each round,
+    until a round finds none, closes them again, and once the page is ready once more
+    serializes what it drew (`static-export.js`).
+    Refused where the host has no browser, or the page cannot start, since there is
+    then no drawing to keep."""
+    from leaf.render_checks import RENDER_VIEWPORT, PageNotReady, wait_until_ready
+    from leaf.render_gate.command import NoBrowser, run_in_browser
+
+    def draw(browser) -> str:
+        page = browser.new_page(viewport=RENDER_VIEWPORT)
+        page.add_init_script(path=DRAWING)
+        page.route(
+            DRAWING_URL,
+            lambda route: route.fulfill(body=package, content_type="text/html"),
+        )
+        page.goto(DRAWING_URL, wait_until="load")
+        wait_until_ready(page, fixed_server=True)
+        while page.evaluate("globalThis.__leafStaticExport.unfold()"):
+            wait_until_ready(page, fixed_server=True)
+        page.evaluate("globalThis.__leafStaticExport.refold()")
+        wait_until_ready(page, fixed_server=True)
+        return page.evaluate("globalThis.__leafStaticExport.document()")
+
+    try:
+        drawn, _ = run_in_browser(draw)
+    except NoBrowser as error:
+        raise Refused(
+            f"An export draws the page in a browser, and {error} "
+            "`--runtime` exports the page with Leaf's runtime, which needs none."
+        ) from error
+    except PageNotReady as error:
+        raise Refused(f"The page didn't draw: {error}") from error
+    return drawn
+
+
 def cmd_export(
-    page_dir: Path, out: Path, version: int | None, *, draft: bool = False
+    page_dir: Path,
+    out: Path,
+    version: int | None,
+    *,
+    draft: bool = False,
+    runtime: bool = False,
 ) -> dict:
-    """Export the selected stamp, or current valid source with `draft`.
+    """Export the selected stamp, or current valid source with `draft`, as the page
+    it draws, or with `runtime` as the package that draws it (the module header).
 
     Draft export activates source through the same check as a live page, preserving
     decisions and reanchors without adding a version checkpoint. Selection and the
@@ -538,6 +609,8 @@ def cmd_export(
         version,
         snapshot.data_resources,
     )
+    if not runtime:
+        html = static_document(html)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")

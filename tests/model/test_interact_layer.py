@@ -4606,7 +4606,7 @@ def test_review_evidence_packages_export_independently(
     assert stamped.exit_code == 0, stamped.output
     exported = runner.invoke(
         cli_model.cli,
-        ["page", "export", str(page), "-o", str(tmp_path / "export.html")],
+        ["page", "export", str(page), "-o", str(tmp_path / "export.html"), "--runtime"],
     )
     assert exported.exit_code == 0, exported.output
     if package == "diff":

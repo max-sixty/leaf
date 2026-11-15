@@ -69,7 +69,7 @@ Known functional limitations and accepted visual differences in current browsers
 are recorded in [Browser support gaps](notes/browser-support.md).
 
 The first run syncs the plugin's uv environment through your configured package
-index. Render checks use the executable named by
+index. Render checks and exports use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`.

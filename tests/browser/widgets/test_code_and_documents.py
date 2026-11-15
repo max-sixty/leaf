@@ -960,7 +960,7 @@ def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
     text = "# Captured heading\n\nA **captured** paragraph.\n"
     data_model.cmd_data_set(serve.page_dir, "document-text", text)
     out = tmp_path / "document.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     page = open_page(browser, out.as_uri())
     document = page.locator("#document")
     expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()

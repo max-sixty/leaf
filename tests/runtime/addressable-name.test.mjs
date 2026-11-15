@@ -191,3 +191,43 @@ test("a heading titles the outermost element it is the first heading of, short o
   assert.equal(titled("second"), "second");
   declare();
 });
+
+test("a heading titles what it opens as the page gains and loses headings", () => {
+  declare();
+  document.body.innerHTML = `<main><h1 id="title">Plan</h1>
+    <section id="part"><h2 id="first">First</h2><p id="words">Words.</p></section>
+  </main>`;
+  const first = /** @type {Element} */ (document.getElementById("first"));
+  assert.equal(titledElement(first).id, "part");
+  // Words the page gains change no heading's reach.
+  document.getElementById("words")?.append(" More words.");
+  assert.equal(titledElement(first).id, "part");
+  // A heading arriving before it in its section takes the section.
+  const earlier = document.createElement("h2");
+  earlier.textContent = "Earlier";
+  first.before(earlier);
+  assert.equal(titledElement(first), first);
+  assert.equal(titledElement(earlier).id, "part");
+  earlier.remove();
+  assert.equal(titledElement(first).id, "part");
+  // A second page title stops the first titling the page's column.
+  const title = /** @type {Element} */ (document.getElementById("title"));
+  const main = /** @type {Element} */ (document.querySelector("main"));
+  assert.ok(titledElement(title).contains(main));
+  const second = document.createElement("h1");
+  second.textContent = "Appendix";
+  main.append(second);
+  assert.equal(titledElement(title), title);
+  // A heading a widget's data draws loses its section to a heading the page puts
+  // before it outside the data.
+  document.body.innerHTML = `<main><section id="stages">
+    <div data-lf-projection="stages" data-lf-datum="k1"><p>Data words.</p>
+      <h3 id="drawn">Drawn</h3></div><p>Stage words.</p></section></main>`;
+  const drawn = /** @type {Element} */ (document.getElementById("drawn"));
+  const section = /** @type {Element} */ (document.getElementById("stages"));
+  assert.ok(titledElement(drawn).contains(section));
+  const stages = document.createElement("h2");
+  stages.textContent = "Stages";
+  section.prepend(stages);
+  assert.equal(titledElement(drawn), drawn);
+});

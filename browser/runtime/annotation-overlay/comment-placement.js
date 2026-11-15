@@ -83,11 +83,11 @@
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
    or over its target (`size-page-still`). A surface is opening until it first
-   stands. The first move Leaf then starts in its scroller for the input that opened
-   it (scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
+   stands. The first move Leaf then starts in its scroller before any later input
+   (scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
    opens its card before its landing brings the card's words in from beyond the
    window, so the card makes its room again where that landing leaves them, on the
-   side it chose. A scroll a later input makes, or one no input makes, such as a
+   side it chose. A scroll a later input makes, or one Leaf doesn't start, such as a
    keeper holding the reader's place, makes no room, so a card growing as an answer
    arrives never moves the page.
 

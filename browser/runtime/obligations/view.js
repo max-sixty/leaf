@@ -31,7 +31,7 @@
    page-wide answer. */
 
 import { capitalized } from "../words.js";
-import { alreadyShown, landingRoom } from "../landing-scroll.js";
+import { landingRoom } from "../landing-scroll.js";
 import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
@@ -74,7 +74,7 @@ import { revealAddressed } from "../anchor-resolution.js";
 /** @param {{prepareNavigationStep: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
- * threadDestination: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["threadDestination"],
+ * threadLanding: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["threadLanding"],
  * focusForNavigation: typeof import("../focus.js").focusDestination,
  * presentedControl?: ((control: Element) => Element | null) | undefined,
  * announce: (words: string) => void, repaint: () => void}} dependencies */
@@ -82,7 +82,7 @@ export function createObligationView({
   prepareNavigationStep,
   arrive,
   openPageThread,
-  threadDestination,
+  threadLanding,
   focusForNavigation,
   presentedControl,
   announce,
@@ -609,29 +609,28 @@ export function createObligationView({
     // arrival commits the departure. A thread obligation in the panel's own list
     // arrives centred in that region and is no navigation step. One in a thread's
     // card, which stands fixed over the page by the thread's words where no scroll of
-    // the boxes around the obligation moves it, lands as the thread does
-    // (anchor-travel.js, `scrollToThread`): inside the card, then at the words, unless
-    // the window shows them. Which box either travel moves is the travel's own
-    // question (scrollerFor) rather than a second one asked here.
+    // the boxes around the obligation moves it, lands as an arrival at the thread
+    // does (anchor-travel.js, `threadLanding`). Which box either travel moves is the
+    // travel's own question (scrollerFor) rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
       if (!target || !source) return null;
       if (inChrome(target)) {
-        const words =
-          next.thread && offFlow(target) ? threadDestination(next.thread) : null;
-        return { target, box: null, region: null, words };
+        const landing =
+          next.thread && offFlow(target) ? threadLanding(next.thread, target) : null;
+        return { target, box: null, region: null, landing };
       }
       const box = scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source, context, target), words: null }
-        : { target, box: null, region: null, words: null };
+        ? { target, box, region: arrivalRegion(source, context, target), landing: null }
+        : { target, box: null, region: null, landing: null };
     };
     const initial = destination();
     if (!initial) return false;
     const departure = prepareNavigationStep();
-    const { box: initialBox, region: initialRegion, words: initialWords } = initial;
-    if (initialWords) departure.plan(initialWords);
+    const { box: initialBox, region: initialRegion, landing } = initial;
+    if (landing) departure.plan(landing.where);
     const moving = Boolean(
       initialBox &&
       departure.plan(initial.target, {
@@ -643,36 +642,33 @@ export function createObligationView({
       () => {
         const here = destination();
         if (!here) return null;
-        const { target, box, region, words } = here;
+        const { target, box, region, landing } = here;
+        const reveal =
+          next.source.id !== next.prompt.target
+            ? [sourceNode(next)].filter((node) => node !== null)
+            : [];
+        const focus = arrivalFocus(next, !unansweredIds().has(next.id));
+        // The thread's place is where a card's arrival lands, so a fold in the card
+        // holding the obligation opens as one around the place would.
+        if (landing) return { ...landing, reveal: [target, ...reveal], focus };
         return {
-          where: words ?? target,
-          reveal:
-            next.source.id !== next.prompt.target
-              ? [sourceNode(next)].filter((node) => node !== null)
-              : [],
-          focus: arrivalFocus(next, !unansweredIds().has(next.id)),
+          where: target,
+          reveal,
+          focus,
           // Reveal the obligation through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed obligation requests no motion.
-          scroll: words
-            ? [
-                { at: target, block: "nearest" },
-                {
-                  at: words,
-                  when: () => !alreadyShown(words, { block: "center" }),
-                },
-              ]
-            : !box
-              ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
-              : moving
-                ? [
-                    {
-                      at: target,
-                      align: region,
-                      behavior: scrollBehavior(),
-                      block: "start",
-                    },
-                  ]
-                : [],
+          scroll: !box
+            ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
+            : moving
+              ? [
+                  {
+                    at: target,
+                    align: region,
+                    behavior: scrollBehavior(),
+                    block: "start",
+                  },
+                ]
+              : [],
         };
       },
       { intent: mayArrive, departure },

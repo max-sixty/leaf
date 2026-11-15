@@ -555,6 +555,32 @@ export function createAnchorTravel({
     );
   };
 
+  // Where an arrival at a thread lands: on `target`, a node of the thread's or in its
+  // card, at the nearest edge, then at the thread's place unless that already shows.
+  // A part inside a place taller than its room, as a seat's thread can be inside its
+  // element, skips the second landing, since landing the place would scroll the part
+  // back out of view. A card stands fixed over the page by its thread's place, so an
+  // arrival in it, as `m` reaching a question in an agent's answer, lands here too.
+  /** @param {string} id @param {Element | null} target */
+  const threadLanding = (id, target) => {
+    const where = threadDestination(id);
+    if (!where) return null;
+    /** @type {ScrollPlacement[]} */
+    const scroll = [];
+    if (target) scroll.push({ at: target, block: "nearest" });
+    const inside =
+      target !== null &&
+      target !== where &&
+      where instanceof Element &&
+      under(target, where);
+    scroll.push({
+      at: where,
+      when: () =>
+        !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+    });
+    return { where, focus: target, scroll };
+  };
+
   /** @param {string} id
    * @param {{part?: import("./thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, history?: boolean}} [options] */
   async function scrollToThread(
@@ -595,28 +621,13 @@ export function createAnchorTravel({
     // `reader: "page"`).
     return arrive(
       () => {
-        const where = threadDestination(id);
-        if (!where) return null;
         const placement = anchors.placedAt(id);
         const target = !focus
           ? null
           : part
             ? threadFocusTarget(id, { part })
             : (targetElement(placement) ?? targetPlace(placement));
-        /** @type {ScrollPlacement[]} */
-        const scroll = [];
-        if (target) scroll.push({ at: target, block: "nearest" });
-        // Then the place lands unless it already shows. A part inside a place taller
-        // than its room, as a seat's thread can be inside its element, skips that
-        // landing, since landing the place would scroll the part back out of view.
-        const inside =
-          target !== where && where instanceof Element && under(target, where);
-        scroll.push({
-          at: where,
-          when: () =>
-            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
-        });
-        return { where, focus: target, scroll };
+        return threadLanding(id, target);
       },
       {
         intent: mayArrive,
@@ -642,5 +653,6 @@ export function createAnchorTravel({
     scrollToRange,
     scrollToThread,
     threadDestination,
+    threadLanding,
   };
 }

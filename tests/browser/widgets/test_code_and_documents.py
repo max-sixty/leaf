@@ -590,6 +590,53 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
     assert max(drawn) == drawn[-1], drawn
 
 
+def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
+    browser, serve
+):
+    """A document's listing, a code block, holds the Tab stop its copy control claims
+    from the moment it is first seen, in a closed tab too, so the tab's opening asks none
+    of its lines whether they take a Tab stop and reaches the listing by that stop. The
+    claim waited for the listing to be drawn, and until then each reach paint as the tab
+    opened asked every line again: five walks of a 4 MB document's 95,000 lines, 17 ms
+    each in Chromium."""
+    url = serve(
+        leaf_page(
+            "Documents",
+            '<lf-tabs id="docs" list="side">'
+            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            "</lf-tabs>",
+        )
+    )
+    text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(2000))
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(browser, url)
+    expect(page.locator("#log.lf-rendered")).to_have_count(1)
+    # Every line asked for its `tabindex` from the press until the tab has settled.
+    page.evaluate("""() => {
+      const lines = new Set(document.querySelectorAll('#log .lf-text-document-run > *'));
+      const read = Element.prototype.getAttribute;
+      window.linesAsked = 0;
+      Element.prototype.getAttribute = function (name) {
+        if (name === 'tabindex' && lines.has(this)) window.linesAsked++;
+        return read.call(this, name);
+      };
+    }""")
+    page.get_by_role("tab", name="Long", exact=True).click()
+    listing = page.locator("#log pre")
+    expect(listing).to_be_visible()
+    expect(listing).to_have_attribute("tabindex", "0")
+    expect(page.locator(".lf-code-copy")).to_have_count(1)
+    rendered(page)
+    assert page.evaluate("window.linesAsked") == 0
+    page.get_by_role("tab", name="Long", exact=True).focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#tab-long")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(listing).to_be_focused()
+
+
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,

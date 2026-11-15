@@ -205,9 +205,15 @@ export function watchCodeBlocks() {
       .filter((pre) => {
         if (pre.getRootNode() !== document) return false;
         if (skipped(pre)) {
+          // The block claims its stop as it is first seen, drawn or not, so reach
+          // never asks its lines whether one takes a stop: a closed tab's text
+          // document asked all 95,000 on each paint as the tab opened. A block the
+          // browser skips off screen (`content-visibility: auto`) is a Tab stop
+          // before it is drawn, and Tab onto it prepares its control as it lands.
           if (!wired.has(pre) && !deferred.has(pre)) {
             deferred.add(pre);
             revealed.observe(pre);
+            claimReachStop(pre);
           }
           return false;
         }

@@ -22,14 +22,19 @@ page with no tab open the saves inside a turn make no revisions. A page nobody h
 its agent has closed, has nobody to tell. The reading outlives the server, so a page
 served again reads only a version no reading has read: an older page, its first time
 served by this Leaf, is read once. A reading runs in a process of its own at low
-priority, away from the server that answers the user's gestures. That process holds a
-lease the whole state home shares, so the machine runs one reading at a time, a page
-handed over meanwhile looks again until the lease is free, and a server stopped or
-started again mid-reading starts no second one. A reading that runs past `DEADLINE_S` is
-ended by its own alarm, tells nobody anything and ends its server's pass, so a page too
-heavy to read costs that once. A handover right after the last save waits 10 to 15 s for
-the version to stand and the next look, then for the reading: on 2026-11-10 a page whose
-reading took 9 s told the agent 19 s after its turn ended, in each of 3 runs.
+priority, away from the server that answers the user's gestures, and a server waits for
+its reading before it looks again. Readings of different pages run side by side. A lock
+across the state home once ran one at a time; it went because it rarely held anything
+back, and a reading that never ended stopped every page's: of 123 real readings on 20
+pages from 2026-11-10 to 11-14, none overlapped and at most 4 started within a look of
+another ending. A server started again while its predecessor's reading still runs may
+read that version a second time. The first of the two to tell, inside the page's
+transaction, tells the version, and the other tells nothing and leaves its reading. A
+reading that runs past `DEADLINE_S` is ended by its own alarm, tells nobody anything and
+ends its server's pass, so a page too heavy to read costs that once. A handover right
+after the last save waits 10 to 15 s for the version to stand and the next look, then
+for the reading: on 2026-11-10 a page whose reading took 9 s told the agent 19 s after
+its turn ended, in each of 3 runs.
 
 **What it costs**, measured 2026-11-10 on the shared 18-core Mac at load 3-33, on copies
 of 38 real pages. On the 23 that pass plain check, a reading took a median 12 s and 13
@@ -42,8 +47,7 @@ revisions of 227 real pages over 49 days, a reading per revision would have run 
 the busiest hour, 0.6 of a core. A reading per turn runs 37 to 45 there, about 0.15 of a
 core, and 161 to 237 on the busiest day, 0.1-0.2% of the machine's day. In 16 eval
 sessions on 2026-11-05, 46 revisions took 22 readings, a median 8 s each. A session
-saving 100 times in one turn pays one reading, and the lease holds the machine to about
-one core however many turns end at once.
+saving 100 times in one turn pays one reading.
 
 **What it tells.** The findings the page's latest reading didn't hold, as a `render`
 event (`events.md`) whose handling clause tells failures from advice. A reading is kept
@@ -77,7 +81,6 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.harness import detached_environment
-from leaf.leases import release_lease, take_lease
 from leaf.presence import claimant_reading
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
@@ -99,11 +102,6 @@ DEADLINE_S = 180
 # Lower than the user's and other sessions' work, without the throttling of a background
 # QoS, which holds headless Chrome to about 10 fps and breaks a timed reading.
 NICENESS = 10
-# The one reading the machine runs at a time, under its state home. The reading holds
-# it, not its server, since a reading outlives a server that stops while it runs.
-LEASE = "render-pass.lock"
-# The exit status of a reading that found another holding the lease.
-BUSY = 75
 # The findings of a browser that failed rather than of the page it was reading.
 UNFINISHED = frozenset({"gate-failed", "probe-failed"})
 
@@ -182,40 +180,27 @@ def untold(before: dict | None, findings: list[dict]) -> list[dict]:
     ]
 
 
-def read_and_tell(page_dir: Path) -> bool:
-    """Read the page's live version and tell its agent what it hasn't heard, in a
-    `render` event on that version, unless a save has since moved the page past it: the
-    next reading tells them. False where another reading holds the lease, and nothing
-    is read. A diagnostic records what a reading cost.
-
-    The lease is this process's, so it ends with the process, whether its server
-    stops or its alarm ends it at `DEADLINE_S`. Under the lease it reads only a version
-    no reading has read, since a reading that held the lease meanwhile may have read
-    it: a server started again in its place asks for the same version."""
-    lease = take_lease(state_home() / LEASE)
-    if lease is None:
-        return False
-    try:
-        if _unread(page_dir):
-            _read_and_tell(page_dir, read_reading(page_dir))
-    finally:
-        release_lease(lease)
-    return True
+def read_and_tell(page_dir: Path) -> None:
+    """Read the page's live version, where no reading has read it, and tell its agent
+    what it hasn't heard, in a `render` event on that version, unless a save has since
+    moved the page past it: the next reading tells them. A diagnostic records what a
+    reading cost."""
+    if _unread(page_dir):
+        _read_and_tell(page_dir)
 
 
 def cmd_read(page_dir: Path) -> None:
     """`leaf page _read`, the process a server starts for each reading
-    (`HandoverPass._read`): it reads at `NICENESS`, its own alarm ends it at
-    `DEADLINE_S`, and it exits `BUSY` where another reading holds the lease. Both
-    settings last as long as the process, so only this process makes them: an alarm
-    left armed in another caller of `read_and_tell` would end it `DEADLINE_S` later."""
+    (`HandoverPass._read`): it reads at `NICENESS`, and its own alarm ends it at
+    `DEADLINE_S`. Both settings last as long as the process, so only this process makes
+    them: an alarm left armed in another caller of `read_and_tell` would end it
+    `DEADLINE_S` later."""
     signal.alarm(DEADLINE_S)
     os.nice(NICENESS)
-    if not read_and_tell(page_dir):
-        sys.exit(BUSY)
+    read_and_tell(page_dir)
 
 
-def _read_and_tell(page_dir: Path, before: dict | None) -> None:
+def _read_and_tell(page_dir: Path) -> None:
     from leaf.event_contracts import append_admitted
     from leaf.interaction_log import append_interactions
     from leaf.presence import nudge_unwatched
@@ -231,7 +216,14 @@ def _read_and_tell(page_dir: Path, before: dict | None) -> None:
             # The live version as of now, a save since the check froze the source
             # included, as a tab would make it live.
             live = activate_source(page_dir, transaction=page).revision
-            if live is not None and read_artifact(page_dir, live).digest == digest:
+            before = read_reading(page_dir)
+            # A reading of this version beside this one that told first, under this
+            # transaction, has told it.
+            if (
+                live is not None
+                and read_artifact(page_dir, live).digest == digest
+                and not _has_read(before, digest)
+            ):
                 told = untold(before, found)
                 if told:
                     event, _ = append_admitted(
@@ -273,13 +265,17 @@ def _handed_over(present: dict, turn, saved: int) -> bool:
     )
 
 
+def _has_read(reading: dict | None, digest: str) -> bool:
+    """Whether the page's latest reading, `reading`, read the version `digest`."""
+    return reading is not None and reading["digest"] == digest
+
+
 def _unread(page_dir: Path) -> bool:
     """Whether the page's live version, which this makes live where no tab has, is one
     no reading has read."""
     revision = activate_source(page_dir).revision
-    reading = read_reading(page_dir)
-    return revision is not None and not (
-        reading and reading["digest"] == read_artifact(page_dir, revision).digest
+    return revision is not None and not _has_read(
+        read_reading(page_dir), read_artifact(page_dir, revision).digest
     )
 
 
@@ -324,14 +320,13 @@ class HandoverPass:
                 or time.time() - saved / 1e9 < QUIET_S
             ):
                 return
-            if _unread(page_dir) and not self._read():
-                return
+            if _unread(page_dir):
+                self._read()
         self.settled = source
 
-    def _read(self) -> bool:
+    def _read(self) -> None:
         """Read in a child that speaks for no harness session, so the claimant's command
-        diagnostics don't count its seconds as the agent's, and say whether it read:
-        False where another reading held the lease, so the next look asks again."""
+        diagnostics don't count its seconds as the agent's."""
         ended = subprocess.run(
             [sys.executable, "-m", "leaf", "page", "_read", str(self.page_dir)],
             stdin=subprocess.DEVNULL,
@@ -341,4 +336,3 @@ class HandoverPass:
         ).returncode
         if ended == -signal.SIGALRM:
             raise RuntimeError(f"a reading ran past {DEADLINE_S} s")
-        return ended != BUSY

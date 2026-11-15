@@ -1,6 +1,5 @@
 """What the render pass reads and what it tells. A version the agent hands over is read
-once, one reading at a time on the machine, a failure wakes the agent, and advice goes
-with what next reaches it."""
+once, a failure wakes the agent, and advice goes with what next reaches it."""
 
 import json
 import os
@@ -32,11 +31,9 @@ from leaf import state as state_model
 from leaf.event_log import read_events
 from leaf.files import latest_revision
 from leaf.findings import Finding
-from leaf.leases import release_lease, take_lease
 from leaf.render_gate import handover_pass as handover_pass_model
 from leaf.revision_artifact import read_artifact
 from leaf.revisioning import activate_source
-from leaf.state import state_home
 from leaf.validation.source import check_source
 
 FAILURE: dict[str, Any] = {
@@ -65,7 +62,7 @@ def pass_page(claimed, monkeypatch):
     monkeypatch.setattr(
         handover_pass_model.HandoverPass,
         "_read",
-        lambda self: reads.append(self) or True,
+        lambda self: reads.append(self),
     )
     return SimpleNamespace(
         dir=claimed, passes=handover_pass_model.HandoverPass(claimed), reads=reads
@@ -228,37 +225,24 @@ def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     assert pass_page.reads == []
 
 
-def test_the_machine_runs_one_reading_at_a_time(pass_page, monkeypatch):
-    """A reading finding another under way reads nothing, and its server asks again."""
-    save(pass_page.dir, "queued")
-    state_model.close_session_turn("s1")
-    lease = take_lease(state_home() / handover_pass_model.LEASE)
-    try:
-        assert handover_pass_model.read_and_tell(pass_page.dir) is False
-    finally:
-        release_lease(lease)
-    asked = []
-    monkeypatch.setattr(
-        handover_pass_model.HandoverPass,
-        "_read",
-        lambda self: asked.append(self) and len(asked) > 1,
-    )
-    pass_page.passes.look()
-    pass_page.passes.look()
-    assert len(asked) == 2
+def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
+    claimed, monkeypatch
+):
+    """A server started again mid-reading may read that version a second time, and a
+    reading taken at another viewport may find otherwise. The first reading to tell
+    tells the version; the other tells nothing."""
+    save(claimed, "read twice")
+    first = checking([FAILURE])
 
+    def beside_another(page_dir, **options):
+        monkeypatch.setattr("leaf.validation.command.check_page", first)
+        handover_pass_model.read_and_tell(page_dir)
+        return checking([ADVICE])(page_dir, **options)
 
-def test_a_server_started_again_mid_reading_reads_nothing_twice(claimed, monkeypatch):
-    """The second reading waits on the first for the lease, then finds it read."""
-    activate_source(claimed)
-    leave_reading(claimed, [FAILURE])
-
-    def read_again(*_args, **_kwargs):
-        raise AssertionError("read a version a reading had read")
-
-    monkeypatch.setattr("leaf.validation.command.check_page", read_again)
-    assert handover_pass_model.read_and_tell(claimed) is True
-    assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
+    monkeypatch.setattr("leaf.validation.command.check_page", beside_another)
+    handover_pass_model.read_and_tell(claimed)
+    [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
+    assert [f["text"] for f in event["findings"]] == [FAILURE["text"]]
 
 
 def test_a_page_too_heavy_to_read_costs_its_deadline_once(claimed, monkeypatch):

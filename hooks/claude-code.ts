@@ -10,10 +10,11 @@
  * session's model, such as a thread's title or a widget's `generate`
  * (`complete`). Claude Code runs none of this module's hooks for a working fork's
  * tool calls, as a plugin's hooks never see the calls of an agent it spawned
- * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
- * (`hooks.agent_command`). Claude Code loads the module from the installed plugin
- * (measured at 2.1.305). It neither
- * watches nor wakes the session: `hooks.json`'s background Stop registration
+ * (measured at 2.1.322), so `hooks.json`'s PostToolBatch carries the fork's
+ * further input (`hook_transport.carry_agent_turn`), and the fork names its own
+ * turn in its `leaf` commands, as Leaf's prompt tells it (`forks.work_prompt`).
+ * Claude Code loads the module from the installed plugin (measured at 2.1.305).
+ * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
  * an Escape became a cross-session nudge (measured at 2.1.307 with the
@@ -621,10 +622,10 @@ async function changeForks(
  * of the conversation and tell Leaf which agent runs that turn (`forks.started`),
  * which tells the main thread the agent id it reaches the fork by. A fork that
  * can't be resumed or fails to start, or a step of this that fails, ends that turn
- * at once, which gives the thread to the main thread (`forks.ended`). The end names
- * the agent wherever one started, so an agent that runs on after Leaf failed to
- * record its start has its `leaf` commands refused rather than run as the main
- * thread's (`state.close_agent_turns`). */
+ * at once, which gives the thread to the main thread (`forks.ended`), and refuses
+ * the fork's later `leaf` commands, which name that turn. The end names the agent
+ * wherever one started, so the main thread hears the id that reaches an agent
+ * that runs on after Leaf failed to record its start (`state.close_agent_turns`). */
 async function workFork(
   $: EngineInterface,
   session: string,
@@ -660,8 +661,7 @@ async function workFork(
     );
   } catch (error) {
     // No run of a fork whose start went unrecorded would end its turn, which would
-    // keep the main thread off the thread and ask every agent's `leaf` command to
-    // run again until the turn lapses (`hooks.agent_command`).
+    // keep the main thread off the thread until the turn lapses.
     await forkStep($, session, {
       ended: { agent, turn: given.turn, failed: `Leaf's step failed: ${error}` },
     }).catch(() => undefined);

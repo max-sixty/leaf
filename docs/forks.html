@@ -317,15 +317,14 @@ flowchart TD
               message goes straight from kept back to held by the fork's turn, with no
               moment in which neither has it. Leaf's hooks module then spawns the
               working fork with that delivery and tells Leaf which agent runs the turn
-              (<code>forks.started</code>), which until then no agent runs (<a
-                href="#acting-starting"
-                >Who a <code>leaf</code> command acts as</a
-              >); or it resumes the fork that answered the thread before, whose agent id
-              Leaf already named the turn with as it opened it (<a href="#follow-ups"
-                >Follow-ups and flurries</a
-              >). The fork works with the session's tools and answers with its own
+              (<code>forks.started</code>); or it resumes the fork that answered the
+              thread before, whose agent id Leaf already named the turn with as it
+              opened it (<a href="#follow-ups">Follow-ups and flurries</a>). The fork
+              works with the session's tools and answers with its own
               <code>leaf thread reply</code>, using the reply reference its delivery
-              names.
+              names, and the turn its task names (<a href="#acting-starting"
+                >Who a <code>leaf</code> command acts as</a
+              >).
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>
@@ -503,44 +502,31 @@ flowchart TD
           <h2>Who a <code>leaf</code> command acts as</h2>
           <p id="acting-environment">
             A working fork's shell commands run in the session's environment, so a
-            <code>leaf</code> command it runs looks like one of the main thread's.
-            Leaf's PreToolUse hook in <code>hooks.json</code>, which Claude Code runs
-            before every agent's Bash call that runs <code>leaf</code>, tells them apart
-            by the agent id in the hook's payload. For an agent the session has run a
-            turn for, open or ended (<code>state.agent_known</code>), it rewrites the
-            command to put <code>--agent-id</code> and the agent's id after its leading
-            <code>leaf</code> (<code>hooks.agent_command</code>). The command still
-            begins with <code>leaf</code>, so a permission rule allowing
-            <code>leaf</code> commands still matches it. The mark decides the writes
-            that name a turn: a reply, a start, a pickup and an acknowledgement. Any
-            other <code>leaf</code> command, such as a page check, runs as the
-            session's, marked or not.
+            <code>leaf</code> command it runs looks like one of the main thread's. The
+            fork tells Leaf which are its own: the fork's task names the turn Leaf
+            opened for it and tells it to begin each <code>leaf</code> command with
+            <code>leaf --turn</code> and that turn (<code>forks.work_prompt</code>). The
+            command still begins with <code>leaf</code>, so a permission rule allowing
+            <code>leaf</code> commands still matches it. The turn it names decides the
+            writes that name a turn: a reply, a start, a pickup and an acknowledgement.
             <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <figure id="acting-figure" class="diagram-figure">
-            <lf-diagram id="acting-flow" data-height="705" parts="all">
+            <lf-diagram id="acting-flow" data-height="430" parts="all">
               <pre>
 flowchart TD
   accTitle: Who a leaf command acts as
-  accDescr: A Bash call that runs leaf, from an agent that runs no open turn while a turn Leaf opened awaits its agent, is denied with the instruction to run it again. Otherwise, from an agent the session ran no turn for, it acts as the main thread. From an agent the session ran a turn for, a call where leaf isn't the first word, or runs twice, is denied. Otherwise the hook marks it with the agent's id; it acts in the agent's turn while that turn is open, on what the turn holds, and is refused once the turn has ended.
-  bash["A Bash call runs leaf"]
-  waits("Does it run no turn, while a new turn awaits its agent?")
-  again["Denied: run it again"]
-  known("Did the session run a turn for this agent?")
+  accDescr: A leaf command that names no turn acts as the main thread. One that names an open agent turn of the session acts in that turn, on what the turn holds. One that names any other turn, such as a fork's turn that has ended, is refused.
+  cmd["A leaf command runs"]
+  names("Does it begin leaf --turn?")
   main["It acts as the main thread"]
-  leads("Is leaf its first word, and its only leaf?")
-  denied["Denied: run each leaf command alone"]
-  open("Marked with --agent-id. Is the agent's turn open?")
+  open("Is that turn an open agent turn of the session?")
   inturn["Its replies and starts act in that turn, on what it holds"]
-  refused["Every command it runs is refused: the turn has ended"]
-  bash --&gt; waits
-  waits -- yes --&gt; again
-  waits -- no --&gt; known
-  known -- yes --&gt; leads
-  known -- no --&gt; main
-  leads -- no --&gt; denied
-  leads -- yes --&gt; open
+  refused["Refused, whatever the command"]
+  cmd --&gt; names
+  names -- no --&gt; main
+  names -- yes --&gt; open
   open -- yes --&gt; inturn
   open -- no --&gt; refused
 </pre>
@@ -562,22 +548,21 @@ flowchart TD
             <tbody>
               <tr id="actor-main">
                 <th scope="row">The main thread</th>
-                <td>names no agent</td>
+                <td>names no turn</td>
                 <td>act on anything the session owes, in the main thread's turn</td>
               </tr>
               <tr id="actor-open">
                 <th scope="row">An agent with an open turn</th>
-                <td>is marked, and the agent's turn is open</td>
+                <td>names that turn</td>
                 <td>
-                  reply, start and acknowledge in its own turn, on the messages it holds
-                  or no turn holds (<a href="#holding-rule"
-                    >One rule for a fork's writes</a
+                  reply, start and acknowledge in that turn, on the messages it holds or
+                  no turn holds (<a href="#holding-rule">One rule for a fork's writes</a
                   >)
                 </td>
               </tr>
               <tr id="actor-ended">
                 <th scope="row">An agent whose turn ended</th>
-                <td>is marked, and the agent has no open turn</td>
+                <td>names a turn that isn't open</td>
                 <td>
                   nothing: every command it runs is refused (<code
                     >state.<wbr />acting_agent_turn</code
@@ -586,62 +571,40 @@ flowchart TD
               </tr>
             </tbody>
           </table>
-          <p id="acting-unmarked">
-            A subagent the session ran no turn for, such as one of the main thread's own
-            workers, isn't marked and acts as the main thread. The mark follows the
-            agent rather than its turn, so every command of a fork still running after
-            its turn ended is refused rather than taken for the main thread's.
+          <p id="acting-starting">
+            A fork's commands act in its turn from its first one: the turn has its id
+            from the moment Leaf opens it, while the fork's agent id comes only once
+            Claude Code has spawned the fork. A resumed fork's message names its new
+            turn in place of the one its transcript names, and a command naming the old
+            one is refused, as is every command a fork still running after its turn
+            ended runs.
           </p>
           <p id="acting-beside">
-            A command that acts as the main thread on a thread a running fork or a line
-            fork holds, whether the main thread's own, a worker's, a fork's script's or
-            a terminal's, goes through with the main thread's authority, as you chose on
-            14 Nov over refusing it. It says beside its result which fork holds the
-            thread, and for an answer, which takes the thread, that it took it and how
-            to stop the fork (<code>holding.authorize</code>).
+            A command that names no turn acts as the main thread on a thread a running
+            fork or a line fork holds, whether the main thread's own, a worker's, a
+            fork's that left out its turn, a fork's script's or a terminal's. It goes
+            through with the main thread's authority, as you chose on 14 Nov over
+            refusing it, and says beside its result which fork holds the thread, and for
+            an answer, which takes the thread, that it took it and how to stop the fork
+            (<code>holding.authorize</code>).
             <span class="tag ok">built</span>
           </p>
-          <p id="acting-starting">
-            A new fork runs before Leaf knows its agent id. The turn Leaf opens at the
-            take stays unnamed until the hooks module, once Claude Code has spawned the
-            fork, tells Leaf which agent runs it, and the hook's payload names nothing
-            Leaf gave the fork, such as its turn. So while a turn of the session awaits
-            its agent (<code>state.unnamed_agent_turns</code>), the hook denies the
-            <code>leaf</code> command of any agent that runs no open turn, with the
-            instruction to run it again, since unmarked, a new fork's command would act
-            as the main thread. A worker of the main thread that runs a
-            <code>leaf</code> command in that second or so is asked to run it again too.
-            A resumed fork's agent id Leaf already knows, so it runs its new turn from
-            the moment Leaf opens it. Where any step of starting a fork fails, the
-            module ends its turn; a turn left unnamed otherwise, as by a reload of the
-            module mid-start, stops counting once it lapses.
-          </p>
-          <p id="acting-compound">
-            A marked agent's Bash call with the word <code>leaf</code> anywhere but as
-            its first word is denied with the instruction to run each
-            <code>leaf</code> command on its own, as in
-            <code>cd x &amp;&amp; leaf …</code>, <code>if …; then leaf …</code> or
-            <code>"$(true; leaf …)"</code>. Unmarked, such a command would act as the
-            main thread, and a mark spliced into it could land inside quoted text. The
-            rule reads words rather than Bash's grammar, so it also denies a
-            <code>leaf</code> call whose text names another <code>leaf</code> command,
-            as a reply's may; the denial says to write such text to a file with the
-            Write tool and pass the file. Claude Code runs the hook only where
-            <code>leaf</code> begins a command it finds in the call (measured at
-            2.1.325), so a call that hands <code>leaf</code> to another program, as
-            <code>bash -c 'leaf …'</code>, <code>timeout 30 leaf …</code> or a script
-            does, never reaches it: that command acts as the main thread's, and says
-            beside its result which fork holds the thread.
+          <p id="acting-decided">
+            You chose on 15 Nov that the fork names its own turn, as its task tells it,
+            over Leaf's PreToolUse hook rewriting each of its <code>leaf</code>
+            commands to name its agent id. That hook could mark only a
+            <code>leaf</code> that began its Bash call, so it denied every other form,
+            and it couldn't tell a new fork's command from a worker's until Claude Code
+            had said which agent it spawned, so it denied those too in the meantime.
           </p>
           <p id="acting-module">
-            The marking lives in <code>hooks.json</code> rather than Leaf's hooks
-            module, because Claude Code runs none of a plugin's
-            <code>tool.call</code> hooks for an agent that plugin spawned (measured at
-            Claude Code 2.1.322), so the module can't see a fork's tool calls. The
-            PostToolBatch hook in <code>hooks.json</code> names the fork too: at each of
-            the fork's tool boundaries it renews the fork's turn and hands it the
-            thread's further messages (<code>hook_transport.carry_agent_turn</code>),
-            and it hands the fork nothing else of the main thread's.
+            Claude Code runs none of a plugin's <code>tool.call</code> hooks for an
+            agent that plugin spawned (measured at Claude Code 2.1.322), so Leaf's hooks
+            module can't see a fork's tool calls. The PostToolBatch hook in
+            <code>hooks.json</code> names the fork: at each of the fork's tool
+            boundaries it renews the fork's turn and hands it the thread's further
+            messages (<code>hook_transport.carry_agent_turn</code>), and it hands the
+            fork nothing else of the main thread's.
           </p>
         </section>
 
@@ -1009,8 +972,8 @@ flowchart TD
               <tr id="status-turns">
                 <th scope="row">
                   <a href="#take">A working fork in a turn of its own</a>: the take,
-                  <a href="#acting">marking its commands</a>, further messages at its
-                  tool boundaries, and <a href="#ending">its end</a>
+                  <a href="#acting">its commands naming its turn</a>, further messages
+                  at its tool boundaries, and <a href="#ending">its end</a>
                 </th>
                 <td><small class="tag ok">built</small> acts only with the flag</td>
               </tr>
@@ -1093,7 +1056,9 @@ flowchart TD
                 ><code>src/leaf/forks.py</code></a
               >: its header holds the states a thread moves through and why the line
               fork runs as it does; <code>_take</code> and <code>ended</code> hold the
-              rules this page names for a working fork's take and end.
+              rules this page names for a working fork's take and end, and
+              <code>work_prompt</code> and <code>resume_prompt</code> the fork's task,
+              which names its turn.
             </li>
             <li id="source-clerk">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
@@ -1107,16 +1072,10 @@ flowchart TD
             <li id="source-state">
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
                 ><code>src/leaf/state.py</code></a
-              >: <code>AGENT_TURNS</code>, <code>agent_known</code>,
-              <code>unnamed_agent_turns</code> and <code>acting_agent_turn</code>, the
-              record of agent turns and the actor a command runs as.
+              >: <code>AGENT_TURNS</code> and <code>acting_agent_turn</code>, the record
+              of agent turns and the turn a command acts in.
             </li>
             <li id="source-hooks">
-              <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hooks.py"
-                ><code>src/leaf/hooks.py</code></a
-              >: <code>agent_command</code> and <code>leaf_words</code>, the marking,
-              the denial while a turn awaits its agent and the refusal of a compound
-              command; and
               <a
                 href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hook_transport.py"
                 ><code>src/leaf/hook_transport.py</code></a

@@ -1645,8 +1645,14 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
     # Narrower than any layout of the flow, so the drawing laid out for it still
-    # scrolls in its box.
+    # scrolls in its box. That drawing wraps the boxes' labels, and their controls keep
+    # the words' spaces.
+    page.evaluate("() => { window.lfDrawn = document.querySelector('#flow svg'); }")
     diagram.evaluate("element => { element.style.width = '100px'; }")
+    page.wait_for_function(
+        "() => document.querySelector('#flow svg') !== window.lfDrawn"
+    )
+    expect(start.locator("tspan")).to_have_count(2)
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()

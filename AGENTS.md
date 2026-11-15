@@ -406,7 +406,6 @@ makes Leaf harder to develop than it is worth:
 Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
 gives what it deletes, and a probe or capture of the affected journey shows what users
 lose. A count read off the code overstates the saving.
-||||||| 8106a4d834
 
 ## Working on the repository
 

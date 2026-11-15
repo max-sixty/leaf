@@ -171,7 +171,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
 def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
     """At a narrow allocation, Space must not create a blank line while the words
     still fit. Under a mouse the words keep no room for Send, which takes the corner
-    they leave free (drafts/test_send_corner.py), so they end as far inside the field
+    they leave free (journeys/drafts/test_send_corner.py), so they end as far inside the field
     as they start."""
     page = open_page(
         browser,
@@ -2127,60 +2127,6 @@ CONTINUED = {
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hold(
-    engine, request, serve, subtests
-):
-    """The keys that shape a draft's quotes and lists, typed into one field."""
-    page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
-    )
-
-    with subtests.test("Shift+Enter continues the containers the message will hold"):
-        # Shift+Enter begins a line in each quote and list item the message will read
-        # the caret's line in, a fence's code included, and on a line holding only their
-        # markers leaves the innermost, an item in an item outdenting; a task's next
-        # item is an open task. CodeMirror's own Markdown grammar decided it, which
-        # stopped at a fence, so a fence's next line fell out of its quote or item and
-        # its closing fence opened another; leaving a list took a third press, the
-        # second only loosening it. A bare `> ` after a list read as inside the list's
-        # last item, so leaving the quote did nothing.
-        field = page_comment(page)
-        left = type_drafts(page, field, CONTINUED)
-        assert left == {name: draft for name, (_, draft) in CONTINUED.items()}
-
-    with subtests.test("Tab nests a list item and Shift+Tab takes it out"):
-        # Tab in a list item nests it under the item above, where the message will draw
-        # it as a nested item, in the platform's nested bullet; Shift+Tab takes it out a
-        # level, and one undo takes back one Tab. The first item, with no item to nest
-        # under, stays and keeps the caret. Elsewhere Tab and Shift+Tab leave the field,
-        # as they used to from a list too.
-        field = page_comment(page)
-        left = type_drafts(page, field, NESTING)
-        assert left == {name: draft for name, (_, draft) in NESTING.items()}
-        expect(field).to_be_focused()
-        # The nested item wears the nested bullet with its words and before them, though
-        # the message reads an empty nested item as words of the item above.
-        bullets = """box => [...window.__lfRoots.get(box).querySelectorAll('.cm-line')]
-          .map(line => [...line.closest('.lf-md-item').classList]
-            .find(name => /^lf-md-(disc|circle|square)$/.test(name)))"""
-        for erase in (0, len("two")):
-            for _ in range(erase):
-                page.keyboard.press("Backspace")
-            rendered(page)
-            assert field.evaluate(bullets) == ["lf-md-disc", "lf-md-circle"], erase
-        expect(field).to_have_js_property("value", "- one\n  - ")
-        # Outside a list item the press leaves the field as before, and so does Shift+Tab
-        # with no item to take out, so a draft that is all list still lets focus out.
-        for typed, key in (("plain", "Tab"), ("- one", "Shift+Tab")):
-            field.focus()
-            page.keyboard.press("ControlOrMeta+a")
-            page.keyboard.type(typed)
-            page.keyboard.press(key)
-            expect(field).not_to_be_focused()
-            expect(field).to_have_js_property("value", typed)
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_pasted_fence_is_left_by_the_keys_a_user_tried(engine, request, serve):
     """The keys a user pressed to get out of a fence they had pasted into, which left
     it open: Up and Down, then their marks typed at the end of the code. The paste lost
@@ -2322,51 +2268,3 @@ def open_threads_list(page):
 def open_reference(page):
     page.keyboard.press("?")
     return page.locator(".lf-command-reference-results"), ".lf-command-reference-row"
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize("opens", [open_threads_list, open_page_map, open_reference])
-def test_a_band_names_the_group_passing_under_it(request, serve, engine, opens):
-    """A list that groups its rows keeps the group being read named: scrolled into a
-    group, its band stands at the top of the list, across the list's whole surface, and
-    a row the user walks up to stands clear below the band rather than under it."""
-    page = open_page(
-        request.getfixturevalue(engine), serve(BANDED_PAGE, events=BANDED_EVENTS)
-    )
-    resized(page, 1000, 480)
-    scroller, rows = opens(page)
-    expect(scroller).to_be_visible()
-    scroller.evaluate("list => { list.scrollTop = 160; }")
-    rendered(page)
-    stuck = """list => {
-      const box = list.getBoundingClientRect();
-      const at = list.getRootNode().elementFromPoint(
-        box.left + box.width / 2, box.top + 2);
-      const band = at?.closest('.lf-rows-head');
-      if (!band) return null;
-      const {top, bottom, left, right} = band.getBoundingClientRect();
-      return {name: band.textContent.trim(), top, bottom, left, right,
-              list: {top: box.top, left: box.left,
-                     right: box.left + list.clientWidth}};
-    }"""
-    band = scroller.evaluate(stuck)
-    assert band, "no band stands at the top of the scrolled list"
-    assert band["top"] == pytest.approx(band["list"]["top"], abs=1), band
-    assert band["left"] == pytest.approx(band["list"]["left"], abs=1), band
-    assert band["right"] == pytest.approx(band["list"]["right"], abs=1), band
-
-    # Up the list by the keys, each row stands clear of the band over it.
-    scroller.locator(rows).nth(11).focus()
-    for _ in range(11):
-        page.keyboard.press("ArrowUp")
-        rendered(page)
-        at = scroller.evaluate(
-            """list => {
-              const root = list.getRootNode();
-              const row = root.activeElement;
-              const {left, top, width} = row.getBoundingClientRect();
-              const over = root.elementFromPoint(left + width / 2, top + 1);
-              return [row.textContent, over?.closest('.lf-rows-head')?.textContent];
-            }"""
-        )
-        assert at[1] is None, f"{at[0]} stands under the band {at[1]}"

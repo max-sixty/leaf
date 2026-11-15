@@ -148,7 +148,7 @@ never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
 For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
-a gallery of cards across subjects, messages, routes and windows, and add a case to its
+a gallery of cards across subjects, messages, routes, windows and page Layouts, and add a case to its
 `CASES` for each new shape a reader meets.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the

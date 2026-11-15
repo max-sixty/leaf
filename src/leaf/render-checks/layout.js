@@ -282,7 +282,7 @@ function marginReading(main, shellLeft, shellRight) {
   const colRight = box.right - parseFloat(style.paddingRight);
   const gutter =
     (parseFloat(style.getPropertyValue("--lf-shell-width")) || 0) > 0
-      ? parseFloat(style.getPropertyValue("--col-pad")) || 0
+      ? parseFloat(style.getPropertyValue("--lf-col-pad")) || 0
       : null;
   const left = gutter === null ? colLeft : Math.min(colLeft, shellLeft + gutter);
   const right = gutter === null ? colRight : Math.max(colRight, shellRight - gutter);

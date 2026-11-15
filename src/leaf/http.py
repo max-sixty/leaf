@@ -555,7 +555,7 @@ class PageEndpoint:
                 scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
             )
         )
-        if "data" in answer and (
+        if "since" not in answer and (
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
         ):
             answer = {**answer, "data": {"version": answer["data"]["version"]}}

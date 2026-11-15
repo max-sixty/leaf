@@ -30,14 +30,13 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
-import hashlib
-import json
 from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
+from leaf.data import data_version, value_revision
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -46,7 +45,6 @@ from leaf.served_state.context import PageRead
 from leaf.served_state.page import read_served_page
 from leaf.served_state.service import LivePage, PageStateService
 from leaf.served_state.tail import answer
-from leaf.state import json_bytes
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -105,26 +103,20 @@ def leaf_page(
 
 def served_data(sources: Mapping[str, tuple[str, object]], contract: str) -> dict:
     """The data a page holds whose sources each hold a value under `contract`, keyed
-    by source to the run that wrote it and the value, in the shape `data.read_data`
-    reads them: each source's revision digests its value, so a rerun of the same value
-    keeps it, and the version moves with every revision and run."""
+    by source to the run that wrote it and the value, as `data.read_data` reads them:
+    each source's revision is its value's (`value_revision`), so a rerun of the same
+    value keeps it, and the version is theirs together (`data_version`)."""
     readings = {
         source: {
             "contract": contract,
-            "revision": hashlib.sha256(json_bytes(value)).hexdigest()[:16],
+            "revision": value_revision(value),
             "run": run,
             "updated": NOW,
             "value": value,
         }
         for source, (run, value) in sources.items()
     }
-    identity = json.dumps(
-        {source: [held["revision"], held["run"]] for source, held in readings.items()}
-    )
-    return {
-        "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
-        "sources": readings,
-    }
+    return {"version": data_version(readings), "sources": readings}
 
 
 def served_reading(

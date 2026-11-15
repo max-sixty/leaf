@@ -70,8 +70,8 @@
    `outgrowsNarrow`), so it widens at most once, from its start, which placement keeps
    room for. A long comment widens the card Send opens; a long answer widens it as it
    arrives, carrying the controls at its far edge (`data-lf-widens`; browser/AGENTS.md,
-   "Controls stay where the user aims"), or as the user sends the reply that held it
-   (thread-card.js, `newsMoves`). The comment box keeps the least width however much is
+   "Controls stay where the user aims"), or, while the user writes a reply, as they
+   send it. The comment box keeps the least width however much is
    typed in it (annotation-chrome.css). A card whose start stands away from its text
    takes the measure at once, a narrower room caps either width, and a card the user
    carried keeps the width it was carried at. On 14 November 2026 the user chose these
@@ -613,8 +613,8 @@ export function createThreadPreview({
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
   // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`). Also where they are, if in the card, and
-  // whether they type there.
+  // they are (user-place.js, `focusPlace`). Also where they are, if in the card,
+  // whether they type there, and whether they write words in its reply box.
   /** @param {import("./comment-placement.js").Side} side */
   function heldEdge(side) {
     const place = focusPlace();
@@ -625,7 +625,7 @@ export function createThreadPreview({
     const beside = side === "left" || side === "right";
     /** @type {"top" | "foot"} */
     const edge = writing && beside ? "foot" : attachedEdge(side);
-    return { edge, typing, at };
+    return { edge, typing, writing, at };
   }
 
   // Whether news at the thread's end, which grows the card at the edge it does not
@@ -833,10 +833,10 @@ export function createThreadPreview({
             if (fresh) session.width = null;
             // A card by its text stands at the least width until a sent message in
             // it runs past a few lines there, then at the measure until another
-            // selection, so it widens at most once (the header's rule). News the user
-            // would see move while they write a reply waits until they send it
-            // (`endNewsMoves`), and the card widens then. One whose start stands away
-            // from its text takes the measure at once. The room caps either where the room is
+            // selection, so it widens at most once (the header's rule), and never while
+            // the user writes words in its reply box: news that shows meanwhile, above
+            // a card held by its foot, widens it once they send. One whose start stands
+            // away from its text takes the measure at once. The room caps either where the room is
             // narrower. One the user carried keeps the width it was carried at
             // (`session.width`) until its side is chosen again.
             const carried = (session.width ?? Infinity) / scale.x;
@@ -846,7 +846,9 @@ export function createThreadPreview({
                 ? Math.min(cardMeasure(), width, carried)
                 : narrow;
             const outgrown = () =>
-              fromSubject && outgrowsNarrow(preview.querySelectorAll(".lf-msg-text"));
+              fromSubject &&
+              !held.writing &&
+              outgrowsNarrow(preview.querySelectorAll(".lf-msg-text"));
             // A card at the least width reads its messages there before this fit
             // writes, so news widens it in one write; a selection's first fit lays it
             // out there first.

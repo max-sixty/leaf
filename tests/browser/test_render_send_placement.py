@@ -598,6 +598,59 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
     ), (wide, reopened)
 
 
+def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser, serve):
+    """Over its words a card holds its foot, so news shows at once while the user
+    writes a reply (`endNewsMoves`). A long answer arriving then leaves the card at its
+    width, so nothing widens while they type, and their Send widens it."""
+    context = browser.new_context(
+        viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    page.locator(FIRST_LINE.block).evaluate(
+        "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.75)"
+    )
+    rendered(page)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile("top-start")
+    )
+    page.keyboard.insert_text("Keep the runner fixed.")
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    rendered(page)
+    sides = ("left", "right")
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    assert sent["right"] - sent["left"] == pytest.approx(minimum, abs=0.5), sent
+    root = next(
+        event
+        for event in reversed(event_log.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )["id"]
+    card.locator('leaf-text[name="reply"]').click()
+    page.keyboard.insert_text("Which image?")
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "The plan pins the runner to one image so every step builds alike. " * 3,
+    )
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    held = page.evaluate(RECT, ".lf-margin-preview")
+    assert {side: held[side] for side in sides} == pytest.approx(
+        {side: sent[side] for side in sides}, abs=0.5
+    ), (sent, held)
+    with sending(page, "reply"):
+        page.keyboard.press("Enter")
+    expect(card.locator(".lf-msg")).to_have_count(3)
+    rendered(page)
+    wide = page.evaluate(RECT, ".lf-margin-preview")
+    assert wide["left"] == pytest.approx(sent["left"], abs=0.5), (sent, wide)
+    assert wide["right"] > sent["right"] + 1, (sent, wide)
+
+
 def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
     browser, serve
 ):

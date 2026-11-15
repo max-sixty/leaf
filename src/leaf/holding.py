@@ -34,8 +34,9 @@ the moment it takes the thread until another turn does (`Hold`).
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
 
-`reading` reads this once for a page, from its log, the claimant's agent turns and
-the threads Leaf keeps back (`forks.page_holding`), and every rule asks that one
+`reading_of` reads this once for a page, from its log, or the threads the fold built
+from it, the claimant's agent turns and the threads Leaf keeps back
+(`forks.page_holding`, `served_state.work`), and every rule asks that one
 `Holding` rather than reading the pickups and answers itself: delivery
 (`delivery.deliverable`) and admission (`forks.kept_from_main_at_admission`) keep
 from the main thread what it doesn't owe and hand it what a fork's ended turn left

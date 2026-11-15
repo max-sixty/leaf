@@ -1229,9 +1229,9 @@ def deliverable(
                 )
             } - {event["id"] for event in [*owed, *pending]}
             owed += [event for event in page.events if event["id"] in left]
-        # A message a fork's running turn holds is owed and unreferenced once the
-        # cursor has passed it, and stays the fork's all the same; a kept-back one is
-        # still pending, and stays kept back.
+        # A waiting message a running fork or the line fork holds is theirs,
+        # pending where the cursor hasn't passed it and owed and unreferenced where
+        # it has (`holding.not_awaited`).
         if elsewhere := {
             event["id"]
             for event in holding.waiting(

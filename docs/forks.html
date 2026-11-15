@@ -224,17 +224,18 @@ flowchart TD
             Keeping a message back is the one state of a thread that Leaf reads partly
             from outside the page log. A hand-over goes in the session's
             <code>forks</code> file (<code>forks.HANDED</code>), and whether the pages
-            follower runs comes from its lease. Every reader asks one function which
-            messages Leaf keeps back (<code>forks.kept_back</code>), so none disagrees.
-            The log can't hold this state: keeping back also ends when the follower
-            stops, which nothing writes, so a live lease decides it whatever the log
-            says. A lost hand-over record only has the follower hand the message over
-            again at its next look. Which turn holds a message is different: every
-            reader has to agree on it, it outlives the fork, and it decides whose writes
-            stand, so a take is a pickup in the log, and an answer is a reply there that
-            names its turn. Moving hand-overs into the log too would add an event to
-            nearly every thread message in a Claude Code session, and change the
-            protocol, while the lease still decided when keeping back ends.
+            follower runs comes from its lease. Every reader asks one reading which
+            messages Leaf keeps back (<code>forks.kept_back_of</code>, which
+            <code>holding.reading_of</code> applies), so none disagrees. The log can't
+            hold this state: keeping back also ends when the follower stops, which
+            nothing writes, so a live lease decides it whatever the log says. A lost
+            hand-over record only has the follower hand the message over again at its
+            next look. Which turn holds a message is different: every reader has to
+            agree on it, it outlives the fork, and it decides whose writes stand, so a
+            take is a pickup in the log, and an answer is a reply there that names its
+            turn. Moving hand-overs into the log too would add an event to nearly every
+            thread message in a Claude Code session, and change the protocol, while the
+            lease still decided when keeping back ends.
           </p>
 
           <section id="sorting" class="layout-flow">
@@ -371,9 +372,10 @@ sequenceDiagram
             (<code>state.AGENT_TURNS</code>). A fork's turn opens at the take, before
             Claude Code starts or resumes the fork, and closes when the hooks module
             reports that the fork's run ended. It also lapses when nothing has renewed
-            it within the working grace, 15 minutes, or within a minute while no fork
-            has started on it, as when the module lost the take; the fork's tool
-            boundaries renew it. <span class="tag ok">built</span>
+            it within the working grace, 15 minutes, or within a minute of its opening
+            until the module confirms the fork it spawned or resumed runs, as when the
+            module lost the take; the confirmation and the fork's tool boundaries renew
+            it. <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <p id="holding-newest">

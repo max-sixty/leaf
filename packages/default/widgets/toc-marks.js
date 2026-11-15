@@ -1,16 +1,16 @@
 /* Where the page's open threads, its On me items and, while the changes view is on, its
  * changes stand along the contents: how many of each the section each row leads holds.
  *
- * A row's section is what its heading heads, by the one rule On me groups its items by
- * and a link's preview names a place by (`partOver`): an item belongs to the first row
- * met climbing from its element through the parts over it. So a paragraph under a
- * heading the outline leaves out, past `max-level`, counts in the row above that
- * heading, and On me's bands and the contents agree on where an item stands. An element
- * a row goes to (its `destination`), such as a section a thread is about as a whole,
- * belongs to that row, and so does each element between the row's heading and its
- * destination, such as a question's frame holding the heading, which `partOver` would
- * place in the part above it. Anything above the first section's heading belongs to the
- * start row. Items outside the document the outline covers count nowhere.
+ * A row's section is the element its heading titles (`titledElement`) and what the
+ * heading heads, by the rule On me groups its items by and a link's preview names a
+ * place by (`partOver`): an item belongs to the first row met climbing from its element
+ * through the parts over it, and a row holds its heading and each element the heading
+ * titles. So a paragraph under a heading the outline leaves out, past `max-level`,
+ * counts in the row above that heading, and a thread about a whole section or question
+ * counts in its heading's row, as the heading's link preview counts it, though
+ * `partOver` puts the question in the part around it, where On me groups it. Anything
+ * above the first section's heading belongs to the start row. Items outside the
+ * document the outline covers count nowhere.
  *
  * Threads are the open ones, each at the element its anchor names, as a heading's link
  * preview counts them. On me items are the obligations waiting on the user that the
@@ -23,10 +23,10 @@
  *
  * Climbing costs a node's depth for each part it passes, and every element met on the
  * way keeps the row it reached, so the items under one heading climb it once. */
-import { elementById, partOver, under } from "/runtime/widget-api.js";
+import { elementById, partOver, titledElement, under } from "/runtime/widget-api.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
-/** @typedef {{heading: Element | null, destination: Element}} MarkedSection */
+/** @typedef {{heading: Element | null}} MarkedSection */
 /** @typedef {{
  *   threads: readonly {resolved?: unknown, anchor: {section?: string | null} | null}[],
  *   onMe: readonly {source: {id: string}}[],
@@ -49,9 +49,9 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
   /** @type {Map<Element, MarkedSection>} */
   const rows = new Map();
   for (const section of sections) {
-    const { heading, destination } = section;
-    rows.set(destination, section);
-    for (let at = heading; at && destination.contains(at); at = at.parentElement)
+    const { heading } = section;
+    const titled = heading && titledElement(heading);
+    for (let at = heading; at; at = at === titled ? null : at.parentElement)
       rows.set(at, section);
   }
   /** @type {Map<Element, MarkedSection>} */
@@ -76,7 +76,8 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
   };
   // The row a removal was taken from: the one holding the element its gap stands after
   // or in, and for a gap before an element, the part over that element as the page's
-  // reading reached it, which a heading opening the next section is not in.
+  // reading reached it, which a heading opening the next section is not in, nor the
+  // section that heading titles.
   /** @param {MarkedReadings["changes"][number]} removal */
   const removedFrom = ({ at, gap }) => {
     if (gap !== "before") return rowFor(at);

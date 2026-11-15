@@ -7,7 +7,12 @@
    whole section, the preview names the section and On Me says where that section
    stands: the preview says what a place is, On Me where it is, and they agree wherever
    a place has no name of its own. */
-import { addressableLabel, addressableWord, ownNaming } from "../addressable-names.js";
+import {
+  addressableLabel,
+  addressableWord,
+  leadingTitle,
+  ownNaming,
+} from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
   authoredScope,
@@ -125,7 +130,9 @@ export function headingAfter(heading) {
 // `hgroup` heads what holds that, so a page's title in its header heads the page's
 // sections. The container is what "the heading over this" means: a question's own
 // heading stands inside the question, so it heads neither the question, which it
-// follows, nor the next question, which its container does not hold. A heading the
+// follows, nor the next question, which its container does not hold. The question
+// stands in the part around it, which is where On Me groups it; what a heading counts
+// as its own also takes in the element it titles (`conversationsAbout`). A heading the
 // reader cannot see, as in a tab not selected, still heads its part, so a part's name
 // does not change as the page shows or hides it; an arrival measures what it lands on
 // and passes one that shows nothing. On the corpus page, whose pages stand in tabs with
@@ -209,7 +216,14 @@ export function partTrail(node) {
 // it or anything it holds; under each heading, those about what it heads, as `partOver`
 // reads ownership, its own part and those of the headings below its level; each with
 // the turn one owes the user (`threadAttention`), the first found. A heading heads
-// itself, so a conversation about a heading is its part's, not the part before it.
+// itself and the element it titles (addressable-names.js, `titledElement`), so a
+// conversation about a heading, or about the whole question or section it titles, is
+// its part's, not the part before it.
+//
+// Replaced: a heading counted only what `partOver` put under it, which places a
+// question in the part around it, so a thread about a whole question counted under the
+// heading before the question, and the question's own heading previewed none.
+//
 // Kept against exactly what it reads: the threads as the thread reading publishes them,
 // a new value whenever any thread's contents change, its turns included; the agent's
 // name the turns are said in; and the page's reading, since an anchor names an element
@@ -266,15 +280,14 @@ export function conversationsAbout(place) {
   const { inside, headed } = gatherConversations();
   return (place.matches(HEADING) ? headed : inside).get(place) ?? null;
 }
-// The heading that heads `element`: itself, or the first heading over it (`partOver`).
+// The heading that heads `element`: the first met climbing from it through the parts
+// over it (`partOver`) that is a heading or that a heading titles, as its leading title.
 /** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
-  for (
-    let at = element.matches(HEADING) ? element : partOver(element);
-    at;
-    at = partOver(at)
-  )
-    if (at.matches(HEADING)) return at;
+  for (let at = /** @type {Element | null} */ (element); at; at = partOver(at)) {
+    const title = at.matches(HEADING) ? at : leadingTitle(at);
+    if (title?.matches(HEADING)) return title;
+  }
   return null;
 }
 // The heading whose part holds `heading`'s: the first heading over it at a higher level.
@@ -282,8 +295,8 @@ function headingOf(element) {
 function parentHeading(heading, parents) {
   const known = parents.get(heading);
   if (known !== undefined) return known;
-  let at = headingOf(partOver(heading) ?? heading);
-  if (at === heading) at = null;
+  let at = partOver(heading);
+  while (at && !at.matches(HEADING)) at = partOver(at);
   while (at && level(at) >= level(heading)) at = parentHeading(at, parents);
   parents.set(heading, at);
   return at;

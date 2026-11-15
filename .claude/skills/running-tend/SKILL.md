@@ -344,11 +344,12 @@ with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
 `dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
 at 64 sections.
 
-Judge from several runs whether a cost grows faster than the page, or rises across
-runs at the same size, by more than the runner's noise explains. The header of
-`dev/leaf_dev/commands/bench.py` says which readings a busy runner stretches; an
-exponent compares sizes within one run, so a slow runner moves it less than the
-readings themselves. Where a cost grows, open an issue that names the reading, its
+Judge from several runs whether a cost grows with the page faster than that rule
+allows, or rises across runs at the same size, by more than the runner's noise
+explains. The table marks `!` beside each exponent above its reading's `limit`.
+The header of `dev/leaf_dev/commands/bench.py` says which readings a busy runner
+stretches; an exponent compares sizes within one run, so a slow runner moves it less
+than the readings themselves. Where a cost grows, open an issue that names the reading, its
 values at each size, the runs compared, and the commits between the last run that read
 it at its earlier level and the first that read it higher. Where an open issue already
 tracks that cost, add only what it lacks, and leave one labelled `backlog` alone

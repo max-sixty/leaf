@@ -700,6 +700,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
+| Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
 | Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |

@@ -38,11 +38,13 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 widget whose title is an attribute, as a column's `label` is, declares it with
 `x-name`.
 
-`titledElement(heading)` is the element a heading titles: the outermost element that
-opens with it, no words before it, directly or inside a leading `header` or `hgroup`,
-such as the question or `section` the heading opens; where it opens none, the heading
-itself. Every element between the two opens with the heading too. `lf-toc` links each
-heading to one of them and counts a thread about any of them in the heading's row.
+`titledElement(heading)` is the element a heading titles: the outermost element named
+after it by the rule `addressableLabel` reads first, such as the question or `section`
+the heading opens, directly or inside a leading `header` or `hgroup`; where it titles
+none, the heading itself. An element whose `x-name` attribute names it, such as a tab,
+is not titled by a heading inside it. Every element between the two is titled by the
+heading too. `lf-toc` links each heading to one of them and counts a thread about any
+of them in the heading's row.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.

@@ -636,25 +636,40 @@ export function createHintSession({
     return found;
   }
 
-  // The map is read from a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
+  // Read the scene again, keeping the walk on the target it had heard where the target
+  // keeps its code.
+  function readAgain() {
+    const heard = hinted()[at];
+    hold(read());
+    at = heard
+      ? hinted().findIndex(
+          (candidate) =>
+            identity(candidate) === identity(heard) && candidate.code === heard.code,
+        )
+      : -1;
+  }
+
+  // The map stands on a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
   // scroll a script has just written, as `g` writes landing the glides under way, leaves
   // a box anchored to what it moved where it stood until the next rendering update, so a
-  // map read at once named a margin entry the thread card the walk had opened was
-  // arriving to cover, and Tab walked to it. Armed before then, the map holds no members
-  // until it is read; `then` hears what it found, in this task where the scene is drawn.
+  // map read then named a margin entry the thread card the walk had opened was arriving
+  // to cover, and Tab walked to it. Armed before then, the map is read at once, for a key
+  // typed in those frames, and read again once the scene is drawn, unless a letter typed
+  // meanwhile holds it; `then` hears what the map found once it stands on the drawn
+  // scene.
   /** @type {Promise<void> | null} */
   let reading = null;
   /** @param {(found: C[]) => void} [then] */
   function arm(then = () => {}) {
     armed = true;
-    const drawn = scrollDrawn();
-    reading = drawn;
-    if (!drawn) return then(hold(read()));
-    hold([]);
+    hold(read());
+    const drawn = (reading = scrollDrawn());
+    if (!drawn) return then(candidates);
     drawn.then(() => {
       if (!armed || reading !== drawn) return;
       reading = null;
-      then(hold(read()));
+      if (!prefix) readAgain();
+      then(candidates);
       repaint();
     });
   }
@@ -863,20 +878,11 @@ export function createHintSession({
     }
     const moving = scrolling() || scrollDrawn() !== null;
     const wasWalking = at >= 0;
-    const heard = hinted()[at];
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
     // Only at rest and with no letters typed: a partly typed code freezes the map until
     // the user completes or backs out of that prefix.
-    if (!moving && !prefix && (stale || detached || !candidates.length)) {
-      hold(read());
-      at = heard
-        ? hinted().findIndex(
-            (candidate) =>
-              identity(candidate) === identity(heard) && candidate.code === heard.code,
-          )
-        : -1;
-    }
+    if (!moving && !prefix && (stale || detached || !candidates.length)) readAgain();
     const plans = layout(candidates, { current: hinted()[at], reading: scene() });
     // A scroll holds the seats, and so does every paint while they stand, the map the
     // user has read keeping its faces up to date in them as they type or walk it.

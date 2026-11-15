@@ -246,8 +246,9 @@ class DemoWaiter:
         )
 
     def receive(self) -> list[dict]:
-        """The user events of one delivery. A wait that ends without them has said
-        why on stderr, so the failure carries it."""
+        """The user events of one delivery. A wait that ends without them says why
+        in its `findings`, and stderr holds anything else it printed, so the failure
+        carries both."""
         stdout, stderr = self.process.communicate(timeout=10)
         harness = session_harness()
         hooked = harness is not None and harness.hooks_carry()
@@ -266,7 +267,7 @@ class DemoWaiter:
         if len(batches) != 1 or not batches[0]["events"]:
             raise RuntimeError(
                 f"the demo waiter exited {self.process.returncode} without one batch "
-                f"of user events\n{stderr}".rstrip()
+                f"of user events\n{stdout}{stderr}".rstrip()
             )
         if not hooked:
             subprocess.run(

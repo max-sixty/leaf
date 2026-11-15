@@ -2638,16 +2638,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:

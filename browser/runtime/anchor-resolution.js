@@ -510,13 +510,15 @@ const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 // own, since its name describes it: a text document's view is a picture of the whole
 // document, which read all of it twice for every move of the pointer over it in Design
 // mode, 0.3 to 1.7 s on a document of 50,000 lines. Other controls say their own words
-// as a label does (`LABEL_WORDS`). A block is read once per inventory, noting where each
-// part stands in it; chosen capture stays lazy.
-/** @param {Element} control @param {Map<Element, BlockWords>} contexts */
-function controlContext(control, contexts) {
-  const own = control.matches(genericVisualSelector)
+// as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
+// them, as a tab whose words start with its name and go on to a count. A block is read
+// once per inventory, noting where each part stands in it; chosen capture stays lazy.
+/** @param {Element} control @param {Map<Element, BlockWords>} contexts @param {string} part */
+function controlContext(control, contexts, part) {
+  const said = control.matches(genericVisualSelector)
     ? ""
     : excerptWords(excerpt(control, { upTo: LABEL_WORDS + 1 }).text, LABEL_WORDS);
+  const own = said.startsWith(`${part} `) ? said.slice(part.length + 1) : said;
   const block = blockAt(control);
   if (!block || block === control || closestAcross(block, WORKS)) return own;
   let words = contexts.get(block);
@@ -647,7 +649,7 @@ function designTargetAt(
   const faces = controlFaces(partElement);
   const detail = [
     ...new Set([
-      controlContext(partElement, contexts),
+      controlContext(partElement, contexts, part),
       ...faces
         .filter((face) => face !== partElement)
         .map((label) =>

@@ -491,7 +491,13 @@ in side tabs (1.51 million elements), toggling Draw mode's attribute on `html`
 alone, with a layout read after each toggle, took 24 ms, and 73 to 94 ms the first
 time; the Gecko profiler put the time in `RestyleManager::ProcessRestyledFrames`,
 with one element styled. On a page of 900,000 plain rows it took 8 to 12 ms, against
-under 1 ms for an attribute no rule reads.
+under 1 ms for an attribute no rule reads. Playwright's Chromium 158.0.8127.18
+restyles every element it draws when the root's touch-action changes, 691 elements on
+a page of 600 paragraphs, though not what `content-visibility` skips, so on #4781's
+shape a whole Draw mode toggle took it 30 to 65 ms; the restyle count in
+`test_a_page_mode_restyles_only_what_the_pointer_is_over`
+(`tests/browser/test_chrome_contracts.py`) holds the root's touch-action through the
+page for that reason.
 
 Leaf keeps the rule on the root whenever either mode stands. Stating it only under
 `(any-pointer: coarse)` removed the cost on a computer without a touchscreen, but

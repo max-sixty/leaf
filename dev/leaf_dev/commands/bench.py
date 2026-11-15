@@ -1406,9 +1406,10 @@ def search_word(tab: Tab) -> None:
 # a selection after any revision, which the runtime holds back while the user's
 # selection stands beside what it changes. Design mode, Draw mode and Capture area are
 # each entered and left with the pointer resting on the page's content, or on the
-# menu row that chose the area, before any input adds a mark or opens a tab. Those that open tabs come after every input on the document
-# first shown, and a search before `browse`, since each tab `browse` opens keeps its
-# colour, which every later input would meet.
+# menu row that chose the area, before any input adds a mark or opens a tab. Those
+# that open tabs come after every input on the document first shown, and a search
+# before `browse`, since each tab `browse` opens keeps its colour, which every later
+# input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,

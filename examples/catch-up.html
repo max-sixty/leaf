@@ -14,83 +14,31 @@
         <h1>Seven notifications need your call</h1>
       </hgroup>
       <p class="lede" id="cu-lede">
-        I handled 36 of the 43 notifications from your week away. These seven need you:
-        answer a card and the next comes up, or leave one for later. Nothing is posted,
-        merged or closed until you pick.
+        I handled 36 of the 43 notifications from your week away; these seven need you,
+        quickest first. Nothing is posted, merged or closed until you pick.
       </p>
 
       <lf-deck id="cu-deck">
-        <lf-ask id="cu-ssrf">
+        <lf-ask id="cu-windows">
           <hgroup>
-            <p class="eyebrow">private security report · Nadia, Nov 9</p>
-            <h2>Open an advisory for redirects into internal networks?</h2>
+            <p class="eyebrow">issue #423 · Rhea</p>
+            <h2>Close the Windows config report as a duplicate?</h2>
           </hgroup>
           <p>
-            marram follows redirects wherever they lead, so a docs link that redirects
-            to <code>169.254.169.254</code> makes CI request the cloud metadata service
-            and log its status. The body never reaches the log: an attacker learns which
-            internal hosts answer, not what they hold.
+            marram ignores Rhea's <code>~/.config/marram/marram.toml</code> on Windows.
+            That's #397, which #402 fixed on main by reading
+            <code>%APPDATA%\marram</code>; it ships in 1.7.3.
           </p>
-          <dl class="facts">
-            <dt>Reproduced</dt>
-            <dd>1.7.2 on a self-hosted EC2 runner logged <code>200 OK</code></dd>
-            <dt>Nadia asks</dt>
-            <dd>a CVE, and public disclosure on Dec 9</dd>
-            <dt>Fix</dt>
-            <dd>
-              refuse redirects from a public address into a private or link-local one
-              unless <code>--allow-private</code> is set
-            </dd>
-          </dl>
-          <p>
-            I'd open the advisory: the fix is small and fits 1.7.3. A team whose public
-            links redirect into its own network, such as a sign-on page, would need the
-            flag.
-          </p>
-          <lf-options id="cu-ssrf-choice" choose>
-            <lf-option id="cu-ssrf-expected">
-              <strong>Reply that this is expected behavior</strong> Document that marram
-              follows redirects, and leave CI runners to restrict their network.
-            </lf-option>
-            <lf-option id="cu-ssrf-advisory">
-              <small class="tag">1 day</small>
-              <small class="tag ok">recommended</small>
-              <strong>Open a private advisory and fix it in 1.7.3</strong> Request a
-              CVE, credit Nadia, and publish the advisory with the release.
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-
-        <lf-ask id="cu-stdin">
-          <hgroup>
-            <p class="eyebrow">pull request #418 · Jaana's first contribution</p>
-            <h2>Merge <code>--stdin</code> as it is?</h2>
-          </hgroup>
-          <p>
-            #418 reads the files to check from standard input, one path per line, so
-            <code>git ls-files '*.md' | marram --stdin</code> checks only tracked docs.
-            Its tests pass on Linux, macOS and Windows, and it follows the existing
-            argument handling.
-          </p>
-          <p>
-            One gap: a path containing a newline splits in two.
-            <code>git ls-files -z</code> and <code>find -print0</code> separate paths
-            with NUL bytes for exactly this, the way <code>xargs -0</code> reads them.
-            Such paths are rare in a docs tree, and adding <code>-0</code> later changes
-            nothing for line-separated input.
-          </p>
-          <lf-draft id="cu-stdin-review">
+          <lf-draft id="cu-windows-reply">
             <pre>
-Thanks, this is a clean change and the tests cover it well. Before I merge, could you add `-0` so `--stdin` can also read NUL-separated paths, as `git ls-files -z` writes them? Then a filename containing a newline can't split in two. Happy to point you at where the parser would take it.</pre>
+Thanks for the clear report! This is #397, fixed on main by #402: on Windows marram now reads `%APPDATA%\marram\marram.toml`. It ships in 1.7.3. Until then, `marram --config %APPDATA%\marram\marram.toml` works.</pre>
           </lf-draft>
-          <lf-options id="cu-stdin-choice" choose>
-            <lf-option id="cu-stdin-ask">
-              <strong>Ask for <code>-0</code> with the review above</strong> Jaana's
-              first pull request waits on a second round.
+          <lf-options id="cu-windows-choice" choose>
+            <lf-option id="cu-windows-open">
+              <strong>Post the reply and leave #423 open until 1.7.3</strong>
             </lf-option>
-            <lf-option id="cu-stdin-merge">
-              <strong>Approve and merge #418</strong> I'll open an issue for
-              NUL-separated input.
+            <lf-option id="cu-windows-close">
+              <strong>Post the reply and close #423 as a duplicate of #397</strong>
             </lf-option>
           </lf-options>
         </lf-ask>
@@ -121,55 +69,6 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
             <lf-option id="cu-reqwest-merge">
               <small class="tag ok">recommended</small>
               <strong>Push the rename to #421 and merge it</strong>
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-
-        <lf-ask id="cu-windows">
-          <hgroup>
-            <p class="eyebrow">issue #423 · Rhea</p>
-            <h2>Close the Windows config report as a duplicate?</h2>
-          </hgroup>
-          <p>
-            marram ignores Rhea's <code>~/.config/marram/marram.toml</code> on Windows.
-            That's #397, which #402 fixed on main by reading
-            <code>%APPDATA%\marram</code>; it ships in 1.7.3.
-          </p>
-          <lf-draft id="cu-windows-reply">
-            <pre>
-Thanks for the clear report! This is #397, fixed on main by #402: on Windows marram now reads `%APPDATA%\marram\marram.toml`. It ships in 1.7.3. Until then, `marram --config %APPDATA%\marram\marram.toml` works.</pre>
-          </lf-draft>
-          <lf-options id="cu-windows-choice" choose>
-            <lf-option id="cu-windows-open">
-              <strong>Post the reply and leave #423 open until 1.7.3</strong>
-            </lf-option>
-            <lf-option id="cu-windows-close">
-              <strong>Post the reply and close #423 as a duplicate of #397</strong>
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-
-        <lf-ask id="cu-roadmap">
-          <hgroup>
-            <p class="eyebrow">discussion #415 · mentions you</p>
-            <h2>Tell Ade's team when 2.0 lands?</h2>
-          </hgroup>
-          <p>
-            Ade's docs team is choosing a link checker for 30 repositories and asks
-            whether 2.0 will break the 1.x config. I drafted the reply from
-            <code>ROADMAP.md</code>. Its first sentence commits you to a quarter; the
-            rest only repeats what the roadmap already promises.
-          </p>
-          <lf-draft id="cu-roadmap-reply">
-            <pre>
-2.0 is planned for the first quarter of next year. It reads 1.x config files unchanged and warns about each key that moved, and `marram migrate-config` rewrites a file in place. Adopting the 1.x format now is safe.</pre>
-          </lf-draft>
-          <lf-options id="cu-roadmap-choice" choose>
-            <lf-option id="cu-roadmap-undated">
-              <strong>Post it without the date</strong> I'll drop the first sentence.
-            </lf-option>
-            <lf-option id="cu-roadmap-dated">
-              <strong>Post it as written</strong>
             </lf-option>
           </lf-options>
         </lf-ask>
@@ -208,6 +107,65 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
           </lf-options>
         </lf-ask>
 
+        <lf-ask id="cu-roadmap">
+          <hgroup>
+            <p class="eyebrow">discussion #415 · mentions you</p>
+            <h2>Tell Ade's team when 2.0 lands?</h2>
+          </hgroup>
+          <p>
+            Ade's docs team is choosing a link checker for 30 repositories and asks
+            whether 2.0 will break the 1.x config. I drafted the reply from
+            <code>ROADMAP.md</code>. Its first sentence commits you to a quarter; the
+            rest only repeats what the roadmap already promises.
+          </p>
+          <lf-draft id="cu-roadmap-reply">
+            <pre>
+2.0 is planned for the first quarter of next year. It reads 1.x config files unchanged and warns about each key that moved, and `marram migrate-config` rewrites a file in place. Adopting the 1.x format now is safe.</pre>
+          </lf-draft>
+          <lf-options id="cu-roadmap-choice" choose>
+            <lf-option id="cu-roadmap-undated">
+              <strong>Post it without the date</strong> I'll drop the first sentence.
+            </lf-option>
+            <lf-option id="cu-roadmap-dated">
+              <strong>Post it as written</strong>
+            </lf-option>
+          </lf-options>
+        </lf-ask>
+
+        <lf-ask id="cu-stdin">
+          <hgroup>
+            <p class="eyebrow">pull request #418 · Jaana's first contribution</p>
+            <h2>Merge <code>--stdin</code> as it is?</h2>
+          </hgroup>
+          <p>
+            #418 reads the files to check from standard input, one path per line, so
+            <code>git ls-files '*.md' | marram --stdin</code> checks only tracked docs.
+            Its tests pass on Linux, macOS and Windows, and it follows the existing
+            argument handling.
+          </p>
+          <p>
+            One gap: a path containing a newline splits in two.
+            <code>git ls-files -z</code> and <code>find -print0</code> separate paths
+            with NUL bytes for exactly this, the way <code>xargs -0</code> reads them.
+            Such paths are rare in a docs tree, and adding <code>-0</code> later changes
+            nothing for line-separated input.
+          </p>
+          <lf-draft id="cu-stdin-review">
+            <pre>
+Thanks, this is a clean change and the tests cover it well. Before I merge, could you add `-0` so `--stdin` can also read NUL-separated paths, as `git ls-files -z` writes them? Then a filename containing a newline can't split in two. Happy to point you at where the parser would take it.</pre>
+          </lf-draft>
+          <lf-options id="cu-stdin-choice" choose>
+            <lf-option id="cu-stdin-ask">
+              <strong>Ask for <code>-0</code> with the review above</strong> Jaana's
+              first pull request waits on a second round.
+            </lf-option>
+            <lf-option id="cu-stdin-merge">
+              <strong>Approve and merge #418</strong> I'll open an issue for
+              NUL-separated input.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
+
         <lf-ask id="cu-anchors">
           <hgroup>
             <p class="eyebrow">issue #424 · 14 upvotes</p>
@@ -232,6 +190,47 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
             <lf-option id="cu-anchors-milestone">
               <small class="tag">3 days</small>
               <strong>Put it on the 1.8 milestone</strong> I'd build it after 1.7.3.
+            </lf-option>
+          </lf-options>
+        </lf-ask>
+
+        <lf-ask id="cu-ssrf">
+          <hgroup>
+            <p class="eyebrow">private security report · Nadia, Nov 9</p>
+            <h2>Open an advisory for redirects into internal networks?</h2>
+          </hgroup>
+          <p>
+            marram follows redirects wherever they lead, so a docs link that redirects
+            to <code>169.254.169.254</code> makes CI request the cloud metadata service
+            and log its status. The body never reaches the log: an attacker learns which
+            internal hosts answer, not what they hold.
+          </p>
+          <dl class="facts">
+            <dt>Reproduced</dt>
+            <dd>1.7.2 on a self-hosted EC2 runner logged <code>200 OK</code></dd>
+            <dt>Nadia asks</dt>
+            <dd>a CVE, and public disclosure on Dec 9</dd>
+            <dt>Fix</dt>
+            <dd>
+              refuse redirects from a public address into a private or link-local one
+              unless <code>--allow-private</code> is set
+            </dd>
+          </dl>
+          <p>
+            I'd open the advisory: the fix is small and fits 1.7.3. A team whose public
+            links redirect into its own network, such as a sign-on page, would need the
+            flag.
+          </p>
+          <lf-options id="cu-ssrf-choice" choose>
+            <lf-option id="cu-ssrf-expected">
+              <strong>Reply that this is expected behavior</strong> Document that marram
+              follows redirects, and leave CI runners to restrict their network.
+            </lf-option>
+            <lf-option id="cu-ssrf-advisory">
+              <small class="tag">1 day</small>
+              <small class="tag ok">recommended</small>
+              <strong>Open a private advisory and fix it in 1.7.3</strong> Request a
+              CVE, credit Nadia, and publish the advisory with the release.
             </lf-option>
           </lf-options>
         </lf-ask>

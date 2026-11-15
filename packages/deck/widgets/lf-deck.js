@@ -40,7 +40,9 @@
  * up after an answer takes no press until it has settled. Cards move as a stack: the
  * open one flies off the side it was sent, the one behind rises into place, Back brings
  * a card in over the open one from the left, and the deck's height follows, so the page
- * below slides (`#go`). A touch drag across the card sends it either way, flying on from
+ * below slides (`#go`). A card a press brings up that would end under the panel then
+ * scrolls up until its options clear it, the bar still above it, since a deck below the
+ * page's opening brought a tall card back with its options out of reach. A touch drag across the card sends it either way, flying on from
  * where the finger let go: left is Later, right is Next once the card no longer waits,
  * and a short or early drag settles back. A mouse or pen drag stays text selection,
  * which comments start from. Unupgraded, and on paper, the cards stand one after
@@ -54,6 +56,7 @@ import {
   nameAction,
   rowArrows,
   dragging,
+  fitsWhole,
   focusDestination,
   focused,
   currentLocationIn,
@@ -75,6 +78,7 @@ import {
   readObligations,
   scrollBehavior,
   scrollIntoView,
+  shownWindow,
   signal,
   tally,
   tallyWords,
@@ -363,16 +367,35 @@ customElements.define(
         if (upcoming === undefined) keeps(this, "data-lf-deck-flying", null);
       };
       this.#landing = land;
+      // Where the deck began above the window, it comes back from its top at once.
+      // Elsewhere a card ending under the panel scrolls once it has landed, since until
+      // then the deck keeps the height of the card that went and the page may not reach
+      // far enough: to its foot where it fits, to its top where it doesn't, its
+      // `scroll-margin-block` keeping the bar and edges in view. A nearest landing would
+      // leave it, as `alreadyShown` counts a box under the panel as shown.
+      const behavior = scrollBehavior();
+      const above = this.getBoundingClientRect().top < 0;
+      const reveal = () => {
+        if (above || !next || this.#open.value !== next) return;
+        const box = next.getBoundingClientRect();
+        const foot = box.bottom + parseFloat(getComputedStyle(next).scrollMarginBottom);
+        if (foot <= shownWindow({ across: box }).bottom) return;
+        scrollIntoView(next, { block: fitsWhole(next) ? "end" : "start", behavior });
+      };
       keeps(this, "data-lf-deck-flying", running.length ? "" : null);
       if (running.length) {
         (leave || enter)?.finished.then(
           () => putAway(),
           () => putAway(),
         );
-        Promise.all(running.map((each) => each.finished.catch(() => {}))).then(() =>
-          land(),
-        );
-      } else land();
+        Promise.all(running.map((each) => each.finished.catch(() => {}))).then(() => {
+          land();
+          reveal();
+        });
+      } else {
+        land();
+        reveal();
+      }
       // After an answer, a second press meant for the card that left lands on the one
       // that came up, so it takes none until it settles.
       if (next && answered) {
@@ -381,8 +404,7 @@ customElements.define(
       }
       layoutChanged(this);
       carry(next, answered ? SETTLE_MS : 0);
-      if (this.getBoundingClientRect().top < 0)
-        scrollIntoView(this, { block: "start", behavior: scrollBehavior() });
+      if (above) scrollIntoView(this, { block: "start", behavior });
     }
 
     // The next waiting card after `card`, or the next card where there is no reading or

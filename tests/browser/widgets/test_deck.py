@@ -143,6 +143,52 @@ def test_an_answer_saves_the_open_draft_before_the_card_moves_on(browser, serve)
     assert edits == ["Thanks for the report. Sorry for the wait."], edits
 
 
+SENTENCE = "Each platform adds a day of smoke testing before the beta ships. "
+TALL_DECK_PAGE = leaf_page(
+    "Deck below an opening",
+    "<h1>Before the release</h1>"
+    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
+    + '<lf-deck id="deck">'
+    + card("store", "Keep Redis?")
+    + '<lf-ask id="tall-ask"><h3>Ship the beta on every platform?</h3>'
+    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(7))
+    + '<lf-options id="tall-choice" choose>'
+    '<lf-option id="tall-yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="tall-no"><strong>No</strong></lf-option>'
+    "</lf-options></lf-ask></lf-deck><p>After the deck.</p>",
+)
+
+# Whether the open card's last option stands clear of the panel, which covers the
+# window's foot, with the deck's bar in the window above it.
+ANSWERABLE = """() => {
+  const deck = document.querySelector('lf-deck');
+  const last = deck.querySelector(':scope > [data-lf-deck-open] lf-option:last-of-type');
+  if (!last || deck.matches('[data-lf-deck-flying]')) return false;
+  const box = last.getBoundingClientRect();
+  const hit = document.elementFromPoint(box.left + box.width / 2, box.bottom - 4);
+  return last.contains(hit) && deck.querySelector('.lf-deck-bar').getBoundingClientRect().top >= 0;
+}"""
+
+
+def test_a_card_brought_back_below_the_opening_stands_whole_above_the_panel(
+    browser, serve
+):
+    """Go through brings back a card left for later where the pass began, below the
+    page's opening. A card taller than the room there scrolls up until its options
+    clear the panel, with the bar still above it, so the press that brought it leaves
+    it answerable."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
+    open_card(page, "store-ask")
+    answer(page, "store-yes")
+    open_card(page, "tall-ask")
+    forward(page, "Later")
+    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+
+    again(page, "Go through the 1 left")
+    open_card(page, "tall-ask")
+    page.wait_for_function(ANSWERABLE)
+
+
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     """A digit that answers a card brings the user to the next card's question once it
     has settled, so its digits answer it. Once the pass is over, the end frame says what

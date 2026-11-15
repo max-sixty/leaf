@@ -111,6 +111,8 @@ lf-deck[data-lf-deck-flying] {
           var(--rule);
       /* A sideways touch drag is the card's; a vertical one still scrolls the page. */
       touch-action: pan-y;
+      /* A card scrolled into view keeps the bar above it and the waiting edges below. */
+      scroll-margin-block: var(--lf-deck-bar-h) calc(2 * var(--lf-deck-edge));
     }
 
     /* An eyebrow carries its heading's top margin, so a card that opens with an

@@ -867,13 +867,18 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
-### A repeated reveal of an anchored fixed box in Chromium
+### A reveal of an anchored fixed box before the next frame in Chromium
 
-Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
-content by scrolling the page, which carries the box, and Chromium reveals the
-box itself the same way (`scrollIntoView`, focus). Playwright Chromium
-156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
-reveal made before the next frame, as if the first had not moved the box. Give
+A `position: fixed` box anchored to page content takes a scroll at the next
+frame: read after a script scrolls the page 200px, it stands where it stood
+until a frame passes, in Playwright Chromium 158.0.8127.18 (build 1254) and
+Firefox 159 alike on 2026-11-15, as the anchor positioning spec's scroll
+snapshot allows. Chromium and WebKit reveal a caret in such a box by scrolling
+the page, which carries the box, and Chromium reveals the box itself the same
+way (`scrollIntoView`, focus), so in Chromium a reveal made before the next
+frame scrolls for where the box stood. Playwright Chromium 156.0.8078.4 (build
+1248), on 2026-11-05, scrolled the page again for each such reveal, as if the
+first had not moved the box. Give
 a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
 box at `top: anchor(top)` through `position-anchor`, and the root
 `scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
@@ -887,8 +892,15 @@ reveals no fixed box through the page.
 In Leaf the root drops its scroll padding while the user writes in a floating
 box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
 is revealed, and each key that lands in the same frame adds another reveal's
-scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
-90px scroll means the gap has closed.
+scroll; #5417 accepted that overshoot. Tab pressed in the frame `t` sets off
+in lands the walk's glide first (scrolling.js, `landForKey`), and Chromium then
+reveals the thread card's next control where the card stood before the landing,
+scrolling the page on past where the walk leaves it; the glide matrix in
+`tests/journeys/navigation/test_reading_place.py` holds that case as known.
+Leaf's own readers ask where the glides land instead of reading an anchored box
+after a landing (scroll-containers.js, `seenAhead`). Recheck the three calls in
+Chromium; a 90px scroll means the gap has closed, and the matrix's known case
+then passes.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 

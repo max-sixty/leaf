@@ -835,9 +835,11 @@ QUOTED_ON_OBLIGATION = {
 def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
     """A fallback chip for a covered option stays behind the focused discussion. At
     1100x900 the window has room for the rail but the card none beside its ask, and it
-    stands over the ask's options, below its marker in the Mac's faces and in Linux
-    CI's wider DejaVu alike: at 1000x838, DejaVu left the card no room below, and it
-    stood above the options."""
+    stands over the ask's options, below its marker: at 1000x838, Linux CI's wider
+    DejaVu left the card no room below, and it stood above the options. How far over
+    the chip the card's top edge reaches varies with the faces, from its whole box in
+    DejaVu to its lower half in macOS 26's Charter, so the hit test reads the paint
+    where the two overlap."""
     page = open_page(browser, serve(named_source("thread-choice-hints")))
     resized(page, 1100, 900)
     page.locator(".lf-margin-marker").first.focus()
@@ -851,18 +853,18 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
         """chip => {
           const card = document.querySelector('.lf-margin-preview');
           const box = chip.getBoundingClientRect();
-          const x = box.left + box.width / 2, y = box.top + box.height / 2;
           const frame = card.getBoundingClientRect();
+          const left = Math.max(box.left, frame.left);
+          const right = Math.min(box.right, frame.right);
+          const top = Math.max(box.top, frame.top);
+          const bottom = Math.min(box.bottom, frame.bottom);
+          if (right - left < 2 || bottom - top < 2) return {overlaps: false};
           // The hint is normally pointer-transparent. Include it in the browser's
           // hit test to read its paint order against the thread without moving it.
           chip.style.pointerEvents = 'auto';
-          const top = document.elementFromPoint(x, y);
+          const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
           chip.style.removeProperty('pointer-events');
-          return {
-            overlaps: x > frame.left && x < frame.right &&
-              y > frame.top && y < frame.bottom,
-            covered: card.contains(top),
-          };
+          return {overlaps: true, covered: card.contains(hit)};
         }"""
     )
     assert paint == {"overlaps": True, "covered": True}, paint

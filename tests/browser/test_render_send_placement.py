@@ -612,19 +612,42 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
     ), (wide, reopened)
 
 
+LAST_LINE_START = """() => {
+  const text = document.querySelector('#long').firstChild;
+  const range = document.createRange();
+  const words = [...text.data.matchAll(/\\S+/g)].map((match) => {
+    range.setStart(text, match.index);
+    range.setEnd(text, match.index + match[0].length);
+    return {at: match.index, end: match.index + match[0].length,
+            top: range.getBoundingClientRect().top};
+  });
+  const tops = [...new Set(words.map(({top}) => Math.round(top)))].sort((a, b) => b - a);
+  const line = tops
+    .map((top) => words.filter((word) => Math.abs(word.top - top) < 1))
+    .find((line) => line.length >= 3);
+  const words3 = text.data.slice(line[0].at, line[2].end);
+  if (text.data.indexOf(words3) !== line[0].at) throw new Error('not unique');
+  return words3;
+}"""
+
+
 def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser, serve):
     """Over its words a card holds its foot, so news shows at once while the user
     writes a reply (`endNewsMoves`). A long answer arriving then leaves the card at its
-    width, so nothing widens while they type, and their Send widens it."""
+    width, so nothing widens while they type, and their Send widens it. The window
+    leaves the card room to rise for the answer below the window's top."""
     context = browser.new_context(
         viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
     )
     page = open_page(browser, serve(PAGE), context=context)
-    page.locator(FIRST_LINE.block).evaluate(
-        "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.75)"
+    # The first words of the long paragraph's last line, low in the window, so the
+    # card stands over them, starting where they do, with room above to rise.
+    last_line = Passage(page.evaluate(LAST_LINE_START))
+    page.locator(last_line.block).evaluate(
+        "el => scrollTo(0, el.getBoundingClientRect().bottom + scrollY - innerHeight * 0.8)"
     )
     rendered(page)
-    FIRST_LINE.open(page, False)
+    last_line.open(page, False)
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "data-lf-placement", re.compile("top-start")
     )

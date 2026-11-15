@@ -289,9 +289,9 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
         check=False,
     )
     assert done.returncode == 1
-    assert "[Errno 1] Operation not permitted" in done.stderr
-    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stderr
-    assert "Traceback" not in done.stderr
+    assert "[Errno 1] Operation not permitted" in done.stdout
+    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stdout
+    assert "Traceback" not in done.stdout + done.stderr
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
@@ -425,7 +425,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         check=False,
     )
     assert second.returncode == 2
-    assert "another `leaf wait` is already active" in second.stderr
+    assert "another `leaf wait` is already active" in second.stdout
 
     # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()

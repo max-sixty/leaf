@@ -185,9 +185,9 @@ def _media(page, launcher, images):
             )
             if completed.returncode:
                 raise TraceError(
-                    f"Leaf page media failed: {completed.stderr.strip() or completed.stdout.strip()}"
+                    f"Leaf page media failed: {completed.stdout.strip() or completed.stderr.strip()}"
                 )
-            urls += [json.loads(line)["path"] for line in completed.stdout.splitlines()]
+            urls += [file["path"] for file in json.loads(completed.stdout)["files"]]
         return urls
 
 

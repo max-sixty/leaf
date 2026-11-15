@@ -450,8 +450,8 @@ function request() {
  * its time, its usage, and the main thread's request it resent (`request`).
  *
  * The fork thinks at the session's effort, and Leaf's prompt asks it to answer
- * straight away (`clerk.py` and `forks.py` say what that costs). A fork at another
- * effort reads the conversation from the cache only where Claude Code's per-message
+ * straight away (`clerk.py` and `forks.py` hold what each fork measured at either
+ * effort). A fork at another effort reads the conversation from the cache only where Claude Code's per-message
  * effort reaches the model; elsewhere, as on Vertex, through a proxy that rewrites
  * mid-conversation system messages, or with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`,
  * it writes the conversation to the cache again from the session's first reply on

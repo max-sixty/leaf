@@ -74,7 +74,7 @@ a new fork.
 The line is the agent's progress message in the thread (`thread.post_reply`), which
 the thread shows until the session's own words replace it. From the moment Leaf
 starts keeping a thread back, and while the line stands, the thread's waiting
-messages read On it (`forked`, which `served_state.work` serves as their workflows'
+messages read On it (`holding.Holding.forked`, which `served_state.work` serves as their workflows'
 `at_work`, so every surface showing whether the agent is at work agrees), as the user
 chose on 2026-11-05. That word is all the line fork changes: as a receipt's progress
 the line takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges
@@ -84,9 +84,9 @@ session had it, which hid it from the nudge and the overdue count.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
 straight away without thinking it over, since every second it takes keeps the
-thread's messages from the session. A fork at another effort costs a rewrite of the
-conversation to the cache on backends without per-message effort, as the clerk's
-header says. From 2026-11-09 to 2026-11-14 it asked for `low`. On the eval's seven
+thread's messages from the session; a fork at another effort can cost a rewrite of
+the conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). From
+2026-11-09 to 2026-11-14 it asked for `low`. On the eval's seven
 cases on 2026-11-14, a fork at xhigh asked to reply straight away passed 7, against
 the low fork's 6, writing 1.49 times its output (95% interval 0.91–2.44) in 1.09
 times its time (0.94–1.25). On 2026-11-09 low wrote lines as good as xhigh's. On 40

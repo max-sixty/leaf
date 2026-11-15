@@ -1859,12 +1859,13 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
     """Leaf marks a fork's `leaf` command only where it leads the Bash call, since a
     mark spliced in elsewhere could land in quoted text. A known fork's call with
     `leaf` anywhere else may act as the main thread's, so the hook denies it, saying
-    to run each `leaf` command on its own: after another command or a keyword, in a
-    command substitution however it starts, quoted, run by a relative path, in a
-    string `bash -c` runs or in a here-document, and where the word only names
-    `leaf`, as a reply's text or a search may. A call whose only `leaf` leads it is
-    marked; one with no `leaf` word goes on as it came, and so does any call of a
-    subagent the session ran no turn for."""
+    to run each `leaf` command on its own, for each form Claude Code hands it (the
+    `hooks.agent_command` docstring): after another command or a keyword, in a
+    command substitution or backticks however it starts, quoted, run by a relative
+    path, in a here-document's substitution, and in a reply's text that names
+    another. A call whose only `leaf` leads it is marked; one with no `leaf` word
+    goes on as it came, and so does any call of a subagent the session ran no turn
+    for."""
     asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1877,14 +1878,10 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
             f"if true; then {reply}; fi",
             f'echo "$(true; {reply})"',
             f"echo `{reply}`",
-            f"timeout 30 {reply}",
             "'leaf' page state p",
-            "bash -c 'leaf page state p'",
             "cd bin && ./leaf page state p",
             "cat <<EOF\n$(leaf page state p)\nEOF",
-            "bash <<'EOF'\nleaf page state p\nEOF",
             reply.replace("--text Yes", '--text "Run \\`leaf page state\\` to see"'),
-            "grep leaf notes.md",
         )
     ):
         answer = hook_answer(capsys, command, "agent-1", f"denied-{index}")

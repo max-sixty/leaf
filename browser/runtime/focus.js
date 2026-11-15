@@ -95,41 +95,75 @@ import {
  * @typedef {StandInResult | (() => StandInResult)} StandIn
  * @typedef {(...standIns: StandIn[]) => boolean | PromiseLike<boolean>} FocusRestore
  */
-// The elements under `node` in the tree as rendered: a host's shadow tree in place of
-// its children, and a slot's assigned elements, or its fallback, in its place. A host
-// its author took out of the order (a negative `tabindex`) takes its whole tree out
-// with it, so Tab skips what it renders.
-/** @param {Element | Document | ShadowRoot} node @returns {Generator<Element>} */
-function* renderedElements(node) {
-  const children = isHTML(node, "slot")
-    ? node.assignedElements({ flatten: true })
-    : ((isElement(node) && node.shadowRoot) || node).children;
-  for (const child of children) {
-    yield child;
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The elements under `root` whose markup puts them in the tab order (`TAB_STOP`), and
+// the embedded documents and players Tab enters, in order through open shadow trees as
+// rendered: a host's shadow tree in place of its children, and a slot's assigned
+// elements, or its fallback, in its place. A host its author took out of the order (a
+// negative `tabindex`) takes its whole tree out with it, so Tab skips what it renders.
+// With them come the shadow trees the walk crossed, which with `root` are all the
+// markup it read, so whoever keeps the answer knows what to watch (reach.js,
+// `holdsOwnStop`).
+//
+// The walk keeps its own stack, since a generator delegating through each level cost a
+// listing of 95,000 rows 40 ms in Chromium to this walk's 15. It steps from sibling to
+// sibling and never reads `children`: Chromium keeps the collection `children` returns
+// for as long as its element lives, so a walk through `children` of a text document
+// whose tab opened kept 35 MB of collections for the life of the page.
+/** @param {Element | Document | ShadowRoot} root */
+export function tabStopCandidates(root) {
+  /** @type {Element[]} */
+  const candidates = [];
+  /** @type {ShadowRoot[]} */
+  const crossed = [];
+  // Where the walk stands in each level it has entered: the next of a slot's assigned
+  // elements, or the next sibling of the tree's children.
+  /** @type {({assigned: Element[], at: number} | {next: Element | null})[]} */
+  const levels = [];
+  /** @param {Element | Document | ShadowRoot} node */
+  const enter = (node) => {
+    if (isHTML(node, "slot"))
+      return void levels.push({
+        assigned: node.assignedElements({ flatten: true }),
+        at: 0,
+      });
+    const tree = (isElement(node) && node.shadowRoot) || node;
+    if (tree !== node) crossed.push(/** @type {ShadowRoot} */ (tree));
+    if (tree.firstElementChild) levels.push({ next: tree.firstElementChild });
+  };
+  enter(root);
+  while (levels.length) {
+    const level = /** @type {(typeof levels)[number]} */ (levels.at(-1));
+    let child;
+    if ("assigned" in level) child = level.assigned[level.at++];
+    else if ((child = level.next)) level.next = child.nextElementSibling;
+    if (!child) {
+      levels.pop();
+      continue;
+    }
+    if (child.matches(SEQUENTIAL)) candidates.push(child);
     const tabIndex = child.getAttribute("tabindex");
     if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
-    yield* renderedElements(child);
+    enter(child);
   }
+  return { candidates, crossed };
 }
-const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
-// The controls inside `root` that take a Tab stop right now, through open shadow trees as
-// rendered: the candidates above and the embedded documents and players Tab enters, in
-// the order, enabled, and drawn. A host that delegates its focus is no stop of its own,
-// since Tab enters its tree. Which of them Tab visits, and in what order, is the
-// browser's; nothing here predicts its walk.
+// Whether one of those takes a Tab stop right now: enabled and drawn. A host that
+// delegates its focus is no stop of its own, since Tab enters its tree. Which stops Tab
+// visits, and in what order, is the browser's; nothing here predicts its walk.
+/** @param {Element} node */
+export const takesTabStop = (node) =>
+  "tabIndex" in node &&
+  typeof node.tabIndex === "number" &&
+  node.tabIndex >= 0 &&
+  !node.shadowRoot?.delegatesFocus &&
+  !node.matches(":disabled") &&
+  !(isHTML(node) && node.inert) &&
+  node.checkVisibility({ visibilityProperty: true });
+// The controls inside `root` that take a Tab stop right now, in the order above.
 /** @param {Element | Document | ShadowRoot} root */
 export const tabStops = (root) =>
-  [...renderedElements(root)].filter(
-    (node) =>
-      node.matches(SEQUENTIAL) &&
-      "tabIndex" in node &&
-      typeof node.tabIndex === "number" &&
-      node.tabIndex >= 0 &&
-      !node.shadowRoot?.delegatesFocus &&
-      !node.matches(":disabled") &&
-      !(isHTML(node) && node.inert) &&
-      node.checkVisibility({ visibilityProperty: true }),
-  );
+  tabStopCandidates(root).candidates.filter(takesTabStop);
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
 // the packages place goes through here (the lint `architecture/placements` refuses a

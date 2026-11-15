@@ -269,7 +269,8 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{source: string, members: Member[], layout: Layout | null}} Frame
  * @typedef {{key: string, runs: BlockRun[]}} ShownRuns
  * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
- * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
+ * @typedef {"page" | "whole"} Reading
+ * @typedef {{frames: WeakMap<Element, Frame>, shown: Map<Reading, ShownRuns>, index: Map<Reading, BlockIndex>}} Kept */
 // The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
 // the page's reading (passages.js, `keptWithPageReading`) and go with it: a revision that
 // removes a block leaves none of them holding it.
@@ -277,8 +278,8 @@ const textEnvelope = (block, segments, range) => {
 const kept = () =>
   keptWithPageReading(kept, () => ({
     frames: new WeakMap(),
-    shown: null,
-    index: null,
+    shown: new Map(),
+    index: new Map(),
   }));
 let layouts = 0;
 document.addEventListener(LAYOUT, () => {
@@ -393,25 +394,45 @@ function* drawnSegments(segments, range, drawn = new Map()) {
 // reading that can't show any (`showsWords`) is not read, so a place costs the documents
 // drawn, not those in closed tabs. Whether a part reaches the window is left to the
 // layout, so a part scrolling into view reads no run again.
-/** @returns {ShownRuns} */
-function shownRuns() {
-  const parts = readingParts().filter(showsWords);
+//
+// A reading of the page box (`box`) reads only the parts whose scroller is the page.
+// Every reading of the page leaves out the blocks a box of their own scrolls
+// (`effectiveScroller`, `blocksOnScreen`), so reading those parts for it is wasted. The
+// place recorded as a tab opened on a text document, whose listing scrolls in a bounded
+// box, read all 95,000 of its lines and named none of them, which took 110 ms in
+// Chromium and 170 ms in Firefox. Every other reading reads every part shown
+// (`"whole"`).
+/** @param {Element | null} [box] @returns {ShownRuns} */
+function shownRuns(box = null) {
+  const reading = readingOf(box);
+  const parts = readingParts().filter(
+    (part) =>
+      showsWords(part) &&
+      (reading === "whole" || effectiveScroller(part) === pageScroller),
+  );
   const key = parts.map(idOf).join(" ");
   const keeping = kept();
-  if (keeping.shown?.key !== key) {
+  let shown = keeping.shown.get(reading);
+  if (shown?.key !== key) {
     const showing = new Set(parts);
-    keeping.shown = { key, runs: pageRuns((part) => showing.has(part)) };
+    shown = { key, runs: pageRuns((part) => showing.has(part)) };
+    keeping.shown.set(reading, shown);
   }
-  return keeping.shown;
+  return shown;
 }
+/** @param {Element | null | undefined} box @returns {Reading} */
+const readingOf = (box) => (box === pageScroller ? "page" : "whole");
 // The blocks of those runs, every element holding one (`holdsBlocks`), and every element
 // holding one or a part of the page's reading (`holding`), read once for each reading of
-// the page and parts shown, so a question about one node asks no list of the page.
-/** @returns {BlockIndex} */
-function blockIndex() {
-  const { runs, key } = shownRuns();
+// the page and parts shown, so a question about one node asks no list of the page. Of a
+// reading of `box`, as `shownRuns` reads it.
+/** @param {Element | null} [box] @returns {BlockIndex} */
+function blockIndex(box = null) {
+  const { runs, key } = shownRuns(box);
   const keeping = kept();
-  if (keeping.index?.key === key) return keeping.index;
+  const reading = readingOf(box);
+  const known = keeping.index.get(reading);
+  if (known?.key === key) return known;
   /** @type {Set<Element>} */
   const blocks = new Set();
   /** @type {WeakSet<Element>} */
@@ -437,7 +458,9 @@ function blockIndex() {
       hold(block, holdsBlocks, holding);
     }
   for (const part of readingParts()) hold(part, holding);
-  return (keeping.index = { key, blocks, holdsBlocks, holding });
+  const index = { key, blocks, holdsBlocks, holding };
+  keeping.index.set(reading, index);
+  return index;
 }
 // The runs whose words stood in `band` where the page was last laid out for `box`, in
 // reading order, laying out again each frame that no longer stands. A box scrolling in
@@ -445,7 +468,7 @@ function blockIndex() {
 // stands beside the window too, as `blocksOnScreen` asks only how far down it is.
 /** @param {Element} box @param {Pick<Box, "top" | "bottom"> & Partial<Pick<Box, "left" | "right">>} band @param {Range} range */
 function runsIn(box, band, range) {
-  const { key, runs } = shownRuns();
+  const { key, runs } = shownRuns(box);
   let frame = kept().frames.get(box);
   if (frame?.source !== key) {
     /** @type {Member[]} */
@@ -684,10 +707,10 @@ function* renderedBlocks(box, inside, band) {
   }
 }
 
-// The page block a node stands in, among those the user may see.
-/** @param {Node} node */
-function passageBlock(node) {
-  const { blocks } = blockIndex();
+// The page block a node stands in, among those the user may see in `box`.
+/** @param {Node} node @param {Element} box */
+function passageBlock(node, box) {
+  const { blocks } = blockIndex(box);
   for (
     let at = node instanceof Element ? node : node.parentElement;
     at;
@@ -969,7 +992,7 @@ function scrollsAlone(node, box) {
 // it stands, shown or not, so a box holding one holds text.
 /** @param {Element} body @param {Element} box @param {number} x @param {number} edge */
 function drawnAt(body, box, x, edge) {
-  const { holding } = blockIndex();
+  const { holding } = blockIndex(box);
   const holdsText = (/** @type {Element} */ element) => holding.has(element);
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
@@ -977,7 +1000,7 @@ function drawnAt(body, box, x, edge) {
       return null;
     let found = scrollsAlone(hit, box);
     if (!found) {
-      if (passageBlock(hit) || holdsText(hit)) return null;
+      if (passageBlock(hit, box) || holdsText(hit)) return null;
       let drawing = draws(hit);
       found = hit;
       for (

@@ -47,19 +47,26 @@
    left style elsewhere on the page stale after that forced pass. A block first seen
    hidden stands as its own scroller meanwhile. Each skipped sync renews the block's
    size observation, whose first delivery comes once the block is drawn and asks again.
-   A bound panel can keep the same box while its hidden attribute changes, so that
-   change also asks again. A log that grew while hidden then opens on its newest entry.
+   A widget that draws it, as a tab set opening a tab does, says so with its layout
+   notice (widget-upgrade.js, `layoutChanged`), and the block asks then, in the task that
+   drew it: waiting for the delivery after the next layout, it stood as its own scroller
+   through that frame, whose readers, such as the place recorded as the tab opened, read
+   its words as the page's (reading-place.js, `shownRuns`). A bound panel can keep the
+   same box while its hidden attribute changes, so that change also asks again. A log
+   that grew while hidden then opens on its newest entry.
 
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
-import { skipped } from "./shadow-tree.js";
+import { isElement, skipped, under } from "./shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
 import { followEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
 import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
 import { marks } from "./kernel-facts.js";
+import { LAYOUT } from "./widget-upgrade.js";
+import { eventSource } from "./pointer.js";
 
 // The bound's paint (`$marks`), read from the generated table rather than the registry,
 // since the watch starts at boot, before any registry has loaded.
@@ -72,6 +79,12 @@ const FOLLOWING = `[${BOUND}="end"]`;
 const holds = new WeakMap();
 /** @type {Set<BoundHold>} */
 const registered = new Set();
+// The holds whose block was hidden or skipped when last asked (`undrawn`), which stand as
+// their own scroller until they are drawn.
+/** @type {Set<BoundHold>} */
+const waiting = new Set();
+/** @param {Element} bounded */
+const undrawn = (bounded) => bounded.hasAttribute("hidden") || skipped(bounded);
 /** @type {WeakMap<Element, BoundHold>} */
 const byBox = new WeakMap();
 const THIS_DOCUMENT = `lf-region:bound:${performance.timeOrigin}`;
@@ -125,6 +138,7 @@ function holdBlock(bounded) {
     hold.follow = null;
   };
   const letGo = () => {
+    waiting.delete(hold);
     stopFollowing();
     if (hold.box && hold.box !== bounded) resize.unobserve(hold.box);
     stopRegion?.();
@@ -148,14 +162,16 @@ function holdBlock(bounded) {
   const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
-    if (bounded.hasAttribute("hidden") || skipped(bounded)) {
+    if (undrawn(bounded)) {
       if (!hold.box) adopt(bounded);
+      waiting.add(hold);
       if (!observed) {
         resize.unobserve(bounded);
         resize.observe(bounded);
       }
       return;
     }
+    waiting.delete(hold);
     const box = scrollerOf(bounded);
     adopt(box);
     if (!bounded.matches(FOLLOWING)) return stopFollowing();
@@ -190,7 +206,14 @@ function holdBlock(bounded) {
 // both ways, registering a block that stands and letting go of one that has left or lost
 // its bound. What a registered block holds is its own observer's to follow, so a block
 // offered again with its bound unchanged (its children or siblings moved) costs nothing.
+// A widget's layout notice asks again of each block under it that waits to be drawn.
 export function holdArrivingBounds() {
+  document.addEventListener(LAYOUT, (event) => {
+    const changed = eventSource(event);
+    if (!isElement(changed)) return;
+    for (const hold of [...waiting])
+      if (under(hold.bounded, changed) && !undrawn(hold.bounded)) hold.sync();
+  });
   watchArrivals(BOUNDED, [BOUND], {
     arrive: (el) => {
       let hold = holds.get(el);

@@ -786,6 +786,54 @@ def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser,
     assert "later" in page.evaluate(on_screen)
 
 
+def test_the_page_s_place_reads_no_line_a_bounded_document_scrolls(browser, serve):
+    """A text document bounded on the page scrolls its lines in a box of its own, so no
+    place on the page is one of them, and recording the page's place reads none of
+    them, though they changed since it was last read; the document's own place reads
+    them. The place recorded as a tab opened on a document of 95,000 lines read each
+    one for the page, 110 ms in Chromium and 170 ms in Firefox."""
+    url = serve(
+        leaf_page(
+            "Release",
+            "<h1>Release</h1><p>The deploy log follows, as it runs.</p>"
+            '<lf-text-document id="log" source="log-text"></lf-text-document>',
+        )
+    )
+    entry = "Entry {}: the deploy copied a shard to the new key format.\n"
+    lines = [entry.format(at) for at in range(300)]
+    data_model.cmd_data_set(serve.page_dir, "log-text", "".join(lines))
+    page = open_page(browser, live_url(url))
+    expect(page.locator("#log.lf-rendered")).to_have_count(1)
+    lines[0] = "Entry zero: the deploy started.\n"
+    data_model.cmd_data_set(serve.page_dir, "log-text", "".join(lines))
+    expect(page.locator("#log pre")).to_contain_text("Entry zero")
+    reads = page.evaluate("""async () => {
+      const {capturePlace, readingRegionFor} = await window.__lfCheckApi();
+      const log = document.getElementById('log');
+      const listing = log.querySelector('pre');
+      const step = Object.getOwnPropertyDescriptor(Node.prototype, 'firstChild');
+      const counted = (read) => {
+        let count = 0;
+        Object.defineProperty(Node.prototype, 'firstChild', {...step, get() {
+          if (listing.contains(this)) count++;
+          return step.get.call(this);
+        }});
+        try {
+          read();
+        } finally {
+          Object.defineProperty(Node.prototype, 'firstChild', step);
+        }
+        return count;
+      };
+      return {
+        page: counted(() => capturePlace(null)),
+        log: counted(() => capturePlace(readingRegionFor(log))),
+      };
+    }""")
+    assert reads["page"] == 0, reads
+    assert reads["log"] > 0, reads
+
+
 def test_a_reading_in_a_scaled_pane_follows_its_scroll(browser, serve):
     """A pane drawn at half its size moves its words half a pixel in the window for each
     pixel it scrolls, so a reading of the pane after a scroll finds the words the scroll

@@ -3,7 +3,7 @@
 
 import { isElement, skipped, under } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
-import { tabStops, wearsLentStop } from "./focus.js";
+import { tabStopCandidates, takesTabStop, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, userScrollport } from "./geometry.js";
 import { afterScript, nextRender, sizeObserver } from "./rendering.js";
@@ -52,8 +52,48 @@ let watchingSurfaces = false;
 const overflows = (el) =>
   !el.hasAttribute("hidden") &&
   (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
+// Whether a box holds a control that takes a Tab stop, which each reach paint asks of
+// every box that overflows. The controls a box holds are read from its tree once
+// (focus.js, `tabStopCandidates`) and kept until that tree changes. Each paint asks
+// only whether one of them takes a stop now, which their style decides. A paint follows
+// a resize or a widget's layout notice, which adds or removes no control. Asked of the
+// whole tree on every paint, a text document's listing of 95,000 rows cost 40 ms a paint
+// in Chromium, five times as its tab opened. The box's tree and each shadow tree the walk
+// crossed are watched, and the changes since the last answer are read before each one,
+// so a stop this pass lends to a box inside counts for the box around it in the same
+// pass. A shadow tree a widget builds later inside the box, which no watch reaches, is
+// heard through the widget's layout notice (`LAYOUT`, below).
+/** @type {WeakMap<Node, Element[]>} */
+const heldControls = new WeakMap();
+const treeChanges = new MutationObserver(forgetHeld);
+const WATCHED_TREE = { subtree: true, childList: true, attributes: true };
+// A change of an element's attribute changes what the boxes around it hold, and a change
+// of the nodes under a box, or a tree crossed inside it, changes what it holds itself.
+/** @param {MutationRecord[]} records */
+function forgetHeld(records) {
+  /** @type {Set<Node>} */
+  const climbed = new Set();
+  for (const { type, target } of records)
+    forgetOver(type === "attributes" ? upFrom(target) : target, climbed);
+}
+/** @param {Node | null} node @param {Set<Node>} [climbed] */
+function forgetOver(node, climbed = new Set()) {
+  for (let at = node; at && !climbed.has(at); at = upFrom(at)) {
+    climbed.add(at);
+    heldControls.delete(at);
+  }
+}
 /** @param {Element} el */
-const holdsOwnStop = (el) => tabStops(el).length > 0;
+function holdsOwnStop(el) {
+  forgetHeld(treeChanges.takeRecords());
+  let held = heldControls.get(el);
+  if (!held) {
+    const { candidates, crossed } = tabStopCandidates(el);
+    for (const tree of [el, ...crossed]) treeChanges.observe(tree, WATCHED_TREE);
+    heldControls.set(el, (held = candidates));
+  }
+  return held.some(takesTabStop);
+}
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
 // a box that stops scrolling is the box it was before, not one a click can now focus.
@@ -579,7 +619,8 @@ addEventListener("resize", () => reread(document.documentElement));
 // what was rearranged is read again, since a box in it may scroll now. A box no sweep
 // has reached yet, itself or through what holds it, is left to the sweep the page's
 // install runs, which a widget rearranging itself as it upgrades would otherwise run
-// early.
+// early. What the boxes around the widget hold is read again too, since what it
+// rearranged may stand in a shadow tree it built after they were read.
 /** @type {WeakSet<Node>} */
 const asked = new WeakSet();
 /** @param {Element} el */
@@ -591,6 +632,9 @@ const reached = (el) => {
 };
 document.addEventListener(LAYOUT, (event) => {
   const changed = eventSource(event);
-  if (isElement(changed) && reached(changed)) reread(changed);
+  if (isElement(changed)) {
+    forgetOver(changed);
+    if (reached(changed)) reread(changed);
+  }
   paintReach();
 });

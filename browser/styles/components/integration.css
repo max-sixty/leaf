@@ -6,25 +6,28 @@
   max-width: 100%;
   max-height: min(60vh, 480px);
 }
-/* Draw mode takes presses on the document plane, page-widget controls included, while
-   Leaf surfaces keep their gestures. The crosshair is important: it covers whatever
-   cursor the page or a widget states for its own controls. Runtime surfaces keep
-   their controls usable wherever their owner seats them, so the crosshair leaves them
-   out and they keep their own cursors. A document selector does not cross a declared
-   shadow root, so the body states the mode as an inherited property that these rules
-   query; this sheet reaches the document and every shadow tree, so one rule serves
-   both. */
-html[data-lf-draw-mode] body {
-  --lf-draw-mode: on;
+/* Draw mode and Capture area take presses on the document plane, page-widget controls
+   included, while Leaf surfaces keep their gestures. Their crosshair stands on the
+   element under the pointer, inside a widget's tree where the pointer is over one, and
+   never on a Leaf surface, which keeps its own cursor (page-geometry.js). It is
+   important: it covers whatever cursor the page or a widget states for its own
+   controls. This sheet reaches the document and every shadow tree, so one rule serves
+   both. Stated on every element, the crosshair restyled the whole page each time a
+   mode came or went, 2.3 to 4.8 s for Draw mode and 4.4 to 9.5 s for Capture area in
+   Firefox on a page of thirty text documents.
+
+   The element's children take `auto` rather than inherit the crosshair. None of them
+   is under the pointer, so none shows its cursor, and in Firefox a box the pointer
+   crosses, such as `body` between blocks, restyles its children rather than
+   everything it holds. Where the page gives such a box a cursor of its own, its
+   children's subtrees restyle too, since `auto` differs from what they inherited.
+   Chromium restyles everything such a box holds either way, past what
+   `content-visibility` skips. */
+[data-lf-crosshair] {
+  cursor: crosshair !important;
 }
-@container style(--lf-draw-mode: on) {
-  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
-    cursor: crosshair !important;
-  }
-  :where(.lf-chrome, [data-lf-runtime]) {
-    --lf-draw-mode: off;
-    cursor: auto;
-  }
+:where([data-lf-crosshair]) > * {
+  cursor: auto;
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar inside
    the block's top-right corner, `--lf-block-control-inset` from both edges, taking no

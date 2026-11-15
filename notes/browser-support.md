@@ -504,6 +504,36 @@ drawing all 32 runs of its document in the first frame after the press. Recheck 
 deleting the rule's `content-visibility: visible` and running that test: once its
 Firefox arm passes, the rule can go.
 
+### A root's touch-action in Firefox
+
+Draw mode states `touch-action: pinch-zoom` on `html` and Capture area
+`touch-action: none` (`browser/runtime/chrome.css`), so one finger draws or drags
+out an area while two still pan and zoom. On 2026-11-15, on macOS 26.5.1, Playwright
+1.65.0's Firefox 159.0 (build 1572) updated every box of the page each time the
+root's touch-action changed. On #4781's shape, thirty text documents of 50,000 lines
+in side tabs (1.51 million elements), toggling Draw mode's attribute on `html`
+alone, with a layout read after each toggle, took 24 ms, and 73 to 94 ms the first
+time; the Gecko profiler put the time in `RestyleManager::ProcessRestyledFrames`,
+with one element styled. On a page of 900,000 plain rows it took 8 to 12 ms, against
+under 1 ms for an attribute no rule reads. Playwright's Chromium 158.0.8127.18
+restyles every element it draws when the root's touch-action changes, 691 elements on
+a page of 600 paragraphs, though not what `content-visibility` skips, so on #4781's
+shape a whole Draw mode toggle took it 30 to 65 ms; the restyle count in
+`test_a_page_mode_restyles_only_what_the_pointer_is_over`
+(`tests/browser/test_chrome_contracts.py`) holds the root's touch-action through the
+page for that reason.
+
+Leaf keeps the rule on the root whenever either mode stands. Stating it only under
+`(any-pointer: coarse)` removed the cost on a computer without a touchscreen, but
+Firefox on Linux can report no touchscreen while it receives touch events, so
+`any-pointer: coarse` doesn't match there
+([Mozilla bug 1870900](https://bugzilla.mozilla.org/show_bug.cgi?id=1870900)), and
+one finger would pan the page rather than draw. Recheck with Playwright's Firefox on
+a page of 900,000 `div` rows and the rule `html[data-x] { touch-action: pinch-zoom; }`:
+toggle `data-x` on `html` and read `document.body.getBoundingClientRect()` after each
+toggle. The gap stands while a toggle takes several times as long as one of an
+attribute no rule reads.
+
 ### Native focus and scrolling inside samples
 
 An opaque sample's sandbox isolates DOM and storage, but authored JavaScript's

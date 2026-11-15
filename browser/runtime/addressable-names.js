@@ -269,7 +269,7 @@ export const addressableName = (element) =>
 // Past that, plain markup is named by its words cut short, and a registered widget by
 // nothing: empty, and the caller says the element's word (`addressableWord`), which it
 // usually shows beside this anyway.
-const LABEL_WORDS = 60;
+export const LABEL_WORDS = 60;
 /** @param {Element} element @returns {Naming | null} */
 const captionNaming = (element) => {
   const caption = keptAnswer(element, "caption", () =>

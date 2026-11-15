@@ -3557,11 +3557,18 @@ export function* pageMatches(query) {
   for (const mark of marks.slice(m)) yield* inPart(mark);
 }
 
+// How many characters of the words on each side of something a description of it
+// says.
+export const AROUND = 28;
 // Display context completes its outer language-aware word within the local window.
 // Oversized tokens use the existing bounded excerpt; stored anchors retain their exact
 // character windows. Search and Design descriptions share this presentation reading.
 /** @param {PageReading} text @param {readonly Segment[]} segments @param {{before?: number, after?: number}} [options] */
-export function contextAround(text, segments, { before = 28, after = 28 } = {}) {
+export function contextAround(
+  text,
+  segments,
+  { before = AROUND, after = AROUND } = {},
+) {
   const [start, end] = spanIn(text, segments);
   /** @param {number} at @param {number} length @param {boolean} backwards */
   function side(at, length, backwards) {

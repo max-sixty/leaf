@@ -18,7 +18,7 @@ import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsOnOne, keepsText } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { closestAcross, elementFromPointAcross } from "./passages.js";
+import { closestAcross, elementFromPointAcross, leafSurface } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
@@ -27,6 +27,7 @@ import { WORKS } from "./control-selectors.js";
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
+ * pointerModeActive: () => boolean,
  * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
  * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],
@@ -37,6 +38,7 @@ export function createPageGeometry({
   aim,
   pointer,
   designMode,
+  pointerModeActive,
   targetPaint,
   shiftDrawings,
   queueLegend,
@@ -64,7 +66,20 @@ export function createPageGeometry({
   // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
   // element holds rather than all `body` does; a control keeps its own cursor.
   const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
+  // The crosshair of a mode that takes presses on the whole plane, Draw mode or Capture
+  // area, stands there too (integration.css), on the element inside a widget's tree
+  // where the pointer is over one, so a widget's control shows it, and never on Leaf's
+  // own surfaces, which keep their gestures and their cursors. Capture area claims the
+  // pointer's moves before the aim hears them, so it asks for this one itself.
+  const paintCrosshair = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.crosshair);
+  function refreshCrosshair() {
+    const at = pointer();
+    const under =
+      pointerModeActive() && at.x >= 0 ? elementFromPointAcross(at.x, at.y) : null;
+    paintCrosshair(under && !leafSurface(under) ? under : null);
+  }
   function refreshAim() {
+    refreshCrosshair();
     const target = aimTarget();
     const aimed = target?.element ?? null;
     const at = pointer();
@@ -146,12 +161,15 @@ export function createPageGeometry({
     actionFrame = 0;
     targetPaint.clearAim();
     paintInspect(null);
+    paintItemHand(null);
+    paintCrosshair(null);
   }
 
   return {
     mount,
     destroy,
     refreshAim,
+    refreshCrosshair,
     invalidate,
     pageShifted,
   };

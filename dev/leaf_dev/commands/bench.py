@@ -284,6 +284,19 @@ TAB_CONTROL = """(panel) => {
   const box = control.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
+# The centre of the element `selector` names, or null where none shows yet.
+CENTRE = """(selector) => {
+  const node = document.querySelector(selector);
+  if (!node?.checkVisibility()) return null;
+  const box = node.getBoundingClientRect();
+  return [box.x + box.width / 2, box.y + box.height / 2];
+}"""
+# The leaf's menu, its Annotations, and Capture area's row there.
+MENU_ROWS = (
+    ".lf-fp-leaf",
+    '.lf-fp-item[data-lf-row="group:annotate"]',
+    '.lf-fp-item[data-lf-row="command:capture.region.open"]',
+)
 # The number of the document `side_documents` shows, in the tab open now.
 SHOWN_DOCUMENT = """() => Number(document
   .querySelector('#docs [role=tab][aria-selected="true"]')
@@ -1051,6 +1064,37 @@ def hover_step(tab: Tab) -> None:
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
+def design_key(tab: Tab) -> None:
+    """Enter Design mode, or leave it."""
+    tab.page.keyboard.press("l")
+
+
+def draw_key(tab: Tab) -> None:
+    """Enter Draw mode, or leave it."""
+    tab.page.keyboard.press("w")
+
+
+def open_annotations(tab: Tab) -> Goals:
+    """Rest the pointer halfway down the page (`halfway`), then open the leaf's menu at
+    Annotations, so the next press chooses Capture area. The page finds each row
+    (`CENTRE`), as it finds everything on `side_documents`' pages."""
+    halfway(tab)
+    *doors, row = MENU_ROWS
+    for door in doors:
+        tab.page.mouse.click(*until(tab.page, CENTRE, f"{door} never showed", door))
+    tab.target["row"] = until(tab.page, CENTRE, "Capture area never showed", row)
+    tab.quiet(600)
+    return {}
+
+
+def capture_toggle(tab: Tab) -> None:
+    """Choose Capture area from the menu `open_annotations` opened, or leave it."""
+    if tab.sample % 2:
+        tab.page.keyboard.press("Escape")
+    else:
+        tab.page.mouse.click(*tab.target["row"])
+
+
 def aim_at_title(tab: Tab) -> Goals:
     title = tab.page.locator("h1").first
     title.scroll_into_view_if_needed()
@@ -1360,9 +1404,12 @@ def search_word(tab: Tab) -> None:
 # Every input, in the order a pass takes them. Those that open the panel's views or
 # add threads and to-dos to the page come after those on the page's own content, and
 # a selection after any revision, which the runtime holds back while the user's
-# selection stands beside what it changes. Those that open tabs come after every
-# input on the document first shown, and a search before `browse`, since each tab
-# `browse` opens keeps its colour, which every later input would meet.
+# selection stands beside what it changes. Design mode, Draw mode and Capture area are
+# each entered and left with the pointer resting on the page's content, or on the
+# menu row that chose the area, before any input adds a mark or opens a tab. Those
+# that open tabs come after every input on the document first shown, and a search
+# before `browse`, since each tab `browse` opens keeps its colour, which every later
+# input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,
@@ -1378,6 +1425,9 @@ INPUTS: dict[str, Input] = {
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "design": Input(design_key, 2, halfway, each=False, after=400),
+    "draw": Input(draw_key, 2, halfway, each=False, after=400),
+    "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
     "data": Input(
         agent_data,
         2,

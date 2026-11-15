@@ -31,6 +31,7 @@ prompts a read; the read's revision decides what changed.
 import hashlib
 import os
 import re
+from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 from stat import S_ISREG
@@ -123,7 +124,9 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
     """Each bound file's name in the browser: its path below the deepest folder
     holding them all. Where only the filesystem's root holds them all, the path from
     there would spell out the host's, so each takes the fewest trailing parts of its
-    path that tell it from every other file the page binds."""
+    path that tell it from every other file the page binds. Bindings of one file share
+    its name. The state answer and every read and save ask this, so its work grows
+    with the files and the depth of their paths, never with their pairs."""
     if not paths:
         return {}
     folder = Path(os.path.commonpath([path.parent for path in paths.values()]))
@@ -132,13 +135,17 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
             binding: path.relative_to(folder).as_posix()
             for binding, path in paths.items()
         }
+    # How many of the page's files end in each run of trailing parts.
+    endings = Counter(
+        path.parts[-count:]
+        for path in set(paths.values())
+        for count in range(1, len(path.parts))
+    )
 
     def trailing(path: Path) -> str:
-        others = {other for other in paths.values() if other != path}
         for count in range(1, len(path.parts)):
-            tail = path.parts[-count:]
-            if all(other.parts[-count:] != tail for other in others):
-                return "/".join(tail)
+            if endings[path.parts[-count:]] == 1:
+                return "/".join(path.parts[-count:])
         return path.name
 
     return {binding: trailing(path) for binding, path in paths.items()}

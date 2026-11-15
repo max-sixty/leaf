@@ -230,9 +230,10 @@ def test_file_editor_keeps_the_user_typing_through_a_move(browser, serve, tmp_pa
 
 
 def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
-    """A navigator naming the editor lists its files by their paths and opens the
-    one picked; leaving a file saves it at once, an agent's write to other lines of
-    it meanwhile joins that save, and returning finds the file as left."""
+    """A navigator naming the editor lists its files by their paths, a file two
+    bindings name once, and opens the one picked; leaving a file saves it at once, an
+    agent's write to other lines of it meanwhile joins that save, and returning finds
+    the file as left."""
     for folder in ("deploy", "docs"):
         (tmp_path / folder).mkdir()
     values = tmp_path / "deploy" / "values.yaml"
@@ -243,12 +244,14 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
         leaf_page(
             "Deploy files",
             '<h1>Deploy files</h1><lf-file-tree id="files" for="config"></lf-file-tree>'
-            '<lf-file-editor id="config" binding="values runbook"></lf-file-editor>',
+            '<lf-file-editor id="config" binding="values runbook notes">'
+            "</lf-file-editor>",
         ),
         packages=["file-editor", "file-tree"],
     )
     bind_file(serve.page_dir, "values", values)
     bind_file(serve.page_dir, "runbook", runbook)
+    bind_file(serve.page_dir, "notes", runbook)
     page = open_page(browser, live_url(url))
     tree = page.locator("lf-file-tree")
     widget = page.locator("lf-file-editor")
@@ -259,6 +262,7 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
         "aria-selected", "true"
     )
+    expect(tree.get_by_role("treeitem", name="runbook.md")).to_have_count(1)
 
     held = []
 

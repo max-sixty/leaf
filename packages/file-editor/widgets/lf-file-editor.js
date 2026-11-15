@@ -89,14 +89,15 @@ import { createEditor, mergeKept } from "./editor.js";
 /** @typedef {{kind: "read", message: string} | {kind: "save", message: string, replace: boolean}} FileFailure */
 /** One bound file as this tab knows it: what the server last acknowledged (`base`), a
  * newer disk version held for the reader's choice (`latest`), and the requests on it.
- * `kept` is what the editor held of it while another file is open.
+ * `kept` is what the editor held of it while another file is open, and `named` the
+ * name the editor's `files` output last listed it by.
  * @typedef {{
  *   binding: string, api: ReturnType<typeof boundFile>, recoveryKey: string,
  *   base: FileSnapshot | null, latest: FileSnapshot | null,
  *   failure: FileFailure | null, spoken: FileSnapshot | FileFailure | null,
  *   busy: boolean, comparing: boolean, recovering: boolean, owed: boolean,
  *   slow: boolean, generation: number, timer: number, slowTimer: number | null,
- *   kept: import("./editor.js").KeptFile | null,
+ *   kept: import("./editor.js").KeptFile | null, named: string | null,
  * }} OpenFile */
 
 customElements.define(
@@ -187,6 +188,7 @@ customElements.define(
             timer: 0,
             slowTimer: null,
             kept: null,
+            named: null,
           },
         ]),
       );
@@ -356,27 +358,28 @@ customElements.define(
         element.requestUpdate();
         element.performUpdate();
       }
-      // The files a navigator lists, each named once the server has named it, and the
-      // one open; published again only when a name or the open file changes.
-      let published = "";
+      // The files a navigator lists, each by the name the page's state gives it, and the
+      // one open. It is built when a name or the open file changes, never as the reader
+      // types, so a keystroke's work doesn't grow with how many files the editor holds.
+      // Two bindings of one file list it once, since a navigator keys its rows by path.
       const publishFiles = () => {
-        const named = bindings.flatMap((binding) => {
-          const of = fileFor(binding);
-          const path = of.api.label ?? of.base?.label;
-          return path ? [{ path, key: binding }] : [];
-        });
-        const value = named.length
-          ? {
-              files: named,
-              ...(named.some(({ key }) => key === file.binding)
-                ? { current: label(file) }
-                : {}),
-            }
-          : null;
-        const key = JSON.stringify(value);
-        if (key === published) return;
-        published = key;
-        publishOutput(this, "files", value);
+        /** @type {Set<string>} */
+        const listed = new Set();
+        /** @type {{path: string, key: string}[]} */
+        const named = [];
+        for (const of of files.values()) {
+          of.named = of.api.label;
+          if (!of.named || listed.has(of.named)) continue;
+          listed.add(of.named);
+          named.push({ path: of.named, key: of.binding });
+        }
+        publishOutput(
+          this,
+          "files",
+          named.length
+            ? { files: named, ...(file.named ? { current: file.named } : {}) }
+            : null,
+        );
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
@@ -418,7 +421,6 @@ customElements.define(
           comparison.disconnect();
           comparison = null;
         }
-        publishFiles();
       };
       this.#template = () => {
         const of = file;
@@ -671,7 +673,7 @@ customElements.define(
         stopWatch?.();
         const stops = [...files.values()].map((of) =>
           of.api.watch(() => {
-            publishFiles();
+            if (of.api.label !== of.named) publishFiles();
             if (of === file) void refresh(of);
           }),
         );
@@ -716,10 +718,12 @@ customElements.define(
         remember(leaving);
         void flush(leaving);
         paint();
+        publishFiles();
         opening = connected ? refresh(file) : null;
         return opening;
       };
       paint();
+      publishFiles();
       this.#placeSelection = () => {
         editor.placeSelection();
         comparison?.placeSelection();

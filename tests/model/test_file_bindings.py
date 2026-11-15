@@ -94,8 +94,14 @@ def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tm
             "a": Path("/home/ana/proj/README.md"),
             "b": Path("/srv/site/README.md"),
             "c": Path("/srv/site/notes.md"),
+            "d": Path("/srv/site/notes.md"),
         }
-    ) == {"a": "proj/README.md", "b": "site/README.md", "c": "notes.md"}
+    ) == {
+        "a": "proj/README.md",
+        "b": "site/README.md",
+        "c": "notes.md",
+        "d": "notes.md",
+    }
 
 
 def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):

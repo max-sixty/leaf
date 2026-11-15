@@ -4,11 +4,11 @@
  * including when a page seats it beside other evidence. */
 :is(lf-worktree-diffs, :host(lf-worktree-diffs)) {
   display: block;
-  column-gap: var(--sp-3);
+  column-gap: var(--lf-sp-3);
   min-width: 0;
   max-width: 100%;
-  margin-block: var(--sp-4);
-  font: var(--font-widget);
+  margin-block: var(--lf-sp-4);
+  font: var(--lf-font-widget);
   container-type: inline-size;
 }
 
@@ -23,11 +23,11 @@
   display: block;
   min-width: 0;
   max-width: 100%;
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--paper);
-  color: var(--ink);
-  font: var(--font-widget);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  background: var(--lf-paper);
+  color: var(--lf-ink);
+  font: var(--lf-font-widget);
 }
 
 /* Slots distribute the authored members through the same shared grid. No wrapper
@@ -45,7 +45,7 @@
 
 lf-worktree-diffs > lf-worktree + lf-worktree {
   --lf-reading-face: 1;
-  margin-block-start: var(--sp-2);
+  margin-block-start: var(--lf-sp-2);
 }
 
 .lf-worktree-overview {
@@ -53,15 +53,15 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  padding-block-end: var(--sp-3);
-  color: var(--muted);
-  font: var(--font-small);
+  gap: var(--lf-sp-2) var(--lf-sp-4);
+  padding-block-end: var(--lf-sp-3);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 
 .lf-worktree-total {
-  color: var(--ink);
-  font: var(--font-title);
+  color: var(--lf-ink);
+  font: var(--lf-font-title);
 }
 
 .lf-worktree-disclosure {
@@ -69,29 +69,29 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
   margin: 0;
-  padding: 0 var(--sp-4);
+  padding: 0 var(--lf-sp-4);
   border: 0;
 }
 
 .lf-worktree-disclosure[open] {
-  padding-block-end: var(--sp-4);
+  padding-block-end: var(--lf-sp-4);
 }
 
 .lf-worktree-disclosure[open] > .lf-worktree-summary {
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--lf-rule);
   border-radius: 0;
 }
 
 .lf-worktree-summary {
   box-sizing: border-box;
-  margin-inline: calc(-1 * var(--sp-4));
+  margin-inline: calc(-1 * var(--lf-sp-4));
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
   align-items: center;
-  min-block-size: max(4rem, var(--aim-floor));
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r);
+  min-block-size: max(4rem, var(--lf-aim-floor));
+  padding: var(--lf-sp-2) var(--lf-sp-3);
+  border-radius: var(--lf-r);
   font-weight: 400;
 }
 
@@ -99,11 +99,11 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   inline-size: 1rem;
   margin: 0;
   justify-self: center;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 
 .lf-worktree-summary:hover {
-  background: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  background: color-mix(in srgb, var(--lf-ink) 3%, var(--lf-paper));
 }
 
 .lf-worktree-identity {
@@ -118,8 +118,8 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 }
 
 .lf-worktree-ref {
-  font: var(--font-code);
-  color: var(--muted);
+  font: var(--lf-font-code);
+  color: var(--lf-muted);
   overflow-wrap: anywhere;
 }
 
@@ -129,8 +129,8 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 
 .lf-worktree-status,
 .lf-worktree-stats {
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -138,7 +138,7 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: var(--sp-2);
+  column-gap: var(--lf-sp-2);
   row-gap: 0;
 }
 
@@ -153,11 +153,11 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 }
 
 .lf-worktree-additions {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 
 .lf-worktree-deletions {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 
 lf-worktree > :last-child {
@@ -166,13 +166,13 @@ lf-worktree > :last-child {
 
 /* The label and the path, set in the sans and the mono, stand on one baseline. */
 .lf-worktree-path {
-  margin-block-start: var(--sp-3);
+  margin-block-start: var(--lf-sp-3);
   display: grid;
   grid-template-columns: 5rem minmax(0, 1fr);
   align-items: baseline;
-  gap: var(--sp-2);
-  color: var(--muted);
-  font: var(--font-small);
+  gap: var(--lf-sp-2);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 
 .lf-worktree-disclosure code {
@@ -182,20 +182,20 @@ lf-worktree > :last-child {
 .lf-worktree-path code {
   min-width: 0;
   padding: 0;
-  color: var(--ink);
+  color: var(--lf-ink);
   background: none;
   font-size: inherit;
 }
 
 lf-worktree > p {
-  margin-block: var(--sp-2) var(--sp-3);
+  margin-block: var(--lf-sp-2) var(--lf-sp-3);
 }
 
 lf-worktree > aside {
-  margin-block: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-inline-start: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, var(--paper));
+  margin-block: var(--lf-sp-3);
+  padding: var(--lf-sp-2) var(--lf-sp-3);
+  border-inline-start: 1px solid var(--lf-accent);
+  background: color-mix(in srgb, var(--lf-accent) 5%, var(--lf-paper));
 }
 
 lf-worktree > aside > :first-child {
@@ -207,10 +207,10 @@ lf-worktree > aside > :last-child {
 }
 
 lf-worktree > details {
-  margin-block: var(--sp-2) var(--sp-3);
+  margin-block: var(--lf-sp-2) var(--lf-sp-3);
   padding: 0;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 
 lf-worktree > details > summary {
@@ -221,7 +221,7 @@ lf-worktree > details > summary {
 /* The snapshot's facts (the reading theme's `dl.facts`) keep their values in ink inside the
    muted disclosure. */
 lf-worktree dd {
-  color: var(--ink);
+  color: var(--lf-ink);
 }
 
 @container (max-width: 38rem) {
@@ -232,9 +232,9 @@ lf-worktree dd {
 
   .lf-worktree-summary {
     grid-template-columns: 1rem minmax(0, 1fr) auto;
-    gap: var(--sp-1) var(--sp-2);
-    padding-inline: var(--sp-3);
-    margin-inline: calc(-1 * var(--sp-3));
+    gap: var(--lf-sp-1) var(--lf-sp-2);
+    padding-inline: var(--lf-sp-3);
+    margin-inline: calc(-1 * var(--lf-sp-3));
   }
 
   .lf-worktree-summary::before {
@@ -251,7 +251,7 @@ lf-worktree dd {
   }
 
   .lf-worktree-disclosure {
-    padding-inline: var(--sp-3);
+    padding-inline: var(--lf-sp-3);
   }
 
   .lf-worktree-path {
@@ -272,20 +272,20 @@ lf-worktree dd {
 
 lf-worktree:not(:defined) {
   display: block;
-  padding-inline: var(--sp-4);
+  padding-inline: var(--lf-sp-4);
 }
 html[data-lf-interactive] lf-worktree:not(:defined)::before {
   content: "";
   display: block;
-  block-size: max(4rem, var(--aim-floor));
+  block-size: max(4rem, var(--lf-aim-floor));
 }
 html[data-lf-interactive] lf-worktree[open]:not(:defined) {
-  padding-block-end: var(--sp-4);
+  padding-block-end: var(--lf-sp-4);
 }
 html[data-lf-interactive] lf-worktree[open]:not(:defined)::before {
   /* The path adds its line and top gap after the fixed summary. */
-  font: var(--font-small);
-  block-size: calc(max(4rem, var(--aim-floor)) + var(--sp-3) + 1lh);
+  font: var(--lf-font-small);
+  block-size: calc(max(4rem, var(--lf-aim-floor)) + var(--lf-sp-3) + 1lh);
 }
 html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
   display: none;
@@ -293,6 +293,6 @@ html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
 html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
   content: "";
   grid-column: 1 / -1;
-  font: var(--font-title);
-  block-size: calc(1lh + var(--sp-3));
+  font: var(--lf-font-title);
+  block-size: calc(1lh + var(--lf-sp-3));
 }

@@ -2504,11 +2504,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )

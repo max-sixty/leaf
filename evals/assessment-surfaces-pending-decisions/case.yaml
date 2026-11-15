@@ -204,7 +204,7 @@ variants:
           x: {domain: [0, 6600], ticks: width &lt; 480 ? 3 : 5, label: "Added lines", grid: true},
           y: {label: null, domain: ["Tests", "Runtime / tools", "Generated", "Docs"]},
           marks: [
-            Plot.barX(rows, {x:"lines",y:"kind",fill:"var(--series-1)"}),
+            Plot.barX(rows, {x:"lines",y:"kind",fill:"var(--lf-series-1)"}),
             Plot.text(rows, {x:"lines",y:"kind",text:d=&gt;d.lines.toLocaleString(),dx:5,textAnchor:"start"})
           ]
         };

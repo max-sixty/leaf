@@ -15,7 +15,7 @@
       /* The Ontology tab's tables group their rows under a heading row. */
       #ontology-table th[scope="colgroup"] {
         text-align: start;
-        color: var(--muted);
+        color: var(--lf-muted);
         font-weight: 600;
       }
 
@@ -33,19 +33,19 @@
       .revision-pair {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-4);
-        margin-block: var(--sp-4);
+        gap: var(--lf-sp-4);
+        margin-block: var(--lf-sp-4);
       }
       .revision-pair figure {
         margin: 0;
       }
       .revision-pair figcaption {
-        margin-block-start: var(--sp-2);
-        font: var(--t-5) / 1.5 var(--sans);
-        color: var(--muted);
+        margin-block-start: var(--lf-sp-2);
+        font: var(--lf-t-5) / 1.5 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .revision-pair figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       .revision-pair svg {
         font-size: 14px;
@@ -53,18 +53,18 @@
         margin-inline: auto;
       }
       .revision-pair .retained {
-        fill: var(--ok-tint);
-        stroke: var(--ok);
+        fill: var(--lf-ok-tint);
+        stroke: var(--lf-ok);
       }
       .revision-pair .decision {
-        fill: var(--ok-ink);
+        fill: var(--lf-ok-ink);
       }
       .revision-pair .changed {
-        fill: var(--accent-tint);
-        stroke: var(--accent);
+        fill: var(--lf-accent-tint);
+        stroke: var(--lf-accent);
       }
       .revision-pair .new-copy {
-        fill: var(--accent);
+        fill: var(--lf-accent);
       }
       @media (width < 720px) {
         .revision-pair {
@@ -74,7 +74,7 @@
       #runtime .runtime-table {
         width: 100%;
         table-layout: fixed;
-        font: 15px/1.5 var(--sans);
+        font: 15px/1.5 var(--lf-sans);
       }
       #runtime .runtime-table :is(th, td) {
         vertical-align: top;
@@ -96,12 +96,12 @@
         margin: 0;
       }
       .panels figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -120,10 +120,10 @@
         text-align: center;
       }
       #data-survives-table .kept {
-        color: var(--ok);
+        color: var(--lf-ok);
       }
       #data-survives-table .lost {
-        color: var(--muted);
+        color: var(--lf-muted);
       }
 
       /* A flag keeps its spelling on one line. */

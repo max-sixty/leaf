@@ -127,7 +127,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     expect(row).to_have_count(1)
     row.scroll_into_view_if_needed()
     widget.evaluate("""host => {
-      host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
+      host.style.setProperty('--lf-mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
     }""")
     backgrounds = []
     for scheme in ("light", "dark"):
@@ -153,7 +153,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
             return colour;
           };
           return {
-            inks: {comment: ink('--mark-ink-text'), draft: ink('--mark-pending-text')},
+            inks: {comment: ink('--lf-mark-ink-text'), draft: ink('--lf-mark-pending-text')},
             ...Object.fromEntries(names.map(name => [name, read(token, name)])),
           };
         }""")
@@ -292,7 +292,7 @@ def test_marked_words_are_seen_and_told_apart(request, serve, engine):
     and each state a gesture puts it in is the answer to that gesture: the words the
     pointer rests on, those of the thread the user opened, and those their draft is on.
 
-    The wash alone can't be that notice: --mark composites to 1.13:1 over the light
+    The wash alone can't be that notice: --lf-mark composites to 1.13:1 over the light
     paper, and no alpha of its hue reaches 1.5:1. So the words take the mark's ink, and
     each state's paint, read off the drawn page in both schemes, is seen against the
     words' own colour, keeps its words legible on its ground, and differs from every
@@ -385,7 +385,7 @@ SCHEMED_PAGE = leaf_page(
 </section>
 """,
     head="""<style>
-.dark-panel { color-scheme: dark; background: var(--paper); color: var(--ink); }
+.dark-panel { color-scheme: dark; background: var(--lf-paper); color: var(--lf-ink); }
 </style>""",
 )
 SCHEMED_PASSAGES = {
@@ -1137,7 +1137,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--accent")
+        and mark["color"] == token_colour(page, "--lf-accent")
     )
 
 

@@ -26,7 +26,7 @@
  * `mount()` does.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
- * `/runtime/` and `/vendor/` draws it too, in the fonts that page's `--sans` and `--mono`
+ * `/runtime/` and `/vendor/` draws it too, in the fonts that page's `--lf-sans` and `--lf-mono`
  * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
  * under way as a `pending-task` event and the named boxes as the visual parts this
  * module registers, which only Leaf's Comment reads. */
@@ -163,8 +163,8 @@ customElements.define(
         const model = parse(source);
         const options = {
           idPrefix: renderId,
-          fontFamily: style.getPropertyValue("--sans").trim(),
-          fontFamilyMono: style.getPropertyValue("--mono").trim(),
+          fontFamily: style.getPropertyValue("--lf-sans").trim(),
+          fontFamilyMono: style.getPropertyValue("--lf-mono").trim(),
           fontSize: 14,
           padding: drawingPadding,
           responsive: false,

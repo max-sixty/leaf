@@ -3161,6 +3161,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
             "unread": [answered["id"]],
             # The reply names no `responds`, so the comment is still owed an answer.
             "attention": f"update:{opened['id']}",
+            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(

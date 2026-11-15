@@ -958,6 +958,7 @@ def test_fresh_exact_reply_supersedes_an_older_quiet_start():
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
+        "agent_turns": {},
     }
     reply = {
         "state": "active",

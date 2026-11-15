@@ -26,7 +26,7 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from .obligations import response_address
 from .standing import STRANDED, strength
@@ -338,12 +338,14 @@ def left_owed(state: dict, reminded: Callable[[str], bool]) -> list[dict]:
         if "ref" in obligation["answer"]
         and not _started_by_turn(obligation, state)
         and not reminded(obligation["input"])
+        and not agent_holds(obligation)
     ]
 
 
 def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open: the blocking ones its
-    open turn has not started.
+    open turn has not started, less those an agent's running turn holds
+    (`agent_holds`).
 
     A start is the agent's answer for now, shown beside the update, and work that
     outlasts the turn runs in background workers whose results wake a later turn
@@ -355,8 +357,55 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     return [
         obligation
         for obligation in blocking_obligations(state, watched=watched)
-        if not started_in_turn(obligation, state)
+        if not started_in_turn(obligation, state) and not agent_holds(obligation)
     ]
+
+
+def running_agent_turns(
+    stamps: dict[str, dict], alive: bool, now: datetime
+) -> set[str]:
+    """The agent turns of the claimant's session believed running at `now`, from
+    their stamps (`state.agent_turn_stamps`): open in a live session, and renewed
+    within the working grace, as a main turn's stamp is believed (`claimant_turn`),
+    since an agent whose run ended unseen leaves its turn open."""
+    if not alive:
+        return set()
+    return {
+        turn
+        for turn, stamp in stamps.items()
+        if stamp["closed"] is None and now < agent_turn_end(stamp)
+    }
+
+
+def agent_turn_end(stamp: dict) -> datetime:
+    """When an agent turn ended by its stamp (`state.agent_turn_stamps`): its close,
+    or, while it is open, its last renewal plus the working grace, when it lapses
+    unless something renews it."""
+    if stamp["closed"] is not None:
+        return datetime.fromisoformat(stamp["closed"])
+    return datetime.fromisoformat(stamp["renewed"]) + WORKING_GRACE
+
+
+def agent_turn_state(
+    turn: str, stamps: dict[str, dict], running: set[str]
+) -> Literal["running", "closed", "lapsed"]:
+    """Where the agent turn `turn` of `stamps` stands: `running` while it is in
+    `running` (`running_agent_turns`), `closed` once its harness said its run ended,
+    and otherwise `lapsed`, open but believed running no longer."""
+    if turn in running:
+        return "running"
+    return "lapsed" if stamps[turn]["closed"] is None else "closed"
+
+
+def agent_holds(obligation: dict) -> bool:
+    """Whether an agent's running turn holds this owed update (`holder`,
+    `holding.holder`): a running turn of an agent the claimant's session runs beside
+    its main thread (`state.AGENT_TURNS`), such as a fork that took a thread's work.
+    The main thread neither holds its turn over it, is reminded of it, nor takes it
+    in again (`hook_transport.pick_up_acknowledged`) until that turn ends; once it
+    does, an update still owed is the main thread's input, which its next delivery
+    hands over (`holding.left_by_agent_turns`)."""
+    return obligation["holder"]["kind"] == "fork"
 
 
 class Turn(NamedTuple):
@@ -493,7 +542,7 @@ def nudge_due(present: dict, turn: Turn) -> bool:
 
 
 def _start_age(
-    start: dict, present: dict, now: datetime, turn: Turn
+    start: dict, present: dict, now: datetime, turn: Turn, agents: set[str]
 ) -> tuple[bool, bool]:
     """How quiet a start is, and whether dropped: a start the claimant's ended turn
     wrote, from the moment that ending is seen, or any start unheard for the working
@@ -504,10 +553,18 @@ def _start_age(
     while the harness says the session still works in the background
     (`Turn.background`), as a coordinator's workers do. Without that word the page
     stops reading as working once the turn is seen to end, rather than holding the
-    agent's last line under a grace in case a later turn takes it up."""
+    agent's last line under a grace in case a later turn takes it up.
+
+    A start an agent of the session wrote in its own turn (`state.acting_turn`)
+    stands while that turn runs (`agents`, `running_agent_turns`), whatever the main
+    thread's turn does, and is quiet once it ends."""
     same_session = bool(
         start.get("session") and start["session"] == present.get("claim_session")
     )
+    if same_session and start.get("turn") in present["agent_turns"]:
+        return _quiet(start["ts"], now, WORKING_GRACE) or start[
+            "turn"
+        ] not in agents, False
     dropped = same_session and not turn.background and _dropped(start["ts"], turn.ended)
     return _quiet(start["ts"], now, WORKING_GRACE) or dropped, dropped
 
@@ -520,6 +577,8 @@ def _stand_workflows(
     held: bool,
     turn: Turn,
     owed: set[str],
+    agents: set[str],
+    in_agent_turn: Callable[[dict], bool],
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]], list[str]]:
     """Say where each workflow stands (`standing`) from its delivery evidence and the
     claimant's turn. Returned beside them: for each update a start holds, that start
@@ -539,7 +598,11 @@ def _stand_workflows(
 
     One reply answers every input its record holds, so a start standing on one of
     them covers the rest: an input a turn took in is no more stopped than the work on
-    its answer is, and waits, delivered, while that work runs."""
+    its answer is, and waits, delivered, while that work runs.
+
+    An update an agent's running turn holds (`in_agent_turn`, `holding.holder`) is in
+    hand for that turn, whatever the main thread's turn does, and a start such a turn
+    wrote stands while it runs (`agents`, `_start_age`)."""
     result = []
     aging = {}
     sent = []
@@ -554,7 +617,7 @@ def _stand_workflows(
         if item.pop("handed_back"):
             state, reason, seen = "blocked", "failed", True
         elif start is not None and held:
-            quiet, dropped = _start_age(start, present, now, turn)
+            quiet, dropped = _start_age(start, present, now, turn, agents)
             aging[item["id"]] = (start, quiet, dropped)
             item["ts"] = start["ts"]
             seen = True
@@ -570,7 +633,7 @@ def _stand_workflows(
                     item["delivery_session"] == present.get("claim_session")
                     and item["delivery_turn"] == present["turn"]
                 )
-                handling = in_turn and turn.running
+                handling = (in_turn and turn.running) or in_agent_turn(item)
                 if not handling and item["obligation"] in owed:
                     state = "blocked"
                     reason = (
@@ -600,7 +663,13 @@ def _stand_workflows(
 
 
 def _stand_todos(
-    todos: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
+    todos: list[dict],
+    present: dict,
+    now: datetime,
+    *,
+    held: bool,
+    turn: Turn,
+    agents: set[str],
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Say where each open to-do stands as an update a start holds does, and return
     beside them, for each to-do a start ran on, that start and how quiet and whether
@@ -613,7 +682,7 @@ def _stand_todos(
         todo = dict(raw)
         start = todo["line"]
         if start is not None and held:
-            quiet, dropped = _start_age(start, present, now, turn)
+            quiet, dropped = _start_age(start, present, now, turn, agents)
             aging[todo["id"]] = (start, quiet, dropped)
             todo["state"], todo["reason"] = (
                 ("blocked", "stopped" if dropped else "quiet")
@@ -675,7 +744,9 @@ def canonical_activity(
     give it (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it.
+    answer may commit first; the automatic final then yields to it. Each owed answer's
+    `holder` names who owes it now, a running fork or the main thread, and each
+    thread's in `thread_holders` the turn that last took it (`holding.holder`).
 
     `counts` are the answers owed by where their update stands, and of them all the
     `unseen` ones no turn has taken in.
@@ -684,6 +755,8 @@ def canonical_activity(
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
+    from .holding import holder, holding_turns, last_taken, rounds
+    from .thread_context import thread_names
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -716,6 +789,25 @@ def canonical_activity(
         present["session_alive"] is None and not present["listening"] and declared_quiet
     )
     held = not unheld
+    # The turns the agents the claimant's session runs beside its main thread are
+    # running now, the turn that holds each waiting message, and the turn that last
+    # took each thread (`holding.py`).
+    stamps = present["agent_turns"]
+    agents = running_agent_turns(stamps, present["session_alive"] is True, now)
+    session = present.get("claim_session")
+    found = rounds(events)
+    holders = holding_turns(events, session, agents, found)
+    took = last_taken(events, session, found)
+    threads = thread_names(events)
+
+    def owes(item: dict) -> dict:
+        """Who owes the answer to `item` now (`agent_holds`): the running agent turn
+        that holds it, and otherwise the main thread."""
+        turn = holders.get(item["input"])
+        return holder(
+            turn if turn in agents else None, threads.get(item["input"]), stamps, agents
+        )
+
     owing = {
         record["source"]["id"]: record
         for record in updates["all"]
@@ -728,8 +820,12 @@ def canonical_activity(
         held=held,
         turn=turn,
         owed={record["id"] for record in owing.values()},
+        agents=agents,
+        in_agent_turn=lambda item: owes(item)["kind"] == "fork",
     )
-    todos, todo_aging = _stand_todos(log.owed, present, now, held=held, turn=turn)
+    todos, todo_aging = _stand_todos(
+        log.owed, present, now, held=held, turn=turn, agents=agents
+    )
     bindings = _receipt_bindings(workflows, present)
     _bind_reply(workflows, reply)
 
@@ -783,6 +879,10 @@ def canonical_activity(
         (turn.until, timedelta()),
         *((_moment(ts), PICKUP_GRACE) for ts in sent),
         *((_moment(start["ts"]), WORKING_GRACE) for start, _age in in_hand),
+        *(
+            (_moment(present["agent_turns"][agent]["renewed"]), WORKING_GRACE)
+            for agent in agents
+        ),
     ]
     if stream and stream.get("kind") not in AWAITING_KINDS:
         lapses.append((_moment(stream.get("ts")), WORKING_GRACE))
@@ -901,6 +1001,7 @@ def canonical_activity(
             **item,
             "obligation": owing[item["input"]]["id"],
             "answer": owed_answer(item),
+            "holder": owes(item),
         }
         for item in obligations
     ]
@@ -932,4 +1033,10 @@ def canonical_activity(
         "todos": todos,
         "records": _stand_records(updates["all"], workflows),
         "obligations": served_obligations,
+        # Who has each thread: the turn that last took it (`holding.last_taken`),
+        # named.
+        "thread_holders": {
+            thread: holder(took.get(thread), thread, stamps, agents)
+            for thread in set(threads.values())
+        },
     }

@@ -19,7 +19,14 @@ import json
 from pathlib import Path
 
 from interact_support import model_layer
-from model_folds import NOW, UNCLAIMED, leaf_page, served_answer, served_reading
+from model_folds import (
+    NOW,
+    UNCLAIMED,
+    leaf_page,
+    served_answer,
+    served_data,
+    served_reading,
+)
 
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
@@ -756,8 +763,8 @@ def tail_cases() -> list[dict]:
     """Answers that complete a reading the browser holds, each beside that reading and
     the whole answer at the same position, for the browser's completion to be held to
     (`served_state.tail`). One changes only what the page's claim reads, with nothing
-    logged between, and the last is a reply that joins a long thread, which changes
-    that thread from within."""
+    logged between, one is a reply that joins a long thread, which changes that thread
+    from within, and one changes only the page's data sources."""
     # A thread the agent and the user have gone back and forth in, and one more reply.
     exchange = (
         *TAIL_LOG[:3],
@@ -846,6 +853,32 @@ def tail_cases() -> list[dict]:
         assert "since" in tail, name
         whole = served_reading(typed, sets, registry=registry)
         cases.append({"name": name, "held": reading, "tail": tail, "whole": whole})
+    # An agent rewrites one source, clears another and sets a third, and a fourth
+    # holds still.
+    held = served_data(
+        {
+            "rewritten": ("run-1", "Before.\n"),
+            "cleared": ("run-2", "Gone.\n"),
+            "still": ("run-3", "Unmoved.\n"),
+        },
+        "text-document",
+    )
+    data = served_data(
+        {
+            "rewritten": ("run-4", "After.\n"),
+            "still": ("run-3", "Unmoved.\n"),
+            "set": ("run-5", "New.\n"),
+        },
+        "text-document",
+    )
+    reading = served_reading(TAIL_PAGE, TAIL_LOG, data=held)
+    key = reading["browser"]["basis"]["key"]
+    tail = served_reading(TAIL_PAGE, TAIL_LOG, data=data, held=key)
+    assert "since" in tail
+    whole = served_reading(TAIL_PAGE, TAIL_LOG, data=data)
+    cases.append(
+        {"name": "data sources written", "held": reading, "tail": tail, "whole": whole}
+    )
     return cases
 
 

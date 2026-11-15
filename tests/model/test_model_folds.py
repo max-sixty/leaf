@@ -961,6 +961,34 @@ def test_a_reply_sends_its_message_and_what_it_changed_of_its_thread():
     assert [message["text"] for message in messages["items"]] == ["Thanks."]
 
 
+def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
+    """However many sources a page holds, a write to one sends that source's new value
+    and fields and nothing of any other source, and a rerun that writes the same value
+    again sends its run and not the value (`served_state.tail`)."""
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+
+    def changes(sources: int, rewritten: str) -> dict:
+        texts = {f"s{at}": ("first", f"Line of {at}.\n" * 200) for at in range(sources)}
+        before = model.served_data(texts, "text-document")
+        held = model.served_reading(page, data=before)["browser"]["basis"]["key"]
+        after = model.served_data(
+            {**texts, "s1": ("second", rewritten)}, "text-document"
+        )
+        tail = model.served_reading(page, data=after, held=held)
+        return {tuple(change["at"]): change.get("value") for change in tail["patch"]}
+
+    few, many = changes(2, "A new line.\n"), changes(30, "A new line.\n")
+    assert few.keys() == many.keys()
+    assert {at[:3] for at in many if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "s1"),
+    }
+    assert many[("data", "sources", "s1", "value")] == "A new line.\n"
+    rerun = changes(30, "Line of 1.\n" * 200)
+    assert ("data", "sources", "s1", "run") in rerun
+    assert ("data", "sources", "s1", "value") not in rerun
+
+
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
     """A key the server never named, or named so many readings ago that it has
     forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""

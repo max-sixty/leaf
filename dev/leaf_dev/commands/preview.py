@@ -1055,7 +1055,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
             what=f"the preview for {source}",
             log=log,
             cwd=runtime,
-            timeout=120,
+            deadline=time.monotonic() + 120,
         ) as ready,
     ):
         pass

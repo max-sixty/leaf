@@ -90,7 +90,16 @@ def read_served_page(
             **{
                 key: value
                 for key, value in work.activity.items()
-                if key not in {"workflows", "todos", "records", "obligations"}
+                # TODO(2026-11-14): serve `thread_holders`, who has each thread,
+                # once the panel says which fork is working a thread.
+                if key
+                not in {
+                    "workflows",
+                    "todos",
+                    "records",
+                    "obligations",
+                    "thread_holders",
+                }
             },
             # The records of the updates the agent owes an answer, by id; their
             # workflows are `workflows`, and the records each view's `obligations`.

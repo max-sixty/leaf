@@ -113,10 +113,11 @@ export const defineOwn = (object, key, value) =>
  * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
  * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
  * its entries in order, an object by its keys in any order); anything else by identity.
- * An array's item that `prior`'s array holds at any index stays as it is, and one with
- * an `id` is compared with `prior`'s item of that id where the item at its index has
- * another. Returns `prior` itself when the two are equal, and `next` itself when
- * nothing in it could be shared, so neither input is copied or mutated needlessly.
+ * An array's item that `prior`'s array holds at any index stays as it is, and a record
+ * of a list whose records are named is compared with `prior`'s record of its name
+ * rather than the one at its index (`pairedByName`). Returns `prior` itself when the
+ * two are equal, and `next` itself when nothing in it could be shared, so neither
+ * input is copied or mutated needlessly.
  *
  * @template T
  * @param {unknown} prior
@@ -167,23 +168,40 @@ function shared(prior, next, kept) {
   return result;
 }
 
-// The `id` a record names itself by among a list's records, a string or a number, or
-// undefined for anything else.
-/** @param {unknown} value */
-const idOf = (value) => {
-  const id = /** @type {{id?: unknown} | null | undefined} */ (value)?.id;
-  return typeof id === "string" || typeof id === "number" ? id : undefined;
-};
-// A list's records by their `id`, the first of each.
-/** @param {readonly unknown[]} list */
-function idsOf(list) {
+// The names a list's records go by, by the rule the server's patch protocol names a
+// list's items by (src/leaf/served_state/tail.py, `_named`): each record's `id` where
+// every record has a string one, else its event's `id` where every record holds an
+// event with one, and only where no two records share a name.
+/** @type {readonly ((item: any) => unknown)[]} */
+const NAMINGS = [(item) => item?.id, (item) => item?.event?.id];
+// The records of `list` by the name each goes by under `name`, or null where one goes
+// by none or two by one.
+/** @param {readonly unknown[]} list @param {(item: unknown) => unknown} name */
+function byName(list, name) {
   /** @type {Map<unknown, unknown>} */
-  const ids = new Map();
+  const named = new Map();
   for (const item of list) {
-    const id = idOf(item);
-    if (id !== undefined && !ids.has(id)) ids.set(id, item);
+    const each = name(item);
+    if (typeof each !== "string" || named.has(each)) return null;
+    named.set(each, item);
   }
-  return ids;
+  return named;
+}
+// Whether two records go by one name.
+/** @param {unknown} one @param {unknown} other */
+const sameName = (one, other) =>
+  NAMINGS.some((name) => {
+    const each = name(one);
+    return typeof each === "string" && each === name(other);
+  });
+// The record of `prior` a record of `next` goes by the same name as, where both lists
+// name their records by one rule, or null where they don't.
+/** @param {readonly unknown[]} prior @param {readonly unknown[]} next
+ * @returns {((child: unknown) => unknown) | null} */
+function pairedByName(prior, next) {
+  const name = NAMINGS.find((each) => byName(next, each));
+  const before = name && byName(prior, name);
+  return name && before ? (child) => before.get(name(child)) : null;
 }
 
 /**
@@ -200,23 +218,31 @@ function compared(prior, next, kept) {
     if (!Array.isArray(prior)) return next;
     // An item the prior list holds anywhere is already shared, so a list that gained,
     // lost or reordered items compares each item that moved by identity, not contents.
-    // A record with an `id` is compared with the prior list's record of that id, where
-    // the one at its index has another: the records after one a list gained or lost,
-    // such as an obligation leaving the user's, keep their identity rather than each
-    // being compared with its neighbour's and made anew.
+    // A record is compared with the prior list's record of its name where both lists
+    // name their records (`pairedByName`), else with the one at its index: the records
+    // after one a list gained or lost, such as an obligation leaving the user's, keep
+    // their identity rather than each being compared with its neighbour's and made
+    // anew. While every item stands for the prior one at its index, by identity or by
+    // name, an item past the prior list's end is one the list gained, with no record to
+    // compare it with, so sharing a log grown by an event builds no index of the log.
     /** @type {Set<unknown> | undefined} */
     let held;
-    /** @type {Map<unknown, unknown> | undefined} */
-    let byId;
+    /** @type {((child: unknown) => unknown) | null | undefined} */
+    let pairs;
+    let moved = false;
     const children = next.map((child, index) => {
       const at = prior[index];
       if (child === at || child === null || typeof child !== "object")
         return shared(at, child, kept);
-      if ((held ??= new Set(prior)).has(child)) return child;
-      const id = idOf(child);
-      const same =
-        id === undefined || idOf(at) === id ? at : (byId ??= idsOf(prior)).get(id);
-      return shared(same, child, kept);
+      if (!moved && index >= prior.length) return child;
+      if ((held ??= new Set(prior)).has(child)) {
+        moved = true;
+        return child;
+      }
+      if (sameName(child, at)) return shared(at, child, kept);
+      moved = true;
+      if (pairs === undefined) pairs = pairedByName(prior, next);
+      return shared(pairs ? pairs(child) : at, child, kept);
     });
     if (
       prior.length === next.length &&

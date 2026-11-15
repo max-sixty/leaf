@@ -82,13 +82,12 @@
    view as scrolling approaches it. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
-   or over its target (`size-page-still`). Opening lasts until the surface first
-   stands, and again until it stands after a landing the input that opened it makes
-   (scrolling.js, `chosenSince`): a walk opens its card before its landing brings the
-   card's words in from beyond the window, and a long card that chose over words below
-   the window was left covering them once they landed (2026-11-14). The room is read
-   where the landing leaves them, and a glide under way takes the move into its goal,
-   so the page lands once. A scroll a later input makes, or none does, such as a
+   or over its target (`size-page-still`). A surface is opening until it first
+   stands. The first move Leaf then starts in its scroller for the input that opened
+   it (scrolling.js, `scrollStarts`) opens it once more, until it stands again. A walk
+   opens its card before its landing brings the card's words in from beyond the
+   window, so the card makes its room again where that landing leaves them, on the
+   side it chose. A scroll a later input makes, or one no input makes, such as a
    keeper holding the reader's place, makes no room, so a card growing as an answer
    arrives never moves the page.
 
@@ -152,13 +151,12 @@ import {
 } from "../geometry.js";
 import { clamp, union } from "../rect.js";
 import {
-  chosenSince,
   glideTo,
   moveScrollerBy,
   pageScroller,
-  scrollChoices,
   scrollGoal,
   scrollLimit,
+  scrollStarts,
 } from "../scrolling.js";
 import { inputs } from "../inputs.js";
 
@@ -469,8 +467,8 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 /* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
-   width has changed, and says whether it chose afresh, and whether the surface has
-   yet to land (`opening`). `options` then gives
+   width has changed, and says whether it chose afresh, and whether the surface is
+   opening (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
    `landed` takes the answer's inline start and where the rule stood the surface's top
    and foot before the boundary shifted it in, from the rule's line. `options` holds
@@ -525,12 +523,12 @@ export function commentPlacement() {
   // The tallest the surface has stood since its line last moved, and that line.
   /** @type {{height: number, line: number} | null} */
   let tallest = null;
-  // The input that opened the surface, and how many landings the reader had made when
-  // it last made room (scrolling.js, `scrollChoices`).
-  /** @type {{input: number, choices: number} | null} */
+  // The input that opened the surface, and how many moves Leaf had started in its
+  // scroller when it opened or last made room, until that input's landing reopens it.
+  /** @type {{input: number, starts: number} | null} */
   let opened = null;
-  // Whether that input has landed the page since, and no placement has stood the
-  // surface there yet.
+  // Whether that landing has reopened the surface, and no placement has stood it
+  // since.
   let reopened = false;
   const forget = () => {
     side = null;
@@ -902,20 +900,23 @@ export function commentPlacement() {
         forget();
       } else if (!input && opened) {
         // The scroll the surface asked for (`scrolled`) is no landing of the input's.
-        opened.choices = scrollChoices();
+        opened.starts = scrollStarts(scroller);
       }
       input = key;
       // A choice is fresh where it picks the side. The surface is opening until it
       // first lands: a placement a newer one supersedes before it fits never opened it,
       // and a card opened while Floating UI first loads is placed again before that, so
       // only `opening` says it has yet to make room clear of its target. A choice after
-      // the first keeps what that one began, such as the transcript's reading.
+      // the first keeps what that one began, such as the transcript's reading, until
+      // the landing of the input that opened it, as a walk's, takes its subject
+      // somewhere else, and it opens there once more (`size-page-still`).
       const fresh = side === null;
-      // A landing the input that opened the surface made since, as a walk's is, takes
-      // its subject somewhere else after the surface first stood, so it makes room
-      // again there (`size-page-still`).
-      if (opened?.input === inputs.count && chosenSince(scroller, opened.choices)) {
-        opened.choices = scrollChoices();
+      if (
+        opened &&
+        opened.input === inputs.count &&
+        scrollStarts(scroller) > opened.starts
+      ) {
+        opened = null;
         reopened = true;
       }
       const opening = (held === null && initialHold === null) || reopened;
@@ -930,7 +931,7 @@ export function commentPlacement() {
             coarse,
           });
       if (fresh && !unanchored)
-        opened = { input: inputs.count, choices: scrollChoices() };
+        opened = { input: inputs.count, starts: scrollStarts(scroller) };
       return {
         side,
         fresh,

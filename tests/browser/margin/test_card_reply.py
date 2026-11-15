@@ -359,9 +359,9 @@ FAR_THREAD_PAGE = leaf_page(
 
 def test_next_on_me_brings_options_in_a_card_s_answer_into_view(browser, serve):
     """Next On Me from the page's top reaches the options an agent's reply asks with,
-    in the card of a thread on words far below, and the window shows them. Focus went
-    into the card while the card stood by its words below the window, and the page
-    stayed at its top."""
+    in the card of a thread on words far below, and the window shows them, and Back
+    returns to the top. Focus went into the card while the card stood by its words
+    below the window, and the page stayed at its top."""
     question = {
         "kind": "reply",
         "author": "agent",
@@ -384,6 +384,9 @@ def test_next_on_me_brings_options_in_a_card_s_answer_into_view(browser, serve):
     options = page.locator(".lf-margin-preview lf-options#order")
     expect(options).to_be_focused()
     expect(options).to_be_in_viewport(ratio=1)
+    page.go_back()
+    expect(page.locator("#open")).to_be_attached()
+    page.wait_for_function("scrollY === 0")
 
 
 def test_next_on_me_opens_a_long_question_clear_of_its_words_far_below(browser, serve):
@@ -413,6 +416,13 @@ def test_next_on_me_opens_a_long_question_clear_of_its_words_far_below(browser, 
         stands["y"] >= words["y"] + words["height"]
         or stands["y"] + stands["height"] <= words["y"]
     ), {"card": stands, "words": words}
+    # Once it stands, a scroll no input makes leaves the page where it went.
+    landed = page.evaluate("scrollY")
+    page.evaluate("scrollBy(0, 120)")
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
+    rendered(page)
+    assert page.evaluate("scrollY") == landed + 120
 
 
 # Whether a message stands wholly between the transcript's top and the reply row pinned

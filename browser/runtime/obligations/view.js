@@ -31,7 +31,8 @@
    page-wide answer. */
 
 import { capitalized } from "../words.js";
-import { landingRoom } from "../landing-scroll.js";
+import { alreadyShown, landingRoom } from "../landing-scroll.js";
+import { offFlow } from "../off-flow.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls, nativePress } from "../keyboard/bindings.js";
@@ -53,7 +54,6 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
-import { bringBackSurfaceOf } from "../off-flow.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
 import { obligationAt, placeOf } from "../current-target.js";
@@ -74,6 +74,7 @@ import { revealAddressed } from "../anchor-resolution.js";
 /** @param {{prepareNavigationStep: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["prepareNavigationStep"],
  * arrive: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["arrive"],
  * openPageThread: ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"],
+ * threadDestination: ReturnType<typeof import("../anchor-travel.js").createAnchorTravel>["threadDestination"],
  * focusForNavigation: typeof import("../focus.js").focusDestination,
  * presentedControl?: ((control: Element) => Element | null) | undefined,
  * announce: (words: string) => void, repaint: () => void}} dependencies */
@@ -81,6 +82,7 @@ export function createObligationView({
   prepareNavigationStep,
   arrive,
   openPageThread,
+  threadDestination,
   focusForNavigation,
   presentedControl,
   announce,
@@ -604,23 +606,32 @@ export function createObligationView({
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // Capture the outgoing place before reveal can reshape it; only a successful
-    // arrival commits the departure. A thread obligation is
-    // in the panel's own list, whose arrival stays centred in that region and is no
-    // navigation step. Which box either travel moves is the travel's own question (scrollerFor)
-    // rather than a second one asked here.
+    // arrival commits the departure. A thread obligation in the panel's own list
+    // arrives centred in that region and is no navigation step. One in a thread's
+    // card, which stands fixed over the page by the thread's words where no scroll of
+    // the boxes around the obligation moves it, lands as the thread does
+    // (anchor-travel.js, `scrollToThread`): inside the card, then at the words, unless
+    // the window shows them. Which box either travel moves is the travel's own
+    // question (scrollerFor) rather than a second one asked here.
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
       if (!target || !source) return null;
-      const box = inChrome(target) ? null : scrollerFor(target);
+      if (inChrome(target)) {
+        const words =
+          next.thread && offFlow(target) ? threadDestination(next.thread) : null;
+        return { target, box: null, region: null, words };
+      }
+      const box = scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source, context, target) }
-        : { target, box: null, region: null };
+        ? { target, box, region: arrivalRegion(source, context, target), words: null }
+        : { target, box: null, region: null, words: null };
     };
     const initial = destination();
     if (!initial) return false;
     const departure = prepareNavigationStep();
-    const { box: initialBox, region: initialRegion } = initial;
+    const { box: initialBox, region: initialRegion, words: initialWords } = initial;
+    if (initialWords) departure.plan(initialWords);
     const moving = Boolean(
       initialBox &&
       departure.plan(initial.target, {
@@ -632,9 +643,9 @@ export function createObligationView({
       () => {
         const here = destination();
         if (!here) return null;
-        const { target, box, region } = here;
+        const { target, box, region, words } = here;
         return {
-          where: target,
+          where: words ?? target,
           reveal:
             next.source.id !== next.prompt.target
               ? [sourceNode(next)].filter((node) => node !== null)
@@ -642,27 +653,30 @@ export function createObligationView({
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the obligation through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed obligation requests no motion.
-          scroll: !box
-            ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
-            : moving
-              ? [
-                  {
-                    at: target,
-                    align: region,
-                    behavior: scrollBehavior(),
-                    block: "start",
-                  },
-                ]
-              : [],
+          scroll: words
+            ? [
+                { at: target, block: "nearest" },
+                {
+                  at: words,
+                  when: () => !alreadyShown(words, { block: "center" }),
+                },
+              ]
+            : !box
+              ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
+              : moving
+                ? [
+                    {
+                      at: target,
+                      align: region,
+                      behavior: scrollBehavior(),
+                      block: "start",
+                    },
+                  ]
+                : [],
         };
       },
       { intent: mayArrive, departure },
     );
-    // An obligation in a thread card's answer stands in a surface fixed over the page,
-    // which no scroll of the boxes around it moves, so the arrival brings the card back
-    // with it (off-flow.js), as Tab does reaching a control in it.
-    const here = arrived ? destination() : null;
-    if (here && !here.box) bringBackSurfaceOf(here.target);
     return arrived;
   }
 

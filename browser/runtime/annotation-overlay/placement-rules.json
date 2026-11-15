@@ -108,7 +108,7 @@
         },
         {
           "id": "size-page-still",
-          "says": "Growing never scrolls the page. Opening under or over scrolls the room's box, as far as it can, to make the room the card needs, so it opens clear of its text, and so does the landing of a walk that opened it, where that landing leaves the text."
+          "says": "Growing never scrolls the page. Opening under or over scrolls the room's box, as far as it can, to make the room the card needs, so it opens clear of its text. The first landing of the input that opened it, as a walk's is, makes that room again where it leaves the text."
         }
       ]
     },

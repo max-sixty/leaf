@@ -480,6 +480,7 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
+    threadDestination: anchorTravel.threadDestination,
     announce,
     repaint,
   });

@@ -81,16 +81,27 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     )
     assert len(set(colours)) >= 4, colours
     page.emulate_media(color_scheme="dark")
+    # Compared as painted: an engine can write the same colour in two forms, as
+    # Firefox writes the cue's transparent end `color(srgb 0 0 0 / 0)` and the
+    # transparent rest `rgba(0, 0, 0, 0)`.
     fills = cue_target.evaluate(
         """async node => {
+          const context = document.createElement('canvas')
+            .getContext('2d', {willReadFrequently: true});
+          const painted = () => {
+            context.clearRect(0, 0, 1, 1);
+            context.fillStyle = getComputedStyle(node).backgroundColor;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data];
+          };
           const cue = node.getAnimations()[0];
           cue.effect.updateTiming({fill: 'forwards'});
           cue.currentTime = cue.effect.getComputedTiming().endTime;
           await new Promise(requestAnimationFrame);
-          const end = getComputedStyle(node).backgroundColor;
+          const end = painted();
           cue.cancel();
           await new Promise(requestAnimationFrame);
-          return {end, rest: getComputedStyle(node).backgroundColor};
+          return {end, rest: painted()};
         }"""
     )
     assert fills["end"] == fills["rest"], fills

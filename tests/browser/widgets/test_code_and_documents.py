@@ -590,15 +590,15 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
     assert max(drawn) == drawn[-1], drawn
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
-    browser, serve
+    request, serve, engine
 ):
-    """A document's listing, a code block, holds the Tab stop its copy control claims
-    from the moment it is first seen, in a closed tab too, so the tab's opening asks none
-    of its lines whether they take a Tab stop and reaches the listing by that stop. The
-    claim waited for the listing to be drawn, and until then each reach paint as the tab
-    opened asked every line again: five walks of a 4 MB document's 95,000 lines, 17 ms
-    each in Chromium."""
+    """A document's listing is a code block, which is a Tab stop from the moment it is
+    first seen, in a closed tab too. So the tab's opening asks none of the listing's
+    lines whether they take a Tab stop, which it asked of every line on each reach paint
+    while the stop waited for the listing to be drawn, and Tab reaches the listing by its
+    own stop."""
     url = serve(
         leaf_page(
             "Documents",
@@ -611,7 +611,7 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
     )
     text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(2000))
     data_model.cmd_data_set(serve.page_dir, "log-text", text)
-    page = open_page(browser, url)
+    page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("#log.lf-rendered")).to_have_count(1)
     # Every line asked for its `tabindex` from the press until the tab has settled.
     page.evaluate("""() => {

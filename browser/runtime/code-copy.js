@@ -15,8 +15,10 @@
    projected onto the block beside any scope its owner declares, so the hints, the
    command reference and `aria-keyshortcuts` name it. A link or button inside the block
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
-   of the Tab sequence. Focus need not be on the control, so every copy's result also
-   takes the status line.
+   of the Tab sequence. A document code block is a Tab stop whether or not the browser
+   has drawn it, and Tab onto one the browser skipped prepares Copy as focus lands.
+   Focus need not be on the control, so every copy's result also takes the status
+   line.
    A document block's control stands in chrome and passes under the page's sticky
    headers as block-controls.js says.
    The control follows the common pattern for code copy: hidden at rest, and shown while
@@ -204,16 +206,11 @@ export function watchCodeBlocks() {
     const prepared = blocks
       .filter((pre) => {
         if (pre.getRootNode() !== document) return false;
+        claimReachStop(pre);
         if (skipped(pre)) {
-          // The block claims its stop as it is first seen, drawn or not, so reach
-          // never asks its lines whether one takes a stop: a closed tab's text
-          // document asked all 95,000 on each paint as the tab opened. A block the
-          // browser skips off screen (`content-visibility: auto`) is a Tab stop
-          // before it is drawn, and Tab onto it prepares its control as it lands.
           if (!wired.has(pre) && !deferred.has(pre)) {
             deferred.add(pre);
             revealed.observe(pre);
-            claimReachStop(pre);
           }
           return false;
         }
@@ -242,7 +239,6 @@ export function watchCodeBlocks() {
       if (leafSurface(pre)) move(parent, copy, pre.nextSibling);
       else standInChrome(copy, pre, levels);
       copy.tabIndex = -1;
-      claimReachStop(pre);
       if (!wired.has(pre)) {
         const events = new AbortController();
         wired.set(pre, events);

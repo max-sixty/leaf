@@ -17,6 +17,7 @@ import { addressableLabel } from "/runtime/addressable-names.js";
 import { registry } from "/runtime/registry.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
+import { pageText } from "/runtime/passages.js";
 import { servedState, servedThread } from "../served.mjs";
 
 // The preview's name and parts, each as [its class without the prefix, its words], of
@@ -289,6 +290,29 @@ test("a heading's section is walked through declared shadow trees and their slot
   const body = document.createElement("div");
   render(first.detail, body);
   assert.equal(body.textContent.replace(/\s+/g, " ").trim(), "Assigned body.");
+});
+
+// A slot nothing is assigned to draws its own children, and the page's reading reads
+// them there (passages.js, `walk`), so a preview of what holds it shows the same words.
+test("a preview reads an empty slot's fallback as the page's reading does", () => {
+  Object.assign(registry, {
+    "lf-staged": { "x-shadow": true },
+    $layer: { generation: "place-preview-fallback" },
+  });
+  document.querySelector(".lf-chrome")?.remove();
+  document.body.innerHTML = `<main><h2 id="it">Lead</h2><lf-staged id="unfilled">
+    </lf-staged></main>`;
+  const tree = document.createElement("template");
+  tree.innerHTML = `<div><slot><p>Fallback words.</p></slot></div>`;
+  shadowStage(document.getElementById("unfilled"), [...tree.content.childNodes]);
+  const lead = placePreview(document.getElementById("it"));
+  const lines = document.createElement("div");
+  render(lead.detail, lines);
+  assert.deepEqual(
+    [...lines.querySelectorAll(".lf-place-text")].map((part) => part.textContent),
+    ["Fallback words."],
+  );
+  assert.match(pageText().raw, /Lead\W+Fallback words\./);
 });
 
 test("a node's trail names every part over it, outermost first", () => {

@@ -1502,7 +1502,7 @@ def test_a_forks_leaf_command_must_lead_its_bash_call(claimed, lane, capsys):
             "grep -rn leaf_words src/leaf",
             "git diff src/leaf",
             "cat ~/.local/state/leaf/pages/p/index.html",
-            "uv run leaf-dev timeline p",
+            "uv run leaf-dev logs timeline p",
             'echo "Leaf\'s page"',
         )
     ):

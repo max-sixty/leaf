@@ -81,7 +81,7 @@ times its time (0.94–1.25). On 2026-11-09 low wrote lines as good as xhigh's. 
 recorded thread messages, each replayed from its session's transcript
 (`notes/fork-replies.md`, "How well the fork judges"), a judge blind to the effort
 passed 35 lines at each effort and preferred low's on 19, xhigh's on 16 and neither
-on 5; `leaf-dev eval 'line-fork*'` passed 35 of 35 at each over five repeats.
+on 5; `leaf-dev eval run 'line-fork*'` passed 35 of 35 at each over five repeats.
 Neither effort thought on the recorded messages, so their output and time matched
 there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the eval's short
 conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s where a line
@@ -132,8 +132,8 @@ it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts t
 conversation: to `sent` while `running` lists a call, else to `row`; its
 `effort` is the fork's), as the clerk's `turn_end_check` notes have it, which is
 what a later replay or audit scores; and a working fork's start and end (`step`).
-`leaf-dev timeline` reads them beside the session's transcript.
-`leaf-dev eval 'line-fork*' --harness claude-code --base` scores a change to the
+`leaf-dev logs timeline` reads them beside the session's transcript.
+`leaf-dev eval run 'line-fork*' --harness claude-code --base` scores a change to the
 line fork's prompt on a short constructed conversation for each kind of message
 (`dev/leaf_dev/fork_eval.py`).
 """

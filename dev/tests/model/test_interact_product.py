@@ -5,7 +5,7 @@ import json
 import pytest
 
 from leaf.structure import SourceDocument
-from leaf_dev.commands import corpus
+from leaf_dev.commands.generate import corpus as corpus
 from leaf_dev.example_data import (
     CORPUS,
     authored_sources,

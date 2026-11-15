@@ -795,10 +795,11 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
     its opening, and its `prompt` is the message that resumes it (`resume_prompt`),
     so one fork works the thread however many messages the user sends it; a resume
     that fails ends the turn (`ended`), which gives the thread to the main thread.
-    The main session hears now which fork it gave the thread to (`_given`). A new
-    fork has no id until the module has spawned it, and its turn no agent runs
-    until the module says which agent that is (`started`), which tells the main
-    session then."""
+    A new fork has no id until the module has spawned it, and its turn no agent runs
+    until the module says which agent that is (`started`). Either way the module
+    confirms the start once the fork runs (`started`), which tells the main session
+    which fork has the thread; a turn whose start nothing confirms lapses within a
+    minute (`activity.agent_turn_end`)."""
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
     page_dir = Path(basis["page"])
@@ -833,8 +834,6 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
             receive_passed(page, not_awaited(page_holding(page)))
     except FileNotFoundError:
         return {"outcome": "dropped", **posted}
-    if resumed is not None:
-        _given(session_id, basis, turn, resumed)
     return {
         "outcome": "take",
         **posted,
@@ -872,8 +871,10 @@ def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
     Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
     commands act in that turn and its tool boundaries carry the thread's further
-    messages, and tell the main session which fork has the thread (`_given`): the
-    fork the module spawned, whose id Leaf learns only now. A turn that ended first,
+    messages, and its turn is believed for the working grace, and tell the main
+    session which fork has the thread (`_given`): the fork the module spawned, whose
+    id Leaf learns only now, or resumed, once the module has sent it the thread's
+    messages. A turn that ended first,
     as its session's may have, is left closed, and the main session hears of it only
     by that end (`ended`): a fork Leaf never named then acts as any subagent of the
     session does (`state.acting_agent_turn`)."""

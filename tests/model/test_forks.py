@@ -1439,8 +1439,8 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     """The user's further message in a thread a fork answered, once the fork's run
     has ended, goes to the same fork in a new turn of its own, which Leaf opens,
     names with the fork's agent id and records the pickup in, so the fork works the
-    thread however many messages it gets; the main thread hears at once which fork
-    has the thread, by that id. Leaf's
+    thread however many messages it gets; the main thread hears which fork has the
+    thread, by that id, once the module confirms it resumed the fork. Leaf's
     message resuming it carries the delivery and tells the fork to read the page's
     state, which its transcript lacks. A late end of the fork's earlier turn leaves
     the new one running. The fork's answer from that turn is its own, and the turn's
@@ -1450,6 +1450,10 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     taken = taken_again(claimed, asked["id"], more)
     assert taken["resume"] == "agent-1"
     assert state_model.agent_turn_of("s1", "agent-1") == taken["turn"]
+    assert clerk_model.queued("s1") == []
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
+    )
     [given] = clerk_model.queued("s1")
     assert "SendMessage agent-1." in given, given
     # A late end of the fork's earlier turn leaves the new one running.
@@ -1921,6 +1925,17 @@ def test_a_page_reads_only_the_agent_turns_it_needs(claimed, lane):
     assert {taken["turn"], elsewhere} <= set(state_model.agent_turns("s1"))
 
 
+def opened_long_ago(turn: str, by: timedelta) -> None:
+    """Move the session's agent turn `turn` back by `by`, its opening and its last
+    renewal both, as a turn nothing has touched since then reads."""
+    turns = state_model.agent_turns("s1")
+    for key in ("opened", "renewed"):
+        turns[turn][key] = (datetime.fromisoformat(turns[turn][key]) - by).isoformat()
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+
+
 def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
     claimed, lane, capsys
 ):
@@ -1932,12 +1947,7 @@ def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
     worker = hook_answer(capsys, "leaf page state p", "worker-7", "w1")
     assert worker is not None and worker["permissionDecision"] == "deny"
-    turns = state_model.agent_turns("s1")
-    long_ago = datetime.now().astimezone() - activity_model.STARTING_GRACE
-    turns[taken["turn"]]["renewed"] = long_ago.isoformat()
-    state_model.AGENT_TURNS.write(
-        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
-    )
+    opened_long_ago(taken["turn"], activity_model.STARTING_GRACE)
     owed, threads = holders(claimed)
     assert (owed[asked["id"]], threads[asked["id"]]["state"]) == (
         {"kind": "main"},
@@ -1945,6 +1955,45 @@ def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
     )
     assert deliverable(claimed) == [asked["id"]]
     assert hook_answer(capsys, "leaf page state p", "worker-7", "w2") is None
+    # Nor does any page that never named the lost turn read it.
+    claim = service_model.page_claim(claimed)
+    assert claim is not None
+    assert taken["turn"] not in state_model.agent_turn_stamps(claim, [])
+
+
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_a_resumed_take_counts_for_a_minute_until_its_start_is_confirmed(
+    claimed, lane, monkeypatch, confirmed
+):
+    """A fork Leaf resumes is named as its turn opens, but its turn counts only for
+    `STARTING_GRACE` until the module confirms the resume (`forks.started`), so a
+    resume whose step timed out leaves the thread to the main thread within a
+    minute; once confirmed, the turn counts for the working grace."""
+    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
+    more = said(claimed, "And which uv?", parent=asked["id"])
+    taken = taken_again(claimed, asked["id"], more)
+    if confirmed:
+        forks_model.started(
+            "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
+        )
+    opened_long_ago(taken["turn"], activity_model.STARTING_GRACE)
+    _owed, threads = holders(claimed)
+    assert threads[asked["id"]]["state"] == ("running" if confirmed else "lapsed")
+    assert deliverable(claimed) == ([] if confirmed else [more["id"]])
+
+
+def test_the_reading_changes_when_a_turn_whose_start_is_unconfirmed_lapses(
+    claimed, lane
+):
+    """The served reading says it next changes when a turn whose start nothing has
+    confirmed lapses, a minute after its opening, rather than at the working
+    grace."""
+    _asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    opened = datetime.fromisoformat(
+        state_model.agent_turns("s1")[taken["turn"]]["opened"]
+    )
+    due = datetime.fromisoformat(reading(claimed)["activity"]["next_transition_at"])
+    assert due - opened == activity_model.STARTING_GRACE
 
 
 def test_an_ended_forks_later_command_stays_its_own_and_is_refused(

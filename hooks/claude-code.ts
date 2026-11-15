@@ -310,6 +310,7 @@ function follow($: EngineInterface, session: string) {
         if (last === undefined || following !== current) continue;
         const listed: Listing = JSON.parse(last);
         show($, listed.pages);
+        void endForks($);
         for (const page of listed.pages)
           for (const kept of page.kept_back ?? []) lineFork($, session, kept);
         for (const asked of listed.completions) complete($, session, asked);
@@ -556,13 +557,20 @@ type Fork = { started: number; turn: string; ended?: Run };
 const endedEarly = new Map<string, Run>();
 let spawning = 0;
 
+// The fork runs whose end is being told to Leaf, by agent id and turn, so a
+// listing that arrives meanwhile doesn't tell it twice at once.
+const ending = new Set<string>();
+
 /** Tell Leaf that the run of the fork `agentId`, kept as `fork`, ended as
- * `fork.ended` says, which closes its turn (`forks.ended`), and forget the fork only
- * once Leaf has heard: a step that failed, as one past its timeout, leaves it for the
- * next main-loop turn's end to tell again, rather than its turn running on unseen
- * until it lapses. Leaf closes a turn once, so hearing twice changes nothing. */
+ * `fork.ended` says, which closes its turn (`forks.ended`), and forget that run only
+ * once Leaf has heard: a step that failed, as one past its timeout, leaves it to be
+ * told again (`endForks`), rather than its turn running on unseen until it lapses.
+ * Leaf closes a turn once, so hearing twice changes nothing, and a run the fork was
+ * resumed for since, under the same agent id, stays. */
 async function endFork($: EngineInterface, agentId: string, fork: Fork) {
-  if (fork.ended === undefined) return;
+  const run = `${agentId} ${fork.turn}`;
+  if (fork.ended === undefined || ending.has(run)) return;
+  ending.add(run);
   try {
     const session = await sessionOf($);
     const now = await $.clock.now();
@@ -570,10 +578,24 @@ async function endFork($: EngineInterface, agentId: string, fork: Fork) {
       ended: { agent: agentId, turn: fork.turn, ...fork.ended },
       elapsed_ms: now - fork.started,
     });
-    await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
+    await changeForks($, (forks) => {
+      if (forks[agentId]?.turn !== fork.turn) return forks;
+      const { [agentId]: _ended, ...rest } = forks;
+      return rest;
+    });
   } catch (error) {
     $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, { to: "debug" });
+  } finally {
+    ending.delete(run);
   }
+}
+
+/** Tell Leaf again of each fork's end it hasn't heard of (`endFork`), as a
+ * main-loop turn ends and as the pages follower lists the session's pages, which
+ * it does while the session is idle too. */
+async function endForks($: EngineInterface) {
+  for (const [agentId, fork] of Object.entries((await $.state.get(FORKS)).value ?? {}))
+    if (fork.ended !== undefined) void endFork($, agentId, fork);
 }
 
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
@@ -615,8 +637,13 @@ async function workFork(
   try {
     if (given.resume !== undefined) {
       const failed = await resumeFork($, given.resume, given.prompt, given.turn);
-      if (failed !== undefined)
-        await forkStep($, session, { ended: { agent, turn: given.turn, failed } });
+      await forkStep(
+        $,
+        session,
+        failed === undefined
+          ? { thread: kept, started: { turn: given.turn, agent } }
+          : { ended: { agent, turn: given.turn, failed } },
+      );
       return;
     }
     const spawned = await spawnFork($, given);
@@ -830,7 +857,7 @@ export const register: Register = (on) => {
 
   // The run of a fork this module spawned ending, which closes the turn Leaf keeps
   // for it; any other agent's ends with nothing for Leaf to do. A main-loop turn
-  // ending tells Leaf again of each fork's end it hasn't heard of yet.
+  // ending tells Leaf again of each fork's end it hasn't heard of yet (`endForks`).
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
@@ -849,10 +876,7 @@ export const register: Register = (on) => {
     }
     const session = await sessionOf($);
     follow($, session);
-    for (const [agentId, fork] of Object.entries(
-      (await $.state.get(FORKS)).value ?? {},
-    ))
-      if (fork.ended !== undefined) void endFork($, agentId, fork);
+    void endForks($);
     // Only a turn the model answered: an interrupted one has no reply to read.
     // Leaf, not the band, says whether the session holds a page: the band may not
     // yet list one the turn's last command claimed, and `--if-claimed` answers a

@@ -740,8 +740,9 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     page_dir, monkeypatch, spawn, sessionless, resumes
 ):
     """The user's later message in a thread a fork answered, once that fork's run has
-    ended, goes to the same fork: the module resumes it with Leaf's message, and Leaf
-    hears that it runs the new turn, which its next end closes. Where Claude Code
+    ended, goes to the same fork: the module resumes it with Leaf's message, and,
+    once the message is delivered, tells Leaf the fork runs the new turn, which
+    confirms its start, and which its next end closes. Where Claude Code
     can't resume the fork, the module ends the turn Leaf opened and spawns nothing,
     which gives the thread to the main thread."""
     driven = ClaudeCode(
@@ -807,6 +808,15 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
             e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
         ][-1]
         assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
+        wait_for(
+            lambda: [
+                note
+                for note in read_interactions(page_dir, types=("fork_outcome",))
+                if note.get("step") == "start" and note.get("turn") == second
+            ],
+            bool,
+            failure="the module never confirmed the resumed fork's start",
+        )
         driven.emit(
             "turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"}
         )
@@ -876,6 +886,35 @@ def test_a_forks_end_leaf_did_not_hear_of_is_told_again_as_the_next_turn_ends(
     told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
     assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
     driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.settle()
+    driven.quit()
+
+
+def test_a_forks_end_leaf_did_not_hear_of_is_told_again_while_the_session_idles(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork's end whose step failed, which the module keeps in `$.state` as a reload
+    finds it, is told again as the pages follower lists the session's pages, which
+    it does while no main-loop turn runs."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-ends-idle",
+        {
+            "state": {
+                "forks": {
+                    "agent-7": {
+                        "started": 1,
+                        "turn": "t7",
+                        "ended": {"answer": "Done."},
+                    }
+                }
+            },
+            "env": {"LEAF_FORK_REPLIES": "off"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
     assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
     driven.settle()
     driven.quit()

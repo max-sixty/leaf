@@ -1,13 +1,12 @@
 """Publish content-addressed media used by example pages."""
 
-import shutil
 import tempfile
 from pathlib import Path
 
 import click
 
-from leaf.media import media_name
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.media import require_media_type, write_media
+from leaf.schema import MEDIA_DIR
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import clone, publish
 from leaf_dev.page_fixtures import DEFAULT_PACKAGES
@@ -26,17 +25,14 @@ def publish_media(files: tuple[str, ...]) -> None:
     directory = DEFAULT_PACKAGES.parent.relative_to(ROOT) / "media"
     paths = [Path(file) for file in files]
     for path in paths:
-        if path.suffix.lower() not in MEDIA_TYPES:
-            raise click.BadParameter(
-                f"{path}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
-            )
-    named = {media_name(path.read_bytes(), path.suffix): path for path in paths}
+        require_media_type(path)
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = clone(Path(raw))
         target = checkout.path / directory
         target.mkdir(parents=True, exist_ok=True)
-        for name, path in named.items():
-            shutil.copyfile(path, target / name)
+        named = {
+            write_media(target, path.read_bytes(), path.suffix): path for path in paths
+        }
         revision = publish(checkout, f"Add {len(named)} example media file(s)")
     for name, path in named.items():
         click.echo(f"/{MEDIA_DIR}/{name}  {path}")

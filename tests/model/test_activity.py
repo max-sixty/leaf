@@ -47,6 +47,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.events import build_threads
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
 
@@ -453,7 +454,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
-        holding=holding_model.reading_of(events, present, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
@@ -466,7 +469,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
-        holding=holding_model.reading_of(events, present, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -504,7 +509,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
-        holding=holding_model.reading_of(events, present, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 

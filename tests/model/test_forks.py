@@ -44,6 +44,7 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
 from leaf import presence as presence_model
+from leaf import revision_artifact as revision_artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
@@ -52,6 +53,7 @@ from leaf import session_runtime as session_runtime_model
 from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
+from leaf.events import build_threads
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
 from leaf.served_state.context import read_page
@@ -911,6 +913,92 @@ def test_a_kept_back_message_in_a_thread_the_user_resolved_is_no_input(
     assert not hook_transport_model.new_input("s1")
 
 
+def test_a_running_forks_tool_boundary_carries_a_rewrite_as_logged(
+    claimed, lane, capsys
+):
+    """A fork's tool boundary hands it the user's further message and their rewrite
+    of it as every delivery hands them over: the message in the words it was sent
+    with, and the rewrite beside it with the words it replaced, not the thread's
+    reading of the message, which carries the rewrite's words."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    more = said(claimed, "And the autocomplet service?", parent=asked["id"])
+    append_command(
+        claimed,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": more["id"],
+            "text": "And the autocomplete service?",
+        },
+    )
+    _opening, envelope = agent_context(capsys, "agent-1").split("\n", 1)
+    [batch] = json.loads(envelope)["batches"]
+    assert [
+        (event["kind"], event["text"], event.get("was"), "edited" in event)
+        for event in batch["events"]
+    ] == [
+        ("reply", "And the autocomplet service?", None, False),
+        (
+            "edit",
+            "And the autocomplete service?",
+            "And the autocomplet service?",
+            False,
+        ),
+    ]
+
+
+def test_a_passed_kept_back_message_reaches_the_main_thread_once_the_lane_is_gone(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A kept-back message the cursor passed as the main thread took in later input
+    is the main thread's input at its next tool boundary once the lane goes down for
+    good, though no fork's turn or lane is left in the session."""
+    first = taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    kept = said(claimed, "Which Python does the project need?")
+    follow = said(claimed, "And the lease?", parent=first["id"])
+    assert follow["text"] in context(capsys, "PostToolBatch")
+    context(capsys, "PostToolBatch")
+    leases_model.release_lease(lane)
+    assert kept_back(claimed) == []
+    assert kept["text"] in context(capsys, "PostToolBatch")
+
+
+def test_the_hooks_read_a_thread_a_version_reopened_as_the_fold_does(
+    claimed, monkeypatch
+):
+    """A thread a widget's answer closed, which a later version takes back through
+    an element containing the widget, waits again: the hooks build the page's
+    threads with its containment, as the fold does, so both read the same message
+    waiting."""
+    events = events_model.read_events(claimed)
+    seq = events[-1]["seq"] if events else 0
+    ts = "2026-11-14T00:00:00+00:00"
+    logged = [
+        {"kind": "comment", "id": "contained-c1", "author": "user"}
+        | {"text": "Tighten this section?"},
+        {"kind": "action", "id": "contained-a1", "author": "user", "revision": 1}
+        | {"widget": "w1", "action": "answer", "detail": {}}
+        | {"meaning": {"unit": "w1", "answer": "contained-c1", "depends": ["sec1"]}},
+        {"kind": "note", "id": "contained-n1", "author": "agent", "revision": 2}
+        | {"restated": ["sec1"], "text": "Rewrote the section."},
+    ]
+    with (claimed / "events.jsonl").open("a", encoding="utf-8") as log:
+        for offset, event in enumerate(logged, 1):
+            log.write(json.dumps({**event, "seq": seq + offset, "ts": ts}) + "\n")
+    monkeypatch.setattr(
+        revision_artifact_model, "active_enclosing", lambda page_dir: {"sec1": ["w1"]}
+    )
+    with PageTransaction(claimed) as page:
+        held = forks_model.page_holding(page)
+    assert [event["id"] for event in held.found.waiting["contained-c1"]] == [
+        "contained-c1"
+    ]
+
+
 def test_a_running_fork_carries_nothing_of_a_thread_the_user_resolved(claimed, lane):
     """A further message in a thread a running fork holds, which the user then
     resolved, is owed nobody, so the fork's tool boundary doesn't carry it."""
@@ -1115,7 +1203,12 @@ def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer
         ),
     ]
     held = holding_model.reading(
-        events, "s1", {}, set(), live=True, found=holding_model.rounds(events)
+        events,
+        "s1",
+        {},
+        set(),
+        live=True,
+        found=holding_model.rounds(events, build_threads(events, {})),
     ).hold("c1")
     assert (held.turn, held.picked) == ("waiting", True)
 

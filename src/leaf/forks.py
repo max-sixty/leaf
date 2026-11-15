@@ -40,9 +40,10 @@ fenced to the thread still being kept back, so the messages go from kept back to
 with no moment in which neither has them. The fork's `leaf` commands act in its turn
 (`hooks.agent_command`), and as its run ends the module says so (`ended`), which
 closes the turn and judges each thread by what the turn picked up and wrote. The main
-session hears which fork took a thread once the fork's agent id is known: at the take
-for a fork Leaf resumes, and as the module says which agent it spawned for a new one
-(`started`); and it hears as the fork's run ends (`clerk.queue`), since Claude Code
+session hears which fork took a thread once the module says the fork runs
+(`started`): as it says which agent it spawned for a new one, and once it has
+delivered a resumed one's message; and it hears as the fork's run ends
+(`clerk.queue`), since Claude Code
 tells it nothing of a fork a module made. The user chose these lines on 2026-11-11
 over the fork's own SendMessage to the main thread, which would wake it for every
 answer (`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
@@ -312,26 +313,29 @@ def handed_inputs(session_id: str, page_dir: Path) -> set[str]:
 
 def kept_back(page: PageTransaction, holding: Holding | None = None) -> list[KeptBack]:
     """The page's threads whose waiting messages Leaf keeps back (the module
-    header's table), by when the lane hands them over (`kept_back_of`), by the page's
-    reading (`page_holding`, or `holding` where the caller has it)."""
-    claim = page.active_claim
-    if claim is None or (since := lane_since(claim["id"])) is None:
-        return []
-    return kept_back_of(
-        page_holding(page) if holding is None else holding,
-        since,
-        handed_inputs(claim["id"], page.page_dir),
-    )
+    header's table), by when the lane hands each over: those the line fork holds in
+    the page's reading (`page_holding`, or `holding` where the caller has it), which
+    derived them (`kept_back_of`)."""
+    held = page_holding(page) if holding is None else holding
+    found = [
+        KeptBack(
+            thread,
+            tuple(event["id"] for event in said),
+            _admitted(said[-1]) + BOUND_S,
+        )
+        for thread, said in held.found.waiting.items()
+        if held.threads[thread].holder["kind"] == "line"
+    ]
+    return sorted(found, key=lambda thread: thread.until)
 
 
-def kept_back_of(holding: Holding, since: float, handed: set[str]) -> list[KeptBack]:
+def kept_back_of(holding: Holding, since: float, handed: set[str]) -> set[str]:
     """The threads Leaf keeps back on a page whose reading by its pickups and
     answers is `holding`, for a lane of the claimant's line forks that came up at
-    `since` and has `handed` over the messages it lists (`HANDED`), by when the lane
-    hands each over. The reading derives them as it reads who holds each thread
-    (`holding.reading_of`), from the log alone, never the page's fold, since
-    admission, every hook and every served reading ask it, and `ask` hands over a
-    message the fold says owes none.
+    `since` and has `handed` over the messages it lists (`HANDED`). The reading
+    derives them as it reads who holds each thread (`holding.reading_of`), from the
+    log alone, never the page's fold, since admission, every hook and every served
+    reading ask it, and `ask` hands over a message the fold says owes none.
 
     It reads which messages any pickup names or the lane handed over
     (`holding.Holding.taken`), not the page's cursor, which a receipt moves past a
@@ -346,12 +350,8 @@ def kept_back_of(holding: Holding, since: float, handed: set[str]) -> list[KeptB
         thread for turn in holding.running for thread in holding.took.get(turn, ())
     }
     messages = kinds_declaring("message")
-    found = [
-        KeptBack(
-            thread,
-            tuple(event["id"] for event in said),
-            _admitted(said[-1]) + BOUND_S,
-        )
+    return {
+        thread
         for thread, said in holding.found.waiting.items()
         # A lane keeps back only what arrived while it ran, so a thread the lane
         # going down gave to the session never comes back with the next lane; a
@@ -365,16 +365,20 @@ def kept_back_of(holding: Holding, since: float, handed: set[str]) -> list[KeptB
             and event["id"] not in handed
             for event in said
         )
-    ]
-    return sorted(found, key=lambda thread: thread.until)
+    }
 
 
 def page_holding(page: PageTransaction) -> Holding:
     """Who holds each thread of `page`, the one reading every rule asks
-    (`holding.py`), from its log and its claim (`holding.reading_of`, given the
-    claim's facts as a presence reading carries them): its session, which is live
-    while the claim is active, its agent turns, and its lane of line forks and what
-    they handed over, with each thread Leaf keeps back held by the line fork."""
+    (`holding.py`), from its log, its threads as the fold builds them with the
+    page's containment (`events.build_threads`), and its claim
+    (`holding.reading_of`, given the claim's facts as a presence reading carries
+    them): its session, which is live while the claim is active, its agent turns,
+    and its lane of line forks and what they handed over, with each thread Leaf
+    keeps back held by the line fork."""
+    from .events import build_threads
+    from .revision_artifact import active_enclosing
+
     claim = page.claim
     active = page.active_claim
     return reading_of(
@@ -389,6 +393,7 @@ def page_holding(page: PageTransaction) -> Holding:
             else [],
         },
         now_iso(),
+        build_threads(page.events, active_enclosing(page.page_dir)),
     )
 
 

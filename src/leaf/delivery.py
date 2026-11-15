@@ -1192,19 +1192,17 @@ def deliverable(
             work = read_page(page.page_dir, page.events).work
         owed = unreferenced(page, work.obligations)
         holding = work.holding
-    elif (claim := page.active_claim) is not None and (
-        agent_turn_stamps(claim, page.events) or lane_since(claim["id"]) is not None
-    ):
-        # Only a session with forks has another holder, so a page of any other reads
-        # its log alone. For one with forks, the waiting messages of a thread the
-        # cursor passed while another held it (`holding.not_awaited`), which the main
-        # thread owes now and no pickup ever took in, are its input, as the fold's
-        # debt with no reference is where it reads: a thread a turn took any of them
-        # in from is that turn's, which the fold hands on if it ended with the thread
-        # owed. Such a message is input the cursor passed that no pickup names, which
-        # a session's log seldom holds, so a tool boundary builds the page's reading,
-        # about 50 ms on a page of 41,000 events, only where there is one, or input
-        # is pending.
+    elif (claim := page.active_claim) is not None:
+        # The waiting messages of a thread the cursor passed while another held it
+        # (`holding.not_awaited`), which the main thread owes now and no pickup ever
+        # took in, are its input, as the fold's debt with no reference is where it
+        # reads, whether or not the fork that held them, or the lane, is still up: a
+        # thread a turn took any of them in from is that turn's, which the fold hands
+        # on if it ended with the thread owed. Such a message is input the cursor
+        # passed that no pickup names, which a session's log seldom holds, so a tool
+        # boundary builds the page's reading, about 50 ms on a page of 41,000 events,
+        # only where there is one, or where input is pending in a session with forks,
+        # whose holders keep theirs from it.
         taken = {
             input_id
             for event in page.events
@@ -1218,7 +1216,11 @@ def deliverable(
             and event["id"] not in taken
             and requires_agent_attention(event)
         ]
-        holding = page_holding(page) if pending or passed else None
+        forks = bool(pending) and (
+            bool(agent_turn_stamps(claim, page.events))
+            or lane_since(claim["id"]) is not None
+        )
+        holding = page_holding(page) if passed or forks else None
         if holding is not None and passed:
             pending += [
                 event

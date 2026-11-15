@@ -117,20 +117,20 @@ class Rounds(NamedTuple):
         )
 
 
-def rounds(events: list[dict], threads: dict[str, dict] | None = None) -> Rounds:
-    """The page's threads by their current round, from the log's `threads` as the
-    fold builds them (`events.build_threads`), where the caller has folded the page,
-    and otherwise built here without the page's layer, whose containment decides only
-    which of a widget's dependencies a version's retraction reaches: by the fold's
-    own rule for what an answer settles and what is still owed
-    (`events.settlements`, `events.unanswered_turns`), in a thread that stands open,
-    so a thread the user resolved, or a choice's answer closed, has nothing waiting
-    (`events.awaits_agent`)."""
-    from .events import build_threads, unanswered_turns
+def rounds(events: list[dict], threads: dict[str, dict]) -> Rounds:
+    """The page's threads by their current round, from its log `events` and its
+    `threads` as the fold builds them with the page's containment
+    (`events.build_threads`): by the fold's own rule for what an answer settles and
+    what is still owed (`events.settlements`, `events.unanswered_turns`), in a thread
+    that stands open, so a thread the user resolved, or a choice's answer closed, has
+    nothing waiting (`events.awaits_agent`). Each waiting turn is the logged event,
+    as every delivery hands it over, not the thread's reading of it, which carries a
+    rewrite's words in its message."""
+    from .events import unanswered_turns
     from .thread_context import thread_names
 
-    threads = build_threads(events, {}) if threads is None else threads
     names = dict(thread_names(events))
+    logged: dict[str, dict] | None = None
     waiting: dict[str, list[dict]] = {}
     lined: set[str] = set()
     answers: dict[str, dict] = {}
@@ -138,7 +138,9 @@ def rounds(events: list[dict], threads: dict[str, dict] | None = None) -> Rounds
         for revision in held["revisions"]:
             names[revision["id"]] = thread
         if not held["resolved"] and (said := unanswered_turns(held)):
-            waiting[thread] = said
+            if logged is None:
+                logged = {event["id"]: event for event in events}
+            said = waiting[thread] = [logged[turn["id"]] for turn in said]
             # The seq of the newest working message of the agent's in the thread.
             working = max(
                 (
@@ -367,14 +369,11 @@ def reading(
 
 
 def reading_of(
-    events: list[dict],
-    present: dict,
-    now_iso: str,
-    threads: dict[str, dict] | None = None,
+    events: list[dict], present: dict, now_iso: str, threads: dict[str, dict]
 ) -> Holding:
     """Who holds each thread of a page, the one builder every reading goes through:
-    from its log `events` (`reading`), its `threads` where the caller has folded
-    them (`rounds`), and the facts a presence reading carries of its claim
+    from its log `events` (`reading`) and its `threads` (`rounds`), and the facts a
+    presence reading carries of its claim
     (`presence.presence_with_activity`): the claimant's session (`claim_session`)
     and its agent turns (`agent_turns`), which may run only while the session is
     alive (`session_alive`) at `now_iso`, and, for a lane of its line forks
@@ -399,10 +398,7 @@ def reading_of(
     from .forks import kept_back_of
 
     return held.keeping(
-        {
-            kept.thread
-            for kept in kept_back_of(held, present["fork_lane"], set(present["handed"]))
-        }
+        kept_back_of(held, present["fork_lane"], set(present["handed"]))
     )
 
 

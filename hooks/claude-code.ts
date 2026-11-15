@@ -591,8 +591,11 @@ async function endFork($: EngineInterface, agentId: string, fork: Fork) {
 }
 
 /** Tell Leaf again of each fork's end it hasn't heard of (`endFork`), as a
- * main-loop turn ends and as the pages follower lists the session's pages, which
- * it does while the session is idle too. */
+ * main-loop turn ends and as the pages follower lists a change to the session's
+ * pages, which it does while the session is idle too: each change the user makes on
+ * a page, when a fork shown working there would mislead them. Untold, the fork's turn
+ * lapses within the working grace of its last renewal, which gives its thread to the
+ * main thread, so no clock of the module's own retries it. */
 async function endForks($: EngineInterface) {
   for (const [agentId, fork] of Object.entries((await $.state.get(FORKS)).value ?? {}))
     if (fork.ended !== undefined) void endFork($, agentId, fork);

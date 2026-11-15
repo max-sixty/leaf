@@ -897,7 +897,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
-        holding=holding_model.reading_of([], present, now.isoformat()),
+        holding=holding_model.reading_of([], present, now.isoformat(), {}),
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)

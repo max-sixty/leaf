@@ -127,12 +127,13 @@ that took a thread's work (`forks.py`), and each run of one is a turn of its own
 the session's agent-turns record (`state.AGENT_TURNS`). Leaf opens it as a fork takes
 a thread, before the harness starts or resumes the agent, and names it with the
 agent's harness id: as it opens it for an agent it resumes, and once the harness has
-started a new one, within a minute or the turn lapses (`activity.STARTING_GRACE`). The
-agent's tool boundary renews it, and it closes as the harness says the run ended, or
+started a new one. The harness confirms the start of either within a minute of the
+opening, or the turn lapses (`activity.STARTING_GRACE`); the confirmation and the
+agent's tool boundaries renew it, and it closes as the harness says the run ended, or
 with the session's generation or instance. A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
-claimant's agent turns that are open or that its log names (`agent_turns`), each with
-its agent's id, and the fold believes
+claimant's agent turns that are open and not yet lapsed or that its log names
+(`agent_turns`), each with its agent's id, and the fold believes
 one running while it is open and renewed within the working grace
 (`activity.running_agent_turns`).
 

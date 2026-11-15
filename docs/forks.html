@@ -655,25 +655,30 @@ flowchart TD
             a to-do another turn wrote. The judgment says who owes the thread next. A
             message the user took back counts for nothing. Leaf's clerk tells the main
             thread of every outcome except <code>taken_over</code>, since the turn that
-            took the thread over already has it.
+            took the thread over already has it, and <code>resolved</code>, since the
+            thread owes nothing.
             <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <figure id="ending-figure" class="diagram-figure">
-            <lf-diagram id="ending-flow" data-height="629" parts="all">
+            <lf-diagram id="ending-flow" data-height="777" parts="all">
               <pre>
 flowchart TD
   accTitle: How Leaf judges a thread when a fork's run ends
-  accDescr: When a fork's run ends, Leaf closes its turn. If a message it picked up still waits and its closed turn still holds the thread, the outcome is hand_back. If another turn holds one of them or answered it, taken_over. Otherwise the fork answered every one: todo where a reply of its own opened a to-do on the thread that is still open, else answer.
+  accDescr: When a fork's run ends, Leaf closes its turn. If the user resolved the thread with a message the fork picked up unanswered, the outcome is resolved. If a message it picked up still waits and its closed turn still holds the thread, hand_back. If another turn holds one of them or answered it, taken_over. Otherwise the fork answered every one: todo where a reply of its own opened a to-do on the thread that is still open, else answer.
   ends["The run ends; Leaf closes the fork's turn"]
+  q0("Did the thread close with no message it picked up answered?")
   q1("Is a message it picked up still waiting, held by its closed turn?")
   q2("Does another turn hold one of them, or did another turn answer one?")
   q3("Did a reply of its own open a to-do on the thread that is still open?")
+  resolved["resolved"]
   hand["hand_back"]
   taken["taken_over"]
   todo["todo"]
   answer["answer"]
-  ends --&gt; q1
+  ends --&gt; q0
+  q0 -- yes --&gt; resolved
+  q0 -- no --&gt; q1
   q1 -- yes --&gt; hand
   q1 -- no --&gt; q2
   q2 -- yes --&gt; taken
@@ -746,6 +751,14 @@ flowchart TD
                   diagnostics name that turn.
                 </td>
               </tr>
+              <tr id="ending-resolved">
+                <th scope="row"><code>resolved</code></th>
+                <td>
+                  The user resolved the thread, or a choice's answer closed it, while
+                  the fork worked, and no message it picked up was answered.
+                </td>
+                <td>Nothing: the thread owes nothing.</td>
+              </tr>
             </tbody>
           </table>
 
@@ -756,16 +769,17 @@ flowchart TD
               no row in its transcript, and no notification or wake when its first run
               ends. So Leaf tells it, in lines its clerk queues: one as a fork takes a
               thread, naming the fork's agent id so the main thread can SendMessage it,
-              and one as the fork's run ends. A resumed fork's take line goes at the
-              take; a new fork's waits until Claude Code has started it, since Leaf
-              learns its id only then. A line waits for the main thread's next tool
-              boundary or prompt; a take's line still waiting as the fork's run ends
-              leaves the queue, since the end's line says where the thread stands. Where
-              the run leaves the main thread owing something, the answer to a thread the
-              fork gave back or a to-do the fork opened, Leaf also wakes an idle session
-              for it. The end of a resumed run is different: Claude Code notifies the
-              main thread of it, which starts a turn on an idle session, and that turn
-              reads the queued lines.
+              and one as the fork's run ends. A take's line waits until the hooks module
+              says the fork runs (<code>forks.started</code>): once Claude Code has
+              started a new fork, since Leaf learns its id only then, and once it has
+              delivered a resumed fork's message. A line waits for the main thread's
+              next tool boundary or prompt; a take's line still waiting as the fork's
+              run ends leaves the queue, since the end's line says where the thread
+              stands. Where the run leaves the main thread owing something, the answer
+              to a thread the fork gave back or a to-do the fork opened, Leaf also wakes
+              an idle session for it. The end of a resumed run is different: Claude Code
+              notifies the main thread of it, which starts a turn on an idle session,
+              and that turn reads the queued lines.
               <span class="tag ok">built</span>
               <span class="tag">only with the flag</span>
             </p>

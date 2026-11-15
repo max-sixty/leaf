@@ -1686,6 +1686,12 @@ function layoutMovedPage() {
   layoutMarginRows();
 }
 
+// A pass reads only the rows whose records a change dropped (`seatings`), but it still
+// seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
+// all of them, and each row's seat is set again. That is about 8 ms a pass on the
+// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// whose records were dropped and the rows their new seats push, and leave every other
+// row as it stands.
 /** @param {Layer} layer */
 function layoutMountedRows(layer) {
   pass += 1;

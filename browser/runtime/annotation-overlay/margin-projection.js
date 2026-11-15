@@ -495,6 +495,13 @@ export function createMarginProjection({
     };
   }
 
+  // A marker's name says its place among the markers and how far down the column its
+  // target stands. So a marker joining or leaving renames every marker, and every
+  // render that names markers reads every target's box (`readSpokenPositions`): about
+  // 9 ms of a comment's send on the 1,024-section page `leaf-dev bench` generates. Not
+  // yet built, since it changes what a screen reader hears: say the place and the
+  // distance down only for the marker focus is on, read when it takes focus, so a
+  // render names only the markers it drew.
   /** @param {Entry} entry @param {number} index @param {number} anchored @param {number | null | undefined} position */
   function markerName(entry, index, anchored, position) {
     const choice = primaryReading(entry);

@@ -46,13 +46,13 @@ wrapper; any other element only where every other heading inside ranks below it,
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
 An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
-inside it. Every element between the two is titled by the heading too. The headings
-that count are those the reading of its document lists, the page's or a message's,
-Leaf's chrome aside, and "first" means
-first in reading order, which a slot can reorder; a heading the reading doesn't read,
-such as one in a host's children that no slot shows, titles only itself. `lf-toc` links
+inside it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
-them.
+them. The headings that count are those the reading of its document lists, the page's
+or a message's, Leaf's chrome aside, and "first" means first in reading order, which
+the slots of a widget declaring `x-shadow` can reorder. A heading the reading doesn't
+read, such as one among such a widget's children that none of its slots shows, titles
+only itself.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.

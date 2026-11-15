@@ -2065,7 +2065,8 @@ export function pageReadingVersion() {
  * keeps while that reading stands, under the reader's own `owner`: made by `make` for
  * each new reading and dropped with the old one, so an answer holding the document's
  * nodes keeps none past a change that removes them. A document the watcher doesn't
- * hear, such as a message body outside the page, is answered afresh each time.
+ * hear, such as a message body no longer in this document, detached or in another,
+ * is answered afresh each time.
  * @template T @param {Element} scope @param {object} owner @param {() => T} make
  * @returns {T} */
 export function keptWithReading(scope, owner, make) {

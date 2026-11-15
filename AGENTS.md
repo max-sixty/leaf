@@ -105,7 +105,9 @@ collections for each member of another, as finding each obligation's heading by
 reading every heading did, grows with the square of the page. So does a style or
 layout pass forced once per element, since each pass can cover the whole page
 (`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev bench` measures how each
-cost grows with the page.
+cost grows with the page and reports it for a reader to judge; no test or job
+passes or fails on a reading (`tests/AGENTS.md`, "Results do not depend on
+execution speed").
 
 ## Pages across Leaf updates
 

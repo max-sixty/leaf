@@ -59,10 +59,18 @@ that element's `value`, which may be an object:
 
 ```js
 this.value = { category: "rent", amount: 40 };
-target.dispatchEvent(
-  new CommandEvent("command", { command: "--set-amount", source: this }),
+const taken = target.dispatchEvent(
+  new CommandEvent("command", {
+    command: "--set-amount",
+    source: this,
+    cancelable: true,
+  }),
 );
 ```
+
+A target that refuses a request calls `event.preventDefault()`, so `taken` is `false`
+and the asker puts back what it showed. A request the target takes shows in the value
+it holds next, which may differ from what was asked, as when a budget clamps an amount.
 
 A module that draws the button writes the same attributes, taking the id from its own
 reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow

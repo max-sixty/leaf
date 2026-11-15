@@ -75,7 +75,7 @@ test("a nearest landing during a glide aims from where the glide is headed", () 
   ahead.scroller.remove();
 });
 
-test("an instant landing lands the glide headed for its destination", () => {
+test("an instant landing takes the box from the glide", () => {
   // Out of view now, at 1100..1200, and shown where the glide to 2000 leaves it.
   const ahead = laidOut(2100);
   ahead.scrollTo(1000);
@@ -85,6 +85,15 @@ test("an instant landing lands the glide headed for its destination", () => {
   assert.equal(scrollGoal(ahead.scroller), 2000);
   stopGlide(ahead.scroller);
   ahead.scroller.remove();
+
+  // Centred now, at 150..250, and carried 1000px up by the glide to 2000.
+  const centred = laidOut(1150);
+  centred.scrollTo(1000);
+  glideTo(centred.scroller, 2000);
+  scrollIntoView(centred.box, { block: "center", behavior: "instant" });
+  assert.equal(scrollGoal(centred.scroller), 1000, "the glide carried the box away");
+  stopGlide(centred.scroller);
+  centred.scroller.remove();
 });
 
 test("a sideways reveal during a glide leaves the glide going", () => {

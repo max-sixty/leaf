@@ -127,17 +127,17 @@ import { setScroll } from "./arrivals.js";
 // from its start (`startScroll`), unless it returns them to a place they had (`kept`,
 // scrolling.js, `placeKept`). `by.top` counts from `from`: where the box stands, or
 // for the reading band's moves where its glide is headed (`readingBandMoves`). An
-// instant landing takes the box from a glide under way only where it moves the box
-// down or up: a move across, as the walk before a reading region makes to reveal a
-// box sideways (`innerMoves`), leaves the glide going, so the region's landing after
-// it still aims from the glide's goal. Stopped there, a sideways reveal pressed during
-// a glide landed from where the page stood.
+// instant landing takes the box from a glide under way, even to put it where it
+// stands, unless it only moves the box across: that move, as the walk before a
+// reading region makes to reveal a box sideways (`innerMoves`), leaves the glide going,
+// so the region's landing after it still aims from the glide's goal. Stopped there, a
+// sideways reveal pressed during a glide landed from where the page stood.
 /** @param {Element} box @param {{top?: number, left?: number}} by @param {ScrollBehavior} behavior @param {boolean} [kept] @param {number} [from] */
 const land = (box, by, behavior, kept = false, from = box.scrollTop) => {
   const top = from + (by.top ?? 0);
   if (glides(box, behavior)) return glideTo(box, top);
   const { scrollTop, scrollLeft } = box;
-  if (Math.abs(top - scrollTop) >= 1) stopGlide(box);
+  if (by.top || from !== scrollTop) stopGlide(box);
   setScroll(box, { top, left: scrollLeft + (by.left ?? 0), behavior: "instant" });
   if (box.scrollTop === scrollTop && box.scrollLeft === scrollLeft) return;
   if (kept) placeKept(box);
@@ -445,8 +445,8 @@ export function landedBox(where) {
 // shows its destination now, as a replaced view must, and not at the glide's end.
 /** @param {Destination} where @param {Element | null} holder @param {ScrollLogicalPosition} block @param {ScrollBehavior} behavior */
 function scrollIntoReadingBand(where, holder, block, behavior, kept = false) {
-  for (const { box, local, moved, ahead } of readingBandMoves(where, holder, block)
-    .moves)
+  const { moves } = readingBandMoves(where, holder, block);
+  for (const { box, local, moved, ahead } of moves)
     if (Math.abs(moved) >= 1 || (Math.abs(ahead) >= 1 && !glides(box, behavior)))
       land(box, { top: local }, behavior, kept, scrollGoal(box));
 }

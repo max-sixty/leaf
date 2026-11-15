@@ -1437,6 +1437,41 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
         expect(page.locator("#after")).to_be_focused()
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_down_a_side_list_longer_than_the_window_keeps_each_tab_in_view(
+    request, serve, engine
+):
+    """A side list given no height to fill scrolls with the page, past the window's
+    foot. Each arrow opens the next tab and keeps focus on it in the window, past the
+    foot and, coming round, back at the head. A tab left past the foot was out of
+    sight, so the next arrow let go of it (keyboard/controller.js), focus fell to the
+    page and no tab opened."""
+    views = "".join(
+        f'<lf-tab id="item-{i}" label="Item {i}"><p>Item {i} is prose.</p></lf-tab>'
+        for i in range(16)
+    )
+    source = leaf_page(
+        "Long queue",
+        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{views}</lf-tabs>',
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1200, 500)
+    tabs = page.locator("#queue").get_by_role("tab")
+    expect(tabs.last).not_to_be_in_viewport()
+    tabs.first.click()
+    expect(tabs.first).to_be_focused()
+    # Down every tab and round to the first, then up round to the last and past it.
+    for key, landing in [("ArrowDown", i % 16) for i in range(1, 17)] + [
+        ("ArrowUp", 15),
+        ("ArrowUp", 14),
+    ]:
+        page.keyboard.press(key)
+        tab = tabs.nth(landing)
+        expect(tab).to_be_focused()
+        expect(tab).to_have_attribute("aria-selected", "true")
+        expect(tab).to_be_in_viewport(ratio=0.99)
+
+
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
     """A screen reader names each list of tabs, so a page's several sets can be told
     apart: the page's navigation by the page's title, a set in a section by the

@@ -1301,14 +1301,13 @@ export const says = (el, options = {}) => {
 };
 /** The start of what an element says, as `says` reads it, for a reader that shows no
  * more than that: read no further than `upTo` characters other than whitespace and, in
- * the lines format, `lines` line breaks (`textNodesUnder`), leaving out the words of each
- * element `skip` answers true for. `cut` is whether a bound ended it with words still to
- * follow, so the reader can say the place runs on.
+ * the lines format, `lines` line breaks (`textNodesUnder`). `cut` is whether a bound ended
+ * it with words still to follow, so the reader can say the place runs on.
  * @param {Node} el
- * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number, lines?: number, skip?: ((element: Element) => boolean) | null}} options
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number, lines?: number}} options
  * @returns {{text: string, cut: boolean}} */
 export function excerpt(el, options) {
-  const segments = textNodesUnder(el, "says", options.skip, options.format, options);
+  const segments = textNodesUnder(el, "says", null, options.format, options);
   return {
     text: options.format === "lines" ? linesFrom(segments) : quoteFrom(segments),
     cut: segments.at(-1)?.cut === true,
@@ -3544,11 +3543,18 @@ export function* pageMatches(query) {
   for (const mark of marks.slice(m)) yield* inPart(mark);
 }
 
+// How many characters of the words on each side of something a description of it
+// says.
+export const AROUND = 28;
 // Display context completes its outer language-aware word within the local window.
 // Oversized tokens use the existing bounded excerpt; stored anchors retain their exact
 // character windows. Search and Design descriptions share this presentation reading.
 /** @param {PageReading} text @param {readonly Segment[]} segments @param {{before?: number, after?: number}} [options] */
-export function contextAround(text, segments, { before = 28, after = 28 } = {}) {
+export function contextAround(
+  text,
+  segments,
+  { before = AROUND, after = AROUND } = {},
+) {
   const [start, end] = spanIn(text, segments);
   /** @param {number} at @param {number} length @param {boolean} backwards */
   function side(at, length, backwards) {

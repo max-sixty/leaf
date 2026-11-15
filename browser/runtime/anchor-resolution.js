@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { labelWords } from "./words.js";
+import { excerptWords, labelWords, lastWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -32,6 +32,7 @@ import {
 import {
   blockAt,
   closestAcross,
+  AROUND,
   cut,
   contextAround,
   neighbourhood,
@@ -62,6 +63,7 @@ import {
   accessibleName,
   addressableLabel,
   addressableWord,
+  LABEL_WORDS,
   ownName,
 } from "./addressable-names.js";
 
@@ -498,32 +500,45 @@ const namedParts = (owner, name) =>
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
-// The most of its block's and its own words, other than whitespace, a control's spoken
-// context reads, as much as a preview shows of a paragraph (place-preview.js). A
-// picture can be its own block, as a text document's view is, and reading all of one
-// made each move of the pointer over a document of 50,000 lines in Design mode take 0.3
-// to 1.7 s.
-const CONTEXT_READ = 280;
-/** @param {Element} element @param {((element: Element) => boolean) | null} [skip] */
-const contextWords = (element, skip = null) => {
-  const said = excerpt(element, { upTo: CONTEXT_READ, skip });
-  return said.cut ? `${said.text}…` : said.text;
-};
-// Spoken context includes prose and this control's visible face, never a neighbour's
-// label. The shared block prose is read once per inventory, stepping over every
-// control; chosen capture stays lazy.
-/** @param {Element} control @param {Map<Element, string>} contexts */
+// What a press in Design mode can take as a part: a control, or a picture.
+const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
+/** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */
+// A control's spoken words: its block's words on each side of it, at most `AROUND`
+// characters a side as every description of what stands around something reads them
+// (`contextAround`), with its own between. Every part's words are left out of its
+// block's, so a neighbour's label never names this one, and a picture says none of its
+// own, since its name describes it: a text document's view is a picture of the whole
+// document, which read all of it twice for every move of the pointer over it in Design
+// mode, 0.3 to 1.7 s on a document of 50,000 lines. Other controls say their own words
+// as a label does (`LABEL_WORDS`). A block is read once per inventory, noting where each
+// part stands in it; chosen capture stays lazy.
+/** @param {Element} control @param {Map<Element, BlockWords>} contexts */
 function controlContext(control, contexts) {
+  const own = control.matches(genericVisualSelector)
+    ? ""
+    : excerptWords(excerpt(control, { upTo: LABEL_WORDS + 1 }).text, LABEL_WORDS);
   const block = blockAt(control);
-  if (!block) return "";
-  if (!contexts.has(block))
-    contexts.set(
-      block,
-      closestAcross(block, WORKS)
-        ? ""
-        : contextWords(block, (element) => element.matches(WORKS)),
-    );
-  return [contexts.get(block), contextWords(control)].filter(Boolean).join(" ");
+  if (!block || block === control || closestAcross(block, WORKS)) return own;
+  let words = contexts.get(block);
+  if (!words) {
+    /** @type {Map<Element, number>} */
+    const at = new Map();
+    const segments = textNodesUnder(block, "says", (element, count) => {
+      if (!element.matches(DESIGN_PARTS)) return false;
+      at.set(element, count);
+      return true;
+    });
+    contexts.set(block, (words = { segments, at }));
+  }
+  const split = words.at.get(control);
+  if (split === undefined) return own;
+  return [
+    lastWords(quoteFrom(words.segments.slice(0, split)), AROUND),
+    own,
+    excerptWords(quoteFrom(words.segments.slice(split)), AROUND),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 // Keep inline emphasis in one label passage, but never cross the nested field's
 // words or native box to pretend its options are part of the visible label.
@@ -580,7 +595,7 @@ function visiblePassage(segments) {
 }
 
 /** @param {Node | null} node @param {AimOptions["marginTargetAt"]} marginTargetAt
- * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, string>}} [reading] @returns {AimTarget | null} */
+ * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, BlockWords>}} [reading] @returns {AimTarget | null} */
 function designTargetAt(
   node,
   marginTargetAt,
@@ -590,9 +605,7 @@ function designTargetAt(
   let at = node instanceof Element ? node : node?.parentElement;
   if (!at) return null;
   const pressed = designPressAt(at);
-  const control = pressed?.matches(`${WORKS},${genericVisualSelector}`)
-    ? controlIdentity(pressed)
-    : null;
+  const control = pressed?.matches(DESIGN_PARTS) ? controlIdentity(pressed) : null;
   const visual = visualAt(at, { unclaimed: false });
   const declared = declaredVisualSelector();
   if (declared && visual?.element.matches(declared)) at = visual.element;

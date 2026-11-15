@@ -3202,33 +3202,44 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     )
 
 
-def test_a_design_target_s_spoken_name_says_a_phrase_of_a_long_document(browser, serve):
-    """Over a text document, Design mode aims at its view, a picture whose own words
-    are the whole document. The name the picker speaks for it says a phrase of them:
-    read whole at each move of the pointer, a document of 50,000 lines made each move
-    take 0.3 to 1.7 s (anchor-resolution.js, `controlContext`)."""
+def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
+    """The name the picker speaks for a part in Design mode says its block's words on
+    each side of it, so a control far into a long paragraph is told apart by the words
+    beside it. A picture says none of its own words, since its name describes it: over
+    a text document Design mode aims at its view, a picture of the whole document, whose
+    name once read all of it twice at each move of the pointer, 0.3 to 1.7 s on a
+    document of 50,000 lines (anchor-resolution.js, `controlContext`)."""
+    filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Document",
+                "Parts",
+                f'<section id="prose"><p>{filler} beside the <button type="button">'
+                "Keep</button> after it.</p></section>"
                 '<lf-text-document id="doc" label="notes.txt">'
                 f"<pre>{lines}</pre></lf-text-document>",
             )
         ),
     )
-    row = page.locator("#doc .lf-text-document-run > div").first
-    expect(row).to_be_visible()
-    label = page.evaluate(
+    expect(page.locator("#doc .lf-text-document-run > div").first).to_be_visible()
+    labels = page.evaluate(
         """async () => {
           const {aimTargetAt} = await window.__lfCheckApi();
-          const row = document.querySelector('#doc .lf-text-document-run > div');
-          return aimTargetAt(row, {design: true}).label;
+          const label = (selector) =>
+            aimTargetAt(document.querySelector(selector), {design: true}).label;
+          return {
+            button: label('#prose button'),
+            document: label('#doc .lf-text-document-run > div'),
+          };
         }"""
     )
-    assert "line 0 of the document" in label, label[:200]
-    assert len(label) < 1000, f"the name said all {len(label)} characters"
+    button, document = labels["button"], labels["document"]
+    assert "beside the Keep after it" in button, button
+    assert len(button) < 300, f"the name said {len(button)} characters"
+    assert "line 0 of the document" not in document, document[:200]
+    assert len(document) < 300, f"the name said {len(document)} characters"
 
 
 def _label_stands_on_the_aim(page, target):

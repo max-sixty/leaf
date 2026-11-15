@@ -43,7 +43,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
@@ -59,7 +59,7 @@ from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT, plain_html
+from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
     admit_events,
@@ -181,25 +181,36 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
 
 
 def run_leaf(
-    arm: Path,
-    state: Path,
+    arm: Path | None,
+    state: Path | None,
     *args: str,
+    env: dict[str, str] | None = None,
     check: bool = False,
+    error: Callable[[str], BaseException] = click.ClickException,
     timeout: float | None = None,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run an arm's launcher under its state home, without personal configuration."""
+    """Run `arm`'s launcher, or where `arm` is None this environment's own Leaf
+    (`LEAF_COMMAND`), and capture what it says. It runs in `env`, by default this
+    process's environment less the agent session it may run in (`environment`),
+    under the state home `state` where one is given, and without personal
+    configuration (`fixture_environment`). With `check`, a nonzero exit raises
+    `error` with the command, its status and its output."""
+    command = [*LEAF_COMMAND] if arm is None else [str(arm / "bin/leaf")]
+    base = environment() if env is None else dict(env)
+    if state is not None:
+        base["XDG_STATE_HOME"] = str(state)
     proc = subprocess.run(
-        [str(arm / "bin/leaf"), *args],
+        [*command, *args],
         input=input_text,
         capture_output=True,
         text=True,
         check=False,
         timeout=timeout,
-        env=fixture_environment(environment(XDG_STATE_HOME=str(state))),
+        env=fixture_environment(base),
     )
     if check and proc.returncode:
-        raise click.ClickException(
+        raise error(
             f"leaf {' '.join(args)} exited {proc.returncode}:\n{proc.stdout}{proc.stderr}"
         )
     return proc

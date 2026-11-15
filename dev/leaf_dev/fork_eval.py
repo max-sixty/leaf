@@ -81,6 +81,7 @@ from leaf_dev.arms import (
     claude_child,
     environment,
     read_trace,
+    run_leaf,
     trace_result,
 )
 from leaf_dev.eval_cases import definition
@@ -268,20 +269,17 @@ class Leaf:
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):
-        result = subprocess.run(
-            [str(self.payload / "bin/leaf"), *args],
-            input=json.dumps({"session_id": self.session, **stdin}) if stdin else None,
-            capture_output=True,
-            text=True,
+        return run_leaf(
+            self.payload,
+            None,
+            *args,
             env=self.env,
-            check=False,
+            check=check,
+            error=RuntimeError,
+            input_text=json.dumps({"session_id": self.session, **stdin})
+            if stdin
+            else None,
         )
-        if check and result.returncode:
-            raise RuntimeError(
-                f"leaf {' '.join(args)} exited {result.returncode}: "
-                + result.stderr.strip()
-            )
-        return result
 
     def fork(self, payload: dict, *, check: bool = True):
         """One step of a fork, as `forkStep` runs it: what it printed, or with

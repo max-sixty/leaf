@@ -11,11 +11,13 @@ later edits to the source checkout cannot change another copy's result. Installe
 Node dependencies are shared as inputs; generated test output belongs to its copy.
 Each copy is one process (`-n0`: the copies are the concurrency).
 
-Runs on one machine take turns, because `WORKERS` sizes the load of a run alone on it.
-A run snapshots the working tree and collects its tests straight away, then holds a
-lock in Leaf's state home while its copies run, so a second run's copies wait for the
-first's to finish. Copies of overlapping runs would stack, and neither run's result
-would come from the load `WORKERS` sets.
+The copies are load that exists only to compete for the machine, so on macOS each one
+runs in the background band (`taskpolicy -b`), which gives it only the CPU and disk the
+machine's other work leaves, on the efficiency cores. The copies still compete with
+each other, `WORKERS` at a time. Beside other runs or other sessions' work, a run takes
+longer rather than slowing them, though the band shares out CPU and disk, not memory.
+A slower copy reports the same result, because the suite's results don't depend on
+execution speed (`tests/AGENTS.md`, "Results do not depend on execution speed").
 
 A load flake that a slower CI runner shows and this machine doesn't can need a slower
 CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option, which
@@ -27,6 +29,7 @@ copy of every test passed; a skip is not a pass.
 """
 
 import shutil
+import sys
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -35,12 +38,12 @@ from pathlib import Path
 
 import click
 
-from leaf.state import flocked, state_home
 from leaf_dev import ROOT
 from leaf_dev.suite import checkout, collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6
+BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
 OUT = ROOT / ".tmp" / "flake"
@@ -60,9 +63,8 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
 
     Runs SELECTION, pytest node ids from the working tree, as 18 copies six at a
     time, and prints each test's count per outcome and every failure's message; each
-    copy's output stays under .tmp/flake/. A run started while another is running
-    waits for it to finish. Exits 1 unless every copy of every test
-    passed.
+    copy's output stays under .tmp/flake/. On macOS the copies run at background
+    priority. Exits 1 unless every copy of every test passed.
     """
     OUT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
@@ -81,17 +83,23 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
             target = scratch / f"copy-{n:02}"
             checkout(candidate, target)
             try:
-                return run(target, selection, items, out / target.name, *options)
+                return run(
+                    target,
+                    selection,
+                    items,
+                    out / target.name,
+                    *options,
+                    under=BACKGROUND,
+                )
             finally:
                 shutil.rmtree(target)
 
-        with flocked(state_home() / "flake.lock"):
-            pool = ThreadPoolExecutor(WORKERS)
-            try:
-                copies = list(pool.map(copy, range(1, COPIES + 1)))
-            finally:
-                # On Ctrl-C, start no more copies; the running ones stop with it.
-                pool.shutdown(cancel_futures=True)
+        pool = ThreadPoolExecutor(WORKERS)
+        try:
+            copies = list(pool.map(copy, range(1, COPIES + 1)))
+        finally:
+            # On Ctrl-C, start no more copies; the running ones stop with it.
+            pool.shutdown(cancel_futures=True)
 
     click.echo(f"| test | {' | '.join(RESULTS)} |\n|---|{'---|' * len(RESULTS)}")
     for item in items:

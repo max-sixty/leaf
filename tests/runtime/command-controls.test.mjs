@@ -469,8 +469,8 @@ test("the scopes inside a widget are found once each, however deep its slots nes
   }
   document.body.append(outer);
   const slotReads = { count: 0 };
-  const read = window.HTMLSlotElement.prototype.assignedElements;
-  window.HTMLSlotElement.prototype.assignedElements = function (...args) {
+  const read = window.HTMLSlotElement.prototype.assignedNodes;
+  window.HTMLSlotElement.prototype.assignedNodes = function (...args) {
     slotReads.count++;
     return read.apply(this, args);
   };
@@ -482,7 +482,7 @@ test("the scopes inside a widget are found once each, however deep its slots nes
     // At most one reading of each slot's assignment.
     assert.ok(slotReads.count <= depth + 1, `${slotReads.count} slot readings`);
   } finally {
-    window.HTMLSlotElement.prototype.assignedElements = read;
+    window.HTMLSlotElement.prototype.assignedNodes = read;
     outer.remove();
   }
 });

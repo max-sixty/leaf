@@ -99,19 +99,52 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 /** @param {Node | null | undefined} node @returns {Element | null} */
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
-// The same step taken down: the elements whose `renderedParent` is `element`. A slot's
-// assigned elements, each once, slots forwarded into it included; a host's open shadow
-// tree; and the light children no slot takes. A closed tree answers no `shadowRoot` and
-// hides its slots from `assignedSlot`, so its elements are left to whoever holds the
-// tree, as the climb leaves its host's light children in place.
-/** @param {Element} element @returns {Element[]} */
-export const renderedChildElements = (element) => [
-  ...(isHTML(element, "slot")
-    ? element.assignedElements().filter((child) => child.assignedSlot === element)
-    : []),
-  ...(element.shadowRoot?.children ?? []),
-  ...[...element.children].filter((child) => !child.assignedSlot),
-];
+// The same step taken down, as the browser draws the tree: `each` is handed each node
+// drawn as `node`'s child, in order, and `eachRenderedElement` each element. A slot in a
+// shadow tree draws what is assigned to it, a slot forwarded into it among them, or its
+// own children where nothing is; anywhere else a slot is an ordinary element. A host
+// draws the shadow root `rootOf` names in place of its children, and a light child only
+// through a slot there: its open root by default, and its children where it names none,
+// so a walk names the tree it reads: the page reading enters only declared roots
+// (passages.js, `readingChildren`), the keyboard's walk a closed stage too, and a walk of
+// one tree none. Each steps from sibling to sibling, as a walk does (browser/AGENTS.md,
+// "One answer for each question"), since Chromium keeps a node's `children` or
+// `childNodes` list for the node's life once it is asked for. A walk of elements steps
+// over the text between them unasked: handed every node, Tab stops over a 5,000-row
+// table took Chromium a third longer.
+/** @typedef {(host: Element) => ShadowRoot | null} RootOf */
+/** @param {Element} host */
+const openRoot = (host) => host.shadowRoot;
+// What `node` draws its children from: the nodes a slot draws in their place, or the
+// node or root whose own children they are.
+/** @param {Node} node @param {RootOf} rootOf @returns {Node[] | Node} */
+function drawnFrom(node, rootOf) {
+  if (isHTML(node, "slot") && isShadowRoot(node.getRootNode())) {
+    const assigned = node.assignedNodes();
+    if (assigned.length) return assigned;
+  }
+  return (isElement(node) && rootOf(node)) || node;
+}
+/** @param {Node} node @param {(child: Node) => void} each @param {RootOf} [rootOf] */
+export function eachRenderedChild(node, each, rootOf = openRoot) {
+  const from = drawnFrom(node, rootOf);
+  if (Array.isArray(from)) for (const child of from) each(child);
+  else for (let child = from.firstChild; child; child = child.nextSibling) each(child);
+}
+/** @param {Node} node @param {(child: Element) => void} each @param {RootOf} [rootOf] */
+export function eachRenderedElement(node, each, rootOf = openRoot) {
+  const from = drawnFrom(node, rootOf);
+  if (Array.isArray(from)) {
+    for (const child of from) if (isElement(child)) each(child);
+    return;
+  }
+  for (
+    let child = /** @type {Partial<ParentNode>} */ (from).firstElementChild;
+    child;
+    child = child.nextElementSibling
+  )
+    each(child);
+}
 
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an

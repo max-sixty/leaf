@@ -1,4 +1,9 @@
-import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
+import {
+  generatedElement,
+  keeps,
+  titledElement,
+  viewDocument,
+} from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
  * section's marks (toc-marks.js): a mark for its open threads and one for its On me
@@ -213,19 +218,29 @@ export function drawToc(host, headingReading) {
   };
 }
 
-// A section's destination: the identified section it titles, where an eyebrow and
-// heading arrive as one title and the public fragment names the section rather than
-// its label; else the hgroup that owns its heading, so an eyebrow and title share one
-// address and measured box, for h1 as for every level; else the heading. One without an
-// id is lent an `lf-` id, which no reader of the page's ids takes for one its author
-// wrote (`ADDRESSABLE`). The id goes on the destination rather than on an element
-// inserted beside it, because an inserted element changes which child a page rule
-// finds first or last and what an `h2 + p` rule finds next to the heading.
-/** @param {HTMLElement} host @param {Element} heading @param {number} position */
-function destinationFor(host, heading, position) {
-  const section = heading.closest("section[id]");
-  if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-  const destination = heading.closest("hgroup") ?? heading;
+// A section's destination: the outermost element its author identified above the
+// heading, up to the element the heading titles (`titledElement`) and short of the
+// document the outline covers, so the public fragment names the section or question the
+// heading opens rather than its label; else the hgroup that owns its heading, so an
+// eyebrow and title share one address and measured box, for h1 as for every level;
+// else the heading. The outline's start row stands for the document it covers, so a
+// heading leading a tab's view, whose document is the tab, links to its own place
+// rather than to the tab. One without an id is lent an `lf-` id, which no reader of the
+// page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the
+// destination rather than on an element inserted beside it, because an inserted
+// element changes which child a page rule finds first or last and what an `h2 + p`
+// rule finds next to the heading.
+/** @param {HTMLElement} host @param {Element} scope the document the outline covers
+ * @param {Element} heading @param {number} position */
+function destinationFor(host, scope, heading, position) {
+  const titled = titledElement(heading);
+  let destination = heading;
+  for (let at = heading; at !== titled;) {
+    at = /** @type {Element} */ (at.parentElement);
+    if (at === scope) break;
+    if (at.localName === "hgroup" || (at.id && !at.id.startsWith("lf-")))
+      destination = at;
+  }
   return lend(host, destination, position);
 }
 
@@ -266,11 +281,13 @@ function readOutline(host, { label, chrome }) {
   const start = {
     heading: pageTitle ?? null,
     label: (pageTitle ? label(pageTitle) : "") || "Top",
-    destination: pageTitle ? destinationFor(host, pageTitle, 0) : lend(host, main, 0),
+    destination: pageTitle
+      ? destinationFor(host, main, pageTitle, 0)
+      : lend(host, main, 0),
   };
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
   const items = headings.map(({ heading, label }, index) => {
-    const destination = destinationFor(host, heading, index + 1);
+    const destination = destinationFor(host, main, heading, index + 1);
     // A lent id is no key: row identity follows the authored heading.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
     const depth = Math.min(level(heading) - floor, 4);

@@ -96,6 +96,16 @@ test("a removal counts in the section it was taken from, a section's end include
       Check: { threads: 0, onMe: 0, changes: 1 },
     },
   );
+  // A gap before a section stands where the reading was before it, not under the
+  // heading the section opens with.
+  assert.deepEqual(
+    marked(
+      `<h2>Prepare</h2><p id="prepare">Book it.</p>
+      <section id="switch"><h2>Switch</h2><p>Restart.</p></section>`,
+      { changes: [{ at: "switch", gap: "before" }] },
+    ),
+    { Prepare: { threads: 0, onMe: 0, changes: 1 } },
+  );
 });
 
 test("a heading the contents leave out counts in the section listed above it", () => {
@@ -135,17 +145,35 @@ test("a thread about a whole section counts in it, and one in a nested section i
   );
 });
 
-test("a thread about a question whose title heads a section counts in that section", () => {
+test("a thread about a whole question or card counts in the row of the heading titling it", () => {
   assert.deepEqual(
     marked(
       `<h1>Plan</h1><p id="lede">Why.</p>
       <section id="decision"><lf-ask id="ask">
         <hgroup id="ask-title"><p>Decision 1</p><h2>Which store?</h2></hgroup>
         <p id="ask-context">Two stores fit.</p>
-      </lf-ask></section>`,
-      { threads: [{ id: "ask" }, { id: "ask-title" }, { id: "ask-context" }] },
+      </lf-ask></section>
+      <lf-ask id="bare-ask">
+        <hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
+        <p>One region fits.</p>
+      </lf-ask>
+      <h2>Cards</h2>
+      <article id="card"><h3>First card</h3><p>Its words.</p></article>`,
+      {
+        threads: [
+          { id: "ask" },
+          { id: "ask-title" },
+          { id: "ask-context" },
+          { id: "bare-ask" },
+          { id: "card" },
+        ],
+      },
     ),
-    { "Which store?": { threads: 3, onMe: 0, changes: 0 } },
+    {
+      "Which store?": { threads: 3, onMe: 0, changes: 0 },
+      "Which region?": { threads: 1, onMe: 0, changes: 0 },
+      "First card": { threads: 1, onMe: 0, changes: 0 },
+    },
   );
 });
 

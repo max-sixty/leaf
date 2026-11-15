@@ -4,17 +4,20 @@
    platform draws, a code block's lines as its whitespace draws them, the state a
    question's obligation and the conversations about a place add are the browser's to
    show, and the browser test that hovers a link holds them
-   (`tests/browser/controls/test_previews.py`). */
+   (`tests/browser/controls/test_previews.py`); which heading's part a conversation
+   counts in is the outline's, held here. */
 
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/runtime/framework.js";
 import { linkedPlace, placePreview } from "/runtime/place-preview.js";
-import { partOver, partTrail } from "/runtime/thread/placement.js";
+import { conversationsAbout, partOver, partTrail } from "/runtime/thread/placement.js";
 import { addressableLabel } from "/runtime/addressable-names.js";
 import { registry } from "/runtime/registry.js";
+import { applicationState } from "/runtime/semantic-state.js";
 import { shadowStage } from "/runtime/shadow-stage.js";
+import { servedState, servedThread } from "../served.mjs";
 
 // The preview's name and parts, each as [its class without the prefix, its words], of
 // `#it` in `markup`: the page's, or with `message` the markup of a reply as the floating
@@ -429,6 +432,48 @@ test("a place with no name of its own is named by the part it stands in, as On M
     "Real part",
     "heading",
   );
+});
+
+test("a heading counts the conversations about what it titles, as about its own part", () => {
+  // On a page of decisions, each a question titled by its own heading, a thread about a
+  // whole decision counts under that decision's heading and the page's title over it,
+  // and not under the decision before it.
+  applicationState.identify(1);
+  document.body.innerHTML = `<main><h1>Plan</h1>
+    <lf-ask id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
+      <p>Two stores fit.</p></lf-ask>
+    <lf-ask id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
+      <p>One region fits.</p></lf-ask></main>`;
+  const comment = {
+    id: "c1",
+    seq: 1,
+    ts: "2026-11-14T12:00:00+00:00",
+    author: "user",
+    revision: 1,
+    kind: "comment",
+    text: "Why this region?",
+    attention: true,
+    content_version: "c1",
+  };
+  const thread = servedThread([comment], { anchor: { section: "second" } });
+  try {
+    applicationState.adopt(
+      servedState({ browser: { views: { 1: { thread: { threads: [thread] } } } } }),
+    );
+    assert.deepEqual(
+      [...document.querySelectorAll("h1, h2")].map((heading) => [
+        heading.textContent,
+        conversationsAbout(heading)?.threads ?? 0,
+      ]),
+      [
+        ["Plan", 1],
+        ["Which store?", 0],
+        ["Which region?", 1],
+      ],
+    );
+  } finally {
+    applicationState.adopt(servedState());
+  }
 });
 
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {

@@ -38,6 +38,12 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 widget whose title is an attribute, as a column's `label` is, declares it with
 `x-name`.
 
+`titledElement(heading)` is the element a heading titles: the outermost element that
+opens with it, no words before it, directly or inside a leading `header` or `hgroup`,
+such as the question or `section` the heading opens; where it opens none, the heading
+itself. Every element between the two opens with the heading too. `lf-toc` links each
+heading to one of them and counts a thread about any of them in the heading's row.
+
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
 
@@ -259,9 +265,11 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On me groups its items by it and a link's preview names a place by it, so a
-module that counts items per heading, where no element holds the heading's section,
-climbs it from each item's element to the first heading it counts, as `lf-toc` does.
+`null`. On me groups its items by it and a link's preview names a place by it. A
+question or section stands in the part around it, past its own heading, so a module
+that counts items per heading, as `lf-toc` does, climbs `partOver` from each item's
+element and counts the item under the first heading it meets, or under the heading
+that titles an element it meets (`titledElement`, "Naming elements").
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

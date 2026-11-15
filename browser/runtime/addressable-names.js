@@ -1,9 +1,10 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), the label every surface shows for it away
- * from the page (`addressableLabel`), and the word and label an anchor on it shows
- * (`sectionLabel`). Each reads authored words through the passage
- * reader, so generated chrome never names anything. */
+ * contract gives it (`addressableName`), the element a heading titles by that contract
+ * (`titledElement`), the label every surface shows for it away from the page
+ * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
+ * Each reads authored words through the passage reader, so generated chrome never
+ * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
@@ -103,6 +104,32 @@ function readLeadingTitle(container) {
     if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
   return null;
+}
+// The element a heading titles: the outermost element whose leading title it is
+// (`leadingTitle`), or the heading itself where it leads none. Every element between the
+// two leads with the heading as well, as a question's `hgroup` and the question holding
+// it both do, and the page's column does where the page's title leads it. A `section`
+// holding a question leads with the question rather than a heading, so the question's
+// heading titles the question and stops there. A heading counts each element it titles
+// as its own, in the contents' rows and in the conversations its link previews
+// (thread/placement.js, `conversationsAbout`), so a thread about a whole question or
+// section counts under its heading, while `partOver` places the question in the part
+// around it, where On Me groups it. The other way round, an element's leading title,
+// where that is a heading, is the heading that titles it.
+//
+// Replaced: the contents had a rule of their own, the identified `section` whose first
+// heading this was at any depth. Where no such section held a question, a thread about
+// the whole question counted in the contents under the heading before it.
+/** @param {Element} heading @returns {Element} */
+export function titledElement(heading) {
+  let titled = heading;
+  for (
+    let at = heading.parentElement;
+    at && leadingTitle(at) === heading;
+    at = at.parentElement
+  )
+    titled = at;
+  return titled;
 }
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.

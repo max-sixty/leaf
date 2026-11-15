@@ -712,6 +712,74 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
     assert allocated == ["far-source", "folded-source", "last-source"]
 
 
+def holding_each_sample(page):
+    """Hold each sample's document until `release(template)` names its template, so a
+    test decides which child page draws first. Returns the documents held, by sample,
+    and `release`."""
+    held = {}
+    passing = set()
+    # Each sample's allocation, read once the test asks for it: the driver can hand a
+    # held document to the route before it hands over the allocation's response.
+    allocations = []
+    page.on(
+        "response",
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/samples")
+            and allocations.append(response)
+        ),
+    )
+
+    def hold(request_route):
+        match = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match is not None
+        if match.group(1) in passing:
+            request_route.continue_()
+        else:
+            held.setdefault(match.group(1), []).append(request_route)
+
+    def release(template):
+        allocated = []
+        while not allocated:
+            allocated = [
+                next(SAMPLE_DOCUMENT.finditer(response.json()["url"])).group(1)
+                for response in allocations
+                if response.request.post_data_json["template"] == template
+            ]
+            if not allocated:
+                holding(
+                    page, allocations, len(allocations) + 1, f"{template}'s allocation"
+                )
+        [sample] = allocated
+        passing.add(sample)
+        for each in held.pop(sample):
+            each.continue_()
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    return held, release
+
+
+IN_VIEW = "node => node.getBoundingClientRect().bottom < innerHeight"
+SEEN = """node => {
+    const box = node.getBoundingClientRect();
+    return box.bottom > 0 && box.top < innerHeight;
+}"""
+GROWTH_SEEN = "async node => (await window.__lfWidgetApi()).growthIsSeen(node)"
+TOP = "node => Math.round(node.getBoundingClientRect().top)"
+# Where the field the reader is in stands, or null while nothing is focused.
+FOCUS_TOP = """() => document.activeElement === document.body
+    ? null : Math.round(document.activeElement.getBoundingClientRect().top)"""
+FRAME_HEIGHT = "frame => frame.clientHeight"
+# Resolves once the page has stood still for five frames.
+STILL = """async () => {
+    for (let last = null, still = 0; still < 5; ) {
+      await new Promise(done => requestAnimationFrame(done));
+      still = scrollY === last ? still + 1 : 0;
+      last = scrollY;
+    }
+}"""
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_sample_the_gesture_shows_fits_though_it_started_out_of_sight(
@@ -728,39 +796,7 @@ def test_a_sample_the_gesture_shows_fits_though_it_started_out_of_sight(
         viewport={"width": 1200, "height": 1300}
     )
     watched(page)
-    held = {}
-    templates = {}
-    page.on(
-        "response",
-        lambda response: (
-            response.request.method == "POST"
-            and response.url.endswith("/api/samples")
-            and templates.update(
-                {
-                    next(SAMPLE_DOCUMENT.finditer(response.json()["url"])).group(1): (
-                        response.request.post_data_json["template"]
-                    )
-                }
-            )
-        ),
-    )
-    passing = set()
-
-    def hold(request_route):
-        match = SAMPLE_DOCUMENT.search(request_route.request.url)
-        assert match is not None
-        if match.group(1) in passing:
-            request_route.continue_()
-        else:
-            held.setdefault(match.group(1), []).append(request_route)
-
-    def release(template):
-        [sample] = [each for each, name in templates.items() if name == template]
-        passing.add(sample)
-        for each in held.pop(sample):
-            each.continue_()
-
-    page.route(SAMPLE_DOCUMENT, hold)
+    held, release = holding_each_sample(page)
     page.goto(
         serve(
             leaf_page(
@@ -784,15 +820,14 @@ document.querySelector('#go').addEventListener('click', (event) => {
         )
     )
     wait_until_ready(page)
-    assert templates == {}
+    assert held == {}
     page.locator("#go").click()
     holding(page, held, 3, "the three samples' documents")
     frame = page.locator("#pulled iframe")
-    in_view = "node => node.getBoundingClientRect().bottom < innerHeight"
     for each in ("#first iframe", "#second iframe"):
-        assert page.locator(each).evaluate(in_view)
+        assert page.locator(each).evaluate(IN_VIEW)
     assert frame.evaluate("frame => frame.getBoundingClientRect().top > innerHeight")
-    loading = frame.evaluate("frame => frame.clientHeight")
+    loading = frame.evaluate(FRAME_HEIGHT)
 
     # The page's rendering waits for the third frame's landing, so wait on its place.
     release("first-source")
@@ -800,9 +835,9 @@ document.querySelector('#go').addEventListener('click', (event) => {
     for each in ("#first", "#second"):
         page.locator(each).evaluate("sample => sample.ready")
     page.wait_for_function(
-        f"({in_view})(document.querySelector('#after'))", polling="raf"
+        f"({IN_VIEW})(document.querySelector('#after'))", polling="raf"
     )
-    assert frame.evaluate("frame => frame.clientHeight") == loading
+    assert frame.evaluate(FRAME_HEIGHT) == loading
 
     release("pulled-source")
     page.locator("#pulled").evaluate("sample => sample.ready")
@@ -811,7 +846,170 @@ document.querySelector('#go').addEventListener('click', (event) => {
         "body => Math.ceil(body.getBoundingClientRect().height)"
     )
     assert drawn < loading
-    assert frame.evaluate("frame => frame.clientHeight") == drawn
+    assert frame.evaluate(FRAME_HEIGHT) == drawn
+
+
+def _arrives(page, serve, held, release):
+    """The page opens with the first sample in view and the second just below the
+    window; the first fits before the page presents, pulling the second into view."""
+    page.goto(
+        serve(
+            leaf_page(
+                "Arrival",
+                '<h1>Arrival</h1><div style="height: 300px"></div>'
+                + live_sample("first")
+                + live_sample("second")
+                + "<p id=place>After the samples, where the reader reads.</p>"
+                '<div style="height: 200vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 2, "both samples' documents")
+    release("first-source")
+    page.locator("#first").evaluate("sample => sample.ready")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    page.wait_for_function(
+        f"({SEEN})(document.querySelector('#second iframe'))", polling="raf"
+    )
+    return ["second-source"]
+
+
+def _flings(page, serve, held, release):
+    """A wheel step, then a scroll that goes on with no input, as a fling's momentum
+    does after the finger lifts, onto two samples that start on the way."""
+    page.goto(
+        serve(
+            leaf_page(
+                "Momentum",
+                '<p>The fling starts here.</p><div style="height: 3200px"></div>'
+                + live_sample("first")
+                + live_sample("second")
+                + "<p id=place>After the samples, where the reader reads.</p>"
+                '<div style="height: 150vh"></div>',
+            )
+        )
+    )
+    wait_until_ready(page)
+    page.mouse.move(1150, 450)
+    page.mouse.wheel(0, 10)
+    page.evaluate("""() => new Promise(done => {
+      const distance = document.querySelector('#first').getBoundingClientRect().top - 100;
+      const from = scrollY, t0 = performance.now(), tau = 300, span = 1200;
+      const tick = now => {
+        const t = now - t0;
+        scrollTo(0, from + distance * (1 - Math.exp(-t / tau)) / (1 - Math.exp(-span / tau)));
+        if (t < span) requestAnimationFrame(tick); else done();
+      };
+      requestAnimationFrame(tick);
+    })""")
+    page.evaluate(STILL)
+    holding(page, held, 2, "both samples' documents")
+    return ["first-source", "second-source"]
+
+
+def _glides(page, serve, held, release):
+    """A `t` walk glides down to a thread just below two samples, which start on the
+    way, out of sight."""
+    page.goto(
+        serve(
+            leaf_page(
+                "Glide",
+                '<p id="top-para">A thread starts here, at the top.</p>'
+                '<div style="height: 3200px"></div>'
+                + live_sample("first")
+                + live_sample("second")
+                + '<p id="place">A thread stands just below both samples.</p>'
+                '<div style="height: 150vh"></div>',
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Is this the start?",
+                    "anchor": {"section": "top-para"},
+                },
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Does this stay put when the samples fit?",
+                    "anchor": {"section": "place"},
+                },
+            ],
+        )
+    )
+    wait_until_ready(page)
+    # Whether each frame stood in view at the reading that found it near, which is
+    # when its sample starts (geometry.js, `nearObserver`).
+    page.evaluate("""() => {
+      const near = new IntersectionObserver(entries => {
+        for (const {isIntersecting, boundingClientRect: box, target} of entries) {
+          if (!isIntersecting) continue;
+          near.unobserve(target);
+          target.seenAsNear = box.bottom > 0 && box.top < innerHeight;
+        }
+      }, {rootMargin: '100%', scrollMargin: '600px'});
+      for (const frame of document.querySelectorAll('lf-sample iframe'))
+        near.observe(frame);
+    }""")
+    page.mouse.click(1150, 300)
+    page.keyboard.press("t")
+    page.evaluate(STILL)
+    holding(page, held, 2, "both samples' documents")
+    assert page.locator("#place").evaluate(IN_VIEW)
+    # On a busy host the glide can land in a frame or two, before the browser's reading
+    # finds the samples near: then the sample above the thread starts in view, as after
+    # an instant walk, and its fit is the reader's and moves the thread, on main too.
+    if page.evaluate("""async () => {
+      const {growthIsSeen} = await window.__lfWidgetApi();
+      return [...document.querySelectorAll('lf-sample iframe')]
+        .some(frame => frame.seenAsNear && growthIsSeen(frame));
+    }"""):
+        pytest.skip("the glide landed before the sample above the thread came near")
+    return ["first-source", "second-source"]
+
+
+@pytest.mark.parametrize(
+    "carry", [_arrives, _flings, _glides], ids=lambda c: c.__name__[1:]
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_sample_the_page_carries_into_view_waits_as_news(
+    engine, carry, request, serve
+):
+    """A loading sample that comes into view other than by a gesture's landing is news:
+    as its page draws, the frame keeps its loading height while the reader sees it, and
+    what the reader reads below it, and the field they are in, stay put. It came into
+    view as the page arrived, with no input (`arrives`); under a scroll that went on
+    with no input, as a fling's momentum does (`flings`); or under a `t` walk's glide
+    that started it out of sight (`glides`). Which page draws first is the network's to
+    decide, so the test holds each sample's document until the page stands still."""
+    page = request.getfixturevalue(engine).new_page(
+        viewport={"width": 1200, "height": 900}, reduced_motion="no-preference"
+    )
+    watched(page)
+    held, release = holding_each_sample(page)
+    loading = carry(page, serve, held, release)
+    # The frames whose resize would move what the reader sees (`growthIsSeen`).
+    seen = [
+        frame
+        for frame in page.locator("lf-sample iframe").all()
+        if frame.evaluate(GROWTH_SEEN)
+    ]
+    assert seen
+    heights = [frame.evaluate(FRAME_HEIGHT) for frame in seen]
+    place = page.locator("#place").evaluate(TOP)
+    focus = page.evaluate(FOCUS_TOP)
+
+    for template in loading:
+        release(template)
+    for sample in page.locator("lf-sample").all():
+        sample.evaluate("sample => sample.ready")
+    rendered(page)
+    assert [frame.evaluate(FRAME_HEIGHT) for frame in seen] == heights
+    assert page.locator("#place").evaluate(TOP) == place
+    assert page.evaluate(FOCUS_TOP) == focus
 
 
 def test_a_sample_counts_each_document_its_frame_loads(browser, serve):

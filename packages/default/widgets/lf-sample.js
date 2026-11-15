@@ -31,18 +31,20 @@
  * so nothing is counted between. Work a child starts after it has arrived, such as
  * one of its own samples' Reset, is the child's to count. A resize of a child the
  * reader did not ask to load, one that started near the window but out of their
- * sight and that they reach after another input, as a reader scrolling ahead of it
- * does, waits while it would move what they see, the frame keeping its current
+ * sight, waits while it would move what they see, the frame keeping its current
  * height (`heldGrowth`), until they look away, or until they click, type or press a
  * key inside the child, which makes every later resize of that document theirs,
  * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
  * page, or one of a frame the reader saw as it mounted or as it started, as when a
- * tab, a link or a jump brings it into view, is theirs and applies at once. So is one
- * of a frame the same gesture shows them before its page first draws, while that
- * gesture is still their latest input (`retainUserIntent`), as a nearer sample's fit
- * pulls into view a frame that started just below the window. Rejected: asking only
- * whether the reader sees the frame as its page draws, which would also fit one they
- * had scrolled onto while it loaded. The user
+ * tab, a link or a jump brings it into view, is theirs and applies at once. So is the
+ * first resize of a frame that a gesture brought near out of their sight and that
+ * stands in view as its page first draws, if nothing has scrolled it since
+ * (`whenNear`'s `still`), as when a nearer sample's fit pulls into view a frame that
+ * started just below the window. A frame that started as the page arrived, or that
+ * the reader's scroll, a glide or a fling's momentum carried into view, waits as news.
+ * Rejected: whether the gesture that brought the frame near is still the reader's
+ * latest input (`retainUserIntent`), which read a fling's momentum, which fires no
+ * input, and the page's arrival as the reader standing still. The user
  * chose on 14 November 2026 to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
  * click into it, which left a short page standing in a blank frame. A load that
@@ -80,7 +82,6 @@ import {
   isNativeLayer,
   handBack,
   heldGrowth,
-  retainUserIntent,
   whenNear,
 } from "/runtime/widget-api.js";
 
@@ -134,17 +135,16 @@ export class Sample extends HTMLElement {
   // Drops a resize `heldGrowth` holds.
   /** @type {(() => void) | null} */
   #heldFit = null;
-  // The current document's arrival (`#track`); whether its resizes are the reader's,
-  // applying at once, rather than waiting while seen until the reader claims it; and
-  // whether the reader asked for the load. The last two are each true, false, or, for
-  // a frame that started out of their sight, the intent of the gesture that brought it
-  // near (`retainUserIntent`), which the frame's first resize settles (`#height`).
+  // The current document's arrival (`#track`); whether its resizes wait while seen
+  // until the reader claims it; whether the reader asked for the load; and, for a frame
+  // that started out of their sight, whether the page still stands where the gesture
+  // that brought it near left it (`whenNear`), which the first resize reads (`#height`).
   /** @type {{land: () => void, reported: (() => void) | null} | null} */
   #arrival = null;
-  /** @type {boolean | (() => boolean)} */
-  #claimed = true;
-  /** @type {boolean | (() => boolean)} */
+  #unclaimed = false;
   #asked = false;
+  /** @type {(() => boolean) | null} */
+  #still = null;
   /** @type {{source: Promise<SampleReady>, ready: Promise<SampleReady>} | null} */
   #following = null;
   get #ready() {
@@ -213,20 +213,17 @@ export class Sample extends HTMLElement {
       return;
     }
     // One the reader sees as it starts, brought into view by a tab, a link or a jump,
-    // is theirs too, and fits its page as soon as that draws. So is one that starts
-    // just out of their sight and that the same gesture then shows them before its
-    // page draws, as a nearer sample's fit pulls it into view, while that gesture is
-    // still their latest input. One they reach after another input, as a reader
-    // scrolling ahead of it does, arrives as news. Either way `whenNear` holds the
-    // fit as the landing of the gesture that brought the frame near, which a window,
-    // keeping its height, never has.
-    this.#nearing = whenNear(this.#frame, () => {
+    // is theirs too, and fits its page as soon as that draws. So is one the gesture
+    // brought near just out of their sight that stands in view as its page draws, with
+    // nothing scrolled since, as when a nearer sample's fit pulls it into view. One the
+    // page's arrival started, or that a scroll carries into view, arrives as news.
+    // `whenNear` holds the fit as the landing of the gesture that brought the frame
+    // near wherever the fit can still be the reader's; a window keeps its height.
+    this.#nearing = whenNear(this.#frame, (still) => {
       this.#nearing = null;
-      if (this.#windowed) {
-        this.#start(false);
-        return;
-      }
-      return this.#start(growthIsSeen(this.#frame) || retainUserIntent());
+      const asked = this.#seen();
+      const fitted = this.#start(asked, { still });
+      return asked || (!this.#windowed && still()) ? fitted : undefined;
     });
   }
 
@@ -242,11 +239,12 @@ export class Sample extends HTMLElement {
   }
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
-  // for it, and otherwise waits while they see it (`#height`). Returns the frame's
-  // first fit to its child, or its readiness settling where it fits nothing then, or
-  // the server's wait.
-  /** @param {boolean | (() => boolean)} asked @returns {Promise<unknown>} */
-  #start(asked, { present = false } = {}) {
+  // for it, or where `still` holds as the frame is seen, and otherwise waits while they
+  // see it (`#height`). Returns the frame's first fit to its child, or its readiness
+  // settling where it fits nothing then, or the server's wait.
+  /** @param {boolean} asked @param {{present?: boolean, still?: (() => boolean) | null}} [options]
+   * @returns {Promise<unknown>} */
+  #start(asked, { present = false, still = null } = {}) {
     this.#mounting = true;
     /** @type {PromiseWithResolvers<void>} */
     const { promise: waiting, resolve: waited } = Promise.withResolvers();
@@ -280,7 +278,8 @@ export class Sample extends HTMLElement {
         // without it, and it arrives as one below the window does, its growth held
         // while seen.
         host.on("waiting", () => {
-          this.#claimed = false;
+          this.#unclaimed = true;
+          this.#still = null;
           waited();
         });
         host.on("current-location", ({ focused }) => {
@@ -314,6 +313,7 @@ export class Sample extends HTMLElement {
     // reads as arriving until each started child has.
     this.#asked = asked;
     const following = this.#track(ready);
+    if (!asked) this.#still = still;
     this.#starting.resolve(following);
     const shown = following.catch(() => {});
     if (present) widgetController(this).present(Promise.race([shown, waiting]));
@@ -439,25 +439,25 @@ export class Sample extends HTMLElement {
   // returning applies the current block reading without replacing any native editor.
   // An unclaimed child's reading waits while its resize would be seen, unless
   // the reader `asked` for it, by Reset or Return to page. The first reading of a
-  // frame the gesture that brought it near may yet claim settles that claim: the frame
-  // is the reader's if they see it now and that gesture is still their latest input.
+  // frame that started out of their sight is theirs if they see the frame now and the
+  // page still stands where the gesture that brought it near left it (`#still`).
   /** @param {number} height */
   #height(height, { immediate = false, asked = false } = {}) {
     if (this.#windowed) return;
     this.#heightReading = height;
     this.#heldFit?.();
     this.#heldFit = null;
-    if (typeof this.#claimed === "function")
-      this.#claimed = this.#claimed() && growthIsSeen(this.#frame);
+    if (this.#still?.() && growthIsSeen(this.#frame)) this.#unclaimed = false;
+    this.#still = null;
     const fit = immediate ? this.#fit : this.#scheduleFit;
-    if (!this.#claimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
+    if (this.#unclaimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
     else fit();
   }
 
   // The reader's click or key inside the child makes the frame theirs to move: a
   // resize held while they read applies now, and so does each later one.
   #release() {
-    this.#claimed = true;
+    this.#unclaimed = false;
     if (!this.#heldFit) return;
     this.#heldFit();
     this.#heldFit = null;
@@ -509,8 +509,9 @@ export class Sample extends HTMLElement {
       if (this.#arrival !== arrival) return;
       this.#arrival = null;
     });
-    this.#claimed = this.#asked;
+    this.#unclaimed = !this.#asked;
     this.#asked = false;
+    this.#still = null;
     const ready = this.#follow(promise);
     // The child reports its arrival after its presentation, which this widget draws
     // a turn later. A failed or cancelled child has nothing more to bring.

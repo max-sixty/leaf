@@ -52,6 +52,11 @@
    wait out a release's click each its own way, by a timer the next press could outrun
    or a flag held until the next press, and a flag a stopped release left standing.
 
+   It keeps whose change it is too: the gesture whose rendering is still running
+   (`gestureUnderWay`), which box-motion.js reads to tell the user's change from news,
+   and whether the user's latest input was a gesture (`latestInputIsGesture`), which
+   presentation.js (`whenNear`) reads to tell work a gesture brought near.
+
    And it owns the widget primitives built on these: closing a layer and handing the user
    on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
    and a group's one Tab stop (`rove`).
@@ -68,7 +73,7 @@
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { afterScript, nextRender } from "./rendering.js";
+import { afterScript, afterSettling, nextRender } from "./rendering.js";
 import { inputs } from "./inputs.js";
 import { signal } from "/vendor/signals-core.js";
 import { keeps } from "./keeps.js";
@@ -1013,6 +1018,42 @@ export const inputCount = () => inputs.count;
 // handler consumes it. Observation adds no binding and never claims the event.
 /** @type {typeof inputs.observe} */
 export const onUserInput = (read) => inputs.observe(read);
+
+// Whose change it is, one clock for the page, since an input anywhere is the user's:
+// their key, press or typing owns what it sets going until that rendering settles
+// (rendering.js, `afterSettling`), so a change meanwhile is theirs, and one after, such
+// as an answer arriving, is news. News landing before the gesture's rendering settles, a
+// reading back within a frame or two, is taken as theirs. Typing is told apart, since
+// the field it types in must not move under it. Activation is a new gesture too: a held
+// press can settle before its click. A wheel or a finger's scroll starts none.
+// `gestureUnderWay` names the gesture whose rendering runs, numbered so an owner can
+// tell a later one from it, or null. `latestInputIsGesture` says whether the user's
+// latest input began one, rather than a wheel, a finger's scroll or leaving the window,
+// however long its rendering took to settle: Firefox scrolls to a link's fragment after
+// the click's rendering has settled.
+/** @typedef {{kind: "typing" | "press", number: number, input: number, settled: boolean}} Gesture */
+/** @type {Gesture | null} */
+let latest = null;
+/** @param {Event} event */
+function beginGesture(event) {
+  if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
+    return;
+  /** @type {Gesture} */
+  const own = {
+    kind: event.type === "input" ? "typing" : "press",
+    number: (latest?.number ?? 0) + 1,
+    input: inputs.count,
+    settled: false,
+  };
+  latest = own;
+  afterSettling(() => {
+    own.settled = true;
+  });
+}
+inputs.observe(beginGesture);
+addEventListener("click", beginGesture, { capture: true, passive: true });
+export const gestureUnderWay = () => (latest?.settled === false ? latest : null);
+export const latestInputIsGesture = () => latest?.input === inputs.count;
 
 // Where the caret was, as a key went down, in each box the key went down in, before
 // the box's own handling moved it. A command whose meaning hangs on the caret's place,

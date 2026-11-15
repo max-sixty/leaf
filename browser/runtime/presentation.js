@@ -54,7 +54,9 @@
    for: the work starts now, the page presents without it, and `arrived` waits for it.
    None hands a package the bare `presented` wait. */
 
-import { whileConnected } from "./arrivals.js";
+import { scrolling, whileConnected } from "./arrivals.js";
+import { latestInputIsGesture } from "./focus.js";
+import { composedParentNode, isElement } from "./shadow-tree.js";
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
@@ -111,14 +113,21 @@ let allNear = false;
 const askingAllNear = new Set();
 
 /** Run `start` once, when `node` comes near the window as `nearObserver` reads it
- * (geometry.js). What `start` returns, if anything, is the landing of work that moves
- * what the reader sees: the page counts it as an arrival and as a finite preparation
- * (rendering.js, `holdRendering`) until it settles, so a gesture whose rendering
- * brought the node near owns what the landing moves (tests/shift_watch.js). The wait
- * counts too, until the browser's first reading, which it takes at its next rendering
- * even in a frame off screen, has said whether `start` runs, so work that reading
- * starts is counted before the wait lands. Returns the step that stops waiting.
- * @param {Element} node @param {() => PromiseLike<unknown> | void} start */
+ * (geometry.js). `start` gets `still`, which says whether the page still stands where
+ * a gesture brought the node near: at the reading the user's latest input was a key, a
+ * press or typing (focus.js, `latestInputIsGesture`) and no scroll was under way, and
+ * since then no box that scrolls the node has scrolled and none is scrolling
+ * (arrivals.js, `scrolling`).
+ * Layout carrying the node, as another box's resize does, leaves it standing; the
+ * page's arrival, the reader's scroll, a glide and a fling's momentum do not. What
+ * `start` returns, if anything, is the landing of work that moves what the reader
+ * sees: the page counts it as an arrival and as a finite preparation (rendering.js,
+ * `holdRendering`) until it settles, so a gesture whose rendering brought the node
+ * near owns what the landing moves (tests/shift_watch.js). The wait counts too, until
+ * the browser's first reading, which it takes at its next rendering even in a frame off
+ * screen, has said whether `start` runs, so work that reading starts is counted before
+ * the wait lands. Returns the step that stops waiting.
+ * @param {Element} node @param {(still: () => boolean) => PromiseLike<unknown> | void} start */
 export function whenNear(node, start) {
   /** @type {PromiseWithResolvers<void>} */
   const { promise: read, resolve: land } = Promise.withResolvers();
@@ -135,7 +144,11 @@ export function whenNear(node, start) {
   const run = () => {
     nearing.delete(run);
     observer.disconnect();
-    const landing = start();
+    const brought = latestInputIsGesture() && !scrolling();
+    const scrolled = scrolledAround(node);
+    const landing = start(
+      () => brought && !scrolling() && scrolledAround(node) === scrolled,
+    );
     if (landing) {
       const release = holdRendering();
       deferredArrival(Promise.resolve(landing)).then(
@@ -150,6 +163,18 @@ export function whenNear(node, start) {
   // Work a check has already asked for starts once its owner has its step.
   if (allNear) queueMicrotask(() => nearing.has(run) && run());
   return stop;
+}
+
+// Where each box around `node` stands scrolled, for telling whether any has scrolled.
+/** @param {Node} node */
+function scrolledAround(node) {
+  const at = [];
+  let box = composedParentNode(node);
+  while (isElement(box)) {
+    at.push(box.scrollTop, box.scrollLeft);
+    box = composedParentNode(box);
+  }
+  return at.join();
 }
 
 /** Start all work waiting for its node to near the window, and all that waits later,

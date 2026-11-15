@@ -123,8 +123,8 @@
 import { inlineStyle, keeps } from "./keeps.js";
 import { motionEasing, motionPlays, motionTime, playMotion } from "./motion.js";
 import { TEXT_FIELD } from "./control-selectors.js";
-import { onUserInput } from "./focus.js";
-import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
+import { gestureUnderWay, onUserInput } from "./focus.js";
+import { nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
 import { userScrollport } from "./geometry.js";
 import { shifted } from "./rect.js";
@@ -151,33 +151,7 @@ import { shifted } from "./rect.js";
 // than being cut or faded (user-place.js, `slides`).
 export const CARRY = "--lf-box-carry";
 
-// Whose change it is, one clock for every box, since an input anywhere is the user's:
-// their key, press or typing owns what it sets going until that rendering settles
-// (rendering.js, `afterSettling`), so changes to a box meanwhile are theirs, and what
-// changes it after, such as an answer arriving, is news. News landing before the
-// gesture's rendering settles, a reading back within a frame or two, is taken as
-// theirs. Typing is told apart, since the field it types in must not move under it.
-// Activation is a new gesture too: a held press can settle before its click.
-/** @type {"typing" | "press" | null} */
-let gesture = null;
-let gestures = 0;
-/** @param {Event} event */
-function beginGesture(event) {
-  if (!["keydown", "pointerdown", "input", "touchstart", "click"].includes(event.type))
-    return;
-  gesture = event.type === "input" ? "typing" : "press";
-  const own = ++gestures;
-  afterSettling(() => {
-    if (gestures === own) gesture = null;
-  });
-}
-let listening = false;
-function listen() {
-  if (listening) return;
-  listening = true;
-  onUserInput(beginGesture);
-  window.addEventListener("click", beginGesture, { capture: true, passive: true });
-}
+// Whose change it is, the user's gesture or news, is focus.js's (`gestureUnderWay`).
 
 // The parts of every box a placement stands are observed by one observer, made as
 // this module loads, which asks each box's placement first (`placed`). A placement
@@ -296,7 +270,6 @@ export function boxMotion({
   const changed = () => {
     if (!placement?.place()) follow();
   };
-  listen();
   // The surface: a ring and a fill inside it, cut to the box's outline, under one
   // shadow, and a ring a part of the box wears, drawn here only while the box moves,
   // in that ring's own colour, since no transform draws a ring changing size.
@@ -323,7 +296,12 @@ export function boxMotion({
   ];
   // Whether this box's send is the gesture under way (`stream`): the gesture's number.
   let sent = -1;
-  const theirs = () => (gesture !== null && sent === gestures ? "send" : gesture);
+  const theirs = () => {
+    const gesture = gestureUnderWay();
+    return gesture !== null && sent === gesture.number
+      ? "send"
+      : (gesture?.kind ?? null);
+  };
   // Each part's box as its layout placed it at the last reading, in the window.
   /** @type {Map<Element, Box> | null} */
   let rests = null;
@@ -1085,8 +1063,9 @@ export function boxMotion({
     // carry it from here. A send that only scrolls a scroller, as one at its cap does,
     // changes no part's size, so that scroll is read too.
     stream() {
+      const gesture = gestureUnderWay();
       if (gesture === null) return;
-      sent = gestures;
+      sent = gesture.number;
       rebase();
       streamFrom = new Map();
       stopStreaming.abort();

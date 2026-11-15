@@ -617,6 +617,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `currentLocationIn` (_lint_)                                            |
+| Whose change it is: the gesture whose rendering still runs, and whether the latest input began one    | `focus.js` `gestureUnderWay`, `latestInputIsGesture`                               |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
 | The page place focus or selection identifies, or none                                                 | `current-target.js` `currentLocationOrigin`                                        |
 | Where a page walk starts, whether the user is on a stop or at it, and which item it steps to          | `current-target.js` `walkOrigin`, `stepFrom`                                       |

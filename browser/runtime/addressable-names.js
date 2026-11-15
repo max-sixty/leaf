@@ -105,16 +105,18 @@ function readLeadingTitle(container) {
   }
   return null;
 }
-// The element a heading titles: the outermost element whose first heading it is, short
-// of one an attribute of its own names (`x-name`), or the heading itself where it is no
-// element's first. So a question's heading titles its `hgroup`, the question and a
-// `section` wrapping the question, whatever words or widgets stand before it there, as
-// a section's first heading titles the section after an introduction; a heading after
-// the question in that section titles only itself; and a tab, pane or sample is named by
-// its label, so a heading inside it titles only what lies inside it. The contents start
-// each row's stretch of the page at the element its heading titles, and a heading's
-// link preview counts the conversations about it (thread/placement.js,
-// `conversationsAbout`). `titlingHeading` reads it the other way round.
+// The element a heading titles: the outermost element whose first heading it is, every
+// other heading there ranking below it, short of one an attribute of its own names
+// (`x-name`); or the heading itself where it titles no element. So a question's heading
+// titles its `hgroup`, the question and a `section` wrapping the question, whatever
+// words or widgets stand before it there, as a section's first heading titles the
+// section after an introduction; a heading after the question in that section titles
+// only itself; a wrapper holding several sections of one rank is none's; and a tab,
+// pane or sample is named by its label, so a heading inside it titles only what lies
+// inside it. The contents start each row's stretch of the page at the element its
+// heading titles, and a heading's link preview counts the conversations about it
+// (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
+// round.
 //
 // Replaced: the contents took an identified `section` whose first heading this was, and
 // a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
@@ -126,28 +128,39 @@ export const titledElement = (heading) =>
 /** @param {Element} heading @returns {Element} */
 function readTitledElement(heading) {
   let titled = heading;
-  for (
-    let at = heading.parentElement;
-    at && !declaredName(at) && firstHeading(at) === heading;
-    at = at.parentElement
-  )
+  for (let at = heading.parentElement; at && titles(heading, at); at = at.parentElement)
     titled = at;
   return titled;
 }
 /** The heading that titles `element` (`titledElement`), or null.
  * @param {Element} element @returns {Element | null} */
 export function titlingHeading(element) {
-  const heading = firstHeading(element);
-  return heading && titledElement(heading).contains(element) ? heading : null;
+  const { first } = headingsIn(element);
+  return first && titledElement(first).contains(element) ? first : null;
 }
-// The first heading an element holds, as the page reads it, kept as long as the page
-// reading stands (`keptAnswer`), so the climbs of every heading read each element once.
-/** @param {Element} element @returns {Element | null} */
-const firstHeading = (element) =>
-  keptAnswer(element, "first heading", () => {
-    for (const heading of element.querySelectorAll(HEADING))
-      if (!uiInside(heading, element)) return heading;
-    return null;
+/** @param {Element} heading @param {Element} element */
+const titles = (heading, element) => {
+  if (declaredName(element)) return false;
+  const { first, below } = headingsIn(element);
+  return first === heading && below > rank(heading);
+};
+/** @param {Element} heading */
+const rank = (heading) => Number(heading.localName.slice(1));
+// The first heading an element holds, as the page reads it, and the highest rank among
+// the rest (7 where there are none), kept as long as the page reading stands
+// (`keptAnswer`), so the climbs of every heading read each element once.
+/** @param {Element} element @returns {{first: Element | null, below: number}} */
+const headingsIn = (element) =>
+  keptAnswer(element, "headings in", () => {
+    /** @type {Element | null} */
+    let first = null;
+    let below = 7;
+    for (const heading of element.querySelectorAll(HEADING)) {
+      if (uiInside(heading, element)) continue;
+      if (first) below = Math.min(below, rank(heading));
+      else first = heading;
+    }
+    return { first, below };
   });
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.

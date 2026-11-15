@@ -148,6 +148,8 @@ test("a heading titles the outermost element it is the first heading of, short o
     </section>
     <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
       <h3 id="notes">Notes</h3><p>Words.</p></section>
+    <div id="body"><p>Lede.</p><section id="in"><h2 id="inputs">Inputs</h2></section>
+      <section><h2>Outputs</h2></section></div>
     <div><h2>Before</h2><hgroup id="pair"><h2 id="first">First title</h2>
       <h3 id="second">Second</h3></hgroup></div>
   </main>`;
@@ -161,6 +163,8 @@ test("a heading titles the outermost element it is the first heading of, short o
   // A heading after the question titles only itself.
   assert.equal(titled("store"), "notes-section");
   assert.equal(titled("notes"), "notes");
+  // A wrapper holding sections of one rank is none's.
+  assert.equal(titled("inputs"), "in");
   // Only an hgroup's leading heading titles it.
   assert.equal(titled("first"), "pair");
   assert.equal(titled("second"), "second");

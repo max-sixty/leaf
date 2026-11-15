@@ -285,35 +285,39 @@ export function createTargetPicker({
     return codedHints(unique);
   }
 
-  // `withHints` opens the shared mode without a target map: a direct slash is page
-  // search over the whole document, and reading a viewport-local map it would then hide
-  // is work for nobody.
+  // A direct slash opens the shared mode in page search, without a target map: search
+  // covers the whole document, and reading a viewport-local map it would then hide is
+  // work for nobody. It opens straight into search, so the panel is handed the one mode
+  // it shows: handed the hints and then search in one task, it drew the press the
+  // hints' field offers and took it away again.
   // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
-  /** @param {boolean} on @param {boolean} [restore] @param {boolean} [withHints] */
-  function setTargetPicker(on, restore = false, withHints = true) {
-    if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
+  /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */
+  function setTargetPicker(on, restore = false, mode = "hints") {
+    if (on && (!anchoringIsReady() || (mode === "hints" && !canChoose()))) return;
     if (on) {
       openLayer(pageSearchInput);
-      paintTargetPicker(on, withHints);
+      paintTargetPicker(on, mode);
       return;
     }
     // An opener of nowhere hands back nothing, and `handBack` lets the user go.
     const landing = restore && targetPickerOpen();
     const opener = openerOf(pageSearchInput);
-    closeLayer(
-      () => paintTargetPicker(on, withHints),
-      landing && (() => handBack(opener)),
-    );
+    closeLayer(() => paintTargetPicker(on, mode), landing && (() => handBack(opener)));
   }
-  /** @param {boolean} on @param {boolean} withHints */
-  function paintTargetPicker(on, withHints) {
-    pickerMode.value = on ? "hints" : "closed";
+  /** @param {boolean} on @param {"hints" | "search"} mode */
+  function paintTargetPicker(on, mode) {
     if (on) clearMatches();
     searchReturnsToHints = false;
     pageSearchInput.value = "";
+    if (on && mode === "search") {
+      hints.disarm();
+      setPageSearch(true);
+      return;
+    }
+    pickerMode.value = on ? "hints" : "closed";
     presentSearchField();
-    if (on && withHints) {
+    if (on) {
       const found = hints.arm();
       announce(
         found.length
@@ -370,9 +374,9 @@ export function createTargetPicker({
 
   function openPageSearch() {
     const fromHints = targetPickerOpen();
-    if (!targetPickerOpen()) setTargetPicker(true, false, false);
+    if (fromHints) setPageSearch(true);
+    else setTargetPicker(true, false, "search");
     searchReturnsToHints = fromHints;
-    setPageSearch(true);
   }
 
   /** @param {Match} segments @param {PlacementReading} [reading] */

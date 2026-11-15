@@ -211,8 +211,8 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
-        "kept_back": {
-          "description": "The user's waiting messages Leaf keeps back from the claimant's main thread while a line fork judges them (`forks.kept_back`).",
+        "handed": {
+          "description": "The messages the claimant's line forks handed to its main thread that no pickup has taken in yet (`forks.HANDED`), from which, with `fork_lane`, the fold reads the threads Leaf keeps back.",
           "type": "array",
           "items": { "type": "string" }
         },
@@ -357,7 +357,7 @@
         "session_alive",
         "live_turn",
         "cursor",
-        "kept_back",
+        "handed",
         "pending",
         "agent",
         "claim_session",

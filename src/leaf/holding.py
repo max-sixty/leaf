@@ -7,7 +7,9 @@ working fork that took a thread's work (`state.AGENT_TURNS`, `forks.py`). A pick
 the page log names the turn that took messages in, and an agent's reply names the
 turn that posted it (`thread.post_reply`), so the log says which turn took each
 message and which answered it. A thread's waiting messages are the user's turns in it
-the agent still owes an answer, as the fold reads them (`events.unanswered_turns`):
+the agent still owes an answer while it stands open, as the fold reads them
+(`events.awaits_agent`, `events.unanswered_turns`), so a thread the user resolved has
+none:
 an answer that responds to the newest of them settles them all and ends the thread's
 round, one that responds to an older one settles only that, and a message of the
 agent's that responds to nothing settles nothing (`rounds`). A user's rewrite of a
@@ -73,7 +75,6 @@ from datetime import datetime
 from typing import NamedTuple
 
 from .findings import Finding
-from .registry.kernel import kinds_declaring
 from .service import PageTransaction
 
 
@@ -115,61 +116,40 @@ class Rounds(NamedTuple):
         )
 
 
-def rounds(events: list[dict]) -> Rounds:
-    """The page's threads by their current round, from the log: each thread's history
-    of turns, as the fold keeps it (`events.build_threads`, ``turns``), read by the
-    fold's own rule for what an answer settles and what is still owed
-    (`events.settlements`, `events.unanswered_turns`). It places each turn by the
-    thread its message names, without the rest of the fold's reading of a thread, so
-    the hooks can ask it on every call."""
-    from .events import in_history, taken_back, unanswered_turns
+def rounds(events: list[dict], threads: dict[str, dict] | None = None) -> Rounds:
+    """The page's threads by their current round, from the log's `threads` as the
+    fold builds them (`events.build_threads`), where the caller has folded the page,
+    and otherwise built here without the page's layer, whose containment decides only
+    which of a widget's dependencies a version's retraction reaches: by the fold's
+    own rule for what an answer settles and what is still owed
+    (`events.settlements`, `events.unanswered_turns`), in a thread that stands open,
+    so a thread the user resolved, or a choice's answer closed, has nothing waiting
+    (`events.awaits_agent`)."""
+    from .events import build_threads, unanswered_turns
     from .thread_context import thread_names
 
-    messages = kinds_declaring("message")
+    threads = build_threads(events, {}) if threads is None else threads
     names = dict(thread_names(events))
-    withdrawn = taken_back(events)
-    # Each thread's history, its messages and the user's rewrites, as the fold's
-    # unanswered turns read them (`events.exchange`): what the user took back says
-    # nothing.
-    threads: dict[str, dict] = {}
-    said_in: dict[str, str] = {}
-    # The seq of the newest working message of the agent's in each thread.
-    working: dict[str, int] = {}
-    for event in events:
-        kind = event["kind"]
-        if kind == "undo":
-            thread = said_in.get(event["undoes"])
-        elif kind == "edit":
-            thread = names.get(event["message"])
-        else:
-            thread = names.get(event["id"]) if kind in messages else None
-        if thread is None:
-            continue
-        held = threads.get(thread)
-        if held is None:
-            held = threads[thread] = {"turns": [], "msgs": [], "revisions": []}
-        if in_history(event, messages):
-            held["turns"].append(event)
-            said_in[event["id"]] = thread
-        if event["id"] in withdrawn:
-            continue
-        if kind == "edit":
-            if event["author"] != "agent" and event["message"] not in withdrawn:
-                held["revisions"].append(event)
-                names[event["id"]] = thread
-        elif kind != "undo":
-            held["msgs"].append(event)
-            if event["author"] == "agent" and event.get("ephemeral"):
-                working[thread] = event["seq"]
     waiting: dict[str, list[dict]] = {}
     lined: set[str] = set()
     answers: dict[str, dict] = {}
     for thread, held in threads.items():
-        if said := unanswered_turns(held):
+        for revision in held["revisions"]:
+            names[revision["id"]] = thread
+        if not held["resolved"] and (said := unanswered_turns(held)):
             waiting[thread] = said
-            lined.update(
-                turn["id"] for turn in said if turn["seq"] < working.get(thread, 0)
+            # The seq of the newest working message of the agent's in the thread.
+            working = max(
+                (
+                    message["seq"]
+                    for message in held["msgs"]
+                    if message["author"] == "agent"
+                    and message.get("ephemeral")
+                    and "withdrawn" not in message
+                ),
+                default=0,
             )
+            lined.update(turn["id"] for turn in said if turn["seq"] < working)
         if answer := next(
             (
                 turn
@@ -180,18 +160,6 @@ def rounds(events: list[dict]) -> Rounds:
         ):
             answers[thread] = answer
     return Rounds(waiting, lined, answers, names, threads)
-
-
-def owed_threads(work, found: Rounds) -> set[str]:
-    """The threads the page's fold, `work` (`served_state.work.WorkState`), owes an
-    answer, of the log's `rounds`: where a waiting message stands in an open thread.
-    The fold names each thread's newest owed message, its answer's address, so the
-    thread, not the message, is what it owes."""
-    return {
-        thread
-        for item in work.obligations
-        if (thread := found.names.get(item["input"])) is not None
-    }
 
 
 MAIN = {"kind": "main"}
@@ -268,6 +236,9 @@ class Holding(NamedTuple):
     found: Rounds
     # The inputs each turn of `session` picked up, in log order.
     picked: dict[str, dict[str, None]]
+    # Every input any pickup of the log names, of any session, turn or phase: what
+    # some consumer took in, as a harness's queue does (`codex.finish_codex_batch`).
+    taken: set[str]
     # The threads each turn of `session` took, by a pickup of any of their messages
     # or an answer.
     took: dict[str, set[str]]
@@ -345,19 +316,20 @@ def reading(
     running: set[str],
     *,
     live: bool,
-    found: Rounds | None = None,
+    found: Rounds,
 ) -> Holding:
     """Who holds each thread of a page by its pickups and answers (the module header),
     from its log `events`, for the claimant's `session`, whose agent turns are
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
-    `found` is the log's `rounds`, where the caller has them. The threads Leaf keeps
-    back are the line fork's (`Holding.keeping`). Every reading goes through
-    `reading_of`, which reads both."""
-    found = rounds(events) if found is None else found
+    `found` is the log's `rounds`. The threads Leaf keeps back are the line fork's
+    (`Holding.keeping`). Every reading goes through `reading_of`, which reads both."""
     newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
     took: dict[str, set[str]] = {}
+    taken: set[str] = set()
     for event in events:
+        if event["kind"] == "pickup":
+            taken.update(event["events"])
         if (
             event["kind"] == "pickup"
             and event["phase"] == "opened"
@@ -390,18 +362,25 @@ def reading(
         ]
         turn = max(pickups)[1] if pickups else last.get(thread, (0, None))[1]
         threads[thread] = Hold(turn, bool(pickups), holder(turn, stamps, running))
-    return Holding(session, live, stamps, running, found, picked, took, threads)
+    return Holding(session, live, stamps, running, found, picked, taken, took, threads)
 
 
-def reading_of(events: list[dict], present: dict, now_iso: str) -> Holding:
+def reading_of(
+    events: list[dict],
+    present: dict,
+    now_iso: str,
+    threads: dict[str, dict] | None = None,
+) -> Holding:
     """Who holds each thread of a page, the one builder every reading goes through:
-    from its log `events` (`reading`) and the facts a presence reading carries of its
-    claim (`presence.presence_with_activity`): the claimant's session
-    (`claim_session`) and its agent turns (`agent_turns`), which may run only while
-    the session is alive (`session_alive`) at `now_iso`, and the messages Leaf keeps
-    back (`kept_back`), whose threads the line fork holds. The fold reads it from the
-    page's presence, and `forks.page_holding` from the claim it holds the page's
-    transaction under."""
+    from its log `events` (`reading`), its `threads` where the caller has folded
+    them (`rounds`), and the facts a presence reading carries of its claim
+    (`presence.presence_with_activity`): the claimant's session (`claim_session`)
+    and its agent turns (`agent_turns`), which may run only while the session is
+    alive (`session_alive`) at `now_iso`, and, for a lane of its line forks
+    (`fork_lane`), the messages they handed over (`handed`), from which it reads the
+    threads Leaf keeps back for a line fork (`forks.kept_back_of`), which the line
+    fork holds. The fold reads it from the page's presence and the threads it built,
+    and `forks.page_holding` from the claim it holds the page's transaction under."""
     from .activity import running_agent_turns
 
     live = present["session_alive"] is True
@@ -412,12 +391,16 @@ def reading_of(events: list[dict], present: dict, now_iso: str) -> Holding:
         stamps,
         running_agent_turns(stamps, live, datetime.fromisoformat(now_iso)),
         live=live,
+        found=rounds(events, threads),
     )
+    if not live or present["fork_lane"] is None:
+        return held
+    from .forks import kept_back_of
+
     return held.keeping(
         {
-            thread
-            for input_id in present["kept_back"]
-            if (thread := held.found.names.get(input_id)) is not None
+            kept.thread
+            for kept in kept_back_of(held, present["fork_lane"], set(present["handed"]))
         }
     )
 
@@ -519,15 +502,23 @@ def pickable(
     thread against this module's rule. An agent's turn picks up only what
     `refuse_unheld` lets it act on: its take, its tool boundary and its
     acknowledgement of a pointer; a late acknowledgement of a thread another turn
-    has since taken over is refused, and records nothing. Any other turn's pickup of
-    a message an agent's running turn holds would take the thread over, which waits
-    until that turn has closed or lapsed, so it leaves those messages out."""
-    if not holding.live or holding.session != session or not holding.stamps:
+    has since taken over is refused, and records nothing. Any other turn is the main
+    thread's, which picks up only the waiting messages it owes (`owed_by`): one a
+    running fork or the line fork holds is theirs, and a pickup of it would take the
+    thread from them, so it leaves those messages out. The main thread's turn takes
+    such a thread once its holder has let it go, or by answering it."""
+    if not holding.live or holding.session != session:
         return input_ids
     if turn in holding.stamps:
         refuse_unheld(holding, turn, input_ids)
         return input_ids
-    return [i for i in input_ids if holding.keeper(i) not in holding.running]
+    elsewhere = {
+        event["id"]
+        for event in holding.waiting(
+            lambda held: owed_by(held.holder)["kind"] != "main"
+        )
+    }
+    return [i for i in input_ids if i not in elsewhere]
 
 
 def not_awaited(holding: Holding) -> set[str]:

@@ -812,6 +812,99 @@ def test_input_the_main_thread_took_in_past_a_kept_back_message_is_received_once
     assert [event["id"] for event in handed] == [kept["id"]]
 
 
+def test_a_prompt_while_a_message_is_kept_back_leaves_it_to_the_line_fork(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A prompt that reaches the session while Leaf keeps a message back, typed or
+    a wake for other input, neither shows it nor takes it for the main thread,
+    though the cursor has passed it: the line fork still holds it and posts its
+    line, and the main thread's next tool boundary takes it in once the line fork
+    hands it over."""
+    taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    context(capsys, "Stop")
+    kept = said(claimed, "Which Python does the project need?")
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "prompt_id": "p2"},
+    )
+    assert kept["text"] not in capsys.readouterr().out
+    assert kept_back(claimed) == [(kept["id"], (kept["id"],))]
+    assert not [
+        event
+        for event in events_model.read_events(claimed)
+        if event["kind"] == "pickup" and kept["id"] in event["events"]
+    ]
+    routed = forks_model.route(
+        "s1",
+        basis(claimed, kept["id"], kept["id"]),
+        answer=judged("checking the Python version"),
+        failed=None,
+    )
+    assert routed["outcome"] == "hand_over"
+    assert kept["text"] in context(capsys, "PostToolBatch")
+
+
+def test_a_kept_back_thread_once_handed_over_and_taken_in_is_no_input(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A kept-back thread's waiting messages, which the cursor passed as the main
+    thread took in later input, go to the main thread together once the line fork
+    hands them over, and once its tool boundary has taken the thread in, nothing in
+    it is input there again, though the pickup names only the newest."""
+    first = taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    one = said(claimed, "Which Python does the project need?")
+    two = said(claimed, "And which uv?", parent=one["id"])
+    follow = said(claimed, "And the lease?", parent=first["id"])
+    assert follow["text"] in context(capsys, "PostToolBatch")
+    context(capsys, "PostToolBatch")
+    forks_model.route(
+        "s1",
+        basis(claimed, one["id"], one["id"], two["id"]),
+        answer=judged("checking the versions"),
+        failed=None,
+    )
+    handed = context(capsys, "PostToolBatch")
+    assert one["text"] in handed and two["text"] in handed
+    assert not hook_transport_model.new_input("s1")
+
+
+def test_a_kept_back_message_in_a_thread_the_user_resolved_is_no_input(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A message the cursor passed while Leaf kept it back, in a thread the user
+    resolved before the line fork answered, is owed nobody: once the main thread's
+    tool boundary has taken in the resolution, nothing on the page is input
+    there."""
+    first = taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    kept = said(claimed, "Which Python does the project need?")
+    follow = said(claimed, "And the lease?", parent=first["id"])
+    assert follow["text"] in context(capsys, "PostToolBatch")
+    context(capsys, "PostToolBatch")
+    append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": kept["id"]}
+    )
+    assert kept_back(claimed) == []
+    context(capsys, "PostToolBatch")
+    assert not hook_transport_model.new_input("s1")
+
+
+def test_a_running_fork_carries_nothing_of_a_thread_the_user_resolved(claimed, lane):
+    """A further message in a thread a running fork holds, which the user then
+    resolved, is owed nobody, so the fork's tool boundary doesn't carry it."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does it need?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    said(claimed, "And 3.14?", parent=asked["id"])
+    append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    with PageTransaction(claimed) as page:
+        assert (
+            holding_model.to_carry(forks_model.page_holding(page), taken["turn"]) == []
+        )
+
+
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
     claimed, lane, monkeypatch, capsys
 ):
@@ -988,6 +1081,7 @@ def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer
         *(
             {
                 "kind": "pickup",
+                "id": f"p{seq}",
                 "phase": "opened",
                 "session": "s1",
                 "turn": turn,
@@ -997,7 +1091,9 @@ def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer
             for seq, turn, input_id in ((4, "waiting", "u2"), (5, "older", "c1"))
         ),
     ]
-    held = holding_model.reading(events, "s1", {}, set(), live=True).hold("c1")
+    held = holding_model.reading(
+        events, "s1", {}, set(), live=True, found=holding_model.rounds(events)
+    ).hold("c1")
     assert (held.turn, held.picked) == ("waiting", True)
 
 
@@ -1765,18 +1861,21 @@ def test_a_fork_ending_on_a_thread_the_user_resolved_hands_nothing_back(
     claimed, lane, capsys
 ):
     """A message waiting in a thread the user resolved is owed nobody, so a fork
-    whose run ends on it hands nothing back: the main thread hears of no thread given
-    back, and its next prompt brings only the resolution."""
+    whose run ends on it hands nothing back: its work on the thread ends as
+    `resolved`, the main thread hears of no thread given back, and its next prompt
+    brings only the resolution."""
     asked, _holds = held_by_a_running_fork(claimed, "Which Python does it need?")
     resolved = append_carried_log_record(
         claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}
     )
-    assert (
-        forks_model.ended(
-            "s1", agent="agent-1", turn=None, answer="Nothing to answer.", failed=None
-        )
-        == []
-    )
+    assert forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Nothing to answer.", failed=None
+    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "resolved"}]
+    assert [
+        (row["thread"], row["inputs"])
+        for row in read_interactions(claimed, types=("fork_outcome",))
+        if row.get("step") == "end"
+    ] == [(asked["id"], [asked["id"]])]
     assert clerk_model.queued("s1") == []
     _opening, envelope = context(capsys, "UserPromptSubmit").split("\n", 1)
     [batch] = json.loads(envelope)["batches"]
@@ -2217,9 +2316,10 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
 def test_the_session_taking_the_message_first_leaves_the_fork_nothing_to_write(
     claimed, lane, capsys
 ):
-    """A kept-back message the session picks up anyway, as once the bound has passed, is
-    the session's: the fork's later answer writes nothing."""
+    """A kept-back message the session picks up once the bound has passed is the
+    session's: the fork's later answer writes nothing."""
     asked = said(claimed, "Which wins?")
+    forks_model.look("s1", claimed, now=float("inf"))
     with PageTransaction(claimed) as page:
         [event] = [e for e in page.events if e["id"] == asked["id"]]
         delivery_model.record_pickup(page, [event], session="s1", turn="t1")

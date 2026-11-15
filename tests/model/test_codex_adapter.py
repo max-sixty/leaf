@@ -1214,6 +1214,44 @@ cmd_hook(
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
 
 
+def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
+    page_dir, codex_loop, capsys
+):
+    """A comment the adapter queued as the task's next message, which its receipt
+    passed, is the queue's: the running turn's tool hook offers the newer comment
+    alone, never the queued one again beside it."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    queued = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "First, queued"}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        [event] = [e for e in page.events if e["id"] == queued["id"]]
+        delivery_model.record_pickup(
+            page, [event], phase="queued", session="codex-thread", turn=None
+        )
+        delivery_model.record_receipt(page, event["seq"])
+    newer = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Second, new"}
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert [
+        event["id"]
+        for batch in json.loads(context)["batches"]
+        for event in batch["events"]
+    ] == [newer["id"]]
+
+
 def test_codex_tool_hook_reminds_the_task_of_a_status_line_left_standing(
     page_dir, codex_loop, capsys
 ):

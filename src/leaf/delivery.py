@@ -1169,17 +1169,19 @@ def deliverable(
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
     `received=False` and hands over only what the cursor has not passed, answered
-    without loading the page's layer where nothing is pending; the adapter, or the
-    Stop hook where no adapter runs, hands over the rest
-    (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
-    the same before it folds its pages (`hook_transport.new_input`)."""
+    without loading the page's layer; the adapter, or the Stop hook where no adapter
+    runs, hands over the rest (`harness.CodexHarness.offer_at_step`). Claude Code's
+    tool-boundary hook asks the same before it folds its pages
+    (`hook_transport.new_input`), and for a session with forks it also hands over
+    what the cursor passed while another held it and the main thread owes now, read
+    from the log."""
     cursor = page.cursor
     pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
     from .forks import lane_since, page_holding
-    from .holding import owed_by, owed_threads
+    from .holding import owed_by
     from .state import agent_turn_stamps
 
     owed = []
@@ -1191,33 +1193,31 @@ def deliverable(
         owed = unreferenced(page, work.obligations)
         holding = work.holding
     elif (claim := page.active_claim) is not None and (
-        pending
-        or agent_turn_stamps(claim, page.events)
-        or lane_since(claim["id"]) is not None
+        agent_turn_stamps(claim, page.events) or lane_since(claim["id"]) is not None
     ):
+        # Only a session with forks has another holder, so a page of any other reads
+        # its log alone. For one with forks, the waiting messages of a thread the
+        # cursor passed while another held it (`holding.not_awaited`), which the main
+        # thread owes now and no pickup ever took in, are its input, as the fold's
+        # debt with no reference is where it reads: a thread a turn took any of them
+        # in from is that turn's, which the fold hands on if it ended with the thread
+        # owed.
         holding = page_holding(page)
-        # A waiting message the cursor passed while another held it
-        # (`holding.not_awaited`), which the main thread owes now and never took
-        # in, is its input, as the fold's debt with no reference is where it reads.
-        # Only a session with forks has another holder, so a quiet page of any other
-        # reads its log alone.
-        taken = {i for inputs in holding.picked.values() for i in inputs}
         pending += [
             event
-            for event in holding.waiting(
-                lambda held: owed_by(held.holder)["kind"] == "main"
-            )
-            if event["seq"] <= cursor and event["id"] not in taken
+            for thread, said in holding.found.waiting.items()
+            if owed_by(holding.threads[thread].holder)["kind"] == "main"
+            and not any(event["id"] in holding.taken for event in said)
+            for event in said
+            if event["seq"] <= cursor
         ]
     else:
         holding = None
     if holding is not None:
         if work is not None and holding.live:
             # What a fork's turn picked up and then left owed, giving its thread back
-            # or ending without answering, is the main thread's input now, in a
-            # thread the fold still owes an answer, so a message in a thread the user
-            # resolved goes to nobody; a message already pending or owed goes once.
-            due = owed_threads(work, holding.found)
+            # or ending without answering, is the main thread's input now; a message
+            # already pending or owed goes once.
             left = {
                 event["id"]
                 for event in holding.waiting(
@@ -1227,7 +1227,6 @@ def deliverable(
                         and held.holder["state"] != "running"
                     )
                 )
-                if holding.found.names[event["id"]] in due
             } - {event["id"] for event in [*owed, *pending]}
             owed += [event for event in page.events if event["id"] in left]
         # A message a fork's running turn holds is owed and unreferenced once the

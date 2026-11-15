@@ -18,7 +18,7 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
-from .forks import kept_back_threads, lane_since
+from .forks import handed_inputs, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -340,15 +340,11 @@ def presence_with_activity(
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
-        # The user's waiting messages Leaf keeps back from the claimant's main thread
-        # while a line fork judges them (`forks.kept_back`), whose threads the activity
-        # fold reads as the line fork's, and which read On it
-        # (`holding.Holding.forked`).
-        "kept_back": sorted(
-            input_id
-            for thread in kept_back_threads(page_dir, events, active)
-            for input_id in thread.inputs
-        ),
+        # The messages the claimant's line forks handed to its main thread that no
+        # pickup has taken in yet (`forks.HANDED`), from which, with the lane's start
+        # (`fork_lane`), the fold reads the threads Leaf keeps back
+        # (`holding.reading_of`).
+        "handed": sorted(handed_inputs(active["id"], page_dir)) if active else [],
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.

@@ -129,7 +129,7 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
-    holding = reading_of(events, present, now)
+    holding = reading_of(events, present, now, durable.threads)
     activity = canonical_activity(
         present,
         durable.workflows,

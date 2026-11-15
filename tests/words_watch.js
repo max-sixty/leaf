@@ -20,8 +20,9 @@
 // elsewhere, choosing another target, or an edit in another tab of the page. That edit
 // reaches this one as storage news, or, where this document reads the store before
 // that news is delivered, as its own reading of the store: words this document stored
-// that the store now holds no longer, under a key whose value another document changed,
-// are that edit's to have put away. A close watcher's close, such as Android's back
+// that the store no longer holds when they leave the screen, under a key whose value
+// another document changed, are that edit's to have put away. A write arriving after
+// they left is later input, which redeems nothing. A close watcher's close, such as Android's back
 // gesture makes, puts words away only where the page's storage still holds them, as Leaf's
 // draft store does for kept words and for saved ones until the log accepts them: back may close an editor but
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
@@ -337,7 +338,9 @@
     if (pending.get(field)?.held === held) pending.delete(field);
     painting.delete(field);
   };
-  const judge = (field, held, source) => {
+  // `replaced` is whether another tab's edit had replaced the words when the loss was
+  // observed, read then: a foreign write arriving after the loss cannot redeem it.
+  const judge = (field, held, source, replaced) => {
     const { words, typedOrder } = held;
     // Back by the time of judging: a re-render that put them straight back.
     const heir = shownIn(words);
@@ -346,7 +349,7 @@
       watching();
       return;
     }
-    if (putAway(field, typedOrder, source, words) || replacedElsewhere(words)) return;
+    if (replaced || putAway(field, typedOrder, source, words)) return;
     const place = window.lfPlace?.(field) ?? [field.localName];
     window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };
@@ -436,14 +439,15 @@
         pending.set(field, {
           held,
           source: effectSource,
+          replaced: replacedElsewhere(held.words),
         });
     }
   };
   const judgePending = () => {
-    for (const [field, { held, source }] of pending) {
+    for (const [field, { held, source, replaced }] of pending) {
       if (held.close?.pending) continue;
       pending.delete(field);
-      judge(field, held, source);
+      judge(field, held, source, replaced);
     }
   };
   // One frame at a time while there is anything to watch, and none on a page nobody has

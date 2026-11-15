@@ -332,9 +332,10 @@
    * properties that don't inherit, so each unit resolves there: the shell's `cqi`, and
    * a page's `--col` or `--col-pad` stated in `ch` or `em`, in the column's font.
    * `--lf-room-length` is the column's slot for that length: the shell less the
-   * column's gutters for a centred column, and the room at its end beside a sidebar
-   * (below). `--lf-room-note` is the note's share of it where a note column stands
-   * beside the prose. The column states each side's room from them in `--lf-free-*`,
+   * column's gutters for a centred column, and the room the row leaves a body beside a
+   * sidebar (below), of which `--lf-room-before` stands before the prose.
+   * `--lf-room-note` is the note's share of it where a note column stands beside the
+   * prose. The column states each side's room from them in `--lf-free-*`,
    * registered `*`, as an expression of lengths and a percentage that each reader
    * resolves against its own containing block. Registered `<length-percentage>`, a
    * room mixing a length with a percentage counted as changed on every restyle of the
@@ -348,6 +349,11 @@
     initial-value: 0px;
   }
   @property --lf-room-length {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+  @property --lf-room-before {
     syntax: "<length>";
     inherits: false;
     initial-value: 0px;
@@ -719,8 +725,8 @@
       flex: 1 1 var(--aside);
     }
   }
-  /* A document beside its route keeps the prose's start edge, while the body owns
-   * the remaining width for exhibits. A plain column centers that same track. */
+  /* A document beside its route spans the window, and its body places the prose
+   * (below). */
   .layout-sidebar:has(> .layout-column) {
     padding-inline: var(--col-pad);
     max-inline-size: none;
@@ -728,11 +734,12 @@
   }
   /* A document's sidebar whose track holds only an element that rests as a spine
    * (`x-spine`, painted `data-lf-spine`), as the contents map does, narrows to that spine
-   * on a screen where a fine pointer can reach into it, so the prose starts beside it and
-   * the room a column would take goes to the body's exhibits. The aside comes before the
-   * body, so what the element reveals spreads from the spine toward the inline end, over
-   * the body. The narrowed track carries `--lf-track-spine: 1`, and only there does the
-   * element take its resting form (toc.css). The track doesn't clip, the aside paints over the body,
+   * on a screen where a fine pointer can reach into it, so the room a column would take
+   * goes to the body, whose prose stands as a column page's does (below). The aside comes
+   * before the body, so what the element reveals spreads from the spine toward the inline
+   * end, into the room before the prose and, on a narrower window, over the body. The
+   * narrowed track carries `--lf-track-spine: 1`, and only there does the element take
+   * its resting form (toc.css). The track doesn't clip, the aside paints over the body,
    * and the body is one stacking context, so nothing it holds paints over what the
    * element reveals, whatever its z-index. Every other sidebar keeps a column's room: a
    * track holding anything else, an aside after the body, every track under touch,
@@ -763,12 +770,17 @@
       }
     }
   }
-  /* Beside the sidebar, the body's prose starts at its edge, and its padding at the
-   * end holds the rest of the body's width, the room a breakout grows into. The body
-   * is the whole flex item rather than a centred box, so its room is a length. The
-   * body's width is what the flex row leaves it: the sidebar's, less the aside and the
-   * gap while the aside stands beside it (the Layout's `--aside` is a length here), and
-   * the whole of it once the aside wraps. */
+  /* The body's prose stands where a column page's would, centred in the Layout, and
+   * moves toward the end only as far as a sidebar before it needs, so a page's prose
+   * stands in one place whether or not it has a contents map. Its padding on each side
+   * holds the rest of the body's width, the room a breakout grows into. The body is the
+   * whole flex item rather than a centred box, so its room is a length. The body's width
+   * is what the flex row leaves it: the sidebar's, less the aside and the gap while the
+   * aside stands beside it (the Layout's `--aside` is a length here), and the whole of
+   * it once the aside wraps. Until 14 November 2026 the prose stood at the body's start edge, as from #4724. Beside an outline column that
+   * read as a route and its document, but once the contents map rested as a 56px spine
+   * (#5772) it left the prose against the window's edge, half the window empty past it
+   * and the panel centred off it. */
   .layout-sidebar > .layout-column {
     flex: 1000000 1 var(--col);
     min-inline-size: min(100%, var(--col));
@@ -777,14 +789,26 @@
     margin: 0;
     padding: 0;
     --lf-wide-page: 0;
-    /* A length throughout, resolved in the column's slot for it (above). */
+    /* Lengths throughout, resolved in the column's slots for them (above). */
     --lf-room-length: max(
       0px,
       100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
         clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
     );
-    --lf-free-end: var(--lf-room-length);
-    padding-inline-end: var(--lf-room-length);
+    --lf-room-before: clamp(
+      0px,
+      var(--lf-room-length) - (100cqi - var(--col)) / 2,
+      var(--lf-room-length)
+    );
+    --lf-free-start: var(--lf-room-before);
+    --lf-free-end: calc(var(--lf-room-length) - var(--lf-room-before));
+    padding-inline: var(--lf-room-before)
+      calc(var(--lf-room-length) - var(--lf-room-before));
+  }
+  /* An aside after the body stands past the prose's end, so the prose centres in the
+   * whole Layout, short of the aside. */
+  .layout-sidebar:has(> .layout-column ~ aside) > .layout-column {
+    --lf-room-before: clamp(0px, (100cqi - var(--col)) / 2, var(--lf-room-length));
   }
   @property --lf-track-parent-width {
     syntax: "<length>";

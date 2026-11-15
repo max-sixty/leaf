@@ -80,7 +80,7 @@ unsettled update's workflow, whose `stage` reports its delivery, and each owed u
 obligation record, which says who owes it a move. Its header says when each settles.
 The served list names each workflow's `thread` and whether the agent is `at_work` on
 it, which a fork of its conversation taking the update on sets before the stage moves
-(`forks.forked`), strongest first (`served_state.work.served_workflows`).
+(`holding.Holding.forked`), strongest first (`served_state.work.served_workflows`).
 
 `activity` adds a `condition` where evidence shows a stage has stopped, and keeps the
 durable stage:
@@ -130,21 +130,24 @@ agent's harness id once the harness has started or resumed it. The agent's tool
 boundary renews it, and it closes as the harness says the
 run ended, or with the session's generation or instance. A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
-claimant's agent turns (`agent_turns`), and the fold believes one running while it is
-open and renewed within the working grace (`activity.running_agent_turns`).
+claimant's agent turns (`agent_turns`), each with its agent's id, and the fold believes
+one running while it is open and renewed within the working grace
+(`activity.running_agent_turns`).
 
-Which turn holds each thread message, the main thread's or an agent's, is one reading
-every reader asks (`holding.py`, whose header states the rule), and `leaf page
-state`'s `holder` names the turn: the main thread, or the fork by name with whether its
-turn runs (`holding.holder`). The newest pickup of a
-thread's waiting messages holds them, an answer takes its thread as a pickup does, and
-a running agent turn that last took a thread holds the messages the user writes in it
-until another turn picks them up. A message a running agent turn holds is in hand for
-that turn: the main thread's hooks neither hold its turn over it, remind it of it, nor
-take it in again (`activity.agent_holds`), and its deliveries leave it out
-(`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
-the main thread's input, which its next delivery hands over with a reference of its own
-(`holding.left_by_agent_turns`), and the main thread's pickup of it takes the thread
+Which turn holds each thread, the main thread's or an agent's, with its waiting
+messages, is one reading every reader asks (`holding.py`, whose header states the
+rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
+thread; the fork, by the agent id the main thread reaches it by, null until the
+harness has started it, with whether its turn runs; or the line fork. The newest
+pickup of a thread's waiting messages holds them, an answer takes its thread as a
+pickup does, and a running agent turn that last took a thread holds the messages the
+user writes in it until another turn picks them up. A thread Leaf keeps back while a
+line fork judges it is the line fork's. The main thread doesn't owe a message a
+running agent turn holds or a line fork judges (`holding.owed_by`): its hooks neither
+hold its turn over it, remind it of it, nor take it in again (`activity.agent_holds`),
+and its deliveries leave it out (`delivery.deliverable`). Once the agent's turn ends or
+lapses, a message still owed is the main thread's input, which its next delivery hands
+over with a reference of its own, and the main thread's pickup of it takes the thread
 over; the main thread's answer
 takes the thread over at once, even while the agent's turn runs. An agent's turn may
 pick up, answer or start on only the messages it holds or no turn holds, and post in a

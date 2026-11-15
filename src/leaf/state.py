@@ -837,11 +837,17 @@ def open_agent_turns(session_id: str) -> dict[str, dict]:
 
 def agent_turn_stamps(claim: dict) -> dict[str, dict]:
     """The agent turns of the session `claim` names, opened in the claim's
-    generation: by turn id, when each was last renewed and when it closed, or null
-    while it is open, which `activity.running_agent_turns` reads. The page's served
-    reading carries them for every reader of its claim (`presence`)."""
+    generation: by turn id, the agent's id in its harness, null until the harness
+    starts it, by which the main thread reaches the agent (`holding.holder`), and
+    when the turn was last renewed and when it closed, or null while it is open,
+    which `activity.running_agent_turns` reads. The page's served reading carries
+    them for every reader of its claim (`presence`)."""
     return {
-        turn: {"renewed": entry["renewed"], "closed": entry["closed"]}
+        turn: {
+            "agent": entry["agent"],
+            "renewed": entry["renewed"],
+            "closed": entry["closed"],
+        }
         for turn, entry in agent_turns(claim["id"]).items()
         if entry["generation"] == claim["generation"]
     }
@@ -1011,11 +1017,9 @@ def acting_agent_turn(session: str) -> str | None:
 def acting_turn(claim: dict | None, session: str | None) -> str | None:
     """The turn a command of `session` acts in on a page held by `claim`: its agent's
     (`acting_agent_turn`, which refuses an agent whose turn has ended), and otherwise
-    the claim's turn; None for a command of a session that doesn't hold the page."""
-    # TODO(2026-11-14): a command no agent id marks acts as the main thread, whoever
-    # ran it: a fork's own script, a worker subagent, the user's terminal. Mark every
-    # caller the hook sees instead, so an unmarked command stops taking over, with
-    # the main thread's authority, what a running fork holds (`holding.holder`).
+    the claim's turn; None for a command of a session that doesn't hold the page. A
+    command no agent id marks acts as the main thread, whoever ran it, which
+    `holding.authorize` says the user chose."""
     if claim is None or session is None or claim["id"] != session:
         return None
     return acting_agent_turn(session) or claim["turn"]

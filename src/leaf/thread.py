@@ -493,6 +493,11 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
+    ``claimed_session`` names the session Leaf writes for, as a line fork's working
+    message or a harness's failure receipt: Leaf's own write, which goes in as the
+    claimant's and says nothing beside it. A command's own write says which fork or
+    line fork holds the thread it writes in (`holding.authorize`).
+
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
@@ -531,19 +536,25 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import page_holding
         from .holding import authorize
 
         # A fork may answer only what its turn holds, and write in no thread
         # another turn took, and an ended one nothing; it asks first, so a refused
-        # fork is never handed another turn's answer as the repeat of its own.
+        # fork is never handed another turn's answer as the repeat of its own. The
+        # main thread writes anywhere, and hears of a fork it writes beside. Only an
+        # answer, which responds to a message, takes the thread.
+        holding = page_holding(page)
         responds = address.get("responds")
-        authorize(
+        beside = authorize(
             page,
+            holding,
             posting_identity.get("session"),
             [responds] if responds else [],
             thread=None
             if responds or not address.get("parent")
-            else thread_names(page.events).get(address["parent"]),
+            else holding.found.names.get(address["parent"]),
+            answers=responds is not None and not ephemeral,
         )
         if attempt is not None and (
             repeated := _repeated_reply(
@@ -586,6 +597,8 @@ def post_reply(
             detach=detach,
             title=title,
         )
+    if beside is not None and claimed_session is None:
+        note(beside)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))

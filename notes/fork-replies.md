@@ -254,6 +254,16 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   then shows the user "Prompt dropped by a hook" (2.1.322 on 2026-11-10; the probe
   module is in `.tmp/resume-probe/` of the `send-pickup-latency` worktree, which may
   be gone, run with `uv run python .tmp/resume-probe/run.py sonnet`).
+- A name doesn't stay with its fork. `$.agent.spawn` accepts a name another fork
+  already has, ended or running, and the newest spawn takes it. The main thread's
+  first SendMessage to a name pins that agent, so once the name has moved a send to
+  it is refused ("now resolves to a different agent … Nothing was sent"); where the
+  main thread never pinned it, a send meant for the older fork reaches the newer one.
+  After `claude --resume` a send to the name finds no agent until a fork is spawned
+  under it, and is then refused against the stored pin. A send by agent id always
+  reaches its agent: it resumes an ended one, queues for a running one, and works
+  across generations (2.1.325). So Leaf spawns forks unnamed and names each by its
+  agent id (`src/leaf/forks.py`).
 - The fork can message the main thread itself: its SendMessage to `main` arrived as
   an `<agent-message from="…">` and started a turn on the idle main session 60 ms
   later (2026-11-07). The module's `$.session.send` to its own session id fails as
@@ -321,7 +331,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
    turn runs, the activity fold reads the pickup and the fork's starts as work in
    hand; the main thread's Stop hook, watch and prompt neither hold its turn over the
    message, remind it nor take it in again (`activity.agent_holds`); and its
-   deliveries leave out what the fork holds (`forks.kept_from_main`). The fork's
+   deliveries leave out what the fork holds (`delivery.deliverable`). The fork's
    pickups, replies and starts are each checked as they are written against which
    turn holds the thread (`holding.refuse_unheld`), so a fork that lost its thread to
    the main thread can neither take it back with a late acknowledgement, nor answer

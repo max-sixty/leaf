@@ -106,7 +106,6 @@ class _CssFrame:
 
     source: str
     base: str
-    declarations: bool
     references: Iterator[str]
     addresses: dict[str, str | None]
     parent_reference: str | None = None
@@ -116,19 +115,11 @@ class _CssFrame:
         cls,
         source: str,
         base: str,
-        declarations: bool = False,
         parent_reference: str | None = None,
     ) -> _CssFrame:
         addresses: dict[str, str | None] = {}
-        rebase_css(
-            source,
-            base,
-            lambda path: addresses.setdefault(path, path),
-            declarations=declarations,
-        )
-        return cls(
-            source, base, declarations, iter(addresses), addresses, parent_reference
-        )
+        rebase_css(source, base, lambda path: addresses.setdefault(path, path))
+        return cls(source, base, iter(addresses), addresses, parent_reference)
 
 
 def _fragment(address: str | None, reference: str) -> str | None:
@@ -169,15 +160,9 @@ class _Assets(ABC):
             resource = Resource(self.stylesheet(path).encode("utf-8"), "text/css")
         return _fragment(self.embed(resource), reference)
 
-    def css(
-        self,
-        css: str,
-        base: str,
-        *,
-        declarations: bool = False,
-    ) -> str:
+    def css(self, css: str, base: str) -> str:
         """Rewrite the CSS graph in depth-first order without recursive resource reads."""
-        stack = [_CssFrame.read(css, base, declarations)]
+        stack = [_CssFrame.read(css, base)]
         active = {base}
         while True:
             frame = stack[-1]
@@ -200,10 +185,7 @@ class _Assets(ABC):
                 frame.addresses[reference] = _fragment(self.embed(resource), reference)
                 continue
             rewritten = rebase_css(
-                frame.source,
-                frame.base,
-                frame.addresses.__getitem__,
-                declarations=frame.declarations,
+                frame.source, frame.base, frame.addresses.__getitem__
             )
             stack.pop()
             active.remove(frame.base)

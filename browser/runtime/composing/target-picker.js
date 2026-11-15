@@ -175,12 +175,16 @@ export function createTargetPicker({
   // slice in the task the query changed in, each later one in a task of its own, so no
   // search holds the page while it reads documents the page hasn't read or checks a
   // million matches. `matches` holds what has arrived, in reading order. Its signal
-  // changes as the first match arrives, which is all its readers ask (the arrows'
-  // availability), and the array grows in place after. `pending` finds the rest. A step
-  // or a choice takes matches at once until it can be answered as it would be with every
-  // match in (`settle`).
-  /** @type {Iterator<Match | null> | null} */
-  let pending = null;
+  // changes as the first match arrives, and the array grows in place after. `pending`
+  // finds the rest, a signal as it starts and ends: with the first match, all the arrows'
+  // availability reads (`searchStands`). A step or a choice takes matches at once until
+  // it can be answered as it would be with every match in (`settle`).
+  /** @type {import("@preact/signals-core").Signal<Iterator<Match | null> | null>} */
+  const pending = signal(null);
+  // Whether a step or a choice has a search to answer it: one with matches in, or one
+  // still finding them, which `settle` finishes. A change to the page starts the search
+  // again with none in (`restart`), so the matches alone don't say.
+  const searchStands = () => matches.value.length > 0 || pending.value !== null;
   // Where the search lands once it can tell: the match the search stood on before the
   // page changed, found again, else the match at its index; for a new query, the first
   // match at or below the top of the window, else the first. `show` brings it into view.
@@ -285,35 +289,39 @@ export function createTargetPicker({
     return codedHints(unique);
   }
 
-  // `withHints` opens the shared mode without a target map: a direct slash is page
-  // search over the whole document, and reading a viewport-local map it would then hide
-  // is work for nobody.
+  // A direct slash opens the shared mode in page search, without a target map: search
+  // covers the whole document, and reading a viewport-local map it would then hide is
+  // work for nobody. It opens straight into search, so the panel is handed the one mode
+  // it shows: handed the hints and then search in one task, it drew the press the
+  // hints' field offers and took it away again.
   // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
-  /** @param {boolean} on @param {boolean} [restore] @param {boolean} [withHints] */
-  function setTargetPicker(on, restore = false, withHints = true) {
-    if (on && (!anchoringIsReady() || (withHints && !canChoose()))) return;
+  /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */
+  function setTargetPicker(on, restore = false, mode = "hints") {
+    if (on && (!anchoringIsReady() || (mode === "hints" && !canChoose()))) return;
     if (on) {
       openLayer(pageSearchInput);
-      paintTargetPicker(on, withHints);
+      paintTargetPicker(on, mode);
       return;
     }
     // An opener of nowhere hands back nothing, and `handBack` lets the user go.
     const landing = restore && targetPickerOpen();
     const opener = openerOf(pageSearchInput);
-    closeLayer(
-      () => paintTargetPicker(on, withHints),
-      landing && (() => handBack(opener)),
-    );
+    closeLayer(() => paintTargetPicker(on, mode), landing && (() => handBack(opener)));
   }
-  /** @param {boolean} on @param {boolean} withHints */
-  function paintTargetPicker(on, withHints) {
-    pickerMode.value = on ? "hints" : "closed";
+  /** @param {boolean} on @param {"hints" | "search"} mode */
+  function paintTargetPicker(on, mode) {
     if (on) clearMatches();
     searchReturnsToHints = false;
     pageSearchInput.value = "";
+    if (on && mode === "search") {
+      hints.disarm();
+      setPageSearch(true);
+      return;
+    }
+    pickerMode.value = on ? "hints" : "closed";
     presentSearchField();
-    if (on && withHints) {
+    if (on) {
       const found = hints.arm();
       announce(
         found.length
@@ -339,12 +347,13 @@ export function createTargetPicker({
     matchesIn = null;
     matchesFor = "";
     active = -1;
-    pending = null;
+    pending.value = null;
     landing = null;
   }
   // Whether a step from match `at` goes back past the first while the search runs.
   /** @param {number} at @param {import("../keyboard/bindings.js").Step} direction */
-  const stillFinding = (at, direction) => pending !== null && direction < 0 && at === 0;
+  const stillFinding = (at, direction) =>
+    pending.value !== null && direction < 0 && at === 0;
   /** @param {boolean} on */
   function setPageSearch(on) {
     pickerMode.value = on ? "search" : "hints";
@@ -370,9 +379,9 @@ export function createTargetPicker({
 
   function openPageSearch() {
     const fromHints = targetPickerOpen();
-    if (!targetPickerOpen()) setTargetPicker(true, false, false);
+    if (fromHints) setPageSearch(true);
+    else setTargetPicker(true, false, "search");
     searchReturnsToHints = fromHints;
-    setPageSearch(true);
   }
 
   /** @param {Match} segments @param {PlacementReading} [reading] */
@@ -388,20 +397,20 @@ export function createTargetPicker({
     const total = matches.value.length;
     const status = !query
       ? nothing
-      : pending && active < 0
+      : pending.value && active < 0
         ? "…"
         : total
           ? searchCount(active + 1, total)
           : searchCount(0, 0);
     const label = !query
       ? null
-      : pending && active < 0
+      : pending.value && active < 0
         ? searching
         : total
-          ? `Match ${active + 1} of ${total}${pending ? " so far" : ""}`
+          ? `Match ${active + 1} of ${total}${pending.value ? " so far" : ""}`
           : noMatches;
     keeps(pageSearchStatus, "aria-label", label);
-    keeps(pageSearchStatus, "aria-busy", query && pending ? "true" : null);
+    keeps(pageSearchStatus, "aria-busy", query && pending.value ? "true" : null);
     render(html`${status}`, pageSearchWords);
   }
 
@@ -480,7 +489,7 @@ export function createTargetPicker({
   function find(query, to) {
     matchesIn = pageReadingVersion();
     matchesFor = query;
-    pending = query ? pageMatches(query) : null;
+    pending.value = query ? pageMatches(query) : null;
     landing = query ? to : null;
     matches.value = [];
     active = -1;
@@ -504,32 +513,32 @@ export function createTargetPicker({
   // it ends.
   /** @param {boolean} [first] @returns {void} */
   function findMore(first = false) {
-    const search = pending;
+    const search = pending.value;
     if (search && pageReadingVersion() !== matchesIn) {
       // A search the field no longer shows, as after Enter, stops where the page
       // changed; `n` searches again (`repeatSearch`).
       if (!pageSearchOpen()) {
-        pending = null;
+        pending.value = null;
         return;
       }
       return restart();
     }
     const landed = search !== null && take(() => false, performance.now() + SLICE_MS);
     presentSearchStatus();
-    if (landed || !pending || first) repaint();
-    if (pending) setTimeout(() => pending === search && findMore());
+    if (landed || !pending.value || first) repaint();
+    if (pending.value) setTimeout(() => pending.value === search && findMore());
   }
 
   // Takes the standing search's matches until `enough` holds of them or the clock passes
   // `until`, landing it as soon as a match tells where; whether it landed.
   /** @param {(found: Match[]) => boolean} enough @param {number} until */
   function take(enough, until) {
-    const search = /** @type {Iterator<Match | null>} */ (pending);
+    const search = /** @type {Iterator<Match | null>} */ (pending.value);
     const found = matches.value;
     const from = found.length;
     for (let next = search.next(); ; next = search.next()) {
       if (next.done) {
-        pending = null;
+        pending.value = null;
         break;
       }
       if (next.value) {
@@ -541,9 +550,9 @@ export function createTargetPicker({
     }
     if (found.length && !from) matches.value = [...found];
     if (!landing) return false;
-    if (active < 0 && !pending && found.length)
+    if (active < 0 && !pending.value && found.length)
       active = landing.was ? Math.min(landing.index, found.length - 1) : 0;
-    if (active < 0 && pending) return false;
+    if (active < 0 && pending.value) return false;
     const { show } = landing;
     landing = null;
     if (repeatedSearch && !pageSearchOpen() && active >= 0)
@@ -565,11 +574,11 @@ export function createTargetPicker({
   // search runs it stays put (`stillFinding`) rather than wait for all of it.
   /** @param {(found: Match[]) => boolean} [more] */
   function settle(more = () => true) {
-    if (pending && pageReadingVersion() !== matchesIn) restart();
+    if (pending.value && pageReadingVersion() !== matchesIn) restart();
     else refreshMatches();
     /** @param {Match[]} found */
     const enough = (found) => (active >= 0 || !landing) && more(found);
-    if (!pending || enough(matches.value)) return;
+    if (!pending.value || enough(matches.value)) return;
     take(enough, Infinity);
   }
 
@@ -925,7 +934,7 @@ export function createTargetPicker({
         travels: true,
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
-        when: () => matches.value.length > 0,
+        when: searchStands,
         run: chooseMatch,
       },
       {
@@ -949,7 +958,7 @@ export function createTargetPicker({
         title: "matches",
         repeat: true,
         travels: true,
-        when: () => matches.value.length > 0,
+        when: searchStands,
         runKey: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
       TARGETING_BACK,

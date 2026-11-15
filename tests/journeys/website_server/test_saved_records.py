@@ -34,7 +34,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     page_dir, tmp_path, monkeypatch
 ):
     """A container's replacement recovers the record, not a second state model."""
-    from leaf_website.storage import PageStoreRefused, restore
+    from leaf_website.storage import PUBLISHER, PageStoreRefused, restore
 
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
@@ -53,10 +53,10 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-        # Restore installs the inherited transaction provider before serving.
-        restore(site)
-        assert os.environ["LEAF_PAGE_COMMIT"] == "leaf_website.storage:publish"
+        # A container restored from its store publishes every commit there, as its
+        # `main` declares (`storage.PUBLISHER`).
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
         chosen = append_command(
             private,
             {

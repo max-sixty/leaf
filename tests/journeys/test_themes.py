@@ -1,10 +1,14 @@
 """Tests scheduled by the measured cost of their boundary."""
 
+import pytest
 from click.testing import CliRunner
 from model.test_themes import catalogue, served_theme
 
 from leaf.cli import cli
+from leaf.machine import package_store
+from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata
+from leaf.schema import LAYER_FILE
 from leaf.themes import cmd_list
 from leaf.vendoring import cmd_init
 
@@ -45,3 +49,26 @@ def test_theme_selection_is_independent_of_content_packages_and_later_defaults(
     cmd_init(page)
     assert layer_metadata(page)["packages"] == []
     assert layer_metadata(page)["theme"] == {"name": "dense", "source": "explicit"}
+
+
+def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):
+    catalogue(tmp_path)
+    page = tmp_path / "page"
+    cmd_init(page)
+    recorded = (page / LAYER_FILE).read_bytes()
+    (package_store() / "names/editorial").unlink()
+    with pytest.raises(Refused, match="unknown package 'editorial'"):
+        cmd_init(page)
+    assert (page / LAYER_FILE).read_bytes() == recorded
+    assert layer_metadata(page)["theme"]["name"] == "editorial"
+
+
+def test_an_explicit_theme_must_name_a_personal_choice_before_creating_a_page(tmp_path):
+    catalogue(tmp_path)
+    page = tmp_path / "page"
+    refused = CliRunner().invoke(
+        cli, ["page", "init", str(page), "--theme", "misspelled"]
+    )
+    assert refused.exit_code != 0
+    assert "leaf theme list" in refused.output
+    assert not page.exists()

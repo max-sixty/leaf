@@ -724,6 +724,53 @@ def test_the_users_rewrite_of_a_message_a_fork_holds_goes_to_the_fork(claimed, l
     assert [event["id"] for event in carried] == [edit["id"]]
 
 
+def test_input_the_main_thread_took_in_past_a_kept_back_message_is_received_once(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """The page keeps one cursor, and a receipt passes what the main thread doesn't
+    await as well as what it took in: a message Leaf keeps back for a line fork
+    doesn't keep the main thread's later input from its receipt, to be handed over
+    again once its turn ends. The cursor passing the kept-back message hands it to
+    nobody: it stays kept back, and once the line fork hands it over, it is input at
+    the main thread's next tool boundary, which it never took in."""
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed)
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda self, payload: {e["id"] for e in events_model.read_events(claimed)},
+    )
+    first = said(claimed, "What is the poll interval?")
+    forks_model.route(
+        "s1",
+        basis(claimed, first["id"], first["id"]),
+        answer=judged("on it"),
+        failed=None,
+    )
+    assert first["id"] in context(capsys, "UserPromptSubmit")
+    kept = said(claimed, "Which Python does the project need?")
+    follow = said(claimed, "And the lease?", parent=first["id"])
+    assert kept_back(claimed) == [(kept["id"], (kept["id"],))]
+    assert follow["text"] in context(capsys, "PostToolBatch")
+    assert thread_model.post_response(
+        answer_ref(claimed, follow["id"]), "It matches the lease.", asks_back=False
+    )
+    context(capsys, "PostToolBatch")
+    context(capsys, "Stop")
+    assert deliverable(claimed) == []
+    assert kept_back(claimed) == [(kept["id"], (kept["id"],))]
+
+    forks_model.route(
+        "s1",
+        basis(claimed, kept["id"], kept["id"]),
+        answer=judged("on it"),
+        failed=None,
+    )
+    with PageTransaction(claimed) as page:
+        handed = delivery_model.deliverable(page, received=False)
+    assert [event["id"] for event in handed] == [kept["id"]]
+
+
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
     claimed, lane, monkeypatch, capsys
 ):

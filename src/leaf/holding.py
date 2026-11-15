@@ -39,7 +39,8 @@ the threads Leaf keeps back (`forks.page_holding`), and every rule asks that one
 from the main thread what it doesn't owe and hand it what a fork's ended turn left
 it; the activity fold reads it once (`activity.canonical_activity`), as every hook
 that reads the fold does (`activity.agent_holds`); and an agent's tool boundary
-(`to_carry`), its receipts (`taken_by_agent_turns`), the end of its run
+(`to_carry`), the receipts that pass what the main thread doesn't await
+(`not_awaited`), the end of its run
 (`forks.ended`), keeping a thread back for a line fork (`forks.kept_back`) and every
 writer's right to act on a thread (`authorize`, `pickable`) ask it too.
 
@@ -200,10 +201,10 @@ def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict
     # TODO(2026-11-14): the shipped instructions no longer keep a worker subagent off
     # the page, and its `leaf` commands act as the main thread. If workers come to act
     # on pages, give each a turn of its own (`state.acting_turn`) and name it here.
-    from .activity import agent_turn_state
-
     if turn not in stamps:
         return MAIN
+    from .activity import agent_turn_state
+
     return {
         "kind": "fork",
         "agent": stamps[turn]["agent"],
@@ -246,7 +247,7 @@ class Holding(NamedTuple):
     A session that has ended still names the turns that held its threads, which
     `leaf page state` prints, but holds nothing for a rule that acts: delivery hands
     nothing on for it (`delivery.deliverable`), and no pickup or receipt of its turns
-    moves a thread (`pickable`, `taken_by_agent_turns`)."""
+    moves a thread (`pickable`, `not_awaited`)."""
 
     session: str | None
     live: bool
@@ -488,24 +489,29 @@ def pickable(
     return [i for i in input_ids if holding.keeper(i) not in holding.running]
 
 
-def taken_by_agent_turns(holding: Holding) -> set[str]:
-    """What whoever records a receipt passes for the agent turns of a page whose
-    `Holding` is `holding` (`delivery.receive_passed`): each input a turn of an agent
-    picked up, open or closed, which that turn received as it picked it up, and each
-    waiting message of a thread a running agent turn holds through its pickup of the
-    thread's round, which goes to it at its tool boundary. A message a running turn
-    holds only as the last to take its thread stays pending, since no turn has taken
-    it in: should that turn end without picking it up, Leaf keeps it back for a line
-    fork as it does any new message (`forks.kept_back`), and a receipt that passed it
-    would have handed it to the main thread instead."""
-    if not holding.live or not holding.stamps:
+def not_awaited(holding: Holding) -> set[str]:
+    """The inputs of a page whose `Holding` is `holding` that its main thread doesn't
+    await, which whoever records a receipt passes beside what the main thread took
+    in (`delivery.receive_passed`): each input a turn of an agent picked up, open or
+    closed, which that turn received as it picked it up, and each waiting message of a
+    thread whose answer another owes now (`owed_by`), a running fork or the line fork,
+    picked up or not. The page keeps one cursor for all of them, so a message only
+    another holder has would otherwise keep every later input the main thread took
+    in from its receipt, to be handed over again once its turn ends.
+
+    The cursor passing such a message hands it to nobody: it stays kept back while
+    a line fork judges it (`forks.kept_back`, which reads the pickups and hand-overs
+    rather than the cursor), and goes to the fork at its tool boundary (`to_carry`).
+    Once the main thread owes it, having never taken it in, it is the main thread's
+    input again (`delivery.deliverable`)."""
+    if not holding.live:
         return set()
     return {
         input_id for turn in holding.stamps for input_id in holding.picked.get(turn, {})
     } | {
         event["id"]
         for event in holding.waiting(
-            lambda held: held.picked and held.turn in holding.running
+            lambda held: owed_by(held.holder)["kind"] != "main"
         )
     }
 
@@ -516,10 +522,12 @@ def running_turns(stamps: dict[str, dict]) -> set[str]:
     What an agent holds moves with this set as a turn closes or lapses, which no file
     records, so a cache of what the session owes keys on it
     (`session.watch_between_turns`)."""
-    from .activity import running_agent_turns
-
     if not stamps:
         return set()
+    # The fold's module, which a session with no agent turns never loads here, as a
+    # quiet page's tool hook doesn't (`delivery.deliverable`).
+    from .activity import running_agent_turns
+
     return running_agent_turns(stamps, True, datetime.now().astimezone())
 
 

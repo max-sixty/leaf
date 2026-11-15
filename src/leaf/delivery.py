@@ -1178,8 +1178,9 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .forks import page_holding
+    from .forks import lane_since, page_holding
     from .holding import owed_by
+    from .state import agent_turn_stamps
 
     owed = []
     if received:
@@ -1189,8 +1190,25 @@ def deliverable(
             work = read_page(page.page_dir, page.events).work
         owed = unreferenced(page, work.obligations)
         holding = work.holding
+    elif (claim := page.active_claim) is not None and (
+        pending or agent_turn_stamps(claim) or lane_since(claim["id"]) is not None
+    ):
+        holding = page_holding(page)
+        # A waiting message the cursor passed while another held it
+        # (`holding.not_awaited`), which the main thread owes now and never took
+        # in, is its input, as the fold's debt with no reference is where it reads.
+        # Only a session with forks has another holder, so a quiet page of any other
+        # reads its log alone.
+        taken = {i for inputs in holding.picked.values() for i in inputs}
+        pending += [
+            event
+            for event in holding.waiting(
+                lambda held: owed_by(held.holder)["kind"] == "main"
+            )
+            if event["seq"] <= cursor and event["id"] not in taken
+        ]
     else:
-        holding = page_holding(page) if pending else None
+        holding = None
     if holding is not None:
         if (
             received
@@ -1292,7 +1310,7 @@ def confirm_entered(harness, payload: dict) -> None:
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
     from .forks import page_holding
-    from .holding import taken_by_agent_turns
+    from .holding import not_awaited
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1313,7 +1331,7 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                receive_passed(page, shown | taken_by_agent_turns(page_holding(page)))
+                receive_passed(page, shown | not_awaited(page_holding(page)))
         except FileNotFoundError:
             continue
 
@@ -1324,10 +1342,9 @@ def receive_passed(page: PageTransaction, passed: set[str]) -> None:
     transaction (`record_receipt`): the cursor passes every input before the
     position it moves to, so it stops at the first input nobody has taken.
 
-    Whoever takes input passes what an agent of the session took or holds
-    (`holding.taken_by_agent_turns`): an agent's turn receives what it picked up as it picks it
-    up, and the further messages of a thread it took go to it at its tool boundary,
-    whatever the cursor says, so neither is input the main thread awaits."""
+    Whoever takes input passes what the main thread doesn't await
+    (`holding.not_awaited`): what an agent's turn picked up, and the waiting messages
+    a running fork or a line fork holds, which go to them whatever the cursor says."""
     through = page.cursor
     for event in unacknowledged(page.events, page.cursor):
         if event["id"] not in passed:
@@ -1527,7 +1544,7 @@ def receive_one(
     ):
         if agent_turn is not None:
             from .forks import page_holding
-            from .holding import taken_by_agent_turns
+            from .holding import not_awaited
 
             assert session_id is not None
             if agent_turn not in open_agent_turns(session_id):
@@ -1539,7 +1556,7 @@ def receive_one(
                 turn=agent_turn,
                 refs=batch_refs(batch),
             )
-            receive_passed(page, taken_by_agent_turns(page_holding(page)))
+            receive_passed(page, not_awaited(page_holding(page)))
             return page_dir
         turn = None
         if session_id:

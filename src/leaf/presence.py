@@ -346,7 +346,7 @@ def presence_with_activity(
         # (`holding.Holding.forked`).
         "kept_back": sorted(
             input_id
-            for thread in kept_back_threads(page_dir, events, cursor, active)
+            for thread in kept_back_threads(page_dir, events, active)
             for input_id in thread.inputs
         ),
         # The user's number, not the watcher's: their own messages the agent

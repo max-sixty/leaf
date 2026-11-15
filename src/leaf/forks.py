@@ -160,14 +160,14 @@ from typing import Literal, NamedTuple
 from .holding import (
     Holding,
     holder,
+    not_awaited,
     owed_by,
     reading,
     running_turns,
-    taken_by_agent_turns,
 )
 from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
-from .service import PageTransaction, owned_pages, unacknowledged
+from .service import PageTransaction, owned_pages
 from .state import (
     STRING,
     Record,
@@ -314,44 +314,39 @@ def kept_back(page: PageTransaction, holding: Holding | None = None) -> list[Kep
     """The page's threads whose waiting messages Leaf keeps back (the module
     header's table), by when the lane hands them over, where `holding` is the page's
     reading by its pickups and answers (`claim_holding`), where the caller has it."""
-    return kept_back_threads(
-        page.page_dir, page.events, page.cursor, page.active_claim, holding
-    )
+    return kept_back_threads(page.page_dir, page.events, page.active_claim, holding)
 
 
 def kept_back_threads(
     page_dir: Path,
     events: list[dict],
-    cursor: int,
     claim: dict | None,
     holding: Holding | None = None,
 ) -> list[KeptBack]:
-    """`kept_back`, from the log, its cursor and the page's active claim, for a
-    reader outside a page transaction (`presence.presence_with_activity`), where
-    `holding` is the page's reading by its pickups and answers (`claim_holding`),
-    where the caller has it.
+    """`kept_back`, from the log and the page's active claim, for a reader outside a
+    page transaction (`presence.presence_with_activity`), where `holding` is as
+    `kept_back` takes it.
 
     It reads the log, never the page's fold, which costs about 100 ms, since
-    admission, every hook and every served reading ask it: a user's message after
-    the agent's last answer in its thread owes the thread's answer, and `ask` hands
-    over one the fold says owes none.
+    admission, every hook and every served reading ask it, and `ask` hands over a
+    message the fold says owes none. It reads which messages a turn picked up or Leaf
+    handed over rather than the page's cursor, which a receipt moves past a message
+    Leaf keeps back as the main thread takes in the input after it
+    (`holding.not_awaited`).
 
     A thread a running agent turn took, by a pickup or an answer, is never kept back
     for another fork (`holding.Holding.took`), so one fork works a thread at a
     time: its further messages go to that turn, which holds them, or to the main
-    thread where it took the thread over (`holding.py`)."""
+    thread where it took the thread over (`holding.py`). A thread where the user's
+    rewrite of a message waits stays with whoever holds it."""
     if claim is None:
-        return []
-    pending = {event["id"] for event in unacknowledged(events, cursor)}
-    messages = kinds_declaring("message")
-    if not any(
-        event["kind"] in messages and event["author"] == "user"
-        for event in events
-        if event["id"] in pending
-    ):
         return []
     since = lane_since(claim["id"])
     if since is None:
+        return []
+    holding = claim_holding(events, claim, live=True) if holding is None else holding
+    waiting = holding.found.waiting
+    if not waiting:
         return []
     picked = {
         input_id
@@ -360,11 +355,10 @@ def kept_back_threads(
         for input_id in event["events"]
     }
     handed = handed_inputs(claim["id"], page_dir)
-    holding = claim_holding(events, claim, live=True) if holding is None else holding
-    waiting = holding.found.waiting
     worked = {
         thread for turn in holding.running for thread in holding.took.get(turn, ())
     }
+    messages = kinds_declaring("message")
     found = [
         KeptBack(
             thread,
@@ -379,7 +373,7 @@ def kept_back_threads(
         if _admitted(said[0]) > since
         and thread not in worked
         and all(
-            event["id"] in pending
+            event["kind"] in messages
             and event["id"] not in picked
             and event["id"] not in handed
             for event in said
@@ -879,7 +873,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
                 turn=turn,
                 refs=batch_refs(delivery["batches"][0]),
             )
-            receive_passed(page, taken_by_agent_turns(page_holding(page)))
+            receive_passed(page, not_awaited(page_holding(page)))
     except FileNotFoundError:
         return {"outcome": "dropped", **posted}
     if resumed is not None:
@@ -1149,16 +1143,21 @@ def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:
 
 def _hand_over_kept_back(page: PageTransaction, session_id: str, inputs) -> None:
     """Record in `HANDED` that the kept-back messages `inputs` go to the session, keeping
-    only the ids it hasn't yet received, and nudge a session no watch follows, as
+    only the ids no turn has yet taken in, and nudge a session no watch follows, as
     admission would have."""
     from .presence import nudge_unwatched
 
-    pending = {event["id"] for event in unacknowledged(page.events, page.cursor)}
+    picked = {
+        input_id
+        for event in page.events
+        if event["kind"] == "pickup"
+        for input_id in event["events"]
+    }
     path = session_file(session_id, HANDED.kind)
     key = page_key(page.page_dir)
     with flocked(session_lock_path(session_id), deadline=page.deadline):
         record = HANDED.read(path) or {"handed": {}}
-        kept = [i for i in record["handed"].get(key, []) if i in pending]
+        kept = [i for i in record["handed"].get(key, []) if i not in picked]
         record["handed"][key] = list(dict.fromkeys([*kept, *inputs]))
         HANDED.write(path, record)
     nudge_unwatched(page)

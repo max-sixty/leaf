@@ -14,8 +14,8 @@ missing profile fails: browser upgrades require deliberately reviewed captures.
 `leaf-dev setup` warms that pin's cache with the media pin's.
 
     uv run pytest -n0 tests/*/test_render_thread_snapshots.py
-    uv run leaf-dev thread-snapshots capture
-    uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
+    uv run leaf-dev journey snapshots capture
+    uv run leaf-dev journey snapshots accept .tmp/thread-snapshots/captures/<run>
 
 Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
@@ -57,7 +57,7 @@ from PIL import Image
 from playwright.sync_api import FloatRect, Page
 from pytest_image_snapshot import ImageMismatchError
 
-from leaf_dev import ROOT, leaf_assets
+from leaf_dev import ROOT, gallery, leaf_assets
 from leaf_dev.thread_journey import STAGES
 
 
@@ -198,16 +198,19 @@ class SnapshotRun:
         """Compare held appearance after the independently observed insertion instant."""
         # Capture the thread's own restored/delivery region. Finite notice feedback
         # has its independent mutation observation and expires before this capture.
-        region = reading["region"]
         viewport = page.viewport_size
-        left, top = max(0, region["x"] - 16), max(0, region["y"] - 16)
         assert viewport is not None
+        left, top, right, bottom = gallery.frame(
+            [gallery.edges(reading["region"])],
+            16,
+            viewport["width"],
+            viewport["height"],
+        )
         clip: FloatRect = {
             "x": left,
             "y": top,
-            "width": min(viewport["width"], region["x"] + region["width"] + 16) - left,
-            "height": min(viewport["height"], region["y"] + region["height"] + 16)
-            - top,
+            "width": right - left,
+            "height": bottom - top,
         }
         window = page.evaluate(
             """async clip => {
@@ -290,7 +293,7 @@ def expected_store() -> Path:
     )
 
 
-@click.group()
+@click.group("snapshots")
 def thread_snapshots():
     """Capture, review and publish current Leaf's thread appearance."""
 
@@ -338,7 +341,7 @@ def capture():
         + "\n"
     )
     click.echo(
-        f"Review captures: {directory}\nAccept: uv run leaf-dev thread-snapshots accept {directory}"
+        f"Review captures: {directory}\nAccept: uv run leaf-dev journey snapshots accept {directory}"
     )
 
 

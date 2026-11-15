@@ -1307,22 +1307,28 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
 ):
     """A side list longer than the window sticks beside the item it opens and scrolls on
     its own. Each arrow opens the next tab and keeps focus on it in the window, down
-    and, coming round, back at the head, while the item it opens starts in the window.
-    Running with the page, the walk scrolled each item's start away, and a tab left
-    past the window's foot, or read away from, was out of sight, so the next arrow let
-    go of it (keyboard/controller.js), focus fell to the page and no tab opened. Walking
-    down, the next row shows under the open tab, so the list doesn't look ended there.
-    Read down an item, the list stays beside it, and the next arrow opens the next item
-    at its start."""
-    views = "".join(
-        f'<lf-tab id="item-{i}" label="Item {i}">'
-        + "".join(f"<p>Item {i} reads on, paragraph {n}.</p>" for n in range(30))
-        + "</lf-tab>"
-        for i in range(30)
-    )
+    and, coming round, back up through the list, while the item it opens starts in the
+    window. Running with the page, the walk scrolled each item's start away, and a tab
+    left past the window's foot, or read away from, was out of sight, so the next arrow
+    let go of it (keyboard/controller.js), focus fell to the page and no tab opened.
+    The row the walk heads for shows beside the open tab, so the list doesn't look as
+    though it starts or ends there. Read down an item, the list stays beside it, and the
+    next arrow opens the next item at its start. A list shorter than the window stays
+    beside its item until the item ends."""
+
+    def items(key, count):
+        return "".join(
+            f'<lf-tab id="{key}-{i}" label="{key.title()} {i}">'
+            + "".join(f"<p>{key} {i} reads on, paragraph {n}.</p>" for n in range(30))
+            + "</lf-tab>"
+            for i in range(count)
+        )
+
     source = leaf_page(
         "Long queue",
-        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{views}</lf-tabs>',
+        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{items("item", 30)}'
+        f'</lf-tabs><lf-tabs id="brief" list="side">{items("brief", 4)}</lf-tabs>'
+        + "".join(f"<p>What follows, paragraph {n}.</p>" for n in range(20)),
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1200, 500)
@@ -1334,32 +1340,42 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     expect(tabs.last).not_to_be_in_viewport()
     tabs.first.click()
     expect(tabs.first).to_be_focused()
-    # Down every tab and round to the first, then up round to the last and past it.
+    # Down every tab and round to the first, then up round to the last and on up
+    # through the middle of the list.
     for key, landing in [("ArrowDown", i % 30) for i in range(1, 31)] + [
-        ("ArrowUp", 29),
-        ("ArrowUp", 28),
+        ("ArrowUp", i) for i in [29, *range(28, 9, -1)]
     ]:
         page.keyboard.press(key)
         tab = tabs.nth(landing)
         expect(tab).to_be_focused()
         expect(tab).to_have_attribute("aria-selected", "true")
         expect(tab).to_be_in_viewport(ratio=0.99)
-        # The row after it shows too, so the list doesn't look ended at the open tab.
-        if key == "ArrowDown" and landing < 29:
-            expect(tabs.nth(landing + 1)).to_be_in_viewport(ratio=0.99)
+        ahead = landing + 1 if key == "ArrowDown" else landing - 1
+        if 0 <= ahead < 30:
+            expect(tabs.nth(ahead)).to_be_in_viewport(ratio=0.99)
         page.wait_for_function(item_starts_in_view, arg=f"item-{landing}")
     # Read down the open item, then walk on from the list.
-    item = page.locator("#item-28").bounding_box()
+    item = page.locator("#item-10").bounding_box()
     assert item is not None
     page.mouse.move(item["x"] + item["width"] / 2, 300)
     page.mouse.wheel(0, 400)
     scroll_settled(page)
-    expect(page.locator("#item-28")).not_to_be_in_viewport(ratio=0.9)
-    expect(tabs.nth(28)).to_be_in_viewport(ratio=0.99)
+    expect(page.locator("#item-10")).not_to_be_in_viewport(ratio=0.9)
+    expect(tabs.nth(10)).to_be_in_viewport(ratio=0.99)
     page.keyboard.press("ArrowDown")
-    expect(tabs.nth(29)).to_be_focused()
-    expect(tabs.nth(29)).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(item_starts_in_view, arg="item-29")
+    expect(tabs.nth(11)).to_be_focused()
+    expect(tabs.nth(11)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(item_starts_in_view, arg="item-11")
+    # Read the short list's item to near its end: the list still stands beside it.
+    page.evaluate("""() => {
+      const item = document.getElementById('brief-0');
+      scrollTo({top: scrollY + item.getBoundingClientRect().bottom - 200,
+        behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    expect(page.locator("#brief").get_by_role("tab").first).to_be_in_viewport(
+        ratio=0.99
+    )
 
 
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):

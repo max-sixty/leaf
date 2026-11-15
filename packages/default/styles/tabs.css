@@ -396,7 +396,7 @@ lf-tabs[data-lf-views] > lf-tab {
     lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer::before {
       content: "✓" / "";
       flex: none;
-      color: var(--ok-ink);
+      color: var(--settled-ink);
     }
     lf-tabs[list="side"][data-lf-views]
       > .lf-tabstrip

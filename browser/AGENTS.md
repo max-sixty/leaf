@@ -303,10 +303,13 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
-- **Green marks the user's turn; other thread controls stay blue.** Every surface paints
-  a thread's `unread` and `attention` from one value, so the On Me mark's dot, Threads,
-  the panel, a margin entry and the Page Map change together, and marking read never
-  moves the user.
+- **A mark's colour says one thing, the same on every surface.** A mark reads the
+  token for what it tells the user (`styles/tokens.css`, at `--turn`), never a hue, so
+  the user's turn, a thread, the agent's work, what is unread, what changed and what
+  is settled each look alike in the margin, the contents and the panel. Every surface
+  paints a thread's `unread` and `attention` from one value, so the On Me mark's dot,
+  Threads, the panel, a margin entry and the Page Map change together, and marking read
+  never moves the user.
 
 ### Motion is brief and keeps the user oriented
 

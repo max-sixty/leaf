@@ -147,9 +147,9 @@ lf-toc a:hover,
 lf-toc a[data-lf-focus] {
   color: var(--accent);
 }
-/* A section's mark (toc-view.js) says it holds an On me item, in the green that marks
- * the user's turn, or else an open thread, in the accent; its link's preview counts
- * both. It is a small ring of its colour inside a soft disc of that colour, with a
+/* A section's mark (toc-view.js) says it holds an On me item, in the user's turn's
+ * colour, or else an open thread, in a thread's (tokens.css, at `--turn`); its link's
+ * preview counts both. It is a small ring of its colour inside a soft disc of that colour, with a
  * hairline of paper round the disc (`--lf-toc-halo`), so the disc never runs into a
  * changed stretch or the lens. The outline draws the ring on its rule, centred on the
  * row's first line in one column at every depth; the map draws the section's marker
@@ -181,10 +181,10 @@ lf-toc .lf-toc-mark {
   pointer-events: none;
 }
 lf-toc [data-lf-toc-mark="thread"] {
-  --lf-toc-mark: var(--accent);
+  --lf-toc-mark: var(--thread);
 }
 lf-toc [data-lf-toc-mark="on-me"] {
-  --lf-toc-mark: var(--ok);
+  --lf-toc-mark: var(--turn);
 }
 /* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
    circle to the paper's yellow, which turned the accent's halo green. */
@@ -202,7 +202,7 @@ lf-toc
   inset-inline-start: calc(-2px - var(--sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change-bar, var(--ok));
+  background: var(--lf-change-bar, var(--change));
 }
 /* The outline's head, the disclosure's toggle or the label over the outline beside the
  * body, stands where the start row they leave out would, so it carries the marks of what

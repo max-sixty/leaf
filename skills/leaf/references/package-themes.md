@@ -227,15 +227,16 @@ package the page keeps: `leaf page init <page> --package diff --package ./chrome
 ## Theme colors
 
 Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/base.css`:
+choice. The default palette is declared in `browser/styles/tokens.css`:
 
-| Surface                  | Inputs                                                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
-| Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
-| Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
-| Counts                   | `--badge-fill` with `--badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--border-2` and status inks                                                |
-| Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type` |
+| Surface                  | Inputs                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                                              |
+| Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                                                        |
+| Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                                                       |
+| Leaf's marks             | `--turn` (with `-ink`, `-wash`), `--thread`, `--work`, `--news`, `--change`, `--settled` (with `-ink`, `-tint`): what each of Leaf's marks tells the user, drawn from the status colours and `--accent` by default |
+| Counts                   | `--badge-fill` with `--badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--border-2` and status inks                                                                             |
+| Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type`                              |
 
 Changing `--accent` does not choose the count's pair or the status palette. Check the
 foreground against each ground where it is used, in both color schemes. A theme may

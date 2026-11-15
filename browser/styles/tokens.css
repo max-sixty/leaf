@@ -139,10 +139,10 @@
   --ok: light-dark(#3f7d4e, #7fb98c);
   --warn: light-dark(#b4741a, #d8a95c);
   --danger: light-dark(#b4402f, #d98b7a);
-  /* A count on the folded leaf is a fill/ink pair: a link's accent may be too pale
-     under its digits. Themes choose the pair together rather than deriving its
-     contrast. */
-  --badge-fill: light-dark(#2f5480, #4d74a8);
+  /* The count of what is On me, on the folded leaf, is a fill/ink pair in the user's
+     turn (--turn, below): the turn's mark may be too pale under its digits. Themes
+     choose the pair together rather than deriving its contrast. */
+  --badge-fill: light-dark(#2f6b40, #3f7d4e);
   --badge-ink: #fff;
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
@@ -399,10 +399,10 @@
      ladder, so it is declared with the other derived tokens (below). */
   --tip-bg: var(--ink);
   --tip-ink: var(--paper);
-  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's green
-     drawn halfway to the tooltip's ink, which holds it clear of that ground in
-     either scheme, where the paper's green would sink into it. */
-  --tip-turn-ink: color-mix(in oklab, var(--turn-ink), var(--tip-ink));
+  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
+     drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
+     more in either scheme, where the paper's turn ink would sink into it. */
+  --tip-turn-ink: color-mix(in srgb, var(--turn) 50%, var(--tip-ink));
   --tip-pad: 4px 7px;
   --tip-r: var(--r-s);
   /* Inline code's ground is measured against the paper it sits on, not the white code
@@ -564,10 +564,33 @@
   --ok-tint: light-dark(#dfeddf, #142f1a);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* Green identifies the user's turn. Unread and agent progress keep the blue
-     accent, so neither can be mistaken for a request to the user. */
-  --turn-wash: var(--ok-wash);
+  /* What the colour of each of Leaf's own marks tells the user, one token for each
+     thing a mark says, so each meaning's colour is chosen here once, and the margin,
+     the contents, the panel and a widget's settled state read the meaning rather than
+     a hue. A theme restates a meaning here. The words and ground a meaning needs beside
+     its mark (`-ink`, `-wash`, `-tint`) stand with it.
+     - --turn: the user's move, such as a thread in their turn, what is On me, and the
+       agent waiting for them.
+     - --thread: a conversation, on a thread's marker.
+     - --work: the agent at work, on the leaf, the bar beside a block and a plan's
+       progress.
+     - --news: what the user hasn't read, the unread dot.
+     - --change: what changed since the version compared, the bar beside a block and
+       its stretch of the contents.
+     - --settled: what the user chose or finished, such as a chosen option, a pressed
+       answer and a done step.
+     Where the user is (focus, the location ring, the contents' current section) wears
+     the accent, and trouble --warn and --danger. */
+  --turn: var(--ok);
   --turn-ink: var(--ok-ink);
+  --turn-wash: var(--ok-wash);
+  --thread: var(--accent);
+  --work: var(--accent);
+  --news: var(--accent);
+  --change: var(--ok);
+  --settled: var(--ok);
+  --settled-ink: var(--ok-ink);
+  --settled-tint: var(--ok-tint);
   --warn-tint: light-dark(#f7ecd2, #37280e);
   --warn-ink: light-dark(#8a5a12, #e2bb75);
   --danger-tint: light-dark(#f7e0da, #3c1e16);

@@ -299,13 +299,13 @@ html[data-lf-region-capture]
     .lf-dot[data-lf-tone="working"],
     [data-lf-tone="working"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--accent);
+    color: var(--work);
   }
   :is(
     .lf-dot[data-lf-tone="listening"],
     [data-lf-tone="listening"] > svg[data-lf-icon="leaf"]
   ) {
-    color: var(--ok);
+    color: var(--turn);
   }
   :is(.lf-dot[data-lf-tone="away"], [data-lf-tone="away"] > svg[data-lf-icon="leaf"]) {
     color: var(--warn);
@@ -996,20 +996,20 @@ html[data-lf-region-capture]
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
-  /* The margin's bars (margin-bars.js). Where the agent is at work, in the accent its
-     margin entry wears while it works: it comes and goes with the work, whose start the
-     margin entry's pulse acknowledges. What changed since the comparison's base, in
-     green. */
+  /* The margin's bars (margin-bars.js). Where the agent is at work, in the work's
+     colour its margin entry wears while it works: it comes and goes with the work, whose
+     start the margin entry's pulse acknowledges. What changed since the comparison's
+     base, in the change's (tokens.css, at `--turn`). */
   :is(.lf-at-work-bar, .lf-change-bar) {
     position: absolute;
     pointer-events: none;
     border-radius: 1.5px;
   }
   .lf-at-work-bar {
-    background: var(--accent);
+    background: var(--work);
   }
   .lf-change-bar {
-    background: var(--lf-change-bar, var(--ok));
+    background: var(--lf-change-bar, var(--change));
   }
   /* The change a Change entry points at, outlined round all its blocks, in the quiet
      contour a margin control draws round what it concerns (`[data-lf-traced]`,
@@ -1296,11 +1296,10 @@ html[data-lf-region-capture]
     margin-block-start: 2px;
     color: color-mix(in srgb, var(--tip-ink) 76%, transparent);
   }
-  /* A thread's line in the user's turn takes the turn's green ("Visual treatment
-     carries meaning"; thread/messages.js, `threadPreview`), drawn halfway to the
-     tooltip's ink, which reads at 4.8:1 or more on the inked ground in either scheme. */
+  /* A thread's line in the user's turn takes the turn's colour ("Visual treatment
+     carries meaning"; thread/messages.js, `threadPreview`), in its tooltip face. */
   .lf-preview-detail [data-lf-turn="user"] {
-    color: color-mix(in srgb, var(--ok) 50%, var(--tip-ink));
+    color: var(--tip-turn-ink);
   }
   /* The last line a preview held to its room keeps says there is more, by a line
      clamp's own ellipsis, which never wraps a line nor makes one: in the block the room

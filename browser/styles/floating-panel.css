@@ -638,10 +638,10 @@
     --lf-fp-asks: var(--ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="working"] {
-    --lf-fp-asks: var(--accent);
+    --lf-fp-asks: var(--work);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="listening"] {
-    --lf-fp-asks: var(--ok-ink);
+    --lf-fp-asks: var(--turn-ink);
   }
   .lf-floating-panel[data-lf-asks][data-lf-tone="away"] {
     --lf-fp-asks: var(--warn-ink);
@@ -760,7 +760,7 @@
     flex: none;
   }
   .lf-fp-on-user[data-lf-due] .lf-fp-num {
-    color: var(--accent);
+    color: var(--turn-ink);
     font-weight: 600;
   }
   /* The count stands on the baseline of the field's words beside it, as a message
@@ -1865,7 +1865,7 @@
     border-radius: 50%;
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-mark {
-    color: var(--ok-ink);
+    color: var(--settled-ink);
   }
   .lf-fp-plan-step[data-lf-state="done"] > .lf-fp-plan-title,
   .lf-fp-plan-step[data-lf-state="dropped"] > .lf-fp-plan-title {
@@ -1878,7 +1878,7 @@
     color: var(--danger-ink);
   }
   .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-mark {
-    color: var(--accent);
+    color: var(--work);
   }
   .lf-fp-plan-step[data-lf-state="working"] > .lf-fp-plan-title {
     font-weight: 600;
@@ -1909,7 +1909,7 @@
     border-radius: var(--r-s);
     background: linear-gradient(
       to right,
-      var(--accent) var(--lf-fp-plan-done),
+      var(--work) var(--lf-fp-plan-done),
       var(--lf-fp-faint) 0
     );
   }

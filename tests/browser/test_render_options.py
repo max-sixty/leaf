@@ -909,7 +909,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             )
 
     with subtests.test("a picked cell rings every side alike"):
-        # A pick rings its cell in the ok ink, inside the joined frame. A hairline cast
+        # A pick rings its cell in the settled colour, inside the joined frame. A hairline cast
         # over the next cell lay over the ring's lower edge and left it half as thick as
         # the other three, reading as the grey divider rather than the pick's edge;
         # standing the pick above its neighbours only moved the cut onto the pick above
@@ -925,7 +925,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         ok = page.evaluate(
             """() => {
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--ok)';
+                 probe.style.color = 'var(--settled)';
                  const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
                  probe.remove();
                  return rgb.map(Number);

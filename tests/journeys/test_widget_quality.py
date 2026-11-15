@@ -157,7 +157,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         page.unroute("**/leaf.js")
         boot.pop().continue_()
         wait_until_ready(page)
-        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
+        expect(page.get_by_role("textbox", name="Title")).to_have_value(title)
         expect(page.locator("lf-playground-output")).to_contain_text(title)
         assert page.locator(".margin-entry-gallery-face").count() == 44
         assert page.locator(".margin-entry-gallery-item").evaluate_all(

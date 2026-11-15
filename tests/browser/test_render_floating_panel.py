@@ -495,8 +495,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     assert node["name"]["value"].startswith("Next thread"), node
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
     expect(thread).to_be_focused()

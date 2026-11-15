@@ -3,25 +3,26 @@
 # the 720px column, so each card got 229px and its four-word title broke in two. None
 # of the six pages before it that set cards across gave the group a `data-width`.
 # The fix is guidance: the lf-options entry says a card of words reads at about 18rem,
-# so a row of three needs `data-width="wide"`. The subject is pointed at the entries
-# that state it, so the case measures whether an author who reads them follows it, not
-# whether ordinary use finds them. Base a2773d828 set `data-width` on the row in 1 of 4
-# Claude Code runs, and the entry stating the rule in 4 of 4; every run set `across`.
+# so a row of three needs `data-width="wide"`. As a probe told to read the entries,
+# base a2773d828 set `data-width` on the row in 1 of 4 Claude Code runs, and the entry
+# stating the rule in 4 of 4; every run set `across`. The case now authors the page
+# and names nothing to read: at 0e538e29d each of 4 Claude Code authors read the
+# entries through `leaf page instructions --use` and set the width, as 4 of 4 told
+# probes did.
 description: option-cards-take-their-width
 metadata:
   purpose:
     "Asks: a row of option cards set side by side takes the width its cards need to
     read, rather than a share of the reading column too small for a card's title."
+  authoring: true
   tags:
     - asks
 vars:
   prompt: |
-    You are writing a Leaf page that reviews the shared build cache's settings, one
-    section per setting, each ending in a question for the user. The user said
-    earlier that they compare options most easily side by side. Read
-    `references/authoring-on-me.md` and the `lf-ask`, `lf-options` and `lf-option`
-    entries in `../../packages/default/registry.json` relative to the skill's base
-    directory, then write the section for this item.
+    Write a Leaf page that reviews the shared build cache's settings, one section
+    per setting, each ending in a question for the user. The user said earlier that
+    they compare options most easily side by side. Start with the section for this
+    item; the other settings come later.
 
     Your notes:
     - Item #4: the cache evicts every entry older than 7 days. CI's hit rate falls
@@ -33,9 +34,6 @@ vars:
       - evict the least recently used entries once the cache reaches 480 GB,
         whatever their age;
       - keep the 7-day rule, as today.
-
-    The page directory is not reachable from here, so reply with the section's HTML
-    fragment rather than writing a file.
 assert:
   - type: llm-rubric
     metric: row-takes-its-width
@@ -47,3 +45,46 @@ assert:
       without a `data-width`, which leaves each card a third of the reading column.
       Fail if it has no `across`, since the user asked to compare options side by
       side.
+variants:
+  # After a compaction, a session that holds a page is sent back to the skill, but
+  # its summary says the references and entries were read. In real Claude Code
+  # sessions in the two weeks to 2026-11-15, every lf-options group a session wrote
+  # before compacting followed a read of its entry (34 of 34); after a compaction, 39
+  # of 107 did, though 96 of the 107 had read SKILL.md again. Here, at 0e538e29d, 2 of
+  # 4 Claude Code authors read lf-options' entry; each miss read the other entries
+  # it used, but not the ones the summary said it had read. A conditional-reference
+  # line in SKILL.md naming `leaf page instructions --use` read it in 3 of 4, too few
+  # to keep. Every run set the width, which authoring-on-me.md, re-read in all 8,
+  # also asks for.
+  after-compaction:
+    vars:
+      prompt: |
+        This session is being continued from a previous conversation that ran out of
+        context. The summary below covers the earlier portion of the conversation.
+
+        Summary:
+        1. Primary Request and Intent:
+           - The user asked for a Leaf page that reviews the shared build cache's
+             settings, one section per setting, each ending in a question for the
+             user, starting with item #4. They said they compare options most easily
+             side by side.
+        2. Work so far:
+           - Loaded the leaf skill, read references/page-authoring.md and
+             references/authoring-on-me.md, and read the lf-ask, lf-options and
+             lf-option instructions with `leaf page instructions`.
+           - Initialized the page and measured the cache: notes below.
+        3. Pending Tasks:
+           - Write item #4's section on the page.
+
+        Your notes:
+        - Item #4: the cache evicts every entry older than 7 days. CI's hit rate falls
+          from 81% on Mondays to 64% on Fridays as the week's branches push main's
+          entries out. The cache holds 410 GB of its 500 GB.
+        - The user decides the eviction rule:
+          - keep main's entries 30 days and others 7 (your recommendation; about 60 GB
+            more);
+          - evict the least recently used entries once the cache reaches 480 GB,
+            whatever their age;
+          - keep the 7-day rule, as today.
+
+        Continue from where you left off.

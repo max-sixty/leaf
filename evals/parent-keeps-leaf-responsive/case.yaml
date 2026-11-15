@@ -44,7 +44,7 @@ vars:
     Leaf delivered this message with answer reference `a1b2c3d4:0:6a7b8c9d`,
     writer `agent`, and confirmed receipt. Background subagents are available.
 
-    Read the Leaf instructions you need. Only Skill and Read run in this probe,
+    Only Skill and Read run in this probe,
     so describe the operations you would perform next, including the words you
     would put in the thread and any worker briefs. Then end your answer.
 assert:
@@ -85,7 +85,7 @@ variants:
         The delivered answer reference is `a1b2c3d4:0:6a7b8c9d`, writer `agent`,
         receipt confirmed. Background subagents are available.
 
-        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        Only Skill and Read run in this probe,
         so describe the operations you would perform next, including the words you
         would put in the thread and any worker briefs. Then end your answer.
     assert:
@@ -112,7 +112,7 @@ variants:
         `agent`, receipt confirmed. The harness supports background commands and
         delivering page input between tool calls.
 
-        Read the Leaf instructions you need. Only Skill and Read run in this probe,
+        Only Skill and Read run in this probe,
         so describe the operations you would perform next, including the words you
         would put in the thread and any worker briefs. Then end your answer.
     assert:

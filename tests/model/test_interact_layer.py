@@ -3267,6 +3267,32 @@ def test_package_contributions_keep_their_roles_when_a_widget_is_added(tmp_path)
     )
 
 
+def test_a_copy_of_a_package_keeps_the_sheets_its_sheets_import(tmp_path, monkeypatch):
+    """A package that splits a sheet with `@import` composes the same from a page's
+    copy of it, and from an installed one, as from its source. A page's copy that left
+    the imported file behind let `page init` pass and then refused every later read
+    of the page."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "split"
+    (package / "styles").mkdir(parents=True)
+    (package / "registry.json").write_text("{}")
+    (package / "defaults.css").write_text('@import "./styles/part.css";\n')
+    (package / "styles/part.css").write_text(".split-part { color: green; }\n")
+    source = layer_model.composed_sheets([schema_model.ASSETS, package])
+    assert b".split-part" in b"".join(source.values())
+
+    staged = tmp_path / "installed"
+    staged.mkdir()
+    packages_model.copy_package_contract(package, staged)
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./split", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+    for copy in (staged, page / "packages" / "split"):
+        assert layer_model.composed_sheets([schema_model.ASSETS, copy]) == source
+
+
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     """A custom widget adds one element declaration; it need not fork the shipped vocabulary.
 

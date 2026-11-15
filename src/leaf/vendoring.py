@@ -33,6 +33,7 @@ from .layer import (
     input_paths,
     layer_inputs,
     named_package,
+    package_files,
 )
 from .leases import lock_is_held, page_locked
 from .locations import first_overlap, located, path_is_within, paths_same
@@ -42,8 +43,6 @@ from .registry.storage import LAYER, layer_record
 from .schema import (
     HTML_NAME,
     LAYER_FILE,
-    PACKAGE_DIRS,
-    PACKAGE_FILES,
     PACKAGES_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
@@ -403,20 +402,6 @@ def _copies(selected: tuple[str, ...]) -> dict[str, Path]:
             )
         copies[value] = root
     return copies
-
-
-def package_files(root: Path) -> dict[str, bytes]:
-    """The files of package `root` a layer composes (`layer.checked_inputs`)."""
-    files = {}
-    for name in PACKAGE_FILES:
-        if (root / name).is_file():
-            files[name] = (root / name).read_bytes()
-    for sub in PACKAGE_DIRS:
-        if (root / sub).is_dir():
-            for path in sorted((root / sub).rglob("*")):
-                if path.is_file():
-                    files[path.relative_to(root).as_posix()] = path.read_bytes()
-    return files
 
 
 def _record(

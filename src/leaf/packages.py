@@ -15,10 +15,10 @@ from .layer import (
     checked_inputs,
     checked_layer_inputs,
     compose_layer,
-    imported_sheets,
     input_paths,
     layer_inputs,
     named_package,
+    package_files,
 )
 from .locations import (
     first_overlap,
@@ -279,8 +279,8 @@ def check_package(
 
 
 def copy_package_contract(package: Path, staged: Path) -> None:
-    """Copy exactly what a layer input reads, and the package's scripts, into an
-    empty directory.
+    """Copy exactly what a layer input reads (`layer.package_files`), and the
+    package's scripts, into an empty directory.
 
     The rest of the source directory — a README, the author's own tests, `.git` —
     belongs to the author rather than to the package, so it reaches neither a
@@ -288,29 +288,14 @@ def copy_package_contract(package: Path, staged: Path) -> None:
     as `package init` creates them; `scripts/` is copied only when it exists,
     since most packages ship none.
     """
-    for name in PACKAGE_FILES:
-        source = package / name
-        if source.is_file():
-            shutil.copy2(source, staged / name)
+    for path, data in package_files(package).items():
+        target = staged / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     for name in PACKAGE_DIRS:
-        source = package / name
-        target = staged / name
-        if source.is_dir():
-            shutil.copytree(source, target)
-        else:
-            target.mkdir()
+        (staged / name).mkdir(exist_ok=True)
     if (package / SCRIPTS_DIR).is_dir():
         shutil.copytree(package / SCRIPTS_DIR, staged / SCRIPTS_DIR)
-    # A sheet's imports are part of it (`layer.stylesheet`), wherever in the package
-    # they stand; one inside a directory copied above is already staged.
-    for name in PACKAGE_FILES:
-        if not name.endswith(".css") or not (package / name).is_file():
-            continue
-        for imported in imported_sheets(package / name, package):
-            target = staged / imported.relative_to(package.resolve())
-            if not target.exists():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(imported, target)
 
 
 def validate_starter_candidate(package: Path, files: dict[str, bytes]) -> None:

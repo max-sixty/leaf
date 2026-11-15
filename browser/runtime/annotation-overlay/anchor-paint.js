@@ -204,9 +204,11 @@ export function createAnchorPaint({
   // inheritance (notes/browser-support.md, "Highlight style inheritance"). The element is
   // the words' parent in their own tree, the light parent of slotted words, which is the
   // one element whose rule paints them in Firefox, or the host of a shadow tree holding
-  // them directly. A paint of the page holds exactly the elements its passages stand in
-  // (`holdOnlyWords`); a placement that moves some and a new draft add theirs, and the
-  // next paint lets go of the rest.
+  // them directly. A paint of the page that changes a comment's or a reaction's marks
+  // holds exactly the elements their passages stand in (`holdOnlyWords`), and one that
+  // changes none, as a keystroke in a comment box may start, reads none of them. A
+  // placement that moves some and a new draft add theirs, and the next paint that
+  // changes a mark lets go of the rest.
   /** @type {Set<Element>} */
   let wordsHeld = new Set();
   /** @param {Iterable<AbstractRange>} ranges */
@@ -700,6 +702,7 @@ export function createAnchorPaint({
   function paint({ readings, draft, action }) {
     const before = outlined();
     const last = new Map(marked);
+    const lastReacted = new Map(reacted);
     marked.clear();
     passages.clear();
     reacted.clear();
@@ -750,9 +753,17 @@ export function createAnchorPaint({
       marked.size !== last.size ||
       [...marked].some(([id, marks], at) => order[at] !== id || last.get(id) !== marks);
     if (remarked) index();
+    const rereacted =
+      reacted.size !== lastReacted.size ||
+      [...reacted].some(([id, ranges]) => {
+        const was = lastReacted.get(id);
+        return (
+          !was || was.length !== ranges.length || ranges.some((r, at) => r !== was[at])
+        );
+      });
     draftDraws = Boolean(draft.drawing);
     paintPending(draft.resolved);
-    holdOnlyWords();
+    if (remarked || rereacted) holdOnlyWords();
 
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);

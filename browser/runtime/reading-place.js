@@ -93,7 +93,7 @@ import {
   HEADING,
   inChrome,
   pageDocument,
-  keptWithPageReading,
+  keptWithReading,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -271,11 +271,11 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
  * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
 // The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
-// the page's reading (passages.js, `keptWithPageReading`) and go with it: a revision that
+// the page's reading (passages.js, `keptWithReading`) and go with it: a revision that
 // removes a block leaves none of them holding it.
 /** @returns {Kept} */
 const kept = () =>
-  keptWithPageReading(kept, () => ({
+  keptWithReading(pageDocument(), kept, () => ({
     frames: new WeakMap(),
     shown: null,
     index: null,

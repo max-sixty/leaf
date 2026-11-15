@@ -46,7 +46,11 @@ wrapper; any other element only where every other heading inside ranks below it,
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
 An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
-inside it. Every element between the two is titled by the heading too. `lf-toc` links
+inside it. Every element between the two is titled by the heading too. The headings
+that count are those the reading of its document lists, the page's or a message's,
+Leaf's chrome aside, and "first" means
+first in reading order, which a slot can reorder; a heading the reading doesn't read,
+such as one in a host's children that no slot shows, titles only itself. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
 them.
 

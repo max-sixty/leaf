@@ -600,8 +600,9 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     shares, so a tab that closes takes its document's colour out of them. Kept, every
     tab a reader had opened held its ranges there, and each scroll's uncolouring, and
     in Chromium each change to the page, cost more for each tab opened. Opened again,
-    the document wears its colour in the frame that shows it, as when the closed tab
-    kept it."""
+    the document's lines in view wear their colour in the frame that shows them, as
+    when the closed tab kept it, also after a rewrite while it was closed moved those
+    lines into runs of their own: Firefox showed them uncoloured for a frame or two."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
         f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
@@ -610,31 +611,74 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     url = serve(
         leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
     )
+    lines = [f"value_{line} = 'text'  # line {line}" for line in range(1000)]
     for at in range(2):
-        text = "".join(
-            f"value_{line} = '{at}'  # line {line}\n" for line in range(1000)
-        )
-        data_model.cmd_data_set(serve.page_dir, f"text-{at}", text)
+        data_model.cmd_data_set(serve.page_dir, f"text-{at}", "\n".join(lines) + "\n")
     page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("lf-text-document.lf-rendered")).to_have_count(2)
+    page.locator("#doc-0 .lf-text-document-run > * >> nth=140").evaluate(
+        "row => row.scrollIntoView({block: 'start'})"
+    )
+    rendered(page)
     page.wait_for_function(TOKENS_IN, arg="#doc-0 code")
+
+    def reopened():
+        """Doc 0's rows in view and those of them without colour, read as the frame that
+        shows the reopened tab paints and in the three frames after. A size observer
+        made now is told of the listing's box after the document's own observer and
+        the work that one queued. Chromium draws no rows in the first frames, and
+        Firefox draws them in the first."""
+        page.evaluate(f"""() => {{
+          window.opened = [];
+          const listing = document.querySelector('#doc-0 .lf-text-document-listing');
+          const read = () => opened.push(({ROWS_IN_VIEW})('#doc-0'));
+          const told = new ResizeObserver(() => {{
+            if (!listing.checkVisibility()) return;
+            told.disconnect();
+            read();
+            const frame = () => {{ read(); if (opened.length < 4) requestAnimationFrame(frame); }};
+            requestAnimationFrame(frame);
+          }});
+          told.observe(listing);
+        }}""")
+        page.get_by_role("tab", name="Doc 0", exact=True).click()
+        page.wait_for_function("() => window.opened.length >= 4")
+        readings = page.evaluate("window.opened")
+        assert any(shown for shown, _ in readings), readings
+        assert not any(bare for _, bare in readings), readings
+
     page.get_by_role("tab", name="Doc 1", exact=True).click()
     page.wait_for_function(TOKENS_IN, arg="#doc-1 code")
     page.wait_for_function(f"() => !({TOKENS_IN})('#doc-0 code')")
-    # A size observer made now is told of the listing's box after the document's own
-    # observer and the work that one queued, before the frame showing it paints.
-    page.evaluate(f"""() => {{
-      const listing = document.querySelector('#doc-0 .lf-text-document-listing');
-      const told = new ResizeObserver(() => {{
-        if (!listing.checkVisibility()) return;
-        window.opened = ({TOKENS_IN})('#doc-0 code');
-        told.disconnect();
-      }});
-      told.observe(listing);
-    }}""")
-    page.get_by_role("tab", name="Doc 0", exact=True).click()
-    page.wait_for_function("() => window.opened !== undefined")
-    assert page.evaluate("window.opened") > 0
+    reopened()
+    # Lines added above the place shown, while the tab is closed, put new lines there
+    # and move the rows that stood there into runs a split makes.
+    page.get_by_role("tab", name="Doc 1", exact=True).click()
+    page.wait_for_function(f"() => !({TOKENS_IN})('#doc-0 code')")
+    grown = [*lines[:101], *(f"added_{at} = {at}" for at in range(200)), *lines[101:]]
+    data_model.cmd_data_set(serve.page_dir, "text-0", "\n".join(grown) + "\n")
+    told(page)
+    expect(page.locator("#doc-0 code")).to_contain_text("added_199 = 199")
+    reopened()
+
+
+# The rows of a text document's listing in view, and how many of them hold no syntax
+# colour, found at points down the listing's box.
+ROWS_IN_VIEW = """selector => {
+  const pre = document.querySelector(`${selector} pre`);
+  const box = pre.getBoundingClientRect();
+  const coloured = new Set();
+  for (const [name, highlight] of CSS.highlights)
+    if (name.startsWith('lf-token-'))
+      for (const range of highlight) coloured.add(range.startContainer.parentElement);
+  const rows = new Set();
+  for (let y = box.top + 4; y < box.bottom; y += 12) {
+    const row = document.elementFromPoint(box.left + box.width / 2, y)
+      ?.closest('.lf-text-document-run > *');
+    if (row) rows.add(row);
+  }
+  return [rows.size, [...rows].filter((row) => !coloured.has(row)).length];
+}"""
 
 
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
@@ -1151,7 +1195,7 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
 
 
 # What changes to the rows of `#log` since the last reading: the rows whose text
-# changed, and the rows added to or removed from a run, by the place of the run.
+# changed, how many rows runs gained and lost, and how many runs did.
 ROW_CHANGES = """() => {
   const code = document.querySelector('#log code');
   if (!window.rowChanges) {
@@ -1159,20 +1203,19 @@ ROW_CHANGES = """() => {
     new MutationObserver((records) => rowRecords.push(...records))
       .observe(code, {childList: true, characterData: true, subtree: true});
     window.rowChanges = () => {
-      const runs = [...code.children];
-      const changes = {edited: new Set(), added: [], removed: []};
+      const changes = {edited: new Set(), added: 0, removed: 0, runs: new Set()};
       for (const record of rowRecords.splice(0)) {
-        const run = runs.indexOf(record.target);
-        if (run >= 0) {
-          for (const row of record.addedNodes) changes.added.push(run);
-          for (const row of record.removedNodes) changes.removed.push(run);
+        if (record.target.parentElement === code) {
+          changes.added += record.addedNodes.length;
+          changes.removed += record.removedNodes.length;
+          changes.runs.add(record.target);
         } else if (record.target !== code) {
           const row = record.target.nodeType === Node.ELEMENT_NODE
             ? record.target : record.target.parentElement;
           if (row?.isConnected) changes.edited.add(row.textContent);
         }
       }
-      return {...changes, edited: [...changes.edited]};
+      return {...changes, edited: [...changes.edited], runs: changes.runs.size};
     };
   }
   return window.rowChanges();
@@ -1190,7 +1233,9 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     near the top moved 200 rows across each later run's edge, 2.9 s. The numbers still
     count every row, read in Chromium off what it draws, a line added at the head of a
     run the browser skips included: where rows moved across runs' edges, a run after
-    them drew no number on its first row and counted on from 1."""
+    them drew no number on its first row and counted on from 1. A rewrite past the line
+    walk's cap that moves and reindents every line keeps a selection on its words: each
+    row patched with the line at its place, the selected row took another line's."""
     lines = [f"line {at}" for at in range(1, 1001)]
     url = serve(
         leaf_page(
@@ -1210,10 +1255,13 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     removed = [*added[:300], *added[301:]]
     grown = [*removed[:600], *[f"grown {at}" for at in range(100)], *removed[600:]]
     for text, changes in (
-        (edited, {"edited": ["line 501, edited\n"], "added": [], "removed": []}),
-        (added, {"edited": [], "added": [2], "removed": []}),
-        (removed, {"edited": [], "added": [], "removed": [2]}),
-        (grown, {"edited": [], "added": [4] * 100, "removed": []}),
+        (
+            edited,
+            {"edited": ["line 501, edited\n"], "added": 0, "removed": 0, "runs": 0},
+        ),
+        (added, {"edited": [], "added": 1, "removed": 0, "runs": 1}),
+        (removed, {"edited": [], "added": 0, "removed": 1, "runs": 1}),
+        (grown, {"edited": [], "added": 100, "removed": 0, "runs": 1}),
     ):
         data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(text) + "\n")
         told(page)
@@ -1221,12 +1269,13 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
         assert page.locator("#log code").text_content() == "\n".join(text) + "\n"
         assert page.evaluate(ROW_CHANGES) == changes
     # A run filled to twice its rows splits, and the text stays whole.
+    runs = page.locator("#log .lf-text-document-run").count()
     split = [*grown[:600], *[f"split {at}" for at in range(200)], *grown[600:]]
     data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
     told(page)
     rendered(page)
     assert page.locator("#log code").text_content() == "\n".join(split) + "\n"
-    expect(page.locator("#log .lf-text-document-run")).to_have_count(11)
+    assert page.locator("#log .lf-text-document-run").count() > runs
     # The added line and the last lines, past every change, are numbered as their
     # places.
     for shown in (257, len(split)):
@@ -1237,6 +1286,16 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
         drawn = drawn_numbers(page, "log")
         assert shown in dict(drawn), drawn
         assert all(text == str(line) for line, text in drawn), drawn
+    # Past the walk's cap: a line added at the top and every line indented.
+    select_words(page, f"{ROWS} >> nth=1000")
+    selected = page.evaluate("() => getSelection().toString()").strip()
+    assert selected == split[1000], selected
+    indented = ["# added", *(f"    {line}" for line in split)]
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(indented) + "\n")
+    told(page)
+    rendered(page)
+    assert page.locator("#log code").text_content() == "\n".join(indented) + "\n"
+    assert page.evaluate("() => getSelection().toString()").strip() == selected
 
 
 def drawn_numbers(page, document):

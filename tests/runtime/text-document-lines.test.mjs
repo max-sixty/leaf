@@ -45,11 +45,9 @@ test("a row whose ending changes is a changed row", () => {
   assert.deepEqual(changes(before, after), [{ at: 0, removed: 1, to: 0, added: 1 }]);
 });
 
-test("a rewrite past the walk's cap is one change of every row", () => {
+test("a rewrite past the walk's cap gives up rather than walk every line", () => {
   const before = lines(numbered(2_000));
-  assert.deepEqual(changes(before, lines(numbered(1_500, "rewritten"))), [
-    { at: 0, removed: 2_000, to: 0, added: 1_500 },
-  ]);
+  assert.equal(changes(before, lines(numbered(1_500, "rewritten"))), null);
   // A few edits across the same text are well within it.
   const edited = before.text.map((line, at) => (at % 500 ? line : `${line} edited`));
   assert.deepEqual(

@@ -64,7 +64,7 @@ if checked.errors:
 version = stamped_version(events, planned_activation(page, checked).revision)
 if version is None:
     version = cmd_stamp(page, "Capture saved evaluation phase for inspection.")["version"]
-cmd_export(page, target, version)
+cmd_export(page, target, version, runtime=True)
 """
 
 

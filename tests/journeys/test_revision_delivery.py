@@ -71,6 +71,6 @@ def test_an_export_runs_the_exporters_runtime(page_dir, monkeypatch):
     monkeypatch.setattr(runtime_selection, "serving_runtime", lambda: exporter)
 
     out = page_dir.parent / "export.html"
-    cmd_export(page_dir, out, 1)
+    cmd_export(page_dir, out, 1, runtime=True)
 
     assert marker.decode() in out.read_text()

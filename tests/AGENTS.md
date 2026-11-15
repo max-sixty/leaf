@@ -206,8 +206,16 @@ browser says drew it (`ring_rules`, `render_cases_layout.py`).
 ## Fixtures
 
 Every test runs under `isolated_session` (its docstring says what it isolates); don't
-move `HOME`. Declare other process conditions through fixtures (`sessionless`,
-`codex_env`) rather than editing the environment in a test body.
+move `HOME`. A test changes the process it runs in, such as an environment variable,
+the working directory or a module's attribute, only through `monkeypatch` or a fixture
+built on it (`sessionless`), and `monkeypatch` puts it back when the test ends. A
+subprocess that needs another environment gets it as its `env` (`codex_env`). Code a
+test calls in process changes nothing process-wide. Only an entry point does, such as a
+container's `main` or the suite's `pytest_configure`, and where a test runs a command's
+entry point in process, a fixture keeps its change out of the worker
+(`commands_leave_the_workers_signals`). Nothing resets the process between tests, and
+`pytest_runtest_teardown` (`conftest.py`) fails a test that leaves the environment, the
+working directory or a signal handler changed.
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and
@@ -368,8 +376,10 @@ outcome holds with completion delayed tenfold, and keep a control that still fai
 
 Wait for the operation's own completion signal. Elapsed time, matching samples, a fixed
 number of frames and network quiet look the same for an effect that hasn't started as
-for one that has finished, and a sleep doesn't prove that another process took a lock
-(`interact_support.lock_contention` reports that a second taker is waiting). Count
+for one that has finished, so no assertion reads what a sleep left
+(`test_no_assertion_rests_on_a_sleep`), and a sleep doesn't prove that another process
+took a lock (`interact_support.lock_contention` reports that a second taker is
+waiting). Count
 frames (`one_frame` in `leaf.render_checks`) only where
 one rendering update is itself the claim. A computed style under a transition reports
 the animated value, so check `getAnimations()` where the subject may be moving.
@@ -396,7 +406,9 @@ matching frame even if the gesture goes on to another result. The helpers in
 `render_harness.py`:
 
 - `sending` wraps a gesture whose own event the next read needs;
-- `round_trip` waits until everything sent has been delivered, not applied;
+- `round_trip` waits until everything sent has come back and the page has applied
+  the server's reading of it, and `delivered` only until it has come back, for a test
+  that holds that application on purpose;
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;

@@ -1557,7 +1557,7 @@ async function loadBase(base, wanted, shown = null) {
     if (runtime.lastEventSeq !== throughSeq) continue;
     // Typed authored state reads the source, which formatting leaves alone: it formats
     // a copy (`paintedSource`), with the renderer loaded here.
-    const baseAuthored = stageAuthoredStates(doc, new Map());
+    const baseAuthored = stageAuthoredStates(doc);
     const source = pageDocument(doc);
     if (!source)
       throw new Error("A comparison revision must contain its authored document");
@@ -2035,7 +2035,7 @@ export function createVersionController({
     // The arriving revision's source is the complete page baseline. Capture it before
     // insertion can connect a custom element and turn authored input into presentation.
     rememberAuthoredParents(source);
-    const sourceAuthored = stageAuthoredStates(source, new Map());
+    const sourceAuthored = stageAuthoredStates(source);
     const sourceDescriptors = stageWidgetDescriptors(source, {
       kind: "page",
       revision: target.revision,

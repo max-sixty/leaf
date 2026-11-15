@@ -456,10 +456,11 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     resized(page, 1280, 900)
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
-    # Longer than the session's settle, so the map has stood still and the user has had
-    # the chance to read it. A map armed into a page already moving is a different case,
-    # held by tests/runtime/hint-session.test.mjs.
-    page.wait_for_timeout(200)
+    # The chips show only once the map is drawn at rest, and `rendered` waits for every
+    # repaint that arming it queued, so the map stands still before the page moves. A
+    # map armed into a page already moving is a different case, held by
+    # tests/runtime/hint-session.test.mjs.
+    rendered(page)
 
     # A smooth scroll is the case that holds the session in motion: a programmatic step
     # ends in its own frame, and Chrome sends `scrollend` for each one.

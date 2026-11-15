@@ -173,7 +173,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * @typedef {ReturnType<typeof import("../thread/destination.js").createThreadDestinations>} ThreadDestinations
  * @typedef {Pick<ComposerOptions, "reactionTokens" | "setReact" | "designModeActive" | "openPageThread" | "createComment" | "landSent" | "refreshThread" | "wireInput" | "drawingEdits"> & {
  * rememberSelection: ReturnType<typeof import("./capture.js").createPassageSelection>["remember"],
- * landIn: ReturnType<typeof import("../thread/landing.js").createThreadLanding>["landIn"],
+ * landIn: typeof import("../thread/landing.js").landIn,
  * threadHere: ThreadDestinations["threadHere"], threadAtCurrentLocation: ThreadDestinations["threadAtCurrentLocation"], threadTarget: ThreadDestinations["threadTarget"],
  * currentTarget: ReturnType<typeof import("./current-target.js").createCurrentTarget>,
  * markAt?: ((x: number, y: number) => string | null) | undefined,
@@ -478,6 +478,16 @@ export function createResponseSurface({
   function letGoOfFab() {
     const land = landingFromBar(true);
     closeLayer(() => showFab(null), land);
+  }
+  // A send lands the user itself, on the conversation it opens (selection.js, `send`),
+  // so the bar its settlement takes down lands no one. The call it returns lets go of
+  // a user the send landed nowhere, while they still stand in the bar and no other
+  // anchor has taken it.
+  function takeDownFab() {
+    closeLayer(() => showFab(null));
+    return () => {
+      if (!fabAnchor.value && fabBar.contains(fabFocused())) letGo();
+    };
   }
   // The bar's whole paint for the anchor it stands on, or for none: whether it shows,
   // whether only its target is chosen, which responses it offers, and what it is called.
@@ -1059,6 +1069,7 @@ export function createResponseSurface({
     landFabFocus,
     showFab,
     letGoOfFab,
+    takeDownFab,
     createComment,
     landSent,
     refreshThread,

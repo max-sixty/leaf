@@ -20,10 +20,10 @@ from PIL import Image, ImageDraw
 from leaf.media import media_name
 
 
-def media(directory: Path, data: bytes, suffix: str = ".png") -> str:
-    """Write `data` into a page's media `directory` under its content name, and return
-    the path the page reads it by."""
-    name = media_name(data, suffix)
+def media(directory: Path, data: bytes) -> str:
+    """Write the PNG `data` into a page's media `directory` under its content name, and
+    return the path the page reads it by."""
+    name = media_name(data, ".png")
     (directory / name).write_bytes(data)
     return f"/media/{name}"
 

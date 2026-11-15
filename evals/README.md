@@ -1,7 +1,7 @@
 # Leaf evals
 
 Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and Codex.
-`leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
+`leaf-dev eval run` builds the Leaf arms, turns the selected cases into a Promptfoo
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 A folder here with a `promptfooconfig` of its own is an experiment, which its README
@@ -9,11 +9,11 @@ says how to run (`dev/AGENTS.md`, "Experiments"). The commands below run the cas
 
 ```sh
 pnpm install --frozen-lockfile
-uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
-uv run leaf-dev eval reading document/resume --harness codex
-uv run leaf-dev eval 'website-replies*' --harness codex --base -j 1
-uv run leaf-dev eval todo-outlasts-the-turn --harness claude-code --base
-uv run leaf-dev eval document --harness both --condition both --repeat 3
+uv run leaf-dev eval run brief-document-needs-no-outline --harness claude-code
+uv run leaf-dev eval run reading document/resume --harness codex
+uv run leaf-dev eval run 'website-replies*' --harness codex --base -j 1
+uv run leaf-dev eval run todo-outlasts-the-turn --harness claude-code --base
+uv run leaf-dev eval run document --harness both --condition both --repeat 3
 pnpm run eval:view
 ```
 
@@ -46,7 +46,7 @@ authoring cases or `/workflow` for complete tasks, and `claude-code/html/workflo
 for the HTML control. A Codex authoring or workflow column
 reads `codex:app-server/...`: its session takes Leaf's App Server transport, and the
 queue transport the desktop app and IDE use runs under
-`leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
+`leaf-dev journey run codex-queue`. Each assertion's `metric` is a named score, so a
 comparison reads per metric across columns.
 
 A complete authoring task has one final live quality judge. It returns `pass`, `defect`, or `insufficient_evidence`; native execution or invalid
@@ -92,13 +92,13 @@ judges, but it changes the task the author must satisfy. To inspect another size
 without changing that task, explore the saved sample with `--judge discovery` below.
 
 ```sh
-uv run leaf-dev eval patch-review --harness codex --condition both --viewport desktop
-uv run leaf-dev eval patch-review --harness codex --condition leaf --viewport short --repeat 1 -j 1
+uv run leaf-dev eval run patch-review --harness codex --condition both --viewport desktop
+uv run leaf-dev eval run patch-review --harness codex --condition leaf --viewport short --repeat 1 -j 1
 ```
 
 ### Grade saved samples again
 
-`leaf-dev eval --from RUN` grades a retained run's saved outputs again without
+`leaf-dev eval run --from RUN` grades a retained run's saved outputs again without
 rerunning their authors. Each saved output becomes a test in its original column,
 graded by its case's assertions as this checkout states them, so a changed rubric,
 check or judge can be measured on outputs that already exist. Repeat `--from` to
@@ -109,7 +109,7 @@ sample's directory name, so `--filter-pattern NAME` selects one sample, and
 options that choose what to author, such as `--base` and `--harness`, don't apply.
 
 ```sh
-uv run leaf-dev eval --from .tmp/eval/<run> page-reads-at-every-width/dashboard
+uv run leaf-dev eval run --from .tmp/eval/<run> page-reads-at-every-width/dashboard
 ```
 
 The grading is a run like any other, in Promptfoo's store and viewer, with its
@@ -139,7 +139,7 @@ author that did not complete, leaves the pair unscored. A result that saved no
 task at all, such as a provider timeout, is left out of the pairing.
 
 ```sh
-uv run leaf-dev eval --from .tmp/eval/<leaf-run> --from .tmp/eval/<html-run> --judge pair
+uv run leaf-dev eval run --from .tmp/eval/<leaf-run> --from .tmp/eval/<html-run> --judge pair
 ```
 
 Each sample's final rubric is its absolute-quality judgment. Pairwise grading
@@ -155,7 +155,7 @@ runtime. The agent chooses window sizes and interaction sequences from the focus
 which Promptfoo's `--var focus=TEXT` sets, and what it observes.
 
 ```sh
-uv run leaf-dev eval --from .tmp/eval/<run> --judge discovery --filter-pattern <sample-directory-name> --var focus='Explore short desktop windows and decision undo.'
+uv run leaf-dev eval run --from .tmp/eval/<run> --judge discovery --filter-pattern <sample-directory-name> --var focus='Explore short desktop windows and decision undo.'
 ```
 
 Each test's assertion metadata keeps the judge's response as `judge`, with the
@@ -166,7 +166,7 @@ whatever it found.
 
 ### Render a report
 
-`leaf-dev eval-report PAGE RUN...` replaces `PAGE/index.html` with one Leaf report
+`leaf-dev eval report PAGE RUN...` replaces `PAGE/index.html` with one Leaf report
 of the selected runs. Its Outputs view links every sample to its saved pages,
 screenshots, checks and grading reasons, including failed attempts and unequal
 repetitions. Task views collect the arms and saved phases; pairwise judgments and
@@ -186,7 +186,7 @@ page server continues to serve the report and screenshots. For example, replacin
 `HOST` with the machine's browser-reachable hostname:
 
 ```sh
-uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run> --output-url http://HOST:57912
+uv run leaf-dev eval report ~/.tmp/leaf/eval-comparison .tmp/eval/<run> --output-url http://HOST:57912
 uv run python -m http.server 57912 --bind 0.0.0.0 --directory ~/.tmp/leaf/eval-comparison/evidence
 ```
 
@@ -358,7 +358,7 @@ output, phase or file the report can't find stops the report.
   its path instead of a link. A citation that draws anything else stands where a block
   can, outside a `<p>`.
 
-`RUN` is the name of a run directory given to `eval-report`. `SAMPLE` is the directory
+`RUN` is the name of a run directory given to `eval report`. `SAMPLE` is the directory
 `metadata.work` names, which an output's run details show as its Output ID. `SAMPLE@3`
 selects the page as the sample's third phase left it: a workflow sample keeps phase N
 in `page-phaseN`, and a short authoring case has only `@1`. Without `@`, the citation
@@ -386,7 +386,7 @@ Each section keeps what its reader needs to judge it:
 - A score row states its denominator and meaning, keeping an experiment's pass counts
   separate from ordinal pair preferences. Qualifications that apply to the recorded
   reviews go beside the scores. Name the arms for the reader in the review; the browser
-  keeps their recorded labels. Pass each pair-judgment run to `eval-report` too, so the
+  keeps their recorded labels. Pass each pair-judgment run to `eval report` too, so the
   Judge preferences view shows its pairs, and don't retype that view's winners or
   margins. Beside it, say which retained changes the judged pairs were produced under,
   which no pair covers, and which author or model changes limit the reading. Report a
@@ -589,7 +589,7 @@ judge pin, and the browser user runs on Codex with `MODELS["user"]`. Hosted resp
 cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container
-or browser; `leaf-dev journey website-adapter` and the website delivery checks
+or browser; `leaf-dev journey run website-adapter` and the website delivery checks
 cover those boundaries. The `llm-rubric` judge grades text and opens nothing. The screenshot judge
 runs on the installed `codex` under a permission profile that lets it read the
 run's `screenshots/` and no other file of the repository. Promptfoo counts a
@@ -606,7 +606,7 @@ actions, screenshots and reasons before accepting a judgment.
 
 Another judge may grade the same samples differently, so a judged difference is
 partly the judge's. For static screenshot cases, point `screenshot_judge` in
-`dev/leaf_dev/commands/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
+`dev/leaf_dev/commands/eval/run.py` at another model or provider (an `anthropic:claude-agent-sdk`
 grader restricted to `Read` on the screenshot tree works), grade the same run again
 with `--from`, and compare the runs in the viewer, starting with the
 `dashboard/reader-*` calibration. That setting does not change complete-task live
@@ -619,8 +619,8 @@ the common task: the actual page events or copied/typed message can differ from 
 prescribed decision summary. Those inputs establish what the final revision responds
 to; they do not change the decision task the judge operates on the earlier page.
 
-These cases score instruction use and the agent loop. `leaf-dev journey` covers
-plugin installation, discovery and hooks on each harness, and `leaf-dev verify-site`
+These cases score instruction use and the agent loop. `leaf-dev journey run` covers
+plugin installation, discovery and hooks on each harness, and `leaf-dev site verify`
 the website.
 
 Benchmark runs are development experiments, not release gates. Run a selected

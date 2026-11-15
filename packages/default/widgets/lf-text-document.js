@@ -621,8 +621,10 @@ class TextDocument extends LeafElement {
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
   // The runs the browser draws now, which syntax colour paints (`RunColours`), while
-  // the listing has a box (`listed`). Firefox reports the runs of a closed tab's
-  // listing drawn, and every document in a closed tab was coloured as the page loaded.
+  // the listing has a box (`listed`), so a document in a tab closed since the page
+  // loaded takes no colour. A fold over the listing makes its runs `visible`
+  // (text-document.css), and nothing reports them leaving the view as it closes, so
+  // the fold keeps the colour of the runs last shown until it opens.
   /** @type {Set<Element>} */
   shown = new Set();
   listed = false;

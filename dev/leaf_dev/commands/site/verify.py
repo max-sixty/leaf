@@ -1,8 +1,8 @@
 """Verify that leaf.page serves one exact, coherent release in a real browser.
 
-    uv run leaf-dev verify-site [TARGET] [--release RELEASE] [--wait SECONDS]
+    uv run leaf-dev site verify [TARGET] [--release RELEASE] [--wait SECONDS]
 
-The release pass loads three pages, holds each to the release `leaf-dev site` built
+The release pass loads three pages, holds each to the release `leaf-dev site build` built
 (or `--release`), and prints their startup profile. `website-worker` runs it against
 the built site through the local Worker and its page container, printing the Worker's
 log beside a failure. That local pass also restores a private document, comment and
@@ -16,7 +16,7 @@ at a time, so a deployed release verifies only once the rollout reaches every pa
 pass reads. `--wait` owns that wait for every deploy: it reruns the whole pass until
 one verifies or its seconds run out, and the last failure is the report.
 
-This module also owns reaching the website for `leaf-dev journey`: a user session
+This module also owns reaching the website for `leaf-dev journey run`: a user session
 whose private container serves the release (`agent_session`), the website's adapter
 on this machine (`local_adapter`), and the local Worker (`local_worker`).
 """
@@ -60,14 +60,14 @@ from leaf_dev.arms import (
     run_directory,
 )
 from leaf_dev.browser import go_to_threads, headless_shell, panel_view
-from leaf_dev.commands.site import asset_site, install_tree
+from leaf_dev.commands.site.build import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
-# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.commands.site`).
-BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site"]
-VERIFIER_SCRIPT = Path(__file__).with_name("verify_site_browser.js")
+# The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.commands.site.build`).
+BUILD_SITE = [sys.executable, "-m", "leaf_dev", "site", "build"]
+VERIFIER_SCRIPT = Path(__file__).with_name("verify_browser.js")
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
@@ -750,7 +750,7 @@ def local_adapter() -> Generator[tuple[str, str]]:
 
     Its isolated Codex home and normal Leaf plugin installation are removed with
     the adapter's pages and task history."""
-    out = run_directory(ROOT / ".tmp" / "verify-site")
+    out = run_directory(ROOT / ".tmp" / "site-verify")
     log = out / "website-adapter.log"
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
@@ -1094,7 +1094,7 @@ def local_worker() -> Generator[LocalWorker]:
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
     name of its own and removes the containers carrying it on the way out.
     """
-    out = run_directory(ROOT / ".tmp" / "verify-site")
+    out = run_directory(ROOT / ".tmp" / "site-verify")
     # Temporary directory suffixes may begin with `_`, which cannot follow a
     # hyphen in a Docker image name. Hex keeps the run identity and uses only
     # characters accepted by both Docker and Wrangler.
@@ -1230,15 +1230,15 @@ def local_worker() -> Generator[LocalWorker]:
 
 
 def built_release() -> str:
-    """The release `leaf-dev site` last built."""
+    """The release `leaf-dev site build` last built."""
     return json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
 
 
-@click.command()
+@click.command("verify")
 @click.argument("target", default="https://leaf.page")
 @click.option(
     "--release",
-    help="Require this release (default: the one `leaf-dev site` built).",
+    help="Require this release (default: the one `leaf-dev site build` built).",
 )
 @click.option(
     "--wait",
@@ -1249,7 +1249,7 @@ def built_release() -> str:
 )
 def verify_site(target: str, release: str | None, wait: int) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site
-    through the local Worker. `leaf-dev journey` runs the agent at either."""
+    through the local Worker. `leaf-dev journey run` runs the agent at either."""
     deadline = time.monotonic() + wait
     while True:
         try:

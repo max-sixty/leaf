@@ -1,9 +1,10 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), the label every surface shows for it away
- * from the page (`addressableLabel`), and the word and label an anchor on it shows
- * (`sectionLabel`). Each reads authored words through the passage
- * reader, so generated chrome never names anything. */
+ * contract gives it (`addressableName`), the element a heading titles by that contract
+ * (`titledElement`), the label every surface shows for it away from the page
+ * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
+ * Each reads authored words through the passage reader, so generated chrome never
+ * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
@@ -100,6 +101,96 @@ function readLeadingTitle(container) {
   }
   return null;
 }
+// The element a heading titles: the outermost element whose first heading it is, short
+// of one its own `label` attribute names; or the heading itself where it
+// titles no element. A sectioning element (`section`, `article`, `aside`, `nav`) takes
+// its first heading whatever else it holds, past any wrapper between them. Any other
+// takes it only where every other heading inside ranks below it, outside a title group
+// (`header`, `hgroup`) no words stand before the heading's branch, and each element
+// between them takes it too. So a question's heading
+// titles its `hgroup`, the question and a `section` wrapping the question; a section's
+// first heading titles it after an eyebrow or an introduction, past a numbered eyebrow
+// in a wrapper or a kicker in the question, and past a question of the same rank
+// inside it; a heading after the question in that section titles only
+// itself; a `div` holding a lede and several sections is none's; a heading deep in a
+// task list, a disclosure under its summary, or a playground's preview titles only
+// what it opens, short of a section around it; and a tab, pane or sample is named by
+// its label. The contents start each row's
+// stretch of the page at the element its heading titles, and a heading's link preview
+// counts the conversations about it (thread/placement.js, `conversationsAbout`).
+// `titlingHeading` reads it the other way round.
+//
+// Replaced: the contents took an identified `section` whose first heading this was, and
+// a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
+// which stops at a question inside a section and lets a sub-heading after a question
+// title the section around both. Neither took a question with no section around it.
+/** @param {Element} heading @returns {Element} */
+export const titledElement = (heading) =>
+  keptAnswer(heading, "titled element", () => readTitledElement(heading));
+/** @param {Element} heading @returns {Element} */
+function readTitledElement(heading) {
+  let titled = heading;
+  let chained = true;
+  for (
+    let branch = heading, at = heading.parentElement;
+    at && !declaredName(at) && headingsIn(at).first === heading;
+    branch = at, at = at.parentElement
+  ) {
+    if (at.matches(SECTIONING)) [titled, chained] = [at, true];
+    else if (chained && opensOn(heading, at, branch)) titled = at;
+    else chained = false;
+  }
+  return titled;
+}
+/** The heading that titles `element` (`titledElement`), or null.
+ * @param {Element} element @returns {Element | null} */
+export function titlingHeading(element) {
+  const { first } = headingsIn(element);
+  return first && titledElement(first).contains(element) ? first : null;
+}
+const SECTIONING = "section, article, aside, nav";
+// Whether an element other than a sectioning one opens on `heading`, its first: every
+// other heading in it ranks below, and outside a title group no words stand before the
+// heading's branch.
+/** @param {Element} heading @param {Element} element @param {Element} branch */
+const opensOn = (heading, element, branch) => {
+  if (headingsIn(element).below <= rank(heading)) return false;
+  if (element.matches("header, hgroup")) return true;
+  for (let node = branch.previousSibling; node; node = node.previousSibling)
+    if (hasWords(node)) return false;
+  return true;
+};
+// Whether a node holds any words, read up to its first.
+/** @param {Node} node */
+function hasWords(node) {
+  if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim());
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  const walker = /** @type {Document} */ (node.ownerDocument).createTreeWalker(
+    node,
+    NodeFilter.SHOW_TEXT,
+  );
+  for (let text = walker.nextNode(); text; text = walker.nextNode())
+    if (text.textContent?.trim()) return true;
+  return false;
+}
+/** @param {Element} heading */
+const rank = (heading) => Number(heading.localName.slice(1));
+// The first heading an element holds, as the page reads it, and the highest rank among
+// the rest (7 where there are none), kept as long as the page reading stands
+// (`keptAnswer`), so the climbs of every heading read each element once.
+/** @param {Element} element @returns {{first: Element | null, below: number}} */
+const headingsIn = (element) =>
+  keptAnswer(element, "headings in", () => {
+    /** @type {Element | null} */
+    let first = null;
+    let below = 7;
+    for (const heading of element.querySelectorAll(HEADING)) {
+      if (uiInside(heading, element)) continue;
+      if (first) below = Math.min(below, rank(heading));
+      else first = heading;
+    }
+    return { first, below };
+  });
 // The title a widget's `label` attribute holds, such as a tab's: the one attribute
 // that names its element on every widget that takes it (`$attributes`, Python's
 // `registry.contract.NAME_ATTRIBUTE`).

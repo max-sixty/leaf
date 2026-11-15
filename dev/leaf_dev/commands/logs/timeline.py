@@ -3,7 +3,7 @@ order: the user's messages, what Leaf kept back and its forks, what Leaf handed 
 when, the session's turns and commands, and the agent's words on the page, with a line
 per message saying how long each step took after the user sent it.
 
-    leaf-dev timeline PAGE... [--message ID] [--since ISO] [--until ISO] [--calls] [--json]
+    leaf-dev logs timeline PAGE... [--message ID] [--since ISO] [--until ISO] [--calls] [--json]
 
 PAGE is a page directory, or any directory holding a page's `events.jsonl` and
 `observations.jsonl`, as a journey's evidence directory does. The records it reads:
@@ -44,7 +44,7 @@ minutes on where it has none, its thread's events and everything the sessions di
 meanwhile. `--calls` adds every tool call and the agent's words in the terminal.
 
 The line per message comes from `response_times.page_timings`, so it times each step
-as `leaf-dev response-times` does: the fork and its outcome, the agent's first words
+as `leaf-dev logs response-times` does: the fork and its outcome, the agent's first words
 on the page, the session's pickup and what it waited on (`reply_phases.pickup_wait`),
 its start and its answer, each in seconds after the message was admitted.
 """
@@ -62,12 +62,18 @@ import click
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
-from leaf.holding import turn_threads
+from leaf.holding import reading
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
-from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
+from leaf.state import (
+    agent_turn_open,
+    agent_turns,
+    now_iso,
+    session_live,
+    session_record,
+)
 from leaf.thread_context import thread_names
-from leaf_dev.commands.response_times import page_timings
+from leaf_dev.commands.logs.response_times import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,
@@ -395,9 +401,10 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
+    holding = reading(events, session, turns, running, live=session_live(record))
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
-        took = sorted(turn_threads(events, session, {turn}))
+        took = sorted(holding.took.get(turn, ()))
         if thread is not None and thread not in took:
             continue
         state = agent_turn_state(turn, turns, running)

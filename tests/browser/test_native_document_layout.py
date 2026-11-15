@@ -108,10 +108,10 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, direction):
-    """Beside a contents map the room lies on one side of the column only. A question or
-    section written in the other direction from the page takes the same room as the
-    page's own blocks: an available block reaches the free side, and a wide one, whose
-    end faces the map, keeps to the prose. Both used to grow toward the map, the
+    """Beside a contents map, a question or section written in the other direction from
+    the page takes the same room as the page's own blocks: an available block reaches
+    the page's room, and a wide one grows from the prose toward its own end, which faces
+    the map, within the room before the prose. Both used to grow toward the map, the
     available block 334px past the window's edge, since the flow read the room on the
     column's start side as the room on its own."""
     other = "rtl" if direction == "ltr" else "ltr"
@@ -145,7 +145,10 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     assert room != prose and 0 <= room[0] and room[1] <= 1726, boxes
     for block in ("reaches-block", "reaches", "section-block"):
         assert boxes[block] == room, (block, boxes)
-    for held in ("widens-block", "widens", "reaches-h", "widens-h"):
+    widens, start = boxes["widens-block"], 0 if other == "ltr" else 1
+    assert widens != prose and room[0] <= widens[0] and widens[1] <= room[1], boxes
+    assert widens[start] == prose[start] and boxes["widens"] == widens, boxes
+    for held in ("reaches-h", "widens-h"):
         assert boxes[held] == prose, (held, boxes)
 
 

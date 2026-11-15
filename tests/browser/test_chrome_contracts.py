@@ -247,6 +247,38 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     assert max(leaving, entering) < whole / 4, moves
 
 
+def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve):
+    """Opening search runs the target picker's arm writer (aim.js, `armChanged`),
+    which hides the Design legend's tags while the picker stands. It wrote that as a
+    custom property on the root, so the first open, which wrote its first value,
+    restyled every element (root-state.js): 6 to 11 s in Firefox on a page of thirty
+    4 MB text documents, where a second open took 80 to 120 ms. Counted in the
+    browser's own restyled elements, against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Search", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    field = page.get_by_role("searchbox", name="Search page text")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    opening = restyled(lambda: page.keyboard.press("/"))
+    expect(field).to_be_focused()
+    closing = restyled(lambda: page.keyboard.press("Escape"))
+    expect(field).to_be_hidden()
+    moves = {"opening": opening, "closing": closing, "whole page": whole}
+    assert max(opening, closing) < whole / 4, moves
+
+
 def questions_page(sections: int) -> str:
     """`sections` sections of a column page's article, each with words to comment on
     and a question on the user, so its margin holds a row per section."""

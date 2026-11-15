@@ -27,6 +27,9 @@ export { rankAt } from "./projection/model.js";
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
+// `titledElement(heading)`: the element a heading titles, the outermost one that opens
+// with it, which a count per heading counts under that heading.
+export { titledElement } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.

@@ -2481,12 +2481,16 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
-# panel's controls redrawn by the reading shift.
+# panel's controls redrawn by the reading shift. The delivery arms begin the slide
+# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# box's layout: the press's own growth, its news landing before the next frame's tick
+# (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
+# stands after the line, so only the slide moves it.
 NEWS = """<!doctype html><body style="margin:0">
 <style>@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }</style>
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
-<div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<div id="bar"></div><div id="above"></div><div id="below">Below.</div><div id="after"></div>
 <div id="beat" style="position:fixed;left:0;bottom:0;width:8px;height:8px;background:gray"></div>
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
@@ -2511,9 +2515,24 @@ NEWS = """<!doctype html><body style="margin:0">
         : keyframes(parseFloat(drawn), arm().retarget === 'farther' ? 400 : 300),
       { duration: left, fill: 'forwards' });
   };
+  new ResizeObserver(() => {
+    if (!arm().grown || window.sliding) return;
+    slide();
+    if (arm().grown !== 'press') return;
+    arm().inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
+    document.body.setAttribute("data-lf-reading", "news");
+    arm().newsFromTrustedPress = arm().trusted;
+  }).observe(after);
   document.getElementById("press").addEventListener("pointerdown", (event) => {
     if (arm().motion === "press") slide();
-    if (arm().retarget) beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().retarget || arm().motion.endsWith('delivery'))
+      beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    if (arm().motion === 'delivery') {
+      arm().trusted = String(event.isTrusted);
+      arm().grown = 'press';
+      after.style.height = '40px';
+      return;
+    }
     const until = performance.now() + Number(arm().work);
     while (performance.now() < until) {}
     frames(3, () => {
@@ -2521,6 +2540,10 @@ NEWS = """<!doctype html><body style="margin:0">
       document.body.setAttribute("data-lf-reading", "news");
       if (arm().motion === "news") slide();
       if (!arm().motion) document.getElementById("above").style.height = "40px";
+      if (arm().motion === 'news-delivery') {
+        arm().grown = 'news';
+        after.style.height = '40px';
+      }
       // Once the watch has heard the reading, as the runtime's renderers follow it.
       if (arm().retarget) queueMicrotask(retarget);
       arm().newsFromTrustedPress = String(event.isTrusted);
@@ -2922,6 +2945,27 @@ def test_sampled_native_translation_distinguishes_press_from_news(
     page.evaluate("sliding.finished.then(() => {})")
     judge_watches()
     if motion == "press" and retarget in ("", "drawn"):
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#below"))
+
+
+@pytest.mark.parametrize("motion", ["delivery", "news-delivery"])
+def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
+    browser, motion
+):
+    """A box that follows its own layout, as box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame the press
+    draws in, after that frame's tick. The motion is the press's though news lands
+    before the next tick, as a send's answer can within a long frame, where the panel's
+    head jumped the rest of its carry in one frame and read as moved by news. A box
+    following the news's own layout begins its motion in a later delivery, and still
+    moves by news."""
+    page = news_page(browser, motion, translation="carry")
+    page.wait_for_function("window.sliding !== undefined")
+    page.evaluate("sliding.finished.then(() => {})")
+    judge_watches()
+    if motion == "delivery":
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("div#below"))

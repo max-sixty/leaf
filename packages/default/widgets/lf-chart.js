@@ -148,7 +148,7 @@ customElements.define(
     // What each drawing is drawn from and where a failed one goes (`draw`), the height
     // every drawing takes, read at the first, and the height a legend beside it took
     // when last laid out, with the watch on the drawing that holds it (`paint`).
-    /** @type {{bundle: PlotBundle, body: Function, failed: (err: unknown) => void} | null} */
+    /** @type {{bundle: PlotBundle, body: Function, failed: (err: unknown) => Promise<void>} | null} */
     #source = null;
     /** @type {number | undefined} */
     #height;
@@ -302,13 +302,21 @@ customElements.define(
       let source = "";
       let stop = () => {};
       // A failed drawing ends the watch: the failure replaced the drawing, and a chart
-      // that returns to the page keeps showing it rather than drawing again.
-      /** @param {unknown} err */
+      // that returns to the page keeps showing it rather than drawing again. The
+      // refusal is written in Leaf's next rendering pass, where a drawing settles too
+      // (below): a drawing fails inside the size delivery that measured its room, and
+      // the refusal's box, its words over the source, moves the boxes above the chart.
+      /** @param {unknown} err @returns {Promise<void>} */
       const failed = (err) => {
         stop();
         this.#legendWatch?.disconnect();
         this.#read(null);
-        failSoft(this, err, source);
+        return new Promise((shown) =>
+          nextRender(() => {
+            failSoft(this, err, source);
+            shown();
+          }),
+        );
       };
       try {
         source = bodyText(this);
@@ -363,7 +371,7 @@ customElements.define(
         // just delivered is a ResizeObserver loop error.
         await new Promise((done) => nextRender(done));
       } catch (err) {
-        failed(err);
+        await failed(err);
       }
     }
 

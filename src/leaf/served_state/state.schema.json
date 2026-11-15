@@ -211,8 +211,8 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
-        "forked": {
-          "description": "The user's waiting messages a fork of the claimant's conversation has taken on (`forks.forked`).",
+        "kept_back": {
+          "description": "The user's waiting messages Leaf keeps back from the claimant's main thread while a line fork judges them (`forks.kept_back`).",
           "type": "array",
           "items": { "type": "string" }
         },
@@ -356,7 +356,7 @@
         "session_alive",
         "live_turn",
         "cursor",
-        "forked",
+        "kept_back",
         "pending",
         "agent",
         "claim_session",
@@ -658,7 +658,7 @@
           }
         },
         "at_work": {
-          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`forks.forked`).",
+          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`holding.Holding.forked`).",
           "type": "boolean"
         },
         "thread": {

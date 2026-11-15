@@ -10,6 +10,7 @@ import { html, nothing, noChange } from "/vendor/lit.js";
 import { LeafElement, shadowStage } from "/runtime/widget-api.js";
 import { focused, focusDestination } from "/runtime/focus.js";
 import { failSoftUnreported } from "/runtime/widget-upgrade.js";
+import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
 import {
   applicationState,
   attachApplicationPresentation,
@@ -500,6 +501,67 @@ test("a failed preparation stands beside the render root, which the next draw st
   assert.equal(element.part.textContent, "offline");
   assert.equal(element.querySelector(".lf-error"), null);
   element.remove();
+});
+
+// A tab set draws only its strip and leaves the page's panels beside it, so a draw
+// reads again the keys of the strip it drew and of the set around it, and never walks
+// a panel: on #4781's page, walking every panel's document held each tab switch for
+// over a second.
+test("a draw reads again the keys of what it drew and around it, not of the page's content beside it", async () => {
+  const tag = `lf-probe-strip-${++tags}`;
+  const reads = { set: 0, strip: 0, panel: 0 };
+  // A scope whose control a query finds, counting each reading of it.
+  /** @param {Element} where @param {keyof typeof reads} name @param {string} selector */
+  const counted = (where, name, selector) =>
+    keys(where, null, [
+      {
+        id: `probe.${name}-${tags}`,
+        title: "Act",
+        keys: ["x"],
+        control: () => {
+          reads[name]++;
+          return where.querySelector(selector);
+        },
+        run: () => {},
+      },
+    ]);
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        this.strip = document.createElement("div");
+        this.panel = document.createElement("section");
+        this.panel.append(document.createElement("button"));
+        this.append(this.strip, this.panel);
+      }
+      createRenderRoot() {
+        return this.strip;
+      }
+      render() {
+        return html`<button>Open</button><button>Close</button>`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  try {
+    await settled(element);
+    counted(element, "set", "div > button + button");
+    counted(element.strip, "strip", "button");
+    counted(element.panel, "panel", "button");
+    reflectFirstScopes();
+    reflectKeys();
+    for (const name of Object.keys(reads)) reads[name] = 0;
+    element.requestUpdate();
+    await settled(element);
+    reflectKeys();
+    assert.ok(reads.strip > 0, "the strip it drew reads its keys again");
+    assert.ok(reads.set > 0, "the set around the strip reads its keys again");
+    assert.equal(reads.panel, 0, "the panel beside the strip is not read");
+  } finally {
+    element.remove();
+  }
 });
 
 test("a setup that throws shows its failure and the element draws nothing, a check's redraw included", async () => {

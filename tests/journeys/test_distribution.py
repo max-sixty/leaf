@@ -13,7 +13,7 @@ from playwright.sync_api import expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from leaf_dev.commands.distribution import prepare
+from leaf_dev.commands.site.distribution import prepare
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(

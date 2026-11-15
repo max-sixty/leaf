@@ -14,7 +14,9 @@ from render_harness import (
     open_page,
     panel_control,
     panel_field,
+    panel_settled,
     panel_view,
+    resized,
     selection_field,
     sending,
     write,
@@ -109,7 +111,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     # Prose still selects in Design mode. On the narrowest phone row the panel's field
     # names the mode before the quoted words, beside the mode's ✕, until the words are
     # let go, when its own end says Close again, and a tap on it comments on them.
-    page.set_viewport_size({"width": 320, "height": 700})
+    resized(page, 320, 700)
     field = panel_field(page)
     page.locator("#h").evaluate("el => getSelection().selectAllChildren(el)")
     comment = selection_field(page)
@@ -117,6 +119,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
         "placeholder", re.compile("^In Design mode · “Undo”")
     )
     expect(exit_design).to_be_visible()
+    # The row is measured at rest: the panel's parts slide to their new places, past
+    # the row's end on the way.
+    panel_settled(page, open=False)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the selection's field overflows a 320px row"
     )
@@ -125,6 +130,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(field).to_have_attribute("placeholder", re.compile("^In Design mode"))
     expect(close).to_be_visible()
     expect(exit_design).to_have_count(0)
+    panel_settled(page, open=False)
     assert row.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the mode's way out overflows a 320px row"
     )

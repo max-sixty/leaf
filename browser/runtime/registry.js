@@ -119,10 +119,16 @@ export const declarationFor = (el, key) =>
 /** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
+// The elements under `root`, or its children with `direct`, whose tag declares `key`,
+// in document order. The browser matches the declaring tags, so a root holding a long
+// document of plain rows, as a tab set's panel can, costs a native match of each row
+// rather than a script's look at it.
 /** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
 export const elementsDeclaring = (root, key, { direct = false } = {}) => {
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  return candidates.filter((el) => declarationFor(el, key) !== undefined);
+  if (direct)
+    return [...root.children].filter((el) => declarationFor(el, key) !== undefined);
+  const tags = tagsDeclaring((entry) => entry[key] !== undefined);
+  return tags.length ? [...root.querySelectorAll(tags.join(", "))] : [];
 };
 
 // Which widgets answer a question the way the caller means it, read from what they

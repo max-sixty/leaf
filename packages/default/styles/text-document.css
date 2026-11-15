@@ -139,6 +139,19 @@ lf-text-document .lf-text-document-run {
 lf-text-document .lf-text-document-run:only-child {
   content-visibility: visible;
 }
+/* Under a fold (a closed tab's `hidden="until-found"` panel, a shut details) the fold
+   skips every run, so a run skips nothing itself until the fold opens, and the browser
+   then decides afresh which runs are in view. Firefox 159 reports every `auto` run
+   under a fold as drawn. When the fold opens, the runs stay drawn until Firefox
+   reports the ones out of view over the next frames, so the page read and coloured
+   every line of the closed tab it opened: 6.6 s for a tab of 95,000 lines, against
+   2 s with this rule (notes/browser-support.md, "An `auto` box under a fold in
+   Firefox"). The text under a fold stays in reach of find-in-page. */
+:where([hidden="until-found"], details:not([open]))
+  lf-text-document
+  .lf-text-document-run {
+  content-visibility: visible;
+}
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that
    stays put: the Source tab's box with a preview, the listing's own without one. The
    box's height is the bound, not the text's, so the page keeps the document's final

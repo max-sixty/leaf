@@ -10,8 +10,8 @@
 import {
   addressableLabel,
   addressableWord,
-  leadingTitle,
   ownNaming,
+  titlingHeading,
 } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
 import {
@@ -281,12 +281,12 @@ export function conversationsAbout(place) {
   return (place.matches(HEADING) ? headed : inside).get(place) ?? null;
 }
 // The heading that heads `element`: the first met climbing from it through the parts
-// over it (`partOver`) that is a heading or that a heading titles, as its leading title.
+// over it (`partOver`) that is a heading or that a heading titles (`titlingHeading`).
 /** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
   for (let at = /** @type {Element | null} */ (element); at; at = partOver(at)) {
-    const title = at.matches(HEADING) ? at : leadingTitle(at);
-    if (title?.matches(HEADING)) return title;
+    const title = at.matches(HEADING) ? at : titlingHeading(at);
+    if (title) return title;
   }
   return null;
 }

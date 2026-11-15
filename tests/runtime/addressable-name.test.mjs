@@ -19,7 +19,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-import { addressableLabel, addressableName } from "/runtime/addressable-names.js";
+import {
+  addressableLabel,
+  addressableName,
+  titledElement,
+} from "/runtime/addressable-names.js";
 import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
@@ -132,4 +136,28 @@ test("past every name, plain markup is its words and a widget is its word", () =
     "Visual 0",
   );
   for (const tag of Object.keys(registry)) delete registry[tag];
+});
+
+test("a heading titles the outermost element named after it, and none its label names", () => {
+  declare({ "lf-tab": { "x-name": "label" } });
+  document.body.innerHTML = `<main>
+    <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
+      <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>
+    <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
+    <section id="outer"><lf-ask id="inner"><h2 id="region">Which region?</h2></lf-ask>
+    </section>
+    <div>Words first.<hgroup id="pair"><h2 id="first">First title</h2>
+      <h3 id="second">Second</h3></hgroup></div>
+  </main>`;
+  const titled = (/** @type {string} */ id) =>
+    titledElement(/** @type {Element} */ (document.getElementById(id))).id;
+  assert.equal(titled("question"), "ask");
+  // A tab is named by its label, so the heading opening it titles only itself.
+  assert.equal(titled("step"), "step");
+  // A section opening with a question, not a heading, is not titled by its heading.
+  assert.equal(titled("region"), "inner");
+  // Only an hgroup's leading heading titles it.
+  assert.equal(titled("first"), "pair");
+  assert.equal(titled("second"), "second");
+  declare();
 });

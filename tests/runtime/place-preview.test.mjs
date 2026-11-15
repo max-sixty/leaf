@@ -113,6 +113,15 @@ test("a heading previews the part it heads itself, up to the outline's next head
       ["text", "Later body."],
     ],
   );
+  // And through an hgroup in a header, as naming reads the title of what holds them.
+  assert.deepEqual(
+    previewed(`<section><header><hgroup><h2 id="it">Where?</h2></hgroup></header>
+      <p>Important context.</p></section>`).parts,
+    [
+      ["name", "Where?"],
+      ["text", "Important context."],
+    ],
+  );
 });
 
 test("a list shows its first items and how many more it holds", () => {

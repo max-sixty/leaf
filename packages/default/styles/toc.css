@@ -456,13 +456,16 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     /* When the labels themselves exceed the map's height, this is an ordinary open,
        * scrollable outline instead, revealed as the map is. With no spine it takes the
        * column's rule and the gutter beside it, where the marks stand as they do in the
-       * column, and at rest the rule stands for the spine. */
+       * column, and at rest the rule stands for the spine. The scrolling box clips what
+       * crosses its edge, so the rule stands inside it, a mark's halo clear of the edge,
+       * rather than as its border. */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
-      border-inline-start: 1px solid var(--border-2);
-      padding-inline-start: var(--sp-3);
+      padding-inline-start: calc(var(--sp-3) + 8px);
     }
-    lf-toc[data-lf-outline] .lf-toc-rows::before,
+    lf-toc[data-lf-outline] .lf-toc-rows::before {
+      inset-inline-start: calc(-1px - var(--sp-3));
+    }
     lf-toc[data-lf-outline] .lf-toc-window,
     lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
       display: none;

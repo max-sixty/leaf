@@ -2722,8 +2722,9 @@ const walkedTo = (node, root) => {
   return true;
 };
 // The container a heading heads, from where it stands on: what holds it, or what holds
-// the `header` or `hgroup` it stands in, as HTML's outline reads a page's title in its
-// header heading the page's sections. What holds it is what the walk that records the
+// the `header` or `hgroup` it stands in, an `hgroup` in a `header` included, as naming's
+// leading title reads them (addressable-names.js) and as HTML's outline reads a page's
+// title in its header heading the page's sections. What holds it is what the walk that records the
 // outline came down from (`readingParent`): a slot for a heading assigned to one, so a
 // heading a widget's tree draws in its slot heads what is drawn after it there, and a
 // declared root's host for a heading at the top of that root.
@@ -2734,8 +2735,9 @@ const holder = (node) => {
 };
 /** @param {Element} heading */
 export const headed = (heading) => {
-  const at = holder(heading);
-  return at?.matches(HEADERS) ? holder(at) : at;
+  let at = holder(heading);
+  while (at?.matches(HEADERS)) at = holder(at);
+  return at;
 };
 // The page's text blocks in reading order, each with the run of the reading's segments it
 // holds there, from the frame and from each part `reads` answers true for: a reader of

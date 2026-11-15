@@ -240,13 +240,13 @@ export function drawToc(host, headingReading) {
  * @param {Element} heading @param {number} position */
 function destinationFor(host, scope, heading, position) {
   const titled = titledElement(heading);
-  let destination = heading;
-  for (let at = heading; at !== titled;) {
-    at = /** @type {Element} */ (at.parentElement);
-    if (at === scope) break;
-    if (at.localName === "hgroup" || (at.id && !at.id.startsWith("lf-")))
-      destination = at;
-  }
+  let destination = heading.closest("hgroup") ?? heading;
+  if (titled.contains(destination))
+    for (let at = destination; at !== titled;) {
+      at = /** @type {Element} */ (at.parentElement);
+      if (at === scope) break;
+      if (at.id && !at.id.startsWith("lf-")) destination = at;
+    }
   return lend(host, destination, position);
 }
 

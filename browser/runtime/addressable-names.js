@@ -105,31 +105,40 @@ function readLeadingTitle(container) {
   }
   return null;
 }
-// The element a heading titles: the outermost element whose leading title it is
-// (`leadingTitle`), or the heading itself where it leads none. Every element between the
-// two leads with the heading as well, as a question's `hgroup` and the question holding
-// it both do, and the page's column does where the page's title leads it. A `section`
-// holding a question leads with the question rather than a heading, so the question's
-// heading titles the question and stops there. A heading counts each element it titles
-// as its own, in the contents' rows and in the conversations its link previews
-// (thread/placement.js, `conversationsAbout`), so a thread about a whole question or
-// section counts under its heading, while `partOver` places the question in the part
-// around it, where On Me groups it. The other way round, an element's leading title,
-// where that is a heading, is the heading that titles it.
+// The element a heading titles: the outermost element the naming rule below names
+// after it (`addressableName`), where no attribute of its own names it (`x-name`) and its
+// leading title is the heading, or the heading itself where it titles none. Every
+// element between the two is named after the heading as well, as a question's `hgroup`
+// and the question holding it both are, and the page's column is where the page's title
+// leads it. A `section` holding a question leads with the question rather than a
+// heading, so the question's heading titles the question and stops there; a tab or pane
+// is named by its label, so a heading opening it titles only itself. A heading counts
+// each element it titles as its own, in the contents' rows and in the conversations its
+// link previews (thread/placement.js, `conversationsAbout`), so a thread about a whole
+// question or section counts under its heading, while `partOver` places the question in
+// the part around it, where On Me groups it. The other way round is `titlingHeading`.
 //
 // Replaced: the contents had a rule of their own, the identified `section` whose first
-// heading this was at any depth. Where no such section held a question, a thread about
-// the whole question counted in the contents under the heading before it.
+// heading this was at any depth, and a heading's link one that let a heading title a
+// labelled tab. Where no such section held a question, a thread about the whole
+// question counted in the contents under the heading before it.
 /** @param {Element} heading @returns {Element} */
 export function titledElement(heading) {
   let titled = heading;
   for (
     let at = heading.parentElement;
-    at && leadingTitle(at) === heading;
+    at && titlingHeading(at) === heading;
     at = at.parentElement
   )
     titled = at;
   return titled;
+}
+/** The heading that titles `element` (`titledElement`), or null.
+ * @param {Element} element @returns {Element | null} */
+export function titlingHeading(element) {
+  if (declaredName(element)) return null;
+  const title = leadingTitle(element);
+  return title?.matches(HEADING) ? title : null;
 }
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.

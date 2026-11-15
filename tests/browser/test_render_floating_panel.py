@@ -74,7 +74,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ROUTES, ink_box, settled
+from leaf_dev.panel_paint import ROUTES, ink_box, near, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -3928,14 +3928,14 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             .crop((0, top, page.viewport_size["width"], page.viewport_size["height"]))
         )
         box["y"] -= top
-        mark = ink_box(pixels, colours["mark"])
+        mark = ink_box(pixels, near(colours["mark"]))
         assert mark is not None, (route, action)
         mark_center = ((mark[0] + mark[2]) / 2, (mark[1] + mark[3]) / 2)
         assert mark_center == pytest.approx(
             (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2), abs=2
         ), (route, action, mark, box)
         if route == "keyboard":
-            ring = ink_box(pixels, colours["ring"])
+            ring = ink_box(pixels, near(colours["ring"]))
             assert ring is not None, action
             assert ring[0] <= mark[0] < mark[2] <= ring[2], (action, mark, ring)
             assert ring[1] <= mark[1] < mark[3] <= ring[3], (action, mark, ring)

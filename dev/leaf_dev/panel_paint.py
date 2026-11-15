@@ -26,7 +26,7 @@ compare the reported load. Firefox screencasts can omit fixed layers
 import time
 from io import BytesIO
 
-from PIL import Image, ImageChops, ImageColor
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 
 from leaf.render_checks import one_frame, rendered, wait_for_probe
@@ -54,6 +54,30 @@ def ink_box(image, colour):
         for channel in difference.split()
     ]
     return ImageChops.darker(ImageChops.darker(*channels[:2]), channels[2]).getbbox()
+
+
+# The mark's and the ring's colours as a screenshot holds them. Computed style keeps a
+# colour in the space it was written in, such as the theme's oklab neutrals, which PIL
+# can't read, so a canvas paints each and returns its sRGB channels.
+_COLOURS = """node => {
+  const context = document.createElement('canvas')
+    .getContext('2d', {willReadFrequently: true});
+  const rgb = (colour) => {
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = colour;
+    context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+  };
+  return {
+    ring: rgb(getComputedStyle(node).outlineColor),
+    mark: rgb(getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color),
+  };
+}"""
+
+
+def mark_colours(leaf) -> dict[str, tuple[int, int, int]]:
+    """The sRGB colours `ink_box` finds the leaf control's mark and focus ring by."""
+    return {name: tuple(rgb) for name, rgb in leaf.evaluate(_COLOURS).items()}
 
 
 def run(page):
@@ -85,10 +109,7 @@ def run(page):
             # What the setup drew, such as the field's focus outline, rests before
             # the route's clock starts.
             settled(page)
-            colours = leaf.evaluate("""node => ({
-              ring: getComputedStyle(node).outlineColor,
-              mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
-            })""")
+            read = mark_colours(leaf)
             start = leaf.bounding_box()
             began = time.time() * 1000
             if route == "keyboard":
@@ -100,9 +121,7 @@ def run(page):
                 page.mouse.up()
             settled(page)
             window = (began, time.time() * 1000)
-            routes.append(
-                (route, action, colours, (start, leaf.bounding_box()), window)
-            )
+            routes.append((route, action, read, (start, leaf.bounding_box()), window))
         # Frames reach Python after their swap, and stopping drops any still on the
         # way, so wait for the last ones before the screencast stops.
         page.wait_for_timeout(1500)
@@ -126,7 +145,6 @@ def run(page):
 def reading(viewport, route, action, colours, boxes, frames) -> dict:
     """What `frames` show of the mark between its resting places in `boxes` and, on a
     keyboard route, of its ring."""
-    colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
     ends = sorted(box["x"] + box["width"] / 2 for box in boxes)
     centers, separation = [], []
     missing_mark = missing_ring = 0

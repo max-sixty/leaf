@@ -55,7 +55,13 @@ import click
 
 from leaf.codex import APP_SERVER_ENV
 from leaf.event_log import initialized
-from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.harness import (
+    IDENTITY_VARIABLES,
+    ClaudeCodeHarness,
+    CodexHarness,
+    claude_code_config,
+)
+from leaf.harness import codex_home as host_codex_home
 from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
@@ -580,7 +586,7 @@ def codex_home(path: Path, config: str = "") -> Path:
     `~/.agents/skills`, which `CODEX_HOME` does not move. Keep one credential file:
     a child refreshing a copied login would leave the host's refresh token stale."""
     path.mkdir(mode=0o700)
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     (path / "auth.json").symlink_to((host / "auth.json").resolve())
     (path / "config.toml").write_text(config)
     return path
@@ -594,7 +600,7 @@ def pi_home(path: Path) -> Path:
     The copy leaves out the refresh token: refreshing it rotates it, which would log
     the host's Codex out. A login that expires within the hour is refused, since the
     copy cannot outlive it."""
-    host = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    host = host_codex_home()
     tokens = json.loads((host / "auth.json").read_text())["tokens"]
     claims = tokens["access_token"].split(".")[1]
     expires = json.loads(base64.urlsafe_b64decode(claims + "=" * (-len(claims) % 4)))[
@@ -635,10 +641,7 @@ def claude_home(path: Path) -> Path:
     if keychains.is_dir() and not (path / "Library/Keychains").is_symlink():
         (path / "Library").mkdir(parents=True, exist_ok=True)
         (path / "Library/Keychains").symlink_to(keychains)
-    credentials = (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
-        / ".credentials.json"
-    )
+    credentials = claude_code_config() / ".credentials.json"
     if credentials.is_file():
         (path / ".claude").mkdir(parents=True, exist_ok=True)
         shutil.copy(credentials, path / ".claude/.credentials.json")
@@ -743,8 +746,8 @@ def authoring_sandbox(*owned: Path) -> str:
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
-        Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "plugins",
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude")) / "plugins",
+        host_codex_home() / "plugins",
+        claude_code_config() / "plugins",
     )
     return "\n".join(
         [

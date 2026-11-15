@@ -29,7 +29,6 @@ results join Promptfoo's store and viewer like any other run's.
 
 import fnmatch
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -44,7 +43,7 @@ import click
 import yaml
 from click.core import ParameterSource
 
-from leaf.harness import ClaudeCodeHarness
+from leaf.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
@@ -235,9 +234,7 @@ def workflow_provider(
             # `eval run` drops CLAUDE_CONFIG_DIR from Promptfoo's environment, so native
             # providers can't read the user's settings; executors need it to find
             # the login (`claude_child`).
-            "claude_config_dir": os.environ.get(
-                "CLAUDE_CONFIG_DIR", str(Path.home() / ".claude")
-            ),
+            "claude_config_dir": str(claude_code_config()),
             "harness": harness,
             "model": model or MODELS[harness],
             "condition": condition,

@@ -50,7 +50,6 @@ its start and its answer, each in seconds after the message was admitted.
 """
 
 import json
-import os
 import re
 from collections.abc import Set as AbstractSet
 from datetime import datetime, timedelta
@@ -62,6 +61,7 @@ import click
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
+from leaf.harness import claude_code_config
 from leaf.holding import turn_threads
 from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
@@ -464,10 +464,6 @@ def fork_entries(row: dict) -> list[dict]:
     return out
 
 
-def claude_directory() -> Path:
-    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-
-
 def transcript_path(page: Path, session: str) -> Path | None:
     """Where `session`'s transcript is: beside a journey's evidence, else in Claude
     Code's projects."""
@@ -482,7 +478,7 @@ def debug_log(page: Path, session: str) -> str:
     kept = page / "debug.log"
     for path in (
         kept if (page / "claude" / f"{session}.jsonl").exists() else None,
-        claude_directory() / "debug" / f"{session}.txt",
+        claude_code_config() / "debug" / f"{session}.txt",
     ):
         if path is not None and path.exists():
             return path.read_text(errors="replace")

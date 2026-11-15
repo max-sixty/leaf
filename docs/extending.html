@@ -2260,7 +2260,9 @@ flowchart TD
               <p>
                 A page’s unlayered rules come first. Leaf’s panel, cards and marks are
                 also unlayered and appear later, winning a tie. The page’s own
-                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them.
+                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them,
+                except one named <code>reset</code>, which Leaf ranks below its own so a
+                page’s reset leaves Leaf’s controls their frames.
               </p>
               <table>
                 <thead>

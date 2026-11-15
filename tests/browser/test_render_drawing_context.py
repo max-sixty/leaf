@@ -439,11 +439,18 @@ def test_drawing_preview_contains_theme_colored_svg_strokes_inside_a_sample(
     trace(page, points)
     preview = sample.locator(".lf-composer-drawing canvas")
     expect(preview).to_have_attribute("data-lf-drawing-context", "ready")
+    # The colour as the browser paints it: a stepped token computes to `oklab()`, whose
+    # numbers are no channels.
     color = (
         svg.locator("path")
         .nth(1)
         .evaluate(
-            "el => getComputedStyle(el).stroke.match(/[0-9.]+/g).slice(0,3).map(Number)"
+            """el => {
+              const context = document.createElement('canvas').getContext('2d');
+              context.fillStyle = getComputedStyle(el).stroke;
+              context.fillRect(0, 0, 1, 1);
+              return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+            }"""
         )
     )
     matching = preview.evaluate(

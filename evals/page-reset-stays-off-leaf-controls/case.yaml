@@ -1,0 +1,42 @@
+description: page-reset-stays-off-leaf-controls
+metadata:
+  purpose: "A page that brings a site's stylesheet keeps its reset off the controls
+    Leaf builds and hands Leaf the site's colours."
+  tags:
+    - theme
+vars:
+  prompt: |
+    You are moving a status page from the user's own site into a Leaf page, so they can
+    comment on it and answer a question on it. The page takes no theme
+    (`leaf page init --no-theme`), keeps the site's markup, and gains one
+    `<lf-options id="rollout" choose>` with three options under its last section.
+
+    The user's message: "Keep our stylesheet as it is, it's the same one the site
+    ships." The stylesheet:
+
+    ```css
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+    button, input, select { font: inherit; color: inherit; background: none; border-radius: 0; }
+    ul, ol { list-style: none; }
+    :root { --bg: #0d1117; --fg: #e6edf3; --brand: #58a6ff; --line: #30363d; }
+    body { background: var(--bg); color: var(--fg); font: 16px/1.6 Inter, system-ui, sans-serif; }
+    main { max-width: 44rem; margin: 0 auto; padding: 3rem 1.5rem; display: grid; gap: 1.5rem; }
+    h1 { font-size: 2rem; font-weight: 700; }
+    a { color: var(--brand); }
+    .panel { border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; }
+    ```
+
+    The page directory is not reachable from here, so reply with the complete `<style>`
+    element the page needs, rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the CSS. Pass only if both hold. First, the three reset rules (the
+      universal `*` rule, the `button, input, select` rule and the list rule) stand
+      inside a cascade layer named `reset` or `base`, such as `@layer reset { … }`,
+      and nowhere outside one. Second, the root sets Leaf's `--lf-paper`, `--lf-ink`
+      and `--lf-accent` from the site's background, text and brand colours, by value
+      or through `var()`. `color-scheme: dark` beside them neither helps nor hurts.
+      Fail if the reset stays unlayered, if it stands in a layer of another name, or
+      if any of the three tokens is missing.

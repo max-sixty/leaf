@@ -848,6 +848,25 @@ def test_a_prompt_while_a_message_is_kept_back_leaves_it_to_the_line_fork(
     assert kept["text"] in context(capsys, "PostToolBatch")
 
 
+def test_a_quiet_tool_boundary_of_a_session_with_forks_reads_no_holding(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """Claude Code runs the tool-boundary hook after every batch of tool calls, and
+    who holds each thread costs a walk of the page's threads, about 50 ms on a page
+    of 41,000 events. A boundary with no input past the cursor and none the cursor
+    passed that no pickup took in has nothing that reading could change, so a
+    session with a fork's turn open and its lane up reads the page's log alone."""
+    taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    state_model.open_agent_turn("s1", "agent-9")
+    context(capsys, "PostToolBatch")
+
+    def unread(*args, **kwargs):
+        raise AssertionError("the quiet tool boundary read who holds each thread")
+
+    monkeypatch.setattr(holding_model, "rounds", unread)
+    assert context(capsys, "PostToolBatch") == ""
+
+
 def test_a_kept_back_thread_once_handed_over_and_taken_in_is_no_input(
     claimed, lane, interactive, capsys, monkeypatch
 ):

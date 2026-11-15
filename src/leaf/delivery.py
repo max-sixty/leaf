@@ -1201,16 +1201,33 @@ def deliverable(
         # thread owes now and no pickup ever took in, are its input, as the fold's
         # debt with no reference is where it reads: a thread a turn took any of them
         # in from is that turn's, which the fold hands on if it ended with the thread
-        # owed.
-        holding = page_holding(page)
-        pending += [
+        # owed. Such a message is input the cursor passed that no pickup names, which
+        # a session's log seldom holds, so a tool boundary builds the page's reading,
+        # about 50 ms on a page of 41,000 events, only where there is one, or input
+        # is pending.
+        taken = {
+            input_id
+            for event in page.events
+            if event["kind"] == "pickup"
+            for input_id in event["events"]
+        }
+        passed = [
             event
-            for thread, said in holding.found.waiting.items()
-            if owed_by(holding.threads[thread].holder)["kind"] == "main"
-            and not any(event["id"] in holding.taken for event in said)
-            for event in said
+            for event in page.events
             if event["seq"] <= cursor
+            and event["id"] not in taken
+            and requires_agent_attention(event)
         ]
+        holding = page_holding(page) if pending or passed else None
+        if holding is not None and passed:
+            pending += [
+                event
+                for thread, said in holding.found.waiting.items()
+                if owed_by(holding.threads[thread].holder)["kind"] == "main"
+                and not any(event["id"] in holding.taken for event in said)
+                for event in said
+                if event["seq"] <= cursor
+            ]
     else:
         holding = None
     if holding is not None:
@@ -1329,7 +1346,9 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                receive_passed(page, shown | not_awaited(page_holding(page)))
+                # A receipt moves only past input the cursor hasn't passed.
+                if unacknowledged(page.events, page.cursor):
+                    receive_passed(page, shown | not_awaited(page_holding(page)))
         except FileNotFoundError:
             continue
 

@@ -41,7 +41,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 import turbohtml
 
-from .layer import CASCADE_LAYERS
+from .layer import DOCUMENT_LAYER_ORDER
 from .passages import markdown_markup
 from .registry.contract import exhibits, is_element_name
 from .registry.kernel import authored_inert, kernel_marks
@@ -783,8 +783,7 @@ def compose_document(
             runtime_element(
                 "style",
                 {"data-lf-annotation-theme": True},
-                f"@layer {', '.join(CASCADE_LAYERS)};\n"
-                f"@layer lf-base {{\n{annotation_theme}\n}}",
+                f"{DOCUMENT_LAYER_ORDER}@layer lf-base {{\n{annotation_theme}\n}}",
             )
             + theme
         )

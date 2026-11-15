@@ -221,6 +221,18 @@ CASCADE_LAYERS = (
     "lf-state",
 )
 
+# The layers a page's own reset stands in, which the document ranks below every tier of
+# Leaf's. A reset zeroes margins, borders and control faces on every element, Leaf's
+# widgets and chrome among them, and a layer the page names after Leaf's sheet outranks
+# all of Leaf's tiers. Frameworks put their reset in a layer of one of these names
+# (Tailwind's preflight in `base`), and a page that brings an unlayered reset wraps it
+# in `@layer reset`. Named ahead of Leaf's tiers, the reset still zeroes the page's own
+# elements, and Leaf's faces outrank it on what Leaf draws. Every other layer of the
+# page's is first named after Leaf's sheet and outranks Leaf's tiers, as its unlayered
+# rules do. A shadow tree takes no page rule, so it names only Leaf's tiers.
+PAGE_RESET_LAYERS = ("reset", "base")
+DOCUMENT_LAYER_ORDER = f"@layer {', '.join((*PAGE_RESET_LAYERS, *CASCADE_LAYERS))};\n"
+
 # tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
 # U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
 _CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
@@ -458,7 +470,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     if not (kernel / "base.css").is_file():
         raise Refused("the incoming layer has no base.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
-    theme = [order]
+    theme = [DOCUMENT_LAYER_ORDER]
     shadow = [order]
     chrome = []
 

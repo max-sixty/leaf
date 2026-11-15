@@ -513,9 +513,12 @@ dl.lf-facts dd {
         color: var(--lf-ink);
       }
     }
+    /* A list keeps the browser's markers, at each depth, over a page reset that
+       clears them (layer.py, `PAGE_RESET_LAYERS`). */
     :is(ul, ol) {
       margin: 10px 0;
       padding-inline-start: var(--lf-list-inset);
+      list-style: revert;
     }
     li {
       margin: 6px 0;

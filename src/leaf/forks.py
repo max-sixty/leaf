@@ -162,8 +162,7 @@ from .holding import (
     holder,
     not_awaited,
     owed_by,
-    reading,
-    running_turns,
+    reading_of,
 )
 from .leases import lease_speaks_here, release_lease, take_wait_lease
 from .registry.kernel import kinds_declaring
@@ -177,6 +176,7 @@ from .state import (
     described,
     flocked,
     name_agent_turn,
+    now_iso,
     object_schema,
     open_agent_turn,
     page_key,
@@ -383,18 +383,18 @@ def kept_back_threads(
 
 
 def claim_holding(events: list[dict], claim: dict | None, *, live: bool) -> Holding:
-    """Who holds each thread of a page by its pickups and answers
-    (`holding.reading`), from its log and its `claim`'s agent turns, read once: the
-    turns of a session that is `live`, holding the page by an active claim, may run,
-    and those of one that has ended only name what they held, as the fold reads them
-    (`activity.present_holding`)."""
-    stamps = agent_turn_stamps(claim, events) if claim is not None else {}
-    return reading(
+    """Who holds each thread of a page by its pickups and answers, from its log and
+    its `claim`, whose session is `live` or has ended (`holding.reading_of`, given
+    the claim's facts as a presence reading carries them)."""
+    return reading_of(
         events,
-        claim["id"] if claim is not None else None,
-        stamps,
-        running_turns(stamps) if live else set(),
-        live=live,
+        {
+            "claim_session": claim["id"] if claim is not None else None,
+            "agent_turns": agent_turn_stamps(claim, events) if claim else {},
+            "session_alive": live if claim is not None else None,
+            "kept_back": [],
+        },
+        now_iso(),
     )
 
 
@@ -436,71 +436,44 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     return owes["kind"] != "main"
 
 
-def _kept_back_for(
-    page: PageTransaction, session_id: str, holding: Holding | None = None
-) -> list[KeptBack]:
-    """The page's kept-back threads while it is `session_id`'s, since `kept_back`
-    reads the claimant's and a session the page has left must write nothing on it;
-    `holding` is as `kept_back` takes it."""
-    claim = page.active_claim
-    mine = claim is not None and claim["id"] == session_id
-    return kept_back(page, holding) if mine else []
-
-
 def _still_kept_back(
     page: PageTransaction, session_id: str, basis: dict, holding: Holding | None = None
 ) -> bool:
-    return any(
-        thread.thread == basis["thread"] and list(thread.inputs) == basis["inputs"]
-        for thread in _kept_back_for(page, session_id, holding)
+    """Whether the thread `basis` names is still the line fork's with the waiting
+    messages `basis` has, by the page's reading (`page_holding`, or `holding` where
+    the caller has it), while the page is `session_id`'s: a session the page has left
+    must write nothing on it."""
+    claim = page.active_claim
+    if claim is None or claim["id"] != session_id:
+        return False
+    held = page_holding(page) if holding is None else holding
+    return (
+        held.hold(basis["thread"]).holder["kind"] == "line"
+        and [event["id"] for event in held.found.waiting.get(basis["thread"], ())]
+        == basis["inputs"]
     )
 
 
 def look(
     session_id: str, page_dir: Path, *, now: float | None = None
 ) -> list[KeptBack]:
-    """The page's kept-back threads for the lane's holder to fork, after handing to
-    the session each one whose `BOUND_S` has passed, whatever its line fork is doing.
-    `now` defaults to the clock."""
+    """The page's kept-back threads for the lane's holder to fork, while the page is
+    its session's, after handing to the session each one whose `BOUND_S` has passed,
+    whatever its line fork is doing. `now` defaults to the clock."""
     now = time.time() if now is None else now
     with PageTransaction(page_dir) as page:
-        holding = claim_holding(
-            page.events, page.claim, live=page.active_claim is not None
-        )
-        threads = _kept_back_for(page, session_id, holding)
+        claim = page.active_claim
+        threads = kept_back(page) if claim and claim["id"] == session_id else []
         due = [thread for thread in threads if thread.until <= now]
         for thread in due:
             _hand_over_kept_back(page, session_id, thread.inputs)
-        uncarried = _left_by_agent_turns(holding, due)
     for thread in due:
         _record(
             session_id,
             thread.basis(page_dir),
-            {
-                "outcome": "hand_over",
-                "why": "its fork's turn ended before carrying it"
-                if thread.thread in uncarried
-                else f"no answer within {BOUND_S:g} s",
-            },
+            {"outcome": "hand_over", "why": f"no answer within {BOUND_S:g} s"},
         )
     return [thread for thread in threads if thread.until > now]
-
-
-def _left_by_agent_turns(holding: Holding, threads: list[KeptBack]) -> set[str]:
-    """Which of `threads` an agent turn of the session last took, by a pickup or an
-    answer, and ended or lapsed only after the thread's bound had passed, by the
-    page's `holding`: a fork's thread whose further messages its turn held past their
-    bound and ended before carrying, which Leaf keeps back only once the turn has
-    ended. A message sent after the turn ended, or late enough in it that its bound
-    was still running, is one a line fork was asked about."""
-    from .activity import agent_turn_end
-
-    return {
-        thread.thread
-        for thread in threads
-        if (stamp := holding.stamps.get(holding.hold(thread.thread).turn)) is not None
-        and thread.until <= agent_turn_end(stamp).timestamp()
-    }
 
 
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
@@ -848,9 +821,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         return posted
     try:
         with PageTransaction(page_dir) as page:
-            holding = claim_holding(
-                page.events, page.claim, live=page.active_claim is not None
-            )
+            holding = page_holding(page)
             if not _still_kept_back(page, session_id, basis, holding):
                 return {"outcome": "dropped", **posted}
             data = _thread_data(page, basis["inputs"])

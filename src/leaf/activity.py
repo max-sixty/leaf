@@ -646,32 +646,6 @@ def _canonical_todos(
     return result, aging
 
 
-def present_holding(present: dict, events: list, now_iso: str) -> "Holding":
-    """Who holds each thread of a page (`holding.reading`), from its log `events` and
-    its presence reading `present`: the claimant's session and agent turns, which may
-    run only while the session is alive, and the messages Leaf keeps back, whose
-    threads the line fork holds. `forks.page_holding` reads the same under a page's
-    transaction."""
-    from .holding import reading
-
-    live = present["session_alive"] is True
-    stamps = present["agent_turns"]
-    held = reading(
-        events,
-        present.get("claim_session"),
-        stamps,
-        running_agent_turns(stamps, live, datetime.fromisoformat(now_iso)),
-        live=live,
-    )
-    return held.keeping(
-        {
-            thread
-            for input_id in present["kept_back"]
-            if (thread := held.found.names.get(input_id)) is not None
-        }
-    )
-
-
 def canonical_activity(
     present: dict,
     interaction_evidence: list[dict],
@@ -701,8 +675,9 @@ def canonical_activity(
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `holding` is who
-    holds each thread (`present_holding`), and each owed answer's `holder` who owes it
+    holds each thread, and each owed answer's `holder` who owes it
     now (`holding.owed_by`): a running fork, the line fork, or the main thread.
+    `holding.reading_of` reads it.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general

@@ -351,8 +351,8 @@ def reading(
     from its log `events`, for the claimant's `session`, whose agent turns are
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
     `found` is the log's `rounds`, where the caller has them. The threads Leaf keeps
-    back are the line fork's (`Holding.keeping`). `forks.page_holding` reads both for
-    a page under its transaction, and `activity.present_holding` for the fold."""
+    back are the line fork's (`Holding.keeping`). Every reading goes through
+    `reading_of`, which reads both."""
     found = rounds(events) if found is None else found
     newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
@@ -391,6 +391,35 @@ def reading(
         turn = max(pickups)[1] if pickups else last.get(thread, (0, None))[1]
         threads[thread] = Hold(turn, bool(pickups), holder(turn, stamps, running))
     return Holding(session, live, stamps, running, found, picked, took, threads)
+
+
+def reading_of(events: list[dict], present: dict, now_iso: str) -> Holding:
+    """Who holds each thread of a page, the one builder every reading goes through:
+    from its log `events` (`reading`) and the facts a presence reading carries of its
+    claim (`presence.presence_with_activity`): the claimant's session
+    (`claim_session`) and its agent turns (`agent_turns`), which may run only while
+    the session is alive (`session_alive`) at `now_iso`, and the messages Leaf keeps
+    back (`kept_back`), whose threads the line fork holds. The fold reads it from the
+    page's presence, and `forks.page_holding` from the claim it holds the page's
+    transaction under."""
+    from .activity import running_agent_turns
+
+    live = present["session_alive"] is True
+    stamps = present["agent_turns"]
+    held = reading(
+        events,
+        present.get("claim_session"),
+        stamps,
+        running_agent_turns(stamps, live, datetime.fromisoformat(now_iso)),
+        live=live,
+    )
+    return held.keeping(
+        {
+            thread
+            for input_id in present["kept_back"]
+            if (thread := held.found.names.get(input_id)) is not None
+        }
+    )
 
 
 def taken_over(input_ids) -> str:

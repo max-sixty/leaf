@@ -724,6 +724,66 @@ def test_the_users_rewrite_of_a_message_a_fork_holds_goes_to_the_fork(claimed, l
     assert [event["id"] for event in carried] == [edit["id"]]
 
 
+def taken_in_by_the_main_thread(page_dir, capsys, monkeypatch) -> dict:
+    """The user's message in a thread of its own, which its line fork handed to the
+    main thread and the main thread's prompt took in, on a page served and watched,
+    with the session's transcript showing whatever a hook handed over."""
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir)
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "entered_context",
+        lambda self, payload: {e["id"] for e in events_model.read_events(page_dir)},
+    )
+    first = said(page_dir, "What is the poll interval?")
+    forks_model.route(
+        "s1",
+        basis(page_dir, first["id"], first["id"]),
+        answer=judged("on it"),
+        failed=None,
+    )
+    assert first["id"] in context(capsys, "UserPromptSubmit")
+    return first
+
+
+def answered_at_a_tool_boundary(page_dir, capsys, message: dict) -> None:
+    """The main thread taking `message` in at a tool boundary, answering it, and
+    ending its turn."""
+    assert message["text"] in context(capsys, "PostToolBatch")
+    assert thread_model.post_response(
+        answer_ref(page_dir, message["id"]), "It matches the lease.", asks_back=False
+    )
+    context(capsys, "PostToolBatch")
+    context(capsys, "Stop")
+
+
+def test_input_the_main_thread_took_in_past_a_message_a_fork_holds_is_received_once(
+    claimed, lane, interactive, capsys, monkeypatch
+):
+    """A message a running fork holds without having picked it up, the further one
+    in a thread it answered, doesn't keep the main thread's later input from its
+    receipt either: that input isn't handed over again once the main thread's turn
+    ends, nor wakes the session again, while the fork carries the message."""
+    first = taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    assert thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "3.12 or later.", asks_back=False
+    )
+    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    more = said(claimed, "And 3.14?", parent=asked["id"])
+    follow = said(claimed, "And the lease?", parent=first["id"])
+    answered_at_a_tool_boundary(claimed, capsys, follow)
+    assert deliverable(claimed) == []
+    with PageTransaction(claimed) as page:
+        carried = holding_model.to_carry(forks_model.page_holding(page), taken["turn"])
+    assert [event["id"] for event in carried] == [more["id"]]
+
+
 def test_input_the_main_thread_took_in_past_a_kept_back_message_is_received_once(
     claimed, lane, interactive, capsys, monkeypatch
 ):
@@ -733,30 +793,11 @@ def test_input_the_main_thread_took_in_past_a_kept_back_message_is_received_once
     again once its turn ends. The cursor passing the kept-back message hands it to
     nobody: it stays kept back, and once the line fork hands it over, it is input at
     the main thread's next tool boundary, which it never took in."""
-    serving(claimed, 1)
-    session_model.cmd_waiting(claimed)
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness,
-        "entered_context",
-        lambda self, payload: {e["id"] for e in events_model.read_events(claimed)},
-    )
-    first = said(claimed, "What is the poll interval?")
-    forks_model.route(
-        "s1",
-        basis(claimed, first["id"], first["id"]),
-        answer=judged("on it"),
-        failed=None,
-    )
-    assert first["id"] in context(capsys, "UserPromptSubmit")
+    first = taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
     kept = said(claimed, "Which Python does the project need?")
     follow = said(claimed, "And the lease?", parent=first["id"])
     assert kept_back(claimed) == [(kept["id"], (kept["id"],))]
-    assert follow["text"] in context(capsys, "PostToolBatch")
-    assert thread_model.post_response(
-        answer_ref(claimed, follow["id"]), "It matches the lease.", asks_back=False
-    )
-    context(capsys, "PostToolBatch")
-    context(capsys, "Stop")
+    answered_at_a_tool_boundary(claimed, capsys, follow)
     assert deliverable(claimed) == []
     assert kept_back(claimed) == [(kept["id"], (kept["id"],))]
 
@@ -1580,7 +1621,7 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     """The end of a fork's run is judged by the messages its turn picked up itself.
     A fork that answered is reported as answering though the user writes again
     before its run ends, and the message its run never carried goes to the main
-    thread saying so; and one whose turn lapsed and lost its thread to the main
+    thread once its bound has passed; and one whose turn lapsed and lost its thread to the main
     thread's pickup is reported as taken over, with no line telling the main thread
     it was given a thread it took itself."""
     asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
@@ -1610,7 +1651,7 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
         for row in read_interactions(claimed, types=("fork_outcome",))
         if row.get("outcome") == "hand_over"
     ]
-    assert uncarried["why"] == "its fork's turn ended before carrying it"
+    assert uncarried["why"] == f"no answer within {forks_model.BOUND_S:g} s"
 
     other, kept = taken_by_a_fork(claimed, "How many shards does staging have?")
     forks_model.started(

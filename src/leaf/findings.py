@@ -2027,8 +2027,8 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
-    # A command that acted as the main thread on a thread a running fork holds
-    # (`holding.authorize`), which goes through all the same.
+    # A command that acted as the main session on a thread a running fork or the line
+    # fork holds (`holding.authorize`), which goes through all the same.
     "fork-holds-thread": lambda at, v: _fork_holds_thread(v["holder"], v["answers"]),
     # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as

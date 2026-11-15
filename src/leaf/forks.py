@@ -844,7 +844,9 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         return posted
     try:
         with PageTransaction(page_dir) as page:
-            holding = claim_holding(page.events, page.active_claim, live=True)
+            holding = claim_holding(
+                page.events, page.claim, live=page.active_claim is not None
+            )
             if not _still_kept_back(page, session_id, basis, holding):
                 return {"outcome": "dropped", **posted}
             data = _thread_data(page, basis["inputs"])

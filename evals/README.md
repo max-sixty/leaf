@@ -31,7 +31,8 @@ pnpm run eval:view
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
   models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
   `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection. `--model MODEL`
-  selects one Codex author model for every selected condition in that run.
+  selects the author model in place of the harness's pin, for every selected condition
+  in that run, such as `--harness claude-code --model claude-fable-5-2`.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.

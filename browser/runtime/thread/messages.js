@@ -313,6 +313,12 @@ export function threadPreview(threads, said = null) {
  * }} PreparedAuthoredMessage */
 /** @type {Map<string, PreparedAuthoredMessage>} */
 const authoredMessages = new Map();
+// Each element with an id that a prepared message keeps, with its message's document,
+// read once as the message is prepared, so finding one by id (`messageHolding`) costs
+// one read however many messages the page holds. Its ids are the authored ones, which
+// the message keeps for its lifetime.
+/** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
+const keptElements = new Map();
 /** @param {{id: string, attempt?: string, markup?: string}} message @param {string} thread
  * @returns {Promise<PreparedAuthoredMessage>} */
 export function prepareAuthoredMessage(message, thread) {
@@ -348,6 +354,9 @@ export function prepareAuthoredMessage(message, thread) {
       preparation: null,
     };
     authoredMessages.set(key, prepared);
+    for (const element of template.content.querySelectorAll("[id]"))
+      if (!keptElements.has(element.id))
+        keptElements.set(element.id, { element, document: prepared.body.document });
   }
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
@@ -694,6 +703,9 @@ export class MessageView {
       settleAuthoredSoon(authoredKey);
     }
     const holds = authoredHolders.get(authoredKey) === presentation;
+    // Whether this drawing holds the message's widgets, for a surface whose own
+    // controls give way to them, as On Me's card's choices do (floating-panel.css).
+    keeps(this.node, "data-lf-holds", holds ? "" : null);
     // Lit keeps nodes it already placed, so where another drawing took them since this
     // one drew them, a new key puts them back here.
     if (holds && authored.some((node) => !this.node.contains(node)))
@@ -947,15 +959,8 @@ export class MessageView {
 // placed in its message (anchor-placement.js), while the message is put away.
 /** @param {string} id */
 export function messageHolding(id) {
-  for (const { nodes, body } of authoredMessages.values())
-    for (const node of nodes) {
-      if (!(node instanceof Element)) continue;
-      const element = node;
-      const kept =
-        element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
-      if (kept) return { element: kept, ...body.document };
-    }
-  return null;
+  const kept = keptElements.get(id);
+  return kept ? { element: kept.element, ...kept.document } : null;
 }
 
 // The element an id names: the page's, else one a message keeps, drawn or not.

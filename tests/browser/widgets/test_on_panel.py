@@ -867,8 +867,9 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     expect(card).to_be_focused()
     expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
     expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
-    # The options themselves, with no second set of choices beside them.
-    expect(card.locator(".lf-fp-answer")).to_have_count(0)
+    # The options themselves: the card's choices for them stand hidden beside them.
+    expect(card.locator(".lf-fp-answer")).to_have_count(2)
+    expect(card.locator(".lf-fp-answer:visible")).to_have_count(0)
     with sending(page, "the pick"):
         page.keyboard.press("1")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -957,6 +958,66 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     with sending(page, "the pick"):
         page.keyboard.press("1")
     expect(thread.locator("#ship-friday")).to_have_attribute("chosen", "")
+
+
+def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes(
+    browser, serve
+):
+    """While On Me stands open, a margin card opening on the thread that asks a choice
+    takes the choice from On Me's card, and closing it may leave the choice there. The
+    card shows the choice once throughout: the options themselves while its drawing of
+    the message holds them, else its choices, never both and never neither."""
+    url = serve(
+        leaf_page(
+            "anchored choice",
+            '<h1 id="title">Ship plan</h1>'
+            '<p id="risk">The migration has run on staging twice without a failure.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "anchor": {"section": "risk"},
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" choose>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    card = on_card(page, "widget:ship")
+    margin = page.locator(".lf-margin-preview")
+
+    def shown():
+        return card.evaluate("""card => ({
+          options: Boolean(card.querySelector('#ship')?.checkVisibility()),
+          choices: [...card.querySelectorAll('.lf-fp-answer')]
+            .filter((choice) => choice.checkVisibility()).length,
+        })""")
+
+    expect(card.locator("#ship")).to_be_visible()
+    # The card draws its choices once its drawing of the message stands.
+    expect(card.locator(".lf-fp-answer")).to_have_count(2)
+    assert shown() == {"options": True, "choices": 0}
+    # The walk opens the thread's margin card beside the passage, On Me still open.
+    page.keyboard.press("m")
+    expect(margin.locator("#ship")).to_be_visible()
+    expect(view).to_be_visible()
+    assert shown() == {"options": False, "choices": 2}
+    page.keyboard.press("Escape")
+    expect(margin.locator("#ship")).to_be_hidden()
+    expect(view).to_be_visible()
+    assert shown() in (
+        {"options": True, "choices": 0},
+        {"options": False, "choices": 2},
+    ), shown()
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

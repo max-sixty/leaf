@@ -3737,7 +3737,10 @@ export function createFloatingPanel({
     // shows the options' digits, and a pick is the same action a pick in the thread
     // records. Where the page shows the message, as a thread open beside its passage
     // does, the widget stays there, and the card answers it with its choices
-    // (`choicesOf`), as a page choice's card does. Until 15 November 2026 the card showed
+    // (`choicesOf`), as a page choice's card does. Which drawing holds the widget can
+    // change while the card stands, as a margin card opens or closes, so the card draws
+    // its choices wherever the widget stands, and they give way to the widget while the
+    // card's own drawing of the message holds it (floating-panel.css, `data-lf-holds`). Until 15 November 2026 the card showed
     // only the widget's words, and while the thread wasn't drawn it offered no options
     // and took no digits. A view draws a message once, so where it holds several such
     // widgets the first card draws it and the others answer through their choices. A
@@ -3795,14 +3798,8 @@ export function createFloatingPanel({
     const heading =
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
-    const standing =
-      record && !answered && record.source.kind === "widget"
-        ? obligationPlace(record).source
-        : null;
     const choices =
-      record &&
-      standing &&
-      closestAcross(standing, ON_CARD)?.getAttribute("data-lf-key") !== key
+      record && !answered && record.source.kind === "widget"
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -3995,6 +3992,7 @@ export function createFloatingPanel({
           presentation?.primary !== false
             ? html`<div
                 class="lf-fp-asked lf-fp-outlet"
+                data-lf-carried
                 data-lf-thread=${where.key}
                 data-lf-message=${asked.key}
               ></div>`

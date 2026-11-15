@@ -120,9 +120,16 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`. Unlike native `Element.scrollIntoView`, it stays
-inside a live sample. Use it only for a deliberate move; focusing a visible control or
-redrawing keeps the scroll.
+it is, pass that box as `within`: the box places the item at `block` with `behavior`,
+as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
+native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
+deliberate move; focusing a visible control or redrawing keeps the scroll.
+
+`scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
+to the page's `document.scrollingElement`. A widget that keeps something in view as
+another widget moves, as `lf-code` keeps the line a film runs, passes the first as
+`within` unless it is the page, so the page stays where the reader left it. It and
+`alreadyShown` are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
 control's ring shows. `fitsWhole(target)` says whether the target and those margins

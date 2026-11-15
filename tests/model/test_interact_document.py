@@ -1511,9 +1511,10 @@ def test_check_rejects_widget_violations(page_dir):
 
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
-    """A data widget's text is its <pre> or its bound input, never both, so text
-    written under a binding, which the widget would never show, is refused. Written
-    text names its origin with a label, as a bound document names its file."""
+    """A data widget's text is its <pre> or its bound `value` input, never both, so
+    text written under a binding, which the widget would never show, is refused. An
+    input with another property, as a code block's playhead, leaves the <pre> its text.
+    Written text names its origin with a label, as a bound document names its file."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -1524,7 +1525,8 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
             '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
-            '<lf-code id="bare-code"></lf-code>',
+            '<lf-code id="bare-code"></lf-code>'
+            '<lf-code id="following" for="written"><pre>x = 1</pre></lf-code>',
         )
     )
     _, findings = check_findings(page_dir)

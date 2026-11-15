@@ -8,6 +8,7 @@
 # shared-lines sentence passed 4/4. A wording that named no parts ("line up part
 # for part") let one Claude Code run subgrid the card's own rows and stretch
 # every card to one height, which cards-keep-their-height catches.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: playground-candidates-line-up
 metadata:
   purpose: "Playground: candidates compared side by side line up part for part, whatever

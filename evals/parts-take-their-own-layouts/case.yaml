@@ -4,6 +4,7 @@
 # with arrangements of their own. Claude Code, at the change: base 0/3 (a
 # layout-workspace page of two lf-pane regions, the prose beside the playground),
 # head 3/3.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: parts-take-their-own-layouts
 metadata:
   purpose:
@@ -29,8 +30,8 @@ vars:
     The user reads the proposal and the reasoning after trying the panel, and comes
     back to the playground while they read.
 
-    Short placeholders can stand for the playground's preview content and the long
-    prose.
+    Short placeholders can stand for the playground's preview content, the long
+    prose and the screenshots.
 assert:
   - type: llm-rubric
     metric: parts

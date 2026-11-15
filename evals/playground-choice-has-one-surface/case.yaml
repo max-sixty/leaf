@@ -7,6 +7,7 @@
 # Claude also duplicated it with candidate buttons. Both head runs selected
 # the examples directly. This measures repeated selection surfaces, including
 # the preset/control duplication in the recorded draft.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: playground-choice-has-one-surface
 metadata:
   purpose: "Playground: each design decision has one selection surface; presets

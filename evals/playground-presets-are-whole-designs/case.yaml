@@ -27,6 +27,7 @@
 # On 945fce2f8 the judge passed 4/4, including the 2 runs whose presets left the
 # candidate choice (`format`) unset; earlier judges failed that same structure,
 # which author.md's own example preset has. Item 2 now says so.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: playground-presets-are-whole-designs
 metadata:
   purpose:

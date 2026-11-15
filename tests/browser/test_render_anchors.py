@@ -6459,11 +6459,11 @@ def test_a_page_search_styles_no_row_of_the_text_documents_it_finds_words_in(
     (lf-text-document.js, `inRuns`), and asking a row's style makes Chromium style its
     whole run: 28 ms a run, so a search for a word in every run of thirty 4 MB
     documents had found 108,000 of its 524,000 matches after five minutes. Whether a
-    match shows is read from its run's style instead (passages.js, `searchableWords`).
-    Counted in the browser's own restyled elements, a search finding a word on each of
-    the 4,000 lines of four documents, three in closed tabs, restyles fewer elements
-    than one document has lines: about 180, where reading each row's style restyled
-    46,000."""
+    match in a run the browser skips is read from the run's style instead (passages.js,
+    `searchableWords`). Counted in the browser's own restyled elements, a search
+    finding a word on each of the 4,000 lines of four documents, three in closed tabs,
+    restyles fewer elements than one document has lines: about 180, where reading each
+    row's style restyled 30,000."""
     lines = "\n".join(f"Line {n} holds a needle." for n in range(1000))
     tabs = "".join(
         f'<lf-tab id="t{i}" label="Doc {i}">'
@@ -6477,6 +6477,8 @@ def test_a_page_search_styles_no_row_of_the_text_documents_it_finds_words_in(
     )
     expect(page.locator("#d3 .lf-text-document-run")).to_have_count(8)
     page.keyboard.press("/")
+    # The open's own restyle lands before the search's are counted.
+    rendered(page)
     search = page.get_by_role("searchbox", name="Search page text")
     status = page.locator(".lf-page-search-status")
 

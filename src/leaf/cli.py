@@ -1033,11 +1033,11 @@ def thread_summarize(
 ) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
-    Both name messages in one thread, which is the thread summarized. Every message
-    older than --from must already be summarized, apart from the thread's first. An
-    empty summary, such as `--text ''`, folds them without prose. The original messages
-    remain in the append-only transcript and can always be revealed. A later
-    overlapping summary replaces this one.
+    Both name messages in one thread, which is the thread summarized. No message but
+    the thread's first may stay unsummarized above any summary; a refusal names a
+    wider range that keeps this. An empty summary, such as `--text ''`, folds them
+    without prose. The original messages remain in the append-only transcript and can
+    always be revealed. A later overlapping summary replaces this one.
     """
     from leaf.thread import cmd_summarize
 

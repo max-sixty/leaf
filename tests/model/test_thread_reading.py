@@ -293,23 +293,85 @@ def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
             "The regions.",
         )
 
-    def retried(start: str, end: str) -> str:
-        """The message the refusal says to start at, once the range it names is
-        admitted."""
+    def retried(start: str, end: str) -> tuple:
+        """The message the refusal says the range leaves and the range it names,
+        once that range is admitted."""
         [refusal] = summarize(start, end)
         assert refusal.code == "summary-gap"
-        assert summarize(refusal.values["older"], refusal.values["through"]) == []
-        return refusal.values["older"]
+        taken = (refusal.values["take_from"], refusal.values["take_through"])
+        assert summarize(*taken) == []
+        return refusal.values["left"], *taken
 
     # Admitted from `first`, with the reaction and completed progress still above it.
-    assert retried(second["id"], third["id"]) == first["id"]
+    assert retried(second["id"], third["id"]) == (first["id"], first["id"], third["id"])
     # The same range again would replace that summary and leave `first` above it.
-    assert retried(second["id"], third["id"]) == first["id"]
+    assert retried(second["id"], third["id"]) == (first["id"], first["id"], third["id"])
 
     pending = say("agent", "Checking the east.", ephemeral=True)
     north = say("user", "And the north?")
     south = say("user", "Or the south?")
-    assert retried(north["id"], south["id"]) == pending["id"]
+    assert retried(north["id"], south["id"]) == (
+        pending["id"],
+        pending["id"],
+        south["id"],
+    )
+
+
+@pytest.mark.parametrize(
+    ("start", "left"), [(1, 4), (2, 1)], ids=["from-its-start", "from-inside-it"]
+)
+def test_a_summary_inside_an_earlier_one_leaves_no_gap_above_a_later_one(
+    page_dir, start, left
+):
+    """A summary replaces those it overlaps whole, so one that ends inside an earlier
+    summary would uncover that summary's tail above a later one. The refusal names
+    the range widened over every message it would leave, and once admitted the
+    summaries cover the thread up to the later one's end."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Start."}
+    )
+    m = [root["id"]] + [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if number % 2 else "user",
+                "parent": root["id"],
+                "text": f"m{number}",
+            },
+        )["id"]
+        for number in range(1, 13)
+    ]
+
+    def summarize(first: str, last: str) -> list:
+        return command_findings(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            first,
+            "--through",
+            last,
+            "--text",
+            "Earlier.",
+        )
+
+    assert summarize(m[1], m[5]) == []
+    assert summarize(m[6], m[10]) == []
+    [refusal] = summarize(m[start], m[3])
+    taken = (refusal.values["take_from"], refusal.values["take_through"])
+    assert (refusal.code, refusal.values["left"], *taken) == (
+        "summary-gap",
+        m[left],
+        m[1],
+        m[5],
+    )
+    assert summarize(*taken) == []
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), m[0]])
+    assert read.exit_code == 0, read.output
+    summaries = json.loads(read.output)["thread"]["summaries"]
+    covered = [identity for summary in summaries for identity in summary["covers"]]
+    assert covered == m[1:11]
 
 
 @pytest.mark.parametrize("label", [None, "Previous progress messages"])
@@ -562,7 +624,7 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     else:
         assert "summary_hint" not in digest
         [refusal] = summarize(newer[0]["id"], newer[4]["id"])
-        assert (refusal.code, refusal.values["older"]) == ("summary-gap", reply["id"])
+        assert (refusal.code, refusal.values["left"]) == ("summary-gap", reply["id"])
 
 
 @pytest.mark.parametrize(

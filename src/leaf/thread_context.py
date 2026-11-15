@@ -503,10 +503,12 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         # a new message or create a summary on top of one already in force.
         # Completed progress is not drawn, so a run folds it; pending
         # progress is still being said, so a run stops at it. The hint names the
-        # earliest run that is long enough and that admission would take: one with
-        # every older message but the opener already summarized (`events.summary_gap`).
+        # earliest run that is long enough and that admission would take: one whose
+        # summary leaves no message in full above any summary (`events.summary_gap`).
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
         completed = progress_completions(threads[t])
+        ids = [message["id"] for message in threads[t]["msgs"]]
+        at = {identity: index for index, identity in enumerate(ids)}
         runs = []
         run = []
         for message in threads[t]["msgs"]:
@@ -529,7 +531,13 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                     len(run) >= 4
                     or sum(len(message.get("text", "")) for message in run) >= 2000
                 )
-                and summary_gap(threads[t], summaries, run[0]["id"]) is None
+                and not summary_gap(
+                    threads[t],
+                    [
+                        *summaries,
+                        {"covers": ids[at[run[0]["id"]] : at[run[-1]["id"]] + 1]},
+                    ],
+                )
             ),
             [],
         )

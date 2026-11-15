@@ -557,31 +557,35 @@ def progress_completions(thread: dict) -> dict[str, dict]:
     return completed
 
 
-def summary_gap(thread: dict, summaries: list, start: str) -> dict | None:
-    """The oldest message a summary starting at `start` would leave in full above it,
-    with `summaries` in force, or None where it leaves none.
+def summary_gap(thread: dict, summaries: list) -> list[dict]:
+    """The messages `summaries` leave in full above the last of them in the thread,
+    oldest first: empty where a reader sees the opening message, the summaries, then
+    only what is newer than all of them.
 
-    The one rule for where a summary may start, which admission
-    (`event_contracts._thread_presentation_error`) and the range a delivery suggests
-    (`thread_context.batch_threads`) both keep, so a thread reads as its opening
-    message, its summaries, then what is newer than all of them, and never as older
-    discussion in full above a summary. The opening message may stay outside, since it
-    says what the thread is about. A message counts where the panel draws it whole: a
-    spoken turn no summary covers, other than progress a later reply completed
-    (`progress_completions`), which is drawn nowhere. Pending progress is drawn, so it
-    counts, and a reaction is a mark on another message, so it doesn't."""
+    The one rule a thread's summaries keep. Admission
+    (`event_contracts._thread_presentation_error`) holds a new summary to it with the
+    summaries that will stand once it replaces those it overlaps, so a summary that
+    ends inside an earlier one cannot uncover that one's tail above a later summary.
+    The range a delivery suggests (`thread_context.batch_threads`) keeps it too. The
+    opening message may stay outside, since it says what the thread is about. A
+    message counts where the panel draws it whole: a spoken turn no summary covers,
+    other than progress a later reply completed (`progress_completions`), which is
+    drawn nowhere. Pending progress is drawn, so it counts, and a reaction is a mark
+    on another message, so it doesn't. Only `covers` is read of each summary, so a
+    caller can weigh a range it has not written, and a summary of hidden progress
+    alone is drawn nowhere, so nothing stands above it."""
     covered = {identity for summary in summaries for identity in summary["covers"]}
     completed = progress_completions(thread)
-    for message in spoken_turns(thread):
-        if message["id"] == start:
-            return None
-        if not (
-            message["id"] == thread["id"]
-            or message["id"] in covered
-            or message["id"] in completed
-        ):
-            return message
-    return None
+    drawn = [m for m in spoken_turns(thread) if m["id"] not in completed]
+    last = max(
+        (at for at, message in enumerate(drawn) if message["id"] in covered),
+        default=0,
+    )
+    return [
+        message
+        for message in drawn[:last]
+        if message["id"] != thread["id"] and message["id"] not in covered
+    ]
 
 
 def _thread_summaries(

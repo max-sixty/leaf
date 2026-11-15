@@ -1126,21 +1126,24 @@ def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:
 
 def _hand_over_kept_back(page: PageTransaction, session_id: str, inputs) -> None:
     """Record in `HANDED` that the kept-back messages `inputs` go to the session, keeping
-    only the ids no turn has yet taken in, and nudge a session no watch follows, as
-    admission would have."""
+    of those handed over before only the ids that still wait with no pickup naming
+    them, by the page's reading (`page_holding`): one a turn took in, or that settled
+    first, as when the user resolved its thread, goes. Nudge a session no watch
+    follows, as admission would have."""
     from .presence import nudge_unwatched
 
-    picked = {
-        input_id
-        for event in page.events
-        if event["kind"] == "pickup"
-        for input_id in event["events"]
+    held = page_holding(page)
+    owed = {
+        event["id"]
+        for said in held.found.waiting.values()
+        for event in said
+        if event["id"] not in held.taken
     }
     path = session_file(session_id, HANDED.kind)
     key = page_key(page.page_dir)
     with flocked(session_lock_path(session_id), deadline=page.deadline):
         record = HANDED.read(path) or {"handed": {}}
-        kept = [i for i in record["handed"].get(key, []) if i not in picked]
+        kept = [i for i in record["handed"].get(key, []) if i in owed]
         record["handed"][key] = list(dict.fromkeys([*kept, *inputs]))
         HANDED.write(path, record)
     nudge_unwatched(page)

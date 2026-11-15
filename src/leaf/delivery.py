@@ -1172,9 +1172,10 @@ def deliverable(
     (`hook_transport.new_input`): what the cursor has not passed, and the waiting
     messages the main thread owes of input the cursor passed that no pickup names,
     which a holder kept from it. Every receipt's pickup names what it passes, so
-    a page holds such input only where a fork or a line fork held it, and only
-    there, or where input is pending in a session with forks, does this read who
-    holds each thread; otherwise it reads the log alone, without the page's layer.
+    a page holds such input only where a fork or a line fork held it, settled
+    since or not, and only there, or where input is pending in a session with
+    forks, does this read who holds each thread; otherwise it reads the log alone,
+    without the page's layer.
     The adapter, or the Stop hook where no adapter runs, hands over the rest
     (`harness.CodexHarness.offer_at_step`)."""
     cursor = page.cursor
@@ -1201,10 +1202,14 @@ def deliverable(
         # reads, whether or not the fork that held them, or the lane, is still up: a
         # thread a turn took any of them in from is that turn's, which the fold hands
         # on if it ended with the thread owed. Such a message is input the cursor
-        # passed that no pickup names, which a session's log seldom holds, so a tool
-        # boundary builds the page's reading, about 50 ms on a page of 41,000 events,
-        # only where there is one, or where input is pending in a session with forks,
-        # whose holders keep theirs from it.
+        # passed that no pickup names: one a fork or a line fork held, which stays so
+        # once it settles before any pickup, as when the user resolves its thread.
+        # So a tool boundary builds the page's reading, about 50 ms on a page of
+        # 41,000 events, only on a page that has held one, or where input is pending
+        # in a session with forks, whose holders keep theirs from it. Telling a
+        # settled one from one that still waits takes the fold's closing rules,
+        # which only that reading applies; the fold's own reader of what is owed
+        # (`current_responses`) costs more than it.
         taken = {
             input_id
             for event in page.events

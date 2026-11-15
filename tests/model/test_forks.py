@@ -893,6 +893,34 @@ def test_a_kept_back_thread_once_handed_over_and_taken_in_is_no_input(
     assert not hook_transport_model.new_input("s1")
 
 
+def test_a_handed_over_message_that_settled_unpicked_leaves_the_hand_overs(
+    claimed, lane
+):
+    """The record of what the line forks handed to the main thread keeps a message
+    only while it waits with no pickup naming it: one whose thread the user
+    resolved before the main thread took it in leaves the record at the next
+    hand-over."""
+    settled = said(claimed, "Which Python does the project need?")
+    forks_model.route(
+        "s1",
+        basis(claimed, settled["id"], settled["id"]),
+        answer=judged("on it"),
+        failed=None,
+    )
+    assert forks_model.handed_inputs("s1", claimed) == {settled["id"]}
+    append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": settled["id"]}
+    )
+    waiting = said(claimed, "And which uv?")
+    forks_model.route(
+        "s1",
+        basis(claimed, waiting["id"], waiting["id"]),
+        answer=judged("on it"),
+        failed=None,
+    )
+    assert forks_model.handed_inputs("s1", claimed) == {waiting["id"]}
+
+
 def test_a_kept_back_message_in_a_thread_the_user_resolved_is_no_input(
     claimed, lane, interactive, capsys, monkeypatch
 ):

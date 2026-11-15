@@ -139,9 +139,7 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(
-            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
-        )
+        paths.append(re.sub(r"^/revisions/[0-9a-f]+|^/[0-9a-f]+", "", path))
 
     context.on("request", record)
     return paths

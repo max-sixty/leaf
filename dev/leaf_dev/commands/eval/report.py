@@ -40,7 +40,7 @@ from PIL import Image
 from leaf.event_log import initialized
 from leaf.registry.storage import layer_packages
 from leaf.schema import MEDIA_TYPES
-from leaf_dev import LEAF_COMMAND
+from leaf_dev import LEAF_COMMAND, gallery
 from leaf_dev.arms import observed_sum
 from leaf_dev.eval_records import judgments, run_samples
 from leaf_dev.regrade import ASPECTS, saved_comparison
@@ -169,7 +169,7 @@ def task_title(columns: dict) -> str:
 
 
 def run_names(sample: dict) -> str:
-    """The runs that hold a sample, by the directory names `eval-report` was given."""
+    """The runs that hold a sample, by the directory names `eval report` was given."""
     return " · ".join(run.name for run in sample["runs"])
 
 
@@ -383,9 +383,11 @@ def comparison_screens(
     for name, (width, height) in common:
         images = [paths[width, height] for _, _, paths in captures]
         if aligned and all(images):
-            contents = (
-                f'<lf-shot id="{anchor}-{name}-shot" before="{images[0][0]}" after="{images[1][0]}" '
-                f'alt="Before and after at {width} × {height}"></lf-shot>'
+            contents = gallery.shot(
+                f"{anchor}-{name}-shot",
+                f"Before and after at {width} × {height}",
+                images[0][0],
+                images[1][0],
             )
             if actions:
                 contents += (
@@ -1188,7 +1190,7 @@ def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
 
 
 def pair_records(runs: tuple[Path, ...]) -> list[tuple[Path, dict]]:
-    """Each saved pair's two presentation-order judgments from `eval --judge pair`
+    """Each saved pair's two presentation-order judgments from `eval run --judge pair`
     runs, with the results file holding them, once per Promptfoo repetition. A
     winner counts only where both completed orders name it."""
     pairs: dict[tuple, dict] = {}
@@ -1530,7 +1532,7 @@ def resolved(page: Path, review: str, samples: dict, output_url: str | None) -> 
     return review
 
 
-@click.command()
+@click.command("report")
 @click.argument("page", type=click.Path(file_okay=False, path_type=Path))
 @click.argument(
     "runs",
@@ -1552,7 +1554,7 @@ def eval_report(
     """Write PAGE, a Leaf page of the authored-task samples in RUNS.
 
     RUNS are run directories, such as those under `.tmp/eval/`, including any
-    `eval --from` runs that judged their samples. PAGE is created when absent, and its
+    `eval run --from` runs that judged their samples. PAGE is created when absent, and its
     `index.html` is rewritten otherwise. Serve it with `leaf server start PAGE`.
     Serve PAGE/evidence with a static server and pass its URL as --output-url
     to open saved pages and raw evidence from the report. Without that URL the
@@ -1667,21 +1669,15 @@ def eval_report(
         end = close.start_offset if close else end
         browser = f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab>'
     (page / "index.html").write_text(
-        f"""<!doctype html>
-<html lang="en">
-<head>
-<title>{escape(heading.text)}</title>
-<meta name="description" content="Saved authored pages side by side, with their original review conditions, costs and judgments.">
-<style>{STYLE}</style>
-</head>
-<body>
-<main class="layout-workspace density-working">
-<header>{written[:at]}</header>
-{written[at:end]}{browser}{written[end:]}
-</main>
-</body>
-</html>
-"""
+        gallery.page(
+            heading.text,
+            "Saved authored pages side by side, with their original review conditions,"
+            " costs and judgments.",
+            f"<header>{written[:at]}</header>\n"
+            f"{written[at:end]}{browser}{written[end:]}",
+            head=f"<style>{STYLE}</style>",
+            layout="layout-workspace density-working",
+        )
     )
     click.echo(page / "index.html")
     click.echo(f"Saved outputs: {page / 'evidence'}")

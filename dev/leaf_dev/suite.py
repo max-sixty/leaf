@@ -1,7 +1,7 @@
 """Run a selection of the suite in a checkout and read what each test did.
 
-`leaf-dev flake` and `leaf-dev bugback` run tests here, each in a `checkout` of a
-`snapshot` of the working tree, and `leaf-dev suite-profile` reads a run's junit report
+`leaf-dev suite flake` and `leaf-dev suite bugback` run tests here, each in a `checkout` of a
+`snapshot` of the working tree, and `leaf-dev suite profile` reads a run's junit report
 through `junit_cases`.
 
 `collect` expands a selection of pytest node ids to the items it names and refuses one
@@ -143,7 +143,7 @@ def run(
         root, f"--junitxml={report}", *args, *selection, out=out.with_suffix(".log")
     )
     outcomes = read_junit(report) if report.exists() else {}
-    # No path in the message, so `flake`'s copies that ended alike group as one.
+    # No path in the message, so `suite flake`'s copies that ended alike group as one.
     missing = Outcome("not run", f"not in the report (pytest exited {status})")
     # A module that did not import is reported under its path.
     return {

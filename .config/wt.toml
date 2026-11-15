@@ -38,7 +38,7 @@ setup = "uv run --frozen leaf-dev setup"
 setup = "uv run --frozen leaf-dev setup"
 
 [[aliases.refresh-previews]]
-previews = "uv run --frozen leaf-dev refresh-previews"
+previews = "uv run --frozen leaf-dev site previews"
 
 [[aliases.cloud]]
 setup = "wt setup"

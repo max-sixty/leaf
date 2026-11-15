@@ -3,7 +3,7 @@
 An install is the tracked tree, which commits no kernel, so it serves the browser
 runtime's source modules (`leaf.runtime_selection.read_runtime`), as does every
 developer checkout, the suite and the previews. The website's container installs a
-prepared payload (`prepare`, `leaf_dev.commands.site`) instead: the tree with the
+prepared payload (`prepare`, `leaf_dev.commands.site.build`) instead: the tree with the
 kernel compiled into `dist/kernel/` by `build/runtime-bundle.mjs`, which loads in a
 few dozen requests rather than a few hundred. Nothing compiles during installation,
 page init, export, or custom-package authoring. Package widgets remain native ESM and

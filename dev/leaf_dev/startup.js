@@ -1,5 +1,5 @@
 /* Development-only startup and layout evidence, installed before navigation by
- * probe and verify-site. The startup reading ends at presentation; the same shift
+ * probe and site verify. The startup reading ends at presentation; the same shift
  * recorder continues through a probe's journey. Native shifts are observations,
  * never pass/fail budgets. Their
  * sources are affected nodes (at most five), not proof of the initiating code.

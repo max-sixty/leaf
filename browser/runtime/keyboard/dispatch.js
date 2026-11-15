@@ -48,8 +48,11 @@
    A scope does not need a private `keydown` listener or hand-written `preventDefault` to
    protect that contract.
 
-   Auto popovers and modal dialogs are the platform's modes, and the layer stack holds
-   them in the order they opened. The dispatcher tiers the scopes over that stack from the
+   Auto popovers and modal dialogs are the platform's modes, as is a manual popover
+   while focus is inside it, and the layer stack holds them in the order they opened
+   (`nativeModes`). A manual popover the user is not in, such as a hover card, is no
+   mode: the browser never closes it on Escape, so tiering under it would leave Escape
+   nothing to take. The dispatcher tiers the scopes over that stack from the
    top down: each layer takes the scopes rooted inside it, the topmost layer also takes
    the focused element's scopes and explicitly inner modes, and a boundary follows each
    layer. A modal is a floor, so every scope below the newest one is dropped and the inert
@@ -104,7 +107,7 @@ import {
 import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { runLanding, scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
-import { nativeLayers } from "./layer-stack.js";
+import { nativeModes } from "./layer-stack.js";
 import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
 /** @typedef {import("./bindings.js").Command} Command
@@ -266,7 +269,7 @@ export function stack(binding = null) {
   };
   // One tier per layer the browser holds, newest first. Everything below the newest modal
   // is inert, so those layers are the only ones a scope can still be active in.
-  const layers = nativeLayers();
+  const layers = nativeModes();
   const modal = layers.findLast((layer) => layer.kind === "modal");
   const visible = modal ? layers.slice(layers.indexOf(modal)) : layers;
   // The newest native modal is the one boundary the browser makes inert behind it.
@@ -511,13 +514,17 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 // (close-requests.js): whether a press would take a step now, and taking it, through
 // the row's `keep` where it declares one (bindings.js).
 const escapePress = () => new window.KeyboardEvent("keydown", { key: "Escape" });
-export const escapeTakesAStep = () => {
+/** The step Escape would take now, or null: what a surface that names Escape's step
+ * reads, as the floating panel's Close says `esc` only while Escape takes the stance
+ * off. */
+export const escapeInvocation = () => {
   const matched = resolveKey(escapePress());
-  return Boolean(matched) && matched !== INPUT_PENDING;
+  return matched && matched !== INPUT_PENDING ? matched : null;
 };
+export const escapeTakesAStep = () => Boolean(escapeInvocation());
 export function answerCloseRequest() {
-  const matched = resolveKey(escapePress());
-  if (!matched || matched === INPUT_PENDING) return;
+  const matched = escapeInvocation();
+  if (!matched) return;
   const keep = matched.row.keep;
   // The log names what ran: a row's `keep` is not its title's step.
   announceInvocation(matched, keep ? "keep" : null);
@@ -649,6 +656,21 @@ export function invokePress({ id, row, binding }) {
   announceInvocation(invocation);
   invocation.run();
   return true;
+}
+// A control standing in for a page command's key, as the floating panel's field-end
+// presses do (floating-panel.js, `noticePress`): the command's row by its id or by one
+// of its routes', made as a press of that route's key, so it acts wherever the caret
+// stands, as a menu row or a touch control does, where the key would be a letter typed.
+/** @param {string} id */
+export function pressCommand(id) {
+  for (const scope of pageScopes())
+    if (typeof scope !== "symbol")
+      for (const row of scope.rows) {
+        const route = commandRoutes(row).find((route) => route.id === id);
+        if (route || row.id === id)
+          return invokePress({ id, row, binding: route?.binding ?? bindings(row)[0] });
+      }
+  return false;
 }
 /** @param {string} id */
 export function executeCommand(id) {

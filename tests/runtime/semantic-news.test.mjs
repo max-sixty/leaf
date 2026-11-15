@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -60,10 +61,12 @@ const reading = ({
   pageObligations = [],
   threadObligations = [],
   workflows = [],
+  onMe = 0,
 } = {}) => ({
   obligations: [...pageObligations, ...threadObligations],
   thread: { threads },
   workflows,
+  onMe,
 });
 const kinds = (result) => result.news.map((item) => item.kind);
 const responseFailure = (source, kind = "failed") =>
@@ -147,7 +150,7 @@ test("structural questions own their thread obligation and reopening starts a ne
     reopened.news.map(({ kind, thread, source }) => [kind, thread, source]),
     [["user_obligation", "t", "choice"]],
   );
-  assert.equal(said(reopened.news), "New on me");
+  assert.equal(said(reopened.news), "New On Me");
   const queued = combineSemanticNews(first.news, reopened.news);
   assert.equal(queued.length, 4);
   const current = currentSemanticNews(queued, reopenedReading, reopened.observed);
@@ -158,7 +161,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(said(current), "2 new on me");
+  assert.equal(said(current), "2 new On Me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });
@@ -335,7 +338,10 @@ test("page obligations come from the shown revision, not a waiting activation", 
   const shown = reading({ pageObligations: [item("shown")] });
   const waiting = reading({ pageObligations: [item("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { obligations: shown.obligations, thread: shown.thread } },
+    effective: {
+      view: { obligations: shown.obligations, thread: shown.thread },
+      queues: { on_user: [item("shown")] },
+    },
     authoritative: {
       active: { revision: 2 },
       browser: {
@@ -348,6 +354,29 @@ test("page obligations come from the shown revision, not a waiting activation", 
     },
   });
   assert.deepEqual(selected.obligations, [item("shown")]);
+  assert.equal(selected.onMe, 1);
+});
+
+test("a reading that empties On Me says so while the list stays empty", () => {
+  // A list empty from the first reading is no news.
+  const baseline = observeSemanticNews(null, reading());
+  assert.deepEqual(baseline.news, []);
+  const owed = observeSemanticNews(
+    baseline.observed,
+    reading({ pageObligations: [item("only")], onMe: 1 }),
+  );
+  const emptied = observeSemanticNews(owed.observed, reading());
+  assert.deepEqual(kinds(emptied), ["on_me_empty"]);
+  assert.equal(said(emptied.news), "Nothing waiting on me");
+  assert.deepEqual(observeSemanticNews(emptied.observed, reading()).news, []);
+  // A list that fills again before the notice shows takes it back.
+  const refilled = reading({ pageObligations: [item("next")], onMe: 1 });
+  const again = observeSemanticNews(emptied.observed, refilled);
+  const queued = combineSemanticNews(emptied.news, again.news);
+  assert.equal(
+    said(currentSemanticNews(queued, refilled, again.observed)),
+    "New On Me",
+  );
 });
 
 test("a new message speaks for itself, with what it asks of the user", () => {
@@ -380,7 +409,7 @@ test("a new message speaks for itself, with what it asks of the user", () => {
   const both = observeSemanticNews(baseline.observed, more);
   assert.equal(
     said(currentSemanticNews(both.news, more, both.observed)),
-    "Does this answer your question? · New on me",
+    "Does this answer your question? · New On Me",
   );
 });
 
@@ -429,7 +458,7 @@ test("a notice sets the agent's words apart from Leaf's news", () => {
       [" · ", "leaf"],
       ["Not answered", "leaf"],
       [" · ", "leaf"],
-      ["New on me", "leaf"],
+      ["New On Me", "leaf"],
     ],
   );
   const edited = message("m2", { edited: { id: "edit", seq: 2 } });
@@ -585,4 +614,62 @@ test("held producer batches preserve interrupted news and merge later arrivals",
     before,
     "showing deferred news must not announce it again",
   );
+});
+
+test("a reading's news gives the leaf one moment, its most pressing", () => {
+  const content = {
+    kind: "agent_content",
+    key: "content:m",
+    thread: "t",
+    version: "m",
+    message: message("m"),
+  };
+  const asked = {
+    kind: "user_obligation",
+    key: "obligation:q",
+    sourceKey: "q",
+    episode: 1,
+    source: "q",
+    thread: "t",
+    message: "m",
+  };
+  const emptied = { kind: "on_me_empty", key: "on-me:empty" };
+  const failed = {
+    kind: "response_failure",
+    key: "response:input",
+    condition: "failed",
+    input: "input",
+    thread: "t",
+    seq: 3,
+  };
+  assert.equal(newsMoment([content]), "reply");
+  assert.equal(newsMoment([content, asked]), "new-on-me");
+  assert.equal(newsMoment([failed, emptied]), "on-me-empty");
+  assert.equal(newsMoment([failed]), null);
+});
+
+test("a notice of the user's own command, and an error about no field, each give the leaf a moment", async (t) => {
+  const { notice, gestureReading } = await import("/runtime/notifications.js");
+  const { dismissErrors, raiseError } = await import("/runtime/errors.js");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => window.happyDOM.cancelAsync());
+  const moments = [];
+  const step = (run) => {
+    const before = gestureReading().beat;
+    run();
+    const after = gestureReading();
+    if (after.beat !== before) moments.push(after.moment);
+  };
+  // The user's own command, and the same words again.
+  step(() => notice("No search to repeat"));
+  step(() => notice("No search to repeat"));
+  // News is its producer's moment to give, as it arrives, not the seat's when it shows.
+  step(() => notice("Updated to v2", { background: true }));
+  step(() => t.mock.timers.tick(4000));
+  step(() => t.mock.timers.tick(4000));
+  // An error the panel says shakes the leaf; one standing at a box of its own doesn't.
+  step(() => raiseError("Wait for the current change to finish before undoing"));
+  step(() => raiseError("Not sent", { subject: document.createElement("textarea") }));
+  dismissErrors();
+  assert.deepEqual(moments, ["notice", "notice", "error"]);
 });

@@ -17,6 +17,7 @@ from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _p
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
     INLINE_PAGE,
+    LONG_PAGE,
     RELEASE_FOCUS,
     ROOT,
     draft_control,
@@ -70,7 +71,6 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
         ".lf-composer > leaf-composition-field > .lf-compose-field > .lf-compose-submit"
     )
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
-    expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
     action = page.locator(".lf-compose-field").get_by_role(
         "button", name="Other responses", exact=True
@@ -547,7 +547,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     """Where the user is located and what the user still owes are two facts, and a
     widget whose seat holds a thread waiting on the agent is where they part. Its seat holds the words
     the user just wrote, its answer is unmade and its controls are live, and it has left
-    On me because the next word there is the agent's — but the user
+    On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
     Read off the user's list, both the ring and `c` went with the count: the moment the
@@ -606,7 +606,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # The completion count includes every active obligation: the authored pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
-    # In On me the seated obligation is the agent's: the comment in its seat is owed a reply,
+    # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
     # which stands for it, so it is neither the user's obligation nor done.
     panel_control(page, "queue").click()
     panel_settled(page, view="queue")
@@ -729,6 +729,61 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(panel_field(page)).to_have_attribute(
         "aria-label", "Reply to Settled already."
     )
+
+
+def test_c_pressed_as_a_walk_glides_to_a_card_replies_in_it(browser, serve):
+    """The thread walk focuses the card it reaches, then glides the page to the words
+    the card stands by. `c` pressed on the way is meant for that card, so it writes in
+    the card's reply rather than letting go of the card and commenting on the words at
+    the window's top, and the page lands where the walk lands it alone: bringing the
+    card back as it arrived stopped the page short of that landing."""
+    alone = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    alone.keyboard.press("t")
+    expect(alone.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    scroll_settled(alone)
+    landing = alone.evaluate("scrollY")
+
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(landing, abs=2)
+
+
+def test_keys_pressed_as_g_g_sets_off_act_where_g_g_lands(browser, serve):
+    """`g g` glides the page to its top, carrying the control the user stood on out of
+    view. A key pressed as it sets off, with the control still on screen, acts as it
+    does once the glide has landed: `c` opens the panel's comment at the top, rather
+    than a comment box on the control that the glide carries off screen with focus in
+    it, and Tab carries on from the page's top, rather than from the control."""
+    page = open_page(
+        browser,
+        serve(
+            LONG_PAGE.replace(
+                "<p id='p1'>Paragraph 1.",
+                "<p id='p1'>Paragraph 1. <a href='#p1'>The top link</a>",
+            ).replace(
+                "<p id='p41'>Paragraph 41.",
+                "<p id='p41'>Paragraph 41. <a href='#p41'>A link</a>",
+            )
+        ),
+    )
+    link = page.locator("#p41 a")
+    for key, lands in (
+        ("c", page.locator('.lf-fp-field leaf-text[name="comment"]')),
+        ("Tab", page.locator("#p1 a")),
+    ):
+        link.focus()
+        scroll_settled(page)
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(lands).to_be_focused()
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == pytest.approx(0, abs=2)
+        page.keyboard.press("Escape")
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):

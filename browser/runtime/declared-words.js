@@ -243,10 +243,18 @@ function renderExternalLink(link) {
   state.addedNoopener = !tokens(state.baseline.rel).some(
     (value) => value.toLowerCase() === "noopener",
   );
+  // Another owner may describe the link through element references, which empty the
+  // attribute, as a focus preview does (preview.js); while those hold the mark's
+  // description, the link already says it opens elsewhere, so the references stay.
+  const described = link.ariaDescribedByElements?.includes(
+    /** @type {Element} */ (externalDescriptions.get(link.getRootNode())),
+  );
   writeLinkAttributes(link, {
     target: "_blank",
     rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+    "aria-describedby": described
+      ? link.getAttribute("aria-describedby")
+      : withToken(state.baseline["aria-describedby"], state.markId),
   });
   state.painted = linkAttributes(link);
 }

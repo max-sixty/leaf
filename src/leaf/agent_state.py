@@ -1,14 +1,18 @@
-"""Agent-facing page state: the On me and On <agent> lists, and the obligations and to-dos
+"""Agent-facing page state: the On Me and On <agent> lists, and the obligations and to-dos
 they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
-(`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
+(`served_state.queues`): On Me (`on_user`) holds the open obligations on the user, the
 updates handed back to them among them; On <agent>
 (`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. `source` states whether a document
+agent recovers what it owes without the delivery. Each thread's `holder` names who
+holds it (`holding.py`): the main thread, a fork with whether its turn runs, closed or
+lapsed, or the line fork while Leaf keeps its messages back; and each obligation
+record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
+record the agent doesn't owe. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
@@ -141,7 +145,7 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
-        # What is on the user (On me) and what is on the agent (On <agent>), each item
+        # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
         # canonical obligation inventory those lists select from, whose records an obligation's
@@ -332,7 +336,7 @@ def page_state(
     source_error: str | None = None,
     *,
     target: str | None = None,
-    after: int | None = 0,
+    after: int | None = None,
     limit: int | None = None,
 ) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
@@ -343,7 +347,7 @@ def page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the obligations, the two lists, On me and On <agent>, that they and the workflows add up
+    the obligations, the two lists, On Me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -398,11 +402,12 @@ def page_state(
         stored_data,
         registry,
     )
+    folded = context.work.activity
     state["activity"] = {
         **activity,
         "obligations": [
             {"id": item["obligation"], "answer": item["answer"]}
-            for item in context.work.activity["obligations"]
+            for item in folded["obligations"]
         ],
     }
     # Each answer owed names its update's record, in `obligations`; the workflows that
@@ -432,11 +437,17 @@ def page_state(
         _apply_thread_state(state, reading.thread, facts)
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
-        # taken in yet, at their current content version.
+        # taken in yet, at their current content version; and who on the agent's side
+        # has the thread.
         for thread in state["threads"]:
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["obligations"] = view["obligations"]
+            thread["holder"] = context.work.holding.hold(thread["id"]).holder
+        owing = {item["obligation"]: item["holder"] for item in folded["obligations"]}
+        state["obligations"] = [
+            {**record, "holder": owing.get(record["id"])}
+            for record in view["obligations"]
+        ]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

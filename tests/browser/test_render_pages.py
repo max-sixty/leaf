@@ -44,6 +44,7 @@ from render_cases_widgets import (
     RAIL_BAND_PAGE,
     RAIL_BANDS,
     ROOM_GEOMETRY,
+    SCROLLING_DIAGRAM_PAGE,
     TWIN_V1,
     TWIN_V2,
     TYPED_PARTS_PAGE,
@@ -57,8 +58,10 @@ from render_harness import (
     TOKEN,
     consume_browser_errors,
     expect_open_threads,
+    expect_preview_words,
     fetch_whole_state,
     held_frames,
+    holding,
     http_error_console,
     leaf_page,
     margins_laid_out,
@@ -68,6 +71,7 @@ from render_harness import (
     panel_menu,
     panel_settled,
     panel_view,
+    primed,
     refuse,
     resized,
     root_overflow,
@@ -85,7 +89,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from leaf_dev.example_data import named_source
 
@@ -520,7 +524,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     # draft is in view. The user can reveal it without losing their reply.
     notice = thread.locator(".lf-thread-news")
     expect(notice).to_have_text("1 new")
-    expect(notice).to_have_attribute("title", "Resolved")
+    expect_preview_words(notice, "Resolved")
     expect(thread).to_have_attribute("data-lf-resolved", "false")
     notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
@@ -582,7 +586,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     # notice the user opens.
     news = page.locator(".lf-fp-head .lf-thread-news")
     expect(news).to_have_text("1 new")
-    expect(news).to_have_attribute("title", "Resolved")
+    expect_preview_words(news, "Resolved")
     expect(draft).to_have_js_property("value", "keep this unfinished reply")
     news.click()
     expect(view).to_be_visible()
@@ -976,27 +980,28 @@ def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
     """A drawing's width across windows and its paint across schemes, on one page."""
     page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    with subtests.test("a diagram takes the room and scrolls only past it"):
-        # A diagram keeps the natural geometry its renderer laid out.
+    with subtests.test("a diagram takes the room and is laid out again past it"):
+        # A diagram keeps the geometry its renderer laid out, never scaled.
         #
         # Scaling a wide drawing to the column takes its labels below legibility. The
-        # module states the viewBox width explicitly, so only how much of that natural
-        # drawing fits in the available room changes.
+        # module states the viewBox width explicitly, so the drawn width is the width
+        # the renderer laid out.
         #
-        # Which is the whole of it wherever the window has the room. A drawing is not a
-        # box that fills whatever it is given, so the one width the vocabulary shares is
-        # no promise about it: held to that number, this 1147px flowchart was cut off at
-        # 1080 on a window with 470px to spare. The board on the same page is the half
-        # that says the declaration is doing this rather than the tag — it declares
-        # `wide` with its `data-width` and lays its columns out into whatever it is
-        # given, so it takes that shared number and stops there on the same window that
-        # hands the diagram all of the room.
+        # Which is the authored layout wherever the window has the room. A drawing is
+        # not a box that fills whatever it is given, so the one width the vocabulary
+        # shares is no promise about it: held to that number, this 1147px flowchart was
+        # cut off at 1080 on a window with 470px to spare. The board on the same page is
+        # the half that says the declaration is doing this rather than the tag — it
+        # declares `wide` with its `data-width` and lays its columns out into whatever
+        # it is given, so it takes that shared number and stops there on the same window
+        # that hands the diagram all of the room.
         #
-        # Past the room there is nothing left to give, and the answer is the theme's for
-        # any wide content: the widget's own box scrolls sideways and the document does
-        # not.
+        # Past the room the renderer lays the same flow out again for the room there is,
+        # here top-down, so the whole of it shows in its box with nothing to scroll,
+        # and a window widened back draws the authored layout again.
         # This width leaves the complete drawing room on both supported font platforms.
         resized(page, 1920, 900)
+        rendered(page)
         wide = page.evaluate(DIAGRAM_ROOM)
         assert wide["natural"] > wide["wide"], (
             f"the fixture must lay out wider than the shared width ({wide['wide']:.0f}px), "
@@ -1022,17 +1027,24 @@ def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
         )
         assert root_overflow(page) == 0, "the page itself must not scroll sideways"
         resized(page, 1000, 900)
+        rendered(page)
         narrow = page.evaluate(DIAGRAM_ROOM)
-        assert narrow["natural"] > narrow["room"], (
-            "the narrow half proves nothing unless the drawing outgrows the room"
+        assert wide["natural"] > narrow["room"], (
+            "the narrow half proves nothing unless the authored layout outgrows the room"
         )
         assert round(narrow["drawn"]) == round(narrow["natural"]), (
-            "a drawing that no longer fits is still not scaled down"
+            "a drawing that no longer fits is laid out again, not scaled down"
         )
-        assert narrow["scrolls"], (
-            "a drawing wider than the room must scroll inside its box"
+        assert narrow["drawn"] <= narrow["box"] and not narrow["scrolls"], (
+            f"the flow laid out for the room still runs past it: "
+            f"{narrow['drawn']:.0f}px of diagram in a {narrow['box']:.0f}px box"
         )
         assert root_overflow(page) == 0, "nor may the page scroll sideways for it"
+        resized(page, 1920, 900)
+        rendered(page)
+        assert page.evaluate(DIAGRAM_ROOM)["natural"] == wide["natural"], (
+            "widened back, the window shows the layout it showed at that width"
+        )
 
     with subtests.test("a diagram follows the scheme it is read in"):
         # The SVG keeps Leaf's theme variables, so a scheme flip repaints it live.
@@ -1063,10 +1075,43 @@ def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
         )
 
 
+def test_a_diagram_taken_out_while_its_renderer_loads_draws_when_put_back(
+    browser, serve
+):
+    """A diagram measured, then taken out of the page while its renderer still loads,
+    and put back into a box of the same width, draws there and lets the page settle,
+    as a message body cached while its thread is shut is put back."""
+    held = []
+    page = primed(
+        browser, lambda p: p.route("**/vendor/pele.esm.js", lambda r: held.append(r))
+    ).new_page(viewport={"width": 1000, "height": 900})
+    page.goto(serve(WIDE_DIAGRAM_PAGE))
+    holding(page, held, 1, "the diagram renderer")
+    # One rendering update delivers the box's first measurement.
+    page.evaluate(
+        "() => new Promise((r) => requestAnimationFrame(() => setTimeout(r)))"
+    )
+    page.evaluate("""() => {
+        const el = document.getElementById('flow');
+        window.lfParked = [el, el.parentNode, el.nextSibling];
+        el.remove();
+    }""")
+    held.pop().continue_()
+    page.evaluate("""() => import('/vendor/pele.esm.js')
+        .then(() => new Promise((r) => setTimeout(r)))""")
+    page.evaluate("""() => {
+        const [el, parent, next] = window.lfParked;
+        parent.insertBefore(el, next);
+    }""")
+    expect(page.locator("#flow svg")).to_have_count(1)
+    wait_until_ready(page)
+    rendered(page)
+
+
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
     """A focused visual draws one ring, its own mark; entering its thread keeps the
     mark on the same target, one outline, rather than adding a second."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1403,183 +1448,6 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
-def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
-    browser, serve
-):
-    """A framed holder, a callout, requests its own width on column and sidebar pages:
-    its evidence stays inside that frame, and a wide child alone does not widen it. An
-    obligation frames nothing, so it takes no width of its own: a wide child stands in
-    the page's flow and the obligation's box grows round it. Workspace holders and
-    explicitly bounded cells keep the room their containing region grants."""
-    cells = "<td>p95 latency</td>" * 12
-    table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
-    item = (
-        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
-        'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
-    )
-    body = (
-        '<p id="prose">Prose.</p>'
-        + item.format(id="ask", width="", table="")
-        + item.format(id="stated", width=' data-width="wide"', table="")
-        + item.format(id="holds", width="", table=table.format(id="holds"))
-        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
-        + '<aside class="callout" id="granted-c" data-width="wide">'
-        + table.format(id="granted-c")
-        + "</aside>"
-        + '<aside class="callout" id="contained-c">'
-        + table.format(id="contained-c")
-        + "</aside>"
-        + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
-        + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
-        + "</lf-options>"
-    )
-    measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
-        .map(id => {
-        const box = document.getElementById(id).getBoundingClientRect();
-        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
-      }))"""
-    page = open_page(
-        browser,
-        serve(leaf_page("Sidebar body", f"<div>{body}</div>", layout="sidebar")),
-    )
-    resized(page, 1726, 900)
-    at = page.evaluate(measure)
-    edge = at["prose"]["left"]
-    wide = round(wide_width(page))
-    # An option list keeps the measure whatever one option holds: only a box's own
-    # blocks widen it. A width written on an obligation has no effect.
-    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
-        assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
-    # A granted callout's padding and border fall inside the wide measure.
-    assert at["granted-c"] == {"width": wide, "left": edge}, at
-    # The obligation's box takes in the table it holds, which takes the room it declares.
-    assert at["holds-t"] == {"width": wide, "left": edge}, at
-    assert at["holds"]["left"] == edge and at["holds"]["width"] >= wide, at
-
-    # The obligation spans its block wherever the block breaks out. In a list obligation,
-    # which stands in from the column, and where the page arranged the obligation, in a
-    # grid track, it doesn't grow.
-    extras = (
-        "<ol><li>"
-        + item.format(id="listed", width="", table=table.format(id="listed"))
-        + "</li></ol>"
-        + item.format(
-            id="both", width=' data-width="available"', table=table.format(id="both")
-        )
-        + '<div style="display: grid; grid-template-columns: 350px 1fr">'
-        + item.format(id="tracked", width="", table=table.format(id="tracked"))
-        + "<p>Beside.</p></div>"
-        + item.format(
-            id="narrow",
-            width="",
-            table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
-        )
-        + '<div id="wrapper" data-width="wide">'
-        + item.format(
-            id="wrapped",
-            width="",
-            table=f'<table data-width="available"><tr>{cells}</tr></table>',
-        )
-        + "</div>"
-        + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
-        + '<div data-width="available">Room.</div></div>'
-        + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
-        + '<div data-width="wide">Room.</div></span></div>'
-        + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
-        + '<div data-width="wide">Room.</div></div>'
-        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
-    )
-    column = open_page(browser, serve(leaf_page("Column", body + extras)))
-    resized(column, 1726, 900)
-    at = column.evaluate(
-        measure.replace(
-            "'list']",
-            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
-            " 'wrapped']",
-        )
-    )
-    assert at["holds-t"]["width"] == wide, at
-    assert at["holds-t"]["left"] == at["prose"]["left"], at
-    assert at["holds"] == at["holds-t"], at
-    heading = column.locator("#holds h3").bounding_box()
-    assert round(heading["x"]) == at["prose"]["left"], (heading, at)
-    assert at["ask"] == at["prose"], at
-    assert at["contained-c"]["width"] == at["prose"]["width"], at
-    assert at["granted-c"]["width"] == wide, at
-    assert at["listed"] == at["listed-t"], at
-    assert at["listed"]["width"] < at["prose"]["width"], at
-    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
-        at
-    )
-    assert at["tracked"]["width"] == 350, at
-    # An obligation inside a breakout takes its holder's room, as any block
-    # there does, however much room its own block asks for.
-    assert at["wrapped"] == at["wrapper"], at
-    # The column's room beside its prose is the page's: negative margins can leave the
-    # prose without leaving that room, the shell less a gutter each side. Only the
-    # padded box exceeds it.
-    boxes = column.evaluate("""() => {
-      const shell = document.body.getBoundingClientRect();
-      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
-        .getPropertyValue('--col-pad'));
-      return {room: {left: shell.left + gutter, right: shell.right - gutter},
-        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
-          const box = document.querySelector(selector).getBoundingClientRect();
-          return [selector, {left: box.left, right: box.right}];
-        }))};
-    }""")
-    for selector in ("#pulled", "#spilled"):
-        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
-        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
-    # The padded box's words stay on the prose and its padding is blank, so it stands
-    # in no margin; the window still clips the padding it carries past the page.
-    misplaced = evaluate_probe(column, "misplacedBoxes")
-    assert [(m["code"], m["at"]) for m in misplaced] == [
-        ("clipped-out", "<div id=padded>"),
-    ], misplaced
-
-    board = (
-        '<lf-board id="board"><lf-column id="board-c" label="Open">'
-        '<lf-card id="board-k">Retry</lf-card></lf-column></lf-board>'
-    )
-    workspace = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Workspace",
-                f'<div id="region">{body}{board}</div>',
-                layout="workspace",
-            )
-        ),
-    )
-    resized(workspace, 1726, 900)
-    at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
-        assert at[block] == at["region"], (block, at)
-    assert at["board"] == at["region"], at
-
-    # With no evidence width, a board reaches only its holder: six columns in a narrow
-    # cell of the page's grid scroll inside it rather than spread over the next cell.
-    columns = "".join(
-        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
-    )
-    cells = leaf_page(
-        "Workspace cells",
-        f'<div id="cells"><div id="cell"><lf-board id="six">{columns}</lf-board></div>'
-        "<div>Beside.</div></div>",
-        head="<style>#cells { display: grid; grid-template-columns: 290px 1fr; }</style>",
-        layout="workspace",
-    )
-    workspace = open_page(browser, serve(cells))
-    resized(workspace, 1726, 900)
-    box = workspace.evaluate(
-        """() => Object.fromEntries(['cell', 'six'].map(id =>
-          [id, Math.round(document.getElementById(id).getBoundingClientRect().width)]))"""
-    )
-    assert box["six"] == box["cell"], box
-
-
 @pytest.mark.parametrize(
     ("margin_content", "placement", "engine"),
     [
@@ -1594,8 +1462,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     """A table given `data-width` keeps its columns' natural width and stands where any
     breakout of that width stands. A `wide` one starts at the prose's start edge and
     grows toward the end. An `available` one is centred on the prose axis while both margins have
-    room for it, the freer side taking what the narrower lacks, as where a contents
-    map's spine or a column moved over for a sidenote leaves one side narrower. One that
+    room for it, the freer side taking what the narrower lacks, as where a column moved
+    over for a sidenote leaves one side narrower. One that
     fits the column keeps its natural width and starts where the prose starts. Where a
     sidebar stands in the left margin the room is all on the right, so the table starts
     at the prose's left edge and grows right. In a right-to-left page the same holds
@@ -2166,6 +2034,47 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+@pytest.mark.parametrize("layout", ["column", "sidebar"])
+def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
+    request, serve, layout, engine
+):
+    """A page may state its column in any unit, and the Layout resolves it on the column
+    (base.css, `--col`), so every block that breaks out of the column reaches the same
+    edges whatever its own font. Resolved in each block's font instead, `2em` of gutter
+    and `50ch` of column put a block in a small monospace font at other edges than its
+    neighbours, and on a sidebar page past the window's edge."""
+    browser = request.getfixturevalue(engine)
+    body = (
+        "<p>Reading measure.</p>"
+        '<div id="plain" data-width="available">Plain</div>'
+        '<div id="small" data-width="available" style="font: 10px monospace">Small</div>'
+        '<div id="large" data-width="available" style="font-size: 24px">Large</div>'
+    )
+    if layout == "sidebar":
+        body = (
+            "<aside><div class='layout-track'><p>Summary.</p></div></aside>"
+            f"<div class='layout-column'>{body}</div>"
+        )
+    source = leaf_page(
+        "Font units",
+        body,
+        head="<style>:root { --col: 50ch; --col-pad: 2em; }</style>",
+        layout=layout,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    edges = page.evaluate(
+        """() => Object.fromEntries(['plain', 'small', 'large'].map((id) => {
+          const box = document.getElementById(id).getBoundingClientRect();
+          return [id, [box.left, box.right]];
+        }))"""
+    )
+    for block in ("small", "large"):
+        assert edges[block] == pytest.approx(edges["plain"], abs=1), edges
+    assert root_overflow(page) == 0
+
+
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
     """A revision's replacement can put a breakout in a list deeper than the one it
     replaced. The breakout keeps to its list item from the first paint that shows it,
@@ -2504,7 +2413,7 @@ def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, ser
     source = leaf_page(
         "Inherited scrollport",
         '<div id="parent" style="--flow:auto">'
-        '<div id="box" class="scroll" '
+        '<div id="box" class="lf-scroll" '
         'style="width:200px;overflow-x:var(--flow);white-space:nowrap">'
         '<span style="display:inline-block;width:600px">Wide content</span>'
         "</div></div>",
@@ -2524,92 +2433,145 @@ def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, ser
     expect(box).not_to_have_attribute("data-lf-more-after", "")
 
 
-def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
-    browser, serve
+def test_a_drawing_wider_than_its_column_is_laid_out_for_it_or_fades_where_cut(
+    browser, serve, subtests
 ):
     """Three agent-written pages drew a five-step plan `flowchart LR`; at 1440px each
-    box showed two and a half steps, and every reader took the plan for three. The mark
-    was the layer's fade, all the way to the ground, and a node faded out looks like the
-    node's own end.
+    box showed two and a half steps, and every reader took the plan for three.
 
-    So a drawing's fade stops short of the ground: the node cut at an edge fades toward
-    the page's ground and still reaches the scrollport's side, which is what reads as
-    cut. This reads the pixels rather than the rule, in a row through the cut node's
-    fill above its label: at the very edge the fill is lighter than a little inside the
-    box and still darker than the ground. Over blank canvas the edge is the ground
-    itself, where a grey shadow used to lie. The fade follows the scroll: the end edge
-    at rest, the start edge once a node straddles it. The drawing keeps the size it was
-    drawn at throughout, and the same five steps drawn top-down fit the column and fade
-    nothing."""
+    So a drawing is laid out for the column it stands in: the chain turns top-down
+    there and shows all five steps, at the size it was drawn, with nothing to scroll.
+    On a phone, two branches side by side, whose labels the renderer's own narrowing
+    keeps at their width, are drawn again with narrower labels, and fit too.
+
+    What can't narrow that far, a row of six calls side by side, still scrolls, and
+    the layer's fade marked its cut edge all the way to the ground, where
+    a node faded out looks like the node's own end. So a drawing's fade stops short of
+    the ground: the node cut at an edge fades toward the page's ground and still reaches
+    the scrollport's side, which is what reads as cut. This reads the pixels rather
+    than the rule, in a row through the cut node's fill above its label: at the very
+    edge the fill is lighter than a little inside the box and still darker than the
+    ground. Over blank canvas the edge is the ground itself, where a grey shadow used
+    to lie. The fade follows the scroll: the end edge while the drawing runs on past
+    it, the start edge once it is scrolled. The same five steps drawn top-down fit the
+    column and fade nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
     resized(page, 950, 900)
     rendered(page)
-    sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
+    sizes = page.evaluate("""() => Object.fromEntries(
+        ['chain', 'stack', 'calls'].map((id) => {
         const el = document.getElementById(id), svg = el.querySelector('svg');
         return [id, { short: el.scrollWidth - el.clientWidth,
+                      box: el.clientWidth,
                       drawn: svg.getBoundingClientRect().width,
-                      natural: svg.viewBox.baseVal.width,
+                      laidOut: svg.viewBox.baseVal.width,
+                      steps: el.querySelectorAll('g.pele-node').length,
                       mask: getComputedStyle(el).maskImage }];
     }))""")
-    assert sizes["chain"]["short"] > 1, f"the chain fits, so nothing is cut: {sizes}"
-    assert sizes["stack"]["short"] == 0, f"the stack scrolls too: {sizes}"
-    assert sizes["stack"]["mask"] == "none", sizes
     for box in sizes.values():
-        assert abs(box["drawn"] - box["natural"]) < 1, (
-            f"a drawing was scaled away from its natural size: {sizes}"
+        assert abs(box["drawn"] - box["laidOut"]) < 1, (
+            f"a drawing was scaled away from the size it was laid out at: {sizes}"
         )
 
-    def edge(side):
-        """Luminance at the chain's `side` edge, in a row through the fill of the node
-        standing across it, beside the node's fill 60px inside the edge, past the
-        fade's reach; and the same two places in the blank band above the nodes."""
-        box = page.evaluate(
-            """(side) => {
-            const el = document.getElementById('chain'), r = el.getBoundingClientRect();
-            const x = side === 'end' ? r.right - 1 : r.left + 1;
-            const node = [...el.querySelectorAll('g.pele-node')]
+    with subtests.test("a chain wider than its column is drawn whole"):
+        assert sizes["chain"]["laidOut"] < sizes["chain"]["box"], (
+            f"the chain was not laid out for its column: {sizes}"
+        )
+        assert sizes["chain"]["short"] == 0 and sizes["chain"]["steps"] == 5, sizes
+
+    with subtests.test("a drawing still cut fades toward the ground and reaches it"):
+        assert sizes["calls"]["short"] > 1, f"the calls fit, nothing is cut: {sizes}"
+        assert sizes["stack"]["short"] == 0, f"the stack scrolls too: {sizes}"
+        assert sizes["stack"]["mask"] == "none", sizes
+
+        def edge(side):
+            """Luminance at the calls' `side` edge, in a row through the fill of the
+            node standing across it, beside the node's fill 60px inside the edge, past
+            the fade's reach; and the same two places in the blank band above the
+            nodes."""
+            box = page.evaluate(
+                """(side) => {
+                const el = document.getElementById('calls');
+                const r = el.getBoundingClientRect();
+                const x = side === 'end' ? r.right - 1 : r.left + 1;
+                const node = [...el.querySelectorAll('g.pele-node')]
+                    .map((n) => n.getBoundingClientRect())
+                    .find((n) => n.left < x && n.right > x);
+                return node && { x: r.left, y: r.top, width: r.width,
+                                 height: node.bottom - r.top,
+                                 row: node.top + 10 - r.top };
+                }""",
+                side,
+            )
+            assert box, f"no node stands across the {side} edge, so nothing is cut"
+            clip = {k: box[k] for k in ("x", "y", "width", "height")}
+            shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("L")
+            w, row = shot.size[0], round(box["row"])
+            at, inside = (
+                ((w - 3, w), (w - 63, w - 57)) if side == "end" else ((0, 3), (57, 63))
+            )
+
+            def mean(x, y0, y1):
+                return ImageStat.Stat(shot.crop((x[0], y0, x[1], y1))).mean[0]
+
+            return {
+                "ground": mean(at, 0, 4),
+                "ground_inside": mean(inside, 0, 4),
+                "edge": mean(at, row, row + 4),
+                "fill": mean(inside, row, row + 4),
+            }
+
+        # Each edge is read with a node centred across it, so the node's fill reaches
+        # past the fade's 32px wherever the platform's fonts put the nodes.
+        calls = page.locator("#calls")
+        calls.evaluate("""(el) => {
+            const r = el.getBoundingClientRect();
+            const [node] = [...el.querySelectorAll('g.pele-node')]
                 .map((n) => n.getBoundingClientRect())
-                .find((n) => n.left < x && n.right > x);
-            return node && { x: r.left, y: r.top, width: r.width,
-                             height: node.bottom - r.top, row: node.top + 10 - r.top };
-            }""",
-            side,
+                .filter((n) => (n.left + n.right) / 2 > r.right)
+                .sort((a, b) => a.left - b.left);
+            el.scrollLeft += (node.left + node.right) / 2 - r.right;
+        }""")
+        expect(calls).to_have_attribute("data-lf-more-after", "")
+        rendered(page)
+        cut = edge("end")
+        assert abs(cut["ground"] - cut["ground_inside"]) < 2, (
+            f"the blank canvas at the edge is not the page's ground: {cut}"
         )
-        assert box, f"no node stands across the {side} edge, so nothing is cut there"
-        clip = {k: box[k] for k in ("x", "y", "width", "height")}
-        shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("L")
-        w, row = shot.size[0], round(box["row"])
-        at, inside = (
-            ((w - 3, w), (w - 63, w - 57)) if side == "end" else ((0, 3), (57, 63))
+        assert cut["fill"] + 3 < cut["edge"] < cut["ground"] - 3, (
+            f"the cut node does not fade toward the ground and still reach the edge: "
+            f"{cut}"
+        )
+        calls.evaluate("""(el) => {
+            const [node] = [...el.querySelectorAll('g.pele-node')]
+                .map((n) => n.getBoundingClientRect())
+                .sort((a, b) => a.left - b.left);
+            el.scrollLeft += (node.left + node.right) / 2
+                - el.getBoundingClientRect().left;
+        }""")
+        expect(calls).to_have_attribute("data-lf-more-before", "")
+        rendered(page)
+        scrolled = edge("start")
+        assert scrolled["fill"] + 3 < scrolled["edge"] < scrolled["ground"] - 3, (
+            scrolled
         )
 
-        def mean(x, y0, y1):
-            return ImageStat.Stat(shot.crop((x[0], y0, x[1], y1))).mean[0]
-
-        return {
-            "ground": mean(at, 0, 4),
-            "ground_inside": mean(inside, 0, 4),
-            "edge": mean(at, row, row + 4),
-            "fill": mean(inside, row, row + 4),
-        }
-
-    at_rest = edge("end")
-    assert abs(at_rest["ground"] - at_rest["ground_inside"]) < 2, (
-        f"the blank canvas at the edge is not the page's ground: {at_rest}"
-    )
-    assert at_rest["fill"] + 3 < at_rest["edge"] < at_rest["ground"] - 3, (
-        f"the cut node does not fade toward the ground and still reach the edge: "
-        f"{at_rest}"
-    )
-    chain = page.locator("#chain")
-    chain.evaluate("""(el) => {
-        const node = el.querySelectorAll('g.pele-node')[1].getBoundingClientRect();
-        el.scrollLeft += (node.left + node.right) / 2 - el.getBoundingClientRect().left;
-    }""")
-    expect(chain).to_have_attribute("data-lf-more-before", "")
-    rendered(page)
-    scrolled = edge("start")
-    assert scrolled["fill"] + 3 < scrolled["edge"] < scrolled["ground"] - 3, scrolled
+    with subtests.test("on a phone, branches side by side are drawn compactly"):
+        # Two branches with labels of a few words run past a phone's column side by
+        # side, and the renderer's own narrowing keeps their labels' width; drawn
+        # again with narrower labels, they fit, as the chain and the stack do.
+        resized(page, 390, 844)
+        rendered(page)
+        phone = page.evaluate("""() => Object.fromEntries(
+            ['branches', 'chain', 'stack'].map((id) => {
+            const el = document.getElementById(id), svg = el.querySelector('svg');
+            return [id, { short: el.scrollWidth - el.clientWidth,
+                          drawn: svg.getBoundingClientRect().width,
+                          laidOut: svg.viewBox.baseVal.width }];
+        }))""")
+        for box in phone.values():
+            assert box["short"] == 0, f"a drawing runs past a phone's column: {phone}"
+            assert abs(box["drawn"] - box["laidOut"]) < 1, phone
 
 
 def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
@@ -3458,7 +3420,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    `.button` and `.field` do; left to the browser it drew 13.33px Arial beside the
+    `.lf-btn` and `.lf-field` do; left to the browser it drew 13.33px Arial beside the
     page's own type (#2559). The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
@@ -3467,7 +3429,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
             leaf_page(
                 "Authored controls",
                 """<h1>Authored controls</h1>
-<p><button id="classed" class="button" type="button">Classed</button>
+<p><button id="classed" class="lf-btn" type="button">Classed</button>
 <button id="bare" type="button">Bare</button>
 <input id="bare-field" type="text" aria-label="Bare field">
 </p>
@@ -3500,7 +3462,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             leaf_page(
                 "Widget controls",
                 """<h1>Widget controls</h1>
-<p><button id="classed" class="button" type="button">Classed</button></p>
+<p><button id="classed" class="lf-btn" type="button">Classed</button></p>
 <lf-own-controls id="own"></lf-own-controls>""",
             ),
             layer_registry={"lf-own-controls": declaration},

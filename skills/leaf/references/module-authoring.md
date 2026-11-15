@@ -11,7 +11,7 @@ files beside this one:
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
-  presses, and text entry;
+  presses, previews, and text entry;
 - [module-scroll-and-motion.md](module-scroll-and-motion.md): reading regions,
   scrolling, travel, motion, and notices;
 - [module-annotations.md](module-annotations.md): margin contributions, visual
@@ -63,6 +63,8 @@ ignore:
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
   can't act, which is the availability Leaf reads. Where a key leaves the user is the
   row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
+- A preview: an element's `lfPreview()` (`module-input.md`, "Previews"). A plain page
+  shows none.
 - A Copy control: a block's `data-lf-copy` and `lfCopy()` (`module-reading.md`,
   "Code"), and a quiet word: `data-lf-quiet` (`module-scroll-and-motion.md`,
   "Notices and spoken words"). Leaf finds these in the page and in the shadow stages
@@ -199,9 +201,11 @@ page script is the worked example (the playground package's author instructions,
 "Stateful previews").
 
 Run a heavy renderer that can wait until the user has the page through
-`afterPresentation(() => …)`. Pass work that starts now but need not delay
+`afterPresentation(() => …)`, or until they come near its element through
+`whenNear(element, () => …)`, which returns the step that stops waiting. Pass work that starts now but need not delay
 presentation, such as a slow load whose result moves nothing visible, to
-`deferredArrival(promise)`. Checks and tests that wait for the page wait for both.
+`deferredArrival(promise)`. Checks and tests that wait for the page wait for the work
+each has started; `page check --render` starts what `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, pass the work to the widget controller's
 `present(promise)` instead, so it lands before presentation.
@@ -376,10 +380,13 @@ its own state and theme scope. Declare its template in the authored document, fo
 
 The host's `ready` promise belongs to its current child, and changes when loading
 starts again. `on(type, callback)` returns an unsubscribe function. Its notices are
-`loading`, `departed`, `arrived`, `input` (with the event's `{type}`), `current-location`
-(with `{focused}`), and `height` (with `{height}`). Use `height` to size a block frame,
-holding growth the user did not request as described in `module-scroll-and-motion.md`
-until a `click`, `keydown` or `input` notice says they acted in the child.
+`loading`, `waiting`, `departed`, `arrived`, `input` (with the event's `{type}`),
+`current-location` (with `{focused}`), and `height` (with `{height}`). `waiting` says
+the server asked the host to wait before placing the child, or the child waits to
+load behind one the server asked; either can last minutes, so stop holding the page's
+presentation on `ready` when it comes. Use `height` to size a block frame, holding
+growth the user did not request as described in `module-scroll-and-motion.md` until a
+`click`, `keydown` or `input` notice says they acted in the child.
 `restoreCurrentLocation()` returns focus to the child's last focused control;
 `showThread(id, {surface, status, signal})` opens a child Thread with an AbortSignal
 for the owning gesture's lifetime. `surface: "panel"` selects the child's panel,
@@ -466,8 +473,7 @@ and a comment's quote doesn't run across them into the author's words. Don't wri
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
 A module writes `data-lf-room` where a page writes `data-room` (`page-layout.md`,
-"Space for changing text"), and `lf-choice` where it writes `choice`, so the page's
-CSS for them reaches only its own controls.
+"Space for changing text"), so the page's CSS for it reaches only its own controls.
 
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a

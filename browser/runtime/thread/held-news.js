@@ -114,8 +114,8 @@
    2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
    them back had to opt out of. The margin's floating card holds news that would move
-   the reply the user writes and keeps the width it first stood at (the user's decision,
-   2026-10-13): before, it took every change at once, widening up to 232px and carrying
+   the reply the user writes (the user's decision, 2026-10-13), and its width never
+   follows its words (comment-placement.js, `size-width`): before, it took every change at once, widening up to 232px and carrying
    Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
    its width, which doubled the rise; keeping its box and scrolling the transcript,
    which scrolls Resolve away; and holding all news while it is open, which stops
@@ -458,8 +458,9 @@ const said = (news) => {
  *  announces news waiting (`data-lf-news`, controls.css), in the accent the unread dot
  *  wears. It says one count of all
  *  that waits, "2 new", in every placement, which is its accessible name too, so a
- *  voice user saying the words they see reaches it; its title, and so its accessible
- *  description, says each fact, "1 new reply · 1 new message". A name of the facts
+ *  voice user saying the words they see reaches it; its preview says each fact, "1 new
+ *  reply · 1 new message", and a screen reader hears that as its description while it
+ *  stands on focus (preview.js). A name of the facts
  *  alone matched nothing the user saw. The user chose this on 31 October over a line
  *  of facts that dropped those past its room and counted them at its end ("1 new reply
  *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
@@ -476,6 +477,9 @@ export function newsNotice() {
   node.append(words);
   /** @type {() => Element | null} */
   let open = () => null;
+  // Its whole label, under the count it shows, is what the preview reads (preview.js).
+  let label = "";
+  node.lfPreview = () => (label ? { detail: [label] } : null);
   // A key on the notice, which stands the user on it, lands them on the thread, since
   // the notice goes with what it held. A pointer's press takes no focus itself, and
   // its owner's `open` decides where the press lands: a thread's leaves the user where
@@ -501,7 +505,7 @@ export function newsNotice() {
     /** @param {NewsNotice} news */
     set(news) {
       keepsText(words, news.text);
-      keeps(node, "title", news.label);
+      label = news.label;
       open = news.open;
     },
   };

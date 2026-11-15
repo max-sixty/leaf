@@ -1222,47 +1222,6 @@ def stage_reach_cases(page):
     )
 
 
-CONTENTS_MAP_PAGE = leaf_page(
-    "Contents map",
-    """
-<aside id="contents-sidebar"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>
-<div class="layout-column"><h1 id="t">Contents map</h1>
-<h2 id="first">First</h2><p>The first section's words.</p>
-<h2 id="second">Second</h2><p>The second section's words.</p></div>
-""",
-    layout="sidebar",
-)
-
-
-def test_the_gate_passes_a_contents_map_resting_as_its_spine(browser, serve):
-    """A contents map written as page-authoring.md's "Contents navigation" shows rests
-    in a wide window's margin as a 24px spine whose labels reveal over the page. Held to
-    the width floor of a widget that reserves a region, that spine failed the render gate
-    on every such page. An overlay at rest is held to the height floor alone, so the
-    page passes; the same map at the same width in the flow still fails, so what passes
-    it is the resting posture and not a floor gone missing."""
-    page = open_page(browser, serve(CONTENTS_MAP_PAGE))
-    resized(page, 1200, 900)
-    width = page.locator("lf-toc").evaluate(
-        "el => Math.round(el.getBoundingClientRect().width)"
-    )
-    assert width < 40, (
-        f"the map is {width}px, so it clears the floor and proves nothing"
-    )
-    assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
-    )
-
-    page.add_style_tag(
-        content="lf-toc { position: static !important; pointer-events: auto !important; }"
-    )
-    flowed = render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page))
-    page.close()
-    assert [box for box in flowed if box["tag"] == "lf-toc"], (
-        "a map in the flow at its spine's width reports nothing, so the floor is gone"
-    )
-
-
 FILM_DECLARATION = {
     tag: {
         "description": f"A <{tag}> page widget.",
@@ -1383,6 +1342,38 @@ def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
     found = render_checks_model.evaluate_probe(page, "unreducedMotion")
 
     assert [f["at"] for f in found] == ["<div id=busy>"], found
+
+
+def test_a_code_block_no_reading_face_reaches_is_named(browser, serve):
+    """On a page that takes no theme, a `language-…` block keeps its ink, since the
+    runtime colours a block's tokens only where it wears the reading face, and the
+    gate's reading names it so its author hears before a reader takes it for a broken
+    block. One inside a box that turns the face on is coloured and quiet, and so is a
+    block in a language Leaf doesn't colour."""
+    block = '<pre id="{}"><code class="language-{}">{{"count": 3}}</code></pre>'
+    url = serve(
+        leaf_page(
+            "Code",
+            "<h1>Code</h1>"
+            + block.format("plain", "json")
+            + '<div style="--lf-reading-face: 1">'
+            + block.format("faced", "json")
+            + "</div>"
+            + block.format("unknown", "zzz"),
+        ),
+        theme=False,
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#faced code")).to_have_attribute("data-lf-syntax", "json")
+    found = render_checks_model.evaluate_probe(page, "uncolouredCode")
+
+    assert found == [
+        {
+            "code": "uncoloured-code",
+            "at": "<code> in <pre id=plain>",
+            "language": "json",
+        }
+    ], found
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):

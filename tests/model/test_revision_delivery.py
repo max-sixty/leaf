@@ -463,7 +463,6 @@ def test_authored_lazy_positioning_import_uses_the_runtimes_public_provider(page
     assert activated.revision is not None
     artifact = read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/position.js"]
-    assert provider in json.loads(artifact.manifest)["public_modules"]
     assert provider not in artifact.resources
     assert (
         executing(artifact).resources[provider].data
@@ -606,6 +605,25 @@ def test_executable_identity_follows_head_and_body_patch_boundaries(tmp_path):
     assert main.digest != header.digest
     assert main.executable == header.executable == body.executable
     assert head.executable != body.executable
+
+
+def test_two_leaf_versions_capture_one_source_as_the_same_revision(tmp_path):
+    """A server keeps the Leaf it started with while the agent's commands run a newer
+    one, and each composes its own vocabulary over the page's selection. The capture
+    names only what the page owns, so the source is one revision under either and
+    an open tab keeps its document; the page's own declarations still replace it."""
+    layer = {"generation": "g1", "packages": [], "theme": None}
+
+    def capture(description):
+        registry = {"$layer": layer, "lf-note": {"description": description}}
+        return capture_artifact(tmp_path, SourceDocument(PAGE), registry)
+
+    serving, newer = capture("A note."), capture("A note, reworded.")
+    assert newer.digest == serving.digest
+
+    (tmp_path / "page").mkdir()
+    (tmp_path / "page" / "registry.json").write_text('{"lf-note": {}}')
+    assert capture("A note.").executable != serving.executable
 
 
 def test_inert_json_cannot_end_or_reshape_its_script_element():

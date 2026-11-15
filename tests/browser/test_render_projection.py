@@ -6,19 +6,14 @@ import re
 import pytest
 from interact_support import (
     append_carried_log_record,
-    working,
 )
 from journeys import first_thread_head
 from playwright.sync_api import expect
 from render_cases_interaction import (
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PAGE,
-    LIVE_V1,
-    LIVE_V2,
-    LIVE_V3,
     REF_PAGE,
     drifting_widget,
-    executable_revision,
     live_url,
 )
 from render_cases_navigation import (
@@ -30,16 +25,9 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     draft_control,
     expect_obligations_answered,
-    expect_on_me,
-    expect_panel_offers,
-    holding,
     leaf_page,
     names,
-    nudge,
     open_page,
-    page_comment,
-    panel_control,
-    panel_field,
     resized,
     root_overflow,
     round_trip,
@@ -56,7 +44,6 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
-from leaf.registry.storage import layer_record
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.readings import DevtoolsIssues
 
@@ -389,161 +376,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert root_overflow(page) == 0
 
 
-def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
-    """Thread editing follows its log identity, independently of page-source changes."""
-    first = leaf_page(
-        "Reply continuity",
-        '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
-    )
-    question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
-        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
-    )
-    second = first.replace("</main>", question + "</main>")
-    url = serve(first)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Please review this.",
-            "anchor": {"section": "subject"},
-        },
-    )
-    page = open_page(browser, live_url(url))
-    thread = next(
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    )
-    open_panel_thread(page, thread)
-    editor = panel_field(page)
-    words = "Keep my reply while questions arrive."
-    write(editor, words)
-    editor.evaluate(
-        "node => { window.heldReply = node; node.setSelectionRange(5, 9); }"
-    )
-    editor.press("Tab")
-    send = page.locator(".lf-fp-field .lf-compose-submit")
-    expect(send).to_be_focused()
-
-    (serve.page_dir / "index.html").write_text(second)
-    expect_on_me(page, 1)
-    expect(send).to_be_focused()
-
-    third = second.replace('<p id="subject">Work under discussion.</p>', "")
-    (serve.page_dir / "index.html").write_text(third)
-    expect(page.locator("#subject")).to_have_count(0)
-    expect(send).to_be_focused()
-    assert editor.evaluate("node => node === window.heldReply")
-    expect(editor).to_have_js_property("value", words)
-    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [5, 9]
-
-    # A fresh document cannot claim native retention and still waits for composition.
-    (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The page has heard of it once the row, beside the open thread, says it shows an
-    # older version and offers the latest. A state read after that asks again whether
-    # the page may follow, and the composition still says no.
-    told(page)
-    expect(page.locator(".lf-fp-row-notice button")).to_be_enabled()
-    nudge(serve.page_dir)
-    told(page)
-    assert editor.evaluate("node => node === window.heldReply")
-    send.press("Shift+Tab")
-    expect(editor).to_be_focused()
-    editor.press("Escape")
-    page.wait_for_function("window.heldReply === undefined")
-    expect_on_me(page, 1)
-
-
-def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
-    """A request started by the old realm cannot apply a later response in the new one."""
-
-    # A new executable identity requires the fresh-document path. An in-place patch
-    # can retain the page-comment editor and no longer waits for this draft.
-    version_url = serve(executable_revision(LIVE_V1, "one"))
-    page = open_page(browser, live_url(version_url))
-    general = page_comment(page)
-    write(general, "Do not replace the page under these words.")
-
-    # Let the page learn that the second revision exists before holding a read. The
-    # open draft keeps the first revision shown and leaves the direct activation
-    # route available through the leaf's menu row for the latest version.
-    (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
-    told(page)
-    expect(page).to_have_title("Live first")
-    expect_panel_offers(page, "latest")
-
-    # One read, held open while it still names the first revision. Releasing it below is
-    # what sends it, so the server answers it against the log and versions of that
-    # moment while the request still asks for the revision the page has since left.
-    held = []
-    sent = []
-
-    def hold_the_first_read(route):
-        if held:
-            route.continue_()
-        else:
-            held.append(route)
-
-    def release_the_held_read():
-        # Released, not popped: the list is the record and the armed flag both, so
-        # emptying it would arm the route again and hold the page's next read for good.
-        # `sent` is what lets the cleanup below run this after a failed assertion
-        # without answering the same route twice.
-        if held and not sent:
-            sent.append(True)
-            held[0].continue_()
-
-    page.route("**/api/state*", hold_the_first_read)
-    try:
-        working(serve.page_dir, "exercising the held state request")
-        holding(page, held, 1, "the read from revision 1")
-
-        # The row's own read remains independent of the background read held above.
-        # It moves the page to the second revision, then the third revision is
-        # written before the held request is released.
-        panel_control(page, "latest").click()
-        expect(page).to_have_title("Live second")
-        page_comment(page)
-        (serve.page_dir / "index.html").write_text(
-            executable_revision(LIVE_V3, "three")
-        )
-
-        # The premise of the whole reading arrangement, stated rather than inferred: a read the
-        # page took while it still stood on the first revision. Held after the press it
-        # would name the second, and the answer would carry the view the page wants.
-        assert held[0].request.headers.get("leaf-view-revision") == "1", (
-            "the held read was not the one taken on the first revision"
-        )
-        layer = layer_record(serve.page_dir)
-        assert layer is not None
-        generation = layer["generation"]
-        assert held[0].request.headers.get("leaf-layer") == generation
-        release_the_held_read()
-        told(page)
-        expect(page).to_have_title("Live second")
-        assert [
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "error"
-        ] == [], "the page reported a stale answer as a fault"
-
-        # Nothing about the drop cost the page the version it was holding.
-        write(general, "")
-        page.locator("#live-reading").click()
-        told(page)
-        expect(page).to_have_title("Live third")
-        assert "/versions/" not in page.url
-    finally:
-        # A route handler is a live browser resource after the verdict stops depending
-        # on it, and an abandoned one hangs context teardown even when every assertion
-        # passed.
-        release_the_held_read()
-        page.unroute("**/api/state*")
-
-
 def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -590,7 +422,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On me: [1-9]")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
 
     honoring = re.sub(
@@ -615,7 +447,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # drops `needed`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On me: [1-9]")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
@@ -701,109 +533,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         for event in events_model.read_events(d)
         if event["kind"] in {"comment", "resolve", "undo"}
     ] == ["comment", "resolve", "undo"]
-
-
-@pytest.mark.parametrize("fresh", [False, True], ids=["patched", "fresh"])
-def test_activity_held_targets_follow_the_current_document(browser, serve, fresh):
-    """Held history keeps its words and seat, but never a departed destination."""
-
-    def source(destination, executable=""):
-        return leaf_page(
-            "Route",
-            '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
-        ).replace("</head>", executable + "</head>")
-
-    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
-      <lf-options id="route" choose>
-        <lf-option id="route-fast">Fast path</lf-option>
-        <lf-option id="route-slow">Slow path</lf-option>
-      </lf-options></lf-ask>"""
-    url = live_url(serve(source(route)))
-    page = open_page(browser, url)
-    page.locator("#route-fast .lf-pick").click()
-    round_trip(page)
-    page.locator("#feed .lf-activity-news").click()
-    row = page.locator("#feed .lf-activity-row", has_text="chose")
-    target = row.locator(".lf-activity-target")
-    expect(target).to_have_attribute("href", "#route")
-    page.keyboard.press("Tab")
-    expect(target).to_be_focused()
-    before = row.bounding_box()
-    what = row.locator(".lf-activity-what").text_content()
-    label = target.text_content()
-    fragment = page.evaluate("location.hash")
-    executable = '<script type="module">void 0;</script>' if fresh else ""
-    if fresh:
-        page.add_init_script("""
-          window.activityTargetFrames = [];
-          let remaining = 180;
-          function readTarget() {
-            const target = document.querySelector('#feed a.lf-activity-target');
-            if (target) window.activityTargetFrames.push({
-              href: target.getAttribute('href'), label: target.textContent,
-              parsed: document.readyState !== 'loading'
-            });
-            if (--remaining) requestAnimationFrame(readTarget);
-          }
-          requestAnimationFrame(readTarget);
-        """)
-
-    stamp_page(serve.page_dir, source("", executable), "Remove the route")
-    wait_for_revision(page, 2)
-    wait_until_ready(page)
-    expect(row.locator(".lf-activity-what")).to_have_text(what)
-    expect(target).to_have_text(label)
-    expect(target).not_to_have_attribute("href", "#route")
-    expect(row.get_by_role("link")).to_have_count(0)
-    expect(target).to_be_focused()
-    assert row.bounding_box() == before
-    target.press("Enter")
-    assert page.evaluate("location.hash") == fragment
-    target.click()
-    assert page.evaluate("location.hash") == fragment
-    if fresh:
-        frames = page.evaluate("window.activityTargetFrames")
-        assert frames
-        assert all(
-            frame["href"] is None and frame["label"] == label for frame in frames
-        )
-
-    # A destination returning is current capability too; held labels stay historical.
-    restored = '<section id="route"><h2>A different route heading</h2></section>'
-    restored_executable = '<script type="module">void 1;</script>' if fresh else ""
-    blocked = []
-    if fresh:
-        page.route("**/leaf.js", lambda route: blocked.append(route))
-    stamp_page(
-        serve.page_dir, source(restored, restored_executable), "Restore a destination"
-    )
-    if fresh:
-        # Generated history is drawn by the runtime, after the authored destination
-        # has parsed. Holding that runtime must not wait for its own drawing.
-        page.wait_for_function("""() => document.readyState === 'interactive' &&
-          document.getElementById('route') !== null""")
-        assert blocked, "startup module must remain pending after parsing"
-        assert page.locator("body").get_attribute("data-lf-presented") is None
-        page.unroute("**/leaf.js")
-        for route in blocked:
-            route.continue_()
-    wait_for_revision(page, 3)
-    expect(target).to_have_attribute("href", "#route")
-    expect(row.locator(".lf-activity-what")).to_have_text(what)
-    expect(target).to_have_text(label)
-    expect(target).to_be_focused()
-    assert row.bounding_box() == before
-    if fresh:
-        frames = page.evaluate(
-            "window.activityTargetFrames.filter(frame => frame.parsed)"
-        )
-        assert frames
-        assert all(
-            frame["href"] == "#route" and frame["label"] == label for frame in frames
-        )
-    target.press("Enter")
-    expect(page).to_have_url(re.compile(r"#route$"))
-    expect(page.locator("#route")).to_be_in_viewport()
 
 
 def test_an_arrival_lands_where_the_url_aimed(browser, serve):

@@ -195,7 +195,7 @@ def browser_state(
         )
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
-            "document": browser_document(reading, revision),
+            "document": browser_document(page),
             "thread": thread,
             "obligations": items,
             "reports": canonical_reports(projection),
@@ -247,16 +247,11 @@ def browser_state(
 
 
 def project_browser_state(
-    context: PageRead,
-    view_revision: int | None = None,
-    *,
-    include_active_view: bool = True,
+    context: PageRead, view_revision: int | None = None
 ) -> tuple[dict, BrowserReading] | None:
-    """Project only the documents one browser reading can consume.
-
-    A normal state needs the shown and active revisions. Comparison bases and
-    historical gesture words use the same context at the requested log boundary.
-    """
+    """Project only the documents one browser reading can consume: the shown and
+    active revisions. Historical gesture words use the same context at the requested
+    log boundary."""
     active = context.active
     if active is None:
         return None
@@ -271,7 +266,7 @@ def project_browser_state(
         active_revision,
         context.presence,
         active,
-        wanted if include_active_view else {requested_revision},
+        wanted,
         context.now,
         context.live_stream,
         context.revision,

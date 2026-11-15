@@ -105,8 +105,8 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
         "Commented form",
         '<section id="form"><p id="words">Fill this in, please.</p>'
         '<textarea id="field">Notes</textarea></section>'
-        '<p><button id="act" class="button">Act</button> '
-        '<button id="twin" class="button">Twin</button></p>',
+        '<p><button id="act" class="lf-btn">Act</button> '
+        '<button id="twin" class="lf-btn">Twin</button></p>',
     )
     page = open_page(
         browser,
@@ -175,8 +175,15 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    # A passage in a projected datum is anchored on its datum, as capture writes it.
     patch = panel_comment(
-        d, "Twelve is arbitrary.", {"quote": "the ceiling doubles per approval"}
+        d,
+        "Twelve is arbitrary.",
+        {
+            "section": "how-patch",
+            "datum": '["gateway/limits.py","new",2]',
+            "quote": "the ceiling doubles per approval",
+        },
     )
     both = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 

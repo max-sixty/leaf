@@ -58,12 +58,14 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     PANEL,
+    PREVIEW,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
+    field_press,
     gesture_writes,
     judge_watches,
     leaf_page,
@@ -265,7 +267,7 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 @pytest.mark.parametrize("width", [900, 1200])
 def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width):
-    """On me stands over the page without moving its coordinate plane.
+    """On Me stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the view may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -394,7 +396,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    assert expanded["width"] > compact["width"]
+    # It opens at the full measure, so it grows only downward as words arrive.
+    assert expanded["width"] == compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -867,12 +870,13 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
 
 
-def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
-    """A comment box sizes to its words, so each key past its least width widens it;
-    the box stands at its new width in the frame the key lands, as a textarea sized to
-    its words does (box-motion.js, "Whose change it is"). Each key used to start a
-    tween that trailed the caret, and the field's cut hid most of the glyph just
-    typed until the tween caught up."""
+def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
+    """A comment box opens at the full measure and grows only downward, so a key that
+    takes it a new line stands it at its new height in the frame the key lands, as a
+    textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
+    used to start a tween that trailed the caret, and the field's cut hid what was
+    just typed until the tween caught up. A line taken at the window's foot is
+    `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
         serve(
@@ -885,42 +889,37 @@ def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1000, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page)
+    open_compact_comment(page, "The first line")
+    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    least = box.bounding_box()["width"]
-    # Words until the box has begun to widen past its least width.
-    for word in "the window is too short for what we see in practice".split():
-        page.keyboard.type(f"{word} ")
-        rendered(page)
-        if box.bounding_box()["width"] > least + 0.5:
-            break
-    else:
-        pytest.fail(f"the box never widened past {least}px")
-    wide = box.bounding_box()["width"]
+    tall = box.bounding_box()["height"]
     page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("m")
     page.wait_for_function(
-        "wide => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().width > wide + 0.5",
-        arg=wide,
+        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height > tall + 0.5",
+        arg=tall,
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
     drawn = page.evaluate(
-        """() => {
+        r"""() => {
           const ground = document.querySelector('.lf-fab-ground');
-          const right = /inset\\(([^r)]*)/
+          const [top, right = top, bottom = top] = /inset\(([^r)]*)/
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
-            .trim().split(/\\s+/).map(Number.parseFloat)[1];
+            .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
           return {
-            right: ground.getBoundingClientRect().right - right + 1,
+            bottom: ground.getBoundingClientRect().bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    assert drawn["right"] == pytest.approx(
-        box.bounding_box()["x"] + box.bounding_box()["width"], abs=0.5
+    stands = box.bounding_box()
+    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
+        drawn,
+        stands,
     )
     assert drawn["cut"] in ("", "none"), drawn
 
@@ -1021,6 +1020,10 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
           return field.scrollHeight > field.clientHeight;
         }"""
     )
+    # The field's growth to its cap queues one more reveal of the caret at the end,
+    # which runs at the field's next scroll; let it run before scrolling the field to
+    # its top, or it scrolls the field back down and the wheel below moves the page.
+    rendered(page)
     box = bar.bounding_box()
     ceiling = page.evaluate(SHOWN_TOP)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
@@ -1783,8 +1786,9 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
-    """A transient chrome label paints above the page-level trace it summons."""
+def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monkeypatch):
+    """A margin marker's preview is about its target, so it stands clear of the target
+    and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
@@ -1810,7 +1814,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
         "aria-label", re.compile(r"^Still queued for \w+,")
     )
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-entry-label")
+    label = page.locator(PREVIEW)
     traced = page.locator("#jobs")
     expect(label).to_be_visible()
     expect(traced).to_have_attribute("data-lf-traced", "")
@@ -1819,31 +1823,13 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     )
 
     label_box = label.bounding_box()
-    # The trace's right run, the outer edge of the target's outline.
-    trace_right = traced.evaluate(MARK)["ring"]["right"]
-    assert label_box["x"] < trace_right < label_box["x"] + label_box["width"], (
-        "the status label does not cross the target trace"
-    )
-    with_trace = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    traced.evaluate(
-        "node => { node.style.setProperty('outline-style', 'none', 'important') }"
-    )
-    untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    # Taking the trace off can change Chrome's text antialiasing without changing
-    # which surface covers the trace. Compare the solid label background at the
-    # trace's crossing instead of its glyph pixels.
-    edge = round((trace_right - label_box["x"]) * untraced.width / label_box["width"])
-    background = untraced.getpixel((5, 5))
-    crossing = [
-        (x, y)
-        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
-        for y in range(3, untraced.height - 3)
-        if untraced.getpixel((x, y)) == background
-    ]
-    assert crossing
-    assert all(with_trace.getpixel(point) == background for point in crossing), (
-        "the target trace paints over the status label"
-    )
+    ring = traced.evaluate(MARK)["ring"]
+    assert (
+        label_box["x"] >= ring["right"]
+        or label_box["x"] + label_box["width"] <= ring["left"]
+        or label_box["y"] >= ring["bottom"]
+        or label_box["y"] + label_box["height"] <= ring["top"]
+    ), (label_box, ring)
 
 
 def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
@@ -1954,10 +1940,10 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
-    # on nothing where there is none (claimPress), so the hand and the arrow are those two
-    # states, read where the user's pointer is, since the aim declares the cursor on body
-    # and the promise is only kept if it arrives at the glyphs. `auto` is the resting
-    # state: unarmed, the browser draws an I-beam over words.
+    # on nothing where there is none (claimPress), so the hand says it takes one, read
+    # where the user's pointer is, since the promise is only kept if it arrives at the
+    # glyphs. Where a press takes nothing the page keeps its own cursor (chrome.css).
+    # `auto` is the resting state: unarmed, the browser draws an I-beam over words.
     with subtests.test(case="the cursor says whether a press would take anything"):
         at_pointer = """([x, y]) =>
             getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -1982,7 +1968,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
 
         page.mouse.move(*in_gap)
         expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-        assert page.evaluate(at_pointer, in_gap) == "default", (
+        assert page.evaluate(at_pointer, in_gap) == "auto", (
             "the aim had nothing to take and the hand promised a press anyway"
         )
 
@@ -2024,6 +2010,27 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         }""",
             arg=first,
         )
+        page.keyboard.up("Alt")
+
+    # A mouse that leaves the window stands over nothing a press could take, though the
+    # key is still down, so the box and the hand come off with it.
+    with subtests.test(case="a pointer leaving the window takes the promise with it"):
+        on_item = page.locator("#p2").evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.left + 20, r.top + r.height / 2]; }"
+        )
+        page.mouse.move(*on_item)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        expect(page.locator("[data-lf-over-item]")).to_have_count(1)
+        page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("
+            "'pointerout', {bubbles: true, composed: true, pointerType: 'mouse',"
+            " relatedTarget: null}))",
+            on_item,
+        )
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        expect(page.locator("[data-lf-over-item]")).to_have_count(0)
         page.keyboard.up("Alt")
 
     # What ⌥ arms is the page. An aim that reached into the chrome would take the panel
@@ -2581,9 +2588,10 @@ CONTROL_SHAPES = {
         [("A", "A"), ("B", "B")],
     ),
     # A control's announcement reads the prose around it, and no neighbouring control's
-    # words.
+    # words. The section has a heading of its own, since an unnamed section is named by
+    # its words, the neighbour's included.
     "spoken": (
-        '<section id="spoken"><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
+        '<section id="spoken"><h2>Flags</h2><p>Find settings <input aria-label="Search flags"> <button aria-label="Close dialog">×</button></p></section>',
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),
@@ -2953,7 +2961,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    exit_mode = page.get_by_role("button", name="Exit Design mode")
+    exit_mode = field_press(page).filter(has_text="Close")
     exit_mode.hover()
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
@@ -3639,8 +3647,9 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     gap the location ring takes, the gestures as brackets and focus whole.
 
     A table and a card with authored corners draw them alike. A mark stands over an
-    outline the page gave the target while it lasts, and the page's own comes back once
-    no mark stands there.
+    outline the page gave the target while it lasts. Focus alone is the box's focus
+    ring rather than a mark, so an outline the page gave the box outranks it, and the
+    page's own stands again once only focus is marked.
     """
     page = open_page(
         browser,
@@ -3693,7 +3702,10 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
             page.keyboard.press("Escape")
             expect(node).to_be_focused()
             expect(node).to_have_attribute("data-lf-mark", re.compile(r"\bfocus\b"))
-            boundary(node, brackets=False)
+            if target == "rounded":
+                expect(node).to_have_css("outline-style", "dashed")
+            else:
+                boundary(node, brackets=False)
             page.evaluate(RELEASE_FOCUS)
             expect(node).not_to_have_attribute("data-lf-mark", re.compile(".*"))
             if target == "rounded":
@@ -3716,7 +3728,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="field" type="text" value="Ada"></p>
+<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3769,7 +3781,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3815,8 +3827,8 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 
@@ -3900,7 +3912,7 @@ def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     changed nothing a user could see. The aim's veil fills the box; the pixel diff
     here is armed against unarmed with the pointer held still, so the widget's own
     hover wash is in both frames and the difference is the promise alone."""
-    from PIL import Image, ImageChops  # a dev dependency already, for the demo recorder
+    from PIL import ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
     card = page.locator("#card-star")

@@ -29,7 +29,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS, settle_at
 from leaf.render_gate.scheme import stand_in_other_leaves
 from leaf.state import page_key, state_home
@@ -51,6 +51,7 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     page = context.new_page()
     page.goto(url)
     wait_until_ready(page)
+    start_near_work(page)
     rendered(page)
     return context, page
 
@@ -138,8 +139,9 @@ def save_screens(
     into = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}-"))
     saved = []
 
-    def whole(page, label):
-        shots, total = _down_the_page(page, into, f"{page.viewport_size['width']}px")
+    def whole(page, name, label):
+        width = page.viewport_size["width"]
+        shots, total = _down_the_page(page, into, f"{name}-{width}px")
         if total > len(shots):
             label = f"{label}, the first {len(shots)} of the page's {total} screens"
         saved.extend((shot, label) for shot in shots)
@@ -159,10 +161,13 @@ def save_screens(
         context.close()
     context, page = _open(browser, url, desktop, False)
     try:
-        whole(page, "desktop")
+        whole(page, "desktop", "desktop")
         saved.extend((shot, obligation_label) for shot in obligation_shots)
-        settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
-        whole(page, "resized desktop, the widest window")
+        # A desktop already at the widest window has those screens; a second pass
+        # would only repeat them.
+        if desktop["width"] != max(SWEEP_WIDTHS):
+            settle_at(page, max(SWEEP_WIDTHS), desktop["height"])
+            whole(page, "widest", "resized desktop, the widest window")
         for width, selector, said in reading.arrangement:
             settle_at(page, width, desktop["height"])
             page.evaluate(
@@ -177,7 +182,7 @@ def save_screens(
         context.close()
     context, page = _open(browser, url, PHONE, True)
     try:
-        whole(page, "phone")
+        whole(page, "phone", "phone")
     finally:
         context.close()
     if final.exists():

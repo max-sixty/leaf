@@ -53,7 +53,7 @@ import { createPlayground } from "./playground-view.js";
  *
  * Under `actions="page"` the page draws the submission and Reset, and
  * `registerActions` hands this playground the two buttons. They become the controls of
- * its commands, which wire their presses and keep the digit, On me's arrival and
+ * its commands, which wire their presses and keep the digit, On Me's arrival and
  * availability, and this module writes the submission's words, as it does for its own,
  * since the words must say what the press will do. The page's CSS draws them: they are
  * the page's elements, not Leaf's controls. Rejected: methods the page calls from its

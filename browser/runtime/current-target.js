@@ -29,7 +29,7 @@
    null when none identifies a page location. A selected tab starts a walk inside its
    controlled panel without changing comment targets.
 
-   Every walk (`t`, `m`, a tally's Next on me) pages through its stops by one rule, read
+   Every walk (`t`, `m`, a tally's Next On Me) pages through its stops by one rule, read
    from one origin (`walkOrigin`): the node the user's place was read from, the place
    it stands for, and whether that is a current location. The user is on a stop while
    their current location is in the stop's destination, where the walk's own arrival
@@ -58,7 +58,7 @@ import {
   onLetGo,
   onUserInput,
 } from "./focus.js";
-import { seenRect } from "./geometry.js";
+import { seenAhead } from "./scroll-containers.js";
 import { closestAcross, inChrome } from "./passages.js";
 import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
@@ -247,12 +247,12 @@ function* locations() {
 }
 
 // What the user let go of, until they go on from it. Chrome holding no page place,
-// such as On me's list or the comment field, is not somewhere else on the page.
+// such as On Me's list or the comment field, is not somewhere else on the page.
 /** @type {WeakRef<Element> | null} */
 let letGone = null;
 onLetGo((node) => {
   const place = placeOf(node);
-  letGone = place && seenRect(place, new Map()) ? new WeakRef(node) : null;
+  letGone = place && seenAhead(place) ? new WeakRef(node) : null;
 });
 onCurrentLocation((node) => {
   if (node && placeOf(node)) letGone = null;
@@ -264,16 +264,16 @@ onUserInput((event) => {
 });
 
 // Where a walk starts: the user's current location, else what they let go of while
-// they still see it, else what the viewport shows. Only a current location can be on a
-// stop; the others are `at` one.
+// they still see it, else what the viewport shows, each read where the glides under way
+// leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
+// current location can be on a stop; the others are `at` one.
 /** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
   if (here) return here;
   const node = letGone?.deref();
   const left = node?.isConnected ? placeOf(node) : null;
-  if (node && left && seenRect(left, new Map()))
-    return { node, place: left, kind: "at" };
+  if (node && left && seenAhead(left)) return { node, place: left, kind: "at" };
   const block = pageReadingBlock();
   return { node: block, place: block, kind: "at" };
 }

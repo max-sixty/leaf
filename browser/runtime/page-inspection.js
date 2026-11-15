@@ -55,10 +55,7 @@ const copy = copyControl("", {
   error: "Diagnostics not copied. Select the report text to copy it manually.",
   trigger: copyLabel,
 });
-const close = closeControl({
-  name: "Close about this page",
-  title: "Close about this page (Esc)",
-});
+const close = closeControl({ name: "Close about this page" });
 head.append(copy, close);
 // The page's status line is behind this modal. Keep copy outcomes beside its
 // trigger; Web Awesome still owns clipboard access and the spoken announcement.

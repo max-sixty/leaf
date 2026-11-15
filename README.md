@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/9c3dd34381b81fc4113550272e94d27149c20eed/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/9c3dd34381b81fc4113550272e94d27149c20eed/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/a419c29ec198d39d067533073b7d148173586b8e/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/a419c29ec198d39d067533073b7d148173586b8e/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/9c3dd34381b81fc4113550272e94d27149c20eed/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/a419c29ec198d39d067533073b7d148173586b8e/demo/demo.gif)
 
 </details>
 
@@ -148,12 +148,16 @@ that task gives it to the agent to pass on.
 
 ## Explore and extend
 
-- [How it works](https://leaf.page/how-it-works/): comments, decisions, live
-  revisions, and the widgets a page can use.
 - [Examples](https://leaf.page/examples/): proposals, editable drafts, release
   workspaces, and code reviews.
-- [Extending](https://leaf.page/extending/): choose between page-local changes,
-  reusable packages, and Leaf's shared kernel. Your agent can build a widget a
-  task needs and use it in later pages.
+- [Using a page](https://leaf.page/using/): the floating panel, threads, On Me, and
+  the keyboard and touch routes.
+- [How it works](https://leaf.page/how-it-works/): the exchange between agent and
+  page, the event log, revisions, how each status is decided, the keys' exact rules
+  and the browser runtime.
+- [Extending](https://leaf.page/extending/): the widgets a page can use, themes and
+  layouts, then the choice between page-local changes, reusable packages, and
+  Leaf's shared kernel. Your agent can build a widget a task needs and use it in
+  later pages.
 - [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
   Leaf page.

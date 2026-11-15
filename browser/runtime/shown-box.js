@@ -5,6 +5,31 @@
 import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
 
+// What a node's contents are drawn in, read through the one range this module keeps.
+// A Range a page makes stays live until a collection reclaims it, and every change to
+// the document walks each live range to keep its ends in place: a range made for each
+// node of a pass over the page left every later write as slow as the page was large,
+// half a millisecond each at 1,024 sections of the bench's asks page. The range lets go
+// of the node once read, so it holds nothing a page has removed.
+const contents = document.createRange();
+/** @template T @param {Node} node @param {(range: Range) => T} read @returns {T} */
+function readContents(node, read) {
+  contents.selectNodeContents(node);
+  try {
+    return read(contents);
+  } finally {
+    contents.setStart(document, 0);
+    contents.collapse(true);
+  }
+}
+// The boxes of the lines `node`'s contents are drawn in, and the box around them all.
+/** @param {Node} node */
+export const contentsRects = (node) =>
+  readContents(node, (range) => [...range.getClientRects()]);
+/** @param {Node} node */
+export const contentsBox = (node) =>
+  readContents(node, (range) => range.getBoundingClientRect());
+
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is
@@ -23,9 +48,7 @@ export function elementBox(el) {
   // its bounds from contents, which a hidden-until-found panel deliberately skips.
   if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
     return r;
-  const contents = document.createRange();
-  contents.selectNodeContents(el);
-  return contents.getBoundingClientRect();
+  return contentsBox(el);
 }
 
 // A number a widget can only read off a box the browser has laid out, such as the room
@@ -56,17 +79,37 @@ export function elementBox(el) {
 // asking for its rect would lay it out and answer with one (`skipped`). A widget there
 // waits until the user opens the panel, whichever of its module and the panel's upgraded
 // first, and a chart's bundle waits with it.
+//
+// Paper prints a shut panel open too, but a box laid out for a sheet is not the room
+// the user will see: the screen alone holds an undrawn widget at its stated height
+// (layouts.css), and a measurement stands for good. So a box on paper is no box, and a
+// widget paper reached is observed afresh once the page is back on screen, since the
+// browser reports only a change from the size it last delivered and the screen may lay
+// the box out at the size paper did.
 /** @type {WeakMap<Element, () => void>} */
 const measurements = new WeakMap();
+const paper = matchMedia("print");
+/** @type {Set<Element>} */
+const onPaper = new Set();
+paper.addEventListener("change", () => {
+  if (paper.matches) return;
+  for (const el of onPaper) unmeasured.observe(el);
+  onPaper.clear();
+});
 /** @param {Element} el */
 const drawn = (el) => {
-  if (skipped(el)) return false;
+  if (paper.matches || skipped(el)) return false;
   const box = elementBox(el);
   return Boolean(box.width || box.height);
 };
 const unmeasured = sizeObserver((entries) => {
   const taking = [];
   for (const { target } of entries) {
+    if (paper.matches) {
+      unmeasured.unobserve(target);
+      onPaper.add(target);
+      continue;
+    }
     if (!drawn(target)) continue;
     unmeasured.unobserve(target);
     const take = measurements.get(target);
@@ -89,6 +132,7 @@ export function measure(el, take) {
     // this reading just found. Left pending it would deliver a second reading of
     // the same number, which is harmless and still a claim that nothing was read.
     if (measurements.delete(el)) unmeasured.unobserve(el);
+    onPaper.delete(el);
     return take();
   }
   measurements.set(el, take);

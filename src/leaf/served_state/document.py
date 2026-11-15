@@ -3,19 +3,21 @@
 from ..document_reading import DocumentReading
 from ..events import UndoReading, action_retracted, is_reaction
 from ..gesture_words import GestureWords
-from ..projection import StateProjection
+from ..projection import PageReading, StateProjection
 from ..registry.kernel import kinds_declaring
 from .wire import browser_projection
 
 
-def browser_document(document: DocumentReading, revision: int) -> dict:
+def browser_document(page: PageReading) -> dict:
+    """A revision's document as a view serves it: its widget state's projection,
+    under the registry it captured, which a version comparison folds too."""
     return {
-        "revision": revision,
+        "revision": page.revision,
         "projection": browser_projection(
-            document.projection,
+            page.projection,
             scope="document",
-            within=document.within,
-            floors=document.floors,
+            within=page.within,
+            floors=page.floors,
         ),
     }
 

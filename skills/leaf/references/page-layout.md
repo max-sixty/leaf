@@ -77,7 +77,7 @@ child carrying that part's Layout:
 </main>
 ```
 
-The page's `header` is the only element written before the parts. It appears at the
+The page's `header` is the only element in `main` besides the parts. It appears at the
 top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
 under its label. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
@@ -117,11 +117,8 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 
 ```html
 <main class="layout-sidebar">
-  <aside id="status">
-    <div class="layout-track">
-      <lf-toc id="contents"></lf-toc>
-      <p>…</p>
-    </div>
+  <aside id="route">
+    <div class="layout-track"><lf-toc id="contents"></lf-toc></div>
   </aside>
   <article id="evidence" class="layout-column">
     <h1>…</h1>
@@ -132,23 +129,26 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 ```
 
 Use a `layout-column` body for a reading document with wider exhibits. Its prose
-starts beside the sidebar, and exhibits use the remaining body width. For a board or
-dashboard, the body can instead be an ordinary `div` with the page's own layout; a
-`header` and `footer` on the outer Layout span both regions.
+stands where a column page's would, moving toward the end only as far as the sidebar
+needs, and exhibits use the body's width on either side of it. Where its
+sidebar comes before the body and its track holds only the contents map, under a mouse
+the sidebar narrows to the map's spine, and the map shows its labels over the page when
+the reader points at it. Under touch, after the body, or with anything else in the track, the sidebar
+keeps a column's room. So put a status the
+reader should see at once at the top of the body rather than beside the map. For a
+board or dashboard, the body can instead be an ordinary `div` with the page's own
+layout; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
 and after it when they should follow the body. Set `--aside` on the Layout to a
 length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
 width. The default dashboard shares are two thirds body and one third sidebar.
-A document sidebar takes the shared sidebar measure, leaving prose its own measure.
 
 Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
-Style its blocks by their classes or ids, or as `.layout-track > p`. Put a contents
-map first in the track and follow it with one block, which stands clear of the
-map's spine; wrap several blocks in one element.
+Style its blocks by their classes or ids, or as `.layout-track > p`.
 
 Add `layout-notes` to the `layout-column` that should leave room beside its
 prose for notes, such as `<main class="layout-column layout-notes">`. This is an
@@ -241,6 +241,9 @@ keeps the reader's place in a bounded box across revisions, and in no other scro
 `data-bound="start"` opens at the top, and `data-bound="end"`, for a stream that grows
 downward, follows the newest entry while the user is at the end. The box takes the
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
+It clips at its sides too, with no room there, so a control that starts a line in it,
+such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
+box that holds such a control `padding-inline: var(--sp-2)`.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
@@ -249,9 +252,9 @@ margin, so space it with `margin-block` rather than `margin`. `data-width` works
 column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
-  to 100 columns, a diff or a table of a few more columns. The block starts at the
-  prose's start edge, the left in a left-to-right page, and extends toward its end
-  edge to `--wide`, as far as the window allows.
+  to 100 columns, a diff, a table of a few more columns or a row of three option
+  cards. The block starts at the prose's start edge, the left in a left-to-right page,
+  and extends toward its end edge to `--wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
@@ -270,7 +273,9 @@ own contents.
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
-when it draws unless you set `data-height`. `lf-diff` shows an inline patch as its
+when it draws unless you set `data-height`. A diagram lays itself out for its width,
+so the height to state is the one `page check --render` reports at the user's window;
+a phone may draw it taller. `lf-diff` shows an inline patch as its
 source text until it draws, so its height changes as it draws; its package author
 instructions say when to set `data-height`. Wherever a drawing's height differs from
 the box it showed before drawing, `page check --render` gives that height as advice,
@@ -278,10 +283,11 @@ whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body. A contents map there
-uses the quiet spine on a wide fine-pointer screen; stacked, it returns to its native
-outline. A dashboard sidebar keeps its outline open beside the body. These placements
-are CSS layout, present before widgets load. Page CSS does not read runtime placement
+A document's explicit sidebar keeps its route beside the body. Before the body and
+holding only a contents map, under a mouse it narrows to the map's spine, which draws
+the document's sections to scale and shows their labels over the page when the reader
+points at it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
+under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
@@ -292,7 +298,7 @@ comment there shows as a pin on its block.
 
 By default Leaf draws comment markers, passage highlights and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
-its own layout; comments, On me obligations, Undo and live revisions still work, and comments open
+its own layout; comments, On Me obligations, Undo and live revisions still work, and comments open
 in the Leaf panel. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
@@ -311,13 +317,14 @@ surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-A native control you write keeps the browser's default face until it takes Leaf's:
-`class="button"`, `class="button primary"` for the committing action, `class="field"`
-for a text input or select, and
-`<label class="choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`) for a radio or checkbox. A control drawn for the task, such as
-a stack of layer tiles or a curve's handles, is the page's own design
-(`page-authoring.md`, "Style the page").
+A native control you write keeps the browser's default face until it takes Leaf's,
+by the same name Leaf's own controls wear: `class="lf-btn"`, `class="lf-btn lf-commit"`
+for the committing action, `class="lf-field"` for a text input or select, and
+`<label class="lf-choice"><input type="radio" name="view" value="summary">Summary</label>`
+(or `type="checkbox"`) for a radio or checkbox. A rule naming one of these classes
+restyles Leaf's controls too, so arrange your own by a class or id of yours. A control
+drawn for the task, such as a stack of layer tiles or a curve's handles, is the page's
+own design (`page-authoring.md`, "Style the page").
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

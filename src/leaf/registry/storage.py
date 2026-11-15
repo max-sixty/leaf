@@ -11,7 +11,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision
 from leaf.findings import Finding
-from leaf.page_memory import Slot, memo
+from leaf.page_memory import Slot, memo, once
 from leaf.schema import LAYER_FILE
 from leaf.state import Record
 
@@ -122,9 +122,9 @@ def layer_vocabulary(record: dict, page_dir: Path) -> dict:
     metadata = layer_metadata_of(record)
     vocabulary = selected_vocabulary(record, page_dir)
     key = ("layer", json.dumps(metadata, sort_keys=True))
-    if key not in vocabulary.readings:
-        vocabulary.readings[key] = {**vocabulary.registry, "$layer": metadata}
-    return vocabulary.readings[key]
+    return once(
+        vocabulary.readings, key, lambda: {**vocabulary.registry, "$layer": metadata}
+    )
 
 
 def layer_widgets(record: dict, page_dir: Path) -> list[str]:
@@ -168,9 +168,9 @@ def _revision_composition(
     layer = manifest["layer"]
     readings = selected_vocabulary(layer, page_dir).readings
     key = ("revision", json.dumps(layer, sort_keys=True), declarations, widgets)
-    if key not in readings:
-        readings[key] = _compose_revision(layer, declarations, widgets, page_dir)
-    return readings[key]
+    return once(
+        readings, key, lambda: _compose_revision(layer, declarations, widgets, page_dir)
+    )
 
 
 def _compose_revision(

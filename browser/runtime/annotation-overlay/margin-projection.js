@@ -66,7 +66,6 @@ import {
   mountMarginLayer,
   paintedBox,
   registerMarginRow,
-  scheduleMarginEntryLabels,
   standsFolded,
   standsWithheld,
   unregisterMarginRow,
@@ -146,6 +145,7 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
+import { threadPreview } from "../thread/messages.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
@@ -221,8 +221,10 @@ export function createMarginProjection({
 
   generatedElement(nav, { says: false });
   nav.setAttribute("aria-label", "Page Map");
+  // A group, not a toolbar: a toolbar is one tab stop walked across, while each entry
+  // an open cluster shows takes Tab of its own and the markers walk up and down.
   const toolbar = el("div", "lf-margin-toolbar");
-  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("role", "group");
   toolbar.setAttribute(
     "aria-label",
     "Changes, threads, items on me, delivery status, and activity",
@@ -1009,7 +1011,25 @@ export function createMarginProjection({
         count: items.length,
         accessibleLabel,
       }),
-      { writesRelation: false, writesSeat },
+      {
+        writesRelation: false,
+        writesSeat,
+        // A thread's entry previews its threads, as their passage marks do, as they
+        // read when it shows; to the keyboard a lone thread's line leaves out the word
+        // the entry's name already says (`markerName`, `spokenContext`).
+        preview:
+          choice?.kind === "comment"
+            ? (route) =>
+                threadPreview(
+                  choice.items.map(
+                    (item) => threadNamed(item.thread.id) ?? item.thread,
+                  ),
+                  route === "focus" && choice.items.length === 1
+                    ? spokenContext(choice)
+                    : null,
+                )
+            : null,
+      },
     );
     presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);
@@ -1349,7 +1369,6 @@ export function createMarginProjection({
       rowsChanged = false;
       tick(drawnMargin);
       scheduleRoving();
-      scheduleMarginEntryLabels();
     }
     // The margin's keys have the map's existence as their capability; each row already
     // asks the narrower question of whether its press works from the current focus.
@@ -1452,7 +1471,6 @@ export function createMarginProjection({
       syncReadingRelation(host.marker, primaryReading(host.lfEntry));
     for (const button of readingMarginEntries.values())
       syncReadingRelation(button, button.lfChoice);
-    paintKeys();
   }
 
   /** @param {Entry} entry @param {ThreadChoice} choice @param {Element | null} control @param {string | null} [threadItem] @param {Pick<Parameters<ShowPreview>[0], "origin" | "accompanies" | "forced">} [options] */
@@ -1486,9 +1504,6 @@ export function createMarginProjection({
       },
     });
     previewChanged();
-    // The card's messages were drawn from this gesture, outside any paint that follows
-    // their ages; drawing the margin again reads them where it follows them.
-    renderAnnotations.refresh();
     return positioned;
   }
 
@@ -1522,7 +1537,6 @@ export function createMarginProjection({
     const at = focused();
     const heldInside = currentLocationIn(preview) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
-    paintKeys();
   }
   // A card a window narrowed past the room for the rail gives its thread to where every
   // route now opens it (`showPreview`), the floating panel, and a user in it goes along:
@@ -2133,23 +2147,15 @@ export function createMarginProjection({
       rowsChanged = true;
       accompanyShownRow();
       card.place();
-      scheduleMarginEntryLabels();
       // A new width or height moves where targets stand down the page, and so what their
       // markers' names say; whatever else moves a target renders the margin, which names
       // them anew. Measured against the column this pass read.
       if (column.width === spokenBasis?.width && height === spokenBasis?.height) return;
       nameMarkers(readSpokenPositions(pageInventory, column, height));
     });
-    document.addEventListener("pointerover", scheduleMarginEntryLabels, {
-      capture: true,
-    });
-    document.addEventListener("pointerout", scheduleMarginEntryLabels, {
-      capture: true,
-    });
     // A drop is the change's own to put right: the margin follows where the user is.
     onCurrentLocation((node, cause) => {
       if (cause === "drop") return;
-      scheduleMarginEntryLabels();
       queueMicrotask(followCurrentLocation);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears

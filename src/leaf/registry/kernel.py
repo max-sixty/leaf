@@ -11,8 +11,11 @@ be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them needs
 imports none: the page service sorts every event by these kinds, including in a harness
 hook that validates nothing."""
 
+import json
+from collections.abc import Mapping
 from functools import cache
 
+from leaf.state import KERNEL_REGISTRY
 from leaf.state import kernel_registry as _kernel
 
 
@@ -46,6 +49,17 @@ def kernel_protocol() -> int:
     page's layer record names as `protocol` (`layer.incompatible_layer`). It
     versions the records Leaf keeps outside a page too (`state.Record`)."""
     return _kernel_events()["protocol"]
+
+
+def installed_protocol() -> int:
+    """The protocol of the kernel registry on disk now. It moves past
+    `kernel_protocol` when the checkout a long-running process loaded moves on under
+    it, as a worktree's does when its branch is updated: the process still speaks the
+    protocol it loaded, and the newer Leaf the session's hooks now run reads that
+    process's leases as no one's (`leases.lease_speaks_here`)."""
+    return json.loads(KERNEL_REGISTRY.read_text(encoding="utf-8"))["$events"][
+        "protocol"
+    ]
 
 
 def kernel_event_ownership() -> dict:
@@ -94,3 +108,18 @@ def kernel_marks() -> dict:
     return {
         key: mark for key, mark in _kernel()["$marks"].items() if key != "description"
     }
+
+
+def authored_inert(key: str, declaration: Mapping, *, content: bool) -> str | None:
+    """Why an occurrence's authored override of the mark `key` means nothing on its
+    element, or None where it holds. A width means nothing on an element that takes
+    none of its own (`flow`, `x-flow`); otherwise the override holds where its
+    `authored_on` says, and the condition it fails is the reason (`content`, a block
+    in the page's flow, which `main`, `body` and `html` aren't; `declared`, a tag
+    declaring the mark). Delivery paints only an override that holds
+    (`revision_delivery.mark_declared`), and `page check` names the rest."""
+    if key == "x-space" and declaration.get("x-flow"):
+        return "flow"
+    condition = kernel_marks()[key]["authored_on"]
+    holds = content if condition == "content" else bool(declaration.get(key))
+    return None if holds else condition

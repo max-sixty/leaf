@@ -99,17 +99,29 @@ import {
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
 // its author took out of the order (a negative `tabindex`) takes its whole tree out
 // with it, so Tab skips what it renders.
-/** @param {Element | Document | ShadowRoot} node @returns {Generator<Element>} */
-function* renderedElements(node) {
-  const children = isHTML(node, "slot")
-    ? node.assignedElements({ flatten: true })
-    : ((isElement(node) && node.shadowRoot) || node).children;
-  for (const child of children) {
-    yield child;
+//
+// It steps from sibling to sibling, as browser/AGENTS.md ("One answer for each
+// question") says a walk does, and collects into one array, as its caller wants:
+// walked through a generator for each element, Tab stops over a listing of 96,000 rows
+// took Firefox 54 to 60 ms, and 36 to 39 ms with the array.
+/** @param {Element | Document | ShadowRoot} node @param {Element[]} [into] */
+function renderedElements(node, into = []) {
+  /** @param {Element} child */
+  const enter = (child) => {
+    into.push(child);
     const tabIndex = child.getAttribute("tabindex");
-    if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
-    yield* renderedElements(child);
-  }
+    if (!(child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0))
+      renderedElements(child, into);
+  };
+  if (isHTML(node, "slot")) node.assignedElements({ flatten: true }).forEach(enter);
+  else
+    for (
+      let child = ((isElement(node) && node.shadowRoot) || node).firstElementChild;
+      child;
+      child = child.nextElementSibling
+    )
+      enter(child);
+  return into;
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // The controls inside `root` that take a Tab stop right now, through open shadow trees as
@@ -119,7 +131,7 @@ const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // browser's; nothing here predicts its walk.
 /** @param {Element | Document | ShadowRoot} root */
 export const tabStops = (root) =>
-  [...renderedElements(root)].filter(
+  renderedElements(root).filter(
     (node) =>
       node.matches(SEQUENTIAL) &&
       "tabIndex" in node &&
@@ -567,6 +579,16 @@ let readings = 0;
 // Current location is synchronous, but its paint uses the gesture's final destination:
 // a layer can return focus in one microtask and move it again in another during one
 // gesture. Painting those intermediate arrivals would restore unchanged marks.
+//
+// A box that shows the focus of a control inside it, as a choice rings its radio, is
+// named by the control (`--lf-focus-box`, base.css), and the paint marks it
+// `data-lf-control-focus`, with `data-lf-control-focus-visible` while the focus is
+// visible. So no rule asks with `:has()` where focus is, which made each focus move
+// restyle much of the page in Chromium (`test_no_has_reads_where_focus_is`). The paint
+// reads the name when focus reaches the control, when the control's ancestry changes,
+// and when one of its own attributes does, as a panel view's does as it leaves; reading
+// it on every paint would force a style pass after each change to the tree
+// (`watchFocusPaintIn`).
 /** @type {WeakRef<Element> | null} */
 let paintDestination = null;
 /** @type {Element | null} */
@@ -577,6 +599,20 @@ let paintedWithin = new Set();
 let paintedVisible = null;
 /** @type {Set<Element>} */
 let paintedVisibleWithin = new Set();
+/** @type {Element | null} */
+let boxRead = null;
+/** @type {Element | null} */
+let paintedBox = null;
+let paintedBoxVisible = false;
+// The paint's own writes on the control are no change to the box it names, nor is its
+// inline style, which an editor such as CodeMirror rewrites on each keystroke and no
+// rule's selector reads.
+const UNNAMING = /^(data-lf-(control-)?focus|part$|style$)/;
+const boxNamed = new MutationObserver((records) => {
+  if (records.every(({ attributeName }) => UNNAMING.test(attributeName ?? ""))) return;
+  boxRead = null;
+  queueFocusPaint();
+});
 // Modality can change the cue without moving the destination. Paint readers need
 // that change too; navigation readers must not hear it as another focus move.
 /** @type {Set<() => unknown>} */
@@ -617,6 +653,26 @@ export function visibleFocus(node = focused()) {
     ? node
     : null;
 }
+// The box that shows `node`'s focus: the nearest around it that matches the selector
+// `node` names in `--lf-focus-box`, short of the document roots, or none. A name that
+// isn't a selector, such as a quoted one, is reported and names no box, so the rest of
+// the paint still runs.
+/** @param {Element} node */
+function focusBox(node) {
+  const selector = getComputedStyle(node).getPropertyValue("--lf-focus-box").trim();
+  if (!selector) return null;
+  try {
+    for (
+      let box = renderedParent(node);
+      isElement(box) && box !== document.body && box !== document.documentElement;
+      box = renderedParent(box)
+    )
+      if (box.matches(selector)) return box;
+  } catch (error) {
+    reportError(error);
+  }
+  return null;
+}
 /** @param {Element | null} node */
 function paintFocus(node) {
   const next =
@@ -625,6 +681,8 @@ function paintFocus(node) {
     if (paintedFocus) markFocus(paintedFocus, "focus", false);
     if (next) markFocus(next, "focus", true);
     paintedFocus = next;
+    boxNamed.disconnect();
+    if (next) boxNamed.observe(next, { attributes: true });
   }
   const within = new Set();
   // The document roots are in every element's ancestry, but no control draws
@@ -636,19 +694,22 @@ function paintFocus(node) {
     owner = renderedParent(owner)
   )
     within.add(owner);
+  let moved = within.size !== paintedWithin.size;
   for (const owner of paintedWithin) {
-    if (!within.has(owner)) markFocus(owner, "focus-within", false);
+    if (within.has(owner)) continue;
+    markFocus(owner, "focus-within", false);
+    moved = true;
   }
   for (const owner of within) {
     if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
   const visible = visibleFocus(next);
-  if (visible !== paintedVisible) {
+  const visibilityChanged = visible !== paintedVisible;
+  if (visibilityChanged) {
     if (paintedVisible) markFocus(paintedVisible, "focus-visible", false);
     if (visible) markFocus(visible, "focus-visible", true);
     paintedVisible = visible;
-    for (const read of visibilityReaders) read();
   }
   const visibleWithin = visible ? within : new Set();
   for (const owner of paintedVisibleWithin) {
@@ -659,6 +720,19 @@ function paintFocus(node) {
       markFocus(owner, "focus-visible-within", true);
   }
   paintedVisibleWithin = visibleWithin;
+  const box = !next ? null : next === boxRead && !moved ? paintedBox : focusBox(next);
+  boxRead = next;
+  const boxVisible = Boolean(box && visible);
+  if (paintedBox && paintedBox !== box) {
+    markFocus(paintedBox, "control-focus", false);
+    if (paintedBoxVisible) markFocus(paintedBox, "control-focus-visible", false);
+  }
+  if (box && box !== paintedBox) markFocus(box, "control-focus", true);
+  if (box && (box !== paintedBox || boxVisible !== paintedBoxVisible))
+    markFocus(box, "control-focus-visible", boxVisible);
+  paintedBox = box;
+  paintedBoxVisible = boxVisible;
+  if (visibilityChanged) for (const read of visibilityReaders) read();
 }
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
@@ -1085,10 +1159,10 @@ function overPress(ended) {
 }
 /** @param {Press} ended */
 const overSoon = (ended) => setTimeout(() => overPress(ended));
-// A press that commits at its release, as a held word does or the panel's field handing
-// selected words to the comment box, leaves the browser's own click after it to land on
-// whatever the release put under the pointer. The release claims that click, the one the
-// press under way owes; a keyboard's carries no count and is never it.
+// A press that commits at its release, as the panel's field handing selected words to
+// the comment box does, leaves the browser's own click after it to land on whatever the
+// release put under the pointer. The release claims that click, the one the press under
+// way owes; a keyboard's carries no count and is never it.
 export const claimReleaseClick = () => {
   if (press) press.clickClaimed = true;
 };
@@ -1250,7 +1324,13 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     (event) => {
       if (type === "pointerdown")
         pressedPath = event.composedPath().map((node) => new WeakRef(node));
-      else if (type === "keydown") pressedPath = null;
+      else if (type === "keydown") {
+        pressedPath = null;
+        // A key gives the node focus is already on its ring with no focus event, and a
+        // rule reading the mark can style that key's own default, as a fold Enter
+        // closes from the keyboard skips its motion, so the mark lands before it.
+        queueFocusPaint();
+      }
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
         const step = event instanceof KeyboardEvent && sequential(event) ? event : null;

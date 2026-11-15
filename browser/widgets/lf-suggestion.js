@@ -55,9 +55,25 @@ const FACE = {
 // so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
 // `movedWords` keeps alignment and the similarity threshold in one reading before
 // this module turns its offsets into highlight ranges.
+//
+// The two highlights are registered once and shared. A suggestion's ranges arrive
+// and leave through `arriving` and `leaving`, applied together in a microtask at the
+// end of the task, so the paint still lands before the next frame. In Firefox a
+// highlight changed one range at a time costs more the larger it is: it walks the
+// list to delete a range, and an add made as each suggestion upgraded grew with the
+// highlight too. So applying each suggestion's ranges as it came, like rebuilding
+// both highlights from every suggestion for each one, cost the square of the ranges
+// when a page upgraded or removed many suggestions. A removal rebuilds each
+// highlight once from the ranges it keeps, as lf-text-document.js's `unpaint` does.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
-/** @type {Map<Element, {del: Range[], ins: Range[]}>} */
-const emphasized = new Map(); // suggestion element → {del: Range[], ins: Range[]}
+/** @type {Map<Element, Range[]>} */
+const emphasized = new Map(); // suggestion element → its ranges in either highlight
+/** @type {{del: Highlight, ins: Highlight} | null} */
+let painted = null;
+const arriving = { del: /** @type {Range[]} */ ([]), ins: /** @type {Range[]} */ ([]) };
+/** @type {Set<AbstractRange>} */
+const leaving = new Set();
+let flushing = false;
 
 /** @param {string} before @param {string} after */
 function movedWords(before, after) {
@@ -91,16 +107,55 @@ function movedWords(before, after) {
   return { del, ins };
 }
 
-function repaintEmphasis() {
-  /** @type {(keyof typeof EMPHASIS)[]} */
-  const kinds = ["del", "ins"];
-  for (const kind of kinds) {
-    const name = EMPHASIS[kind];
-    const ranges = [...emphasized.values()].flatMap((e) => e[kind]);
-    // Under the comment marks (priority -1): a passage the user pointed at
-    // outranks the widget's own emphasis wherever the two overlap.
-    CSS.highlights.set(name, Object.assign(new Highlight(...ranges), { priority: -1 }));
+function highlights() {
+  if (painted) return painted;
+  // Under the comment marks (priority -1): a passage the user pointed at
+  // outranks the widget's own emphasis wherever the two overlap.
+  const make = () => Object.assign(new Highlight(), { priority: -1 });
+  painted = { del: make(), ins: make() };
+  CSS.highlights.set(EMPHASIS.del, painted.del);
+  CSS.highlights.set(EMPHASIS.ins, painted.ins);
+  return painted;
+}
+
+function schedulePaint() {
+  if (flushing) return;
+  flushing = true;
+  queueMicrotask(paintEmphasis);
+}
+
+function paintEmphasis() {
+  flushing = false;
+  const paint = highlights();
+  for (const kind of /** @type {const} */ (["del", "ins"])) {
+    const highlight = paint[kind];
+    if (leaving.size) {
+      const kept = [...highlight].filter((range) => !leaving.has(range));
+      highlight.clear();
+      for (const range of kept) highlight.add(range);
+    }
+    for (const range of arriving[kind]) if (!leaving.has(range)) highlight.add(range);
+    arriving[kind] = [];
   }
+  leaving.clear();
+}
+
+/** @param {Element} suggestion */
+function clearEmphasis(suggestion) {
+  const ranges = emphasized.get(suggestion);
+  if (!ranges) return;
+  emphasized.delete(suggestion);
+  for (const range of ranges) leaving.add(range);
+  schedulePaint();
+}
+
+/** @param {Element} suggestion @param {{del: Range[], ins: Range[]}} ranges */
+function emphasize(suggestion, ranges) {
+  clearEmphasis(suggestion);
+  arriving.del.push(...ranges.del);
+  arriving.ins.push(...ranges.ins);
+  emphasized.set(suggestion, [...ranges.del, ...ranges.ins]);
+  schedulePaint();
 }
 
 // [from, to) offsets in a slot's concatenated text → Ranges over its text nodes. One
@@ -162,21 +217,19 @@ customElements.define(
       // controller's application selection; painted attributes are output only.
       this.#emphasize();
       this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside an
-      // exhibit shows what a pending change looks like, so it keeps the marks
-      // the theme draws and never grows controls to decide it with.
-      if (quoted(this)) return;
     }
 
     disconnectedCallback() {
       super.disconnectedCallback();
       this.#margin?.unregister();
       this.#margin = null;
-      emphasized.delete(this);
-      repaintEmphasis();
+      clearEmphasis(this);
     }
 
     #offer() {
+      // Quoted material is exhibited, not offered: a suggestion inside an
+      // exhibit shows what a pending change looks like, so it keeps the marks
+      // the theme draws and never grows controls to decide it with.
       if (quoted(this) || this.#margin) return;
       this.#ensureCommands();
       this.#margin = registerContribution({
@@ -421,8 +474,7 @@ customElements.define(
       // The emphasis goes with the pending state: a decided suggestion is plain
       // prose. So does the word naming each slot, which is the same fact said to
       // whoever is listening.
-      emphasized.delete(this);
-      repaintEmphasis();
+      clearEmphasis(this);
       this.#voice();
       fold?.();
       // The only remaining circle is Undo, which still acts; the fold and surviving
@@ -500,11 +552,10 @@ customElements.define(
         segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
       const moved = movedWords(read(oldSegs), read(newSegs));
       if (!moved) return;
-      emphasized.set(this, {
+      emphasize(this, {
         del: toRanges(oldSegs, moved.del),
         ins: toRanges(newSegs, moved.ins),
       });
-      repaintEmphasis();
     }
 
     // Which of the three changes this is, for anything naming it away from the page:

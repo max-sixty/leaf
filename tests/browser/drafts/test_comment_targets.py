@@ -38,8 +38,11 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve):
             leaf_page(
                 "Selection gestures",
                 '<p id="earlier">Earlier subject.</p>'
+                # Room for the earlier subject's box, which stands under it at the
+                # full measure, so each drag lands on words a reader can see.
+                '<div style="height: 6rem"></div>'
                 '<p id="later">A later passage keeps native selection.</p>'
-                '<p id="later-box" class="scroll" style="height:72px;overflow:auto">'
+                '<p id="later-box" class="lf-scroll" style="height:72px;overflow:auto">'
                 "A later boxed passage keeps native selection.<br>"
                 + "Another line of evidence.<br>" * 40
                 + "</p>",

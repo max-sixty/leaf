@@ -51,14 +51,14 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 ACROSS_OBLIGATION = """
-  <lf-ask id="{id}"{width}>
+  <lf-ask id="{id}">
     <hgroup><p class="eyebrow">Retention</p><h3>How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose{across}>
+    <lf-options id="{id}-choice" choose{across}{width}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested" choose>
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
@@ -81,8 +81,8 @@ ACROSS_OBLIGATION_PAGE = leaf_page(
 )
 
 
-ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
-    "options laid across a widened obligation",
+ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
+    "options laid across the wide measure",
     "<div>"
     + ACROSS_OBLIGATION.format(id="wide", width=' data-width="wide"', across=" across")
     + "</div>",
@@ -353,16 +353,17 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
         assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
 
 
-def test_options_laid_across_take_a_widened_obligations_width(browser, serve):
+def test_options_laid_across_fill_the_wide_measure_they_ask_for(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
-    an obligation granted the wide measure for its figure lays its cards under all of it rather
-    than at the measure beside an empty strip. Room for more columns than it has
-    options holds no empty column beside them: the three cards share the whole row."""
-    page = open_page(browser, serve(ACROSS_WIDE_OBLIGATION_PAGE))
+    options laid across and granted the wide measure lay their cards under all of it,
+    inside the question's ring, rather than at the column beside an empty strip. Room
+    for more columns than it has options holds no empty column beside them: the three
+    cards share the whole row."""
+    page = open_page(browser, serve(ACROSS_WIDE_OPTIONS_PAGE))
     resized(page, 1726, 900)
     at = page.evaluate(ACROSS_GEOMETRY, "wide")
-    assert at["obligation"] > 720, at
-    assert abs(at["list"] - at["obligation"]) <= 1, at
+    assert at["list"] > 720, at
+    assert at["obligation"] >= at["list"], at
     assert len(set(at["tops"])) == 1, at
     # The group's frame takes 2px of its width, and each hairline between cards 1px.
     hairlines = len(at["widths"]) - 1
@@ -585,7 +586,7 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     # The overlay and the dispatcher offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Next on me")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Next On Me")
     page.keyboard.press("Escape")
     assert "m" in available_commands(page).get("queue.walk", [])
 
@@ -1501,7 +1502,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     and so was anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
-    there. The panel's On me mark is no place: pressing it opens On me and leaves the
+    there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
     passage now enters its comment field immediately; while that field stands, letters
@@ -1519,7 +1520,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On me and takes the focus into the panel, which holds the
+    # The mark's press opens On Me and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
@@ -1710,7 +1711,7 @@ def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note
 
     The order is why nothing caught it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
-    pixel on the next pass — which the On me walk always is, the user having pressed a
+    pixel on the next pass — which the On Me walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 
@@ -1751,7 +1752,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
     A thread standing in the widget's seat takes the decision off the user's
-    list — On me stops counting it — but answers nothing, so the press that would
+    list — On Me stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here
     the controller reading paints the control and its dispatcher guards the press, and

@@ -61,6 +61,7 @@ import {
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
+import { agePreview } from "../presence.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
@@ -85,7 +86,9 @@ function workingView(working, controls = nothing, observe = null) {
           ? html`<span class="lf-msg-meta"
               >${
                 working.timestamp
-                  ? html`<time datetime=${working.timestamp}>${working.age}</time>`
+                  ? html`<time datetime=${working.timestamp} .lfPreview=${agePreview}
+                      >${working.age}</time
+                    >`
                   : nothing
               }${
                 working.condition
@@ -635,11 +638,6 @@ export class Transcript {
                   : nothing
               }
             </div>`
-      }
-      ${
-        progress && range.forced
-          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-          : nothing
       }
     </section>`;
   }

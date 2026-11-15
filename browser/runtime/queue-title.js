@@ -1,4 +1,4 @@
-/* An obligation's subject, shared by On me and package lists.
+/* An obligation's subject, shared by On Me and package lists.
    Membership remains with the publisher. A title reads the current conversation
    or the rendered obligation or widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";

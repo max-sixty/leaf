@@ -80,7 +80,7 @@ export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = window.lfStorage.userStore;
-// Which of a view's arrangements the user chose, such as On me's grouping, kept for
+// Which of a view's arrangements the user chose, such as On Me's grouping, kept for
 // every page as the chrome they arrange is: the stored value while it is one of
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
 /** @template {string} T @param {string} key @param {readonly T[]} values */

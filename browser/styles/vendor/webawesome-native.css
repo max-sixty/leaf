@@ -1,7 +1,7 @@
 /* @noformat Generated from node_modules/@awesome.me/webawesome/dist/styles/native.css by build/styles.mjs. */
 
 /* Region "Checkboxes + Radios" */
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]), :where(:is(.lf-choice, .choice) > input[type="radio"]) {
+:where(.lf-choice > input[type="checkbox"]), :where(.lf-choice > input[type="radio"]) {
   width: fit-content;
   color: var(--wa-form-control-value-color);
   -webkit-user-select: none;
@@ -9,16 +9,16 @@
   display: inline-flex;
 }
 
-:where(:is(:is(.lf-choice, .choice) > input[type="checkbox"], :is(.lf-choice, .choice) > input[type="radio"])) {
+:where(:is(.lf-choice > input[type="checkbox"], .lf-choice > input[type="radio"])) {
   cursor: pointer;
 }
 
-:where(:is(:is(.lf-choice, .choice) > input[type="checkbox"], :is(.lf-choice, .choice) > input[type="radio"]):disabled), :where(:is(:is(.lf-choice, .choice) > input[type="checkbox"], :is(.lf-choice, .choice) > input[type="radio"]):has(:disabled)) {
+:where(:is(.lf-choice > input[type="checkbox"], .lf-choice > input[type="radio"]):disabled), :where(:is(.lf-choice > input[type="checkbox"], .lf-choice > input[type="radio"]):has(:disabled)) {
   opacity: .5;
   cursor: not-allowed;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]), :where(:is(.lf-choice, .choice) > input[type="radio"]) {
+:where(.lf-choice > input[type="checkbox"]), :where(.lf-choice > input[type="radio"]) {
   appearance: none;
   width: var(--wa-form-control-toggle-size);
   height: var(--wa-form-control-toggle-size);
@@ -33,20 +33,20 @@
   margin-inline-end: .5em;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]) {
+:where(.lf-choice > input[type="checkbox"]) {
   --checked-icon-color: var(--wa-color-brand-on-loud);
   --checked-icon-scale: .8;
   border-radius: min(calc(var(--wa-form-control-toggle-size) * .375),
       var(--wa-border-radius-s));
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]:checked), :where(:is(.lf-choice, .choice) > input[type="checkbox"]:indeterminate) {
+:where(.lf-choice > input[type="checkbox"]:checked), :where(.lf-choice > input[type="checkbox"]:indeterminate) {
   color: var(--checked-icon-color);
   background-color: var(--wa-form-control-activated-color);
   border-color: var(--wa-form-control-activated-color);
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]:checked):after, :where(:is(.lf-choice, .choice) > input[type="checkbox"]:indeterminate):after {
+:where(.lf-choice > input[type="checkbox"]:checked):after, :where(.lf-choice > input[type="checkbox"]:indeterminate):after {
   content: "";
   width: var(--wa-form-control-toggle-size);
   height: var(--wa-form-control-toggle-size);
@@ -54,27 +54,27 @@
   background-color: currentColor;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]:checked):after {
+:where(.lf-choice > input[type="checkbox"]:checked):after {
   mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"currentColor\" d=\"M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z\"/></svg>") center / 1em 1em no-repeat;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="checkbox"]:indeterminate):after {
+:where(.lf-choice > input[type="checkbox"]:indeterminate):after {
   mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"16\" width=\"14\" viewBox=\"0 0 448 512\"><path d=\"M431 256c0 17.7-14.3 32-32 32H49c-17.7 0-32-14.3-32-32s14.3-32 32-32h350c17.7 0 32 14.3 32 32z\"/></svg>") center no-repeat;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="radio"]) {
+:where(.lf-choice > input[type="radio"]) {
   --checked-icon-color: var(--wa-form-control-activated-color);
   --checked-icon-scale: .7;
   color: #0000;
   border-radius: 50%;
 }
 
-:where(:is(.lf-choice, .choice) > input[type="radio"]:checked) {
+:where(.lf-choice > input[type="radio"]:checked) {
   color: var(--checked-icon-color);
   border-color: var(--wa-form-control-activated-color);
 }
 
-:where(:is(.lf-choice, .choice) > input[type="radio"]:checked):after {
+:where(.lf-choice > input[type="radio"]:checked):after {
   content: "";
   aspect-ratio: 1;
   width: 100%;
@@ -84,7 +84,7 @@
 }
 
 /* Region "Buttons" */
-:where(:is(.lf-btn, .button, .lf-icon-action)) {
+:where(:is(.lf-btn, .lf-icon-action)) {
   height: var(--wa-form-control-height);
   padding: 0 var(--wa-form-control-padding-inline);
   vertical-align: middle;
@@ -106,19 +106,19 @@
   display: inline-flex;
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(.lf-commit, .primary)) {
+:where(:is(.lf-btn, .lf-icon-action).lf-commit) {
   margin-block-start: var(--_button-vertical-indent-outlined);
   margin-inline-start: var(--_button-horizontal-indent-outlined);
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action)) {
+:where(:is(.lf-btn, .lf-icon-action)) {
   color: var(--wa-color-on-loud, var(--wa-color-neutral-on-loud));
   background-color: var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud));
   border-color: #0000;
 }
 
 @media (hover: hover) {
-  :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover) {
+  :where(:is(.lf-btn, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover) {
     background-color: color-mix(in oklab,
               var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud)),
               var(--wa-color-mix-hover));
@@ -126,7 +126,7 @@
   }
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
+:where(:is(.lf-btn, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
   background-color: color-mix(in oklab,
             var(--wa-color-fill-loud, var(--wa-color-neutral-fill-loud)),
             var(--wa-color-mix-active));
@@ -134,58 +134,58 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover), :where(:is(.lf-btn, .button, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
+  :where(:is(.lf-btn, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):hover), :where(:is(.lf-btn, .lf-icon-action):not(:is(:disabled, [aria-disabled="true"])):active) {
     transform: none;
   }
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):not(.lf-commit, .primary)) {
+:where(:is(.lf-btn, .lf-icon-action):not(.lf-commit)) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   background-color: #0000;
   border-color: #0000;
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):not(.lf-commit, .primary):not(:is(:disabled, [aria-disabled="true"])):hover) {
+:where(:is(.lf-btn, .lf-icon-action):not(.lf-commit):not(:is(:disabled, [aria-disabled="true"])):hover) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   background-color: var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet));
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):not(.lf-commit, .primary):not(:is(:disabled, [aria-disabled="true"])):active) {
+:where(:is(.lf-btn, .lf-icon-action):not(.lf-commit):not(:is(:disabled, [aria-disabled="true"])):active) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   background-color: color-mix(in oklab,
             var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet)),
             var(--wa-color-mix-active));
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(.lf-commit, .primary)) {
+:where(:is(.lf-btn, .lf-icon-action).lf-commit) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   border-color: var(--wa-color-border-loud, var(--wa-color-neutral-border-loud));
   background-color: #0000;
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(.lf-commit, .primary):not(:is(:disabled, [aria-disabled="true"])):hover) {
+:where(:is(.lf-btn, .lf-icon-action).lf-commit:not(:is(:disabled, [aria-disabled="true"])):hover) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   background-color: var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet));
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(.lf-commit, .primary):not(:is(:disabled, [aria-disabled="true"])):active) {
+:where(:is(.lf-btn, .lf-icon-action).lf-commit:not(:is(:disabled, [aria-disabled="true"])):active) {
   color: var(--wa-color-on-quiet, var(--wa-color-neutral-on-quiet));
   background-color: color-mix(in oklab,
             var(--wa-color-fill-quiet, var(--wa-color-neutral-fill-quiet)),
             var(--wa-color-mix-active));
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(:disabled, [aria-disabled="true"])) {
+:where(:is(.lf-btn, .lf-icon-action):is(:disabled, [aria-disabled="true"])) {
   opacity: .5;
   cursor: not-allowed;
 }
 
-:where(:is(.lf-btn, .button, .lf-icon-action):is(:disabled, [aria-disabled="true"]) *) {
+:where(:is(.lf-btn, .lf-icon-action):is(:disabled, [aria-disabled="true"]) *) {
   pointer-events: none;
 }
 
 /* Region "Text Fields + Textareas + Selects" */
-:where(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"])), :where(textarea.field), :where(select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])) {
+:where(input:is(.lf-ui, .lf-field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"])), :where(textarea.lf-field), :where(select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])) {
   width: 100%;
   height: var(--wa-form-control-height);
   padding: 0 var(--wa-form-control-padding-inline);
@@ -199,18 +199,18 @@
   cursor: text;
 }
 
-:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])))::placeholder {
+:where(:is(input:is(.lf-ui, .lf-field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.lf-field, select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])))::placeholder {
   color: var(--wa-form-control-placeholder-color);
   -webkit-user-select: none;
   user-select: none;
 }
 
-:where(:is(input:is(.lf-ui, .field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.field, select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])):disabled) {
+:where(:is(input:is(.lf-ui, .lf-field):not([type="button"], [type="checkbox"], [type="color"], [type="file"], [type="hidden"], [type="image"], [type="radio"], [type="range"], [type="reset"], [type="submit"]), textarea.lf-field, select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])):disabled) {
   opacity: .5;
   cursor: not-allowed;
 }
 
-:where(textarea.field) {
+:where(textarea.lf-field) {
   height: auto;
   min-height: var(--wa-form-control-height);
   scroll-padding-block: var(--wa-form-control-padding-block);
@@ -218,7 +218,7 @@
   resize: vertical;
 }
 
-:where(select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])) {
+:where(select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])) {
   --icon-caret: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"rgb(180 180 180)\" d=\"M201.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 338.7 54.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z\"/></svg>");
   appearance: none;
   background-image: var(--icon-caret), var(--icon-caret);
@@ -234,7 +234,7 @@
   overflow: hidden;
 }
 
-:where(select:is(.lf-ui, .field):is([multiple], :not([size]), [size="0"], [size="1"])[multiple]) {
+:where(select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])[multiple]) {
   height: auto;
   padding-inline: var(--wa-form-control-padding-inline);
   background-image: none;

@@ -55,7 +55,7 @@ submitted settings do.
 
 For an optional command the agent should act on, such as Archive, declare
 `attention: true` on its user verb (`$state.attention` in the registry). Changes to
-that verb's state reach the agent without putting a question on the user's On me list.
+that verb's state reach the agent without putting a question on the user's On Me list.
 Use `x-awaits` below when the widget instead asks the user for an answer. A verb that
 records what the user is working on before they send it, as a playground's `tune` keeps
 its settings, declares `unsent: true`: it reaches every tab and the agent's page
@@ -90,7 +90,7 @@ answers it. `text: true` requires each report to carry short news for a person i
 agent's report. A widget with such a verb also declares a boolean `overruled` attribute,
 which a version sets to keep its authored state over the report.
 
-`x-awaits` puts a widget's obligations on the user's list, On me. Its
+`x-awaits` puts a widget's obligations on the user's list, On Me. Its
 `value` names the verb whose
 state is the answer: the recorded value, or a recordless verb's latest `detail`. A
 playground's unrecorded `choose` gives its submitted settings. `x-awaits.answered` separately says when the obligation
@@ -120,7 +120,7 @@ each record's obligation while that unit's latest review approves it. Clearing o
 approval reopens it. Source reordering preserves these identities; removing a record
 removes its obligation. The widget marks those same keys as its drawn data
 ([module-state.md, "Marking drawn data"](module-state.md#marking-drawn-data)) so Leaf's
-On me navigation can reveal each record.
+On Me navigation can reveal each record.
 
 `x-awaits.retired` names the attribute an author sets to close an obligation but keep its
 widget on the page, such as a decided question collapsed with its options; `when` must
@@ -387,13 +387,7 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 A contract whose value holds keyed rows declares `records`, naming the array and each
-row's key, which must be a unique non-empty string. A row's large payload can be
-`deferred`: the file keeps it, but the page receives rows without it, and a widget
-fetches one with `loadDeferred(value, key)`. The widget decides when it needs that
-evidence; `lf-diff` loads and checks each patch before showing its row, and defers only
-textual rendering until the file opens. Its contract's schema has a `files` array of
-`{path, patch}` objects:
-
-```json
-{ "records": { "items": "files", "key": "path", "deferred": "patch" } }
-```
+row's key. `data set` refuses a value in which two rows share a key, or a row's key is
+missing, empty or not a string, and an `x-awaits.records` input
+([User state](#user-state)) keys each row's obligation by it. `lf-diff`'s contract, whose value has a `files` array of
+`{path, patch}` objects, declares `{ "records": { "items": "files", "key": "path" } }`.

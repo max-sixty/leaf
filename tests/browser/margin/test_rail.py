@@ -1,13 +1,12 @@
 """Where the margin's rail stands beside the column, when its markers fall to pins, and
 how the user reaches it."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
+    PREVIEW,
     RELEASE_FOCUS,
     expect_open_threads,
     leaf_page,
@@ -16,6 +15,7 @@ from render_harness import (
     resized,
     round_trip,
     sending,
+    tab_onto,
     told,
     undo,
 )
@@ -23,6 +23,7 @@ from render_harness import (
 from browser.margin import (
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
+    put_card_away,
 )
 from leaf.render_checks import rendered
 from leaf_dev.example_data import named_source
@@ -573,13 +574,12 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
     expect(pin).to_have_attribute("data-lf-place", "pin")
     marker = pin.get_by_role("button", name="Thread,", exact=False)
     rail = page.locator('[data-lf-margin-for="rail-target"]')
-    card = page.locator(".lf-margin-preview")
     for focused in (False, True):
         with subtests.test(focused=focused):
             if focused:
-                marker.focus()
-                expect(marker).to_have_attribute("data-lf-label-side", re.compile(".+"))
-                label_before = marker.locator(".lf-margin-entry-label").bounding_box()
+                tab_onto(marker)
+                expect(page.locator(PREVIEW)).to_be_visible()
+                label_before = page.locator(PREVIEW).bounding_box()
             else:
                 page.mouse.move(20, 20)
             before = pin.bounding_box()
@@ -594,10 +594,8 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
                 a, b = pin.bounding_box(), rail.bounding_box()
                 assert a == before
                 if focused:
-                    assert (
-                        marker.locator(".lf-margin-entry-label").bounding_box()
-                        == label_before
-                    )
+                    rendered(page)
+                    assert page.locator(PREVIEW).bounding_box() == label_before
                     expect(marker).to_be_focused()
                 assert not (
                     a["x"] < b["x"] + b["width"]
@@ -616,8 +614,7 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, subtests):
                 assert page.evaluate("()=>window.railActivated")
             finally:
                 page.evaluate("()=>window.newRail.unregister()")
-                if card.is_visible():
-                    page.locator(".lf-margin-preview-close").click()
+                put_card_away(page)
                 page.evaluate(RELEASE_FOCUS)
                 margins_laid_out(page)
 
@@ -645,11 +642,9 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
     for focused in (False, True):
         with subtests.test(focused=focused):
             if focused:
-                control.focus()
-                expect(control).to_have_attribute(
-                    "data-lf-label-side", re.compile(".+")
-                )
-                label_before = control.locator(".lf-margin-entry-label").bounding_box()
+                tab_onto(control)
+                expect(page.locator(PREVIEW)).to_be_visible()
+                label_before = page.locator(PREVIEW).bounding_box()
             else:
                 page.mouse.move(20, 20)
             before = rail.bounding_box()
@@ -661,10 +656,8 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, subtests):
                 a, b = rail.bounding_box(), pin.bounding_box()
                 assert a == before
                 if focused:
-                    assert (
-                        control.locator(".lf-margin-entry-label").bounding_box()
-                        == label_before
-                    )
+                    rendered(page)
+                    assert page.locator(PREVIEW).bounding_box() == label_before
                     expect(control).to_be_focused()
                 assert not (
                     a["x"] < b["x"] + b["width"]

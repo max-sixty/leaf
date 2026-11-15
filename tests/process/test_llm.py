@@ -2,7 +2,6 @@
 
 import json
 import os
-import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -13,6 +12,7 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    claude_code_module,
     fetch,
     publish,
     read_page_data,
@@ -37,24 +37,11 @@ REQUEST = {"input": "Story context", "schema": SCHEMA}
 
 
 @pytest.fixture
-def fake_claude(tmp_path, monkeypatch):
-    """Replace only the logged-in CLI executable; keep HTTP and inference real."""
-    programs = tmp_path / "programs"
-    programs.mkdir()
-    executable = programs / "claude"
-    record = tmp_path / "claude-calls.jsonl"
-    executable.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        "with open(os.environ['LLM_TEST_RECORD'], 'a') as record:\n"
-        "    record.write(json.dumps({'argv': sys.argv[1:], 'input': sys.stdin.read()}) + '\\n')\n"
-        "print(json.dumps({'structured_output': {'headline': 'Hello'}, "
-        "'duration_api_ms': 90, 'usage': {'input_tokens': 30, 'output_tokens': 12}}))\n"
-    )
-    executable.chmod(0o755)
-    monkeypatch.setenv("LLM_TEST_RECORD", str(record))
-    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
-    return record
+def module():
+    """Stand in for only the Claude Code session's hooks module, which answers each
+    completion with a headline; keep HTTP and inference real. The requests it took."""
+    with claude_code_module("s1", '{"headline": "Hello"}') as asked:
+        yield asked
 
 
 def infer(server, body=REQUEST, **kwargs):
@@ -68,33 +55,31 @@ def infer(server, body=REQUEST, **kwargs):
 
 
 def test_llm_uses_claimants_login_and_host_model_without_persisting(
-    server, claimed, fake_claude
+    server, claimed, module
 ):
     before = event_log.read_events(claimed), read_page_data(claimed)
     status, answer = infer(server, REQUEST | {"instructions": "Be concise"})
     assert status == 200, answer
     assert answer["value"] == {"headline": "Hello"}
     assert answer["model"] == "haiku"
-    assert answer["usage"] == {"inputTokens": 30, "outputTokens": 12}
+    assert answer["usage"] == {"inputTokens": 300, "outputTokens": 12}
     assert isinstance(answer["durationMs"], int)
-    [call] = [json.loads(line) for line in fake_claude.read_text().splitlines()]
-    assert call["input"] == REQUEST["input"]
-    argv = call["argv"]
-    assert "--tools=" in argv
-    assert "--safe-mode" in argv
-    assert "--no-session-persistence" in argv
-    assert "--model=haiku" in argv
-    assert argv[argv.index("--system-prompt") + 1] == "Be concise"
-    assert json.loads(argv[argv.index("--json-schema") + 1]) == SCHEMA
+    [asked] = module
+    assert asked["request"]["model"] == "haiku"
+    assert asked["request"]["prompt"] == REQUEST["input"]
+    # The completion takes no answer schema, so the system prompt carries it after
+    # the widget's instructions.
+    system = asked["request"]["system"]
+    assert system.startswith("Be concise") and system.endswith(json.dumps(SCHEMA))
     status, answer = infer(server, REQUEST | {"schema": {"type": "array"}})
     assert status == 502, answer
     assert "not of type 'array'" in answer["error"]
-    assert len(fake_claude.read_text().splitlines()) == 2
+    assert len(module) == 2
     assert (event_log.read_events(claimed), read_page_data(claimed)) == before
 
 
 def test_llm_rejects_untrusted_requests_before_inference(
-    server, claimed, fake_claude, subtests
+    server, claimed, module, subtests
 ):
     for body in (
         REQUEST | {"model": "costly-model"},
@@ -119,14 +104,14 @@ def test_llm_rejects_untrusted_requests_before_inference(
                 == 403
             )
     assert infer(server, token=None)[0] == 401
-    assert not fake_claude.exists()
+    assert module == []
 
 
 @pytest.mark.parametrize(
     "failure",
     [
         RuntimeError("The login needs refreshing"),
-        subprocess.TimeoutExpired("claude", 60),
+        TimeoutError("the Claude Code session replied to no completion within 60 s"),
         Refused("Codex App Server did not become ready"),
         WebSocketException("connection closed"),
     ],
@@ -138,16 +123,14 @@ def test_llm_failures_do_not_retry(server, claimed, monkeypatch, failure):
         calls.append((args, kwargs))
         raise failure
 
-    monkeypatch.setattr(inference, "claude_code_generate", fail)
+    monkeypatch.setattr(inference, "claude_code_generator", lambda _session: fail)
     status, answer = infer(server)
     assert status == 502, answer
     assert str(failure) in answer["error"]
     assert len(calls) == 1
 
 
-def test_llm_requires_a_supported_active_claim(
-    server, page_dir, fake_claude, monkeypatch
-):
+def test_llm_requires_a_supported_active_claim(server, page_dir, module, monkeypatch):
     status, answer = infer(server)
     assert status == 503, answer
     record_claim(page_dir, harness="codex", agent="Codex")
@@ -173,7 +156,7 @@ def test_llm_requires_a_supported_active_claim(
             {"schema": SCHEMA, "instructions": ""},
         )
     ]
-    assert not fake_claude.exists()
+    assert module == []
 
 
 # Pi's records in `--mode json` for one answer whose text is $PI_ANSWER; the call,
@@ -239,9 +222,7 @@ def test_llm_on_a_pi_page_validates_the_answer_against_the_schema(
         assert status == 502, answer
 
 
-def test_llm_is_unavailable_in_samples_and_read_only_previews(
-    server, claimed, fake_claude
-):
+def test_llm_is_unavailable_in_samples_and_read_only_previews(server, claimed, module):
     template = '<template id="practice" data-sample><h1>Practice</h1></template>'
     (claimed / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(claimed)
@@ -263,7 +244,7 @@ def test_llm_is_unavailable_in_samples_and_read_only_previews(
         claimed, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
         assert infer(preview.origin)[0] == 403
-    assert not fake_claude.exists()
+    assert module == []
 
 
 def test_llm_calls_overlap_and_leave_the_server_responsive(
@@ -288,7 +269,7 @@ def test_llm_calls_overlap_and_leave_the_server_responsive(
         assert release.wait(timeout=STATED_TIMEOUT)
         return {"value": {"headline": "Done"}}
 
-    monkeypatch.setattr(inference, "claude_code_generate", generate)
+    monkeypatch.setattr(inference, "claude_code_generator", lambda _session: generate)
     with ThreadPoolExecutor(max_workers=2) as pool:
         pending = [pool.submit(infer, server) for _ in range(2)]
         try:

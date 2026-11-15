@@ -28,7 +28,7 @@
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one. */
 import { signal } from "/runtime/framework.js";
-import { announce } from "./notifications.js";
+import { announce, gesture } from "./notifications.js";
 
 /**
  * @typedef {Readonly<{
@@ -85,6 +85,8 @@ function raise(message, subject, speak, replaced) {
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
     ...errors.peek().filter((entry) => entry.id !== replaced),
   ]);
+  // An error about no field is the panel's to say, and its leaf shakes at it.
+  if (!subject) gesture("error");
   return Object.freeze({ id, clear: () => dismissError(id) });
 }
 

@@ -2,9 +2,9 @@
 
 `browser/widgets/test_pressed_controls.py` holds the rule and presses each bundled
 package's widgets. Leaf's own controls that send a reader's gestures stand in the
-floating panel's views: in On me, where a reader answers a question, and in a
+floating panel's views: in On Me, where a reader answers a question, and in a
 thread's view, where they resolve and reopen the thread and react to its
-messages. A thread lives only in a page's log, so this opens On me and then each
+messages. A thread lives only in a page's log, so this opens On Me and then each
 thread the Threads view lists, on every corpus page with its log, and presses every
 control in the view. A thread's card in the margin offers the same gestures, but each
 takes away the control it was pressed on, so it leaves nothing to check."""
@@ -26,7 +26,7 @@ VIEWS = ".lf-fp-view, .lf-fp-aux"
 
 
 def open_on_me(page):
-    """Open On me by its keys, unless it stands open already, since the same keys put
+    """Open On Me by its keys, unless it stands open already, since the same keys put
     it away."""
     if page.locator(".lf-floating-panel").get_attribute("data-lf-open") != "queue":
         page.locator("body").focus()
@@ -50,9 +50,9 @@ def open_thread(page, key):
 def test_a_pressed_panel_control_keeps_its_face_and_takes_the_next_press(
     browser, serve, source
 ):
-    """Each control in On me and in each listed thread's view keeps its face while
+    """Each control in On Me and in each listed thread's view keeps its face while
     its gesture travels and takes the next press (`press_each_control`). The sweep
-    presses in On me wherever it lists an item, and reaches each thread's Resolve or
+    presses in On Me wherever it lists an item, and reaches each thread's Resolve or
     Reopen."""
     page = open_served(browser.unwatched, serve(source))
     open_on_me(page)
@@ -74,5 +74,5 @@ def test_a_pressed_panel_control_keeps_its_face_and_takes_the_next_press(
         if not {kind for _, kind in sent} & {"resolve", "unresolve"}:
             unsettled.append(key)
     assert not failures, "\n".join(failures)
-    assert answered or not owed, "On me lists items but the sweep pressed nothing"
+    assert answered or not owed, "On Me lists items but the sweep pressed nothing"
     assert not unsettled, f"no settlement was checked for {unsettled} of {keys}"

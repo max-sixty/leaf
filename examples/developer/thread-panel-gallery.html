@@ -17,10 +17,6 @@
         min-width: 0;
       }
 
-      #thread-panel-views .lf-sample-frame {
-        min-height: 40rem;
-      }
-
       /* A margin card opens only in a window that holds the column with a rail on
          either side (--lf-rail-room); half the grid never does. */
       #panel-on-you {
@@ -73,7 +69,7 @@
         <a href="#panel-overview">Open threads</a>
         <a href="#panel-resolved">Resolved</a>
         <a href="#panel-summary">Long discussion</a>
-        <a href="#panel-on-you">On me</a>
+        <a href="#panel-on-you">On Me</a>
       </nav>
 
       <section
@@ -87,7 +83,7 @@
             One expanded discussion and two labeled rows, with next moves and unread
             replies.
           </p>
-          <lf-sample id="overview-sample" label="open thread list">
+          <lf-sample id="overview-sample" label="open thread list" window>
             <template
               id="overview-page"
               data-sample
@@ -115,7 +111,7 @@
             Threads folds the closed discussion under Resolved; pressing the heading
             lists it, and opening it offers Reopen.
           </p>
-          <lf-sample id="resolved-sample" label="resolved thread">
+          <lf-sample id="resolved-sample" label="resolved thread" window>
             <template id="resolved-page" data-sample data-sample-threads="edf09a41">
               <h1>Workshop room</h1>
               <p id="tpg-resolved">
@@ -129,7 +125,7 @@
         <section id="panel-summary">
           <h2>Long discussion</h2>
           <p>A selected thread with a folded summary and newer messages below it.</p>
-          <lf-sample id="summary-sample" label="summarized thread">
+          <lf-sample id="summary-sample" label="summarized thread" window>
             <template id="summary-page" data-sample data-sample-threads="c1a39980">
               <h1>Afternoon workshop</h1>
               <p id="tpg-summary">
@@ -140,7 +136,7 @@
         </section>
 
         <section id="panel-on-you">
-          <h2>On me, beside the page</h2>
+          <h2>On Me, beside the page</h2>
           <p>
             The anchored card shares the panel's message hierarchy and reply field. Open
             Threads inside the sample to read the same discussion there.

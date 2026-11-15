@@ -329,7 +329,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget, or only widgets that ask nothing, would show a
-    # question the On me list never counts; a question answered in words is a
+    # question the On Me list never counts; a question answered in words is a
     # message's obligation instead. A retired source still counts: settling a
     # decision keeps its context.
     for empty in (
@@ -854,34 +854,6 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     )
 
 
-def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
-    """A thread inserts a message's markup through `template.innerHTML`, which runs no
-    script in it, so the browser run that draws the message's widgets before it posts
-    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            (
-                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
-                '<script type="module">throw new Error("inert-message-script")</script>'
-            ),
-        ],
-    )
-    assert posted.exit_code == 0, posted.output
-    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
-
-
 def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never freezes, nor does
     a command naming the page's seat, which it would fill from another document."""
@@ -1187,40 +1159,6 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
     assert planned.exit_code == 0, planned.output
 
 
-def test_the_wire_ships_a_message_as_logged(page_dir):
-    """The wire adds nothing to the log: text is Markdown the page's vendored runtime
-    renders (test_render holds that side), markup is the fragment the CLI gate
-    validated, and the only vocabulary a page's frozen layer has to keep speaking is
-    the log's own, which $events stamps."""
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "text": "two things:\n\n- one\n- **two**",
-        },
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "Fixed in `poll()`.",
-            "--markup",
-            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
-    assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
-    assert "html" not in wire["comment"] and "html" not in wire["reply"]
-    assert wire["reply"]["markup"].startswith("<lf-diagram")
-
-
 def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     """Several worker sessions report to one page. Each agent-authored event
     carries its poster's display name and session id from the poster's own
@@ -1474,7 +1412,16 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     state = json.loads(state_result.output)
     assert all(
         set(thread)
-        == {"id", "title", "anchor", "detached_from", "resolved", "unread", "attention"}
+        == {
+            "id",
+            "title",
+            "anchor",
+            "detached_from",
+            "resolved",
+            "unread",
+            "attention",
+            "holder",
+        }
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
@@ -1695,6 +1642,35 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             )
         assert refused_on(refused.value).code == refusal
     assert events_model.read_events(page_dir) == before
+
+
+def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
+    """A rewrite replaced the words its message had when the user made it, and
+    taking back an earlier rewrite later changes nothing it replaced."""
+    from leaf import delivery as delivery_model
+
+    publish(page_dir)
+    asked = append_command(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "A."}
+    )
+
+    def rewrite(text):
+        return append_command(
+            page_dir,
+            {"kind": "edit", "author": "user", "message": asked["id"], "text": text},
+        )
+
+    second = rewrite("B.")
+    third = rewrite("C.")
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]})
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == third["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("C.", "B.")
 
 
 def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):

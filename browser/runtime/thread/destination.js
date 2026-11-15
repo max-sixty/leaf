@@ -457,11 +457,10 @@ export function createThreadDestinations({
         history,
       });
       if (!arrived) return null;
-      const localPart = part ?? "reply";
-      if (focus && surfaceFocusTarget(id, { part: localPart })) {
+      if (focus && surfaceFocusTarget(id, { part })) {
         const seated = await arrive(
           () => {
-            const current = surfaceFocusTarget(id, { part: localPart });
+            const current = surfaceFocusTarget(id, { part });
             return (
               current && {
                 where: current,
@@ -474,7 +473,7 @@ export function createThreadDestinations({
         );
         if (!seated) return null;
         if (primary) await inPrimary(primary, false);
-        return surfaceFocusTarget(id, { part: localPart });
+        return surfaceFocusTarget(id, { part });
       }
       if (!control) return threadTarget(id);
       intent.handoff(() => focusDestination(control, "move"));

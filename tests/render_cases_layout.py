@@ -543,10 +543,10 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
 # the near end lands inside the window and escapes nothing anyone can measure.
 LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<div id='loose' class='scroll' style='width: 300px; overflow-x: auto'>"
+    "<div id='loose' class='lf-scroll' style='width: 300px; overflow-x: auto'>"
     "<div id='far' style='width: 700px; text-align: right'>A row wider than the box "
     "that scrolls it.</div></div>"
-    "<div id='held' class='scroll' style='width: 300px; overflow-x: auto; position: relative'>"
+    "<div id='held' class='lf-scroll' style='width: 300px; overflow-x: auto; position: relative'>"
     "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
@@ -558,7 +558,7 @@ HIDDEN_SCROLLER_STYLE = """<style>
 .row { width: 700px; }
 </style>"""
 HIDDEN_SCROLLER_ROW = (
-    '<div id="unfolded" class="scroll"><div class="row">A row wider than the box that scrolls it.'
+    '<div id="unfolded" class="lf-scroll"><div class="row">A row wider than the box that scrolls it.'
     "</div></div>"
 )
 HIDDEN_SCROLLERS = {
@@ -596,7 +596,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# One obligation, so a page has something On me.
+# One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -615,7 +615,7 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On me view from its mark, or close it from the same seat, where
+    """Open the panel's On Me view from its mark, or close it from the same seat, where
     its ✕ stands while the view does, and wait for it to stand or go."""
     page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
@@ -959,8 +959,10 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
                 "data-lf-over-item"])
                 el.removeAttribute?.(paint);
-            // Anchor naming is presentation state. The layout may copy a name
+            // Anchor naming is presentation state. A heading borrows a name by
+            // attribute while its link shows, and the layout may copy a name
             // from a stylesheet into inline style while positioning a comment.
+            el.removeAttribute?.("data-lf-heading-link");
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }

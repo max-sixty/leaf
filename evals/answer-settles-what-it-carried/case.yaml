@@ -1,5 +1,5 @@
-# Added when the agent's answer about a decision rode on the decision's On me row
-# (`also`): once the user picks, the answer stands alone on On me until the user
+# Added when the agent's answer about a decision rode on the decision's On Me row
+# (`also`): once the user picks, the answer stands alone on On Me until the user
 # replies or resolves the thread, though the pick often settles it. The user wanted
 # the agent to judge whether it still needs them. A pick's delivery now carries the
 # agent's questions still waiting in a thread about the widget (`waiting`), with a

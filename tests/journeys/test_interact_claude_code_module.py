@@ -21,7 +21,7 @@ def test_the_band_follows_the_pages_the_session_holds(
 ):
     """Above the prompt, in the terminal and the desktop app alike, each page the
     session holds is a link with the counts its Leaf panel marks that aren't zero:
-    On me, open threads, and those holding words the user hasn't read; then what
+    On Me, open threads, and those holding words the user hasn't read; then what
     the agent last said it waits for. The band redraws as the page's row changes,
     and empties once the session holds no page."""
 
@@ -72,7 +72,7 @@ def test_the_band_follows_the_pages_the_session_holds(
             "obligation": True,
         },
     )
-    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
+    band([(f"Leaf {title} · On Me 1 · Threads 1, 1 new", url)])
     # Another session takes the page, so this one holds none.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
     service_model.claim_page(page_dir)

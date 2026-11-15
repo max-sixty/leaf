@@ -21,7 +21,7 @@ is not a regression requirement.
 The suite's cost is CPU time, which every run pays and CI bills. Extra workers fill a
 test's waiting only while CPU is spare, so remove a fixed delay rather than relying on
 parallelism. Each CI `test` job's summary says where its CPU and time went, and
-`leaf-dev suite-profile` reads the same from the job's `pytest-results-*`
+`leaf-dev suite profile` reads the same from the job's `pytest-results-*`
 artifact. When a browser test is slow, or fails on timing or geometry outside its
 contract, repair its setup or move its contract to a lower boundary.
 
@@ -68,7 +68,7 @@ runs it (`TIERS` in `conftest.py`):
   sweeps, multi-page journeys and the site build. The daily run and manual dispatch.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite/profile.py`). Put a new test in
 the directory of the boundary it crosses, or in `journeys/` when it is over budget or
 needs the external network, which it also marks `network`. To move a test to an earlier
 tier, make it cheaper.
@@ -272,6 +272,8 @@ one user share `one_user`.
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
 effect on scroll is the subject, scroll first and read the baseline after.
+Each Playwright tap waits out the page's previous one, so two taps never make a
+double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 
 Inject nothing to make observation easier: read traffic from the runtime's own ledger,
 set network conditions with `page.route`, and collect errors with the browser fixture.
@@ -293,10 +295,13 @@ The watches below report problems. Fix what they report rather than consuming it
 is no per-test
 allowance list.
 
-- `write_watch.js` reports a DOM write that changes nothing. Fix the writer with
-  `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
-  `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
-  it and putting it back does so inside `lfUnwatched`.
+- `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
+  moves nothing. Fix a DOM writer with `runtime/keeps.js`; the runtime's scroll writes
+  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
+  nothing, and a stop goes through `stopWhereItStands`. A write
+  that must restate, as a vendored component's does, joins `EXPECTED` or
+  `EXPECTED_SCROLLS` in `write_watch.js` with its reason; a test that reads the page by
+  changing it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
   on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "The page holds still under the user's aim").
@@ -306,7 +311,10 @@ allowance list.
   not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that.
+  delivers the news after that. An input also owns the first frame that reads its
+  rendering settled, which can paint after `rendered` returns, so a test that moves
+  the page itself after an input, to see the move reported, first waits for
+  `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
   does it the way a user
@@ -353,7 +361,7 @@ Control or advance the clock that decides an age, lease, grace period or timer; 
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
 each operation that could hang with a real deadline at least ten times the longest that
 operation takes on CI's runner, where a `test` job's junit results record each test's
-time (`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+time (`leaf-dev suite profile`), and on expiry report which completion is still missing.
 A time limit must never turn unfinished work into a pass. To test a race,
 hold and release the request, callback, frame or lock explicitly, check that the
 outcome holds with completion delayed tenfold, and keep a control that still fails.
@@ -372,7 +380,12 @@ Waits take the suite's deadlines: `STATED_TIMEOUT` on the Python side, with
 `interact_support.wait_for` for pure-Python polls, and `SERVED_TIMEOUT_MS`, which
 `render_harness` makes every Playwright wait's default, so a wait
 names a deadline only when it spans a page handover (`HANDOVER_DEADLINE_MS`).
-`test_a_wait_takes_the_suites_deadline` checks both.
+`test_a_wait_takes_the_suites_deadline` checks both. It can't see a deadline or cache
+age the product applies inside the code a test calls, such as the prompt hook's bound
+on a server start, so a test that runs work under one gives it `STATED_TIMEOUT`, and
+shortens it only to 0 or where the work it bounds can never finish, as behind a held
+port. `_hook_bounds_take_the_suites_deadline` (`interact_support.py`) does this for
+the prompt hook's bounds in every in-process test.
 
 ### Transient states
 
@@ -405,7 +418,7 @@ scroll started.
 ## Races
 
 If a race appears only under load, order it with `page.route` rather than repeating the
-test. `leaf-dev flake` reproduces it, prints each failing copy's message, and then
+test. `leaf-dev suite flake` reproduces it, prints each failing copy's message, and then
 confirms the route holds. Register the
 route before the gesture it catches, or through `primed` or `held_events` for the first
 navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
@@ -415,11 +428,14 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
+`leaf-dev suite flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
-so try more than one. Run the merge base under the same rate to learn whether the
-change caused it. A test whose subject is a slow CPU slows its own page
-with `leaf_dev.browser.slow_cpu`.
+so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
+server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
+copy: it reproduced ten of the nightly macOS
+job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
+base under the same condition to learn whether the change caused it. A test whose subject
+is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a

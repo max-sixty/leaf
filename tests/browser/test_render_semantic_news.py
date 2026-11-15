@@ -24,7 +24,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     browser, serve
 ):
     """The live region hears the reply that asks once, its question being the reply
-    itself; the panel's seat shows only that something is on the user, since the On me
+    itself; the panel's seat shows only that something is on the user, since the On Me
     mark's dot already shows the reply."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
@@ -45,7 +45,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     expect(page.locator(".lf-live")).to_have_text(
         re.compile(r"^I changed the route\. Does this answer your question\?(?! ·)")
     )
-    said(page).to_have_attribute("placeholder", re.compile("^New on me"))
+    said(page).to_have_attribute("placeholder", re.compile("^New On Me"))
     said(page).not_to_have_attribute("placeholder", re.compile("changed the route"))
     expect(toggle).to_be_focused()
 

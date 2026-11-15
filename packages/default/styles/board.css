@@ -222,7 +222,7 @@ lf-card {
    The float is generated rather than the grip itself floated, which
    would have to come first in the card and so be read before its title.
 
-   Under a finger the grip is the aim floor tall and reaches past a one-line title. The
+   The grip's face is taller than a one-line title, so it reaches past the title. The
    prose lines running on after the title wrap beside it, which is right, since its box
    takes their presses; but a block that lays itself out on its own (a pre, a table) was
    set beside the float for its whole height, 44px narrower than the card. So every
@@ -277,7 +277,7 @@ lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
   /* The ring is inset rather than at a control's gap, because the grip is flush with
      its card's edge inside lf-board, which scrolls sideways. At the width where three
-     columns reach their 10rem floor the board clips a pixel outside the last column's
+     columns reach their floor (`--lf-reading-column-floor`) the board clips a pixel outside the last column's
      cards, so the ring's right run and both corners on that side fell outside the clip
      while the grip itself stayed whole. An inset ring cannot leave the box it names, at
      any scroll position. */

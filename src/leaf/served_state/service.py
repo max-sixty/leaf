@@ -15,7 +15,8 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_data, read_source
+from ..data import read_data
+from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -25,7 +26,8 @@ from ..files import (
     stamped_version,
 )
 from ..passages import SourceReading
-from ..registry.storage import require_registry
+from ..projection import page_reading
+from ..provenance import revision_places, saved_after
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
 from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
@@ -33,6 +35,7 @@ from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
 from .context import PageRead, read_page
+from .document import browser_document
 from .thread import thread_counts
 
 
@@ -53,8 +56,6 @@ class PageSource(Protocol):
     def active_revision(self) -> int | None: ...
     def artifact(self, revision: int) -> RevisionArtifact: ...
     def revision(self, revision: int) -> SourceReading: ...
-    def active_registry(self) -> dict: ...
-    def data_source(self, source: str, registry: dict) -> dict | None: ...
     def events(self) -> list[dict]: ...
     def published_versions(self, events: list[dict]) -> set[int]: ...
 
@@ -103,12 +104,6 @@ class LivePage:
 
     def revision(self, revision: int) -> SourceReading:
         return read_revision(self.page_dir, revision)
-
-    def active_registry(self) -> dict:
-        return require_registry(self.page_dir)
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return read_source(self.page_dir, source, registry)
 
     def events(self) -> list[dict]:
         return read_events(self.page_dir)
@@ -227,7 +222,7 @@ class PageStateService:
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         The user's counts are the active view's, as the Leaf panel's marks count
-        them: its On me list, and its threads by `thread_counts`.
+        them: its On Me list, and its threads by `thread_counts`.
         """
         from ..server_rows import compact_activity
 
@@ -255,16 +250,37 @@ class PageStateService:
             live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
         return row, reading, live
 
-    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None = None
+    ) -> dict:
+        """The `/api/view` answer: what a comparison with `revision` folds, its
+        document at the log boundary (`document.browser_document`), and, where the tab
+        compares it with the revision `shown`, the user's messages that waited while
+        the version `shown` was saved (`provenance.saved_after`)."""
         with self.source.state_read() as (context, _reading, _source_error):
             if context.active is None:
                 raise ValueError(missing_revision(self.page_dir))
-            projected = served_browser.project_browser_state(
-                context.through(through_seq),
-                view_revision,
-                include_active_view=False,
+            if revision not in context.revisions:
+                raise ValueError(f"unknown view revision r{revision}")
+            read = context.through(through_seq)
+            page = page_reading(
+                read.revision(revision),
+                read.events,
+                revision,
+                revisions=read.revisions,
+                revision_reader=read.revision,
             )
-            if projected is None:
-                raise ValueError("page registry cannot be projected")
-            view, _reading = projected
-        return view
+            waited = (
+                None
+                if shown is None
+                else saved_after(
+                    EventFacts(self.page_dir, read.events, read.registry),
+                    read.revision,
+                    revision_places(read.events),
+                    read.revisions,
+                    {version["revision"] for version in read.versions},
+                    revision,
+                    shown,
+                )
+            )
+        return {"document": browser_document(page), "saved_after": waited}

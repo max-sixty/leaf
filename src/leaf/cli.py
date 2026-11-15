@@ -17,6 +17,7 @@ its watch.
 """
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -201,6 +202,8 @@ class LeafGroup(click.Group):
         from leaf.refusals import Refused
 
         try:
+            if (ctx.obj or {}).get("agent"):
+                _refuse_an_ended_agent()
             return super().invoke(ctx)
         except Refused as error:
             reason = sandbox_refusal(error) or str(error)
@@ -229,7 +232,11 @@ class LeafGroup(click.Group):
         finally:
             from leaf.interaction_log import record_command
 
-            record_command(invocation.get("leaf_command", ""))
+            record_command(
+                invocation.get("leaf_command", ""),
+                agent=invocation.get("agent"),
+                refused=invocation.get("refused"),
+            )
 
     def _run_standalone(self, args, prog_name, complete_var, **extra) -> None:
         try:
@@ -244,6 +251,8 @@ class LeafGroup(click.Group):
             }
             if isinstance(error, click.UsageError) and error.ctx is not None:
                 said["usage"] = error.ctx.get_usage().removeprefix("Usage: ")
+            # The command's diagnostics say it was refused (`record_command`).
+            extra["obj"]["refused"] = said["error"]
             print(json.dumps(said, ensure_ascii=False), file=sys.stderr)
             sys.exit(error.exit_code)
         except click.Abort:
@@ -258,7 +267,61 @@ class LeafGroup(click.Group):
         sys.exit(status)
 
 
+def _refuse_an_ended_agent() -> None:
+    """Refuse a command marked with an agent of the session whose turn has ended,
+    whatever the command (`state.acting_agent_turn`), so a fork resumed or running
+    late acts neither in its closed turn nor as the main thread. The command names no
+    page yet, so its refused record goes to each page the session holds, as a denied
+    call's does (`interaction_log.record_denial`)."""
+    from leaf.harness import session_harness
+    from leaf.interaction_log import acting_on
+    from leaf.refusals import Refused
+    from leaf.service import owned_pages
+    from leaf.state import acting_agent_turn
+
+    if (harness := session_harness()) is None:
+        return
+    try:
+        acting_agent_turn(harness.session)
+    except Refused:
+        for page_dir in owned_pages(harness.session):
+            acting_on(page_dir)
+        raise
+
+
+def _acting_agent(ctx: click.Context, _param: click.Parameter, value) -> None:
+    """Run the command as the agent of the session its harness names `value`
+    (`state.AGENT_ID_VARIABLE`), for this command alone: the variable goes back as
+    the command ends, so a command run in the same process, as a test's are, acts as
+    whoever it names. Its diagnostics name the agent (`record_command`), and an
+    agent whose turn has ended has the command refused (`_refuse_an_ended_agent`)."""
+    if not value:
+        return
+    from leaf.state import AGENT_ID_VARIABLE
+
+    before = os.environ.get(AGENT_ID_VARIABLE)
+    os.environ[AGENT_ID_VARIABLE] = value
+    ctx.ensure_object(dict)["agent"] = value
+
+    def restore() -> None:
+        if before is None:
+            os.environ.pop(AGENT_ID_VARIABLE, None)
+        else:
+            os.environ[AGENT_ID_VARIABLE] = before
+
+    ctx.call_on_close(restore)
+
+
 @click.group(cls=LeafGroup)
+@click.option(
+    "--agent-id",
+    metavar="ID",
+    expose_value=False,
+    is_eager=True,
+    hidden=True,
+    callback=_acting_agent,
+    help="Run as the session's agent with this harness id; Leaf's hook adds it.",
+)
 @click.option(
     "--version",
     is_flag=True,
@@ -532,6 +595,15 @@ def check(page_dir: Path, render: bool) -> Reported:
     return Reported(report, report["status"])
 
 
+@page.command("_read", hidden=True)
+@page_argument(renew=False)
+def _read(page_dir: Path) -> None:
+    """Private child process of a page's server (`render_gate.handover_pass`)."""
+    from leaf.render_gate.handover_pass import cmd_read
+
+    cmd_read(page_dir)
+
+
 @page.command(
     "inspect", short_help="Read page source metrics and browser observations."
 )
@@ -632,7 +704,7 @@ def page_list() -> list:
     serves it), and the session that holds it: `claim_session`, the name its
     harness gives it now (`session_name`), the directory it claimed from
     (`session_cwd`), and whether it still runs (`session_alive`). A serving
-    page also carries how many rows On me holds (`on_user`) and its open and
+    page also carries how many rows On Me holds (`on_user`) and its open and
     unread thread counts (`threads`). `page state PAGE` reads one page whole."""
     from leaf.presence import page_list as listing
 
@@ -657,7 +729,7 @@ def state(
     page_dir: Path, target: str | None, after: int | None, limit: int | None
 ) -> dict:
     """Print the page as it is now, as one JSON object: the active revision's
-    file, the current widget actions and workers' reports, the user's On me list and
+    file, the current widget actions and workers' reports, the user's On Me list and
     yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
@@ -745,7 +817,8 @@ def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
     The result names the captured revision in either mode.
 
     The file runs the page's own runtime against its captured state, with no Leaf
-    server or host behind it.
+    server or host behind it. It holds the page and the decisions recorded on its
+    widgets, and nothing of the conversation: no threads, to-dos, plan or changelogs.
     """
     from leaf.exporting import cmd_export
 
@@ -1265,7 +1338,7 @@ def page_open(page_dir: Path) -> dict:
 
     This clears every task start; to-dos and unanswered updates stay owed.
     To request an answer, send a thread message with --obligation so the
-    question appears in On me. Opening a page creates no obligation.
+    question appears in On Me. Opening a page creates no obligation.
     """
     from leaf.session import cmd_waiting
 
@@ -1340,7 +1413,7 @@ def _title_option(command):
 @click.option(
     "--obligation",
     is_flag=True,
-    help="put this message on On me until the user replies or settles it",
+    help="put this message on On Me until the user replies or settles it",
 )
 def thread_create(
     page_dir: Path,
@@ -1358,7 +1431,7 @@ def thread_create(
     the work as a whole.
 
     Use --obligation when the next move is the user's: the message waits on
-    On me until their reply or settling reaction. A question whose answers you
+    On Me until their reply or settling reaction. A question whose answers you
     can list takes an `lf-options` choice in --markup instead, which waits on
     the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
@@ -1403,7 +1476,7 @@ def thread_create(
     flag_value="",
     callback=_asked_questions,
     help=(
-        "put this message on On me until the user replies or settles it; with the ID "
+        "put this message on On Me until the user replies or settles it; with the ID "
         "of a question their reply left standing, ask that question again, once per "
         "question"
     ),
@@ -1573,10 +1646,10 @@ def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> 
     the result is, such as the version or reply holding it, or why there is none.
 
     For a message obligation (`message:<id>`) or a question widget answered in
-    words (`widget:<id>`), done records that the user answered elsewhere, --text
-    saying where; dropped withdraws the question. These outcomes record no answer
-    from the user. A widget answered through its controls ends through its state
-    or an authored withdrawal.
+    words (`widget:<id>`), done records that the user answered elsewhere, or that
+    you saw a step's effect, --text saying where or what you saw; dropped withdraws
+    the question. These outcomes record no answer from the user. A widget answered
+    through its controls ends through its state or an authored withdrawal.
     """
     from leaf.todos import cmd_end
 

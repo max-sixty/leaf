@@ -17,10 +17,12 @@ from render_harness import (
     ROOT,
     available_commands,
     expect_panel_says,
+    field_press,
     leaf_page,
     open_page,
     panel_control,
     panel_field,
+    preview_parts,
     resized,
     scroll_settled,
     selection_field,
@@ -136,6 +138,60 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
+def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
+    """The picker's map names what the window shows, and a closed tab's panel shows
+    nothing, so the map reads none of the boxes in it: the browser lays the panel out
+    to answer each read, and on a page of thirty 4 MB text documents in tabs the first
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    `shownParts`). Its words take a hint once their tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two">'
+                '<p id="closed-words">Words in the closed tab.</p></lf-tab></lf-tabs>',
+            )
+        ),
+    )
+    closed = page.locator("#closed-words")
+    expect(closed).to_be_hidden()
+    page.evaluate("""() => {
+      window.closedReads = [];
+      for (const name of ['getBoundingClientRect', 'getClientRects']) {
+        const read = Element.prototype[name];
+        Element.prototype[name] = function (...args) {
+          if (this.parentElement?.closest('lf-tab[hidden]'))
+            closedReads.push(`${name} ${this.localName}`);
+          return read.apply(this, args);
+        };
+      }
+    }""")
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).not_to_have_count(0)
+    assert page.evaluate("closedReads") == []
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+
+    page.get_by_role("tab", name="Two", exact=True).click()
+    expect(closed).to_be_visible()
+    page.keyboard.press("s")
+    expect(hints).not_to_have_count(0)
+    # A target's hint stands by its upper-left corner (keyboard/hints.js, `seatHints`).
+    assert page.evaluate(
+        """() => {
+          const words = document.getElementById('closed-words').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-picker-hint')].some((hint) => {
+            const box = hint.getBoundingClientRect();
+            return Math.abs(box.top - words.top) < 40 && Math.abs(box.left - words.left) < 60;
+          });
+        }"""
+    ), "the opened tab's words took no hint"
+
+
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
@@ -172,13 +228,14 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
 
 
 def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
-    """The picker's ✕ stays in the panel's row as the primary pointer changes under
-    it."""
+    """The picker's way out, Close at the panel field's end, stays in the panel's row
+    as the primary pointer changes under it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = page.locator('.lf-fp-exit[aria-label="Close picker"]')
+    cancel = field_press(page).filter(has_text="Close")
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()
+    expect(cancel.locator("kbd")).to_have_text("esc")
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
@@ -206,10 +263,11 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
+    # The reference is a listbox, so each section is a group its heading names.
     expect(
-        page.locator(".lf-command-reference").get_by_role(
-            "heading", name="In the target picker", exact=True
-        )
+        page.locator(".lf-command-reference")
+        .get_by_role("group", name="In the target picker", exact=True)
+        .first
     ).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
@@ -308,9 +366,9 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
 
 def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
-    """Words a script selects are quoted in the panel's field beside c, the key that
-    comments on them as a press there does, while a Tab into the field writes on the
-    page. A page draft hiding the quote shows a Selection mode chip, and on a page
+    """Words a script selects are quoted in the panel's field, which ends in Comment…
+    and c, the key that comments on them as a press there does, as the field does at
+    rest, while a Tab into the field writes on the page. A page draft hiding the quote shows a Selection mode chip, and on a page
     drawing its own annotations the field stands in an open comment box's place while
     it quotes."""
     source = leaf_page(
@@ -328,7 +386,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
 
     select("#first")
     expect(offered).to_have_attribute(
-        "placeholder", "“The first passage holds its words.” c"
+        "placeholder", "“The first passage holds its words.” · Comment… c"
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
@@ -343,7 +401,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     select("#first")
     context = page.locator(".lf-fp-mode")
     expect(context).to_have_text("Selection")
-    expect(context).to_have_attribute("title", "“The first passage holds its words.”")
+    assert preview_parts(context) == ["“The first passage holds its words.”"]
     field.click()
     expect(composer).to_be_focused()
     expect(field).to_have_js_property("value", "A page note")
@@ -376,34 +434,63 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     }""")
     page.clock.resume()
     expect(offered).to_have_attribute(
-        "placeholder", "“A second passage comes after it.” c"
+        "placeholder", "“A second passage comes after it.” · Comment… c"
     )
     offered.click()
     expect(composer).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
-def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
-    """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
-    not turn every target into a two-key address. Many remain one key and only the tail
-    branches. A two-key tail hint raises the same element anchor as Alt-click."""
-    figures = "".join(
+# Sixty figures beside a heading: more targets than letters, so the tail of the hint
+# alphabet branches into two-key hints.
+DENSE_TARGETS_PAGE = leaf_page(
+    "dense visual targets",
+    '<h1 id="title">Visual targets</h1><div class="visual-grid">'
+    + "".join(
         f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
         f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
         'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
         for i in range(60)
     )
-    html = leaf_page(
-        "dense visual targets",
-        f'<h1 id="title">Visual targets</h1><div class="visual-grid">{figures}</div>',
-        head="""
+    + "</div>",
+    head="""
 <style>
 .visual-grid { display: grid; grid-template-columns: repeat(10, 44px); gap: 12px; }
 .visual-grid figure { margin: 0; width: 32px; height: 18px; }
 </style>
 """,
-    )
-    page = open_page(browser, serve(html))
+)
+
+
+def test_the_picker_s_close_ends_it_whatever_escape_would_take_back(browser, serve):
+    """Escape takes back a typed hint letter before it closes the picker, so the panel
+    field's Close, which ends the picker at once, says `esc` only while no letter
+    stands typed."""
+    page = open_page(browser, serve(DENSE_TARGETS_PAGE))
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).to_have_count(61)
+    close = field_press(page).filter(has_text="Close")
+    expect(close.locator("kbd")).to_have_text("esc")
+    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    first = next(code for code in codes if len(code) == 2)[0]
+    page.keyboard.press(first)
+    expect(close).to_be_visible()
+    expect(close.locator("kbd")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(61)
+    expect(close.locator("kbd")).to_have_text("esc")
+    page.keyboard.press(first)
+    expect(close.locator("kbd")).to_have_count(0)
+    close.click()
+    expect(hints).to_have_count(0)
+
+
+def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
+    """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
+    not turn every target into a two-key address. Many remain one key and only the tail
+    branches. A two-key tail hint raises the same element anchor as Alt-click."""
+    page = open_page(browser, serve(DENSE_TARGETS_PAGE))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-picker-hint")
@@ -415,9 +502,13 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
     page.keyboard.press(last[0])
-    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(last[0]) for code in held))
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -571,10 +662,13 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
-    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
-    tail = next(code for code in codes if len(code) > 1)
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    tail = next(code for code in held if len(code) > 1)
     page.keyboard.press(tail[0])
-    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(tail[0]) for code in held))
     continued = page.locator(
         f'.lf-target-picker-hint[data-lf-hint-code="{tail}"] .lf-binding-sequence'
     )
@@ -657,8 +751,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command).to_have_accessible_name("Select mode")
-    expect(select_command).to_have_attribute(
-        "title", "Choose an element by pressing it or typing its hint, then comment"
+    assert (
+        "Choose an element by pressing it or typing its hint, then comment"
+        in preview_parts(select_command)
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

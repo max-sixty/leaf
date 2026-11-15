@@ -1,9 +1,19 @@
 /* Pixel highlights and experimental region outlines for a before/after pair.
  *
- * Pixel highlights use BlazeDiff without a threshold or anti-alias suppression.
- * They ignore colour hidden by complete transparency; alpha and image extent
- * changes still count. Highlight opacity follows channel distance, retaining slight
- * changes without making their edges as prominent as large changes.
+ * Pixel highlights mark each pixel that differs, more opaque the farther its channels
+ * moved (`changedPixels` states the rule). #3820 adopted BlazeDiff with no threshold
+ * and anti-aliased pixels kept, so that subtle deliberate edits stayed visible, and
+ * kept a floor that painted every changed pixel at least 16% amber. That floor made
+ * the theme's soft shadows (`--raise-1`, `--raise-2`) look like changes. A box that
+ * moves redraws its shadow's gradient a level or two at a time, and the floor painted
+ * each of those pixels at about 16% amber, which read as a banded slab around the box.
+ * On a triage-board card moved 3 px, the pixels at 10% amber or more were 7,681 with
+ * no shadow, 11,049 under `--raise-1` and 17,075 under `--raise-2`; with no floor they
+ * are 6,964, 6,792 and 6,766, and the 3,137 opaque pixels of the card's text and edges
+ * are unchanged. So Pixels now paints an edit of under 10 levels below 10% amber,
+ * faint enough to miss, and the reading describes a pair whose changes are all that
+ * small as "only slight changes". With its threshold at 0, BlazeDiff marked the same
+ * pixels as a plain comparison on every pair measured, so the comparison replaced it.
  *
  * Region outlines are experimental. Block detection and movement matching are our
  * own; final changed outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
@@ -85,7 +95,7 @@
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
  * changed state to them. `changedPixels` supplies the soft mask for closer inspection.
- * Each dependency loads only when its comparison needs it, after page presentation;
+ * The clustering library loads only when a reading needs it, after page presentation;
  * this module touches no document. */
 
 import { canvas2D } from "/runtime/portable-api.js";
@@ -734,37 +744,19 @@ function pixelChange(a, one, b, other, x, y) {
     : SLIGHT_CHANGE;
 }
 
-// A changed pixel's least alpha in `changedPixels`, and how far it moves to be opaque.
-const FAINT = 40;
+// How far a changed pixel moves, in levels of channel distance, to be opaque.
 const FAR = 2 * SLIGHT;
 
-/* One black RGBA alpha mask at the pair's size. BlazeDiff detects colour changes;
- * alpha and extent changes count independently. Threshold and anti-alias suppression
- * are off: subtle deliberate edits still show, with alpha rising from FAINT to
- * opaque at FAR levels
- * of channel distance. Pixels inside only one image's extent are opaque changes,
- * even if the image's edge is transparent. The reader supplies the highlight colour. */
+/* One black RGBA alpha mask at the pair's size. A pixel changed where any channel
+ * differs, alpha included, unless both are fully transparent; its alpha rises with
+ * that distance from none to opaque at FAR levels. Pixels inside only one image's
+ * extent are opaque changes, even if the image's edge is transparent. The reader
+ * supplies the highlight colour. */
 /** @param {PixelImage} a @param {PixelImage} b */
-export async function changedPixels(a, b) {
-  const { default: diff } = await import("/vendor/blazediff.js");
+export function changedPixels(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
   const data = new Uint8ClampedArray(width * height * 4);
-  /** @type {Parameters<typeof diff>[5]} */
-  const options = {
-    threshold: 0,
-    includeAA: true,
-    diffMask: true,
-    diffColor: [0, 0, 0],
-  };
-  diff(
-    padded(a, width, height),
-    padded(b, width, height),
-    data,
-    width,
-    height,
-    options,
-  );
   const one = words(a);
   const other = words(b);
   for (let y = 0; y < height; y += 1) {
@@ -776,29 +768,12 @@ export async function changedPixels(a, b) {
       else if (inA) {
         const p = one.getUint32((y * a.width + x) * 4, true);
         const q = other.getUint32((y * b.width + x) * 4, true);
-        // BlazeDiff composites transparency over a checkerboard. An alpha change
-        // can match that background exactly while changing on the reader's page.
-        if (data[alpha] || p >>> 24 !== q >>> 24) {
-          const far = Math.min(distance(p, q), FAR);
-          data[alpha] = FAINT + ((255 - FAINT) * far) / FAR;
-        }
+        if (p !== q && (p >>> 24 || q >>> 24))
+          data[alpha] = (255 * Math.min(distance(p, q), FAR)) / FAR;
       }
     }
   }
   return { width, height, data };
-}
-
-// BlazeDiff compares equal-size buffers; transparent padding keeps image coordinates.
-/** @param {PixelImage} image @param {number} width @param {number} height */
-function padded(image, width, height) {
-  if (image.width === width && image.height === height) return image.data;
-  const data = new Uint8ClampedArray(width * height * 4);
-  for (let y = 0; y < image.height; y += 1)
-    data.set(
-      image.data.subarray(y * image.width * 4, (y + 1) * image.width * 4),
-      y * width * 4,
-    );
-  return data;
 }
 
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it

@@ -38,6 +38,18 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 widget whose title is an attribute, as a column's `label` is, declares it with
 `x-name`.
 
+`titledElement(heading)` is the element a heading titles: the outermost element whose
+first heading it is, such as its `hgroup`, the question it opens and a `section`
+wrapping that question; where it titles no element, the heading itself. A `section`,
+`article`, `aside` or `nav` takes its first heading whatever else it holds, past any
+wrapper; any other element only where every other heading inside ranks below it, no
+words stand before it outside a `header` or `hgroup`, and each element between them
+takes it too.
+An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
+inside it. Every element between the two is titled by the heading too. `lf-toc` links
+each heading to one of them, and a heading's link preview counts a thread about any of
+them.
+
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
 
@@ -185,7 +197,9 @@ the axis, `--lf-axis-at` on the element, in a box as wide as the axis: each tick
 `span.lf-axis-tick` inside an `.lf-axis-ruler`, with `data-lf-major` and `data-lf-flip`
 as the tick says; a `span.lf-axis-gridline` for each major tick, with its
 `data-lf-flip`, inside an `.lf-axis-grid` you place over the drawing below the ruler;
-and your own marks, labels and playhead with the class `lf-on-axis`.
+and your own marks, labels and playhead with the class `lf-on-axis`. Each of these
+stands at `--lf-axis-x`, its offset from the box's start, which a label can read to
+fit the room on either side of it.
 `AXIS_TICK_SPACING`, `AXIS_LABEL_CHROME` and `AXIS_LABEL_GAP` are the least room
 between major ticks, what a mark's label adds to its words, and the least room between
 two labels in one row. `seconds(ms, digits)` writes a time as seconds, with `digits`
@@ -255,10 +269,19 @@ too, passing `readObligations().user` for those waiting on the user.
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
 
+`partOver(node)` is the part of the page `node` stands in: the heading over it, else
+the nearest element holding it that its author named, such as a captioned figure, or
+`null`. On me groups its items by it and a link's preview names a place by it. A
+question or section stands in the part around it, past its own heading. A module that
+counts items per heading as the reader moves through them, as `lf-toc` does, gives
+each heading the stretch of the page from the element it titles (`titledElement`,
+"Naming elements") to the next heading's, and counts each item in the stretch holding
+its first word, comparing positions with `compareDocumentPosition`.
+
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation
 waiting on the user inside `within`, or the previous with `dir: -1`, as `m` does in On
-me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
+Me, and resolves to whether it arrived. A control that calls it prevents `mousedown`'s
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
@@ -274,7 +297,7 @@ where the widget can't take `value`. Place the view by `value`, and change it on
 through `answer`, so the view records nothing of its own.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
-under On me and On <agent>. Each row has a `kind`, which is its obligation's
+under On Me and On <agent>. Each row has a `kind`, which is its obligation's
 `source.kind` (with the obligation as `obligation`) or, on the agent's list, `todo`
 (with the to-do as `todo`), and an `owner`, `user` or `agent`, naming its list. An
 obligation's row lists in `also` the ids of the other obligations the user answers at

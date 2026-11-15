@@ -296,7 +296,7 @@ customElements.define(
             <span class="lf-file-editor-name" data-lf-scroll>${label}</span>
             <span
               ${offered("lf-file-editor-status")}
-              title=${failure?.message ?? nothing}
+              .lfPreview=${() => (failure ? { detail: [failure.message] } : null)}
               >${
                 latest
                   ? ""

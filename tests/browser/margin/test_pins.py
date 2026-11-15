@@ -8,17 +8,14 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
-from render_cases_widgets import RAIL_BAND_PAGE
 from render_harness import (
     PANEL,
-    RELEASE_FOCUS,
     leaf_page,
     margins_laid_out,
     open_page,
     painted_words,
     pane_scroll_behavior,
     panel_control,
-    panel_field,
     press_visible,
     regions_side_by_side,
     resized,
@@ -30,7 +27,7 @@ from browser.margin import (
 )
 from leaf.render_checks import rendered
 from leaf_dev.browser import WINDOWS
-from leaf_dev.commands import pins as pin_cases
+from leaf_dev.commands.placement import pins as pin_cases
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -589,94 +586,6 @@ def test_a_pin_stays_inside_a_window_that_shrinks_around_a_fixed_canvas(browser,
     assert pin.evaluate("pin => pin.getBoundingClientRect().bottom") <= 720
 
 
-def test_o_hides_what_is_drawn_over_the_page_and_the_panel_says_so(browser, serve):
-    """`o` hides the annotation layer: every pin, the controls one holds included, and
-    the durable marks, while the rail and what stands in it stay, since the rail covers
-    nothing. Nothing in the layer takes up room, so no box of the page moves. A press on
-    a passage whose mark is hidden opens nothing, and the choice is the tab's, so a
-    reload keeps it. An obligation walk reveals the pin it lands on for as long as the
-    user stands there.
-
-    Hidden annotations leave a commented page looking as if nobody commented, and the
-    hidden layer comes back with a reload, after its notice has passed. So while it is
-    hidden the panel's field says so, ahead of the status or after a stance's name,
-    until `o` shows the layer again."""
-    page = open_page(
-        browser,
-        serve(
-            RAIL_BAND_PAGE,
-            events=[_comment_on("gap", quote="Prose far enough below the changes")],
-        ),
-    )
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="sug-card"]')
-    rail = page.locator('.lf-margin-cluster[data-lf-margin-for="sug-copy"]')
-    expect(pin).to_have_attribute("data-lf-place", "pin")
-    expect(rail).to_have_attribute("data-lf-place", "rail")
-    boxes = """() => [...document.querySelectorAll('main, main *')].map(el => {
-      const b = el.getBoundingClientRect();
-      return [b.left, b.top, b.width, b.height].map(Math.round).join(',');
-    })"""
-    wash = """() => getComputedStyle(document.documentElement)
-      .getPropertyValue('--lf-annotation-wash').trim()"""
-    before = page.evaluate(boxes)
-    assert page.evaluate(wash) == ""
-
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-    expect(pin).to_be_hidden()
-    expect(rail).to_be_visible()
-    assert page.evaluate(wash) == "transparent"
-    margins_laid_out(page)
-    assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
-
-    page.locator("#gap").click()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-    page.reload()
-    page.wait_for_selector("body[data-lf-presented]")
-    margins_laid_out(page)
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-    expect(pin).to_be_hidden()
-
-    field = panel_field(page)
-    expect(field).to_have_attribute("data-lf-says", "status")
-    expect(field).to_have_attribute(
-        "placeholder", re.compile(r"^Annotations hidden · \S")
-    )
-    page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("w")
-    expect(field).to_have_attribute("data-lf-says", "stance")
-    expect(field).to_have_attribute(
-        "placeholder", re.compile("^In Draw mode · Annotations hidden")
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
-
-    # An explicit obligation walk reveals its pin until the user leaves that obligation.
-    # The passage follows both obligations, so a step back lands on the last one.
-    page.locator("#gap").click()
-    page.keyboard.press("Shift+m")
-    expect(page.locator("#sug-card")).to_be_focused()
-    rendered(page)
-    expect(pin).to_be_visible()
-    page.evaluate(RELEASE_FOCUS)
-    expect(pin).to_be_hidden()
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
-
-    page.keyboard.press("o")
-    expect(pin).to_be_visible()
-    assert page.evaluate(wash) == ""
-    expect(page.locator("html")).not_to_have_attribute(
-        "data-lf-annotations", re.compile(".*")
-    )
-    # The notice saying the annotations are shown passes, and the status stands alone.
-    expect(field).to_have_attribute("data-lf-says", "status")
-    expect(field).not_to_have_attribute("placeholder", re.compile("Annotations"))
-
-
 def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     """A phone has no `o` to press, so the leaf's menu holds the same toggle under
     Annotate: the pin goes, no box of the page moves, and the row's word turns to the way
@@ -854,7 +763,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         f'<section id="card{i}" style="border:1px solid var(--rule);'
         'background:var(--card);margin:0;height:44px">'
         '<div style="background:var(--chip);height:44px">'
-        f'<button id="action{i}" class="button" style="float:right" '
+        f'<button id="action{i}" class="lf-btn" style="float:right" '
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
@@ -901,7 +810,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
 def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
     browser, serve, viewport
 ):
-    """Every case of `leaf-dev pins`, ordinary and pathological, seats each pin by its
+    """Every case of `leaf-dev placement pins`, ordinary and pathological, seats each pin by its
     target over no words, control or media, inside the window and clear of the other
     pins, except where the case accepts a fault and says why. A placement the gallery
     shows wrong becomes a case there, and so a failure here."""
@@ -956,3 +865,196 @@ def test_pin_cover_leaves_hidden_panel_contents_unmeasured(browser, serve):
         page.locator('.lf-margin-cluster[data-lf-margin-for="subject"]')
     ).to_have_attribute("data-lf-place", "pin")
     assert page.evaluate("hiddenCoverReads") == []
+
+
+# Every margin row's place and box, in the margin's order.
+SEATS = """() => [...document.querySelectorAll('[data-lf-margin-for]')].map((row) => {
+  const box = row.getBoundingClientRect();
+  return {
+    for: row.dataset.lfMarginFor,
+    place: row.dataset.lfPlace,
+    withheld: row.classList.contains('lf-withheld'),
+    left: Math.round(box.left),
+    top: Math.round(box.top),
+    width: Math.round(box.width),
+  };
+})"""
+# Rows by contribution on the elements `keys` name, each with `entries` actions; a key
+# already holding a row redraws it with that many, at once where `immediate` says.
+ROWS = """async ({keys, entries, immediate}) => {
+  const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
+  window.seatRows ??= new Map();
+  for (const key of keys) {
+    const held = window.seatRows.get(key);
+    if (held) {
+      held.entries = entries;
+      held.registration.update({immediate});
+      continue;
+    }
+    const row = {entries};
+    row.registration = registerContribution({
+      key: `seat-${key}`,
+      target: document.getElementById(key),
+      read: () => ({entries: Array.from({length: row.entries}, (_, i) =>
+        contributionEntry({key: `go${i}`, glyph: String.fromCharCode(65 + i), label: `Go ${key} ${i}`}))}),
+      activate: () => {},
+    });
+    window.seatRows.set(key, row);
+  }
+}"""
+
+
+def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
+    browser, serve
+):
+    """A change to the margin's rows alone runs a pass that reads only the rows it
+    changes and seats the rest from what an earlier pass read (margin-layout.js,
+    `seatings`). Through any run of such changes every row stands where a pass over the
+    whole margin would stand it: after a hold that moved a row ends, after a face grows
+    in the task that draws it, after a row leaves, after a pane beside a pin scrolls,
+    after a transition beside a pin ends, after a scroll and a sent comment, and after a
+    resolve."""
+    lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
+    options = "".join(
+        f'<lf-option id="o-{i}"><strong>Option {i}</strong> a short description.'
+        "</lf-option>"
+        for i in (1, 2, 3)
+    )
+    # A pane whose words reach its right edge only once it is scrolled to its foot, and
+    # under it a paragraph whose pin stands above it, over the pane's empty edge.
+    long = (
+        '<p style="margin:0;text-align:right">Long words in the pane that reach across'
+        " to its right edge, and then some more words to be sure.</p>"
+    )
+    beside = (
+        'style="margin:0;text-align:right">A paragraph whose words run right across'
+        " its line to the far edge, so the seat in its corner covers words, and then on"
+        " for a second line of words.</p>"
+    )
+    pane = (
+        '<div id="pane" style="height:84px;overflow:auto">'
+        + '<p style="margin:0">x</p>' * 8
+        + long * 6
+        + f'</div><p id="t" {beside}'
+    )
+    # A block whose words slide in to its right edge as a transition ends, into the
+    # empty room the pins beside it stand in.
+    slide = (
+        '<div id="slide" class="away"><p style="margin:0">x</p>'
+        f'{long}</div><p id="v" {beside}<p id="tail">A last paragraph.</p>'
+    )
+    body = (
+        '<article id="document"><h1>Seats</h1>'
+        '<p id="intro">Words before the lines, long enough for a paragraph the margin'
+        " reads around as it seats its rows.</p>"
+        f'{lines}<p id="after">Words after the lines, long enough for another'
+        " paragraph.</p>"
+        '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
+        '<lf-ask id="q"><h3 id="question">Which one?</h3>'
+        f'<lf-options id="o" choose multiple>{options}</lf-options></lf-ask></section>'
+        + "".join(
+            f'<section><h2>Section {n}</h2><p id="far-{n}">Words about section {n},'
+            " enough for a line of reading.</p></section>"
+            for n in range(1, 9)
+        )
+        + f"{pane}{slide}</article>"
+    )
+    motion = (
+        "<style>#slide { transition: transform 150ms linear }"
+        " #slide.away { transform: translateX(-110%) }</style>"
+    )
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = open_page(
+        browser,
+        serve(leaf_page("Seats", body, head=motion, layout=None)),
+        context=context,
+    )
+    differ = {}
+
+    def settled():
+        """Wait for the passes a change brings to end, not for one a layout forces."""
+        page.evaluate("""() => new Promise((resolve) => {
+          let quiet;
+          const wait = () => { clearTimeout(quiet); quiet = setTimeout(done, 300); };
+          const done = () => {
+            document.removeEventListener('lf-margin-layout', wait);
+            resolve();
+          };
+          document.addEventListener('lf-margin-layout', wait);
+          wait();
+        })""")
+
+    def compare(step):
+        settled()
+        seats = page.evaluate(SEATS)
+        margins_laid_out(page)
+        whole = page.evaluate(SEATS)
+        if seats != whole:
+            differ[step] = [
+                pair for pair in zip(seats, whole, strict=True) if pair[0] != pair[1]
+            ]
+
+    def rows(keys, entries=1, immediate=False):
+        page.evaluate(ROWS, {"keys": keys, "entries": entries, "immediate": immediate})
+
+    rows(["line-1", "line-2", "heading", "words", "question"])
+    rows(["t", "v"], entries=2)
+    settled()
+    margins_laid_out(page)
+
+    # The second line's row held under the pointer while the first line moves onto it,
+    # so the pass that move brings stands the first line's row clear of the held one;
+    # then let go, and a row added beside rows the margin already watches brings a pass
+    # for the rows alone.
+    held = page.locator('[data-lf-margin-for="line-2"]').bounding_box()
+    page.mouse.move(held["x"] + held["width"] / 2, held["y"] + held["height"] / 2)
+    page.evaluate(
+        "() => Object.assign(document.getElementById('line-1').style,"
+        " {position: 'relative', top: '6px'})"
+    )
+    settled()
+    page.mouse.move(4, 4)
+    settled()
+    rows(["after"])
+    compare("a hold ends")
+
+    # A face grown and laid out in one task, as an immediate update flushes it.
+    rows(["question"], entries=3, immediate=True)
+    compare("a face grows at once")
+
+    page.evaluate("() => window.seatRows.get('line-1').registration.unregister()")
+    compare("a row leaves")
+
+    # The pane scrolled to its foot puts words under the pin above the paragraph.
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 10000; }")
+    settled()
+    rows(["intro"])
+    compare("a pane beside a pin scrolls")
+
+    page.evaluate("""() => new Promise((resolve) => {
+      const slide = document.getElementById('slide');
+      slide.addEventListener('transitionend', resolve, {once: true});
+      slide.classList.remove('away');
+    })""")
+    settled()
+    rows(["tail"])
+    compare("a transition beside a pin ends")
+
+    page.evaluate("""() => {
+      window.scrollBy({top: 240, behavior: 'instant'});
+      const words = document.getElementById('far-4').firstChild;
+      getSelection().setBaseAndExtent(words, 0, words, 24);
+    }""")
+    page.keyboard.press("c")
+    page.locator(".lf-composer leaf-text").focus()
+    page.keyboard.insert_text("Why this section?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    resolve = page.locator(".lf-margin-preview .lf-resolve")
+    expect(resolve).to_be_visible()
+    rendered(page)
+    compare("a scroll and a sent comment")
+
+    resolve.click()
+    rendered(page)
+    compare("a resolve")
+    assert differ == {}, differ

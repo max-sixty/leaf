@@ -145,7 +145,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             {
                 "ts": "2026-10-14T12:00:06+00:00",
                 "source": "cli",
-                "type": "fork_reply",
+                "type": "fork_outcome",
                 "session": "session",
                 "thread": "first",
                 "inputs": ["second"],
@@ -156,6 +156,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
         ],
     )
     args = [
+        "logs",
         "response-times",
         str(tmp_path),
         "--since",
@@ -169,7 +170,11 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     rows = {row["input_id"]: row for row in report["samples"]}
     # The fork that handed the message over decided its edit too, and the update
     # read Delivered from its opened pickup to the agent's first words.
-    assert rows["edited"]["fork"] == {"outcome": "hand_over", "elapsed_s": 2.1}
+    assert rows["edited"]["fork"] == {
+        "outcome": "hand_over",
+        "elapsed_s": 2.1,
+        "why": "it asks for a measurement",
+    }
     assert rows["first"]["fork"] is None
     assert report["summary"]["fork_hand_over"]["inputs"] == 2
     assert report["summary"]["fork_hand_over"]["p50_s"] == 5
@@ -301,7 +306,14 @@ def test_query_reports_clock_errors_and_requires_qualified_timestamps(tmp_path):
     )
     result = CliRunner().invoke(
         cli,
-        ["response-times", str(tmp_path), "--until", "2026-10-14T12:00:30Z", "--json"],
+        [
+            "logs",
+            "response-times",
+            str(tmp_path),
+            "--until",
+            "2026-10-14T12:00:30Z",
+            "--json",
+        ],
     )
     assert result.exit_code == 0, result.output
     summary = json.loads(result.output)["summary"]
@@ -318,7 +330,7 @@ def test_query_reports_clock_errors_and_requires_qualified_timestamps(tmp_path):
         "total_s": 0,
     }
     invalid = CliRunner().invoke(
-        cli, ["response-times", str(tmp_path), "--since", "2026-10-14T12:00:00"]
+        cli, ["logs", "response-times", str(tmp_path), "--since", "2026-10-14T12:00:00"]
     )
     assert invalid.exit_code != 0
     assert "timezone" in invalid.output
@@ -498,9 +510,9 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             ],
         ),
     )
-    args = ["response-times", str(tmp_path), "--until", at(30), "--json"]
+    args = ["logs", "response-times", str(tmp_path), "--until", at(30), "--json"]
     pending = CliRunner().invoke(
-        cli, ["response-times", str(tmp_path), "--until", at(22), "--json"]
+        cli, ["logs", "response-times", str(tmp_path), "--until", at(22), "--json"]
     )
     assert pending.exit_code == 0, pending.output
     [streamed] = [
@@ -583,7 +595,7 @@ def test_query_times_titles_and_publications_for_the_inputs_awaiting_them(tmp_pa
         stamp = datetime.fromisoformat(published).timestamp()
         os.utime(marker, (stamp, stamp))
     result = CliRunner().invoke(
-        cli, ["response-times", str(tmp_path), "--until", at(30), "--json"]
+        cli, ["logs", "response-times", str(tmp_path), "--until", at(30), "--json"]
     )
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)

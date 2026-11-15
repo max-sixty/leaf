@@ -94,7 +94,17 @@
      * `hidden` down: `visible` there computes to `auto` beside `auto`, which makes the
      * block one that scrolls down, and a landing inside it then counts none of the sticky
      * headers over it (state.css, `across`). Sized by its lines, it has nothing to scroll
-     * down; a block an author bounds says how it scrolls down. */
+     * down; a block an author bounds says how it scrolls down.
+     *
+     * The same rule costs a block in a box that takes its width from its content (a flex
+     * item, a grid `auto` track beside an `fr` track, a box sized to fit), which sizes
+     * without it: two short commands in a flex row stood 30px wide each. `page check
+     * --render` reports a block left too narrow to read (`squeezedBoxes`,
+     * render-checks/layout.js), and the author gives the block or its holder a width. A
+     * one-column grid inside the block would size it by its lines and still let it
+     * shrink, but its text-only lines lost the room after their last character (1px
+     * against a block's 15px), and a block mixing text and tags stood each run in a row
+     * of its own. */
     pre {
       overflow: auto hidden;
       contain: inline-size;
@@ -151,7 +161,7 @@
      * name that could not break (an identifier has nowhere to break until the rule
      * at `code` above gives it one) or because there are more columns than the
      * measure holds. `page check --render` advises on a table that scrolls with a
-     * cell in it wrapped at any width from 360px to 1920px (`squeezedTables`,
+     * cell in it wrapped at any width from 360px to 1920px (`squeezedBoxes`,
      * render-checks/layout.js) and leaves the third case to a table with nothing
      * left to wrap.
      *
@@ -339,6 +349,25 @@ dl.lf-facts dd {
       background: none;
       font-size: 0.9em;
     }
+    /* A row's first cell names it, and a short name there stays whole, as an option
+     * table in a man page keeps `--output-dir`. `anywhere` (above) gives a name a
+     * one-character minimum, and a table's automatic layout hands the room above each
+     * column's minimum out by how much more it would take, so a column of names beside
+     * a column of sentences got almost none: at 720px `--output-dir` stood as
+     * `--output-` over `dir`, and at 420px every name took two or three lines. The
+     * name's minimum is its own width up to 20ch or a quarter of the nearest size
+     * container (the body, unless a box nearer declares one), whichever is less, so a
+     * longer one still breaks rather than hold the column open. Only the
+     * first cell, because code in a sentence is not a name the row is read by: on every
+     * cell, `allowUnsandboxedCommands` in a sentence made a four-column table scroll at
+     * 560px. A minimum needs a box, hence the inline-block. Firefox and WebKit lack
+     * calc-size(), and keep the breakable name. */
+    @supports (min-inline-size: calc-size(max-content, size)) {
+      :is(th, td):first-child :is(code, samp):not(pre *) {
+        display: inline-block;
+        min-inline-size: calc-size(max-content, min(size, 20ch, 25cqi));
+      }
+    }
     /* A caption says what its table covers, such as which case each of several tables
        shows, so it is the table's title rather than apparatus: it takes the table's
        face, size and ink, and the weight its column headings wear. Set at the chip size
@@ -412,25 +441,32 @@ dl.lf-facts dd {
        which keeps a table nested in a cell read for itself. The table of captures
        below asks the same way. An `@scope` rooted on the table also answers once, but a
        scope's root names a class, id or attribute, never a type alone
-       (test_an_untyped_has_leads_only_to_a_typed_subject). */
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Each rule below names its cells' types, in a `:where()` that adds no weight,
+       because its subject follows the table's `:has()`: when such a subject names no
+       type, class, id or attribute, Chromium restyles every element under any one whose
+       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
+       marks every ancestor of the focused element, `main` included, so with
+       `:first-child` alone every focus move restyled the page
+       (test_resolving_a_thread_restyles_what_focus_marks). */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
       }
-      & > * > tr > :first-child {
+      & > * > tr > :where(th, td):first-child {
         position: sticky;
         inset-inline-start: 0;
       }
-      &[data-lf-more-before] > * > tr > :first-child {
+      &[data-lf-more-before] > * > tr > :where(th, td):first-child {
         background: var(--lf-ground);
       }
       @media screen {
         &[data-lf-more-before]:not([data-lf-focus-within])
           > *
           > tr
-          > :first-child::after {
+          > :where(th, td):first-child::after {
           content: "";
           position: absolute;
           inset-block: 0;
@@ -521,8 +557,10 @@ dl.lf-facts dd {
     figure {
       margin: var(--figure-margin-block) 0;
     }
+    /* A caption is a sentence read with its figure, so it stands one rung under the
+       prose rather than at the apparatus size beside a label or a chip. */
     figcaption {
-      font-size: var(--t-6);
+      font-size: var(--t-5);
       color: var(--muted);
       margin-top: 8px;
     }
@@ -815,7 +853,15 @@ details::details-content {
 /* Frame edges propagate through generated shadow wrappers and their slots by the
  * same rule as ordinary document wrappers (theme.css, block-flow frames). The reset
  * stands in the face's layer, the lowest of the tier, so every frame's declaration
- * outranks it, the face's own on a quotation, a disclosure and a cell among them. */
+ * outranks it, the face's own on a quotation, a disclosure and a cell among them.
+ *
+ * Each edge rule checks that an element is neither chrome (`.lf-ui`) nor generated
+ * (`data-lf-gen`) before it checks the element's position, in a `:where()` that adds
+ * no weight. Chromium matches these selectors against every element, whether or not
+ * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
+ * children, it restyles all of them whenever a child is inserted or removed. The
+ * margin's rows are `.lf-ui` siblings, so without the check, sending a comment
+ * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes). */
 @layer lf-reading-face {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
@@ -824,13 +870,13 @@ details::details-content {
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  :where(:not(.lf-ui, [data-lf-gen])):nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  :where(:not(.lf-ui, [data-lf-gen])):nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;
   }

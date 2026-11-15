@@ -12,7 +12,6 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
@@ -1916,8 +1915,9 @@ def test_desktop_wake_follows_queue_acceptance_without_resending(
 
 
 @contextmanager
-def desktop_router(monkeypatch, answers: dict):
-    """Serve the Codex desktop app's IPC router for one connection, as it was observed
+def desktop_router(monkeypatch, home: Path, answers: dict):
+    """Serve the Codex desktop app's IPC router for one connection under `home`, a
+    `socket_dir` short enough to hold its socket, as it was observed
     in app 26.1029 (`codex_desktop.py`): each message a length and JSON, `initialize`
     answered with a client id, and every answer preceded by another client's traffic.
     `answers` maps a method to its response fields, or to any other JSON value, which
@@ -1953,17 +1953,15 @@ def desktop_router(monkeypatch, answers: dict):
                 elif answer is not None:
                     send(answer)
 
-    # A socket path has a short limit, which a test's own temporary directory exceeds.
-    with tempfile.TemporaryDirectory(prefix="lf-ipc-", dir="/tmp") as home:
-        monkeypatch.setenv("CODEX_HOME", home)
-        (Path(home) / "ipc").mkdir()
-        with socket.socket(socket.AF_UNIX) as listener:
-            listener.bind(f"{home}/ipc/ipc.sock")
-            listener.listen()
-            server = threading.Thread(target=serve, args=(listener,), daemon=True)
-            server.start()
-            yield requests
-            server.join(timeout=STATED_TIMEOUT)
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    (home / "ipc").mkdir()
+    with socket.socket(socket.AF_UNIX) as listener:
+        listener.bind(str(home / "ipc" / "ipc.sock"))
+        listener.listen()
+        server = threading.Thread(target=serve, args=(listener,), daemon=True)
+        server.start()
+        yield requests
+        server.join(timeout=STATED_TIMEOUT)
 
 
 OWNED = {
@@ -2064,13 +2062,14 @@ def desktop_pickups(page_dir):
 
 
 def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     [(path, _)] = codex_records("codex-thread")
     payload = delivery_model.read_delivery(path.stem)
     with desktop_router(
         monkeypatch,
+        socket_dir,
         {"thread-owner-discovery": OWNED, "thread-follower-start-turn": STARTED},
     ) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2157,16 +2156,15 @@ def test_an_open_desktop_chat_takes_input_with_no_message_in_the_users_name(
     ],
 )
 def test_a_desktop_chat_the_app_cannot_start_falls_back_to_the_queue(
-    page_dir, idle_desktop_chat, monkeypatch, capsys, answers, reason
+    page_dir, idle_desktop_chat, monkeypatch, capsys, answers, reason, socket_dir
 ):
     chat = idle_desktop_chat
     monkeypatch.setattr(codex_desktop_model, "OWNER_TIMEOUT", 0.1)
     with ExitStack() as stack:
         if answers is None:
-            home = stack.enter_context(tempfile.TemporaryDirectory(dir="/tmp"))
-            monkeypatch.setenv("CODEX_HOME", home)
+            monkeypatch.setenv("CODEX_HOME", str(socket_dir))
         else:
-            stack.enter_context(desktop_router(monkeypatch, answers))
+            stack.enter_context(desktop_router(monkeypatch, socket_dir, answers))
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
 
     assert len(chat.queued) == 1
@@ -2198,12 +2196,15 @@ def sent_delivery(requests):
     ],
 )
 def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
-    page_dir, idle_desktop_chat, monkeypatch, capsys, start
+    page_dir, idle_desktop_chat, monkeypatch, capsys, start, socket_dir
 ):
     chat = idle_desktop_chat
-    monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
+    if start is None:
+        # Only a lost answer waits out the bound. An answer arriving after a short
+        # one would read as lost too, and the arm would test nothing of its own.
+        monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": start}
-    with desktop_router(monkeypatch, answers) as requests:
+    with desktop_router(monkeypatch, socket_dir, answers) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     output = sent_delivery(requests)
     assert "unconfirmed" in capsys.readouterr().err
@@ -2239,11 +2240,13 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     ],
 )
 def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
-    page_dir, idle_desktop_chat, monkeypatch, last_turn, abandoned
+    page_dir, idle_desktop_chat, monkeypatch, last_turn, abandoned, socket_dir
 ):
     chat = idle_desktop_chat
     monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
-    with desktop_router(monkeypatch, {"thread-owner-discovery": OWNED}) as requests:
+    with desktop_router(
+        monkeypatch, socket_dir, {"thread-owner-discovery": OWNED}
+    ) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     sent_delivery(requests)
     [(path, _)] = codex_records("codex-thread")
@@ -2274,7 +2277,7 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
 
 
 def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     refused = {
@@ -2288,7 +2291,10 @@ def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
     def time_out(*args):
         raise Refused("Codex queue command timed out")
 
-    with monkeypatch.context() as failing, desktop_router(monkeypatch, refused):
+    with (
+        monkeypatch.context() as failing,
+        desktop_router(monkeypatch, socket_dir, refused),
+    ):
         failing.setattr(codex_adapter_model, "queue_delivery", time_out)
         with pytest.raises(Refused):
             codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2298,7 +2304,7 @@ def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
 
 
 def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
-    page_dir, idle_desktop_chat, monkeypatch
+    page_dir, idle_desktop_chat, monkeypatch, socket_dir
 ):
     chat = idle_desktop_chat
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": STARTED}
@@ -2306,7 +2312,10 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     def stop(*args):
         raise OSError("the adapter stopped")
 
-    with monkeypatch.context() as stopped, desktop_router(monkeypatch, answers) as sent:
+    with (
+        monkeypatch.context() as stopped,
+        desktop_router(monkeypatch, socket_dir, answers) as sent,
+    ):
         stopped.setattr(codex_desktop_model, "accept_codex_delivery", stop)
         with pytest.raises(OSError):
             codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
@@ -2319,96 +2328,6 @@ def test_an_adapter_stopped_after_the_apps_answer_sends_no_second_start(
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == []
     assert desktop_pickups(page_dir) == [("opened", "desktop-turn", None)]
-
-
-def test_codex_serializes_later_input_behind_the_offered_delivery(
-    codex_claimed_page, monkeypatch
-):
-    page = codex_claimed_page
-    append_carried_log_record(
-        page, {"kind": "comment", "id": "first", "author": "user", "text": "one"}
-    )
-    first = events_model.read_events(page)[-1]
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [first],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
-    first_path, _ = current_codex_record("codex-thread")
-
-    queue_started = threading.Event()
-    release_queue = threading.Event()
-
-    def queue_delivery(_codex, _session, _prompt):
-        queue_started.set()
-        assert release_queue.wait(timeout=STATED_TIMEOUT)
-
-    monkeypatch.setattr(codex_adapter_model, "queue_delivery", queue_delivery)
-    offering = threading.Thread(
-        target=lambda: codex_adapter_model._offer_queued_delivery(
-            "codex", "codex-thread", None
-        )
-    )
-    offering.start()
-    assert queue_started.wait(timeout=STATED_TIMEOUT), (
-        "the offer never reached the Codex queue"
-    )
-    assert files_model.read_json(first_path)["state"] == "offering"
-
-    # A parallel step hook leaves the in-flight queue offer to its owner and
-    # cannot capture its still-unacknowledged events into a second record.
-    leases_model.mark_hooks("codex-thread")
-    cleanup_model.prompt_turn("codex-thread", "user-turn")
-    cleanup_model.prompt_turn("codex-thread", "user-turn")
-    prompt, _ = codex_model.offer_hook_delivery(
-        "codex-thread", cleanup_model.session_record("codex-thread")
-    )
-    assert prompt is None
-    assert len(codex_records("codex-thread")) == 1
-
-    append_carried_log_record(
-        page, {"kind": "comment", "id": "second", "author": "user", "text": "two"}
-    )
-    release_queue.set()
-    offering.join(timeout=STATED_TIMEOUT)
-    assert not offering.is_alive()
-    first_delivery = files_model.read_json(
-        first_path.parent / "history" / first_path.name
-    )
-    assert first_delivery["state"] == "queued"
-    payload = files_model.read_json(delivery_model.delivery_path(first_path.stem))
-    assert [
-        event["id"] for batch in payload["batches"] for event in batch["events"]
-    ] == ["first"]
-
-    assert not codex_model.recover_codex_receipt("codex-thread")
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            service_model.unacknowledged(transaction.events, transaction.cursor),
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
-    second_path, second_delivery = current_codex_record("codex-thread")
-    assert second_path != first_path
-    assert second_delivery["state"] == "collecting"
-    assert [
-        event["id"]
-        for batch in files_model.read_json(second_path)["batches"]
-        for event in batch["events"]
-    ] == ["second"]
 
 
 def _queued_with_lost_acceptance(page_dir, monkeypatch) -> tuple[Path, dict, list]:

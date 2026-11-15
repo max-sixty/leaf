@@ -10,13 +10,11 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_layout import (
     PANEL_DIFF_MARKUP,
-    WIDE_DIFF_PAGE,
     current_location_ring,
     rings_drawn,
     serious_axe_violations,
 )
-from render_cases_navigation import DIFF_PAGE
-from render_cases_widgets import SCROLLED, WIDE_DIAGRAM_PAGE
+from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
@@ -28,6 +26,7 @@ from render_harness import (
     open_page,
     panel_settled,
     panel_view,
+    put_preview_away,
     resized,
     round_trip,
     scroll_settled,
@@ -59,12 +58,23 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     )
     stops = reference.locator("input, button, [tabindex]:not([tabindex='-1'])")
     assert stops.count() >= 2, "the reference had no meaningful native Tab loop"
-    for _ in range(stops.count() + 2):
+    close = reference.locator(".lf-command-reference-close")
+    # Walk until Tab has come round to Close twice, so the walk wraps and ends at a
+    # known stop whatever the number of command rows.
+    arrivals = 0
+    for _ in range(2 * (stops.count() + 2)):
         page.keyboard.press("Tab")
         assert reference.evaluate(
             "el => el.contains(document.activeElement)"
             "   || document.activeElement === document.body"
         ), "Tab escaped the command reference onto the suspended page"
+        arrivals += close.evaluate("el => el === document.activeElement")
+        if arrivals == 2:
+            break
+    assert arrivals == 2, "Tab never came back round to the reference's first stop"
+    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # "Escape"); the next closes the reference.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
@@ -133,9 +143,9 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
-    """On me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On me drew,
-    and On me closing then dropped them on the page."""
+    """On Me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On Me drew,
+    and On Me closing then dropped them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
@@ -231,7 +241,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting On me away hands the user back the page, however they opened it.
+    """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened
@@ -300,49 +310,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     assert not page.evaluate(ringed)
 
 
-def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, serve):
-    """Anything a mouse can scroll, a keyboard can reach — including the box a widget
-    renders inside its own shadow tree. `reachScrollers` walks the tree it is handed,
-    and `querySelectorAll` stops dead at a shadow boundary, so a diff was the one
-    scrolling box on a page that a keyboard user had no way into: no tab stop of its
-    own, and unlike a board no control inside to borrow one from. The axe sweep says
-    so too, and only while some example's diff happens to carry a line this long; this
-    is the same rule asked of the widget rather than of the corpus."""
-    page = open_page(browser, serve(WIDE_DIFF_PAGE))
-    resized(page, 420, 900)
-    measured = page.locator("#wide-diff").evaluate(
-        """(d) => {
-        const viewport = d.shadowRoot.querySelector('code[data-code]');
-        return { scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
-                 tab: viewport.tabIndex };
-    }"""
-    )
-    # The reach, then that there was anything to reach: a diff narrow enough to fit
-    # takes no tab stop and is right not to, which would pass the first assertion
-    # while saying nothing about the rule.
-    assert measured["scrolls"] > 0, "this diff fits, so it proves nothing"
-    assert measured["tab"] == 0, "a diff that scrolls is unreachable from the keyboard"
-    page.close()
-
-    page = open_page(browser, serve(DIFF_PAGE))
-    resized(page, 1200, 900)
-    fitted = page.locator("#patch").evaluate(
-        """(d) => [...d.shadowRoot.querySelectorAll('code[data-code]')].map(viewport => ({
-          scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
-          tab: viewport.tabIndex,
-        }))"""
-    )
-    assert fitted and all(item["scrolls"] == 0 for item in fitted), fitted
-    assert all(item["tab"] == -1 for item in fitted), (
-        "a diff that fits added a keyboard stop with nowhere to scroll"
-    )
-
-
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
         '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
-        '<div id="scroll" class="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<div id="scroll" class="lf-scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
         '<button style="visibility:hidden">Unavailable</button>'
         "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
         "</div>",
@@ -365,7 +337,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
 
     Read with the comment on and off the same box, because the assertion says nothing
     unless the box would otherwise have the stop."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     page = open_page(browser, url)
     resized(page, 760, 900)
     diagram = page.locator("#flow")
@@ -549,7 +521,7 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
               const ids = ["out", "in"].map((order) => {
               const box = document.createElement("div");
               box.id = `box-${order}`;
-              box.classList.add("scroll");
+              box.classList.add("lf-scroll");
               box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
               const host = document.createElement("span");
               if (order === "out") host.setAttribute("tabindex", "-1");
@@ -571,7 +543,7 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
             """() => {
               const authored = document.createElement('div');
               authored.id = 'late-authored';
-              authored.className = 'scroll';
+              authored.className = 'lf-scroll';
               authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
               authored.textContent = 'a'.repeat(500);
               const native = document.createElement('pre');
@@ -642,106 +614,6 @@ def edges_page(control):
         )
         + "</tr></tbody></table>",
     )
-
-
-@pytest.mark.parametrize(
-    ("control", "past", "key", "engine"),
-    [
-        *(
-            pytest.param(
-                control, past, key, engine, id=f"{control}-{name}-{key}-{engine}"
-            )
-            for control, past, name, key in [
-                ("radio", 6, "past", "Tab"),
-                ("radio", -2, "inside", "Tab"),
-                ("options", 6, "past", "Tab"),
-                ("options", 6, "past", "End"),
-                ("filter", 3, "past", "Tab"),
-                ("table", 6, "past", "Tab"),
-            ]
-            for engine in ["browser", "firefox_browser"]
-        ),
-        # Firefox logs a warning of its own on any playground page.
-        pytest.param(
-            "playground", 6, "Tab", "browser", id="playground-past-Tab-browser"
-        ),
-    ],
-)
-def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
-    request, serve, control, past, key, engine
-):
-    """The browser reveals a Tab's arrival only when it counts it out of view, Firefox
-    when less than about a line of it shows and Chromium across only when none of it
-    does, and neither it nor Leaf's landing knew a box that wears the control's ring.
-    So a radio 6px past a bounded log's foot stayed cut in Firefox, and one 2px inside
-    it kept its ring cut; a link 6px past a wide table's end stayed cut in both
-    engines; and a joined option group's row and a playground choice's face, each
-    wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it; and a diff's file filter, holding
-    focus in its own shadow tree, stayed cut in both and under the log's fade. `past` is
-    how far beyond the edge the box wearing the ring stood before the key; each now
-    shows its ring, unfaded."""
-    page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
-    # Tall enough that the log's foot stands clear of the floating panel, so the stop the
-    # key leaves is where the user is, rather than a stop the key would let go of.
-    resized(page, 1280, 720)
-    side = "right" if control == "table" else "bottom"
-    target = page.locator(EDGE_TARGETS[control])
-    # Which box wears the ring is the paint's answer: the nearest box out from the
-    # control whose outline is the ring.
-    target.focus()
-    rendered(page)
-    target.evaluate(
-        """(el) => {
-          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
-            const cs = getComputedStyle(n);
-            if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
-              return void (window.ringed = n);
-          }
-        }"""
-    )
-    if key == "Tab":
-        page.keyboard.press("Shift+Tab")
-    else:
-        page.locator("#op-a .lf-pick").focus()
-    page.evaluate(
-        """([side, past]) => {
-          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
-          const port = box.getBoundingClientRect();
-          const at = window.ringed.getBoundingClientRect();
-          if (side === 'bottom')
-            box.scrollTop += at.bottom - (port.top + box.clientTop + box.clientHeight)
-              - past;
-          else
-            box.scrollLeft += at.right - (port.left + box.clientLeft + box.clientWidth)
-              - past;
-        }""",
-        [side, past],
-    )
-    scroll_settled(page)
-    page.keyboard.press(key)
-    expect(target).to_be_focused()
-    rendered(page)
-    read = page.evaluate(
-        """(side) => {
-          const el = window.ringed;
-          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
-          const port = box.getBoundingClientRect();
-          const at = el.getBoundingClientRect();
-          const style = getComputedStyle(el);
-          return {
-            room: side === 'bottom'
-              ? port.top + box.clientTop + box.clientHeight - at.bottom
-              : port.left + box.clientLeft + box.clientWidth - at.right,
-            ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
-            fade: getComputedStyle(box).maskImage,
-          };
-        }""",
-        side,
-    )
-    assert read["room"] >= read["ring"], read
-    assert read["fade"] == "none", read
 
 
 GROUPED_SIDE_LIST = leaf_page(

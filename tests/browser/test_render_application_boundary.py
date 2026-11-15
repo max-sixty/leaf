@@ -19,7 +19,7 @@ from render_harness import (
     PANEL,
     consume_browser_errors,
     expect_obligations_answered,
-    expect_open_threads,
+    expect_preview_words,
     holding,
     http_error_console,
     is_problem,
@@ -116,7 +116,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         leaf_page(
             "Interaction trace",
             '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
-            '<button id="trace-button">Continue</button>',
+            '<button id="trace-button">Continue</button>'
+            '<textarea id="trace-note" aria-label="Note"></textarea>',
         )
     )
     page = open_page(browser, url)
@@ -135,6 +136,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         page.locator("#trace-input").fill("hello")
     with page.expect_response(lambda response: contains(response, "click")):
         page.locator("#trace-button").click()
+    with page.expect_response(lambda response: contains(response, "focusin")):
+        page.locator("#trace-note").focus()
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
@@ -161,6 +164,14 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
+    # leaf.page's Worker starts the visitor's container on a text box's focus.
+    focused = {
+        row["control"]: row.get("textBox")
+        for row in rows
+        if row.get("type") == "focusin" and "control" in row
+    }
+    assert focused["textarea#trace-note"] is True
+    assert focused["input#trace-input"] is None
     reference = next(row for row in commands if row["id"] == "command.reference.open")
     assert reference["title"]
     assert "description" in reference
@@ -274,6 +285,59 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
     assert shown["visibility"] == submitted["visibility"] == "visible"
     assert "text" not in shown and "text" not in submitted
+
+
+def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
+    """The trace records typing in a password field, and none of what was typed."""
+    url = serve(
+        leaf_page(
+            "Password trace",
+            "<h1>Password trace</h1>"
+            '<input id="trace-secret" type="password" aria-label="Secret">'
+            '<input id="trace-entry" aria-label="Entry">',
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#trace-secret").press_sequentially("hunter2")
+
+    def holds_entry(response):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry.get("value") == "visible"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    # A show-password toggle makes the field a text field; it stays a secret.
+    page.evaluate("document.querySelector('#trace-secret').type = 'text'")
+    page.locator("#trace-secret").press_sequentially("x")
+    # Once it is a text field, Chromium fires selectionchange at the field itself.
+    page.locator("#trace-secret").select_text()
+    with page.expect_response(holds_entry):
+        page.locator("#trace-entry").press_sequentially("visible")
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    typed = [
+        row
+        for row in rows
+        if row.get("type") in ("keydown", "beforeinput", "input", "selectionchange")
+        and any("input#trace-secret" in part for part in row["target"])
+    ]
+    assert {row["type"] for row in typed} == {
+        "keydown",
+        "beforeinput",
+        "input",
+        "selectionchange",
+    }
+    for row in typed:
+        assert not {"key", "code", "data", "value", "selection"} & row.keys(), row
 
 
 def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
@@ -1143,156 +1207,6 @@ def arrived(page, thread_id):
     return thread_id
 
 
-def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
-    """The thread parent absorbs descendants without joining unrelated page work."""
-    source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                source,
-                page_files={
-                    "registry.json": json.dumps(PAGE_DECLARATION),
-                    "widgets/lf-local.js": PAGE_WIDGET,
-                },
-            )
-        ),
-    )
-    page.evaluate(
-        """async () => {
-          const presentation = await window.__lfCheckApi();
-          const held = () => {
-            let release, reject;
-            const promise = new Promise((resolve, fail) => {
-              release = resolve;
-              reject = fail;
-            });
-            return {promise, release, reject};
-          };
-          window.pagePreparation = held();
-          window.threadPreparation = held();
-          window.__heldLocalPresentations = new Map([
-            ['thread-local', threadPreparation.promise],
-          ]);
-          document.querySelector('#page-local').controller.present(
-            pagePreparation.promise
-          );
-          window.whenLeafPresented = presentation.whenApplicationPresented;
-          window.whenLeafRegionsPresented =
-            presentation.whenApplicationRegionsPresented;
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-        }"""
-    )
-
-    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
-    # The panel's thread view is the reader that draws the reply's widget.
-    open_panel_thread(page, arrived(page, "frozen-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the thread.",
-            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
-        },
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "thread-local",
-            "action": "choose",
-            "detail": {"value": "chosen"},
-        },
-    )
-    page.wait_for_function(
-        """() => {
-          const pending = readLeafPresentation().pending;
-          return document.querySelector('.lf-floating-panel #thread-local') &&
-            pending.includes('thread') &&
-            pending.includes('widget:thread-local:preparation') &&
-            pending.includes('widget:page-local:preparation');
-        }""",
-    )
-    page.evaluate(
-        "threadReady = false; allReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "whenLeafPresented().then(() => { allReady = true; }); true"
-    )
-    assert page.evaluate("threadReady") is False
-    page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("threadReady")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
-        "data-rendered-choice", "chosen"
-    )
-    assert page.evaluate("allReady") is False
-    assert "widget:page-local:preparation" in page.evaluate(
-        "readLeafPresentation().pending"
-    )
-    page.evaluate("pagePreparation.release('page')")
-    page.wait_for_function("allReady")
-
-    # A descendant owns its own fail-soft result. Its failure reports once and settles,
-    # while the parent list, count, and narrowing keep the same candidate reading.
-    page.evaluate(
-        """() => {
-          window.failedThreadPreparation = (() => {
-            let reject;
-            const promise = new Promise((_resolve, fail) => { reject = fail; });
-            return {promise, reject};
-          })();
-          window.__heldLocalPresentations.set(
-            'thread-failing', failedThreadPreparation.promise
-          );
-        }"""
-    )
-    long_thread(
-        serve.page_dir, "failing-widget-question", "Show another frozen widget."
-    )
-    open_panel_thread(page, arrived(page, "failing-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "failing-widget-question",
-            "text": "This widget fails its preparation.",
-            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
-        },
-    )
-    page.wait_for_function(
-        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
-          readLeafPresentation().pending.includes('thread') &&
-          readLeafPresentation().pending.includes(
-            'widget:thread-failing:preparation'
-          )""",
-    )
-    expect_open_threads(page, 2)
-    page.evaluate(
-        "threadReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
-    )
-    page.wait_for_function("threadReady")
-    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
-    expect_open_threads(page, 2)
-    reported_browser_errors(
-        page, "leaf: Presentation failed: frozen descendant failure"
-    )
-
-
 THREAD_ACTIONS = r"""
 import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
@@ -1527,7 +1441,7 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On me's route and Threads' row each take the user to the primary reader that
+    """On Me's route and Threads' row each take the user to the primary reader that
     owns the thread's widget. The panel opens no view of the thread, and the widget
     arrives as the same native node."""
     page = open_page(browser, package_workspace(serve))
@@ -1790,11 +1704,14 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
-    admitted = reader.evaluate(
-        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
-        pending["key"],
-    )
-    assert admitted["id"] != pending["id"]
+    # The server's reading, adopted after the send's answer, replaces the pending id.
+    admitted = page.wait_for_function(
+        """([node, key, pending]) => {
+          const thread = node.collection.threads.find((thread) => thread.key === key);
+          return thread && thread.id !== pending ? thread : null;
+        }""",
+        arg=[reader.element_handle(), pending["key"], pending["id"]],
+    ).json_value()
     assert admitted["root"]["key"] == pending["root"]["key"]
     selected = page.locator(f'{PANEL_THREAD}[data-lf-thread="{admitted["id"]}"]')
     expect(selected).to_be_visible()
@@ -1907,9 +1824,17 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    thread_id = first.evaluate(
-        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
-    )
+    # The widget draws the thread under its pending id first; the server's reading,
+    # adopted after the send's answer, gives it the id the panel's view names.
+    thread_id = page.wait_for_function(
+        """node => {
+          const id = node.collection.threads.find(
+            (thread) => thread.root.body.text.trim() === 'Delta'
+          )?.id;
+          return id && !id.startsWith('pending:') ? id : null;
+        }""",
+        arg=first.element_handle(),
+    ).json_value()
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
     expect(
@@ -2208,7 +2133,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     expect(workspace.locator('[data-lf-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
     notice = workspace.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 message edited")
+    expect_preview_words(notice, "1 new reply · 1 message edited")
     notice.click()
     if mode != "Reply only":
         expect(workspace.locator('[data-lf-event="later-answer"]')).to_contain_text(

@@ -1,6 +1,7 @@
 """File-side anchor and thread-projection tests."""
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -39,6 +40,7 @@ from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.events import build_threads
+from leaf.revisioning import activate_source
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -59,6 +61,26 @@ def test_an_explicit_line_break_separates_quoted_words():
     assert passages_model.page_passages(document).text == (
         "Short label here Then a second line."
     )
+
+
+QUOTES = json.loads(Path(__file__).parents[1].joinpath("quote_cases.json").read_text())
+
+
+@pytest.mark.parametrize("case", QUOTES["cases"], ids=lambda case: case["id"])
+def test_a_quote_resolves_where_the_browser_resolves_it(case):
+    """A stored quote resolves to the passage the browser's `findQuote` resolves it to,
+    told by how many of its section's letters stand before it
+    (`tests/quote_cases.json`)."""
+    from leaf.anchor_capture import resolve_quote
+
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f"<main>{case['markup']}</main>"),
+        case.get("registry"),
+    )
+    at = resolve_quote(passages, case["anchor"])
+    lo = passages.spans[case["anchor"]["section"]][0]
+    before = None if at is None else len("".join(passages.text[lo:at].split()))
+    assert before == case["before"]
 
 
 def test_an_empty_quote_neighbour_is_an_exact_boundary():
@@ -593,6 +615,40 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
     assert [e["thread"] for e in moves] == [roots[1]["id"]]
 
 
+def test_a_revision_moves_a_comment_on_a_formatted_label_to_its_section(page_dir):
+    """The browser captures a passage's context as the page shows it, a chip's label
+    apart from the formatted title beside it, so the file reads the revision's
+    predecessor the same way and sees the passage leave."""
+    from leaf.revisioning import activate_source
+
+    labels = (
+        '<div id="labels"><small>MARK</small><strong><em>one</em></strong>'
+        " <small>MARK</small><strong><em>two</em></strong></div>"
+    )
+    original = PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>{labels}")
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    root = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {
+                "section": "labels",
+                "quote": "MARK",
+                "prefix": "Plan",
+                "suffix": "one MARK two",
+            },
+            "text": "Rename this one.",
+        },
+    )
+    (page_dir / "index.html").write_text(original.replace("MARK", "TERM"))
+    assert activate_source(page_dir).created
+    threads = build_threads(events_model.read_events(page_dir), {})
+    assert threads[root["id"]]["anchor"] == {"section": "labels"}
+
+
 def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     """The server activates a valid save before anyone checks it, so the moves are
     in the log by then. `page check` still names every thread the active revision
@@ -930,7 +986,7 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
 
     def interrupted(page, event, **kwargs):
         append(page, event, **kwargs)
-        raise RuntimeError("interrupted after one anchor append")
+        raise RuntimeError("interrupted after the first append")
 
     with monkeypatch.context() as fault:
         fault.setattr(revisioning, "append_admitted", interrupted)
@@ -939,10 +995,11 @@ def test_an_interrupted_activation_finishes_all_anchor_transitions(
         with pytest.raises(RuntimeError, match="interrupted after"):
             revisioning.activate_source(page_dir)
     assert files_model.latest_revision(page_dir) == 1
-    assert (
-        len([e for e in events_model.read_events(page_dir) if e["kind"] == "reanchor"])
-        == 1
-    )
+    # The activation naming the bundle is the publication's prerequisite; neither
+    # anchor has moved yet.
+    pending = events_model.read_events(page_dir)
+    assert pending[-1]["kind"] == "activation" and pending[-1]["revision"] == 2
+    assert not any(e["kind"] == "reanchor" for e in pending)
     recovered = revisioning.activate_source(page_dir)
     assert recovered.error is None and recovered.revision == 2 and not recovered.created
     threads = {t["id"]: t for t in state_json(page_dir)["threads"]}
@@ -1085,6 +1142,55 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
     assert detached.exit_code != 0
     assert refused_on(detached.stderr).code == "held-anchor"
+
+
+def test_detach_after_a_reader_already_activated_the_removal(page_dir):
+    """An open tab activates saved source when it polls, and that activation detaches
+    a thread whose passage the edit removed. The agent's `--detach` reply that follows
+    finds the thread as it asked, so it lands, and the thread keeps the anchor it
+    was detached from."""
+    original = PAGE.replace("<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha</p>')
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    anchor = json.loads(
+        comment(page_dir, "--quote", "Alpha", "--text", "Placed here").output
+    )["anchor"]
+    root = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Drop this?",
+            "anchor": anchor,
+        },
+    )
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha</p>', "")
+    )
+    activate_source(page_dir)
+    assert (
+        build_threads(events_model.read_events(page_dir), {})[root["id"]]["anchor"]
+        is None
+    )
+
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, root["id"]),
+            "--detach",
+            "--text",
+            "Removed this.",
+        ],
+    )
+
+    assert detached.exit_code == 0, detached.output
+    thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
+    assert thread["anchor"] is None
+    assert thread["detached_from"] == root["anchor"]
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

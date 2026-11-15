@@ -1,7 +1,7 @@
 /* The diagram package's presentation. Everything here was in the default package's
  * theme until the diagram renderer left every page carrying a large bundle most never
  * draw with. The shared declaration-driven allocation stays in core; this package owns
- * the diagram's natural-size alignment and scrolling. */
+ * the diagram's alignment and scrolling. */
 
 /* Inherited palette aliases keep the generated SVG responsive to the live page's
  * scheme without redrawing its nodes or replacing Comment coordinates. */
@@ -18,8 +18,9 @@ lf-diagram {
   --pele-font: var(--sans);
   --pele-font-mono: var(--mono);
 }
-/* The drawing keeps its natural size, centered in the box the page grants it.
- * When it does not fit, safe alignment keeps its start reachable by scrolling. */
+/* The drawing is laid out for the box the page grants it (lf-diagram.js) and
+ * centered there. One that still does not fit keeps its size, and safe alignment
+ * keeps its start reachable by scrolling. */
 lf-diagram.lf-rendered {
   display: flex;
   justify-content: safe center;
@@ -50,21 +51,22 @@ lf-diagram.lf-rendered > * {
  * a drawing takes that fade with two settings of its own. A fade all the way to the
  * ground reads as the drawing's end: three agent-written plans drawn `flowchart LR`
  * showed two and a half of five steps at 1440px, the third fading out, and every reader
- * took the plan for three steps. What says "cut" is the drawing touching the edge: a
+ * took the plan for three steps. Such a chain is now drawn top-down for its box, but a
+ * drawing still too wide once laid out, such as a long row of siblings, is cut the same
+ * way. What says "cut" is the drawing touching the edge: a
  * node's fill and rules, or an arrow's line, running into the scrollport's side rather
  * than stopping short of it. So the fade stops at 30% of the drawing, and is 32px wide,
  * a few letters of a label, so the cut node's words stay readable up to where they are
  * cut. A grey shadow over the edge said the same and read as a stray shadow instead.
- * The drawing itself is never scaled or re-laid out. */
+ * The drawing itself is never scaled. */
 lf-diagram.lf-rendered {
   --lf-more-fade: 32px;
   --lf-more-fade-to: rgb(0 0 0 / 0.3);
 }
 
-/* A rendered diagram keeps its natural size rather than scaling a wide flowchart's
- * labels below legibility, so a wide one
- * scrolls in its own box, the same answer a wide table gets, instead of painting over
- * the margin. max-width: none escapes the page-wide svg rule in the kernel's base.css, which
+/* A rendered diagram keeps the size it was laid out at rather than scaling its labels
+ * below legibility, so one still too wide for its box scrolls there, the same answer a
+ * wide table gets, instead of painting over the margin. max-width: none escapes the page-wide svg rule in the kernel's base.css, which
  * would scale it right back down. Paper cannot scroll, so print restores the fit: width
  * and viewBox stay in the markup, and max-width alone scales the drawing whole. */
 lf-diagram svg {

@@ -44,6 +44,8 @@ const GO_TO = "navigation.go-to.open";
 
 /** @type {readonly (string | typeof ELEMENTS | typeof PAGE | typeof RUNGS)[]} */
 const STACK = [
+  // A preview standing over whatever the user is in (preview.js): Escape's first step.
+  "preview",
   "command reference",
   "page map",
   "go to",
@@ -56,7 +58,6 @@ const STACK = [
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "current-location",
-  "versions",
   "composer",
   "text entry",
   "thread",
@@ -71,6 +72,9 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
+  // The preview where focus stands (preview.js), rooted at focus, so a modal dialog keeps
+  // it, and below the page's own commands everywhere else.
+  "preview here",
   // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];

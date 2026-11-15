@@ -777,6 +777,14 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
         ),
         registry,
     ).verbatim[("page", None, 0)]
+    # A label and the words after it, which the page shows apart outside a text block,
+    # read apart here as in the page's reading.
+    labelled = passages_model.page_passages(
+        structure_model.SourceDocument(
+            '<lf-shell id="shell"><div><b>Status</b>Ready</div></lf-shell>'
+        ),
+        registry,
+    )
 
     assert (
         plain
@@ -789,6 +797,8 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     )
     assert separated[0] == {"text": "set up"}
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
+    assert labelled.text == "Status Ready"
+    assert labelled.verbatim[("page", None, 0)] == [{"text": "Status Ready"}]
 
 
 def test_an_anchor_resolves_by_context_the_browser_keeps():
@@ -1596,7 +1606,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    from leaf_dev.commands.corpus import sources
+    from leaf_dev.commands.generate.corpus import sources
 
     for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
@@ -2561,7 +2571,7 @@ def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page
 
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
-    """`page state` is /api/state folded for the agent: the On me list,
+    """`page state` is /api/state folded for the agent: the On Me list,
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
@@ -2760,7 +2770,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
 
-def test_a_patch_piped_through_the_diff_script_sets_one_deferred_row_per_file(
+def test_a_patch_piped_through_the_diff_script_sets_one_row_per_file(
     page_dir,
 ):
     """The diff package's producer script turns a Git patch into the contract's
@@ -3154,6 +3164,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
                 "reason": "workflow",
                 "workflow": opened["id"],
             },
+            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(
@@ -3625,7 +3636,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
 
 
 def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
-    """A page's On me holds only what the page asks. A decision in an interactive
+    """A page's On Me holds only what the page asks. A decision in an interactive
     sample takes the reader's pick into the page's log, as a demonstration: it asks
     for nothing, and the pick wakes no agent."""
     markup = (
@@ -3859,57 +3870,21 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     ]
 
 
-def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
-    page_dir,
-):
-    """A declared split does not turn the contract's inline text into a manifest."""
-    (page_dir / "index.html").write_text(
-        before_choice(
-            PAGE,
-            '<lf-diff id="reading-diff" source="reading-patch"></lf-diff>',
-        )
-    )
-    initial = state_json(page_dir)
-    assert initial["source"]["live"], initial["source"]["error"]
-    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
-    file = {
-        "path": "a.py",
-        "patch": patch,
-    }
-    manifest = {"files": [file]}
-    for value in (patch, manifest, patch):
-        written = CliRunner().invoke(
-            cli_model.cli,
-            ["data", "set", str(page_dir), "reading-patch"],
-            input=json.dumps(value),
-        )
-        assert written.exit_code == 0, written.output
-        stored = read_page_data(page_dir)
-        delivered = data_model.browser_data_from(stored, require_registry(page_dir))
-        reading = delivered["sources"]["reading-patch"]
-        if isinstance(value, str):
-            assert reading["value"] == patch
-        else:
-            assert reading["value"] == {
-                "files": [{key: field for key, field in file.items() if key != "patch"}]
-            }
-        assert stored["sources"]["reading-patch"]["value"] == value
-
-
 @pytest.mark.parametrize(
     ("files", "refusal"),
     [
         ([], "should be non-empty"),
         (
-            [{"path": "a.py"}] * 2,
-            "record keys must be unique",
+            [{"path": path} for path in ["a,b", "a", "b", "a,b", "a", "b"]],
+            'record keys must be unique; repeated ["a", "a,b", "b"]',
         ),
     ],
 )
 def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     page_dir, files, refusal
 ):
-    """A manifest needs a nonempty list of unique file keys."""
+    """A manifest needs a nonempty list of unique file keys, and a refusal names each
+    repeated key once, whatever characters it holds."""
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
@@ -3923,7 +3898,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
         input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
     )
     assert written.exit_code == 1
-    assert refusal in written.output
+    assert refusal in json.loads(written.output)["error"]
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):

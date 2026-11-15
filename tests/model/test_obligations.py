@@ -518,7 +518,7 @@ def test_a_frame_around_a_decision_widget_stays_one_obligation():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """On me and On <agent> as served, and the open widget obligations whose next move
+    """On Me and On <agent> as served, and the open widget obligations whose next move
     is the agent's, which On <agent> lists through the update that handed them over."""
     queues = state["views"]["1"]["queues"]
     items = state["views"]["1"]["obligations"]
@@ -623,7 +623,7 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     anchor, held
 ):
     """The user's comment about an open obligation hands it to the agent without answering
-    it: the obligation leaves On me while the comment's answer stands on On <agent>, and comes
+    it: the obligation leaves On Me while the comment's answer stands on On <agent>, and comes
     back once the agent replies, or once the agent ends the work its reply promised, which
     a resolution leaves standing: that is how a decision the user put off until other
     work lands stays off their list. A comment on one obligation, or on the part of the

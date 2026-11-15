@@ -43,7 +43,7 @@ def test_releasing_a_drawing_and_its_preview_read_only_the_drawn_card(browser, s
             "obligation": True,
         },
     )
-    # The optional user-view audit walks the whole page. Hold its module until
+    # The optional user-view audit walks what the page draws. Hold its module until
     # both drawing measurements are over, so its timer cannot enter the counter.
     context = browser.new_context(viewport={"width": 1200, "height": 900})
     audits = []
@@ -149,6 +149,11 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
     if not touch:
         assert preview.evaluate("canvas => canvas.width") > 320
         page.set_viewport_size({"width": 390, "height": 900})
+        # The page places the composer for the narrow window in the rendering updates
+        # after the resize. Until then the button stands where the wide window put
+        # it, outside this one, and a key pressed there lets go of it
+        # (keyboard/controller.js).
+        rendered(page)
     inspect = page.get_by_role("button", name="Inspect drawing, 1 stroke")
     if touch:
         inspect.tap()

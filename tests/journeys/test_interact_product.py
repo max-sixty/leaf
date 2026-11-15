@@ -2,21 +2,27 @@
 
 import json
 
+import click
 import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
     ROOT,
+    append_carried_log_record,
     check,
     comment,
     found,
     fragment_errors,
+    page_packages,
+    page_state,
     publish,
+    response_reference,
 )
 from model.test_interact_product import PAGE_FIXTURES
 
 import leaf.validation.command as checking_command
 from leaf import cli as cli_model
+from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from leaf_dev.example_data import authored_sources, named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
@@ -105,7 +111,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     it in an append-only log, so that door is the last moment anything about it can
     be fixed. An example's companion log is neither: it is written into the
     repository by hand, and the append door it goes through reads the event, not
-    its markup. From there `leaf-dev site` publishes it to
+    its markup. From there `leaf-dev site build` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.
@@ -165,18 +171,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup or an obligation, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )
-
-
-import click
-import pytest
-from interact_support import (
-    ROOT,
-    append_carried_log_record,
-    page_packages,
-    response_reference,
-)
-
-from leaf import event_log as events_model
 
 
 def test_reply_validates_widget_markup(page_dir):
@@ -259,3 +253,65 @@ def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypat
     [seeded] = [e for e in events_model.read_events(page) if e["kind"] == "comment"]
     assert seeded["attention"] is True
     assert seeded["text"] == stored["text"]
+
+
+def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
+    """A thread inserts a message's markup through `template.innerHTML`, which runs no
+    script in it, so the browser run that draws the message's widgets before it posts
+    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
+    publish(page_dir)
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
+    )
+    posted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "See:",
+            "--markup",
+            (
+                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
+                '<script type="module">throw new Error("inert-message-script")</script>'
+            ),
+        ],
+    )
+    assert posted.exit_code == 0, posted.output
+    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
+
+
+def test_the_wire_ships_a_message_as_logged(page_dir):
+    """The wire adds nothing to the log: text is Markdown the page's vendored runtime
+    renders (test_render holds that side), markup is the fragment the CLI gate
+    validated, and the only vocabulary a page's frozen layer has to keep speaking is
+    the log's own, which $events stamps."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "text": "two things:\n\n- one\n- **two**",
+        },
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Fixed in `poll()`.",
+            "--markup",
+            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
+    assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
+    assert "html" not in wire["comment"] and "html" not in wire["reply"]
+    assert wire["reply"]["markup"].startswith("<lf-diagram")

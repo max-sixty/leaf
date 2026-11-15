@@ -1,5 +1,9 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
+
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
 
 import os
 import subprocess
@@ -28,7 +32,7 @@ class Window:
     description: str = ""
 
 
-# The windows a tool opens a page in by name, as `eval --viewport large` or
+# The windows a tool opens a page in by name, as `eval run --viewport large` or
 # `stills --viewport phone` does. `tab`, and stills and probe for a state that names
 # no window of its own (`states.State`), open `macbook` unless told another. An eval
 # author's request and a judge's instructions give a window's description, which
@@ -80,7 +84,7 @@ def use_linux_fonts():
     """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
     browser and leaf this process starts from here on; elsewhere the host's faces
     serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev pins`), so the two measure the same text."""
+    the suite asserts (`leaf-dev placement pins`), so the two measure the same text."""
     if sys.platform == "linux":
         require_linux_fonts()
         os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
@@ -103,6 +107,14 @@ def headless_shell(**options):
 
 
 ENGINES = ("chromium", "firefox", "webkit", "ios")
+
+# Firefox's own smooth scroll reads the host's reduced-motion setting, which a
+# context's `reduced_motion` emulates only for the page's media queries. On a host
+# that asks for reduced motion, every smooth scroll lands in one step while the page
+# reads no preference, and a test that needs a scroll under way never has one; the
+# nightly macOS runner's three Firefox failures of that kind reproduce exactly with
+# this pref at 1. So Firefox answers no preference, as the page's context does.
+FIREFOX_PREFS = {"ui.prefersReducedMotion": 0}
 
 
 def engine_option(command):
@@ -155,7 +167,9 @@ def launch(engine: str, scheme: str = "light"):
     else:
         with (
             sync_playwright() as playwright,
-            getattr(playwright, engine).launch() as browser,
+            getattr(playwright, engine).launch(
+                **({"firefox_user_prefs": FIREFOX_PREFS} if engine == "firefox" else {})
+            ) as browser,
         ):
             yield browser
 
@@ -349,6 +363,29 @@ def settle(page: Page) -> None:
         settle(page)
 
 
+# The range of the first run of `words` in the text under `root`, across text nodes
+# as a passage may run, or null where the text holds none: a JavaScript function's
+# source, which a page script embeds as `({QUOTE_RANGE})(root, words)`.
+QUOTE_RANGE = """(root, words) => {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let text = "";
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    nodes.push([node, text.length]);
+    text += node.data;
+  }
+  const start = text.indexOf(words);
+  if (start < 0) return null;
+  const at = (offset) => {
+    const [node, base] = nodes.findLast(([, base]) => base <= offset);
+    return [node, offset - base];
+  };
+  const range = document.createRange();
+  range.setStart(...at(start));
+  range.setEnd(...at(start + words.length));
+  return range;
+}"""
+
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
 # drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
@@ -448,14 +485,14 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
         ) from None
 
 
-# The floating panel's row ends in one seat: at rest the On me mark, which counts what
+# The floating panel's row ends in one seat: at rest the On Me mark, which counts what
 # waits on the user and dots a thread with news; while a stance or search stands, its
 # way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
 # ends a list's tabs or another view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
 # The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
-# the field and the On me and Threads marks, with a view opened above it, the leaf's
+# the field and the On Me and Threads marks, with a view opened above it, the leaf's
 # menu among them. Its state stands on its host as attributes: `data-lf-open` names the
 # open view (menu, versions, group, errors, threads, thread, queue, leaves) and
 # `data-lf-rest="mark"` the panel folded to the leaf.
@@ -476,14 +513,14 @@ PANEL_THREAD = panel_view("thread")
 
 def panel_tab(page: Page | FrameLocator, name: str):
     """The On view's tab `name` at the foot of the menu, On and Threads, each one of
-    its tabs: `Menu`, `On me`, `On <agent>`, `Threads` and, while a plan exists,
+    its tabs: `Menu`, `On Me`, `On <agent>`, `Threads` and, while a plan exists,
     `Plan`. Each but Menu and Plan says its count after its name, in `.lf-fp-count`."""
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
 def threads_tab(page: Page | FrameLocator):
     """Stand On or Threads open and return the Threads tab at its foot. From the row the
-    On me mark opens On, or Threads itself while nothing waits on the user but a reply
+    On Me mark opens On, or Threads itself while nothing waits on the user but a reply
     they have not read; another view, stance or search is closed first by its exit.
     Leave an empty comment field by pressing the page first where writing hides the
     mark. `page` may be a live sample's frame."""
@@ -500,7 +537,7 @@ def threads_tab(page: Page | FrameLocator):
         mark = page.locator(ON_ME_MARK)
         if not mark.is_visible():
             # Writing hides the quick seat. Leave the field by pressing the page,
-            # as a pointer user does before reaching On me.
+            # as a pointer user does before reaching On Me.
             page.locator("html").click(position={"x": 0, "y": 0})
         mark.click()
     return panel_tab(page, "Threads")
@@ -536,7 +573,7 @@ def show_resolved(page: Page | FrameLocator):
 
 
 def show_done(page: Page | FrameLocator):
-    """Unfold what left the open On list, On me's or the agent's, which stands folded
+    """Unfold what left the open On list, On Me's or the agent's, which stands folded
     under its Done band (`.lf-fp-settled`) until the user presses it, and return its
     items."""
     view = page.locator('.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving])')
@@ -552,7 +589,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `verify-site` do, takes this
+    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

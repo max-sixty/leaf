@@ -8,6 +8,13 @@ that reworded or removed an option does not change what the user chose. Deliveri
 the transcript, the served history and the undo offer state a gesture through this
 one reading.
 
+Done names no option: on a group whose `x-awaits.value` verb records the pick
+as a set of ids, Done says that verb's state when the user pressed it, worded by the
+action that set it, or by Done's own document where the pick is authored. The pick
+is derived from the log before Done rather than stamped at admission, so Done keeps
+resting on its widget alone; one walk of the log serves every Done of a document.
+An empty pick says nothing.
+
 A child a user wrote through a `creates` verb is in no document; the action that
 created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
@@ -23,9 +30,14 @@ from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
 
-from .events import event_document
-from .passages import SourceReading, collapse, shown_words
-from .projection import frozen_thread_reading
+from .events import InForce, event_document
+from .passages import SourceReading, collapse, enclosing_of, shown_words
+from .projection import (
+    attribute_marks,
+    frozen_thread_reading,
+    markup_value,
+    state_projection,
+)
 from .registry.contract import event_spec
 from .revision_artifact import read_revision
 
@@ -85,9 +97,20 @@ def _nodes(content: list):
 class _Document:
     """One document a gesture names: its words, its element nodes, its vocabulary."""
 
-    def __init__(self, contents: list[list], spoken_reading: dict, registry: dict):
+    def __init__(
+        self,
+        contents: list[list],
+        spoken_reading: dict,
+        registry: dict,
+        by_id: dict,
+        revision: int | None,
+    ):
         self.spoken = spoken_reading
         self.registry = registry
+        self.by_id = by_id
+        self.revision = revision
+        # Done id → the action holding its pick (`GestureWords._held`).
+        self.held: dict[str, dict | None] | None = None
         self.nodes = {
             node["attrs"]["id"]: node
             for content in contents
@@ -97,6 +120,10 @@ class _Document:
 
     def name(self, node: dict) -> str:
         return element_name(node, self.registry)
+
+    @cached_property
+    def marks(self) -> dict:
+        return attribute_marks(self.by_id, self.spoken, self.registry)
 
 
 class GestureWords:
@@ -111,6 +138,7 @@ class GestureWords:
         self.revisions = revisions
         self.by_id = {event["id"]: event for event in events}
         self._documents: dict[int | None, _Document] = {}
+        self._voices: dict[str, tuple[dict, list]] = {}
 
     def _document(self, event: dict) -> _Document | None:
         if event.get("meaning") is None:
@@ -127,6 +155,8 @@ class GestureWords:
                     ],
                     reading.spoken,
                     self.registry,
+                    reading.structure.by_id,
+                    None,
                 )
             else:
                 assert revision is not None
@@ -135,8 +165,96 @@ class GestureWords:
                     [reading.document.authoring.content],
                     reading.spoken,
                     reading.registry,
+                    reading.document.by_id,
+                    revision,
                 )
         return self._documents[revision]
+
+    def _voice(self, event: dict) -> tuple[dict, list]:
+        """The gesture whose document words `event`, and the ids it names there.
+
+        An undo names its gesture's elements, and Done on a group its pick."""
+        if event["kind"] == "undo":
+            event = self.by_id.get(event["undoes"], event)
+        if event["id"] not in self._voices:
+            meaning = event.get("meaning") or {}
+            pick = self._pick(event) if "answer" in meaning else None
+            self._voices[event["id"]] = pick or (
+                event,
+                meaning.get("depends") or [event.get("widget")],
+            )
+        return self._voices[event["id"]]
+
+    def _value_verb(self, event: dict) -> str | None:
+        """The widget's `x-awaits.value` verb where `event` answers through another
+        verb and that one records a set of ids on the widget, in `event`'s document."""
+        if "answer" not in (event.get("meaning") or {}):
+            return None
+        entry = self.declaration(event)
+        verb = (entry.get("x-awaits") or {}).get("value")
+        spec = entry.get("x-state", {}).get(verb)
+        if (
+            verb == event["action"]
+            or spec is None
+            or spec["unit"] != "widget"
+            or (spec.get("record") or {}).get("kind") != "attribute"
+        ):
+            return None
+        return verb
+
+    def _held(self, document: _Document) -> dict[str, dict | None]:
+        """Done id → the action holding its value verb's state just before it, for
+        each Done this document answers in.
+
+        One walk of the log serves every Done of the document, as `InForce` reads
+        what each event changed: the fold of the document classifies the actions,
+        then undos withdraw and the document's version notes restate where they
+        fall. A frozen thread folds without floors, as `frozen_thread_reading`
+        does."""
+        if document.held is None:
+            classified = state_projection(
+                self.events,
+                document.by_id,
+                document.spoken,
+                document.registry,
+                document.revision,
+                floors={},
+                withdrawn=set(),
+            ).classified
+            in_force = InForce(enclosing_of(document.spoken))
+            document.held = {}
+            for event in self.events:
+                if event["kind"] == "undo":
+                    in_force.withdraw(event["undoes"])
+                elif event["kind"] == "note":
+                    if document.revision is not None and (
+                        event["revision"] <= document.revision
+                    ):
+                        in_force.restate(event)
+                elif event["kind"] == "action" and event["id"] in classified:
+                    if self._document(event) is document and (
+                        verb := self._value_verb(event)
+                    ):
+                        widget = event["widget"]
+                        document.held[event["id"]] = in_force.winner(
+                            (widget, widget, verb)
+                        )
+                    in_force.admit(event)
+        return document.held
+
+    def _pick(self, done: dict) -> tuple[dict, list] | None:
+        """What the widget's `x-awaits.value` verb held when `done` answered with
+        another verb: the action holding it and its ids, or `done` and the ids its
+        document authored. None where `_value_verb` names no such verb."""
+        verb = self._value_verb(done)
+        document = self._document(done)
+        if verb is None or document is None:
+            return None
+        held = self._held(document).get(done["id"])
+        if held is not None:
+            return held, sorted(held["detail"]["value"])
+        spec = document.registry[document.nodes[done["widget"]]["tag"]]["x-state"][verb]
+        return done, markup_value(done["widget"], spec, document.by_id, document.marks)
 
     @cached_property
     def _creations(self) -> dict[str, list[tuple[int, dict]]]:
@@ -185,17 +303,16 @@ class GestureWords:
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.
 
-        An undo names its gesture's elements. A child a user wrote says the words
-        its creating action gave it, and its sender encloses it. An element that
-        only encloses another named one is left out: its words repeat theirs, and a
-        list would otherwise travel whole with every row pressed in it."""
-        if event["kind"] == "undo":
-            event = self.by_id.get(event["undoes"], event)
+        An undo names its gesture's elements, and Done on a group its pick
+        (`_voice`). A child a user wrote says the words its creating action gave
+        it, and its sender encloses it. An element that only encloses another named
+        one is left out: its words repeat theirs, and a list would otherwise travel
+        whole with every row pressed in it."""
+        event, depends = self._voice(event)
         document = self._document(event)
         if document is None:
             return {}
         said = document.spoken
-        depends = event["meaning"].get("depends", [event["widget"]])
         named = {identity: said[identity] for identity in depends if identity in said}
         written = {
             identity: words
@@ -255,8 +372,7 @@ class GestureWords:
     def name(self, event: dict, identity: str) -> str:
         """What the gesture's document calls one element it names: its title, else
         its words, else the words a user wrote it with, else the id itself."""
-        if event["kind"] == "undo":
-            event = self.by_id.get(event["undoes"], event)
+        event, _ = self._voice(event)
         document = self._document(event)
         if document is None:
             return identity

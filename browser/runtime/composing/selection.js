@@ -108,7 +108,6 @@ const fab = responseAction(offerAction("response", "lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.title = "Comment";
 // The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
 // keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
 export const fabRest = offerAction("response", "lf-fab-rest");
@@ -186,6 +185,7 @@ fabBar.prepend(composer);
  * @property {(handoff: import("./surface.js").FabFocusHandoff, anchor: Anchor | null, stands: () => boolean) => unknown} landFabFocus
  * @property {(anchor: Anchor | null, options?: {point?: Element | null | undefined, reveal?: boolean}) => unknown} showFab
  * @property {() => unknown} letGoOfFab
+ * @property {() => () => unknown} takeDownFab
  * @property {(command: import("../thread/actions.js").CreateComment) => NonNullable<ReturnType<ReturnType<typeof import("../thread/actions.js").createThreadActions>["create"]>>["delivery"] | null} createComment
  * @property {(destination: Element) => unknown} landSent
  * @property {() => Promise<unknown>} refreshThread
@@ -233,6 +233,7 @@ export function createSelectionComposer({
   landFabFocus,
   showFab,
   letGoOfFab,
+  takeDownFab,
   createComment,
   landSent,
   refreshThread,
@@ -361,7 +362,6 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do
@@ -706,10 +706,21 @@ export function createSelectionComposer({
     detachComposer();
     showFab(null);
   }
+  // This tab's send, while it settles the composer it sends from (`send` below).
+  /** @type {{letGo: (() => unknown) | null} | null} */
+  let sending = null;
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {
     leaveComposer(false);
+    // A send lands the user itself, on the conversation it opens, so the bar it takes
+    // down lets go of no one first. Letting go reads the page's reading place, which
+    // the first read after a change measures across the whole page (reading-place.js,
+    // `runsIn`), only for the send to move the user on.
+    if (sending) {
+      sending.letGo = takeDownFab();
+      return;
+    }
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
@@ -785,29 +796,42 @@ export function createSelectionComposer({
         const currentIntent = retainUserIntent();
         const untouched = retainUserIntent({ source: document.documentElement });
         let flight = null;
-        const sent = sendMessage(
-          ctx,
-          () => composerCtx(pendingAnchor) === ctx && owns(),
-          (attempt) => {
-            // Kept under the attempt, which names the thread before and after the log
-            // answers (`threadKey`), with the words that find the row again.
-            if (point) commitPoint(attempt, point, wordsOf(point));
-            const content = drawing
-              ? raw
-                ? { text: raw, drawing }
-                : { drawing }
-              : { text: raw };
-            return (flight = createComment({
-              ...content,
-              revision,
-              attempt,
-              ...(anchor && { anchor }),
-              ...(suggestion && { suggestion: true }),
-              ...(about && { about }),
-            }));
-          },
-        );
-        if (!sent) return;
+        // A send that lands the user nowhere, its conversation unshown or a later
+        // gesture taking over, lets them go from the bar it took down as the
+        // settlement would have (`takeDownFab`).
+        /** @type {{letGo: (() => unknown) | null}} */
+        const settling = { letGo: null };
+        sending = settling;
+        const landElsewhere = () => settling.letGo?.();
+        /** @type {ReturnType<typeof sendMessage>} */
+        let sent;
+        try {
+          sent = sendMessage(
+            ctx,
+            () => composerCtx(pendingAnchor) === ctx && owns(),
+            (attempt) => {
+              // Kept under the attempt, which names the thread before and after the log
+              // answers (`threadKey`), with the words that find the row again.
+              if (point) commitPoint(attempt, point, wordsOf(point));
+              const content = drawing
+                ? raw
+                  ? { text: raw, drawing }
+                  : { drawing }
+                : { text: raw };
+              return (flight = createComment({
+                ...content,
+                revision,
+                attempt,
+                ...(anchor && { anchor }),
+                ...(suggestion && { suggestion: true }),
+                ...(about && { about }),
+              }));
+            },
+          );
+        } finally {
+          sending = null;
+        }
+        if (!sent) return landElsewhere();
         // A refusal withdraws the thread the send drew and hands the words back to this
         // passage's draft. While the user has done nothing since Send, the box comes back
         // with them, as the page comment card's does. Withdrawing the thread the send
@@ -849,6 +873,7 @@ export function createSelectionComposer({
           const thread = destination && closestAcross(destination, THREAD);
           if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
+        landElsewhere();
       },
     });
     syncComposer.composition().field.append(fabOptionsTrigger);

@@ -12,6 +12,11 @@ import { readPart } from "./semantic-state.js";
 export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 
 export const readQueues = readPart((root) => root.effective.queues);
+// What waits on the user, as the panel's badge and the tab's title count it: one reading.
+export const onUserCount = () => {
+  const queues = readQueues();
+  return queues.phase === "ready" ? queues.on_user.length : 0;
+};
 export const readPlan = readPart((root) => root.effective.plan);
 
 /** @typedef {ReturnType<typeof readQueues>["on_user"][number]} CurrentQueueItem */

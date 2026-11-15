@@ -12,11 +12,13 @@ import {
   overflowingRegions,
   rootOverflow,
 } from "./layout.js";
+import { drawnPage } from "./open-roots.js";
 import { shrunkLabelReading } from "./words.js";
 import { scrollbarClearance } from "./scrollbars.js";
 
 /** @param {string[]} open */
 export function readViewChecks(open) {
+  const drawn = drawnPage();
   return {
     layout: {
       arrangement: arrangedBoxes(open, { shown: true }),
@@ -24,9 +26,9 @@ export function readViewChecks(open) {
     },
     checks: {
       horizontal_overflow_px: rootOverflow(),
-      scrollbar_clearance: scrollbarClearance(),
+      scrollbar_clearance: scrollbarClearance(drawn),
       overflowing_regions: overflowingRegions(),
-      shrunk_labels: shrunkLabelReading(),
+      shrunk_labels: shrunkLabelReading(drawn),
     },
   };
 }

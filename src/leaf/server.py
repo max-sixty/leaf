@@ -63,7 +63,7 @@ SERVICE: Record[ServiceRecord] = Record(
                     {"enum": ["session", "persistent"]},
                 ),
                 "runtime": described(
-                    "The Leaf that served it (`hosting.payload_provenance`).",
+                    "The Leaf that served it (`layer.payload_provenance`).",
                     {"type": "object"},
                 ),
                 "server_id": described(

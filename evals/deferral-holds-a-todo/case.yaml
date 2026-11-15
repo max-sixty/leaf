@@ -2,9 +2,9 @@
 # changing the backing box, so push this off until that's done", and the agent answered
 # `--done` with "Held: ... stays an open item until then", keeping the deferral in its
 # own closeout's open items. Nothing on the page held it, so the case's decision stood on
-# On me while the user had put it off. The prompt pastes the closeout rule that pulled
+# On Me while the user had put it off. The prompt pastes the closeout rule that pulled
 # that way. Cold, both arms reply with a to-do. At 4782f9761, where the to-do left the
-# decision on On me, all 3 base runs also withdrew `c13-pick` in a revision and planned
+# decision on On Me, all 3 base runs also withdrew `c13-pick` in a revision and planned
 # to ask again under a new id; with the to-do holding the decision, all 3 head runs
 # left the widget alone. Those 6 runs were graded on a rubric without the withdrawal
 # clause, and read by hand for it.
@@ -12,7 +12,7 @@ description: deferral-holds-a-todo
 metadata:
   purpose: "Conversation loop: a decision the user puts off until other work lands is
     held by a to-do on their thread, not by the agent's own notes, so it stays off On
-    me until the agent ends the to-do."
+    Me until the agent ends the to-do."
   tags:
     - wait-loop
 vars:
@@ -48,5 +48,5 @@ assert:
       (revising the case first is fine). Fail if the reply is `--done` or carries no
       to-do, leaving the deferral only in the agent's own notes or open items, or if the
       decision is never put back to the user. Fail too if this turn withdraws,
-      restates or removes `c13-pick` to take it off On me: the user put the decision
+      restates or removes `c13-pick` to take it off On Me: the user put the decision
       off, not away, and the to-do is what holds it.

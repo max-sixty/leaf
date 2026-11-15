@@ -7,7 +7,26 @@ import { tick } from "./version-signal.js";
 let clockSkew = 0;
 // A native dependency for the shared clock's temporal readings.
 const pulse = signal(0);
-const serverNow = () => Date.now() + clockSkew;
+// The moment a reading answers for while one made at a moment already past is read
+// again (`atClock`), else none.
+/** @type {number | null} */
+let pinned = null;
+const serverNow = () => pinned ?? Date.now() + clockSkew;
+// The calibrated server time now, as a reading made now answers for it.
+export const clockNow = () => serverNow();
+// `read` again at the moment `at`, as a standing preview reads its target again with the
+// clock it first read (preview.js), so a presentation whose only change is the clock
+// changes nothing it says: every clock reading inside answers for `at`.
+/** @template T @param {number} at @param {() => T} read @returns {T} */
+export function atClock(at, read) {
+  const was = pinned;
+  pinned = at;
+  try {
+    return read();
+  } finally {
+    pinned = was;
+  }
+}
 // When a gesture was made, on the clock every other reading of a message uses. A
 // message this page paints before the log names it still has to say when it was said,
 // and the browser's own clock is the one reading that can disagree with the rest.
@@ -60,6 +79,41 @@ const age = (ts, compact) =>
 export const ago = (ts) => age(ts, false);
 /** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
+
+// The clock time behind an age, in the reader's own zone: "Sat 15 Aug 2026, 14:02 PT".
+// An age says how long ago, and a reader checking a message against a commit, a
+// meeting or a log line needs when. The day before its month and a 24-hour clock read
+// one way to every reader, and the zone is the one the reader's browser keeps, named
+// as briefly as the platform names it. The instant is the server's, as written, so no
+// skew applies.
+/** @param {string | null | undefined} ts */
+export function clockTime(ts) {
+  const at = new Date(ts ?? NaN);
+  if (Number.isNaN(at.getTime())) return "";
+  const part = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZoneName: "shortGeneric",
+    })
+      .formatToParts(at)
+      .map(({ type, value }) => [type, value]),
+  );
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute} ${part.timeZoneName}`;
+}
+// What an age previews (preview.js): the clock time of the instant its `<time>` holds,
+// so every age the page draws declares one function and holds its instant once, in
+// `datetime`, where the platform keeps it.
+/** @this {Element} @returns {import("./preview.js").Preview | null} */
+export function agePreview() {
+  const at = clockTime(this.getAttribute("datetime"));
+  return at ? { name: at } : null;
+}
 
 // How long working may go unheard before it reads as quiet. The server's activity fold
 // owns the number and serves it beside `now`; until a state has arrived nothing is

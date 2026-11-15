@@ -85,9 +85,6 @@
       "/vendor/jsdiff.esm.js": [
         "../../build/entries/jsdiff/entry.mjs"
       ],
-      "/vendor/blazediff.js": [
-        "../../build/entries/blazediff/entry.mjs"
-      ],
       "/vendor/density-clustering.esm.js": [
         "../../build/entries/density-clustering/entry.mjs"
       ],

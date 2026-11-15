@@ -38,7 +38,7 @@ Options:
 Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
 
   Print the page as it is now, as one JSON object: the active revision's file,
-  the current widget actions and workers' reports, the user's On me list and
+  the current widget actions and workers' reports, the user's On Me list and
   yours, thread summaries, versions, presence, and bound data. Read the active
   revision's HTML beside it for the document.
 
@@ -97,7 +97,7 @@ Usage: leaf page open [OPTIONS] PAGE
 
   This clears every task start; to-dos and unanswered updates stay owed. To
   request an answer, send a thread message with --obligation so the question
-  appears in On me. Opening a page creates no obligation.
+  appears in On Me. Opening a page creates no obligation.
 
 Options:
   --help  Show this message and exit.
@@ -120,7 +120,7 @@ Usage: leaf thread create [OPTIONS] PAGE
   Create a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
 
-  Use --obligation when the next move is the user's: the message waits on On me
+  Use --obligation when the next move is the user's: the message waits on On Me
   until their reply or settling reaction. A question whose answers you can list
   takes an `lf-options` choice in --markup instead, which waits on the user
   until they pick. Refuses a quote the active revision does not hold, or holds
@@ -136,7 +136,7 @@ Options:
   --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
-  --obligation   put this message on On me until the user replies or settles it
+  --obligation   put this message on On Me until the user replies or settles it
   --help         Show this message and exit.
 
 ## leaf thread reply --help
@@ -164,7 +164,7 @@ Options:
   --ephemeral        one-line progress, without answering
   --title TEXT       name the thread for the panel unless it has a name: a few
                      words, at most 80 characters
-  --obligation [ID]  put this message on On me until the user replies or settles
+  --obligation [ID]  put this message on On Me until the user replies or settles
                      it; with the ID of a question their reply left standing,
                      ask that question again, once per question
   --quote TEXT       new passage text to move this thread onto
@@ -211,10 +211,11 @@ Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
   the version or reply holding it, or why there is none.
 
   For a message obligation (`message:<id>`) or a question widget answered in
-  words (`widget:<id>`), done records that the user answered elsewhere, --text
-  saying where; dropped withdraws the question. These outcomes record no answer
-  from the user. A widget answered through its controls ends through its state
-  or an authored withdrawal.
+  words (`widget:<id>`), done records that the user answered elsewhere, or that
+  you saw a step's effect, --text saying where or what you saw; dropped
+  withdraws the question. These outcomes record no answer from the user. A
+  widget answered through its controls ends through its state or an authored
+  withdrawal.
 
 Options:
   --text TEXT  where the result is, or why there is none

@@ -1537,10 +1537,30 @@ function fieldEditor(
         // Words typed over a selection replace it here, not in the DOM: in a shadow
         // root, Firefox inserts them beside a selection that crosses a decoration's
         // element and leaves the selected words in place (Firefox 157, CodeMirror
-        // 6.43). The beforeinput already opened the edit's bracket.
+        // 6.43). The beforeinput already opened the edit's bracket. An input method's
+        // composition, whose beforeinput can't be cancelled, starts once the editor
+        // has taken the selected words away, since Firefox drops one begun over them
+        // and keeps the words (Firefox 159); its first update is the one before the
+        // editor reads it as composing. EditContext composes in the editor's model.
         EditorView.domEventHandlers({
           beforeinput(event, view) {
             const text = event.data;
+            if (
+              event.inputType === "insertCompositionText" &&
+              !view.composing &&
+              !view.state.selection.main.empty &&
+              !view.state.readOnly &&
+              !view.contentDOM.editContext
+            ) {
+              field.typed(true, () =>
+                view.dispatch(
+                  view.state.update(view.state.replaceSelection(""), {
+                    userEvent: "input.type.compose.start",
+                  }),
+                ),
+              );
+              return false;
+            }
             if (
               event.inputType !== "insertText" ||
               text === null ||

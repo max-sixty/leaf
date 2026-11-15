@@ -111,7 +111,7 @@ import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { holdToRead } from "./runtime/held-word.js";
+import { mountPreviews } from "./runtime/preview.js";
 
 import { leavesOffered } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -273,10 +273,15 @@ async function boot() {
       pointer: pointerAt,
       currentLocationThreadId,
       currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
+      placedAt: (id) => anchorPlacement.placedAt(id),
+      pendingAt: () => anchorPlacement.pendingAt(),
+      settle: () => anchorPlacement.settle(),
     });
+    const painting = anchorPaint;
+    anchorPlacement.hearPlaced((change) => painting.replace(change));
   }
   const drawingPaint = createDrawingInk({
     drawings: () => [
@@ -390,7 +395,6 @@ async function boot() {
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
-    threadAvailable: !offlineInteractive,
     createEngagement,
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,
@@ -487,7 +491,7 @@ async function boot() {
     arrive: anchorTravel.arrive,
     announce,
   });
-  const changeWalk = createChangeWalk();
+  createChangeWalk();
   const commandHints = createCommandHints({
     presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
   });
@@ -527,6 +531,7 @@ async function boot() {
     currentTarget,
     markAt: anchorPaint?.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -568,7 +573,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
@@ -675,6 +680,7 @@ async function boot() {
     leavesOffered,
     marginEntries: app.overlay ?? null,
     placeThreadEdge,
+    stepReading: navigation.stepReading,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
@@ -727,7 +733,6 @@ async function boot() {
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
     responseSurface.mount();
-    holdToRead();
     reactions.mount();
     targets.mount();
     drawing.mount();
@@ -737,8 +742,6 @@ async function boot() {
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    queueWalk.mount();
-    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();
@@ -767,14 +770,18 @@ async function boot() {
     chromeRoot.append(mediaViewer);
     document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
-    // what a widget's own box shows, such as an options group's addition field.
+    // what a widget's own box shows, such as an options group's addition field, and a
+    // widget's controls name the keys that reach them there as on a live page.
     mountRepaint({
       publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
+      paintCoreControls,
       reflectFirstScopes,
       reflectKeys,
     });
   }
+  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
+  mountPreviews(chromeRoot);
 
   // Widget commands belong to interactive documents, including offline exports.
   // The register admits page and chrome commands only in a live document.

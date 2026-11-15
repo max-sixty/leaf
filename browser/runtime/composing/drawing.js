@@ -47,9 +47,10 @@ import {
   elementFromPointAcross,
   elementOver,
   leafSurface,
-  pageText,
+  pageRuns,
   quoteFrom,
 } from "../passages.js";
+import { mayShow } from "../reading-place.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
 import { pressHolds, pressRecords } from "../focus.js";
@@ -113,7 +114,8 @@ function wordsUnder(ink) {
   /** @type {import("../geometry.js").ClipCache} */
   const clips = new Map();
   const range = document.createRange();
-  const { segments } = pageText();
+  // The ink is on screen, so only the parts of the page's reading that may show there.
+  const segments = pageRuns(mayShow).flatMap((run) => run.segments);
   /** @type {{first: {at: number, start: number}, last: {at: number, end: number}} | null} */
   let span = null;
   for (const [at, { node }] of segments.entries()) {

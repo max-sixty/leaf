@@ -61,10 +61,11 @@
    every render in, for a 400-line module and its corrections of the browser's own.
 
    The module also owns the one rule for where the user is: focus while they can see it
-   (`focusPlace`), else what is on screen (reading-place.js, `pageReadingBlock`). A key
-   pressed while focus is not where they are lets go of it first (keyboard/controller.js),
-   so every key acts from what they see, and a revision reading where they are asks the
-   same (reading-place.js, `capturePlace`; version.js). */
+   where the glides under way leave it (`focusPlace`), else what is on screen
+   (reading-place.js, `pageReadingBlock`). A key pressed while focus is not where they
+   are lets go of it first (keyboard/controller.js), so every key acts from what they
+   see, and a revision reading where they are asks the same (reading-place.js,
+   `capturePlace`; version.js). */
 import {
   clippedPlace,
   inFront,
@@ -74,8 +75,15 @@ import {
   shownWindow,
   stuckBox,
 } from "./geometry.js";
-import { pageScroller, placeKept, scrollChoices, scrollGoal } from "./scrolling.js";
-import { edgeAt, holderOf, returnTo, scrollersOf } from "./scroll-containers.js";
+import { chosenSince, pageScroller, placeKept, scrollChoices } from "./scrolling.js";
+import {
+  carriersOf,
+  edgeAt,
+  holderOf,
+  returnTo,
+  scrollersOf,
+  seenAhead,
+} from "./scroll-containers.js";
 import { inChrome, renderedParent, under } from "./shadow-tree.js";
 import {
   declareFocusPlace,
@@ -85,12 +93,15 @@ import {
   typesText,
 } from "./focus.js";
 import { PRESSES } from "./control-selectors.js";
+import { CARRY } from "./box-motion.js";
 import { browserScrolls, watchScrollEnds } from "./arrivals.js";
 import { pointerAt } from "./pointer.js";
 import { repaint } from "./repaint.js";
 
 // The box a control stands at, where a rule names one: a thread where its reply box
-// waits, or a hidden stand-in where what it stands for is (details-shelf.js).
+// waits, a hidden stand-in where what it stands for is (details-shelf.js), or the On me
+// card the `m` walk rings for the stop it reached (floating-panel.js). The first rule
+// matching the node that names a box decides.
 /** @type {[string, (node: Element) => Element | null][]} */
 const standing = [];
 /** @param {string} selector @param {(node: Element) => Element | null} at */
@@ -98,20 +109,39 @@ export function standsAt(selector, at) {
   standing.push([selector, at]);
 }
 /** @param {Element} node */
-const boxStoodAt = (node) =>
-  standing.find(([selector]) => node.matches(selector))?.[1](node) ?? null;
+const boxStoodAt = (node) => {
+  for (const [selector, at] of standing) {
+    const box = node.matches(selector) ? at(node) : null;
+    if (box) return box;
+  }
+  return null;
+};
 
 // The focused node while it is where the user is: while any of it, or the box it stands
-// at (`standsAt`), is in front of them (geometry.js, `seenRect`), or while a motion under
-// way is still carrying them to it (`carried`), since a walk focuses its stop before
-// gliding there and a key pressed on the way is meant for the stop, as a key a board's
-// card moves on is meant for the card while it slides from where it stood, clipped
-// meanwhile by a board that shrank. A user who scrolled away from the control they stand on is reading
+// at (`standsAt`), is in front of them where the glides under way leave it
+// (scroll-containers.js, `seenAhead`), or while a slide under way is still carrying
+// them to it, as a key a board's card moves on is meant for the card while it slides
+// from where it stood, clipped meanwhile by a board that shrank. A key pressed while a
+// glide runs acts as though the glide had landed, as a step pressed then steps from
+// where the glide is headed (navigation.js). A walk focuses its stop before gliding
+// there, so a key pressed on the way is meant for the stop. `g g` carries a control
+// mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
+// is still on screen, and acts from where `g g` lands (reading-place.js,
+// `landingPlace`). The user chose this on 2026-11-14, as the one rule for every key
+// pressed during a glide, which tests/journeys/navigation/test_reading_place.py holds
+// each glide and key to. A key whose work goes to a reader that can't ask where the
+// glides land, the browser's answer to Tab or PageDown or a placement, lands them first
+// (scrolling.js, `landGlides`). Rejected: judging a node still on
+// screen as the place, which opened a comment box on the control and let the glide
+// carry it off screen with focus in it, and moved Tab on from the control as though
+// the glide had not run; and counting every glide that carries focus, which took the
+// page back down to comment on the control. A user who scrolled away from the control they stand on is reading
 // something else, though the control keeps focus, so a key they press there lets go of
 // it first, and scrolling back to it doesn't make it theirs again until they click or
 // Tab there: the user chose this on 2026-11-04. A control in a stuck box, as the floating
 // panel's row is, is in front of them, so a key acts there, though it rides along with
-// every scroll and marks no place in what it stands over (geometry.js, `stuckBox`). Its
+// every scroll, a glide's too, and marks no place in what it stands over (geometry.js,
+// `stuckBox`). Its
 // box is asked of what clips it out to that stuck box, then the window and the chrome,
 // since a sticky header reads as under the slot it stands in itself (`seenRect`,
 // `headerInset`). A row
@@ -123,11 +153,10 @@ export function focusPlace() {
   const node = focused();
   if (!node || node === document.body) return null;
   const box = boxStoodAt(node);
-  if (box && seenRect(box, new Map())) return node;
-  const boxes = [...scrollersOf(node)];
-  const [list] = boxes;
+  if (box && seenAhead(box)) return node;
+  const [list] = scrollersOf(node);
   const shown = list && list !== pageScroller && inChrome(list) ? list : node;
-  if (seenRect(shown, new Map()) || carried(node, boxes)) return node;
+  if (seenAhead(shown) || slides(node)) return node;
   const stuck = stuckBox(node);
   const left =
     stuck &&
@@ -147,13 +176,14 @@ watchScrollEnds(() => {
   const node = focused();
   if (node && node !== document.body) repaint();
 });
-// Whether a motion under way carries `node`: a glide in one of the `boxes` scrolling it
-// (scrolling.js, `scrollGoal`), or a finite animation moving a box holding it, as the
-// slide a moved card makes from where it stood. The sheen's endless one, a fade, one held
-// paused and one on a box's pseudo-element bring the user nowhere.
-/** @param {Element} node @param {Element[]} boxes */
-const carried = (node, boxes) =>
-  boxes.some((box) => scrollGoal(box) !== box.scrollTop) ||
+// Whether a finite animation moves a box holding `node`, as the slide a moved card makes
+// from where it stood to where layout put it, or a floating box's part box-motion.js
+// carries from where it was drawn (`CARRY`), as the thread card's list travels from the
+// passage a walk left to the one it reached, drawn below the window meanwhile. The
+// sheen's endless one, a fade, a cut, one held paused and one on a box's pseudo-element
+// bring the user nowhere.
+/** @param {Element} node */
+const slides = (node) =>
   document.getAnimations().some((animation) => {
     const effect = /** @type {KeyframeEffect | null} */ (animation.effect);
     return (
@@ -161,7 +191,9 @@ const carried = (node, boxes) =>
       effect?.target != null &&
       !effect.pseudoElement &&
       effect.getComputedTiming().endTime !== Infinity &&
-      effect.getKeyframes().some((key) => "transform" in key || "translate" in key) &&
+      effect
+        .getKeyframes()
+        .some((key) => "transform" in key || "translate" in key || CARRY in key) &&
       under(node, effect.target)
     );
   });
@@ -258,7 +290,8 @@ export function holdPlace(node, standIn = () => null) {
 // it rides in a scroller, not stuck there, as a Page Map row or a message in a margin
 // card's transcript does, and a search field in a dialog's fixed head does not. A
 // container the user is on stands at the box a rule names for it (`standsAt`), as a
-// thread they sent from waits at its reply box. A user whose focus is scrolled away
+// thread they sent from waits at its reply box, unless the caret a click on its words
+// left lies outside that box (`caretPlace`). A user whose focus is scrolled away
 // reads something else, so what stands at the reading line in its column comes last
 // (`readingAt`). The keep puts back the first of these the change moved, so a pointer
 // resting on a rail of its own, which nothing here moves, leaves the reading line to be
@@ -269,13 +302,18 @@ export function holdPlace(node, standIn = () => null) {
 // line's Comment, stands where its own layout put it, and is kept like any other. A
 // control the change replaced, or one focus left, has nothing to keep.
 //
-// The keep yields to any scroll since the reading: a scroll the user or a landing chose
-// and ended (scrolling.js, `scrollChoices`), one the browser is still running, as a
-// smooth scroll or a wheel's glide (arrivals.js, `browserScrolls`), so it never
-// overrides a scroll under way. It yields to the user's own act since too, a press or a
-// key anywhere but in the field held (focus.js, `onUserInput`), whose result is its own
-// to place: a disclosure the user opened while a diff waited on its syntax grammar
-// moved 140px when the keep put the line read back. Words typed into the field held
+// The keep yields to any scroll since the reading in a box whose scroll moves the
+// place, the page included for a place in a box Leaf anchors to its words
+// (`carriersOf`): a scroll the user or a landing chose and ended (scrolling.js,
+// `chosenSince`), one the browser is still running, as a smooth scroll or a wheel's
+// glide, or has yet to start for the reader's input (arrivals.js, `browserScrolls`), so
+// it never overrides a scroll under way. A scroll in another box leaves the place to be
+// kept: a landing in another pane made the keep give up a focused control the change
+// then moved. It yields
+// to the user's own act since too, a press or a key anywhere but in the field held
+// (focus.js, `onUserInput`), whose result is its own to place: a disclosure the user
+// opened while a diff waited on its syntax grammar moved 140px when the keep put the
+// line read back. Words typed into the field held
 // grow it where it stands, and leave it kept; focus leaving a place it named leaves
 // nothing of that place to keep. The user's own gesture draws its result in its own task and
 // places it there, so nothing here holds against it. Where the boxes scrolling the
@@ -298,6 +336,29 @@ const placeOf = (node) => {
   const [scroller] = scrollersOf(place);
   return scroller && !stuckBox(place, scroller) ? place : null;
 };
+// The caret a click on a focused container's words leaves, where it lies in what the
+// container shows outside the box it stands at: the letter after it, which the keep
+// holds as it holds words at the reading line. A message the user clicked in a thread
+// is where they stand, though the thread waits at its reply box, so it stays as a
+// message above it grows or an answer joins below it, and the box moves. A caret in
+// the box, or in a field the user types in, is the box's or field's to hold, since
+// typing and a send rewrite the words the range holds.
+/** @param {Element} node @returns {Range | null} */
+const caretPlace = (node) => {
+  const selection = getSelection();
+  const text = selection?.focusNode;
+  if (!selection || !(text instanceof Text) || !text.length || !node.contains(text))
+    return null;
+  if (boxStoodAt(node)?.contains(text)) return null;
+  const at = Math.min(selection.focusOffset, text.length - 1);
+  const caret = document.createRange();
+  caret.setStart(text, at);
+  caret.setEnd(text, at + 1);
+  const holder = holderOf(caret);
+  if (!holder || !seenRect(caret, new Map())) return null;
+  const [scroller] = scrollersOf(holder);
+  return scroller && !stuckBox(holder, scroller) ? caret : null;
+};
 // The element under a pointer resting over the window, where one does.
 const pointed = () => {
   const { x, y } = pointerAt();
@@ -311,10 +372,14 @@ export function holdUserPlace() {
   const pointer = pointed();
   const first = recentPlaceInput() === "pointer" && !typesText(node);
   const named = first ? [pointer, node] : [node, pointer];
+  const field = typesText(node) ? node : null;
   /** @type {{place: Element | Range, focus: boolean}[]} */
   const places = [];
   for (const candidate of named) {
-    const place = placeOf(candidate);
+    const place =
+      (candidate === node && node && node !== document.body && !field
+        ? caretPlace(node)
+        : null) ?? placeOf(candidate);
     if (place && !places.some((each) => each.place === place))
       places.push({ place, focus: candidate === node });
   }
@@ -324,7 +389,6 @@ export function holdUserPlace() {
   }
   if (!places.length) return () => {};
   const choices = scrollChoices();
-  const field = typesText(node) ? node : null;
   let acted = false;
   const unwatch = onUserInput((event) => {
     if (event.type === "pointerdown" || event.type === "touchstart") acted = true;
@@ -337,14 +401,17 @@ export function holdUserPlace() {
   }));
   return () => {
     unwatch();
-    if (acted || scrollChoices() !== choices) return;
+    if (acted) return;
     const still = new Set();
     for (const { place, focus, hold } of holds) {
-      const boxes = [...scrollersOf(holderOf(place))];
-      if (boxes.some(browserScrolls)) return;
-      if ((focus && focused() !== node) || still.has(boxes[0])) continue;
+      const holder = holderOf(place);
+      const carriers = [...carriersOf(holder)];
+      if (carriers.some((box) => browserScrolls(box) || chosenSince(box, choices)))
+        return;
+      const [scroller] = scrollersOf(holder);
+      if ((focus && focused() !== node) || still.has(scroller)) continue;
       if (hold()) return;
-      still.add(boxes[0]);
+      still.add(scroller);
     }
   };
 }

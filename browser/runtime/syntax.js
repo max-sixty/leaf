@@ -17,31 +17,37 @@ import { synNodes, syntax } from "./syntax-tokens.js";
 // without the file's reading of the same page needing to know it happened.
 const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 const BLOCK = "pre > code[class]";
-// The language Leaf colours a block in, or none, read again when its tokens land. A
-// block is coloured when its declared language is one the registry colours, it holds
-// text and inline annotations, and it wears the reading face.
+// The language a block declares that Leaf can colour, or none: one the registry
+// colours, in a block that holds text and inline annotations.
 //
 // Tokens are cut at the text nodes' boundaries, so authored elements keep their
 // identity, attributes and listeners. A <br> supplies a line break absent from
 // textContent; leave those blocks alone rather than tokenize a different source.
-// A page that supplies its own token palette turns off the reading face, as for its
-// other personally themed content.
-//
-// The token palette is the face's, drawn for the face's code ground (reading.css), so a
-// block that doesn't wear it, as on a page that takes no theme, keeps the colours its
-// page gives it. Only a block in the document has a face to read: one not yet placed is
-// a surface Leaf is building, such as a message, and all of those wear the face.
 /** @param {Element} code */
-const colouredAs = (code) => {
+export const colourableAs = (code) => {
   const lang = code.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
   if (!lang || !Object.hasOwn(syntaxLanguageNames, lang)) return undefined;
   if (code.querySelector("br")) return undefined;
+  return syntaxLanguageNames[lang];
+};
+// The language Leaf colours a block in, or none, read again when its tokens land: the
+// one it can colour, where the block wears the reading face. The render gate reads the
+// two together to name a block that declares a language and goes uncoloured.
+//
+// The token palette is the face's, drawn for the face's code ground (reading.css), so a
+// block that doesn't wear it, as on a page that takes no theme, keeps the colours its
+// page gives it. A page that supplies its own token palette turns off the reading face,
+// as for its other personally themed content. Only a block in the document has a face
+// to read: one not yet placed is a surface Leaf is building, such as a message, and
+// all of those wear the face.
+/** @param {Element} code */
+export const colouredAs = (code) => {
   if (
     code.isConnected &&
     getComputedStyle(code).getPropertyValue("--lf-reading-face").trim() !== "1"
   )
     return undefined;
-  return syntaxLanguageNames[lang];
+  return colourableAs(code);
 };
 // Partition the whole-source token stream over text nodes and our earlier token
 // spans. Authored elements are traversed, never replaced; a token crossing one is

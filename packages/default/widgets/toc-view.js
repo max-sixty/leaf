@@ -1,12 +1,40 @@
-import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
+import {
+  generatedElement,
+  keeps,
+  titledElement,
+  viewDocument,
+} from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
- * The live widget supplies the canonical heading and chrome readings. */
+ * The live widget supplies the canonical heading and chrome readings, and each
+ * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
+ * where its section holds an On me item, else `thread` where it holds an open thread.
+ * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
+ * draws both on the outline's rule or the contents spine; the start row's go on the
+ * outline's head too, its toggle or its label, which stands where that row would where
+ * the row is left out. A row's mark stands beside its link rather than in it, so it
+ * still shows while the map rests with its labels faded out. The marks are aria-hidden
+ * and take no room; what they count, threads and On me items alike, the row's link
+ * previews (`lfPreview`) in place of its name, which its face already says, and that
+ * preview describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
+import { marksWords } from "./toc-marks.js";
 
-/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean, lends: boolean}} HeadingReading */
+/** @typedef {{label: (heading: Element) => string, chrome: (element: Element) => boolean}} HeadingReading */
 /** @typedef {{key: string | Element, heading: Element, label: string, destination: Element, depth: number}} OutlineItem */
 /** @typedef {{start: {label: string, destination: Element, heading: Element | null} | null, items: OutlineItem[]}} Outline */
+/** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
+
+// The one mark a row wears, an On me item outranking a thread, and the dot the outline
+// draws it with on its rule (toc.css), where the map draws it round the row's marker.
+/** @param {SectionMarks | undefined} marks */
+const markKind = (marks) =>
+  marks?.onMe ? "on-me" : marks?.threads ? "thread" : nothing;
+/** @param {SectionMarks | undefined} marks */
+const markView = (marks) =>
+  markKind(marks) === nothing
+    ? nothing
+    : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
 // The outline belongs to the document holding it (`viewDocument`), or for contents
 // standing beside the page's main, that main. Scope follows document ownership, not
@@ -16,8 +44,8 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 const outlineDocument = (host) =>
   viewDocument(host) ?? host.closest("body")?.querySelector(":scope > main") ?? null;
 
-// Delivery and live behavior call this same template, retaining its native disclosure
-// and keyed links. Geometry readers collect the nodes only after its shared render.
+// The template keeps its native disclosure and keyed links. Geometry readers collect
+// the nodes only after it renders.
 /** @param {HTMLElement} host @param {HeadingReading} [headingReading] */
 export function drawToc(host, headingReading) {
   const open = host.hasAttribute("open");
@@ -27,6 +55,40 @@ export function drawToc(host, headingReading) {
     destination?.id ? `#${destination.id}` : nothing;
   const generated = (/** @type {boolean} */ says) =>
     ref((node) => node && generatedElement(node, { says }));
+  /** @type {ReadonlyMap<Element | null, SectionMarks>} */
+  let marks = new Map();
+  // One preview for each row's link, kept as long as its heading, which reads the row's
+  // marks as it shows: their counts alone, in place of the name the link's face already
+  // says, so a room holding one line holds the counts, and a screen reader hears them
+  // after the link's name; none where the row has none, so the link previews nothing.
+  /** @param {Element | null} heading */
+  const preview = (heading) => () => {
+    const words = marksWords(marks.get(heading));
+    return words ? { name: words } : null;
+  };
+  /** @type {WeakMap<Element, ReturnType<typeof preview>>} */
+  const previews = new WeakMap();
+  const untitled = preview(null);
+  /** @param {Element | null} heading */
+  const previewOf = (heading) => {
+    if (!heading) return untitled;
+    let kept = previews.get(heading);
+    if (!kept) previews.set(heading, (kept = preview(heading)));
+    return kept;
+  };
+  // The disclosure and the outline beside the body leave the start row out, since the
+  // page's title stands just above, below or beside them, so their head, the toggle or
+  // the "On this page" label standing where that row would, carries its marks and
+  // previews them while they show (toc.css), named for the place they stand for, which
+  // its face doesn't say. The label takes no focus: the walks and the Page Map reach
+  // what it counts by keyboard.
+  /** @this {Element} */
+  function beforeFirst() {
+    const words = marksWords(marks.get(outline.start?.heading ?? null));
+    return words && this.querySelector(":scope > .lf-toc-mark")?.checkVisibility()
+      ? { name: "Before the first section", detail: [words] }
+      : null;
+  }
   host.replaceChildren();
   /** @type {ReturnType<typeof readFrame> | undefined} */
   let frame;
@@ -60,12 +122,21 @@ export function drawToc(host, headingReading) {
     get summary() {
       return native().summary;
     },
+    /** Each section's marks, by its heading, which the next render draws.
+     * @param {ReadonlyMap<Element | null, SectionMarks>} next */
+    mark(next) {
+      marks = next;
+    },
+    /** The frame and outline, read again from the document with `reading`, or as last
+     *  read with null.
+     * @param {HeadingReading | null} [reading] */
     render(reading = headingReading) {
       if (reading) {
         outline = readOutline(host, reading);
         keeps(host, "data-lf-toc-empty", outline.items.length ? null : "");
       }
       const { start, items } = outline;
+      const first = marks.get(start?.heading ?? null);
       return html`
         <nav
           class="lf-toc-nav lf-ui"
@@ -73,23 +144,54 @@ export function drawToc(host, headingReading) {
           aria-label="On this page"
           ${generated(false)}
         >
-          <p class="lf-toc-heading lf-label" ${generated(true)}>On this page</p>
+          <p
+            class="lf-toc-heading lf-label"
+            ${generated(true)}
+            ?data-lf-toc-changed=${Boolean(first?.changes)}
+            data-lf-toc-mark=${markKind(first)}
+            .lfPreview=${beforeFirst}
+          >
+            On this page${markView(first)}
+          </p>
           <details class="lf-toc-disclosure" ?open=${open}>
-            <summary class="lf-toc-toggle lf-label" ${generated(true)}>
-              On this page
+            <summary
+              class="lf-toc-toggle lf-label"
+              ${generated(true)}
+              ?data-lf-toc-changed=${Boolean(first?.changes)}
+              data-lf-toc-mark=${markKind(first)}
+              .lfPreview=${beforeFirst}
+            >
+              On this page${markView(first)}
             </summary>
             <div class="lf-toc-rows">
               <span class="lf-toc-window" aria-hidden="true"></span>
-              <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${href(start?.destination)}>${start?.label ?? "Top"}</a>
+              <div
+                class="lf-toc-start"
+                data-lf-depth="0"
+                ?data-lf-toc-changed=${Boolean(first?.changes)}
+                data-lf-toc-mark=${markKind(first)}
+              >
+                <a
+                  href=${href(start?.destination)}
+                  .lfPreview=${previewOf(start?.heading ?? null)}
+                  >${start?.label ?? "Top"}</a
+                >${markView(first)}
               </div>
               <ol>
                 ${repeat(
                   items,
                   ({ key }) => key,
                   (item) => html`
-                    <li data-lf-depth=${item.depth}>
-                      <a href=${href(item.destination)}>${item.label}</a>
+                    <li
+                      data-lf-depth=${item.depth}
+                      ?data-lf-toc-changed=${Boolean(marks.get(item.heading)?.changes)}
+                      data-lf-toc-mark=${markKind(marks.get(item.heading))}
+                    >
+                      <a
+                        href=${href(item.destination)}
+                        .lfPreview=${previewOf(item.heading)}
+                        >${item.label}</a
+                      >${markView(marks.get(item.heading))}
                     </li>
                   `,
                 )}
@@ -122,25 +224,35 @@ export function drawToc(host, headingReading) {
   };
 }
 
-// A section's destination: the identified section it titles, where an eyebrow and
-// heading arrive as one title and the public fragment names the section rather than
-// its label; else the hgroup that owns its heading, so an eyebrow and title share one
-// address and measured box, for h1 as for every level; else the heading. One without an
-// id is lent an `lf-` id, which no reader of the page's ids takes for one its author
-// wrote (`ADDRESSABLE`). The id goes on the destination rather than on an element
-// inserted beside it, because an inserted element changes which child a page rule
-// finds first or last and what an `h2 + p` rule finds next to the heading.
-/** @param {HTMLElement} host @param {Element} heading @param {number} position @param {boolean} lends */
-function destinationFor(host, heading, position, lends) {
-  const section = heading.closest("section[id]");
-  if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-  const destination = heading.closest("hgroup") ?? heading;
-  return lend(host, destination, position, lends);
+// A section's destination: the outermost element its author identified above the
+// heading, up to the element the heading titles (`titledElement`) and short of the
+// document the outline covers, so the public fragment names the section or question the
+// heading opens rather than its label; else the hgroup that owns its heading, so an
+// eyebrow and title share one address and measured box, for h1 as for every level;
+// else the heading. The outline's start row stands for the document it covers, so a
+// heading leading a tab's view, whose document is the tab, links to its own place
+// rather than to the tab. One without an id is lent an `lf-` id, which no reader of the
+// page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the
+// destination rather than on an element inserted beside it, because an inserted
+// element changes which child a page rule finds first or last and what an `h2 + p`
+// rule finds next to the heading.
+/** @param {HTMLElement} host @param {Element} scope the document the outline covers
+ * @param {Element} heading @param {number} position */
+function destinationFor(host, scope, heading, position) {
+  const titled = titledElement(heading);
+  let destination = heading.closest("hgroup") ?? heading;
+  if (titled.contains(destination))
+    for (let at = destination; at !== titled;) {
+      at = /** @type {Element} */ (at.parentElement);
+      if (at === scope) break;
+      if (at.id && !at.id.startsWith("lf-")) destination = at;
+    }
+  return lend(host, destination, position);
 }
 
-/** @param {HTMLElement} host @param {Element} destination @param {number} position @param {boolean} lends */
-function lend(host, destination, position, lends) {
-  if (destination.id || !lends) return destination;
+/** @param {HTMLElement} host @param {Element} destination @param {number} position */
+function lend(host, destination, position) {
+  if (destination.id) return destination;
   const doc = host.ownerDocument;
   const stem = `lf-${host.id}-section-${position}`;
   let id = stem;
@@ -155,7 +267,7 @@ const level = (heading) => Number(heading.localName.slice(1));
 
 // Read the complete outline before rendering; max-level bounds it before any id is lent.
 /** @param {HTMLElement} host @param {HeadingReading} reading @returns {Outline} */
-function readOutline(host, { label, chrome, lends }) {
+function readOutline(host, { label, chrome }) {
   const main = outlineDocument(host);
   if (!main) return { start: null, items: [] };
   const maxLevel = Number(host.getAttribute("max-level") ?? 6);
@@ -176,12 +288,12 @@ function readOutline(host, { label, chrome, lends }) {
     heading: pageTitle ?? null,
     label: (pageTitle ? label(pageTitle) : "") || "Top",
     destination: pageTitle
-      ? destinationFor(host, pageTitle, 0, lends)
-      : lend(host, main, 0, lends),
+      ? destinationFor(host, main, pageTitle, 0)
+      : lend(host, main, 0),
   };
   const floor = Math.min(...headings.map(({ heading }) => level(heading)));
   const items = headings.map(({ heading, label }, index) => {
-    const destination = destinationFor(host, heading, index + 1, lends);
+    const destination = destinationFor(host, main, heading, index + 1);
     // A lent id is no key: row identity follows the authored heading.
     const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
     const depth = Math.min(level(heading) - floor, 4);

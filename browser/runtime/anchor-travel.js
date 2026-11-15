@@ -29,7 +29,7 @@
  * Back does after a followed link. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
- * user answered an obligation, which takes it out of On me, neither Back nor Shift+m
+ * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
  * steps share an entry. A fragment link's
  * navigation step (`followFragment`) uses the history entry the browser added for the link as
@@ -57,7 +57,7 @@ import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { pageScroller, stopBrowserScroll } from "./scrolling.js";
 import {
   alreadyShown,
   fitsWhole,
@@ -68,7 +68,7 @@ import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { passageStart, rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { notice } from "./notifications.js";
 
@@ -133,12 +133,12 @@ export function createAnchorTravel({
     if (!intent()) return false;
     const initial = resolve();
     if (!initial) return false;
-    // Every new navigation step takes over the outgoing native placement, including when
-    // the new destination still looks readable before the old navigation step's first frame.
-    // Read geometry only after its last compositor update has passed; another
-    // gesture during that wait retains the place it chose.
+    // Every new navigation step takes over the outgoing native placement, and lands from
+    // where a glide of Leaf's is headed (scrolling.js, `stopBrowserScroll`). Read
+    // geometry only after the stopped scroll's last compositor update has passed;
+    // another gesture during that wait retains the place it chose.
     if (initial.scroll.length)
-      await stopScroll(
+      await stopBrowserScroll(
         new Set([
           pageScroller,
           ...unconcealedReadingRegions().map((region) => region.body),
@@ -525,6 +525,14 @@ export function createAnchorTravel({
     const { replacedView } = reveal(holder, retainUserIntent());
     placeScroll({ at: where, behavior }, replacedView);
   }
+  // A passage is scrolled to where its words start (passages.js, `passageStart`), as a
+  // thread is travelled to (`threadDestination`): a search's match, the comment box
+  // brought back to its passage.
+  /** @param {readonly import("./passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
+  function scrollToPassage(segments, behavior = scrollBehavior()) {
+    const start = passageStart(segments);
+    if (start.length) scrollToRange(rangeOf(start), behavior);
+  }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
   // and synchronously repaint before reading placement. The second refresh after reveal
@@ -537,9 +545,9 @@ export function createAnchorTravel({
   /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const segment = targetSegments(placement)[0];
-    const where = segment
-      ? rangeOf([segment])
+    const start = passageStart(targetSegments(placement));
+    const where = start.length
+      ? rangeOf(start)
       : (targetElement(placement) ?? targetPlace(placement));
     return (
       livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
@@ -630,6 +638,7 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
+    scrollToPassage,
     scrollToRange,
     scrollToThread,
     threadDestination,

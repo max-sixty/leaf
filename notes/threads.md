@@ -5,14 +5,6 @@ The current contracts live in
 [session lifetime](../src/leaf/session-lifetime.md), and
 [the module Thread API](../skills/leaf/references/module-annotations.md#widget-local-thread-placement).
 
-## Current status
-
-Summary checkpoints condense historical ranges; they do not provide a continuously
-current reading of what is decided and what remains open. Try an agent-maintained
-line at the Thread's head before adding another fold. Decide whether it extends a
-checkpoint or is a separate reading, which events invalidate it, and how a user sees
-that it is stale. Use a real long discussion with a reopened question as the control.
-
 ## Independent jobs, delegation, and continuation
 
 Develop an ontology for work that outlives the turn or tool that started it: what

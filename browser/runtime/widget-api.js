@@ -30,8 +30,16 @@ export { rankAt } from "./projection/model.js";
 export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
 export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
+// `titledElement(heading)`: the element a heading titles, the outermost one that opens
+// with it, which a count per heading counts under that heading.
+export { titledElement } from "./addressable-names.js";
+// What a place on the page previews: its name, first parts, state and conversations.
+export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
+// The part of the page a node stands in, by the one rule On me groups its items by and
+// a link's preview names a place by.
+export { partOver } from "./thread/placement.js";
 // The authored page body, or the body of the message whose markup a node stands in.
 export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
@@ -135,7 +143,7 @@ export { notice } from "./notifications.js";
 export { raiseError } from "./errors.js";
 export { alignText, MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
-export { ago, clockValue, quietSince, shortAgo } from "./presence.js";
+export { ago, agePreview, clockValue, quietSince, shortAgo } from "./presence.js";
 export { revisionLabel } from "./context.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";
@@ -156,14 +164,16 @@ export {
   backgroundFlash,
   motion,
 } from "./motion.js";
-// A package's routes past presentation both declare the arrival, so a widget cannot
-// defer without the page knowing: `afterPresentation` waits for presentation and then
-// starts the work; `deferredArrival` counts work the widget has already started.
+// A package's routes past presentation all declare the arrival, so a widget cannot
+// defer without the page knowing: `afterPresentation` waits for presentation and
+// `whenNear` for the reader to near a node, then each starts the work;
+// `deferredArrival` counts work the widget has already started.
 export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
   deferredArrival,
+  whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
 export { copyBlock } from "./code-copy.js";

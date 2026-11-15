@@ -30,11 +30,13 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
+from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
+from leaf.data import data_version, value_revision
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -55,7 +57,7 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
-    "forked": [],
+    "kept_back": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -66,6 +68,7 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
+    "agent_turns": {},
     "input_wakes": False,
     "fork_lane": None,
     "session_cwd": None,
@@ -97,6 +100,24 @@ def leaf_page(
 </body>
 </html>
 """
+
+
+def served_data(sources: Mapping[str, tuple[str, object]], contract: str) -> dict:
+    """The data a page holds whose sources each hold a value under `contract`, keyed
+    by source to the run that wrote it and the value, as `data.read_data` reads them:
+    each source's revision is its value's (`value_revision`), so a rerun of the same
+    value keeps it, and the version is theirs together (`data_version`)."""
+    readings = {
+        source: {
+            "contract": contract,
+            "revision": value_revision(value),
+            "run": run,
+            "updated": NOW,
+            "value": value,
+        }
+        for source, (run, value) in sources.items()
+    }
+    return {"version": data_version(readings), "sources": readings}
 
 
 def served_reading(
@@ -134,7 +155,8 @@ def served_reading(
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
     state a premise the product would not have accepted. The work the agent has in hand is
     such a command too: a `start` naming a move or task, as `leaf task start`
-    writes it.
+    writes it. An `activation` is the publisher's own record, which no command may
+    write, so it is stamped as the publisher appends one.
     """
     state = read_served_page(
         _fold(documents, events, registry=registry, presence=presence, data=data),
@@ -164,6 +186,24 @@ def served_answer(
     )
     sent = answer(state, None, "model")
     assert (error := served_state_error(sent, "answer")) is None, error
+    return sent
+
+
+def served_view(
+    documents: dict[int, str],
+    events: tuple[dict, ...] | list[dict],
+    base: int,
+    shown: int | None = None,
+    *,
+    registry: dict | None = None,
+) -> dict:
+    """The `/api/view` answer (`PageStateService.page_comparison`) for revision
+    `base` at the end of the log `served_reading` would fold, compared with `shown`."""
+    folded = _fold(documents, events, registry=registry)
+    sent = PageStateService(Path(), source=_FoldedPage(folded)).page_comparison(
+        base, len(folded.events), shown
+    )
+    assert (error := served_state_error(sent, "ViewAnswer")) is None, error
     return sent
 
 
@@ -213,6 +253,10 @@ def _fold(
         stamped = {"id": f"e{seq}", "seq": seq, "ts": NOW, "author": "user"}
         if "revision" in carries.get("properties", {}):
             stamped["revision"] = 1
+        if command.get("kind") == "activation":
+            # `event_contracts._publication_error` refuses it from any other writer.
+            log.append({**stamped, "attention": False, **command})
+            continue
         log.append(admitted_event(door, log, {**stamped, **command}))
     active_revision = max(parsed)
     active = document_descriptor(

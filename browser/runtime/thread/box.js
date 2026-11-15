@@ -3,6 +3,7 @@
 import { whileConnected } from "../arrivals.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
+import { offlineInteractive } from "../context.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
 import { offer } from "../widget-elements.js";
@@ -16,7 +17,8 @@ import { sendLanding } from "./reply-landing.js";
  * onDraftChanged: () => void,
  * wireInput: import("./replies.js").ReplyCommands["wireInput"]}} commands */
 export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }) => {
-  if (inChrome(el) || quoted(el)) return null;
+  // An export has nowhere to send a message (`exporting.py`).
+  if (inChrome(el) || quoted(el) || offlineInteractive) return null;
   const declaration = registry[el.localName]?.["x-thread-seat"];
   if (!declaration || !matchesWhen(el, declaration.when))
     throw new TypeError(

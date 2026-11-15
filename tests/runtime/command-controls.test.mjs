@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import test, { beforeEach } from "node:test";
 import {
-  buttonCommand,
   commandScope,
   commandsOn,
   commandsWithin,
@@ -612,7 +611,6 @@ test("a button outside a removed owner lets the owner's command go", async () =>
     control.focus();
     reflectKeys();
     assert.equal(control.getAttribute("aria-disabled"), null);
-    assert.equal(buttonCommand(control), undefined);
   } finally {
     parent.remove();
     control.remove();
@@ -702,7 +700,6 @@ test("a button outside a closed stage lets go when the stage's host leaves", asy
     reflectFirstScopes();
     reflectKeys();
     assert.equal(control.getAttribute("aria-disabled"), null);
-    assert.equal(buttonCommand(control), undefined);
   } finally {
     control.remove();
   }
@@ -781,7 +778,6 @@ test("a button whose command starts unavailable answers once it is available", (
     reflectKeys();
     assert.equal(control.disabled, false);
     assert.equal(control.getAttribute("aria-disabled"), null);
-    assert.equal(buttonCommand(control)?.row.id, "probe.waiting");
     control.click();
     assert.equal(count, 1);
   } finally {
@@ -818,7 +814,6 @@ test("a replaced declaration naming the same button through a getter reads the n
     reflectFirstScopes();
     reflectKeys();
     assert.equal(control.getAttribute("aria-disabled"), null);
-    assert.equal(buttonCommand(control)?.row.id, "probe.new");
     control.click();
     assert.deepEqual(pressed, ["probe.new"]);
   } finally {
@@ -952,7 +947,6 @@ test("a press runs the command of an owner put back in the same task", async () 
     owner.remove();
     await new Promise((resolve) => setTimeout(resolve));
     reflectKeys();
-    assert.equal(buttonCommand(control), undefined);
     document.body.append(owner);
     control.click();
     assert.equal(count, 1);
@@ -1832,7 +1826,7 @@ test("page command scopes share native activation and hand removed controls back
   document.body.append(control);
   let available = true;
   let runs = 0;
-  const remove = pageScope("versions", {
+  const remove = pageScope("thread", {
     rows: [
       {
         id: "probe.page",
@@ -2500,14 +2494,21 @@ test("a chosen contribution offer retains its exact reading across a later updat
       "margin",
       activateContributionControl,
     )(chosen.reading.entries[0]);
-    assert.match(before.textContent, /Before the update/);
+    // What an entry says is its preview (preview.js).
+    const { render } = await import("/runtime/framework.js");
+    const said = (control) => {
+      const box = document.createElement("div");
+      render(control.lfPreview().name, box);
+      return box.textContent;
+    };
+    assert.match(said(before), /Before the update/);
     const after = materializeContributionControls(
       source.model,
       "margin",
       activateContributionControl,
     )(source.model.reading.entries[0]);
     assert.equal(after, before);
-    assert.match(after.textContent, /After the update/);
+    assert.match(said(after), /After the update/);
   } finally {
     registration.unregister();
     owner.remove();

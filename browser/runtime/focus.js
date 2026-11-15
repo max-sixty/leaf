@@ -99,17 +99,26 @@ import {
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
 // its author took out of the order (a negative `tabindex`) takes its whole tree out
 // with it, so Tab skips what it renders.
+//
+// The walk steps from sibling to sibling and never reads `children`. Chromium keeps
+// the collection `children` returns for as long as its element lives, and the walk
+// reaches every row of a text document whose tab opens, so each 4 MB document opened
+// kept 35 MB of collections for the life of the page.
 /** @param {Element | Document | ShadowRoot} node @returns {Generator<Element>} */
 function* renderedElements(node) {
   const children = isHTML(node, "slot")
     ? node.assignedElements({ flatten: true })
-    : ((isElement(node) && node.shadowRoot) || node).children;
+    : siblingsFrom(((isElement(node) && node.shadowRoot) || node).firstElementChild);
   for (const child of children) {
     yield child;
     const tabIndex = child.getAttribute("tabindex");
     if (child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0) continue;
     yield* renderedElements(child);
   }
+}
+/** @param {Element | null} first @returns {Generator<Element>} */
+function* siblingsFrom(first) {
+  for (let child = first; child; child = child.nextElementSibling) yield child;
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
 // The controls inside `root` that take a Tab stop right now, through open shadow trees as

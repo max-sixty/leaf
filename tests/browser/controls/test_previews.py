@@ -1482,6 +1482,8 @@ def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve
     page.keyboard.press("Shift+T")
     row = page.locator(".lf-fp-thread[data-lf-key]").first
     expect(row).to_be_visible()
+    # The row stands where the finger lands once the panel has finished opening.
+    panel_settled(page, view="threads")
     box = row.bounding_box()
     point = {"x": box["x"] + 20, "y": box["y"] + box["height"] / 2}
 

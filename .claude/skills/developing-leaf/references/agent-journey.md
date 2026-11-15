@@ -33,7 +33,7 @@ To benchmark replies, run each harness's journey a few times, with and without
 `--case working`, and tabulate the samples with `leaf-dev journey chart --replies`;
 `leaf-dev logs response-times` measures retained pages and sorts each pickup's wait
 by what ended it, which shows the waits only long real sessions have
-(`dev/leaf_dev/commands/response_times.py`). The benchmark is the whole reply's time,
+(`dev/leaf_dev/commands/logs/response_times.py`). The benchmark is the whole reply's time,
 which `dev/leaf_dev/reply_phases.py` attributes to Leaf's delivery, commands and hooks,
 the harness, the model's wait and generation, and the agent's other tools. Model time
 varies widely from run to run, so compare a phase Leaf owns directly, and the whole
@@ -44,4 +44,4 @@ directory, run `leaf-dev logs timeline PAGE --message ID`: it lays the page's lo
 diagnostics beside the Claude Code session's transcript and debug log, so it shows
 whether Leaf kept it back, what the line fork judged, which fork's turn held it, when
 Leaf handed it over, and what the session did meanwhile
-(`dev/leaf_dev/commands/timeline.py`).
+(`dev/leaf_dev/commands/logs/timeline.py`).

@@ -33,8 +33,11 @@ own (`../SOUL.md`, "Keep the foundation small and extensible").
 A hold rule is tested in `tests/journeys/test_page_holds_still.py`, whose cases cross
 places the user can be with changes that can arrive. A new rule joins it as a place, a
 change or a move the user chose, and takes no browser test of its own, so each rule is
-stated once and a new surface costs one row. A separate test is for what those cases
-don't measure, such as that news the rule draws at once is drawn.
+stated once and a new surface costs one row. Run the cases a change adds or touches by
+`-k` before handing over: a new row leaves the test function as it was, so a pull
+request's `test` job doesn't select it (`../tests/AGENTS.md`, "Run what the change
+needs"). A separate test is for what those cases don't measure, such as that news the
+rule draws at once is drawn.
 
 - **Controls stay where the user aims.** A state change may repaint any box. What a
   press changes grows or shrinks its box away from the edge the box holds (next spec),

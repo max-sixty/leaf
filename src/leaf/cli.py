@@ -847,20 +847,31 @@ def stamp(
     is_flag=True,
     help="export current source without stamping (cannot combine with --version)",
 )
-def export(page_dir: Path, out: Path, version: int | None, draft: bool) -> dict:
+@click.option(
+    "--runtime",
+    is_flag=True,
+    help="carry Leaf's runtime, so the file's reader can operate its widgets",
+)
+def export(
+    page_dir: Path, out: Path, version: int | None, draft: bool, runtime: bool
+) -> dict:
     """Export a stamped version or current draft to one HTML file that opens offline.
 
     By default exports the latest stamped version, including its version number in
     the result. --draft checks and captures current source without adding a stamp.
     The result names the captured revision in either mode.
 
-    The file runs the page's own runtime against its captured state, with no Leaf
-    server or host behind it. It holds the page and the decisions recorded on its
-    widgets, and nothing of the conversation: no threads, to-dos, plan or changelogs.
+    The file is the page as it stands, drawn by the host's browser: its markup, each
+    widget in its current state, and its images and fonts, with no script, so it reads
+    the same with scripts off. --runtime instead carries Leaf's runtime, which runs
+    against the captured state with no Leaf server or host behind it, so its reader
+    can operate the widgets; it needs no browser, and makes the file megabytes larger.
+    Either way it holds the page and the decisions recorded on its widgets, and
+    nothing of the conversation: no threads, to-dos, plan or changelogs.
     """
     from leaf.exporting import cmd_export
 
-    return cmd_export(page_dir, out, version, draft=draft)
+    return cmd_export(page_dir, out, version, draft=draft, runtime=runtime)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")

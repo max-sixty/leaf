@@ -921,6 +921,11 @@ def admitted_event(view, events: list, event: dict) -> dict:
             if active_registry is registry
             else AdmissionReadings(view, events, active_registry)
         )
+        # `after` folds the whole log again for one event more, and the state read
+        # that follows the append folds it a third time. Not yet built: an
+        # incremental fold that carries `before`'s reading forward by the candidate,
+        # and hands that reading on to the state read, so an append folds the log
+        # once.
         after = AdmissionReadings(view, [*events, candidate], active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}

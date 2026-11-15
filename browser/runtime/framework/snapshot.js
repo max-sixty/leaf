@@ -21,6 +21,12 @@
  * dependency tracking. Derivations read their supplied immutable root, and subscriber
  * callbacks run untracked so notifying a consumer cannot make its reads dependencies
  * of the publisher.
+ *
+ * A reader of a collection still learns which of its members changed by walking the
+ * whole collection and comparing each member by identity, as the annotation inventory
+ * (`keptEntry`) and the margin's render (`drawnFrom`) do on every pass. Not yet built:
+ * sharing already decides member by member which ones it kept, and handing readers
+ * the members it didn't keep would let each reader work in proportion to the change.
  */
 import {
   computed,

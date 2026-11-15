@@ -181,6 +181,10 @@ export function createTargetPicker({
   // match in (`settle`).
   /** @type {Iterator<Match | null> | null} */
   let pending = null;
+  // Whether a step or a choice has a search to answer it: one with matches in, or one
+  // still finding them, which `settle` finishes. A change to the page starts the search
+  // again with none in (`restart`), so the matches alone don't say.
+  const searchStands = () => matches.value.length > 0 || pending !== null;
   // Where the search lands once it can tell: the match the search stood on before the
   // page changed, found again, else the match at its index; for a new query, the first
   // match at or below the top of the window, else the first. `show` brings it into view.
@@ -929,7 +933,7 @@ export function createTargetPicker({
         travels: true,
         // A finger presses the marked match itself (`pressMatch`).
         touch: false,
-        when: () => matches.value.length > 0,
+        when: searchStands,
         run: chooseMatch,
       },
       {
@@ -953,7 +957,7 @@ export function createTargetPicker({
         title: "matches",
         repeat: true,
         travels: true,
-        when: () => matches.value.length > 0,
+        when: searchStands,
         runKey: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
       TARGETING_BACK,

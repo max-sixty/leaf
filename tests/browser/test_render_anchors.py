@@ -6223,6 +6223,61 @@ def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_enter_selects_the_match_while_a_change_to_the_page_searches_again(
+    engine, request, serve
+):
+    """A change to the page's words, such as a step opening a match's tab, starts a
+    search still running again with no matches in. Enter pressed before it finds one
+    selects the match the search stood on; read off the matches found so far, it fell
+    through to the field and selected nothing. Each slice takes one step (`FAST_CLOCK`),
+    and the page's zero-delay timers are held, so the search stands unfinished until
+    they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = window.setTimeout;
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match, then change the
+    # page's words and run them until the search starts again.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.evaluate(
+        """() => {
+          const words = document.createElement("p");
+          words.textContent = "Four documents.";
+          document.getElementById("docs").before(words);
+        }"""
+    )
+    page.wait_for_function(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (status.textContent !== "…" && window.__held.length)
+            window.__held.shift()();
+          return status.textContent === "…";
+        }"""
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "() => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === 'd0' && String(getSelection()) === 'needle'"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
     engine, request, serve
 ):

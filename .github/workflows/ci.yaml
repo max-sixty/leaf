@@ -251,12 +251,19 @@ jobs:
       # run and never summon tend; `bash` adds `pipefail`, so the command's status
       # survives `tee`. Each run's `results.json` keeps each reading's lowest by page,
       # size and arm (`lowest`), which the server's run leaves empty.
+      #
+      # The `documents` page, #4781's tabs of large text documents, reads only the
+      # inputs that need its tabs and sources, which keeps it to minutes; the
+      # `document` page's text grows under every other input.
       - name: Measure the pages in the browser
         timeout-minutes: 120
         shell: bash
         run: |
           mkdir -p .tmp/bench-report
           uv run leaf-dev bench --sizes 64,128,256 --rounds 2 | tee .tmp/bench-report/browser.txt
+          uv run leaf-dev bench documents --sizes 64,128,256 --rounds 2 \
+            --input data --input reveal --input browse --input search --input matches \
+            | tee -a .tmp/bench-report/browser.txt
           { echo '```'; cat .tmp/bench-report/browser.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           jq -s '[.[].lowest[] | select(.size == 64) | .page as $page | .readings
             | to_entries[] | select(.key | endswith(" cpu") or endswith(" shown"))

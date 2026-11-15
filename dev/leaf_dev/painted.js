@@ -17,11 +17,11 @@
  * true counts at the next frame: each time is at most a frame above the moment the
  * frame that first showed it was laid out. That holds only for a goal that stays met
  * once met, since a later callback in the same frame could otherwise undo it after it
- * was read. `message`, `card`, `composer` and `delivered`'s event stay once there,
- * and `delivered` and `revision` also ask that presentation has finished, which a
- * later reading can only delay. `status` stays only while nothing else sets the
- * page's status, as in bench's runs. `met` reads one goal's fact once, without
- * sampling, for a reader that only waits for the result.
+ * was read. `message`, `card`, `composer`, `shows`, `searched` and `delivered`'s
+ * event stay once there, and `delivered` and `revision` also ask that presentation
+ * has finished, which a later reading can only delay. `status` stays only while
+ * nothing else sets the page's status, as in bench's runs. `met` reads one goal's
+ * fact once, without sampling, for a reader that only waits for the result.
  */
 (() => {
   if (window !== window.top || location.protocol === "about:") return;
@@ -96,6 +96,26 @@
     status: (detail) => {
       const node = document.querySelector(".lf-fp-leaf");
       return shown(node) && Boolean(node.getAttribute("aria-label")?.includes(detail));
+    },
+    // The first element `selector` names is drawn and holds `words`, as a text
+    // document's first line is once its tab opens or an agent's write reaches it.
+    shows: ([selector, words]) => {
+      const node = document.querySelector(selector);
+      return shown(node) && node.textContent.includes(words);
+    },
+    // Page search's field is open and holds the caret.
+    searching: () => {
+      const field = document.querySelector(".lf-page-search-box");
+      return shown(field) && document.activeElement === field;
+    },
+    // Page search has counted every match of `words` on the page.
+    searched: (words) => {
+      const status = document.querySelector(".lf-page-search-status");
+      return (
+        document.querySelector(".lf-page-search-box")?.value === words &&
+        Boolean(status?.getAttribute("aria-label")) &&
+        !status.hasAttribute("aria-busy")
+      );
     },
     revision: ({ revision, id, words }) => {
       const node = document.getElementById(id);

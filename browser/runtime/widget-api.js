@@ -123,7 +123,7 @@ export {
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { alreadyShown, fitsWhole } from "./landing-scroll.js";
+export { fitsWhole } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -178,7 +178,6 @@ export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
-export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
 export {

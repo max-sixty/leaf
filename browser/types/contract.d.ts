@@ -100,6 +100,7 @@ export type WidgetDeclaration = { "x-awaits"?: { "when"?: { [key: string]: Reado
 export type DataFileList = { "files": ReadonlyArray<{ "path": string; "key"?: string; "status"?: "added" | "modified" | "deleted" | "renamed"; }>; "current"?: string; };
 export type DataMeasuredScalar = number | string;
 export type DataTextDocument = string;
+export type DataSourceLines = string;
 export type DataUnifiedDiff = string | { "files": ReadonlyArray<{ "path": string; "patch": string; }>; };
 export type DataCalldiffNode = { "key": string; "label": string; "status": "same" | "added" | "removed"; "kind"?: "call" | "branch"; "file"?: string; "line"?: number; "endLine"?: number; "children": ReadonlyArray<DataCalldiffNode>; };
 export type DataCalldiff = { "mode": "diff"; "from": string; "to": string; "message"?: string; "trees": ReadonlyArray<{ "entry": string; "tree": DataCalldiffNode; }>; };
@@ -120,4 +121,4 @@ export type DataVisualRunCapture = { "observedAt": string; "browser": string; "b
 export type DataVisualRunFocus = { "x": number; "y": number; "width": number; "height": number; };
 export type DataVisualRunCase = { "id": string; "title": string; "path": string; "action": string; "result": string; "classification": "changed" | "clean"; "capture": DataVisualRunCapture; "focus"?: DataVisualRunFocus; "before": string; "after": string; "traceUrl"?: string; };
 export type DataVisualRun = { "title": string; "base": DataVisualRunTarget; "candidate": DataVisualRunTarget; "cases": ReadonlyArray<DataVisualRunCase>; };
-export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; "visual-run": DataVisualRun; }
+export interface DataContracts { "file-list": DataFileList; "measured-scalar": DataMeasuredScalar; "text-document": DataTextDocument; "source-lines": DataSourceLines; "unified-diff": DataUnifiedDiff; "calldiff": DataCalldiff; "playwright-trace": DataPlaywrightTrace; "visual-run": DataVisualRun; }

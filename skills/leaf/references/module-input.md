@@ -415,7 +415,8 @@ A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each
 press, key, input, wheel or touch on the page, or the window losing focus. Act only on
 events whose target is in the surface; the callback doesn't consume the event. Call the
-returned function when the surface disconnects.
+returned function when the surface disconnects. It is also available from
+`portable-api.js`.
 
 Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
 element drawn on; a moving visual listens for it and freezes what it shows.

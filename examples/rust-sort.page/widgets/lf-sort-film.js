@@ -1,5 +1,10 @@
 // <lf-sort-film>: the player around sort.js. It owns playback, the input choice and the
 // narration, and paints with CSS theme tokens that the SVG resolves as the theme changes.
+//
+// It holds the slice.rs lines the step shown runs as `playhead`, its declared output, or
+// null where the step runs none, and says `change` as they change. Each lf-code excerpt
+// whose `for` names the film marks those lines where it quotes them, so one value lights
+// only the block that holds them.
 
 import {
   frameFor,
@@ -18,6 +23,7 @@ import {
 } from "/runtime/widget-api.js";
 import {
   INPUTS,
+  LINES,
   N,
   Painter,
   PHASE,
@@ -91,6 +97,8 @@ customElements.define(
     #step = -1;
     #autoPlayTimer = 0;
     #laidOut = 0;
+    /** @type {string | null} */
+    playhead = null;
     // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
     // that changes width lays it out again. The new layout changes the stage's height,
     // so it waits for the rendering pass after the size delivery rather than feeding
@@ -325,11 +333,11 @@ customElements.define(
         r.setAttribute("fill", color[phase] ?? C.muted);
         tl.append(r);
       }
-      this.playhead = document.createElementNS(SVGNS, "rect");
-      this.playhead.setAttribute("width", 3);
-      this.playhead.setAttribute("height", 10);
-      this.playhead.setAttribute("fill", C.ink);
-      tl.append(this.playhead);
+      this.timeHead = document.createElementNS(SVGNS, "rect");
+      this.timeHead.setAttribute("width", 3);
+      this.timeHead.setAttribute("height", 10);
+      this.timeHead.setAttribute("fill", C.ink);
+      tl.append(this.timeHead);
     }
 
     #paint() {
@@ -337,7 +345,7 @@ customElements.define(
       const fr = frame(this.#film, this.#t);
       this.painter.paint(this.#film, fr, C);
       this.scrub.value = this.#t;
-      keeps(this.playhead, "x", (1000 * this.#t) / this.#film.total - 1.5);
+      keeps(this.timeHead, "x", (1000 * this.#t) / this.#film.total - 1.5);
       if (fr.i !== this.#step) {
         this.#step = fr.i;
         const s = fr.step;
@@ -354,6 +362,11 @@ customElements.define(
               ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
               : `, of ${this.#film.comparisons} in all.`),
         );
+        const lines = s.line ? LINES[s.line] : null;
+        if (lines !== this.playhead) {
+          this.playhead = lines;
+          this.dispatchEvent(new Event("change"));
+        }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
         this.parts?.update();
       }

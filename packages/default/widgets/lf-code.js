@@ -29,25 +29,92 @@
  * Until the reader chooses, authored presentation remains the default. Paper wraps
  * complete lines regardless of the screen choice.
  *
+ * `playhead` is the lines another widget is at, in that grammar too, or null: Leaf sets
+ * it from the `source-lines` output of the widget `for` names (registry `x-data`), and
+ * a plain host sets the property itself. The block marks the rows those numbers address
+ * (`data-lf-at`). Several excerpts of one file can follow one widget, since a number
+ * outside an excerpt marks nothing there.
+ *
+ * So that a reader watching that widget sees the marked line beside it, the block glides
+ * the line to the middle of the box that scrolls it when the line leaves view
+ * (`scrollIntoView` bounded `within` that box). Where that box is the page, it moves
+ * nothing. Brought in at the nearest edge at each line, rust-sort's film moved its
+ * source pane 179 times in the minute its 453 steps play at the default speed. Three
+ * rules bring that to 42 moves over the same minute:
+ *
+ * - The middle leaves room for the lines that run next, so a loop runs in view rather
+ *   than moving the box each time a line crosses its edge.
+ * - A line the playhead leaves at the next value, such as a call's one line between
+ *   visits to the function it calls, moves nothing. The box moves once the playhead is
+ *   out of view in this block again within two values, as it is going round a loop
+ *   whose second line is out of view, or has stood on the line for `REST`. A playhead
+ *   that had stood still that long before, as it does when the reader steps it, is
+ *   followed at once. Followed, each such visit, 225 ms at the film's default speed,
+ *   took the pane away and straight back.
+ * - The reader's hand inside the box, a press, wheel, touch or key there, stops the
+ *   following, so the box holds still while they read or scroll it, and their hand
+ *   on the widget `for` names starts it again. Rejected: following again once a marked
+ *   line came into the reader's view, which took the pane from a reader who had scrolled
+ *   up to read the lede as soon as the film lit a line beside it.
+ *
+ * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
+ * source draw is the update's completion, so Leaf's first anchor pass waits for the
+ * lines.
+ *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
  * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
- * the drawing under way as a `pending-task` event, the wrap key as the element's
- * `lfCommands`, the Copy control from the block's `data-lf-copy`, and the word a
- * listener hears on a highlighted line from its `data-lf-quiet`. */
+ * the wrap key as the element's `lfCommands`, the Copy control from the block's
+ * `data-lf-copy`, and the word a listener hears on a highlighted line from its
+ * `data-lf-quiet`. */
 import {
+  LeafElement,
+  alreadyShown,
   setScroll,
-  PendingTaskEvent,
   bodyText,
   commandsChanged,
   failSoft,
+  keeps,
   layoutChanged,
-  once,
+  onUserInput,
+  scrollBehavior,
+  scrollersOf,
+  scrollIntoView,
   synNodes,
   syntax,
   tabStore,
   tokenLines,
 } from "/runtime/portable-api.js";
+
+// How long a playhead stands on a line before the block counts it as resting there
+// (see the header): longer than the one-step visits rust-sort's film makes at its default
+// speed, 225 ms, and at 1×, 450 ms.
+const REST = 500;
+
+// Whether the blocks in each box still follow there, and the boxes each followed widget
+// keeps following. A box is shared, as one pane holds several excerpts, so the reader's
+// hand inside it stops every block there, and their hand on a widget the blocks follow
+// starts them again (see the header). The hand is read from the document's one reading
+// of the reader's inputs (`onUserInput`), which binds no key, and is one of its
+// gestures: an `input` follows a gesture already counted, and a script that moves the
+// followed widget dispatches one with no reader behind it.
+/** @typedef {{follows: boolean}} Following */
+/** @type {WeakMap<Element, Following>} */
+const boxes = new WeakMap();
+/** @type {WeakMap<Element, Set<Following>>} */
+const resumes = new WeakMap();
+const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
+onUserInput((event) => {
+  if (!HAND.has(event.type)) return;
+  const path = event.composedPath();
+  for (const node of path) {
+    const box = node instanceof Element ? boxes.get(node) : undefined;
+    if (box) box.follows = false;
+  }
+  for (const node of path)
+    for (const box of (node instanceof Element && resumes.get(node)) || [])
+      box.follows = true;
+});
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */
@@ -108,33 +175,114 @@ function* numbering(el) {
 
 customElements.define(
   "lf-code",
-  class extends HTMLElement {
+  class extends LeafElement {
+    static properties = { playhead: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | null} */
+      this.playhead = null;
+    }
+
+    /** @type {Promise<void> | undefined} */
+    #source;
+    // The numbered and elided rows, in order, once the lines are in.
+    /** @type {HTMLSpanElement[]} */
+    #rows = [];
+    // The rows the playhead marks.
+    /** @type {HTMLSpanElement[]} */
+    #at = [];
+    // When the playhead last moved, null before the first value, which only marks, as an
+    // arrival moves nothing; how many values ago it last left a line out of view in this
+    // block unfollowed, while it stayed in the block; and the wait for it to rest there
+    // (see the header).
+    /** @type {number | null} */
+    #moved = null;
+    #unfollowed = Infinity;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    #rest;
+
     // The rendered lines a range addresses, none before the lines are in.
-    /** @param {string} key */
+    /** @param {string | null} key */
     lfElementsFor(key) {
       const addressed = within(key);
-      return [
-        ...[...this.querySelectorAll("pre")]
-          .filter((pre) => pre.parentElement === this)
-          .flatMap((pre) =>
-            [...pre.querySelectorAll("span")].filter(
-              (row) =>
-                row.parentElement === pre &&
-                row.matches(".lf-code-line, .lf-code-elided"),
-            ),
-          ),
-      ].filter((row) => addressed(...rowSpan(row)));
+      return this.#rows.filter((row) => addressed(...rowSpan(row)));
     }
 
-    connectedCallback() {
-      if (!once(this)) return;
-      // Announced as a pending task so the runtime holds the first anchor pass until
-      // the lines are in — the tokenizer loads lazily, so even an uncolored block
-      // lands a microtask late and one writer has to finish before another reads.
-      this.dispatchEvent(new PendingTaskEvent(this.render()));
+    // The tokenizer loads lazily, so even an uncolored block lands a microtask late,
+    // and one writer has to finish before another reads: the update completes once the
+    // lines are in, and Leaf's first anchor pass waits for it.
+    setup() {
+      this.#source = this.#draw();
     }
 
-    async render() {
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#source;
+      return result;
+    }
+
+    /** @param {Map<PropertyKey, unknown>} changed */
+    updated(changed) {
+      super.updated(changed);
+      if (changed.has("playhead")) this.#follow();
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      clearTimeout(this.#rest);
+    }
+
+    #mark() {
+      const at = this.lfElementsFor(this.playhead);
+      for (const row of this.#at) if (!at.includes(row)) keeps(row, "data-lf-at", null);
+      for (const row of at) keeps(row, "data-lf-at", "");
+      this.#at = at;
+    }
+
+    // Mark the new lines, and keep the first in sight as the header says.
+    #follow() {
+      this.#mark();
+      const now = performance.now();
+      const moved = this.#moved;
+      const returned = ++this.#unfollowed <= 2;
+      clearTimeout(this.#rest);
+      if (moved === null && this.playhead === null) return;
+      this.#moved = now;
+      const [row] = this.#at;
+      if (!row) this.#unfollowed = Infinity;
+      if (moved === null || !row) return;
+      const [scroller] = scrollersOf(row);
+      if (!scroller || scroller === document.scrollingElement) return;
+      let box = boxes.get(scroller);
+      if (!box) boxes.set(scroller, (box = { follows: true }));
+      const id = this.getAttribute("for");
+      const followed =
+        id &&
+        /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
+      if (followed) {
+        let followers = resumes.get(followed);
+        if (!followers) resumes.set(followed, (followers = new Set()));
+        followers.add(box);
+      }
+      if (!box.follows || alreadyShown(row)) return;
+      const bring = () => {
+        this.#unfollowed = Infinity;
+        scrollIntoView(row, {
+          block: "center",
+          within: scroller,
+          behavior: scrollBehavior(),
+          sideways: false,
+        });
+      };
+      if (now - moved >= REST || returned) return bring();
+      this.#unfollowed = 0;
+      this.#rest = setTimeout(() => {
+        if (this.#at[0] === row && box.follows && !alreadyShown(row)) bring();
+      }, REST);
+    }
+
+    async #draw() {
       // The code is the <pre>'s and nothing else's; notes are its siblings and say
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
@@ -205,6 +353,11 @@ customElements.define(
           previous = n;
         });
         pre.append(...notes.filter((note) => !pre.contains(note)));
+        this.#rows = /** @type {HTMLSpanElement[]} */ (
+          [...pre.children].filter((row) =>
+            row.matches(".lf-code-line, .lf-code-elided"),
+          )
+        );
         // Copied as the source the lines were drawn from, never as the lines' text,
         // which carries the notes docked among them.
         pre.dataset.lfCopy = "code";
@@ -239,6 +392,7 @@ customElements.define(
           ],
         };
         commandsChanged(this);
+        this.#mark();
         layoutChanged(this);
       } catch (err) {
         failSoft(this, err, source);

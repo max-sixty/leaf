@@ -610,12 +610,16 @@ test("bound data draws only as it is delivered", async () => {
   element.remove();
 });
 
-test("a data widget the markup binds to nothing reads its written <pre> as its input", async () => {
+test("a data widget the markup binds to nothing reads its written <pre> as its value", async () => {
   const tag = `lf-probe-written-${++tags}`;
   adoptRegistry({
     [tag]: {
       "x-content": "data",
-      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+      "x-data": {
+        text: { source: "source", contract: "text", property: "value" },
+        // Another input, as a code block's playhead, leaves the <pre> to the value.
+        at: { reference: "for", contract: "lines", property: "at" },
+      },
     },
   });
   const drawn = [];
@@ -623,7 +627,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
     tag,
     class extends LeafElement {
       render() {
-        drawn.push(this.value);
+        drawn.push([this.value, this.at]);
         return nothing;
       }
     },
@@ -633,7 +637,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   element.innerHTML = "<pre>**Fixed** &lt;now&gt;\n</pre>";
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(drawn, ["**Fixed** <now>\n"]);
+  assert.deepEqual(drawn, [["**Fixed** <now>\n", undefined]]);
   element.remove();
   // A module that makes one without a `<pre>` hosts the input itself.
   const hosted = document.createElement(tag);
@@ -641,7 +645,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   hosted.value = "set by its host";
   document.body.append(hosted);
   await settled(hosted);
-  assert.deepEqual(drawn.at(-1), "set by its host");
+  assert.deepEqual(drawn.at(-1), ["set by its host", undefined]);
   hosted.remove();
 });
 

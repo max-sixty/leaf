@@ -501,8 +501,8 @@ const namedParts = (owner, name) =>
 // The most of its block's and its own words, other than whitespace, a control's spoken
 // context reads, as much as a preview shows of a paragraph (place-preview.js). A
 // picture can be its own block, as a text document's view is, and reading all of one
-// took 1.5 s in Firefox for each move of the pointer over a document of 50,000 lines in
-// Design mode.
+// made each move of the pointer over a document of 50,000 lines in Design mode take 0.3
+// to 1.7 s.
 const CONTEXT_READ = 280;
 /** @param {Element} element @param {((element: Element) => boolean) | null} [skip] */
 const contextWords = (element, skip = null) => {

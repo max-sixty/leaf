@@ -3205,8 +3205,8 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
 def test_a_design_target_s_spoken_name_says_a_phrase_of_a_long_document(browser, serve):
     """Over a text document, Design mode aims at its view, a picture whose own words
     are the whole document. The name the picker speaks for it says a phrase of them:
-    read whole for each move of the pointer, a document of 50,000 lines took 1.5 s a
-    move in Firefox (anchor-resolution.js, `controlContext`)."""
+    read whole at each move of the pointer, a document of 50,000 lines made each move
+    take 0.3 to 1.7 s (anchor-resolution.js, `controlContext`)."""
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
     page = open_page(
         browser,

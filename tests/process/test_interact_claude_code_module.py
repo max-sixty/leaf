@@ -583,8 +583,9 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     page_dir, monkeypatch, spawn, sessionless
 ):
     """With forks that do the work, a thread the line fork judges `take` goes to a
-    fork the module spawns with Leaf's task, and Leaf hears which agent runs the turn
-    it opened for it. As that agent's run ends its turn closes, and the main thread
+    fork the module spawns with Leaf's task, unnamed, so its agent id is the one
+    address the main thread has for it, and Leaf hears which agent runs the turn it
+    opened for it. As that agent's run ends its turn closes, and the main thread
     hears what came of the thread."""
     driven = ClaudeCode(
         spawn,
@@ -610,7 +611,7 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
     spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
-    assert (spawned["subagentType"], spawned["name"]) == ("fork", f"leaf-{asked['id']}")
+    assert spawned["subagentType"] == "fork" and "name" not in spawned, spawned
     assert spawned["prompt"].startswith("<leaf-fork-work>"), spawned["prompt"]
     wait_for(
         lambda: state_model.agent_turn_of("cc-work", "agent-1"),
@@ -767,7 +768,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
-    assert driven.spawned.get(timeout=STATED_TIMEOUT)["name"] == f"leaf-{asked['id']}"
+    assert driven.spawned.get(timeout=STATED_TIMEOUT)["subagentType"] == "fork"
     first = wait_for(
         lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
         bool,

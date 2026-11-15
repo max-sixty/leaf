@@ -245,6 +245,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
+    message_kinds = kinds_declaring("message")
     standing = standing_withdrawn(events, withdrawn)
     undos = {e["undoes"]: e for e in events if e.get("undoes") in standing}
     # Every action at a coordinate competes, including a non-answer, so thread
@@ -283,8 +284,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if e["kind"] == "undo"
             else thread_for.get(e.get("parent", e.get("message")))
         )
-        if home is not None and (turn := _turn(e)):
-            home["turns"].append(turn)
+        if home is not None and in_history(e, message_kinds):
+            home["turns"].append(e)
             said_in[e["id"]] = home
         # Whether each thread stands closed, at this place (``closures``): what the
         # event puts in force and what it takes out of it.
@@ -343,8 +344,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             }
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
-            if turn := _turn(e):
-                thread["turns"].append(turn)
+            if in_history(e, message_kinds):
+                thread["turns"].append(e)
                 said_in[e["id"]] = thread
             continue
         if e["kind"] == "thread_title":
@@ -445,21 +446,15 @@ class _ClosureHistory:
                 thread["closures"][-1]["reopened"] = at
 
 
-def _turn(event: dict) -> dict | None:
-    """What a thread's history keeps of a turn, a spoken message that is no progress
-    or the user's rewrite of one (`exchange`), or of an undo, which `build_threads`
-    keeps only where it takes a turn back: what settles a batch of turns. Other
-    events keep nothing."""
-    spoken = (
-        event["kind"] in kinds_declaring("message")
-        and "token" not in event
-        and not event.get("ephemeral")
-    )
-    rewrite = event["kind"] == "edit" and event["author"] != "agent"
-    if not (spoken or rewrite or event["kind"] == "undo"):
-        return None
-    keep = ("id", "seq", "author", "responds", "undoes", "message")
-    return {key: event[key] for key in keep if key in event}
+def in_history(event: dict, messages: frozenset[str]) -> bool:
+    """Whether a thread's history keeps an event as a turn: a spoken message, of
+    `messages`' kinds, that is no progress, or the user's rewrite of one
+    (`exchange`), or an undo, which `build_threads` keeps only where it takes a turn
+    back: what settles a batch of turns."""
+    kind = event["kind"]
+    if kind in messages:
+        return "token" not in event and not event.get("ephemeral")
+    return kind == "undo" or (kind == "edit" and event["author"] != "agent")
 
 
 # What a message says: its words, its reaction's mark and its drawing, and whether its

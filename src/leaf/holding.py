@@ -6,9 +6,12 @@ A session works in turns: its main thread's (the session lifecycle record,
 working fork that took a thread's work (`state.AGENT_TURNS`, `forks.py`). A pickup in
 the page log names the turn that took messages in, and an agent's reply names the
 turn that posted it (`thread.post_reply`), so the log says which turn took each
-message and which answered it. A thread's waiting messages are the user's messages
-in it since the agent's last answer there, and that answer ends the thread's round
-(`rounds`).
+message and which answered it. A thread's waiting messages are the user's turns in it
+the agent still owes an answer, as the fold reads them (`events.unanswered_turns`):
+an answer that responds to the newest of them settles them all and ends the thread's
+round, one that responds to an older one settles only that, and a message of the
+agent's that responds to nothing settles nothing (`rounds`). A user's rewrite of a
+message waits as a turn of its own, held as the thread's other messages are.
 
 The thread is the unit: a turn holds a thread, with all its waiting messages, from
 the moment it takes the thread until another turn does (`Hold`).
@@ -76,50 +79,106 @@ from .service import PageTransaction
 class Rounds(NamedTuple):
     """The page's threads by their current round (`rounds`)."""
 
-    # Each thread's waiting messages in log order, the user's since the agent's last
-    # answer in it.
+    # Each thread's waiting turns in log order (the module header): the user's
+    # messages and rewrites the agent still owes an answer.
     waiting: dict[str, list[dict]]
-    # The ids of the user's messages an agent's working message came after, which read
+    # The ids of the waiting turns an agent's working message came after, which read
     # On it (`Holding.forked`).
     lined: set[str]
     # Each thread's last answer from the agent: its last message that responds to
     # one of the user's, which leaves out a message the agent wrote unasked.
     answers: dict[str, dict]
-    # The agent's message that ended each answered message's round, by the user's
-    # message's id.
-    answered: dict[str, dict]
-    # The thread each name reaches (`thread_context.thread_names`).
+    # The thread each name reaches: each message's (`thread_context.thread_names`)
+    # and each of the user's rewrites.
     names: dict[str, str]
+    # Each thread's history, its messages and the user's rewrites, as the fold reads
+    # them (`events.build_threads`).
+    threads: dict[str, dict]
+
+    def answer_to(self, input_id: str) -> dict | None:
+        """The answer that settled the user's turn `input_id`, as its thread's history
+        keeps it (`events.settlements`), or None for a turn no answer settled. Only an
+        agent's turn acting on a message asks, so it reads the one thread then."""
+        from .events import settlements
+
+        thread = self.threads.get(self.names.get(input_id, ""))
+        if thread is None:
+            return None
+        return next(
+            (
+                settled.answer
+                for settled in settlements(thread)
+                if any(turn["id"] == input_id for turn in settled.turns)
+            ),
+            None,
+        )
 
 
 def rounds(events: list[dict]) -> Rounds:
-    """The page's threads by their current round, from the log."""
-    from .events import taken_back
+    """The page's threads by their current round, from the log: each thread's history
+    of turns, as the fold keeps it (`events.build_threads`, ``turns``), read by the
+    fold's own rule for what an answer settles and what is still owed
+    (`events.settlements`, `events.unanswered_turns`). It places each turn by the
+    thread its message names, without the rest of the fold's reading of a thread, so
+    the hooks can ask it on every call."""
+    from .events import in_history, taken_back, unanswered_turns
     from .thread_context import thread_names
 
     messages = kinds_declaring("message")
-    names = thread_names(events)
+    names = dict(thread_names(events))
     withdrawn = taken_back(events)
+    # Each thread's history, its messages and the user's rewrites, as the fold's
+    # unanswered turns read them (`events.exchange`): what the user took back says
+    # nothing.
+    threads: dict[str, dict] = {}
+    said_in: dict[str, str] = {}
+    # The seq of the newest working message of the agent's in each thread.
+    working: dict[str, int] = {}
+    for event in events:
+        kind = event["kind"]
+        if kind == "undo":
+            thread = said_in.get(event["undoes"])
+        elif kind == "edit":
+            thread = names.get(event["message"])
+        else:
+            thread = names.get(event["id"]) if kind in messages else None
+        if thread is None:
+            continue
+        held = threads.get(thread)
+        if held is None:
+            held = threads[thread] = {"turns": [], "msgs": [], "revisions": []}
+        if in_history(event, messages):
+            held["turns"].append(event)
+            said_in[event["id"]] = thread
+        if event["id"] in withdrawn:
+            continue
+        if kind == "edit":
+            if event["author"] != "agent" and event["message"] not in withdrawn:
+                held["revisions"].append(event)
+                names[event["id"]] = thread
+        elif kind != "undo":
+            held["msgs"].append(event)
+            if event["author"] == "agent" and event.get("ephemeral"):
+                working[thread] = event["seq"]
     waiting: dict[str, list[dict]] = {}
     lined: set[str] = set()
     answers: dict[str, dict] = {}
-    answered: dict[str, dict] = {}
-    for event in events:
-        if event["kind"] not in messages or event["id"] in withdrawn:
-            continue
-        thread = names.get(event["id"])
-        if thread is None:
-            continue
-        if event["author"] == "user":
-            waiting.setdefault(thread, []).append(event)
-        elif event.get("ephemeral"):
-            # The agent's working message answers nothing, and speaks for what waits.
-            lined.update(said["id"] for said in waiting.get(thread, []))
-        else:
-            answered.update((said["id"], event) for said in waiting.pop(thread, []))
-            if "responds" in event:
-                answers[thread] = event
-    return Rounds(waiting, lined, answers, answered, names)
+    for thread, held in threads.items():
+        if said := unanswered_turns(held):
+            waiting[thread] = said
+            lined.update(
+                turn["id"] for turn in said if turn["seq"] < working.get(thread, 0)
+            )
+        if answer := next(
+            (
+                turn
+                for turn in reversed(held["turns"])
+                if turn["author"] == "agent" and "responds" in turn
+            ),
+            None,
+        ):
+            answers[thread] = answer
+    return Rounds(waiting, lined, answers, names, threads)
 
 
 MAIN = {"kind": "main"}
@@ -330,13 +389,17 @@ def taken_over(input_ids) -> str:
     )
 
 
-def refuse_unheld(holding: Holding, turn: str, input_ids: list[str]) -> None:
-    """The one rule for an agent's turn acting on messages: it may act only on the
-    messages it holds or that no turn holds, a waiting one by its thread's keeper
-    (`Holding.keeper`) and an answered one by the turn that answered it, and is
-    refused the rest (`taken_over`). Its pickups (`pickable`), replies and starts
-    (`authorize`) all ask this, so a fork whose thread another turn took can neither
-    take it back nor answer it nor show itself at work on it.
+def refuse_unheld(
+    holding: Holding, turn: str, input_ids: list[str], thread: str | None = None
+) -> None:
+    """The one rule for an agent's turn acting on messages and threads: it may act
+    only on the messages it holds or that no turn holds, a waiting one by its
+    thread's keeper (`Holding.keeper`) and an answered one by the turn that answered
+    it, and in a `thread` it holds or no turn holds (`Holding.hold`), as for a
+    message of its own there or a start on a to-do on it, and is refused the rest
+    (`taken_over`). Its pickups (`pickable`), replies and starts (`authorize`) all
+    ask this, so a fork whose thread another turn took can neither take it back nor
+    answer it nor show itself at work on it.
 
     The answered messages are this rule's alone: every other reader of `Holding`
     asks who holds work still owed, which an answered message isn't."""
@@ -345,10 +408,13 @@ def refuse_unheld(holding: Holding, turn: str, input_ids: list[str]) -> None:
     def held_by(input_id: str) -> str | None:
         if (kept := holding.keeper(input_id)) is not None:
             return kept
-        answer = holding.found.answered.get(input_id)
+        answer = holding.found.answer_to(input_id)
         return None if answer is None else answer.get("turn")
 
-    if taken := [i for i in input_ids if held_by(i) not in (None, turn)]:
+    taken = [i for i in input_ids if held_by(i) not in (None, turn)]
+    if thread is not None and holding.hold(thread).turn not in (None, turn):
+        taken.append(thread)
+    if taken:
         raise ReceiptRefused(taken_over(taken))
 
 
@@ -365,9 +431,8 @@ def authorize(
     `page`, whose `Holding` is `holding`, a reply to one or a start on one, or a
     message in `thread` that answers none, where its actor may not make it: an agent
     whose turn has ended (`state.acting_agent_turn`), or an agent's turn acting on a
-    message another turn holds (`refuse_unheld`). A message that answers none is held
-    to the thread's round (`round_of`), so a fork can't write in a thread another
-    turn took from it.
+    message, or in a thread, another turn holds (`refuse_unheld`), so a fork can't
+    write in a thread another turn took from it.
 
     Any other writer acts as the main thread, whoever runs it: the main thread itself,
     a fork's script, a worker, the user's terminal or another session
@@ -387,9 +452,7 @@ def authorize(
         and claim["id"] == session
         and (turn := acting_agent_turn(session)) is not None
     ):
-        if thread is not None and not input_ids:
-            input_ids = round_of(holding.found, thread)
-        refuse_unheld(holding, turn, input_ids)
+        refuse_unheld(holding, turn, input_ids, thread)
         return None
     names = holding.found.names
     threads = (
@@ -403,16 +466,6 @@ def authorize(
                 severity="advice",
             )
     return None
-
-
-def round_of(found: Rounds, thread: str) -> list[str]:
-    """The user's messages in `thread`'s round, by the log's `rounds`: those waiting,
-    or where none waits, those the thread's last answer ended the round of."""
-    if said := found.waiting.get(thread):
-        return [event["id"] for event in said]
-    if (answer := found.answers.get(thread)) is None:
-        return []
-    return [i for i, ender in found.answered.items() if ender["id"] == answer["id"]]
 
 
 def pickable(

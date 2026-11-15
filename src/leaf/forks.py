@@ -1022,17 +1022,21 @@ def ended(
                             taken.setdefault(thread, {})[input_id] = None
                 for thread, picked in taken.items():
                     keepers = {i: holding.keeper(i) for i in picked}
-                    inputs = [
-                        i
+                    settled = {
+                        i: answer
                         for i in picked
-                        if keepers[i] is not None or i in found.answered
+                        if keepers[i] is None
+                        and (answer := found.answer_to(i)) is not None
+                    }
+                    inputs = [
+                        i for i in picked if keepers[i] is not None or i in settled
                     ]
                     if not inputs:
                         continue
                     subject = {"kind": "thread", "id": thread}
                     owing = [t for t in owed if t["subject"] == subject]
                     todos = [t for t in owing if t["id"] in own]
-                    answered = [found.answered[i] for i in inputs if keepers[i] is None]
+                    answered = [settled[i] for i in inputs if i in settled]
                     ending: Ending = (
                         "hand_back"
                         if any(keepers[i] in closed for i in inputs)

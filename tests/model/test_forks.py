@@ -21,6 +21,7 @@ from click.testing import CliRunner
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    append_command,
     lock_contention,
     page_packages,
     serving,
@@ -43,6 +44,7 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
 from leaf import presence as presence_model
+from leaf import revisioning as revisioning_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -631,6 +633,95 @@ def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
         and not event.get("ephemeral")
     ]
     assert answers == ["Python 3.12 or later."]
+
+
+def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fork(
+    claimed, lane, capsys
+):
+    """What waits in a thread is what the fold owes: an answer settles the turns it
+    responds to. So the main thread answering the user's older choice in a thread
+    where a fork holds the user's newer message leaves that message, and the thread,
+    with the fork, whose answer to it goes in and ends its run as an answer, after
+    which nothing is owed."""
+    activated = revisioning_model.activate_source(claimed)
+    assert activated.error is None, activated.error
+    asked = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "id": "widget-thread",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="thread-region" choose>'
+            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    for action, detail in (("choose", {"value": ["thread-east"]}), ("answer", {})):
+        chosen = append_command(
+            claimed,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "thread-region",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    context(capsys, "UserPromptSubmit")
+    choice = answer_ref(claimed, chosen["id"])
+    more = said(claimed, "And why East?", parent=asked["id"])
+    taken = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], more["id"]),
+        answer=judged("looking into East", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
+    )
+    fork = {"kind": "fork", "agent": "agent-1", "state": "running"}
+    assert thread_model.post_response(choice, "Recorded East.", asks_back=False)
+    assert holders(claimed)[1][asked["id"]] == fork
+    ran = CliRunner().invoke(
+        cli_model.cli,
+        ["--agent-id", "agent-1", "thread", "reply", answer_ref(claimed, more["id"])]
+        + ["--done", "--text", "East is closest to the users."],
+    )
+    assert ran.exit_code == 0, ran.output
+    [ended] = forks_model.ended(
+        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+    )
+    assert ended["outcome"] == "answer"
+    assert holders(claimed)[0] == {}
+
+
+def test_the_users_rewrite_of_a_message_a_fork_holds_goes_to_the_fork(claimed, lane):
+    """A user's rewrite of their message waits in its thread as a turn of its own,
+    held as the thread's other messages are: by the running fork that took the
+    thread, whose tool boundary carries it, rather than by the main thread."""
+    asked, taken = taken_by_a_fork(claimed, "Does the suggest service cache?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    edit = append_command(
+        claimed,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Does the autocomplete service cache?",
+        },
+    )
+    fork = {"kind": "fork", "agent": "agent-1", "state": "running"}
+    assert holders(claimed)[0][edit["id"]] == fork
+    assert edit["id"] not in deliverable(claimed)
+    with PageTransaction(claimed) as page:
+        carried = holding_model.to_carry(forks_model.page_holding(page), taken["turn"])
+    assert [event["id"] for event in carried] == [edit["id"]]
 
 
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(

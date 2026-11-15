@@ -206,9 +206,10 @@ lf-tabs[data-lf-views] > lf-tab {
      * none, and a press at either edge scrolls the names that run past it (lf-tabs.js),
      * shown while the layer reads more that way (`data-lf-more-before`,
      * `data-lf-more-after`, reach.js). A side list's column runs down instead, and
-     * scrolls nothing of its own (below). The press's own face fades the names under
-     * it into the strip's background, so the layer's edge fade is off. A finger or a
-     * trackpad scrolls the strip itself, and an opened tab brings itself into view. */
+     * scrolls down past the window's height (below). The press's own face fades the
+     * names under it into the strip's background, so the layer's edge fade is off. A
+     * finger or a trackpad scrolls the strip itself, and an opened tab brings itself
+     * into view. */
     /* Native layout keeps the strip's room while its controls load. The same
      * stated row height sizes both; side columns reserve no additional row. */
     :is(lf-tabs, lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
@@ -302,13 +303,23 @@ lf-tabs[data-lf-views] > lf-tab {
      *
      * Summary and outcome each add one line to a horizontal strip, as tall as a line of
      * the font it is set in: the summary's `--lf-font-compact` and the outcome's
-     * `--lf-font-heading` (tokens.css), each its size times the fonts' shared leading. The
-     * same authored declarations reserve those lines before upgrade, so the panel
-     * starts in its final position. In a column, summaries can wrap to keep their
-     * context. */
+     * `--lf-font-heading` (tokens.css), each its size times the fonts' shared leading.
+     * With the row's own height they make a tab's (`--lf-tab-row-h`). The same authored
+     * declarations reserve those lines before upgrade, so the panel starts in its final
+     * position. In a column, summaries can wrap to keep their context.
+     *
+     * A column can hold more rows than the window. So the list sticks in the window
+     * beside the open item and scrolls on its own, as a mail client's list does, over a
+     * ground that spans the set's height (below). A walk down a long queue then leaves
+     * the item where the user is reading it, and the focused tab stays on screen while
+     * they read. A column that scrolled with the page moved the item at each step and
+     * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
     :is(lf-tabs[list="side"], lf-parts) {
       --lf-tab-context-h: 0px;
       --lf-tab-outcome-h: 0px;
+      --lf-tab-row-h: calc(
+        var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
+      );
     }
     lf-tabs[list="side"]:has(> lf-tab[summary]) {
       --lf-tab-context-h: calc(var(--lf-t-working-label) * var(--lf-ui-lh));
@@ -327,22 +338,71 @@ lf-tabs[data-lf-views] > lf-tab {
       grid-row: 1;
       min-block-size: 0;
     }
+    /* The set's ::before draws the column's tint and the rule between it and the item,
+     * and the list over it draws neither, standing clear of the rule. The ::before
+     * spans every row of the set, the two a full-height workspace's grid has included
+     * (below), so the column reads as one from the frame's top to its foot while the
+     * list sticks and stops short of either end. */
+    @container (width >= 36rem) {
+      lf-tabs[list="side"][data-lf-views]::before {
+        content: "";
+        grid-row: 1 / -1;
+        align-self: stretch;
+        background: var(--lf-field);
+        border-inline-end: 1px solid var(--lf-border);
+        border-start-start-radius: calc(var(--lf-r) - 1px);
+        border-end-start-radius: calc(var(--lf-r) - 1px);
+      }
+      lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+        background: none;
+        margin-inline-end: 1px;
+      }
+    }
     lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
       grid-column: 1;
       grid-row: 1;
       --lf-tabstrip-flow: column;
       --lf-tabstrip-bg: var(--lf-field);
       gap: 0;
-      overflow: visible;
       /* No press stands at a column's edge, so a landing keeps clear of none, and a run
        * from its heading to a tab, as wide as the column, fits it (lf-tabs.js,
        * `#showTab`). */
       scroll-padding-inline: 0;
       padding: 8px 8px calc(8px + var(--lf-end-room));
       border-bottom: 0;
-      border-inline-end: 1px solid var(--lf-border);
-      border-radius: calc(var(--lf-r) - 1px) 0 0 calc(var(--lf-r) - 1px);
+      border-radius: 0;
       align-self: stretch;
+    }
+    /* Outside a full-height workspace the page scrolls the open item, and the list
+     * sticks beside it. It sticks a landing's room (`--lf-landing-room`) below the
+     * sticky-header slot and ends a landing's room above the floating panel's row
+     * (`--lf-foot-room`): the band the root lands things in, as a column's sidebar
+     * does (layouts.css, `.layout-track`). So a row the list lands on is inside the
+     * root's band too, and showing it scrolls no page. The list is as tall as its rows,
+     * up to that band's height, and scrolls on its own beyond it (lf-tabs.js,
+     * `#showTab`). Standing at the top of its cell rather than stretched down it, a
+     * short list sticks until the item beside it ends. A tab it lands keeps a tab's
+     * room above and below it, so the rows either side of the open one show and the
+     * list doesn't look as though it starts or ends there. At either end of the list a
+     * wheel goes on to scroll the page, as the item beside it is the page's to scroll. */
+    @container (width >= 36rem) {
+      @container not style(--lf-full-height: 1) {
+        lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
+          position: sticky;
+          top: calc(var(--lf-top-outer) + var(--lf-landing-room));
+          max-block-size: calc(
+            100dvh - var(--lf-top-outer) - 2 * var(--lf-landing-room) -
+              var(--lf-foot-room)
+          );
+          align-self: start;
+          overflow: hidden auto;
+          scroll-padding-block: var(--lf-tab-row-h);
+          --lf-top: 0px;
+          --lf-top-covered: 0px;
+          --lf-head-inset: initial;
+          --lf-holds-height: 1;
+        }
+      }
     }
     /* A row is its name, then its diff count, with the summary on a line under them.
      * A tab with no count ends at its words. Such a tab's rule stands at its foot, a
@@ -478,9 +538,7 @@ lf-tabs[data-lf-views] > lf-tab {
       }
       lf-tabs[list="side"][data-lf-views]::before,
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
-        min-block-size: calc(
-          var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
-        );
+        min-block-size: var(--lf-tab-row-h);
       }
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-btn {
         max-inline-size: 16rem;
@@ -603,10 +661,13 @@ lf-tabs[data-lf-views] > lf-tab {
 
     /* Horizontal indexes stay with the panel they identify. Each set owns its
    * stacking context so a nested strip releases beneath its enclosing strip,
-   * and passes its stated row height to the headers inside its panel. */
+   * and passes its stated row height to the headers inside its panel. Every set
+   * passes on the slot it met, which a side list's column sticks at (above). */
+    lf-tabs {
+      --lf-top-outer: var(--lf-top);
+    }
     lf-tabs:not([list="side"]) {
       isolation: isolate;
-      --lf-top-outer: var(--lf-top);
     }
     lf-tabs:not([list="side"]) > lf-tab {
       --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));

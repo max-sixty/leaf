@@ -76,6 +76,7 @@ import {
   failSoft,
   keeps,
   layoutChanged,
+  onUserInput,
   scrollBehavior,
   scrollersOf,
   scrollIntoView,
@@ -93,27 +94,27 @@ const REST = 500;
 // Whether the blocks in each box still follow there, and the boxes each followed widget
 // keeps following. A box is shared, as one pane holds several excerpts, so the reader's
 // hand inside it stops every block there, and their hand on a widget the blocks follow
-// starts them again (see the header).
+// starts them again (see the header). The hand is read from the document's one reading
+// of the reader's inputs (`onUserInput`), which binds no key, and is one of its
+// gestures: an `input` follows a gesture already counted, and a script that moves the
+// followed widget dispatches one with no reader behind it.
 /** @typedef {{follows: boolean}} Following */
 /** @type {WeakMap<Element, Following>} */
 const boxes = new WeakMap();
 /** @type {WeakMap<Element, Set<Following>>} */
 const resumes = new WeakMap();
-for (const type of ["pointerdown", "wheel", "touchstart", "keydown"])
-  document.addEventListener(
-    type,
-    (event) => {
-      const path = event.composedPath();
-      for (const node of path) {
-        const box = node instanceof Element ? boxes.get(node) : undefined;
-        if (box) box.follows = false;
-      }
-      for (const node of path)
-        for (const box of (node instanceof Element && resumes.get(node)) || [])
-          box.follows = true;
-    },
-    { capture: true, passive: true },
-  );
+const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
+onUserInput((event) => {
+  if (!HAND.has(event.type)) return;
+  const path = event.composedPath();
+  for (const node of path) {
+    const box = node instanceof Element ? boxes.get(node) : undefined;
+    if (box) box.follows = false;
+  }
+  for (const node of path)
+    for (const box of (node instanceof Element && resumes.get(node)) || [])
+      box.follows = true;
+});
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */

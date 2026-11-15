@@ -178,7 +178,6 @@ export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
-export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
 export { highlightBlocks } from "./syntax.js";
 export {

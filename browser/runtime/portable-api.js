@@ -101,7 +101,13 @@ export { canvas2D } from "./canvas.js";
 
 export { nameAction, relabel, searchField } from "./control-labels.js";
 
-export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
+export {
+  focusDestination,
+  focused,
+  holdFocus,
+  currentLocationIn,
+  onUserInput,
+} from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
 export { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 export { scrollersOf } from "./scroll-containers.js";

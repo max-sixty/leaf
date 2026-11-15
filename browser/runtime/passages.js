@@ -2778,14 +2778,6 @@ function runsOf(segments, marks) {
   runs.push(...marks.slice(m));
   return runs;
 }
-// The blocks of those runs, each once (`blockAt`).
-/** @param {(part: Element) => boolean} reads */
-export function pageBlocks(reads) {
-  /** @type {Set<Element>} */
-  const blocks = new Set();
-  for (const { block } of pageRuns(reads)) if (block) blocks.add(block);
-  return [...blocks];
-}
 // Where a passage's segments start and stop in that reading, as [start, stop). A passage
 // is `{node, start, end}` segments and every question about the region it covers is asked
 // in the reading's own coordinates, so the join between the two is one function — the

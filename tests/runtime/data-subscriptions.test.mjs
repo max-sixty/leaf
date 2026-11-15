@@ -389,7 +389,8 @@ test("an output's readers follow the element under their bound id, in their own 
   assert.deepEqual(readings.get("page"), [null, { rows: ["page"] }]);
   assert.deepEqual(readings.get("message").at(-1), { rows: ["message"] });
   assert.deepEqual(current().value, { rows: ["page"] });
-  holdRows(pageProducer, { rows: ["page"] });
+  const equal = { rows: ["page"] };
+  holdRows(pageProducer, equal);
   await settleOutput();
   assert.equal(readings.get("page").length, 2, "an equal value does not repaint");
   readings.get("page").at(-1).rows[0] = "consumer mutation";
@@ -398,16 +399,18 @@ test("an output's readers follow the element under their bound id, in their own 
     { rows: ["page"] },
     "consumer copies are independent",
   );
-  // The producer's own object changed in place is heard once it says so.
-  pageValue.rows[0] = "edited";
+  // A producer holds a new value to change one: the object it already held reads as
+  // unchanged, whatever was done to it.
+  equal.rows[0] = "edited in place";
+  holdRows(pageProducer, equal);
   await settleOutput();
-  assert.equal(readings.get("page").length, 2, "unsaid, a change is not read");
-  holdRows(pageProducer, pageValue);
+  assert.equal(readings.get("page").length, 2, "the same object is not read again");
+  holdRows(pageProducer, { rows: ["edited"] });
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });
   // A control inside the producer says `change` for itself, not for the producer.
   const control = pageProducer.appendChild(document.createElement("input"));
-  pageValue.rows[0] = "unsaid";
+  pageProducer.rows = { rows: ["unsaid"] };
   control.dispatchEvent(new Event("change", { bubbles: true }));
   await settleOutput();
   assert.deepEqual(readings.get("page").at(-1), { rows: ["edited"] });

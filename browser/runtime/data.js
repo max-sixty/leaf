@@ -200,14 +200,19 @@ function deliveredSource(source, declaration, input, accepted) {
 // The reading of a bound widget's output of `contract`: what the element under the bound
 // id, resolved in the reader's authored scope, holds in the property its declaration
 // names for that contract. `page check` holds that widget to one output of the contract.
-// The value is copied as it is read, so a producer that changes its own object in place
-// and says `change` is heard, and an equal value keeps the reading it replaced.
+// A producer holds a new value to change one: the object it held at the last reading
+// reads as unchanged at no cost, so a large value held beside one that changes often
+// costs its readers nothing as the other moves. A new value is copied as it is read, so
+// the reading is the reader's own, and an equal one keeps the reading it replaced.
 /** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
 function heldOutput(element, attribute, widget, contract) {
   watchProducers();
   const moved = standingUnder(widget);
   /** @type {DataSnapshot | null} */
   let held = null;
+  // What the producer held when `held` was copied from it.
+  /** @type {unknown} */
+  let read;
   return computed(() => {
     moved.value;
     const producer = untracked(() => referencedProjection(element, attribute, widget));
@@ -223,14 +228,21 @@ function heldOutput(element, attribute, widget, contract) {
             name
           ]
         : null;
-      held =
-        value === null || value === undefined
-          ? null
-          : share(held, {
-              contract,
-              value: structuredClone(value),
-              origin: { derived: [{ widget }] },
-            });
+      if (value === null || value === undefined) return (held = null);
+      if (value === read && held) return held;
+      let copy;
+      try {
+        copy = structuredClone(value);
+      } catch (error) {
+        const named = producer.id ? `#${producer.id}` : "";
+        throw new Error(
+          `<${producer.localName}${named}> holds a ${contract} value that cannot be copied: ` +
+            /** @type {Error} */ (error).message,
+          { cause: error },
+        );
+      }
+      read = value;
+      held = share(held, { contract, value: copy, origin: { derived: [{ widget }] } });
       return held;
     });
   });

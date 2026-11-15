@@ -455,6 +455,30 @@ open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
 removing this entry.
 
+### A `:has()` subject left unrestyled when its match moves out, in Firefox
+
+On Me's card for a choice asked in a thread hides its choices while its own drawing of
+the message holds the choice's widget. Keyed on the widget itself, as
+`.lf-fp-on-item:has(.lf-fp-asked:not([data-lf-carried]) [data-lf-awaits])`, the rule
+failed in Playwright Firefox 159.0 (build 1572) on 2026-11-15: with On Me open on a
+choice no thread on the page showed, `m` opened the thread's margin card, which took
+the widget out of the card, and the card's choices stayed `display: none` though the
+card no longer matched the rule (`card.matches()` read false). The card showed
+neither the options nor its choices in 337 of 437 recorded frames, and at each step
+of a probe through `m` and Escape. Chromium 158.0.8127.18 (build 1254) restyled at
+once. A minimal page in Firefox restyled correctly after moving the matching element
+out of the subject, whether moved directly, through a detached parent, into a shadow
+root, or with its parent replaced, so something in Leaf's DOM is needed to show it,
+not yet isolated.
+
+The rule reads a mark the drawing writes as it gains or loses the widget instead
+(`data-lf-holds`, `MessageView.present` in `browser/runtime/thread/messages.js`),
+which Firefox restyles. To recheck, key the rule in `browser/styles/floating-panel.css`
+on `[data-lf-awaits]` again and delete the `data-lf-holds` write: the Firefox arm of
+`test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes`
+(`tests/browser/widgets/test_on_panel.py`) fails while the gap stands, its card
+showing no choices after `m`, and the Chromium arm passes.
+
 ### An `auto` box under a fold in Firefox
 
 A box with `content-visibility: auto` whose ancestor skips its content, as a

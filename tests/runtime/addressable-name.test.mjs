@@ -148,11 +148,15 @@ test("a heading titles the outermost element it is the first heading of, short o
     </section>
     <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
       <h3 id="notes">Notes</h3><p>Words.</p></section>
-    <section id="plan"><div><strong>Task one</strong> words</div>
+    <div id="plan"><div><strong>Task one</strong> words</div>
       <div><strong>Task two</strong> words <lf-ask id="restart">
-        <h3 id="restart-question">Restart it?</h3></lf-ask></div></section>
-    <section id="more"><details id="details"><summary>More</summary>
-      <h4 id="inside">Inside</h4></details></section>
+        <h3 id="restart-question">Restart it?</h3></lf-ask></div></div>
+    <div id="more"><details id="details"><summary>More</summary>
+      <h4 id="inside">Inside</h4></details></div>
+    <section id="kick"><lf-ask><p>Review record</p><h2 id="ship">Ship it?</h2>
+      </lf-ask></section>
+    <section id="job"><div><span>01</span><h2 id="job-heading">Job</h2></div>
+      <p>Its words.</p></section>
     <section id="tools"><p>Developer tools</p><h2 id="inspect">Inspect</h2></section>
     <section id="rollout"><h2 id="rollout-heading">Rollout</h2><p>Plan.</p>
       <lf-ask><h2>Include runners?</h2></lf-ask></section>
@@ -172,10 +176,12 @@ test("a heading titles the outermost element it is the first heading of, short o
   assert.equal(titled("store"), "notes-section");
   assert.equal(titled("notes"), "notes");
   // Words before a heading stop it titling anything but a section: a task's, a
-  // disclosure's summary; a section's eyebrow doesn't.
+  // disclosure's summary; a section's eyebrow doesn't, in a wrapper or not.
   assert.equal(titled("restart-question"), "restart");
   assert.equal(titled("inside"), "inside");
   assert.equal(titled("inspect"), "tools");
+  assert.equal(titled("job-heading"), "job");
+  assert.equal(titled("ship"), "kick");
   // A section takes its first heading past a question of the same rank inside it.
   assert.equal(titled("rollout-heading"), "rollout");
   // A wrapper holding sections of one rank is none's.

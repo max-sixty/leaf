@@ -41,9 +41,10 @@ widget whose title is an attribute, as a column's `label` is, declares it with
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`
 wrapping that question; where it titles no element, the heading itself. A `section`,
-`article`, `aside` or `nav` takes its first heading whatever else it holds; any other
-element only where every other heading inside ranks below it and no words stand
-before it outside a `header` or `hgroup`.
+`article`, `aside` or `nav` takes its first heading whatever else it holds, past any
+wrapper; any other element only where every other heading inside ranks below it, no
+words stand before it outside a `header` or `hgroup`, and each element between them
+takes it too.
 An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
 inside it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of

@@ -108,15 +108,18 @@ function readLeadingTitle(container) {
 // The element a heading titles: the outermost element whose first heading it is, short
 // of one an attribute of its own names (`x-name`); or the heading itself where it
 // titles no element. A sectioning element (`section`, `article`, `aside`, `nav`) takes
-// its first heading whatever else it holds. Any other takes it only where every other
-// heading inside ranks below it and, outside a title group (`header`, `hgroup`),
-// nothing with words stands before the heading's branch. So a question's heading
+// its first heading whatever else it holds, past any wrapper between them. Any other
+// takes it only where every other heading inside ranks below it, outside a title group
+// (`header`, `hgroup`) no words stand before the heading's branch, and each element
+// between them takes it too. So a question's heading
 // titles its `hgroup`, the question and a `section` wrapping the question; a section's
-// first heading titles it after an eyebrow or an introduction, and past a question of
-// the same rank inside it; a heading after the question in that section titles only
+// first heading titles it after an eyebrow or an introduction, past a numbered eyebrow
+// in a wrapper or a kicker in the question, and past a question of the same rank
+// inside it; a heading after the question in that section titles only
 // itself; a `div` holding a lede and several sections is none's; a heading deep in a
-// task, a disclosure under its summary, or a playground's preview titles only what it
-// opens; and a tab, pane or sample is named by its label. The contents start each row's
+// task list, a disclosure under its summary, or a playground's preview titles only
+// what it opens, short of a section around it; and a tab, pane or sample is named by
+// its label. The contents start each row's
 // stretch of the page at the element its heading titles, and a heading's link preview
 // counts the conversations about it (thread/placement.js, `conversationsAbout`).
 // `titlingHeading` reads it the other way round.
@@ -131,12 +134,16 @@ export const titledElement = (heading) =>
 /** @param {Element} heading @returns {Element} */
 function readTitledElement(heading) {
   let titled = heading;
+  let chained = true;
   for (
     let branch = heading, at = heading.parentElement;
-    at && titles(heading, at, branch);
+    at && !declaredName(at) && headingsIn(at).first === heading;
     branch = at, at = at.parentElement
-  )
-    titled = at;
+  ) {
+    if (at.matches(SECTIONING)) [titled, chained] = [at, true];
+    else if (chained && opensOn(heading, at, branch)) titled = at;
+    else chained = false;
+  }
   return titled;
 }
 /** The heading that titles `element` (`titledElement`), or null.
@@ -146,13 +153,12 @@ export function titlingHeading(element) {
   return first && titledElement(first).contains(element) ? first : null;
 }
 const SECTIONING = "section, article, aside, nav";
+// Whether an element other than a sectioning one opens on `heading`, its first: every
+// other heading in it ranks below, and outside a title group no words stand before the
+// heading's branch.
 /** @param {Element} heading @param {Element} element @param {Element} branch */
-const titles = (heading, element, branch) => {
-  if (declaredName(element)) return false;
-  const { first, below } = headingsIn(element);
-  if (first !== heading) return false;
-  if (element.matches(SECTIONING)) return true;
-  if (below <= rank(heading)) return false;
+const opensOn = (heading, element, branch) => {
+  if (headingsIn(element).below <= rank(heading)) return false;
   if (element.matches("header, hgroup")) return true;
   for (let node = branch.previousSibling; node; node = node.previousSibling)
     if (hasWords(node)) return false;

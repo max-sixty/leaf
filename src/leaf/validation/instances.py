@@ -17,6 +17,7 @@ from leaf.registry.contract import (
     retirement_slots,
     state_specs,
 )
+from leaf.registry.kernel import authored_inert, kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -275,7 +276,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
     It never owns obligation identity or registration. Any number of sources can select
     it, and each source retains its independent answer and lifecycle. An enclosing
-    widget whose widgets none ask shows a question the On me list never counts and
+    widget whose widgets none ask shows a question the On Me list never counts and
     the user can't answer, so the error names what each enclosed widget lacks to
     ask (`unasked`), or that it holds none.
     """
@@ -568,6 +569,42 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
                     )
                 )
     return errors
+
+
+def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """A page's allocations that mean nothing where they stand
+    (`registry.kernel.authored_inert`), which delivery leaves unpainted, so nothing on
+    the page shows the author the width or height they asked for is missing. Advice,
+    since the page works as it is; the words say where the allocation would hold. A
+    message has its own rule for the room (`$marks`, `message`), so this reads only
+    a page's documents."""
+    marks = {
+        mark["authored"]: key
+        for key, mark in kernel_marks().items()
+        if "authored" in mark
+    }
+    findings = []
+    for item in document.authoring.authored_allocations:
+        key = marks.get(item["attr"])
+        if key is None or item["in_template"]:
+            continue
+        tag = item["tag"]
+        declaration = registry.get(tag, {}) if is_element_name(tag) else {}
+        if holds := authored_inert(key, declaration, content=item["content"]):
+            findings.append(
+                Finding(
+                    "inert-allocation",
+                    element_at(tag, item["id"]),
+                    {
+                        "line": item["line"],
+                        "attr": item["attr"],
+                        "value": item["value"],
+                        "holds": holds,
+                    },
+                    severity="advice",
+                )
+            )
+    return findings
 
 
 def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:

@@ -1,10 +1,13 @@
-"""A detail dial: Skim folds all but the headings and gists and keeps the reader's place,
+"""A detail dial: Skim folds all but the lede, the gists and the headings above them and
+keeps the reader's place,
 ⋯ unfolds one section, Everything opens every closed detail, and Read takes back
 exactly what the dial changed."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, preview_parts, resized
+
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -58,7 +61,7 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     reading = top(page, "#cause-1")
     depth(page, "Skim")
     expect(page.locator("lf-dial .lf-dial-depth", has_text="Skim")).to_have_attribute(
-        "aria-pressed", "true"
+        "aria-checked", "true"
     )
     # Each section's three paragraphs and its closed detail.
     expect(folded).to_have_count(4 * len(SECTIONS))
@@ -82,4 +85,126 @@ def test_depths_fold_keep_the_place_and_restore(browser, serve):
     expect(folded).to_have_count(0)
     expect(markers).to_have_count(0)
     expect(page.locator("details[open]")).to_have_count(0)
+    expect(page.locator("main [hidden]")).to_have_count(0)
+
+    # The depths are one radio group: an arrow from Read chooses the depth beside it.
+    read = page.get_by_role("radio", name="Read", exact=True)
+    skim = page.get_by_role("radio", name="Skim", exact=True)
+    read.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(skim).to_be_focused()
+    expect(skim).to_have_attribute("aria-checked", "true")
+    expect(folded).to_have_count(4 * len(SECTIONS))
+    page.keyboard.press("ArrowRight")
+    expect(read).to_have_attribute("aria-checked", "true")
+    expect(folded).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_turn_that_glides_keeps_the_place_in_every_engine(request, serve, engine):
+    """With motion on, Skim then Read on the detail example left the gist standing for
+    the paragraph being read 360.7px below the reading line in Firefox, and Read moved it
+    another 347.9px, while Chromium held it: Firefox's scroll anchoring follows a block
+    to where its glide draws it, and scrolled the page by the glide. The gliding blocks
+    are no anchors while they glide."""
+    page = open_page(request.getfixturevalue(engine), serve(named_source("detail")))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1440, 900)
+    page.locator("#detail-cause-1").evaluate(
+        "p => document.scrollingElement.scrollTop += "
+        "p.getBoundingClientRect().top - innerHeight * 0.25 + 10"
+    )
+    reading = top(page, "#detail-cause-1")
+    depth(page, "Skim")
+    expect(page.locator("#detail-cause-1")).to_be_hidden()
+    gist = top(page, "#detail-cause-gist")
+    assert gist == pytest.approx(reading, abs=1)
+    depth(page, "Read")
+    expect(page.locator("#detail-cause-1")).to_be_visible()
+    assert top(page, "#detail-cause-gist") == pytest.approx(gist, abs=1)
+
+
+def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
+    """A folded `lf-diagram` kept the 170px its package's `min-block-size` reserved, so
+    Skim left a blank gap where the drawing was. A block Skim folds takes no room
+    whatever height the page or its package gave it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<h1>Report</h1><lf-dial id="dial"></lf-dial>'
+                '<section id="flow"><h2>Flow</h2>'
+                '<p class="gist" id="flow-gist">Every order ends in one queue.</p>'
+                '<figure id="drawn">A drawing.</figure></section>'
+                '<section id="next"><h2 id="next-heading">Next</h2>'
+                '<p class="gist">The warehouse picks in order.</p></section>',
+                head="<style>#drawn { block-size: 240px; min-block-size: 170px; }</style>",
+            )
+        ),
+    )
+    depth(page, "Skim")
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-dial-folded", "")
+    expect(page.locator("#drawn")).to_be_hidden()
+
+
+def test_a_section_without_a_gist_folds_whole(browser, serve):
+    """Skim kept every heading, so a section the author gave no gist still showed its
+    heading over nothing. A heading stands only for a lede or gist it heads, in a
+    `section`, in flat markup or inside a `header`, so such a section folds whole. It
+    joins the gap before it, under one ⋯ whose preview names the sections it holds:
+    a gist-less section after a nested one drew a second ⋯ under the first."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dial",
+                '<hgroup id="title"><h1>Report</h1></hgroup>'
+                '<p class="lede">What happened.</p><lf-dial id="dial"></lf-dial>'
+                '<section id="cause"><h2>Cause</h2>'
+                '<p class="gist" id="cause-gist">The key changed.</p>'
+                '<section id="detail"><h3 id="detail-heading">Detail</h3>'
+                '<p id="detail-0">How the key changed.</p></section></section>'
+                '<section id="method"><h2 id="method-heading">Method</h2>'
+                '<p id="method-0">How we measured.</p></section>'
+                '<section id="impact"><header><h2 id="impact-heading">Impact</h2>'
+                '<p id="impact-byline">By the on-call team.</p></header>'
+                '<p class="gist">Checkout slowed.</p></section>'
+                '<h2 id="fix-heading">Fix</h2><p class="gist">Roll back.</p>'
+                '<h3 id="steps-heading">Steps</h3><p id="steps-0">First this.</p>'
+                '<h2 id="appendix-heading">Appendix</h2><p id="appendix-0">Raw.</p>',
+            )
+        ),
+    )
+    depth(page, "Skim")
+    for kept in (
+        "#title h1",
+        "#cause h2",
+        "#cause-gist",
+        "#impact-heading",
+        "#fix-heading",
+    ):
+        expect(page.locator(kept)).to_be_visible()
+    for folded in (
+        "#detail-heading",
+        "#method-heading",
+        "#method-0",
+        "#impact-byline",
+        "#steps-heading",
+        "#appendix-heading",
+        "#appendix-0",
+    ):
+        expect(page.locator(folded)).to_be_hidden()
+    # One ⋯ for each gap: Cause's rest with Method, the byline, and Fix's rest.
+    expect(page.locator("main .lf-dial-more")).to_have_count(3)
+    gap = page.locator("#cause .lf-dial-more button")
+    assert preview_parts(gap) == ["Show the rest", "Detail", "Method"]
+    assert preview_parts(page.locator("#impact .lf-dial-more button")) == [
+        "Show the rest"
+    ]
+    gap.click()
+    expect(page.locator("#detail-heading")).to_be_visible()
+    expect(page.locator("#method-heading")).to_be_visible()
+    expect(page.locator("#appendix-heading")).to_be_hidden()
+    depth(page, "Read")
     expect(page.locator("main [hidden]")).to_have_count(0)

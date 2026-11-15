@@ -53,16 +53,17 @@
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
- * Adjacent pointer choices along a horizontal strip move only the selection underline
- * for 160ms. Content and accessible selection change at once; keyboard and vertical
- * navigation stay immediate. A reversed choice continues from the line's painted place,
- * and scrolling or resizing the strip ends the cue at its selected tab.
+ * Adjacent pointer choices along a horizontal strip move only the selection underline,
+ * in a mark's time (`--lf-motion-mark`). Content and accessible selection change at
+ * once; keyboard and vertical navigation stay immediate. A reversed choice continues
+ * from the line's painted place, and scrolling or resizing the strip ends the cue at
+ * its selected tab.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
- * server's next actor, the reading an `lf-tally` and its Next on me use: the mark alone while one
+ * server's next actor, the reading an `lf-tally` and its Next On Me use: the mark alone while one
  * waits on the user, since the mark and the tally already say so (its description says "To
  * answer"), else "On Claude" (`agentName`) while one is the agent's, as after the user
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
@@ -76,6 +77,8 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  addressableLabel,
+  afterScript,
   setScroll,
   actionTemplate,
   agentName,
@@ -109,7 +112,6 @@ import {
   replaceEntry,
   restorePlace,
   scrollBehavior,
-  scrollIntoReadingBand,
   selectableOffered,
   sizeObserver,
   tabStore,
@@ -238,10 +240,14 @@ export class TabSet extends LeafElement {
     /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
       if (!next) return;
-      // The strip is always on screen; focus scrolling a stuck tab back to its place
-      // in flow would move the view being left before the switch records it.
+      // Native focus scrolling would carry a stuck tab back to its place in flow and
+      // move the view being left before the switch records it. So the tab comes into
+      // the window after the switch (`#showTab`), once the focus paint marks its ring,
+      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
+      // sight, the tab would lose focus to the next key (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
+      afterScript(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
@@ -304,6 +310,8 @@ export class TabSet extends LeafElement {
     this.prepend(strip);
     this.#declareHeader();
     this.classList.add("lf-rendered"); // the upgraded marker every widget uses
+    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
+    this.classList.add("lf-ring-frame");
     // Open the tab the address names, or this
     // user's last, whose id resolves in later versions because check forbids
     // dropping ids. It opens here, during upgrade, so the runtime's view restore
@@ -555,7 +563,7 @@ export class TabSet extends LeafElement {
         if (name) this.#revealMotion = backgroundFlash(name, flashDuration());
       }
       if (switched) this.#open(active, from);
-      else if (pinnedBox) scrollIntoReadingBand(this, this, "start", "instant");
+      else if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
 
       for (const panel of previous ? [previous, active] : [active]) {
         const child = soleSubstantiveElement(panel);
@@ -592,6 +600,14 @@ export class TabSet extends LeafElement {
     this.#pageFlow = this.#parts
       ? this.#root
       : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    // The strip is named as the chrome names the set (`addressableLabel`): its author's
+    // `aria-label`, else the nearest element holding it that has a name, such as its
+    // section. The page's navigation stands in no section, and the page's title names it.
+    keeps(
+      this.#strip,
+      "aria-label",
+      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+    );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active.value) {
@@ -665,7 +681,9 @@ export class TabSet extends LeafElement {
   // `scroll-padding` (the package theme). A row runs past where it holds more names
   // than it shows. A side list's column runs past only where it scrolls on its own,
   // in a workspace that fills the window (base.css), and the tab comes into it the
-  // same way, down the column.
+  // same way, down the column. Elsewhere the column runs with the page, past the
+  // window's foot, so the walk, which puts focus on the tab, shows it in the window
+  // too (`within` null). A stuck strip's tab already shows there.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is
   // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
@@ -677,8 +695,8 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
-  /** @param {HTMLElement | undefined} btn */
-  #showTab(btn) {
+  /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
+  #showTab(btn, within = this.#strip) {
     const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
@@ -691,10 +709,8 @@ export class TabSet extends LeafElement {
       const size = label.getBoundingClientRect().width;
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
-      const measured = layoutPx(size);
-      if (run.style.getPropertyValue("--lf-tab-group-size") !== measured)
-        run.style.setProperty("--lf-tab-group-size", measured);
-      scrollIntoView(btn, { block: "nearest", within: strip });
+      run.style.setProperty("--lf-tab-group-size", layoutPx(size));
+      scrollIntoView(btn, { block: "nearest", within });
       return;
     }
     const range = label && document.createRange();
@@ -704,7 +720,7 @@ export class TabSet extends LeafElement {
     }
     scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
-      within: strip,
+      within,
     });
   }
 

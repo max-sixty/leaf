@@ -1,4 +1,4 @@
-"""Canonical obligations from messages, user tasks, widgets and updates.
+"""Canonical obligations from messages, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -8,8 +8,14 @@ input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. A user-owned to-do publishes an obligation with explicit completion;
-agent-owned to-dos stay work records.
+older prompt.
+
+On the page, the user answers an obligation only through its source: a widget
+through the actions its `x-awaits` declares, an agent message through a reply or
+settling reaction in its thread. Leaf adds no control of its own, such as a generic
+Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
+the decision). Any widget may ask by declaring `x-awaits`; content that doesn't is
+asked about in a thread anchored to it.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -18,10 +24,21 @@ answer, the user once a harness handed the update back, and nobody once a reply
 answered it; `response_address` derives the operation that answers it. A thread is
 never an obligation itself: its messages publish them.
 
-An agent message carrying `obligation` is a question the user answers in words:
+An agent message carrying `obligation` asks a question the user answers in words:
 their next message in its thread, or a reaction there whose token settles it, is its
-answer. The message owns identity and prompt; its thread only locates it. A user to-do
-instead ends explicitly, so discussing the task never claims the work is complete.
+answer. The message owns identity and prompt; its thread only locates it.
+
+That answer takes effect at once, whatever the words say, so the user can clear On Me
+without waiting for the agent. Only the agent can read whether they answered, and
+where they asked back or the step is still to do, its reply's `obligation` names the
+question by id, as one reply can name each question the user's message answered. The
+question then stands open again under the id and the words of the message that first
+asked it, so a plan step naming it follows under the same title, and stands on that
+reply, which On Me shows and the user's next message answers. The user chose this on
+4 November 2026 over handing the question to the agent until it replied, as a widget's
+does, which left On Me full until the agent had read each reply, and over asking again
+under a new id, which left the plan step reading done. Asking again is the declaration
+asking is, an `obligation` naming the questions, rather than a second one beside it.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
@@ -65,6 +82,7 @@ from leaf.projection import (
 )
 from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
+from leaf.registry.reactions import reaction_tokens
 from leaf.thread_context import widget_messages
 
 if TYPE_CHECKING:
@@ -93,12 +111,25 @@ def end_question(record: dict, ending: dict) -> None:
     record["next_actor"] = None
 
 
-def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
+def question_ids(message: dict) -> list[str]:
+    """The ids of the questions an agent message asks in words: the ones its
+    `obligation` lists, each the id of the message that first asked it, or where it is
+    `true`, its own."""
+    asked = message["obligation"]
+    return [f"message:{message['id']}"] if asked is True else asked
+
+
+def settle_by_words(
+    record: dict, asked: int, answer: dict | None, ending: dict | None
+) -> None:
     """Settle a message obligation from the user's message that answers it and the
-    agent's `todo_end` on its id, whichever came first. An end records no answer,
-    since the user's words are not in the log; a message after an end reopens
-    nothing, as the end already retired it."""
-    if ending is not None and answer is not None and answer["seq"] < ending["seq"]:
+    agent's `todo_end` on its id, whichever came first, where the message now asking
+    it stands at seq `asked`, so a reopening outlasts an end before it. An end records
+    no answer, since the user's words are not in the log; the user's message after an
+    end reopens nothing, as the end already retired it."""
+    if ending is not None and (
+        ending["seq"] < asked or (answer is not None and answer["seq"] < ending["seq"])
+    ):
         ending = None
     if ending is not None:
         end_question(record, ending)
@@ -367,7 +398,7 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     through a resolution too, so a decision the user put off until other work lands
     stays off their list. Neither is an answer, since the widget's state is untouched,
     and the obligation stays open, its controls live. The browser receives the lists this leaves rather than deciding
-    again, so On me's count and `page state` cannot disagree about whose turn it is.
+    again, so On Me's count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the obligation's
     words, a design note, or one the agent opened that the user has answered. A to-do
@@ -448,12 +479,16 @@ def thread_topics(threads: dict, records: list[dict], within: dict) -> dict[str,
 
 
 def waiting_about(
-    widget: str, records: list[dict], threads: dict, within: dict
-) -> list[dict]:
+    records: list[dict], threads: dict, within: dict
+) -> Callable[[str], list[dict]]:
     """The records among `records` that still wait on the user's words in a thread
-    about an obligation of `widget` (`thread_topics`): the questions the agent asked
-    there, which an answer to that obligation may or may not settle. Each is its `id`
-    and the words that asked it (`prompt.text`)."""
+    about an obligation of a given widget (`thread_topics`), as a function of the
+    widget: the questions the agent asked there, which an answer to that obligation
+    may or may not settle. Each is its `id` and the words that asked it
+    (`prompt.text`).
+
+    The questions and their threads' topics are read once, so a batch asking for
+    each of its actions reads the records once rather than once per action."""
     page = [
         record
         for record in records
@@ -470,11 +505,17 @@ def waiting_about(
     topics = thread_topics(
         {record["thread"]: threads[record["thread"]] for record in asked}, page, within
     )
-    return [
-        {"id": record["id"], "text": record["prompt"]["text"]}
-        for record in asked
-        if any(about["source"]["id"] == widget for about in topics[record["thread"]])
-    ]
+    by_widget: dict[str, list[dict]] = {}
+    for record in asked:
+        for widget in {about["source"]["id"] for about in topics[record["thread"]]}:
+            by_widget.setdefault(widget, []).append(
+                {"id": record["id"], "text": record["prompt"]["text"]}
+            )
+
+    def about(widget: str) -> list[dict]:
+        return list(by_widget.get(widget, ()))
+
+    return about
 
 
 def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
@@ -491,7 +532,7 @@ def shown_in(rec: dict, registry: dict) -> bool:
     asked, so it puts nothing on the user's list, whether or not the declaration's
     condition holds there. The condition decides only whether it also takes no input
     (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
-    page's log and Undo as a demonstration, and a page's On me holds only what the page
+    page's log and Undo as a demonstration, and a page's On Me holds only what the page
     itself asks. Same holder-chain walk as `quoted_in`."""
     return any(
         bool(registry.get(node["tag"], {}).get("x-exhibit"))
@@ -1045,23 +1086,31 @@ def thread_obligation_readings(
         source = record["source"]["id"]
         record["thread"] = reading.thread_by_widget[source]
         record["message"] = message_by_widget[source]
+    # A question keeps the id and words of its first message, and stands on its
+    # newest, which the user's next message answers.
+    first: dict[str, str] = {}
+    newest: dict[str, tuple[str, dict]] = {}
+    for identity, thread in threads.items():
+        for message in thread["msgs"]:
+            if message.get("obligation"):
+                for question in question_ids(message):
+                    first.setdefault(question, message["text"])
+                    newest[question] = (identity, message)
     records.extend(
         {
-            "id": f"message:{message['id']}",
-            "source": {"kind": "message", "id": message["id"]},
+            "id": question,
+            "source": {"kind": "message", "id": question.removeprefix("message:")},
             "thread": identity,
             "message": message["id"],
-            "prompt": {"text": message["text"], "target": None},
+            "prompt": {"text": first[question], "target": None},
             "answer": None,
             "status": "open",
             "end": None,
             "next_actor": "user",
         }
-        for identity, thread in threads.items()
-        for message in thread["msgs"]
-        if message.get("obligation")
+        for question, (identity, message) in newest.items()
     )
-    tokens = registry.get("$reactions", {}).get("tokens", {})
+    tokens = reaction_tokens(registry)
     # The newest open to-do on each thread.
     newest_todo: dict[str, int] = {}
     for todo in log.owed:
@@ -1078,7 +1127,7 @@ def thread_obligation_readings(
         asked = answers.seq(record["message"])
         if record["status"] == "open" and in_words:
             answer = answers.first_answer(record["message"])
-            settle_by_words(record, answer, log.ends.get(record["id"]))
+            settle_by_words(record, asked, answer, log.ends.get(record["id"]))
         # No revision can write a frozen widget's state, so an answer in words
         # retires its question through the agent's end, as for a question in words.
         elif record["status"] == "open" and (ending := log.ends.get(record["id"])):
@@ -1137,6 +1186,19 @@ class ThreadAnswers:
         return self.messages[min(found)] if found else None
 
 
+def settled_by_message(records: list[dict]) -> dict[str, list[dict]]:
+    """The questions asked in words that each of the user's messages answered, by the
+    message's id, each its `id` and the words that asked it. A message answers them
+    whatever it says, so these are what the agent reads it against."""
+    settled: dict[str, list[dict]] = {}
+    for record in records:
+        if answered_in_words(record) and record["status"] == "answered":
+            settled.setdefault(record["answer"]["event"]["id"], []).append(
+                {"id": record["id"], "text": record["prompt"]["text"]}
+            )
+    return settled
+
+
 def answered_in_words(record: dict) -> bool:
     """Whether a conversational answer, or agent ending, can settle this source: an
     agent message's obligation."""
@@ -1154,68 +1216,36 @@ def asked_in_a_message(record: dict) -> bool:
 
 
 def waiting_in_thread(
-    thread: str, before: int, records: list[dict], threads: dict
-) -> list[dict]:
-    """The agent's questions frozen as widgets in `thread`, asked before seq
-    `before`, that still wait on the user's pick: the user's words there may or may
-    not answer them. Each is its `id` and the words that asked it: the widget's
-    framing heading, else the message holding it."""
-    messages = {message["id"]: message for message in threads[thread]["msgs"]}
-    return [
-        {
-            "id": record["id"],
-            "text": record["prompt"]["text"] or messages[record["message"]]["text"],
-        }
-        for record in records
-        if record["thread"] == thread
-        and record["source"]["kind"] == "widget"
-        and record["status"] == "open"
-        and messages[record["message"]]["seq"] < before
-    ]
+    records: list[dict], threads: dict
+) -> Callable[[str, int], list[dict]]:
+    """The agent's questions frozen as widgets in a thread, asked before a seq, that
+    still wait on the user's pick, as a function of the thread and that seq: the
+    user's words there may or may not answer them. Each is its `id` and the words
+    that asked it: the widget's framing heading, else the message holding it.
 
-
-def user_task_obligations(
-    log: "TodoReading", reading: FrozenThreadReading
-) -> list[dict]:
-    """User tasks in the canonical inventory, retaining their explicit completion.
-
-    The to-do fold alone decides their outcome. Discussion, thread resolution and
-    page edits never complete the action the user was asked to perform.
-    """
-    events = {event["id"]: event for event in log.events}
-    records = []
-    for todo in log.todos:
-        if todo["owner"] != "user":
+    The open questions are grouped by thread once, so a batch asking for each of
+    the user's words reads the records once rather than once per message."""
+    asked: dict[str, list[tuple[int, dict]]] = {}
+    messages: dict[str, dict[str, dict]] = {}
+    for record in records:
+        if record["source"]["kind"] != "widget" or record["status"] != "open":
             continue
-        subject, outcome = todo["subject"], todo["outcome"]
-        ended = todo["state"] != "open"
-        records.append(
-            {
-                "id": todo["id"],
-                "source": {"kind": "todo", "id": todo["id"], "subject": subject},
-                "thread": reading.subject_thread(subject),
-                "message": None,
-                "prompt": {
-                    "text": todo["title"],
-                    "target": subject["id"]
-                    if subject["kind"] in {"widget", "element"}
-                    else None,
+        if (thread := record["thread"]) is None:
+            continue
+        if thread not in messages:
+            messages[thread] = {m["id"]: m for m in threads[thread]["msgs"]}
+        message = messages[thread][record["message"]]
+        asked.setdefault(thread, []).append(
+            (
+                message["seq"],
+                {
+                    "id": record["id"],
+                    "text": record["prompt"]["text"] or message["text"],
                 },
-                "answer": {
-                    "value": todo["state"],
-                    "event": event_reference(events[outcome["id"]]),
-                }
-                if ended and todo["state"] != "dropped"
-                else None,
-                "status": "withdrawn"
-                if todo["state"] == "dropped"
-                else "answered"
-                if ended
-                else "open",
-                "end": {"detail": outcome["detail"], "event": event_reference(outcome)}
-                if ended
-                else None,
-                "next_actor": None if ended else "user",
-            }
+            )
         )
-    return records
+
+    def waiting(thread: str, before: int) -> list[dict]:
+        return [question for seq, question in asked.get(thread, ()) if seq < before]
+
+    return waiting

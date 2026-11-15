@@ -2,9 +2,11 @@
    of focusable rows (`rowWalk`). Walk owners keep their list and motion; the portable
    declaration holds their live position reader. Native focus traversal and gestures
    that rearrange state are not walks through a named list. */
+import { capitalized } from "./words.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
-import { holdStatus } from "./notifications.js";
+import { gesture, holdStatus } from "./notifications.js";
+import { afterScript } from "./rendering.js";
 import { repaint } from "./repaint.js";
 import { focusDestination, focused } from "./focus.js";
 
@@ -16,10 +18,12 @@ export {
   walkPositionLabel,
 } from "./walk-declaration.js";
 
-// A gesture's new position holds the status line against arriving news. Reading the
-// same declaration on an ordinary repaint does not restart that hold.
+// A gesture's new position holds the status line against arriving news, and the
+// panel's leaf answers the step, one landing where the last did included. Reading the
+// same declaration on an ordinary repaint does neither again.
 window.addEventListener(WALK, () => {
   holdStatus(900);
+  gesture("walk");
   repaint();
 });
 
@@ -41,8 +45,6 @@ window.addEventListener(WALK, () => {
 // (keyboard/bindings.js); the page's queue walk steps by document position.
 /** @type {readonly [string, string, string, string]} */
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
-/** @param {string} word */
-const capital = (word) => word.slice(0, 1).toUpperCase() + word.slice(1);
 /** @param {{
  *   id: string,
  *   noun: string,
@@ -68,7 +70,7 @@ export function rowWalk({
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
-    title: `${capital(step)} ${noun.toLowerCase()}`,
+    title: `${capitalized(step)} ${noun.toLowerCase()}`,
   });
   /** @param {(rows: HTMLElement[]) => HTMLElement | undefined} pick */
   const land = (pick) => {
@@ -76,7 +78,9 @@ export function rowWalk({
     const row = pick(rows());
     if (!row) return;
     focusDestination(row, "move");
-    if (scroll) scrollIntoView(row, { block: "nearest" });
+    // After the focus paint this move queued, since a landing measures the box wearing
+    // the row's ring, which that paint marks (focus.js, `ringBox`).
+    if (scroll) afterScript(() => scrollIntoView(row, { block: "nearest" }));
     beginWalk(id, noun, position);
     if (row !== was) landed?.(row);
   };

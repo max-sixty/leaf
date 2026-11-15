@@ -13,16 +13,20 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
+    active_summaries,
     build_threads,
     note_settlements,
     spoken_turns,
+    summary_range,
     taken_back,
     undo_error,
+    unshown,
 )
 from leaf.findings import Finding
 from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
 from leaf.obligations import (
+    question_ids,
     quoted_in,
     response_address,
 )
@@ -55,6 +59,7 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
+from leaf.thread_context import thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -583,10 +588,10 @@ def _anchored_comment_error(view, event: dict, registry: dict):
 
 
 def _parent_error(event: dict, events: list) -> Finding | None:
-    """A parent is a message the log holds and no undo took back. Every thread fold
-    drops a withdrawn message (`build_threads`), so an event naming one would stand
-    on a message no reading shows; with `UndoReading` refusing to withdraw a message
-    another stands on, every message in force keeps its parent in force."""
+    """A parent is a message some reading shows: one the log holds that no undo took
+    back, or one taken back that something still stands on, which keeps its place in
+    its thread (`events.unshown`). An event naming any other would stand on a message
+    no reading shows."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -595,15 +600,36 @@ def _parent_error(event: dict, events: list) -> Finding | None:
         for logged in events
     ):
         return Finding("unknown-parent", values={"parent": parent})
-    if parent in taken_back(events):
+    if parent in unshown(events, taken_back(events)):
         return Finding("withdrawn-parent", values={"parent": parent})
+    return None
+
+
+def _named_question_error(event: dict, events: list) -> Finding | None:
+    """A message's `obligation` names questions its own thread asks in words, each by
+    the id it keeps (`obligations.question_ids`). An event naming any other would put
+    nothing back on On Me."""
+    if not isinstance(event.get("obligation"), list):
+        return None
+    threads = thread_names(events)
+    thread = threads[event["parent"]]
+    asked = {
+        question
+        for logged in events
+        if logged.get("obligation") and threads[logged["id"]] == thread
+        for question in question_ids(logged)
+    }
+    for question in event["obligation"]:
+        if question not in asked:
+            return Finding("unasked-obligation", values={"question": question})
     return None
 
 
 def _edit_error(event: dict, events: list) -> Finding | None:
     """An edit revises the words of a message its own author wrote: the user's own,
     or an agent's, whichever session posted it, so a successor can correct what a
-    predecessor said. A reaction or a bare drawing has none to revise.
+    predecessor said. A reaction or a bare drawing has none to revise, and a message
+    the user took back has none left.
 
     An edit that names its `base`, the revision its words were written over (the
     message's own id, or the latest edit of it still in force; a browser names an edit
@@ -631,6 +657,8 @@ def _edit_error(event: dict, events: list) -> Finding | None:
     if "text" not in target:
         return Finding("wordless-message", values=message)
     withdrawn = taken_back(events)
+    if name in withdrawn:
+        return Finding("withdrawn-message", values=message)
     revisions = [
         logged
         for logged in events
@@ -668,6 +696,15 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start >= end:
         return Finding("summary-order", values=named)
+    # The summaries in force once this one stands: those it overlaps it replaces whole.
+    candidate = {**event, "seq": events[-1]["seq"] + 1}
+    after = active_summaries([*events, candidate], {thread["id"]: thread})
+    asked = (event["from"], event["through"])
+    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
+        return Finding(
+            "summary-gap",
+            values={**named, "take_from": taken[0], "take_through": taken[1]},
+        )
     return None
 
 
@@ -678,7 +715,7 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, view.within, absorbed)
+    return undo_error(event, events, absorbed)
 
 
 def admission_error(
@@ -704,6 +741,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
+        or _named_question_error(event, events)
         or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)
@@ -762,33 +800,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return Finding("not-an-element", values={"element": element})
         return None
 
-    def user_widget_error(widget: str) -> Finding | None:
-        if error := element_error(widget):
-            return error
-        item = next(
-            (
-                item
-                for item in readings.work.all_obligations["all"]
-                if item["source"]["kind"] == "widget"
-                and item["source"]["id"] == widget
-                and item["status"] == "open"
-            ),
-            None,
-        )
-        if item is not None:
-            return Finding(
-                "duplicate-obligation",
-                values={"widget": widget, "obligation": item["id"]},
-            )
-        return None
-
     owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,
         seat_error=seat_error,
         element_error=element_error,
-        user_widget_error=user_widget_error,
         owed=owed,
         items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,
@@ -835,11 +852,13 @@ def settled_attention(event: dict, contract: dict) -> bool | None:
     """The attention an event's kind and author decide alone, or None for the
     user's input, which needs attention when it changes work or requests it.
 
-    A report or an error always wakes the agent; the agent's own events and the
-    user's bookkeeping never do.
+    A report or an error always wakes the agent, and a render reading does where it
+    holds a failure; the agent's own events and the user's bookkeeping never do.
     """
     if event["kind"] in {"report", "error"}:
         return True
+    if event["kind"] == "render":
+        return any(finding["severity"] == "error" for finding in event["findings"])
     if event["author"] != "user" or contract.get("bookkeeping"):
         return False
     return None
@@ -880,6 +899,11 @@ def admitted_event(view, events: list, event: dict) -> dict:
     ):
         raise EventRefused(error, event)
     attention = settled_attention(event, contracts[kind])
+    if attention is None and kind == "undo":
+        # The agent was told of the gesture, so it is told of the withdrawal, whether
+        # it has yet to read the gesture or has already acted on it.
+        withdrawn = next(logged for logged in events if logged["id"] == event["undoes"])
+        attention = True if withdrawn["attention"] else None
     if attention is None:
         candidate = {
             **APPEND_STAMPED,
@@ -890,7 +914,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
-        before = AdmissionReadings(view, events, active_registry)
+        # An event made against the newest revision was admitted in the active
+        # vocabulary, so `readings` already reads the log before it in that one.
+        before = (
+            readings
+            if active_registry is registry
+            else AdmissionReadings(view, events, active_registry)
+        )
         after = AdmissionReadings(view, [*events, candidate], active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}

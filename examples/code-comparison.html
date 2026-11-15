@@ -14,7 +14,7 @@
       code-reader-comparison {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(16rem, 1fr);
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
         align-items: end;
         min-width: 0;
         container-type: inline-size;
@@ -26,7 +26,7 @@
         flex-wrap: wrap;
         /* Wrapped rows keep each button's reach, which stands past its face
            under a finger, clear of the row above it. */
-        gap: max(var(--sp-2), 2 * var(--lf-reach-room)) var(--sp-2);
+        gap: max(var(--lf-sp-2), 2 * var(--lf-reach-room)) var(--lf-sp-2);
         align-items: center;
       }
 
@@ -36,7 +36,7 @@
       }
 
       #code-reader-feedback {
-        max-inline-size: var(--col);
+        max-inline-size: var(--lf-col);
         margin-inline: auto;
       }
 
@@ -50,8 +50,8 @@
 
       .code-candidate-title,
       .reader-treatment-title {
-        margin: 0 0 var(--sp-1);
-        font: 650 var(--t-5) / 1.3 var(--sans);
+        margin: 0 0 var(--lf-sp-1);
+        font: 650 var(--lf-t-5) / 1.3 var(--lf-sans);
       }
 
       .code-candidate lf-code {
@@ -79,9 +79,9 @@
       }
 
       .code-measurement {
-        margin: 0 0 var(--sp-2);
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
+        margin: 0 0 var(--lf-sp-2);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
       @container (max-width: 40rem) {
@@ -247,7 +247,7 @@
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <lf-ask id="code-comparison-ask" data-width="available">
+          <lf-ask id="code-comparison-ask">
             <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
               id="code-comparison-playground"
@@ -257,6 +257,7 @@
               <lf-playground-preview id="code-comparison-preview">
                 <code-reader-comparison id="code-reader-comparison">
                   <lf-playground-control
+                    id="width"
                     name="width"
                     label="Comparison viewport"
                     kind="range"
@@ -274,7 +275,7 @@
                     kind="choice"
                     value="A"
                   >
-                    <lf-playground-choice value="A" label="A">
+                    <lf-playground-choice id="treatment-a" value="A" label="A">
                       <section
                         class="code-candidate"
                         data-candidate="A"
@@ -298,7 +299,7 @@ export function releaseLabels(releases) {
                         </lf-code>
                       </section>
                     </lf-playground-choice>
-                    <lf-playground-choice value="B" label="B">
+                    <lf-playground-choice id="treatment-b" value="B" label="B">
                       <section
                         class="code-candidate"
                         data-candidate="B"

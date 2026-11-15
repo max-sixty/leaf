@@ -7,6 +7,14 @@ import { render as motionTemplate } from "./motion-view.js";
  * The author owns geometry, duration and meaning. Assigning a renderer draws
  * immediately, so either module may load first.
  *
+ * The transport stands beside the authored previews, and the module reads nothing from
+ * them but which videos they hold at the moment it asks, so a revision edits inside the
+ * study in place (`x-patch: members`): the clock, its playback and the page's
+ * `renderFrame` carry on, and the browser's scroll anchoring keeps the reader's place
+ * among the previews, which a study replaced whole would lose. A recording a revision
+ * adds joins the clock once its metadata loads. A renderer holding nodes the revision
+ * replaced is the page module's to assign again when `PAGE_INTERFACE` fires.
+ *
  * Playback, speed and scrubbing are local inspection, never page events. The
  * clock starts still, stops on disconnect/inspection, and resumes only on Play.
  * Reduced motion skips playback to the end but leaves manual seeking available.
@@ -199,11 +207,18 @@ class MotionStudy extends HTMLElement {
           commandsChanged(this);
         }
       });
-      for (const video of this.#videos) {
-        video.addEventListener("loadedmetadata", () => this.#seekVideos(), {
-          signal,
-        });
-      }
+      // Media events don't bubble but do pass the study on capture, so a recording a
+      // revision adds joins the clock, and gives Play something to play, as one the
+      // study started with does.
+      this.addEventListener(
+        "loadedmetadata",
+        () => {
+          this.#seekVideos();
+          this.#paintControls();
+          commandsChanged(this);
+        },
+        { capture: true, signal },
+      );
       this.#seekVideos();
       this.#paint();
       return () => {

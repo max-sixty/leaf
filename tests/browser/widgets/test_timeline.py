@@ -1,6 +1,6 @@
 """An authored timeline steps through its events by every route, lays its labels out
-clear of one another at any width, and prints whole. The step is tab-local view
-state."""
+clear of one another at any width with each label's stroke at its event's moment, and
+prints whole. The step is tab-local view state."""
 
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -27,13 +27,46 @@ RACE = """<h1>Race</h1>
   </lf-lane>
 </lf-timeline>"""
 
-# Each lane's label boxes, and the chart's track, in viewport pixels.
-LABEL_BOXES = """() => {
-  const track = document.querySelector('#race').querySelector('.lf-timeline-ruler').getBoundingClientRect();
-  const lanes = [...document.querySelector('#race').querySelectorAll('.lf-timeline-lane')].map((lane) =>
-    [...lane.querySelectorAll('.lf-timeline-label')].map((label) => {
+# Two labels too long to read either way from their mark in a phone's column, and
+# whole in a desktop's.
+HANDOVER = """<h1>Handover</h1>
+<lf-timeline id="handover" aria-label="A handover">
+  <lf-lane label="Leaf">
+    <lf-event id="hold" at="0" end="12600" label="Holds your question back"></lf-event>
+    <lf-event id="post" at="12600" label="Posts the fork's answer"></lf-event>
+    <lf-event id="carry" at="25000" label="Hook hands over the exchange"></lf-event>
+  </lf-lane>
+  <lf-lane label="Session">
+    <lf-event id="command" at="0" end="25000"
+      label="Runs the command your question waits behind, start to finish"></lf-event>
+    <lf-event id="reply" at="45900" label="Reply posted"></lf-event>
+  </lf-lane>
+</lf-timeline>"""
+
+# Each lane's labels, and the chart's track, in viewport pixels. A label's stroke is
+# whichever inline border it draws; its event's moment is an instant mark's centre
+# or a span mark's start.
+LABEL_BOXES = """(timeline) => {
+  const host = document.querySelector(timeline);
+  const track = host.querySelector('.lf-timeline-ruler').getBoundingClientRect();
+  const lanes = [...host.querySelectorAll('.lf-timeline-lane')].map((lane) =>
+    [...lane.querySelectorAll('.lf-timeline-event')].map((event) => {
+      const label = event.querySelector('.lf-timeline-label');
+      const mark = event.querySelector('.lf-timeline-mark');
       const box = label.getBoundingClientRect();
-      return { left: box.left, right: box.right, top: box.top, clipped: label.scrollWidth > label.clientWidth };
+      const markBox = mark.getBoundingClientRect();
+      const style = getComputedStyle(label);
+      return {
+        id: event.dataset.lfEvent,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        stroke: parseFloat(style.borderLeftWidth) ? box.left : parseFloat(style.borderRightWidth) ? box.right : null,
+        moment: mark.dataset.lfKind === 'instant' ? (markBox.left + markBox.right) / 2 : markBox.left,
+        // The label's words at full length, with its padding and stroke.
+        whole: label.scrollWidth + box.width - label.clientWidth,
+        clipped: label.scrollWidth > label.clientWidth,
+      };
     }),
   );
   return { left: track.left, right: track.right, lanes };
@@ -43,11 +76,19 @@ LABEL_BOXES = """() => {
 NEXT_FRAME = "() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))"
 
 
-def assert_labels_clear(page):
-    reading = page.evaluate(LABEL_BOXES)
+def assert_labels_clear(page, timeline="#race"):
+    """Every label stands inside the track and clear of the others in its row, its
+    stroke at its event's moment, and whole unless neither side of its mark has room
+    for all its words. Returns each label's reading by event id."""
+    reading = page.evaluate(LABEL_BOXES, timeline)
     for lane in reading["lanes"]:
         for label in lane:
-            assert not label["clipped"], label
+            assert label["stroke"] is not None, label
+            assert abs(label["stroke"] - label["moment"]) < 1, label
+            room = max(
+                label["moment"] - reading["left"], reading["right"] - label["moment"]
+            )
+            assert not label["clipped"] or label["whole"] > room, (label, room)
             assert reading["left"] - 0.5 <= label["left"], (label, reading["left"])
             assert label["right"] <= reading["right"] + 0.5, (label, reading["right"])
         for index, one in enumerate(lane):
@@ -59,6 +100,7 @@ def assert_labels_clear(page):
                         one,
                         other,
                     )
+    return {label["id"]: label for lane in reading["lanes"] for label in lane}
 
 
 def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
@@ -129,10 +171,10 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     page = open_page(browser, serve(leaf_page("Race", RACE), packages=("timeline",)))
     assert_labels_clear(page)
     # The ruler picks round intervals, and events with room share a label row.
-    expect(page.locator("#race .lf-timeline-tick[data-lf-major]")).to_have_text(
+    expect(page.locator("#race .lf-axis-tick[data-lf-major]")).to_have_text(
         ["0 s", "1 s", "2 s", "3 s", "4 s", "5 s"]
     )
-    lanes = page.evaluate(LABEL_BOXES)["lanes"]
+    lanes = page.evaluate(LABEL_BOXES, "#race")["lanes"]
     assert any(len({label["top"] for label in lane}) < len(lane) for lane in lanes)
     chart = page.locator("#race .lf-timeline-chart")
     before = chart.bounding_box()
@@ -157,6 +199,23 @@ def test_timeline_labels_stay_clear_at_any_width_and_on_paper(browser, serve):
     assert_labels_clear(page)
 
 
+def test_a_label_with_no_room_beside_its_mark_keeps_its_stroke_there(browser, serve):
+    """A label too long to read either way from its mark ends its words at the
+    track's edge, its stroke still at its event's moment, rather than move clear of
+    the mark and leave its stroke at a time the event isn't."""
+    page = open_page(
+        browser, serve(leaf_page("Handover", HANDOVER), packages=("timeline",))
+    )
+    crowded = ("carry", "command")
+    labels = assert_labels_clear(page, "#handover")
+    assert not any(labels[event]["clipped"] for event in crowded), labels
+    # One reads on from its mark, the other back from it, as each has more room.
+    page.set_viewport_size({"width": 390, "height": 900})
+    page.evaluate(NEXT_FRAME)
+    labels = assert_labels_clear(page, "#handover")
+    assert all(labels[event]["clipped"] for event in crowded), labels
+
+
 RUNS = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race before and after the fix">
   <lf-run label="Before the fix">
@@ -178,6 +237,39 @@ RUNS = """<h1>Race</h1>
     </lf-lane>
   </lf-run>
 </lf-timeline>"""
+
+
+def test_a_tall_timeline_s_gridlines_reach_its_last_lane(browser, serve):
+    """Each major time's line runs from the ruler's foot to the chart's, however many
+    lanes the chart holds, as its playhead does."""
+    lanes = "".join(
+        f'<lf-lane label="Worker {n}"><lf-event id="w{n}" at="{n * 100}" '
+        f'end="{n * 100 + 2000}" label="Job {n}"></lf-event></lf-lane>'
+        for n in range(60)
+    )
+    source = leaf_page(
+        "Tall",
+        f'<h1>Tall</h1><lf-timeline id="tall" aria-label="Workers">{lanes}</lf-timeline>',
+    )
+    page = open_page(browser, serve(source, packages=("timeline",)))
+    reading = page.evaluate(
+        """() => {
+          const tall = document.querySelector('#tall');
+          const box = (node) => node.getBoundingClientRect();
+          return {
+            chart: box(tall.querySelector('.lf-timeline-chart')),
+            ruler: box(tall.querySelector('.lf-timeline-ruler')),
+            playhead: box(tall.querySelector('.lf-timeline-playhead-line')),
+            lines: [...tall.querySelectorAll('.lf-axis-gridline')].map(box),
+          };
+        }"""
+    )
+    assert reading["chart"]["height"] > 2000, reading["chart"]
+    assert reading["lines"], reading
+    for line in reading["lines"]:
+        assert abs(line["top"] - reading["ruler"]["bottom"]) < 0.5, (line, reading)
+        assert abs(line["bottom"] - reading["chart"]["bottom"]) < 0.5, (line, reading)
+    assert abs(reading["playhead"]["bottom"] - reading["chart"]["bottom"]) < 0.5
 
 
 def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):

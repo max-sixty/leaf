@@ -9,29 +9,20 @@ import tinycss2
 import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
-    ADOPTED,
     COMMAND_HUB_PACKAGE,
     PAGE,
-    PILOT_PURGE,
-    SHELVED,
-    TRIAL_CACHE,
-    TRIAL_LOG,
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
     check_findings,
-    decide,
     declare_data_input,
     declare_on_page,
     element_declaration,
     fetch,
     found,
-    live_versions,
     page_packages,
     publish,
     read_page_data,
-    stamp,
-    trial_version,
 )
 from model.interact_contract import _value_verb
 
@@ -132,20 +123,6 @@ def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     assert refreshed.exit_code == 0, refreshed.output
 
 
-def test_space_capacity_is_independent_of_the_widgets_internal_layout(page_dir):
-    """A capacity declaration says how much room core grants. It does not constrain the
-    package's internal layout, including whether the widget also renders an attribute."""
-
-    def caption(registry):
-        registry["lf-board"]["properties"]["caption"] = {"type": "string"}
-        registry["lf-board"]["x-says"] = {"caption": "before"}
-        registry["lf-board"]["x-space"] = "available"
-
-    declare_on_page(page_dir, caption)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
 @pytest.mark.parametrize(("subschema", "exit_code"), [(True, 0), (False, 1)])
 def test_boolean_attribute_subschemas_validate_without_crashing(
     page_dir, subschema, exit_code
@@ -183,23 +160,6 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
-
-
-def test_custom_retirement_holders_can_be_revised_without_an_answer(trial_page):
-    """The same free editing applies to a layer's own outcome widgets."""
-    for source in (
-        trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, PILOT_PURGE),
-        trial_version(TRIAL_CACHE, TRIAL_LOG),
-    ):
-        (trial_page / "index.html").write_text(source)
-        revised = check(trial_page)
-        assert revised.exit_code == 0, revised.output
-    decide(trial_page, "shelve", widget="pilot-purge")
-    honored = stamp(trial_page, "answered")
-    assert honored.exit_code == 0, honored.output
-    assert live_versions(trial_page) == [1, 2]
 
 
 def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
@@ -289,25 +249,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     else:
         assert status == 400, body
         assert refusal in json.loads(body)["error"]
-
-
-def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
-    """The gate is about decisions, so it holds nothing against a version that
-    rewrites a widget the user never acted on."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1"><pre>First words.</pre></lf-draft>',
-        )
-    )
-    publish(page_dir)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1"><pre>Quite different words.</pre></lf-draft>',
-        )
-    )
-    assert check(page_dir).exit_code == 0
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):

@@ -588,9 +588,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(
         '<lf-ask id="ask"><h2>Which tone?</h2><lf-playground id="tone-playground">'
-        '<lf-playground-control name="tone" label="Tone" kind="choice" value="calm">'
-        '<lf-playground-choice value="calm" label="Calm"></lf-playground-choice>'
-        '<lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">'
+        '<lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>'
+        '<lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>'
         "</lf-playground-control>"
         "<lf-playground-preview><p>Deployed.</p></lf-playground-preview>"
         "<lf-playground-output>Build it.</lf-playground-output>"
@@ -646,6 +646,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     def workflow(id, seq, subject, stage, obligation=None):
         return {
             "id": id,
+            "input": id,
             "seq": seq,
             "subject": subject,
             "stage": stage,
@@ -691,7 +692,6 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     todos = [
         {
             "id": "t1",
-            "owner": "agent",
             "subject": {"kind": "thread", "id": "root"},
             "title": "Rebuild",
             "thread": "root",
@@ -704,7 +704,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         assert browser_served_model._thread_attention(
             thread,
             [owed],
-            work_served_model.served_workflows(workflows, frozen, records),
+            work_served_model.served_workflows(workflows, frozen, records, frozenset()),
             todos,
         ) == {
             "kind": "waiting",
@@ -729,6 +729,7 @@ def test_served_workflows_list_the_strongest_first():
     def workflow(id, seq, stage, condition=None, obligation=None):
         return {
             "id": id,
+            "input": id,
             "seq": seq,
             "subject": {"kind": "thread", "id": "root"},
             "stage": stage,
@@ -782,7 +783,9 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, frozen, records)
+        served = work_served_model.served_workflows(
+            workflows, frozen, records, frozenset()
+        )
         assert [item["id"] for item in served] == expected
 
 
@@ -844,6 +847,16 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "activity": [],
         "condition": None,
         "response": None,
+        "held_by": {
+            "id": "start-1",
+            "item": "input-1",
+            "text": "Old work",
+            "seq": 1,
+            "ts": (now - timedelta(minutes=20)).isoformat(),
+            "agent": "Leaf guide",
+            "session": "session-1",
+            "turn": "turn-1",
+        },
     }
     present = {
         "status": {"state": "idle", "ts": now.isoformat()},
@@ -853,6 +866,8 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "turn_closed": None,
         "listening": True,
         "session_alive": True,
+        "agent_turns": {},
+        "kept_back": [],
     }
     reply = {
         "state": "active",
@@ -880,6 +895,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
+        holding=activity_model.present_holding(present, [], now.isoformat()),
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)

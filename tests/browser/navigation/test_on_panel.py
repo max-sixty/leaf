@@ -1,5 +1,5 @@
-"""What waits on the user: the `m` queue, the panel's On me count and its On view,
-tallies, and the to-dos the user ends."""
+"""What waits on the user: the `m` queue, the panel's On Me count and its On view,
+and tallies."""
 
 import re
 
@@ -7,10 +7,10 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
-from render_cases_layout import toggle_queue
 from render_harness import (
     PANEL,
-    available_commands,
+    expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -20,6 +20,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    show_done,
     stamp_page,
     wait_for_revision,
     write,
@@ -32,7 +33,7 @@ from leaf.render_checks import rendered
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-# What waits on the user, as On me counts it (floating-panel.js, `onUserCount`): the
+# What waits on the user, as On Me counts it (floating-panel.js, `onUserCount`): the
 # queue's own reading, since a gesture's next step can stand in the marks' place.
 ON_ME = """async () => {
   const {readQueues} = await window.__lfWidgetApi();
@@ -44,14 +45,9 @@ ON_ME = """async () => {
 
 
 def expect_on_me(page, count):
-    """Wait until On me counts `count` obligations waiting on the user."""
+    """Wait until On Me counts `count` obligations waiting on the user."""
     page.evaluate(ON_ME)
     page.wait_for_function("count => window.__lfOnMe() === count", arg=count)
-
-
-def x_ends(page):
-    """Whether `x` ends something at the current location: a to-do on them."""
-    return any("x" in keys for keys in available_commands(page).values())
 
 
 QUEUE_PAGE = leaf_page(
@@ -103,7 +99,7 @@ def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(browser, se
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
-    threads. The panel's On me mark counts what waits on the user. A reply the user
+    threads. The panel's On Me mark counts what waits on the user. A reply the user
     sends takes its thread off that count and out of the walk once the server has read
     the reply."""
     url = serve(QUEUE_PAGE)
@@ -243,6 +239,62 @@ SEEN_SHARE = """async (selector) => {
 }"""
 
 
+def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve):
+    """Once the server reads a reply as answering the question it was sent under, while
+    more waits on the user, the panel field's end offers Next On Me. The caret stays in
+    the card's reply box, where `m` is a letter typed, so the press stands without its
+    key and still walks to the next item, whose key it then says. An answer that leaves
+    nothing On Me offers nothing."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+    asked = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Weekly?",
+            "anchor": {"section": "cadence"},
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Agent",
+            "parent": asked["id"],
+            "responds": asked["id"],
+            "revision": 1,
+            "text": "Weekly or daily?",
+            "obligation": True,
+        },
+    )
+    page = open_page(browser, url)
+    expect_on_me(page, 2)
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 2 waiting on me · Reply")
+    page.keyboard.press("Enter")
+    box = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"] leaf-text')
+    write(box, "Weekly.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_on_me(page, 1)
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(box).to_be_focused()
+    expect(press.locator("kbd")).to_have_count(0)
+    press.click()
+    expect(page.locator("#channel-ask")).to_be_focused()
+    expect(press.locator("kbd")).to_have_text("m")
+
+    with sending(page, "the pick"):
+        page.locator("#beta").click()
+    expect_on_me(page, 0)
+    round_trip(page)
+    expect(press).to_have_count(0)
+
+
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):
     """Travel shows the place it takes the user to (floating-panel.js, `clearFor`). `m`
     from a thread the panel opened to a place the landing brings clear above the view
@@ -353,9 +405,9 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
 
 
 def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
-    """On me stays open over a place `m` reaches, whose card it rings, and gives way to
-    one it doesn't list: `t` to a thread at the page's foot, which On me would stand
-    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On me stands on
+    """On Me stays open over a place `m` reaches, whose card it rings, and gives way to
+    one it doesn't list: `t` to a thread at the page's foot, which On Me would stand
+    over, puts it away (floating-panel.js, `clearFor`). Opened by a key, On Me stands on
     its first row, the channel question, so `m` steps on from it to the second."""
     url = serve(UNDER_PANEL_PAGE, anchored=[("tail", "The notes go out")])
     page = open_page(browser, url)
@@ -378,12 +430,12 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
 
 def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     """An `lf-tally` counts the obligations its region holds, by the rule a queue row's mark
-    reads, and leaves out one outside it. Its Next on me is `m` within the region: a
+    reads, and leaves out one outside it. Its Next On Me is `m` within the region: a
     press keeps the user located where they are and steps on, coming round at the end,
     and the walk announces its place among the region's obligations. Reached by Shift+Tab from
     an obligation, through the queue's own rows, Enter counts from that obligation, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
-    tally says so and Next on me is disabled. One the user commented on is the agent's
+    tally says so and Next On Me is disabled. One the user commented on is the agent's
     turn, which the tally names instead of calling it the user's to answer."""
 
     def item(key, label):
@@ -412,7 +464,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
         ),
     )
     words = page.locator("#left .lf-tally-words")
-    button = page.locator("#left").get_by_role("button", name="Next on me")
+    button = page.locator("#left").get_by_role("button", name="Next On Me")
     first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 left to answer")
     count = page.locator("#left .lf-tally-count")
@@ -458,7 +510,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
             ):
                 return
             page.keyboard.press("Shift+Tab")
-        raise AssertionError("Shift+Tab never reached Next on me")
+        raise AssertionError("Shift+Tab never reached Next On Me")
 
     button.click()
     expect(first).to_be_focused()
@@ -493,7 +545,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(button).to_be_enabled()
     # A comment on the open obligation hands it to the agent until a reply: the tally and
     # the item's row say so rather than calling it the user's to answer, beside a
-    # disabled Next on me.
+    # disabled Next On Me.
     panel_comment(serve.page_dir, "Why Alpha?", {"section": "first-decision"})
     expect(words).to_have_text("1 on Claude")
     expect(count).to_have_css("color", waiting_color)
@@ -503,36 +555,12 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
 
 @pytest.mark.parametrize("idle_setup", ["at_rest", "layout_clamp"])
-def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
-    browser, serve, idle_setup
-):
-    """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
-    is Done, and On me opens on its card, which carries a Done button. Either leaves
-    the user's queue in the turn it is pressed, and writes the user's `todo_end`; the
-    obligation beside them has no Done, since its widget answers it."""
-    url = serve(QUEUE_PAGE)
-    d = serve.page_dir
-
-    def put_on_user(subject, title):
-        return append_carried_log_record(
-            d,
-            {
-                "kind": "todo",
-                "author": "agent",
-                "agent": "Agent",
-                "session": "queue-done",
-                "owner": "user",
-                "subject": subject,
-                "title": title,
-            },
-        )
-
-    notes = put_on_user({"kind": "element", "id": "notes"}, "Check the notes")
-    whole = put_on_user({"kind": "page"}, "Read it through")
-    page = open_page(browser, url)
+def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup):
+    """`m` to an obligation already in view moves nothing, so the user is on it in the
+    first frame after the press, also once a layout change has clamped the page's
+    scroll back to where it stood."""
+    page = open_page(browser, serve(QUEUE_PAGE))
     resized(page, 1280, 900)
-    expect_on_me(page, 3)
-    assert not x_ends(page), "the viewport alone selects no task to finish"
     if idle_setup == "layout_clamp":
         page.evaluate("""() => {
           const tail = document.createElement('div');
@@ -545,287 +573,20 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
         page.evaluate("document.querySelector('#temporary-tail').remove()")
         scroll_settled(page)
         assert page.evaluate("scrollY") == 0
-
-    # The page as a whole has no place on the page, so its to-do comes after every
-    # placed item, and the walk lands on its card in On me, the one place it stands.
     page.locator("#cadence").click()
     page.evaluate("""() => {
       document.addEventListener('keydown', function read(event) {
         if (event.key.toLowerCase() !== 'm') return;
         document.removeEventListener('keydown', read, true);
         requestAnimationFrame(() => {
-          window.todoAtFirstFrame =
-            document.activeElement.closest('.lf-fp-on-item')?.textContent ?? null;
+          window.focusAtFirstFrame = document.activeElement.id;
         });
       }, true);
     }""")
-    page.keyboard.press("Shift+m")
-    expect_walk_position(page, "3 of 3 waiting on me · To-do")
-    expect(page.locator(".lf-fp-on-item:focus-within")).to_contain_text(
-        "Read it through"
-    )
-    assert "Read it through" in page.evaluate("todoAtFirstFrame"), (
-        "an idle arrival paints in its first frame"
-    )
-    assert page.evaluate("scrollY") == 0, "an arrival at no place moves the page"
-    assert x_ends(page), "the to-do's card as current location selects the page task"
-    panel_settled(page, view="queue")
-    expect(page.locator(".lf-fp-on-item[data-lf-walked]")).to_contain_text(
-        "Read it through"
-    )
-    page.keyboard.press("m")
-    expect_walk_position(page, "1 of 3 waiting on me · Options")
-    assert not x_ends(page)
-    page.keyboard.press("m")
-    expect_walk_position(page, "2 of 3 waiting on me · To-do")
-    expect(page.locator("#notes")).to_be_focused()
-    assert x_ends(page)
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("x")
-    holding(page, held, 1, "the Done")
-    expect_on_me(page, 2)
-    page.unroute("**/api/event")
-    for route in held:
-        route.continue_()
-    round_trip(page)
-    expect_on_me(page, 2)
-    end = events_model.read_events(d)[-1]
-    assert (end["kind"], end["author"], end["todo"], end["outcome"]) == (
-        "todo_end",
-        "user",
-        notes["id"],
-        "done",
-    )
-    # Done is a gesture like any other: `z` puts the task back on the user.
-    page.keyboard.press("z")
-    expect_on_me(page, 3)
-    round_trip(page)
-    assert events_model.read_events(d)[-1]["undoes"] == end["id"]
-    expect_on_me(page, 3)
-    with sending(page, "the Done again"):
-        page.keyboard.press("x")
-    expect_on_me(page, 2)
-
-    # On me stands open from `m`'s arrival at the task on the notes.
-    panel_settled(page, view="queue")
-    you = page.locator('.lf-fp-on-item[data-lf-list="you"]')
-    expect(you).to_have_count(2)
-    finish = you.get_by_role("button", name="Done", exact=True)
-    expect(finish).to_have_count(1)
-    expect(you.filter(has_text="Read it through")).to_have_count(1)
-    finish.focus()
-    with sending(page, "the panel's Done"):
-        page.keyboard.press("Enter")
-    expect(you).to_have_count(1)
-    expect_on_me(page, 1)
-    assert events_model.read_events(d)[-1]["todo"] == whole["id"]
-
-
-def put_todo_on_user(page_dir, subject, title):
-    """Open a to-do on the user, as `leaf task open --on user` does."""
-    return append_carried_log_record(
-        page_dir,
-        {
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "queue-words",
-            "owner": "user",
-            "subject": subject,
-            "title": title,
-        },
-    )
-
-
-def todo_field(page):
-    """The page's field, whose empty words name the to-do the user stands on."""
-    return page.locator(".lf-fp-field leaf-text")
-
-
-def row_done(page):
-    """The Done at the end of the panel's row, for the to-do the user stands on."""
-    return page.locator('.lf-fp-exit[aria-label="Done"]')
-
-
-def test_a_todo_on_you_says_its_words_where_you_land_on_it(browser, serve):
-    """A to-do's subject carries an On me mark named by its title before anything takes
-    the user there. Where `m` lands them on it, On me opens on its card, its whole title
-    over its Done; where Show does, the panel's empty field names it and the row's end
-    offers its Done. A to-do on the page as a whole stands nowhere on the page, so no
-    mark collects at its top: `m` lands on its card, which offers no Show."""
-    url = serve(QUEUE_PAGE)
-    whole = (
-        "Review the change or name a reviewer, then merge it after checking the build"
-    )
-    notes = "Try the notes command"
-    put_todo_on_user(serve.page_dir, {"kind": "page"}, whole)
-    put_todo_on_user(serve.page_dir, {"kind": "element", "id": "notes"}, notes)
-    page = open_page(browser, url)
-    resized(page, 1440, 900)
-    expect_on_me(page, 3)
-    marker = page.locator(
-        '[data-lf-margin-for="notes"] .lf-margin-marker[data-lf-kinds~="on-me"]'
-    )
-    expect(marker).to_have_attribute("aria-label", re.compile(re.escape(notes)))
-    expect(page.locator("[data-lf-margin-for=h]")).to_have_count(0)
-    expect(
-        page.locator(f'.lf-margin-marker[aria-label*="{whole[:20]}"]')
-    ).to_have_count(0)
-    expect(row_done(page)).to_have_count(0)
-
-    page.locator("#cadence").click()
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    walked = page.locator(".lf-fp-on-item[data-lf-walked]")
-    expect(walked).to_contain_text(whole)
-    expect(page.locator(".lf-fp-on-item:focus-within")).to_contain_text(whole)
-    expect(walked.get_by_role("button", name="Done", exact=True)).to_be_visible()
-    expect(walked.get_by_role("button", name="Show")).to_have_count(0)
-
-    page.locator('.lf-fp-on-item[data-lf-list="you"]').filter(
-        has_text=notes
-    ).get_by_role("button", name="Show").click()
-    panel_settled(page, open=False)
-    expect(page.locator("#notes")).to_be_focused()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile(f"^To-do · {re.escape(notes)}")
-    )
-    expect(row_done(page)).to_be_visible()
-
-    # A mode entered there is the stance the row's end leaves.
-    page.keyboard.press("w")
-    expect(page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')).to_be_visible()
-    expect(row_done(page)).to_have_count(0)
-    page.keyboard.press("w")
-    expect(row_done(page)).to_be_visible()
-
-
-def test_two_todos_on_one_element_are_one_stop_ended_in_turn(browser, serve):
-    """`m` reaches an element holding two to-dos once. The user there is on the first,
-    which `x` ends, and then on the second, so the field names each in turn. On the
-    second's card in On me, the user is on the second, whose place the first shares."""
-    url = serve(QUEUE_PAGE)
-    first = put_todo_on_user(
-        serve.page_dir, {"kind": "element", "id": "notes"}, "Check the notes"
-    )
-    second = put_todo_on_user(
-        serve.page_dir, {"kind": "element", "id": "notes"}, "Fix a title"
-    )
-    page = open_page(browser, url)
-    expect_on_me(page, 3)
-    page.locator("#cadence").click()
-    page.keyboard.press("m")
-    expect_walk_position(page, "1 of 2 waiting on me · Options")
-    page.keyboard.press("m")
-    expect_walk_position(page, "2 of 2 waiting on me · To-do")
-    expect(page.locator("#notes")).to_be_focused()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile("^To-do · Check the notes")
-    )
-    panel_settled(page, view="queue")
-    page.locator(".lf-fp-on-item", has_text="Fix a title").locator(
-        ".lf-fp-prompt"
-    ).click()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile("^To-do · Fix a title")
-    )
-    with sending(page, "the second's Done on its card"):
-        page.keyboard.press("x")
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == second["id"]
-    page.locator("#notes").click()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile("^To-do · Check the notes")
-    )
-    with sending(page, "the first Done"):
-        page.keyboard.press("x")
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == first["id"]
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 1 waiting on me · Options")
-
-
-def test_a_finger_ends_a_todo_on_you_where_show_lands(browser, serve):
-    """Under a finger, the to-do an On card's Show leaves the user on ends from the Done
-    at the end of the panel's row, without going back into On me."""
-    url = serve(QUEUE_PAGE)
-    task = put_todo_on_user(
-        serve.page_dir, {"kind": "element", "id": "notes"}, "Check the notes"
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, url, context=context)
-    page.locator(".lf-fp-on-user").tap()
-    panel_settled(page, view="queue")
-    card = page.locator(".lf-fp-on-item", has_text="Check the notes")
-    card.get_by_role("button", name="Show", exact=True).tap()
-    expect(page.locator("#notes")).to_be_focused()
-    expect(todo_field(page)).to_have_attribute(
-        "placeholder", re.compile("^To-do · Check the notes")
-    )
-    with sending(page, "the row's Done"):
-        row_done(page).tap()
-    expect_on_me(page, 1)
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == task["id"]
-    expect(row_done(page)).to_have_count(0)
-
-
-NESTED_TODOS_PAGE = leaf_page(
-    "Nested tasks",
-    '<section id="plan"><h2>Plan</h2>'
-    '<p id="step">Ship it on Tuesday, after the backfill.</p></section>'
-    '<p id="tail">Nothing else is planned.</p>',
-)
-
-
-def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
-    """Located on a task inside another, `x` ends the inner one: a task on a paragraph
-    inside a section that holds a task of its own. The page's own task stands at no
-    element, so neither is inside it."""
-    url = serve(NESTED_TODOS_PAGE)
-    d = serve.page_dir
-
-    def put_on_user(subject, title):
-        return append_carried_log_record(
-            d,
-            {
-                "kind": "todo",
-                "author": "agent",
-                "agent": "Agent",
-                "session": "nested-tasks",
-                "owner": "user",
-                "subject": subject,
-                "title": title,
-            },
-        )
-
-    put_on_user({"kind": "page"}, "Read it through")
-    plan = put_on_user({"kind": "element", "id": "plan"}, "Check the plan")
-    step = put_on_user({"kind": "element", "id": "step"}, "Check the step")
-    page = open_page(browser, url)
-    expect_on_me(page, 3)
-
-    # The step stands inside the plan, which stands inside the page's `main`.
-    page.locator("#step").click()
-    with sending(page, "the step's Done"):
-        page.keyboard.press("x")
-    expect_on_me(page, 2)
-    assert events_model.read_events(d)[-1]["todo"] == step["id"]
-
-    page.locator("#step").click()
-    with sending(page, "the plan's Done"):
-        page.keyboard.press("x")
-    expect_on_me(page, 1)
-    assert events_model.read_events(d)[-1]["todo"] == plan["id"]
-
-    # Off every section, nothing the user is located on is the page's own task, which `m`
-    # arrives at on its card.
-    page.locator("#tail").click()
-    assert not x_ends(page)
-    page.keyboard.press("Shift+m")
-    expect_walk_position(page, "1 of 1 waiting on me · To-do")
-    assert x_ends(page)
+    expect(page.locator("#channel-ask")).to_be_focused()
+    assert page.evaluate("focusAtFirstFrame") == "channel-ask"
 
 
 def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
@@ -890,8 +651,9 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, width):
-    """An answered obligation stays in On me under Done, which closes and reopens through its
-    routes."""
+    """An answered obligation stays in On Me under Done, which closes and reopens through
+    its routes, and finishing the page preserves the route back through the answer. The
+    answer that leaves nothing on the user has the panel say so, unasked."""
     page = open_page(
         browser,
         serve(
@@ -906,51 +668,13 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     )
 
     resized(page, width, 844)
-    page.keyboard.press("m")
-    expect(page.locator("#only-decision")).to_be_focused()
-    page.keyboard.press("Tab")
-    expect(page.locator("#only .lf-pick").first).to_be_focused()
-    page.keyboard.press("1")
-    round_trip(page)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
-    expect(done).to_have_count(1)
-    expect(done).to_contain_text("Pick one")
-    expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, open=False)
-
-    # With nothing left on the user, On me opens on its Done.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
-    panel_settled(page, view="queue")
-    expect(done).to_have_count(1)
-
-
-def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve):
-    """Finishing a page preserves the On panel's route back through the answer."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "One decision",
-                '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
-                '<lf-options id="only" choose>'
-                '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
-            )
-        ),
-    )
     # `m` travels to the obligation and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
     page.keyboard.press("m")
+    expect(page.locator("#only-decision")).to_be_focused()
     page.keyboard.press("Tab")
+    expect(page.locator("#only .lf-pick").first).to_be_focused()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("1")
@@ -972,10 +696,17 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
     for route in held:
         route.continue_()
     round_trip(page)
-    toggle_queue(page)
-    done = page.locator('.lf-fp-on-item[data-lf-list="done"]')
+    expect_on_me(page, 0)
+    expect_panel_says(page, "Nothing waiting on me")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    done = show_done(page)
     expect(done).to_have_count(1)
+    expect(done).to_contain_text("Pick one")
     expect(done).to_contain_text("First")
+    expect(page.locator('.lf-fp-on-item[data-lf-list="you"]')).to_have_count(0)
 
     reading = page.evaluate(
         """async () => {
@@ -997,6 +728,20 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
         "value": ["first"],
         "status": "answered",
     }
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, open=False)
+
+    # With nothing left on the user, On Me opens on its folded Done.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    expect(show_done(page)).to_have_count(1)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, open=False)
+
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
@@ -1008,7 +753,7 @@ def test_a_completed_obligation_keeps_its_answer_in_the_on_panel(browser, serve)
 
 
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
-    """An empty On me list says the panel rendered, rather than looking broken."""
+    """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
         '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
@@ -1043,13 +788,82 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     ).to_have_text(re.compile(r"Nothing waiting on \S+\."))
 
 
+# The motion the panel's leaf plays, named by the turn it reaches first
+# (floating-panel.js, `MOTIONS`).
+LEAF_MOTIONS = {
+    "rotate(-12deg) scale(1.15)": "nod",
+    "translateX(-3px) rotate(-5deg)": "shake",
+    "translateY(-3px) scale(1.14)": "perk",
+    "rotate(10deg)": "sway",
+    "rotate(180deg) scale(1.15)": "twirl",
+    "rotate(14deg) translateX(1px)": "beckon",
+}
+
+
+def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
+    """The panel's leaf nods at each step of `m`, a second over the one item waiting
+    included, though nothing else moves, twirls when the user's answer empties On Me,
+    and nods at `m` over the empty list, once each, however often the field leaves a
+    notice's words and comes back to them."""
+    source = leaf_page(
+        "One decision",
+        '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
+        '<lf-options id="only" choose>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
+    )
+    page = open_page(browser, serve(source))
+    # The sequence of motions the leaf's mark starts, each by the turn it reaches first.
+    page.evaluate(
+        """() => {
+          window.__lfLeaf = [];
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (keyframes, options) {
+            if (this.matches('.lf-fp-leaf > svg'))
+              window.__lfLeaf.push(keyframes[1].transform);
+            return animate.call(this, keyframes, options);
+          };
+        }"""
+    )
+
+    def gestures(count):
+        page.wait_for_function(f"() => window.__lfLeaf.length >= {count}")
+        return [LEAF_MOTIONS[turn] for turn in page.evaluate("() => window.__lfLeaf")]
+
+    page.keyboard.press("m")
+    expect(page.locator("#only-decision")).to_be_focused()
+    assert gestures(1) == ["nod"]
+    page.keyboard.press("m")
+    assert gestures(2) == ["nod", "nod"]
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#only .lf-pick").first).to_be_focused()
+    page.keyboard.press("1")
+    round_trip(page)
+    expect_panel_says(page, "Nothing waiting on me")
+    assert gestures(3) == ["nod", "nod", "twirl"]
+
+    page.keyboard.press("m")
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
+
+    # The field says the selected words, then the notice's again once they go.
+    page.locator("h1").select_text()
+    expect_panel_says(page, "One decision")
+    page.evaluate("() => getSelection().removeAllRanges()")
+    expect_panel_says(page, "One decision", says=False)
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert gestures(4) == ["nod", "nod", "twirl", "nod"]
+
+
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
-    """With On me open, `m` lands a suggestion the view would cover above the view,
+    """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (base.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
+    (floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
-    key, On me stands on its first row, the suggestion, so `m` steps on to the first
+    key, On Me stands on its first row, the suggestion, so `m` steps on to the first
     ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(

@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import cache
+from importlib.metadata import packages_distributions, requires
 from pathlib import Path
 
 import psutil
@@ -37,6 +38,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
     SnapshotHandlerRegistry,
@@ -54,6 +57,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -71,6 +75,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.http import assets_path
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
@@ -163,10 +168,9 @@ def append_carried_log_record(page_dir, event):
 
 
 def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a page's server answers revision `revision`'s resources: under the
-    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
-    name = files_model.revision_path(page_dir, revision).stem
-    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+    """Where a page's server answers revision `revision`'s resources
+    (`http.assets_path`)."""
+    return assets_path(execution_identity(read_artifact(page_dir, revision)))
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -730,8 +734,8 @@ def declare_data_input(
         "description": "A test widget with one external-data input.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{schema_model.ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,
@@ -1095,13 +1099,6 @@ def fragment_errors(html, registry):
     return validation_model.fragment_errors(parser, registry)
 
 
-def case_alias(path):
-    alias = path.with_name(path.name.swapcase())
-    if not alias.exists() or not path.samefile(alias):
-        pytest.skip("requires a case-insensitive filesystem")
-    return alias
-
-
 SUGGESTION = """<lf-suggestion id="sug-refill">
   <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
@@ -1234,7 +1231,7 @@ def state_json(d):
 
 
 def obligations_on_user(state):
-    """Widget obligations on the user's list, On me, retaining source and prompt identity:
+    """Widget obligations on the user's list, On Me, retaining source and prompt identity:
     each row joined to the record in `obligations` it names."""
     records = {item["id"]: item for item in state["obligations"]}
     return [
@@ -1462,8 +1459,6 @@ TRIAL_LOG = """<lf-trial id="trial-log">
 PILOT_PURGE = """<lf-pilot id="pilot-purge">
   <lf-proposed><p id="purge-weekly">Purge the dead-letter queue weekly.</p></lf-proposed>
 </lf-pilot>"""
-ADOPTED = '<p id="cache-hourly">Rebuild the cache each hour.</p>'
-SHELVED = '<p id="log-daily">Logs roll over at midnight.</p>'
 
 
 def deciding_verb(outcomes):
@@ -1741,15 +1736,25 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 
 @pytest.fixture(autouse=True)
-def _each_test_composes_its_own_layers():
+def _hook_bounds_take_the_suites_deadline(monkeypatch):
+    """A hook bounds the work it does by its harness's timeout: a page server's
+    start and the inline handover after it share `hook_transport.CONFIRM_WITHIN`,
+    10 s from the hook's start. A start takes about 1 s on an idle host and over
+    5 s on a loaded runner, so in process the bound takes `STATED_TIMEOUT`, and a
+    test whose subject is the bound sets its own (tests/AGENTS.md, "Results do not
+    depend on execution speed")."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", STATED_TIMEOUT)
+
+
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
     A process holds each selection's composition and vocabulary for its life
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held."""
-    yield
-    layer_model._composed.cache_clear()
-    layer_model._vocabulary.cache_clear()
+    a package at a path an earlier test's package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_compositions", {})
+    monkeypatch.setattr(layer_model, "_vocabularies", {})
 
 
 def retire_bridge(lock):
@@ -1913,7 +1918,6 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
                 {
                     "kind": "todo",
                     "author": "agent",
-                    "owner": "agent",
                     "subject": {"kind": "page"},
                     "title": "Work on the page",
                     **({"ts": ts} if ts else {}),
@@ -2101,6 +2105,52 @@ def claimed(page_dir, monkeypatch, context_record):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     return page_dir
+
+
+@contextmanager
+def claude_code_module(session: str, reply: str | dict):
+    """Stand in for Leaf's Claude Code hooks module (`hooks/claude-code.ts`), which
+    `test_interact_claude_code_module.py` holds to the same: answer each completion
+    `session` is asked (`completions`) with the text `reply`, or the failure it
+    names (`{"failed": …}`), as the model's usage of 300 tokens in and 12 out, and
+    yield the requests it took, each with its `id` and `request`."""
+    from leaf import completions
+
+    asked = []
+    done = threading.Event()
+    answered = reply if isinstance(reply, dict) else {"text": reply}
+    queued = completions.watch(session)
+
+    def answer() -> None:
+        while not done.is_set():
+            mark = queued.mark()
+            for request in completions.pending(session):
+                asked.append(request)
+                completions.cmd_reply(
+                    session,
+                    {
+                        "completion": request["id"],
+                        **answered,
+                        "usage": {
+                            "input_tokens": 300,
+                            "output_tokens": 12,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0,
+                        },
+                        "elapsed_ms": 900,
+                    },
+                )
+            # A tenth of a second at most, so the context's exit ends the thread.
+            queued.wait(mark, 0.1)
+
+    worker = threading.Thread(target=answer, daemon=True)
+    worker.start()
+    try:
+        yield asked
+    finally:
+        done.set()
+        worker.join()
+        queued.close()
 
 
 def _launched_as(monkeypatch, argv: list[str]) -> None:
@@ -2454,11 +2504,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )
@@ -2588,16 +2638,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:
@@ -2977,6 +3029,8 @@ def _interaction_prompt_evidence(page, value):
                 if key in {"ts", "created_at"}
                 else "<attempt>"
                 if key == "attempt"
+                else "<turn>"
+                if key == "turn" and isinstance(child, str)
                 else "<claim-session>"
                 if key == "claim" and child is not None
                 else stable(child)
@@ -3020,3 +3074,116 @@ def adapter_lease(session_id, app_server):
     lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
     lease.flush()
     return lease
+
+
+EVERY_TURN_DEPENDENCIES = frozenset({"click"})
+"""The runtime dependencies (`[project.dependencies]`) a Leaf process may load where a
+harness starts it at every turn of every session it is installed in: a hook in a
+session holding no page, and a tool hook with nothing new to deliver. Importing any
+other dependency costs each such process milliseconds to tens of milliseconds."""
+
+READING_DEPENDENCIES = EVERY_TURN_DEPENDENCIES | {
+    "linkify-it-py",
+    "markdown-it-py",
+    "mdit-py-plugins",
+    "psutil",
+    "pywhatwgurl",
+    "turbohtml",
+}
+"""What a hook that reads a page its session holds may load as well: the parsers of
+the page's markup, URLs and messages, and psutil, which reads the harness's processes.
+It loads no schema validator: `page init` validated the page's layer, and `page check`
+and serving validate it again (`layer-registry.md`)."""
+
+ADMITTING_DEPENDENCIES = READING_DEPENDENCIES | {"jsonschema", "referencing", "regress"}
+"""What a process that writes an event or delivers one to the agent may load as well:
+the schema validator, which admits each event (`event_contracts.append_admitted`) and
+picks the handling clauses whose `when` a delivered event matches
+(`registry.contract.event_clauses`)."""
+
+_IMPORTERS = """\
+import json, sys
+
+_importers = {}
+
+
+class _Importers:
+    def find_spec(self, name, path=None, target=None):
+        if name in _importers:
+            return None
+        chain, frame = [], sys._getframe(1)
+        while frame:
+            _, leaf, source = frame.f_code.co_filename.rpartition("/src/leaf/")
+            if leaf:
+                chain.insert(0, f"leaf/{source}:{frame.f_lineno}")
+                if frame.f_code.co_name != "<module>":
+                    break
+            frame = frame.f_back
+        _importers[name] = " -> ".join(chain)
+
+
+sys.meta_path.insert(0, _Importers())
+"""
+
+_IMPORTED = """
+print("\\n" + json.dumps({name: _importers.get(name, "") for name in sys.modules}))
+"""
+
+
+def fresh_imports(program: str) -> tuple[str, dict[str, str]]:
+    """Run `program` in a fresh interpreter, whose `sys.modules` is the process's own,
+    and return what it printed and each module it imported, mapped to the Leaf lines
+    that first imported it: the innermost Leaf function on the stack, then each Leaf
+    module whose import led there (empty where no Leaf code did)."""
+    done = subprocess.run(
+        [sys.executable, "-c", _IMPORTERS + program + _IMPORTED],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    printed, _, imported = done.stdout.rstrip("\n").rpartition("\n")
+    return printed, json.loads(imported)
+
+
+def leaf_main(*args: str, stdin: str = "") -> str:
+    """A program for `fresh_imports` that runs `leaf *args` on `stdin`, as a harness
+    or an agent runs it, and fails on a nonzero exit."""
+    return f"""
+import io, runpy, sys
+sys.argv = ["leaf", *{list(args)!r}]
+sys.stdin = io.StringIO({stdin!r})
+try:
+    runpy.run_module("leaf", run_name="__main__")
+except SystemExit as error:
+    assert not error.code, error.code
+"""
+
+
+def unlisted_dependencies(
+    imported: dict[str, str], listed: frozenset[str]
+) -> dict[str, str]:
+    """Each runtime dependency (`[project.dependencies]`) among the modules
+    `fresh_imports` returned that `listed` doesn't name, with the Leaf lines that first
+    imported it."""
+    dependency_of = _runtime_dependency_of()
+    return {
+        dependency_of[module]: importer
+        for module, importer in imported.items()
+        if module in dependency_of and dependency_of[module] not in listed
+    }
+
+
+@cache
+def _runtime_dependency_of() -> dict[str, str]:
+    """Each top-level module of Leaf's runtime dependencies, mapped to the name its
+    distribution has in `[project.dependencies]`."""
+    runtime = {
+        canonicalize_name(Requirement(line).name) for line in requires("leaf") or ()
+    }
+    return {
+        module: canonicalize_name(name)
+        for module, names in packages_distributions().items()
+        for name in names
+        if canonicalize_name(name) in runtime
+    }

@@ -14,8 +14,9 @@ from interact_support import STATED_TIMEOUT, wait_for
 
 @pytest.mark.parametrize("scenario", ["output", "candidate"])
 def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, scenario):
-    flake = importlib.import_module("leaf_dev.commands.flake")
+    flake = importlib.import_module("leaf_dev.commands.suite.flake")
     arms = importlib.import_module("leaf_dev.arms")
+    suite = importlib.import_module("leaf_dev.suite")
     root = tmp_path / "candidate"
     root.mkdir()
     subprocess.run(["git", "init", "-q", root], check=True)
@@ -39,11 +40,19 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     # Untracked files and edits, rather than HEAD, are the candidate.
     (root / "input.txt").write_text("candidate")
     started = tmp_path / "started"
+    # Each copy records whether it runs in macOS's background band.
+    bands = tmp_path / "bands"
     (root / "test_candidate.py").write_text(
-        "from pathlib import Path\nimport time\n"
+        "from pathlib import Path\nimport os, time\n"
         "def test_candidate():\n"
         " root = Path(__file__).parent\n"
         f" Path({str(started)!r}).touch()\n"
+        + (
+            f" open({str(bands)!r}, 'a').write("
+            "str(os.getpriority(os.PRIO_DARWIN_PROCESS, 0)))\n"
+            if sys.platform == "darwin"
+            else ""
+        )
         + (
             " output = root / '.tmp' / 'fixed-output'\n"
             " output.parent.mkdir(exist_ok=True)\n"
@@ -55,6 +64,7 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
     )
     monkeypatch.setattr(flake, "ROOT", root)
     monkeypatch.setattr(arms, "ROOT", root)
+    monkeypatch.setattr(suite, "ROOT", root)
     monkeypatch.setattr(flake, "OUT", root / ".tmp" / "flake")
     monkeypatch.setattr(flake, "COPIES", 4)
     monkeypatch.setattr(flake, "WORKERS", 2)
@@ -77,3 +87,5 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
             editor.join(timeout=STATED_TIMEOUT)
     assert result.exit_code == 0, result.output
     assert "| 4 | 0 | 0 | 0 | 0 |" in result.output
+    if sys.platform == "darwin":
+        assert bands.read_text() == "1111"

@@ -532,6 +532,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "waiting": [{"id": "widget:w1", "text": "Which store should own it?"}],
             **owes("reply"),
         },
+        "reply in words that answered the agent's question": {
+            "kind": "reply",
+            **titled,
+            "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
+            **owes("reply"),
+        },
         "reaction on a message": {"kind": "reply", "token": "+1"},
         "rewritten message": {
             "kind": "edit",
@@ -585,10 +591,10 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         },
         "resolve": {"kind": "resolve"},
         "unresolve": {"kind": "unresolve"},
-        "Done on a to-do on the user": {"kind": "todo_end"},
         "undo": {"kind": "undo"},
         "report": {"kind": "report"},
         "error": {"kind": "error"},
+        "render": {"kind": "render"},
     }
     told = {
         name: registry_contract.event_clauses(event, registry)

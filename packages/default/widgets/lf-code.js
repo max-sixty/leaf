@@ -145,7 +145,7 @@ customElements.define(
         // One representation either way: an uncolored block is the whole source as a
         // single unstyled token, so the line walk below has one shape to handle.
         const lines = tokenLines(
-          lang ? await syntax(source, lang) : [{ text: source, style: {} }],
+          lang ? (await syntax(source, lang)).tokens : [{ text: source, style: {} }],
         );
         const numbers = numbering(this);
         const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));

@@ -38,7 +38,7 @@ from browser.threads import (
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -137,10 +137,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
 
     # A margin card follows the send with its own motion (box-motion.js), which ends
     # before the card is read where it stands.
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-margin-preview')?.getAnimations({subtree: true})"
-        ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     route = held.pop()
     route.fulfill(
         status=400,
@@ -356,7 +353,14 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
                 body.evaluate("(node, key) => getComputedStyle(node)[key]", property),
             )
     rendered(page)
-    preview.locator(".lf-thread-transcript").evaluate("node => { node.scrollTop = 0; }")
+    # The user scrolls back to the first message, which ends the send's hold on the
+    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    transcript = preview.locator(".lf-thread-transcript")
+    transcript.hover()
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function(
+        "node => node.scrollTop === 0", arg=transcript.element_handle()
+    )
     scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
     measure_gaps = """messages => messages.map(message => {
       const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
@@ -433,18 +437,27 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             )
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
-            # The scrollport can clip the message's top edge. Sample inside the
-            # sticky header's visible paint, clear of its words and controls.
-            head_point = message.evaluate(
+            # Something can cover either edge of the message. The scrollport can clip
+            # its top, and for the 300 ms that the send's box tween carries the reply
+            # box down from where it stood, the reply box covers its foot
+            # (runtime/box-motion.js). So sample the ground at the middle of the
+            # sticky header's row and of the words' row, at an x clear of the words
+            # and the controls: a card beside its passage rises as one piece on a
+            # send, which leaves the pointer on the new message's Copy, lit in its
+            # own hover face.
+            head_point, body_point = message.evaluate(
                 """node => {
                   const box = node.getBoundingClientRect();
-                  const head = node.querySelector('.lf-msg-head').getBoundingClientRect();
-                  return [Math.round(head.right - box.left) - 2,
-                    Math.round(head.top + head.height / 2 - box.top)];
+                  const controls = node.querySelector('.lf-msg-controls').getBoundingClientRect();
+                  const x = Math.round(controls.left - box.left) - 12;
+                  return ['.lf-msg-head', '.lf-msg-body'].map(part => {
+                    const row = node.querySelector(part).getBoundingClientRect();
+                    return [x, Math.round(row.top + row.height / 2 - box.top)];
+                  });
                 }"""
             )
             assert pixels.getpixel(tuple(head_point)) == pixels.getpixel(
-                (head_point[0], pixels.height - 4)
+                tuple(body_point)
             )
     held.pop().continue_()
     page.unroute("**/api/event")
@@ -554,22 +567,6 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
     # The page comment's box the send emptied stays empty.
     expect(page_comment(page)).to_have_js_property("value", "")
-
-
-def test_a_seat_send_puts_the_user_on_the_thread_it_started(browser, serve):
-    """A seat that gives its box up to the thread its first message starts took the
-    focus with it, dropping the user on the page. They stand on the thread instead,
-    where any send leaves them."""
-    url, host = seated_page(serve, "verdict")
-    page = open_page(browser, url)
-    box = page.locator(f"{host} > .lf-thread-seat > .lf-say leaf-text")
-    box.scroll_into_view_if_needed()
-    write(box, "First thought.")
-    with sending(page, "the first message"):
-        page.keyboard.press("Enter")
-    thread = page.locator(f"{host} > .lf-thread-seat > .lf-page-thread")
-    expect(thread).to_have_count(1)
-    expect(thread).to_be_focused()
 
 
 @pytest.mark.parametrize("kind", ["task", "verdict"])

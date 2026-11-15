@@ -44,6 +44,12 @@ export class OptionAddition {
     this.#context = `option:${host.id}`;
   }
 
+  /** Whether the group takes an unlisted answer at all, so its group reserves the
+   * field's binding only then. */
+  get offered() {
+    return this.#offered;
+  }
+
   connect() {
     if (!this.#offered) return;
     if (this.#ui) return;
@@ -79,6 +85,8 @@ export class OptionAddition {
     const input = offer(TEXT_FIELD);
     input.name = "option";
     input.setAttribute("aria-label", ANOTHER);
+    // Its hint is Leaf's words, as every empty box's is (voice.js).
+    input.setAttribute("data-lf-voice", "leaf");
     // An option's title is one line, so Return adds it from a phone's keyboard too.
     input.setAttribute("aria-multiline", "false");
     const bindingBadge = offer("span", "lf-key-badge");
@@ -86,7 +94,7 @@ export class OptionAddition {
     input.value = loadDraft(this.#context)?.text ?? "";
     form.append(bindingBadge, input);
     const sync = wireInput(input, {
-      hint: "Add another option",
+      hint: "Add another option…",
       sends: "add and select option",
       action: "add",
       allowsMedia: () => "Images can be added to comments, not options",

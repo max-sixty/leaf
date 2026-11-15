@@ -56,8 +56,8 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the enclosing `lf-ask`, or on the playground
-when it stands alone (`references/page-layout.md`, "Bounds and widths"). A workspace
+column, put `data-width="available"` on the playground, in an `lf-ask` or alone
+(`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says.
@@ -137,11 +137,20 @@ the comparison needs a particular arrangement of either, such as short labels in
 set `--playground-choice-columns` on the authored choice control or its parent to a
 grid's columns, such as `repeat(2, minmax(0, 1fr))`.
 
+Give each control, choice and preset an `id` that names it, such as `format-banner`.
+When the user comments on one of them, the comment records its id, which tells you
+which one they mean.
+
 ```html
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control
+      id="radius"
       name="radius"
       label="Corner radius"
       kind="range"
@@ -152,29 +161,35 @@ grid's columns, such as `repeat(2, minmax(0, 1fr))`.
       unit="px"
     ></lf-playground-control>
     <lf-playground-control
+      id="compact"
       name="compact"
       label="Compact spacing"
       kind="toggle"
       value="false"
     ></lf-playground-control>
-    <lf-playground-preset label="Compact">
+    <lf-playground-preset id="preset-compact" label="Compact">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
     <lf-playground-preview>
       <lf-playground-control
+        id="format"
         name="format"
         label="Notification"
         kind="choice"
         value="banner"
       >
-        <lf-playground-choice value="banner" label="Banner">
+        <lf-playground-choice id="format-banner" value="banner" label="Banner">
           <article class="notification-candidate">
             <h3>Checkout deployed</h3>
             <p>Review the deployment run.</p>
           </article>
         </lf-playground-choice>
-        <lf-playground-choice value="status strip" label="Status strip">
+        <lf-playground-choice
+          id="format-status-strip"
+          value="status strip"
+          label="Status strip"
+        >
           <article class="notification-candidate">
             Checkout · deployed · 18 checks passed
           </article>
@@ -210,7 +225,7 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
   border-radius: var(--playground-radius);
 }
 #notification-playground[data-playground-compact="true"] .notification-candidate {
-  padding: var(--sp-2);
+  padding: var(--lf-sp-2);
 }
 ```
 
@@ -247,6 +262,16 @@ arrives with the `tune` the user was looking at as its `unsent`
 (`references/event-batches.md`), or without one where the controls showed their
 authored values. A value the controls of the message's `revision` can't hold, such as
 a radius past a lowered `max`, showed as that control's authored value.
+
+## After applying a configuration
+
+A playground whose submitted configuration you have applied becomes a record too.
+Author each control at the chosen value, so the preview, Reset and the page's account
+of the choice agree, and keep it and its evidence open beside what came of the choice,
+since the user reads the record against that evidence. The user can still explore from
+it. Keep the recorded configuration identifiable when working values change; a
+changing preview shows the working configuration and is labeled accordingly.
+Reset brings the preview back to the record.
 
 ## Stateful previews
 
@@ -355,6 +380,7 @@ that change its result. Check that the preview and measurements reflect the chos
 values, the copied or submitted instruction stands alone, and the controls remain
 reachable where the layout changes. Check that focus lands where the user expects after
 adding or removing a row, and that a decision survives filtering, reordering, Reset and
-reload. Verify Reset, reload and export for state or behavior the page adds to them;
-live samples need a server. Capture any real fixture the playground needs when you build
-the page, so reopening and exporting it need no network.
+reload. Verify Reset, reload and export for state or behavior the page adds to them,
+exporting with `leaf page export --runtime` so the file's reader can operate the
+controls; live samples need a server. Capture any real fixture the playground needs when
+you build the page, so reopening and exporting it need no network.

@@ -14,8 +14,10 @@ from leaf.events import (
 )
 from leaf.passages import (
     EMPTY,
+    Passages,
     SourceReading,
     enclosing_of,
+    page_passages,
 )
 from leaf.registry.contract import (
     decides,
@@ -244,6 +246,21 @@ class PageReading(NamedTuple):
     def within(self) -> dict:
         return self.reading.within
 
+    @property
+    def floors(self) -> dict:
+        """What the versions through this revision took back (`retractions`)."""
+        return retractions(self.events, self.revision)
+
+    @property
+    def logged_words(self) -> dict:
+        """What the log in force changes in this page's words (`logged_words`)."""
+        return logged_words(self.projection, self.document.ids)
+
+    def passages(self) -> Passages:
+        """The page's words as the user reads them, which `leaf thread create`
+        quotes against."""
+        return page_passages(self.document, self.registry, **self.logged_words)
+
 
 class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
@@ -321,6 +338,8 @@ def state_projection(
     # the walk rather than per event; `InForce` decides each coordinate's winner.
     in_force = InForce(enclosing_of(spk), floors, withdrawn)
     specs = {}
+    # Each widget verb's current definition, read once for every event that names it.
+    definitions = {}
     for event in events:
         if event["kind"] not in verb_writers():
             continue
@@ -329,17 +348,28 @@ def state_projection(
         rec = byid.get(event["widget"])
         if rec is None:
             continue
-        spec = event_spec(registry.get(rec["tag"], {}), event)
-        if spec is None:
+        verb = (event["widget"], event["kind"], event["action"])
+        if verb not in definitions:
+            spec = event_spec(registry.get(rec["tag"], {}), event)
+            definitions[verb] = (
+                None
+                if spec is None
+                else (
+                    spec,
+                    state_definition(
+                        rec["tag"],
+                        registry[rec["tag"]],
+                        spec,
+                        attrs=rec["attrs"],
+                        registry=registry,
+                    ),
+                )
+            )
+        definition = definitions[verb]
+        if definition is None:
             continue
+        spec, current = definition
         recorded = event["meaning"].get("state")
-        current = state_definition(
-            rec["tag"],
-            registry[rec["tag"]],
-            spec,
-            attrs=rec["attrs"],
-            registry=registry,
-        )
         if not same_state_operation(recorded, current):
             continue
         # Admission already checked this payload. Only a changed domain needs
@@ -809,6 +839,17 @@ def rewritten_bodies(actions: dict) -> dict:
         unit: (e["action"], e["detail"]["value"])
         for (_widget, unit, _verb), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
+    }
+
+
+def logged_words(projection: StateProjection, authored_ids: set) -> dict:
+    """What the log in force changes in a page's words, as `page_passages` takes it:
+    the outcome each decided suggestion stands under, each body the user rewrote,
+    and the children their actions created beside the `authored_ids`."""
+    return {
+        "decided": retirement_outcomes(projection.actions),
+        "rewrites": rewritten_bodies(projection.actions),
+        "additions": generated_children(projection.desired, authored_ids),
     }
 
 

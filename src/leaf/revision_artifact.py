@@ -61,9 +61,9 @@ from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import revision_vocabulary, selected
+from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, kernel_registry
+from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -71,6 +71,7 @@ from leaf.structure import (
     delivered_sheets,
     links_with_rel,
     script_kind,
+    splice,
 )
 from leaf.styles import dropped_css
 from leaf.validation.markup import unanswered_media
@@ -701,10 +702,14 @@ def _path_stamp(path: Path) -> tuple:
     return (link, file_stamp(path))
 
 
+# The page's trees a capture may read a dependency from (`capture_local_resource`).
+CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
     paths = []
-    for name in ("page", "media"):
+    for name in CAPTURED_TREES:
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():
@@ -999,26 +1004,23 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, whose selection the vocabulary
-    # already reflects. Its generation is the one part a document runs under, since
-    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
-    # gives every later revision a new executable and the tab a new document. The
-    # runtime's and the layer's modules are not captured; a change to either reaches
-    # an open document as a server that refuses it (`runtime_selection`).
+    # Only what the page owns goes in, so every Leaf that captures the same source
+    # captures the same revision. A page is often read by two Leaf versions at
+    # once, as a server keeps the Leaf it started with while the agent's commands
+    # run a newer one, and each composes its own vocabulary: digesting that
+    # vocabulary had each publish the other's capture again and reload the tab
+    # every time. What an open document runs under comes from the serving Leaf
+    # instead: a change to its runtime or a bundled package reaches the tab as a
+    # server that refuses it (`runtime_selection`), and a new selection or a
+    # changed package copy as a new generation (`vendoring`), which a tab speaks
+    # to the server (`runtime/layer-client.js`).
+    declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(
             {
                 "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
-                "vocabulary": _digest(
-                    _canonical_json(
-                        {
-                            tag: entry
-                            for tag, entry in registry.items()
-                            if tag != "$layer"
-                        }
-                    )
-                ),
+                "page_declarations": declarations.digest if declarations else None,
                 "modules": {
                     path: resource.digest
                     for path, resource in resources.items()
@@ -1047,11 +1049,10 @@ def _capture_artifact(
     )
     manifest = _canonical_json(
         {
-            "html": _digest(document.data),
+            "html": document.digest,
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
@@ -1286,6 +1287,14 @@ class RevisionReading(SourceReading):
         return _bundle_vocabulary(self.bundle)
 
     @cached_property
+    def inputs(self) -> tuple[dict, dict]:
+        """The layer vocabulary and page declarations `registry` composes
+        (`registry.storage.revision_inputs`)."""
+        return revision_inputs(
+            self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
+        )
+
+    @cached_property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
@@ -1516,12 +1525,17 @@ def active_enclosing(page_dir: Path) -> dict:
 
 def _bundle_vocabulary(bundle: Path) -> dict:
     """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
-    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
     return revision_vocabulary(
         json.loads((bundle / "manifest.json").read_bytes()),
-        declarations.read_bytes() if declarations.is_file() else None,
+        _bundle_declarations(bundle),
         bundle.parent.parent,
     )
+
+
+def _bundle_declarations(bundle: Path) -> bytes | None:
+    """The page declarations a stored bundle captured, if it captured any."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return declarations.read_bytes() if declarations.is_file() else None
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
@@ -1554,9 +1568,9 @@ def authored_imports(data: bytes, logical_path: str):
 
 def bind_imports(data: bytes, imports, address) -> bytes:
     """Rewrite each ``(start, end, target)`` import span to ``address(target)``."""
-    for start, end, target in sorted(imports, reverse=True):
-        data = data[:start] + _json(address(target)) + data[end:]
-    return data
+    return splice(
+        data, [(start, end, _json(address(target))) for start, end, target in imports]
+    )
 
 
 def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Resource]):

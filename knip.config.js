@@ -32,8 +32,9 @@ export default {
     "browser/runtime/{,annotation-overlay/}check-api.js",
     // A widget module, which its registry entry names by tag.
     "{browser,packages/*,tests/fixtures/packages/*}/widgets/lf-*.js",
-    // The render gate's probes, which Python calls by name.
-    "src/leaf/render-checks/*.js",
+    // The render gate's probes, which Python calls by name, and the script an export
+    // draws its page with.
+    "src/leaf/{render-checks/*,static-export}.js",
     // Scripts the suite injects into pages, and the pages' own.
     "tests/*.{js,mjs}",
     "tests/{page_scripts,fixtures}/**/*.js",
@@ -45,7 +46,7 @@ export default {
     "worker/{src/index,test/**/*}.ts",
     ".dependency-cruiser.mjs",
   ],
-  project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**", "!dist/**"],
+  project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader
   // selects.
   ignore: ["browser/types/{contract,lit,signals-core}.d.ts"],

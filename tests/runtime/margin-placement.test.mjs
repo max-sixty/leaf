@@ -9,13 +9,14 @@ import test from "node:test";
 import { overlaps } from "/runtime/rect.js";
 
 import {
+  Footprints,
   arrivals,
   inSeatingOrder,
   packRow,
-  pinSpot,
   rowPlacement,
   seatRow,
   seatsBy,
+  shiftedPin,
 } from "/runtime/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
@@ -115,11 +116,11 @@ test("rows are packed from the top, so a push carries on down the stack", () => 
 
 // The layout seats both postures in one shared order, carrying each final footprint.
 const packRows = (rows, gap, occupied = []) => {
-  const placed = [...occupied];
+  const placed = new Footprints(occupied);
   return new Map(
     inSeatingOrder(rows).map((row) => {
       const push = packRow(row, gap, placed);
-      placed.push({
+      placed.add({
         ...row.rect,
         top: row.rect.top + push,
         bottom: row.rect.bottom + push,
@@ -165,11 +166,11 @@ const pin = (over = {}) => {
   return value;
 };
 const seatRows = (pins, { gap, occupied = [] }) => {
-  const placed = [...occupied];
+  const placed = new Footprints(occupied);
   return new Map(
     inSeatingOrder(pins.map((pin) => ({ ...pin, rect: pin.seats.home }))).map((pin) => {
       const seat = seatRow(pin, { gap, occupied: placed });
-      placed.push(seat.rect);
+      placed.add(seat.rect);
       return [pin.key, seat];
     }),
   );
@@ -177,7 +178,10 @@ const seatRows = (pins, { gap, occupied = [] }) => {
 const seatOf = (...pins) => seatRows(pins, { gap: 4 });
 
 test("a pin takes the first of its seats that stands inside its bounds and covers nothing", () => {
-  assert.deepEqual(pinSpot([outside, corner, above], [], box(4, 0, 500, 900)), outside);
+  assert.deepEqual(seatOf(pin({ bounds: box(4, 0, 500, 900) })).get("card"), {
+    rect: outside,
+    folded: false,
+  });
   assert.deepEqual(seatOf(pin()).get("card"), { rect: corner, folded: false });
   assert.deepEqual(seatOf(pin({ cover: [title] })).get("card"), {
     rect: above,
@@ -436,8 +440,78 @@ test("a hidden row keeps the pass it came at, and what has no row is forgotten",
   assert.equal(arrivals(gone, [{ row: "new", at: "t" }], 3).get("new"), 3);
 });
 
+test("the footprints answer what a scan in the order they were seated answers", () => {
+  // Footprints of mixed heights, many overlapping, seated in no order of their tops,
+  // some sharing a top. A slide moves a seat past the first footprint it meets, so which
+  // of several overlapping footprints answers decides where the seat lands.
+  let seed = 7;
+  const next = (span) => (seed = (seed * 48271) % 2147483647) % span;
+  const seated = Array.from({ length: 400 }, () => {
+    const top = next(40) * 25;
+    return box(next(300), top, 0, top + 4 + next(120));
+  }).map((footprint) => ({ ...footprint, right: footprint.left + 10 + next(80) }));
+  const footprints = new Footprints(seated);
+  for (let probe = 0; probe < 400; probe += 1) {
+    const top = next(1100) - 50;
+    const seat = box(next(300), top, 0, top + 1 + next(60));
+    seat.right = seat.left + 1 + next(60);
+    assert.equal(
+      footprints.hit(seat),
+      seated.find((footprint) => overlaps(footprint, seat)),
+    );
+    assert.deepEqual(
+      [...footprints.from(top)].filter((footprint) => footprint.bottom > top),
+      seated
+        .filter((footprint) => footprint.bottom > top)
+        .toSorted((a, b) => a.top - b.top),
+    );
+  }
+});
+
 test("rail packing preserves already held pin footprints", () => {
   const held = rect(1141, 162, 31, 26);
   const pushes = packRows([{ key: "rail", rect: rect(1126, 162) }], 4, [held]);
   assert.equal(pushes.get("rail"), 30);
+});
+
+test("a pin read before a scroll moves every field that stands on the page", () => {
+  // The layout seats a row from the pin an earlier pass prepared, carried by the scroll
+  // since (margin-layout.js, `seatings`): each field that stands somewhere on the page
+  // moves with it, and every other stays as it was.
+  const at = (left, top) => box(left, top, left + 44, top + 44);
+  const moved = (left, top) => at(left + 13, top - 250);
+  const read = {
+    came: 3,
+    held: at(10, 20),
+    seats: { before: [at(1, 2), null], home: at(3, 4), after: [null, at(5, 6)] },
+    level: false,
+    floor: 300,
+    cover: [at(7, 8)],
+    controls: [at(9, 10)],
+    folds: {
+      seats: { before: [at(11, 12)], home: at(13, 14), after: [at(15, 16)] },
+      open: 140,
+    },
+    folded: true,
+    bounds: box(4, -Infinity, 386, Infinity),
+  };
+  assert.deepEqual(shiftedPin(read, 13, -250), {
+    came: 3,
+    held: moved(10, 20),
+    seats: {
+      before: [moved(1, 2), null],
+      home: moved(3, 4),
+      after: [null, moved(5, 6)],
+    },
+    level: false,
+    floor: 50,
+    cover: [moved(7, 8)],
+    controls: [moved(9, 10)],
+    folds: {
+      seats: { before: [moved(11, 12)], home: moved(13, 14), after: [moved(15, 16)] },
+      open: 140,
+    },
+    folded: true,
+    bounds: box(17, -Infinity, 399, Infinity),
+  });
 });

@@ -41,7 +41,7 @@ test("capture keeps authored values and parentage when rendering moves members",
   const outer = document.getElementById("outer");
   const inner = document.getElementById("inner");
   rememberAuthoredParents(root);
-  const states = stageAuthoredStates(root, new Map());
+  const states = stageAuthoredStates(root);
   const descriptors = stageWidgetDescriptors(root, { kind: "page", revision: 1 });
   outer.setAttribute("status", "drawing");
   document.getElementById("right").append(inner);
@@ -55,6 +55,7 @@ test("native idioms never become widget descriptors or authored widget ancestors
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
+    $layer: { generation: "native-idioms" },
     "lf-nested": {},
     table: { description: "A table idiom.", "x-example": "<table></table>" },
     "lf-nested.selected": {
@@ -126,7 +127,7 @@ test("member state owns each physical slot independently across a hierarchy", ()
     },
   };
   adoptRegistry(declarations);
-  const states = stageAuthoredStates(root, new Map());
+  const states = stageAuthoredStates(root);
   assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
@@ -140,7 +141,6 @@ test("the contents drawing keeps its native state and keyed rows through revisio
   const reading = {
     label: (heading) => heading.textContent,
     chrome: () => false,
-    lends: true,
   };
   const live = drawToc(host, reading);
   render(live.render(reading), host, { host });

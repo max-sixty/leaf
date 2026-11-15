@@ -54,6 +54,7 @@ import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
+import { chromeRoot } from "./chrome.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { marks } from "./kernel-facts.js";
 import { generatedElement } from "./widget-elements.js";
@@ -158,7 +159,9 @@ function externalDescription(link) {
     description.textContent = "opens in a new tab";
     externalDescriptions.set(root, description);
   }
-  const holder = root instanceof Document ? root.body : root;
+  // In the document it waits in the chrome, since `body`'s children are the page's
+  // own (passages.js, pageDocument).
+  const holder = root instanceof Document ? chromeRoot : root;
   if (description.parentNode !== holder) move(holder, description);
   return description.id;
 }
@@ -240,10 +243,18 @@ function renderExternalLink(link) {
   state.addedNoopener = !tokens(state.baseline.rel).some(
     (value) => value.toLowerCase() === "noopener",
   );
+  // Another owner may describe the link through element references, which empty the
+  // attribute, as a focus preview does (preview.js); while those hold the mark's
+  // description, the link already says it opens elsewhere, so the references stay.
+  const described = link.ariaDescribedByElements?.includes(
+    /** @type {Element} */ (externalDescriptions.get(link.getRootNode())),
+  );
   writeLinkAttributes(link, {
     target: "_blank",
     rel: withToken(state.baseline.rel, "noopener", true),
-    "aria-describedby": withToken(state.baseline["aria-describedby"], state.markId),
+    "aria-describedby": described
+      ? link.getAttribute("aria-describedby")
+      : withToken(state.baseline["aria-describedby"], state.markId),
   });
   state.painted = linkAttributes(link);
 }
@@ -460,14 +471,25 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Scope} root @param {Iterable<Element>} [also] */
-export function renderQuiet(root, also = []) {
-  const painting = [
-    `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
-    `[${PAGE_PAINT_ATTRIBUTE.reported}]`,
-  ].join(", ");
-  const targets = new Set(elementsIn(root, painting));
-  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
-  for (const el of targets) quietWord(el, quietFacts(el));
+// Say each element's provenance quietly, or take the word away where it has none.
+/** @param {Iterable<Element>} elements */
+export function sayQuietFacts(elements) {
+  for (const el of elements) quietWord(el, quietFacts(el));
+}
+
+// Say the provenance of every element under `root` that wears a mark, as a message's
+// markup arrives.
+/** @param {Scope} root */
+export function renderQuiet(root) {
+  // One query a mark: a single attribute's query is answered far faster than one for the
+  // three as a selector list, which tests every element against each.
+  /** @type {Set<Element>} */
+  const targets = new Set();
+  for (const mark of [
+    PAGE_PAINT_ATTRIBUTE.restated,
+    PAGE_PAINT_ATTRIBUTE.userOverride,
+    PAGE_PAINT_ATTRIBUTE.reported,
+  ])
+    for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
+  sayQuietFacts(targets);
 }

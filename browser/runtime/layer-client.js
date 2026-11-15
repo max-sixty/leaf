@@ -35,6 +35,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
+import { defineOwn } from "/runtime/framework.js";
 import { exceptionText } from "./exception.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -137,8 +138,9 @@ export function layerHeaders(headers) {
 /** @typedef {import("../types/contract.js").ServedState & {
  * active: NonNullable<import("../types/contract.js").ServedState["active"]>,
  * browser: NonNullable<import("../types/contract.js").ServedState["browser"]>
- * }} StateAnswer
- * @typedef {Omit<StateAnswer, "since" | "data"> & {
+ * }} WholeAnswer
+ * @typedef {WholeAnswer | import("../types/contract.js").ServedTail} StateAnswer
+ * @typedef {Omit<WholeAnswer, "data"> & {
  * data: {version: string, sources: Record<string, import("./data.js").SourceReading>}
  * }} CompletedState
  * @typedef {{
@@ -147,74 +149,115 @@ export function layerHeaders(headers) {
  * }} Held */
 
 // A state request names what the tab holds, and the answer leaves that out for its
-// reader to restore from the same holding (http.py, `page_state`). An answer at the
-// data version the tab names leaves out its sources, since data moves only when an
-// agent sets it. An answer that can extend the reading the tab adopted, named by its
-// `browser.basis.key`, carries `since` and only the history after that reading
-// (`served_state/tail.py`): the log and each view's entries and undo list grow with
-// every event. A newer reading can be adopted while a request is out, so its reader
-// captures the holding before asking and completes the answer from that.
+// reader to restore from the same holding (http.py, `sent`). An answer to a request
+// naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
+// changes since that reading, each data source that changed among them, and the
+// events logged after it (`served_state/tail.py`). A whole answer at the data version
+// the tab names leaves out its sources, since data moves only when an agent sets it.
+// A newer reading can be adopted while a request is out, so its reader captures the
+// holding before asking and completes the answer from that.
 /** @returns {Held} */
 export const heldReading = () => ({ data: runtime.data, state: runtime.state });
 /** @param {Held} held */
 export const heldHeaders = ({ data, state }) => ({
   ...(data.version !== null && { "Leaf-Data-Version": data.version }),
-  ...(state && { "Leaf-Held-Basis": state.browser.basis.key }),
+  ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
 });
 
-// An entry list `since` extended: the held entries it neither changed nor dropped,
-// beside the ones it sent, in the order of their events.
-/** @template {{event: {id: string, seq?: number}}} E
- * @param {readonly E[]} held @param {readonly E[]} sent @param {readonly string[]} dropped
- * @param {1 | -1} [order] 1 for log order, -1 for newest first */
-const extended = (held, sent, dropped, order = 1) => {
-  const replaced = new Set([...dropped, ...sent.map(({ event }) => event.id)]);
-  return [...held.filter(({ event }) => !replaced.has(event.id)), ...sent].sort(
-    (a, b) => order * ((a.event.seq ?? 0) - (b.event.seq ?? 0)),
-  );
-};
+/** @typedef {import("../types/contract.js").ServedChange} Change */
+/** @typedef {Record<string, unknown> | unknown[]} Container */
 
-// The whole answer: its data sources and its history restored from the holding its
-// request named, which is exactly the answer the server would have sent whole.
+// The list a change names, from the held one: the items it sent and those it changed in
+// their places, those it moved or added after the item it pairs each with, in the
+// list's order, and the rest where they were (`served_state/tail.py`). A changed item
+// is the held one with its own changes applied, so what they leave alone in it, such
+// as each message of a thread one reply joined, keeps its identity too.
+/** @param {readonly unknown[]} held @param {Extract<Change, {by: unknown}>} change */
+function changedList(held, { by, items = [], changed = [], dropped = [], after = [] }) {
+  /** @param {unknown} item */
+  const name = (item) =>
+    /** @type {string} */ (
+      by === "self"
+        ? item
+        : by === "id"
+          ? /** @type {{id: string}} */ (item).id
+          : /** @type {{event: {id: string}}} */ (item).event.id
+    );
+  const sent = new Map(items.map((item) => [name(item), item]));
+  const kept = new Map(held.map((item) => [name(item), item]));
+  for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
+  const placed = new Set([...dropped, ...after.map(([key]) => key)]);
+  // Each item `after` places is the one item now right after the one it names, so the
+  // list is the held items that stay, each followed by the run placed after it.
+  const next = new Map(after.map(([key, before]) => [before, key]));
+  /** @type {string[]} */
+  const order = [];
+  /** @param {string | null} key */
+  const run = (key) => {
+    for (let at = next.get(key); at !== undefined; at = next.get(at)) order.push(at);
+  };
+  run(null);
+  for (const key of kept.keys())
+    if (!placed.has(key)) {
+      order.push(key);
+      run(key);
+    }
+  return order.map((key) => (sent.has(key) ? sent.get(key) : kept.get(key)));
+}
+
+// The held reading with each change applied in turn. Only the objects and lists on a
+// change's path are copied, so every record the changes leave alone is the very one the
+// held reading had, which is what lets the publisher and the folds after it skip it.
+/** @template T @param {T} reading @param {readonly Change[]} patch @returns {T} */
+function patched(reading, patch) {
+  /** @type {Set<unknown>} */
+  const copies = new Set();
+  /** @param {unknown} value @returns {Container} */
+  const copy = (value) => {
+    if (copies.has(value)) return /** @type {Container} */ (value);
+    const owned = Array.isArray(value)
+      ? [...value]
+      : { .../** @type {Record<string, unknown>} */ (value) };
+    copies.add(owned);
+    return owned;
+  };
+  const root = /** @type {Record<string, unknown>} */ (copy(reading));
+  for (const change of patch) {
+    const key = /** @type {string} */ (change.at.at(-1));
+    let parent = root;
+    for (const step of change.at.slice(0, -1)) {
+      const owned = /** @type {Record<string, unknown>} */ (copy(parent[step]));
+      defineOwn(parent, step, owned);
+      parent = owned;
+    }
+    if ("by" in change)
+      defineOwn(
+        parent,
+        key,
+        changedList(/** @type {unknown[]} */ (parent[key]), change),
+      );
+    else if ("value" in change) defineOwn(parent, key, change.value);
+    else delete parent[key];
+  }
+  return /** @type {T} */ (root);
+}
+
+// The whole answer: for an answer carrying the changes since the reading its request
+// named, that reading with them applied, which is exactly the answer the server would
+// have sent whole; else the answer, with the sources of the data it named restored.
 /** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
 export function completeState(answer, held) {
-  const { since, ...rest } = answer;
-  const data = { ...rest.data, sources: rest.data.sources ?? held.data.sources };
-  if (!since) return { ...rest, data };
+  if (!("since" in answer)) {
+    const sources = answer.data.sources ?? held.data.sources;
+    return { ...answer, data: { ...answer.data, sources } };
+  }
+  const { since, patch, events } = answer;
   const prior = held.state;
-  if (prior?.browser.basis.through_seq !== since.through_seq)
+  if (!prior || prior.browser.basis.key !== since.key)
     throw new Error("The state answer extends a reading this tab did not name");
-  const views = Object.fromEntries(
-    Object.entries(rest.browser.views).map(([revision, view]) => {
-      const before = prior.browser.views[revision];
-      const dropped = since.dropped[revision];
-      if (!before || !dropped)
-        throw new Error(`The state answer extends a view r${revision} this tab lacks`);
-      /** @param {"document" | "thread"} part */
-      const projection = (part) => ({
-        ...view[part].projection,
-        entries: extended(
-          before[part].projection.entries,
-          view[part].projection.entries,
-          dropped[part],
-        ),
-      });
-      return [
-        revision,
-        {
-          ...view,
-          document: { ...view.document, projection: projection("document") },
-          thread: { ...view.thread, projection: projection("thread") },
-          undo: extended(before.undo, view.undo, dropped.undo, -1),
-        },
-      ];
-    }),
-  );
   return {
-    ...rest,
-    data,
-    events: [...prior.events, ...rest.events],
-    browser: { ...rest.browser, views },
+    ...patched(prior, patch),
+    events: events.length ? [...prior.events, ...events] : prior.events,
   };
 }
 
@@ -227,21 +270,38 @@ export class RequestError extends Error {
   /** @param {string} message
    * @param {{status: number; body: string; cause?: unknown;
    *   current?: import("../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined}} details */
-  constructor(message, { status, body, cause, current, said }) {
+   *   said?: string | undefined; retryAfter?: number | undefined}} details */
+  constructor(message, { status, body, cause, current, said, retryAfter }) {
     super(message, { cause });
     this.status = status;
     this.body = body;
     this.current = current;
     this.said = said;
+    this.retryAfter = retryAfter;
   }
+}
+
+// A server that can't take a request yet answers 503 and names in `Retry-After` the
+// seconds to wait before sending it again, as the website's edge does for the minutes
+// a deploy takes to roll a visitor's container onto the new release
+// (`worker/src/index.ts`, `rollingOut`). That wait in milliseconds, or undefined for
+// any other answer.
+/** @param {Response} response */
+function retryWait(response) {
+  const seconds = Number(response.headers.get("Retry-After") ?? NaN);
+  return response.status === 503 && Number.isFinite(seconds)
+    ? seconds * 1000
+    : undefined;
 }
 
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
-// file the server holds newer than the draft, its `current`.
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body, the wait a
+// server that can't take the request yet names (`retryAfter`) and, for a file the
+// server holds newer than the draft, its `current`. Whether to send it again is the
+// caller's: the server may already have run the request, since the website's edge
+// refuses a container's answer only after the container has handled it.
 /** The server owns the response contract named by each endpoint caller.
  * @template T @param {string} url @param {RequestInit} init @param {string} what
  * @returns {Promise<T>} */
@@ -257,6 +317,7 @@ export async function requestJson(url, init, what) {
       status: response.status,
       body: text,
       cause,
+      retryAfter: retryWait(response),
       ...details,
     });
   let answer = null;
@@ -344,6 +405,14 @@ sessionChannel?.addEventListener("message", (event) => {
   if (event.data?.active === true) activateSession(false);
 });
 
+// Whether the page's next write has to launch its agent's container first, by the last
+// answer: leaf.page answers a page with no private copy yet at the edge
+// (`Leaf-Session: passive`), and one whose container has stopped from its saved record
+// (`Leaf-State-Source: durable`), and a write to either waits while the container
+// starts (`worker/src/index.ts`). A server that names no session runs its agent beside
+// it.
+let agentStopped = false;
+
 /** @param {Response} response */
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
@@ -352,9 +421,13 @@ function observeSession(response) {
   const mode = response.headers.get("Leaf-Session");
   if (mode === "active") activateSession(true);
   else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
+  if (mode !== null)
+    agentStopped =
+      mode === "passive" || response.headers.get("Leaf-State-Source") === "durable";
 }
 
 export const sessionIsActive = () => sessionMode === "active";
+export const writeLaunchesAgent = () => agentStopped;
 
 // The server answers a request without this page's key with 401 and nothing else does,
 // whichever route was asked (`http.py`, `_answer`). Any other answer passed the key
@@ -389,8 +462,12 @@ const KEEPALIVE_BYTES = 60_000;
 // error report below, which deliberately doesn't — share the request rather than
 // anything about the sending: same path, same method, same encoding, so a door that
 // moved would move for all of them. Whether a send waits on the one before it belongs
-// to the caller.
-/** @param {import("../types/contract.js").BrowserCommand} event */
+// to the caller. The answer's headers decide at once whether the page takes it at all,
+// and the trip ends once its body is read, decoded or not, so `acked` counts a post
+// whose answer the page holds, as `heard` does a read's. A `503`'s plain-text body says
+// nothing the page reads, so its trip ends with its headers.
+/** @param {import("../types/contract.js").BrowserCommand} event
+ * @returns {Promise<{response: Response, decoded: {answer: any} | {error: unknown}} | null>} */
 export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -398,44 +475,54 @@ export const postEvent = async (event, held = heldReading()) => {
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   const body = JSON.stringify(event);
-  let response;
   try {
-    response = await fetch(pageUrl("api/event"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": "application/json",
-        ...heldHeaders(held),
-      }),
-      body,
-      // A gesture sent as the tab closes, such as the edit a playground records on
-      // leaving, still reaches the log: a keepalive request outlives its document,
-      // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
-      // keepalive bodies in flight and the browser refuses a request past that, so a
-      // longer message goes out tied to its document.
-      keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
-    });
+    let response;
+    try {
+      response = await fetch(pageUrl("api/event"), {
+        method: "POST",
+        headers: layerHeaders({
+          "Content-Type": "application/json",
+          ...heldHeaders(held),
+        }),
+        body,
+        // A gesture sent as the tab closes, such as the edit a playground records on
+        // leaving, still reaches the log: a keepalive request outlives its document,
+        // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+        // keepalive bodies in flight and the browser refuses a request past that, so a
+        // longer message goes out tied to its document.
+        keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
+      });
+    } catch (error) {
+      recordInteraction("event_response", {
+        kind: event.kind,
+        attempt: event.attempt ?? null,
+        error: String(error),
+      });
+      throw error;
+    }
     recordInteraction("event_response", {
       kind: event.kind,
       attempt: event.attempt ?? null,
       status: response.status,
     });
-  } catch (error) {
-    recordInteraction("event_response", {
-      kind: event.kind,
-      attempt: event.attempt ?? null,
-      error: String(error),
-    });
-    throw error;
+    if (!admitResponse(response)) return null;
+    // A refused key is no answer to the event: the server read none of it, so the send
+    // failed the way a lost connection fails and is retried as one. The page status
+    // names the link that ends it.
+    if (response.status === KEY_REFUSED)
+      throw new Error("the server refused this page's key");
+    /** @type {{answer: any} | {error: unknown}} */
+    const decoded =
+      response.status === 503
+        ? { error: "503" }
+        : await response.json().then(
+            (answer) => ({ answer }),
+            (error) => ({ error }),
+          );
+    return { response, decoded };
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  // A refused key is no answer to the event: the server read none of it, so the send
-  // failed the way a lost connection fails and is retried as one. The page status names
-  // the link that ends it.
-  if (response.status === KEY_REFUSED)
-    throw new Error("the server refused this page's key");
-  return response;
 };
 
 // Pasted pixels become page content before their Markdown reference enters a draft.

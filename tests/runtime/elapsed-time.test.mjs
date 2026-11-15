@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import process from "node:process";
 import test from "node:test";
 import {
   ago,
   shortAgo,
+  clockTime,
   clockValue,
   tickClock,
 } from "../../browser/runtime/presence.js";
@@ -73,4 +75,20 @@ test("the sentence and compact elapsed readings name the same figure", (t) => {
     assert.equal(shortAgo(ts), compact);
     assert.equal(ago(ts), compact === "now" ? "just now" : `${compact} ago`);
   }
+});
+
+test("an age's preview says its clock time in the reader's own zone", (t) => {
+  const zone = process.env.TZ;
+  t.after(() => {
+    process.env.TZ = zone;
+  });
+  process.env.TZ = "America/Los_Angeles";
+  assert.equal(clockTime("2026-08-15T21:02:00Z"), "Sat 15 Aug 2026, 14:02 PT");
+  // A 24-hour clock, and the zone as the platform names it where it has no initials.
+  process.env.TZ = "Europe/London";
+  assert.equal(
+    clockTime("2026-08-15T08:05:00Z"),
+    "Sat 15 Aug 2026, 09:05 United Kingdom Time",
+  );
+  assert.equal(clockTime(null), "");
 });

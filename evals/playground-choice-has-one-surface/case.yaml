@@ -33,23 +33,23 @@ vars:
     The first draft wraps those samples in lf-playground-preview, inside this
     configuration:
       <lf-playground id="explorer" submit-label="Use this treatment">
-        <lf-playground-control name="treatment" label="Treatment to build"
+        <lf-playground-control id="treatment" name="treatment" label="Treatment to build"
           kind="choice" value="selector">
-          <lf-playground-choice value="current" label="Current"></lf-playground-choice>
-          <lf-playground-choice value="selector" label="Red/green selector"></lf-playground-choice>
-          <lf-playground-choice value="edge" label="Colored edge"></lf-playground-choice>
-          <lf-playground-choice value="badge" label="Image badge"></lf-playground-choice>
+          <lf-playground-choice id="treatment-current" value="current" label="Current"></lf-playground-choice>
+          <lf-playground-choice id="treatment-selector" value="selector" label="Red/green selector"></lf-playground-choice>
+          <lf-playground-choice id="treatment-edge" value="edge" label="Colored edge"></lf-playground-choice>
+          <lf-playground-choice id="treatment-badge" value="badge" label="Image badge"></lf-playground-choice>
         </lf-playground-control>
-        <lf-playground-preset label="Current">
+        <lf-playground-preset id="preset-current" label="Current">
           <lf-playground-setting for="treatment" value="current"></lf-playground-setting>
         </lf-playground-preset>
-        <lf-playground-preset label="Red/green selector">
+        <lf-playground-preset id="preset-red-green-selector" label="Red/green selector">
           <lf-playground-setting for="treatment" value="selector"></lf-playground-setting>
         </lf-playground-preset>
-        <lf-playground-preset label="Colored edge">
+        <lf-playground-preset id="preset-colored-edge" label="Colored edge">
           <lf-playground-setting for="treatment" value="edge"></lf-playground-setting>
         </lf-playground-preset>
-        <lf-playground-preset label="Image badge">
+        <lf-playground-preset id="preset-image-badge" label="Image badge">
           <lf-playground-setting for="treatment" value="badge"></lf-playground-setting>
         </lf-playground-preset>
         <lf-playground-preview>...inspection controls and four samples...</lf-playground-preview>

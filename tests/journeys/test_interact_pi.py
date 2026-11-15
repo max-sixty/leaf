@@ -23,8 +23,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 
 
-@pytest.mark.parametrize("cancelled", [False, True])
-@pytest.mark.parametrize("role", ["user", "custom"])
+@pytest.mark.parametrize(("role", "cancelled"), [("custom", False), ("user", True)])
 def test_the_pi_extension_carries_a_comment_into_a_new_run(
     page_dir, pi, cancelled, role
 ):

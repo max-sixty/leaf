@@ -24,7 +24,9 @@ export const textUnits = new Intl.Segmenter(undefined, { granularity: "word" });
 export const sentenceUnits = new Intl.Segmenter(undefined, {
   granularity: "sentence",
 });
-const MAX_EDIT_LENGTH = 1_000;
+// The most edits the walk tries before it gives up and returns one replacement. A
+// widget that walks whole lines with jsdiff passes the same cap.
+export const MAX_EDIT_LENGTH = 1_000;
 
 /** @typedef {{kind: "same" | "delete" | "insert", text: string}} TextRun */
 /** @param {string} before @param {string} after @param {Intl.Segmenter} [units] @param {number} [maxEditLength] @returns {TextRun[]} */

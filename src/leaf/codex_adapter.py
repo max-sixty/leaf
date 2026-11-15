@@ -12,9 +12,14 @@ The adapter reserves its own transport only once that turn ends, or at once wher
 nothing would show it the turn's end (`_offer_queued_delivery`), and an unread hook
 pointer then falls back to the same durable delivery.
 
-One of two transports carries the adapter's offer. The `codex queue` command is the
-default for a task whose App Server Leaf cannot reach, such as the Codex desktop
-app's. It leaves a pointer for the task's next turn; the task reads that
+One of three transports carries the adapter's offer. A desktop chat a window of the
+Codex desktop app has opened takes it as a turn the app starts, with the complete
+delivery as a tool output and no message in the user's name (`codex_desktop.py`). The
+adapter sees nothing of that turn but its id, so the task answers with explicit
+commands. Only a start the app refused before running it falls back to the queue; one
+it may have run waits for the chat's transcript to settle it. The `codex queue` command
+is the default for a task whose App Server Leaf cannot reach. It leaves a pointer for
+the task's next turn; the task reads that
 immutable input through `leaf delivery read` and answers with explicit commands, the
 reply included. On the macOS desktop, the adapter then wakes the queued chat through
 the app's background deep link: an external queue write alone waits for Codex's
@@ -66,7 +71,6 @@ from types import EllipsisType
 from . import codex
 from .codex import (
     APP_SERVER_ENV,
-    START_TIMEOUT,
     AppServerDeliveryUncertain,
     TurnFold,
     accept_codex_delivery,
@@ -84,6 +88,11 @@ from .codex import (
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
+)
+from .codex_desktop import (
+    DesktopUnavailable,
+    settle_desktop_start,
+    start_desktop_delivery,
 )
 from .codex_state import (
     delivery_lock_path,
@@ -179,6 +188,33 @@ def queue_delivery(
     _run_codex(codex_path, *arguments)
 
 
+def _in_desktop_chat() -> bool:
+    return os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") == "Codex Desktop"
+
+
+def _start_in_desktop_chat(thread_id: str, payload: dict) -> bool:
+    """Whether the desktop app took this delivery's start, confirmed or not. False
+    leaves it to the queue, with the reason in the adapter's log."""
+    if not _in_desktop_chat():
+        return False
+    try:
+        start_desktop_delivery(thread_id, payload)
+    except DesktopUnavailable as error:
+        print(
+            f"Codex desktop start not taken; queueing instead: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+    except AppServerDeliveryUncertain as error:
+        print(
+            f"Codex desktop start unconfirmed; settling it from the chat's transcript: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+    return True
+
+
 def _wake_desktop_queue(thread_id: str) -> None:
     """Resume an already queued desktop chat without opening or focusing it.
 
@@ -186,10 +222,7 @@ def _wake_desktop_queue(thread_id: str) -> None:
     Codex still owns dispatch and starts only when idle. If the wake fails, the
     accepted message remains in the queue for Codex's external-write watcher.
     """
-    if (
-        sys.platform != "darwin"
-        or os.environ.get("CODEX_INTERNAL_ORIGINATOR_OVERRIDE") != "Codex Desktop"
-    ):
+    if sys.platform != "darwin" or not _in_desktop_chat():
         return
     try:
         subprocess.run(
@@ -263,11 +296,7 @@ class TaskConnection:
 
     def start(self) -> None:
         self.thread.start()
-        try:
-            outcome = self.ready.get(timeout=START_TIMEOUT)
-        except queue.Empty as error:
-            self.stop()
-            raise Refused("Codex App Server did not answer") from error
+        outcome = self.ready.get()
         if outcome is not None:
             self.stop()
             raise Refused(f"Codex App Server connection failed: {outcome}")
@@ -829,6 +858,11 @@ def _offer_queued_delivery(
         # provider's lifecycle before reserving the idle queue, including while
         # the resumed turn is still executing its first tool.
         sync_transcript_turn(session_id)
+        # A start the desktop app may have run holds later input back until the
+        # chat's transcript settles it, even in an adapter the chat started outside
+        # the app, as a terminal resume does.
+        if settle_desktop_start(session_id):
+            return False
     observed_hook_turn = hook_turn(session_id)
     if (
         connection is None
@@ -882,6 +916,8 @@ def _offer_queued_delivery(
         raise AppServerDeliveryUncertain(
             "the observed App Server delivery is awaiting reconciliation"
         )
+    if _start_in_desktop_chat(session_id, prepared.payload):
+        return True
     queue_delivery(codex_path, session_id, prepared.prompt)
     # `codex queue` takes no message id and lists nothing queued, so a failure
     # before this acceptance is recorded leaves the offer to be queued again rather
@@ -1035,7 +1071,6 @@ def preparing_adapter(harness: CodexHarness):
     with ExitStack() as preparation:
         from .session_runtime import selected_launcher
 
-        deadline = time.monotonic() + START_TIMEOUT
         while True:
             preparation.enter_context(flocked(launch_lock))
             launcher = selected_launcher(session_id)
@@ -1046,14 +1081,11 @@ def preparing_adapter(harness: CodexHarness):
                 or record.get("launcher") == str(launcher)
             ):
                 break
-            # The former adapter observes the selection on its next bounded
-            # pass. Let it take the start lock on its way out too, then retry
+            # The former adapter leaves at the top of its next pass, which can
+            # follow a 30 s wait between retries, and its lease goes as it exits.
+            # Let it take the start lock on its way out too, then retry
             # preparation under that lock rather than racing a third start.
             preparation.pop_all().close()
-            if time.monotonic() >= deadline:
-                raise Refused(
-                    "the former Leaf delivery adapter did not release its session"
-                )
             time.sleep(0.05)
         if record is not None:
             running = record["app_server"]
@@ -1085,7 +1117,6 @@ def preparing_adapter(harness: CodexHarness):
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),
-            timeout=START_TIMEOUT,
             launcher=launcher,
         ):
             pass

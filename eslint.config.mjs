@@ -57,8 +57,10 @@ const browserGlobals = Object.fromEntries(
     "CustomEvent",
     "DOMException",
     "DOMParser",
+    "DOMPoint",
     "DOMRect",
     "Document",
+    "DocumentTimeline",
     "Element",
     "ErrorEvent",
     "Event",
@@ -113,6 +115,7 @@ const browserGlobals = Object.fromEntries(
     "SVGTextElement",
     "SVGUseElement",
     "ShadowRoot",
+    "StaticRange",
     "Text",
     "ToggleEvent",
     "URL",
@@ -1423,8 +1426,8 @@ export default [
   {
     // Playwright's Node drivers also execute callbacks in the page's realm.
     files: [
+      "evals/ui-review-detection/hooks.mjs",
       "evals/ui-review-detection/provider.mjs",
-      "evals/widget-formats/interaction.mjs",
     ],
     languageOptions: { globals: browserGlobals },
   },
@@ -1439,6 +1442,7 @@ export default [
           "caretKeys",
           "clippingAxes",
           "renderedParent",
+          "skipped",
           "elementAxes",
           "scrollAxes",
           "nativePerformance",
@@ -1512,7 +1516,7 @@ export default [
   {
     files: [
       "dev/leaf_dev/startup.js",
-      "dev/leaf_dev/commands/bench_latency.js",
+      "dev/leaf_dev/painted.js",
       "dev/leaf_dev/commands/stills_baselines.js",
     ],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
@@ -1520,10 +1524,7 @@ export default [
   {
     // Browser diagnostics resolve published runtime entries from the page under
     // test. Those scoped URLs are data rather than static dependency edges.
-    files: [
-      "dev/leaf_dev/commands/verify_site_browser.js",
-      "dev/leaf_dev/commands/bench_latency.js",
-    ],
+    files: ["dev/leaf_dev/commands/site/verify_browser.js", "dev/leaf_dev/painted.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-restricted-syntax": [
@@ -1675,8 +1676,8 @@ export default [
           // The shared CodeMirror adapter places its own native editor.
           "browser/runtime/editor-view.js",
           // A held release stands in for the browser's own press, so it focuses the
-          // control as that press does, ringless; focus.js reads it as the press's.
-          "browser/runtime/held-word.js",
+          // target as that press does, ringless; focus.js reads it as the press's.
+          "browser/runtime/preview.js",
         ],
       ],
       "architecture/open-layers": [
@@ -1814,7 +1815,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|kept|kernel-facts|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],
@@ -1836,6 +1837,11 @@ export default [
   {
     files: ["src/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
+  },
+  {
+    // The script an export draws its page with (`exporting.static_document`).
+    files: ["src/leaf/static-export.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
   },
   {
     // Properties the layer and its packages reach only through their owner. A file

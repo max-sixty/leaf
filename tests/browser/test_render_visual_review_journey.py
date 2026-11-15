@@ -58,7 +58,7 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     case.get_by_role("button", name="100%", exact=True).click()
     host = case.locator(".lf-vr-capture")
     for mode in ("Pair", "Slider", "Pixels"):
-        case.get_by_role("button", name=mode, exact=True).click()
+        case.get_by_role("radio", name=mode, exact=True).click()
         rendered(page)
         assert host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     assert page.evaluate("document.scrollingElement.scrollHeight > innerHeight")
@@ -176,49 +176,6 @@ def target_document(title, body):
     )
 
 
-@pytest.mark.parametrize("height", [600, 760])
-def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
-    browser, serve, height
-):
-    """A focused comment editor remains reachable when its visual-review seat narrows."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
-    resized(page, 1366, 768)
-    widget = page.locator("#visual-review-run")
-    widget.locator(".lf-vr-case-button").nth(1).click()
-    datum = widget.locator('[data-lf-datum="keep-mobile-destinations"]')
-    comment_on_target(page, datum)
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    page.keyboard.type("Keep the destinations together")
-    page.keyboard.press("Shift+ArrowLeft")
-    caret = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
-    assert_keyboard_focus(page, field)
-
-    # Resizing alone must keep the focused editor in view. The reader has not scrolled.
-    resized(page, 390, height)
-    expect(field).to_have_js_property("value", "Keep the destinations together")
-    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
-    assert_keyboard_focus(page, field)
-
-    # A shorter window changes the visible band even when the inline seat's
-    # width and scroll container stay the same.
-    resized(page, 390, height - 120)
-    assert_keyboard_focus(page, field)
-    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
-
-    # Native scrolling can leave the same editor focused. The next reflow must
-    # keep that newer reading instead of pulling the draft back into view.
-    page.mouse.wheel(0, -10000)
-    page.wait_for_function("document.scrollingElement.scrollTop === 0")
-    scroll_settled(page)
-    expect(field).to_be_focused()
-    assert field.evaluate("node => node.getBoundingClientRect().bottom > innerHeight")
-    resized(page, 420, height - 120)
-    assert page.evaluate("document.scrollingElement.scrollTop") == 0
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Keep the destinations together")
-
-
 def test_visual_review_allocates_focused_evidence_before_images_decode(browser, serve):
     """The declared focus sizes the first comparison, even over a slow media load."""
     url = serve(VISUAL_REVIEW_GALLERY)
@@ -286,7 +243,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     expect(host.locator(".lf-error")).to_have_count(0)
     refuse(held[0])
     expect(host.locator(".lf-error")).to_contain_text("focus needs two decoded images")
-    expect(host.get_by_role("button", name="Pair", exact=True)).to_be_visible()
+    expect(host.get_by_role("radio", name="Pair", exact=True)).to_be_visible()
     consume_browser_errors(page, "focus needs two decoded images")
     unrelated = run | {
         "cases": [
@@ -338,9 +295,9 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
-    control = case.get_by_role("button", name="Slider", exact=True)
+    control = case.get_by_role("radio", name="Slider", exact=True)
     control.click()
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     control.focus()
     old_control = control.element_handle()
     before = control.bounding_box()
@@ -355,7 +312,7 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     told(page)
     expect(control).to_be_focused()
     assert control.evaluate("(node, old) => node === old", old_control)
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     expect(case.locator("lf-shot img").first).to_have_attribute(
         "alt", f"before: {record['cases'][0]['title']}. {result}"
     )

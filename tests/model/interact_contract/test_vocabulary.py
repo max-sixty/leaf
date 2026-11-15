@@ -11,7 +11,6 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
-    append_carried_log_record,
     append_command,
     check_findings,
     element_declaration,
@@ -31,7 +30,6 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import page as registry_page
@@ -69,8 +67,7 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 
     composed = registry_page.compose_page_registry(layer, declarations, widget_paths)
 
-    assert composed.registry["lf-local"] == page_widget
-    assert "package-only" not in composed.registry["lf-local"]["properties"]
+    assert composed.registry["lf-local"]["properties"].keys() == {"id", "page-only"}
     assert composed.declaration_sources["lf-local"] == "page"
     assert composed.widget_sources["lf-local"] == "widgets/lf-local.js"
     assert composed.declaration_sources["lf-tabs"] == "layer"
@@ -296,7 +293,7 @@ def test_one_check_reports_the_first_problem_in_each_declaration(
 
     second = registry_storage.read_page_registry(page_dir)
 
-    assert second.registry["lf-local"] == declaration
+    assert second.registry["lf-local"]["description"] == declaration["description"]
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
 
@@ -317,7 +314,7 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         page_view_model.PageView(page_dir).registry(None),
     ):
         assert vocabulary is not None
-        assert vocabulary["lf-local"] == declaration
+        assert vocabulary["lf-local"]["description"] == declaration["description"]
 
 
 @pytest.mark.parametrize("active_attention", [True, False])
@@ -614,52 +611,23 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     )
 
 
-def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
-    """A thread widget keeps the contract under which its user command was admitted."""
-    authored = page_dir / "page" / "registry.json"
-    declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
-    authored.write_text(json.dumps({"lf-thread-local": declaration}))
-    publish(page_dir)
-    revision = files_model.latest_revision(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
-    )
-    thread_model.post_reply(
-        page_dir,
-        {"parent": "c1", "responds": "c1"},
-        "Use this control.",
-        '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
-    )
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": revision,
-            "widget": "thread-choice",
-            "action": "first",
-            "detail": {"value": "user"},
-        },
-    )
-    declaration["x-state"]["second"] = declaration["x-state"].pop("first")
-    authored.write_text(json.dumps({"lf-thread-local": declaration}))
-
-    refused = revisioning_model.activate_source(page_dir)
-
-    assert refused.error is None and refused.created
-    assert revision is not None
-    assert refused.revision == revision + 1
-
-
+@pytest.mark.parametrize("declares", [False, True])
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, declares
 ):
     """A revision's vocabulary was validated when it activated, so a process reading
-    the page anew does not validate it again while it stands unchanged, and no check
-    parses the layer's sheets: together they were most of a cold first read."""
+    the page anew does not validate the unchanged candidate again, and no check
+    parses the layer's sheets: together they were most of a cold first read. A page
+    declaring its own widget has the revision's own composition validated once under
+    this Leaf's layer, though its candidate's authored entry is unstamped where the
+    revision's composed one is stamped."""
     from leaf import revision_artifact, styles
 
+    if declares:
+        (page_dir / "page").mkdir(exist_ok=True)
+        (page_dir / "page" / "registry.json").write_text(
+            json.dumps({"lf-local": element_declaration("lf-local")})
+        )
     (page_dir / "index.html").write_text(styled("main { color: red; }"))
     assert revisioning_model.activate_source(page_dir).error is None
     validated, linted = [], []
@@ -682,7 +650,8 @@ def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
     # What a newly started server holds: none of this test's readings.
     with fresh_process():
         assert revisioning_model.activate_source(page_dir).error is None
-    assert validated == []
+    # The revision composes with the default source; the candidate names its file.
+    assert validated == (["page/registry.json"] if declares else [])
     assert linted == ["page <style> (line 5)"]
 
 

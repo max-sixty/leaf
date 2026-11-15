@@ -2,7 +2,7 @@
 sample in a frame, and published on the Leaf website."""
 
 import re
-from urllib.parse import urlparse
+import time
 
 import pytest
 from playwright.sync_api import expect
@@ -21,7 +21,6 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -86,50 +85,6 @@ window.authoredModuleRan = true;
         and event.get("detail") == {"value": ["yes"]}
         for event in events_model.read_events(serve.page_dir)
     )
-
-
-def test_a_live_page_admits_only_leaf_parents_under_its_key(browser, serve, live_leaf):
-    """SameSite cookies do not isolate ports, so any server on the host can
-    authenticate a frame of a live page without knowing its key. CSP keeps every
-    other origin from disguising its controls, and admits another live Leaf server
-    under the same key, whose page then shows the framed page live."""
-    child_url, _ = live_leaf("child", "Child")
-    parent_url, _ = live_leaf("parent", "Parent")
-    key = server_model.host_key()
-    context = browser.new_context()
-    # One keyed arrival earns the cookie every same-key frame below goes out under.
-    open_page(browser, f"{child_url}/?t={key}", context=context)
-    foreign = open_page(
-        browser,
-        live_url(serve(leaf_page("Foreign", '<h1 id="foreign">Foreign</h1>'))),
-        context=context,
-    )
-    leaf = open_page(browser, f"{parent_url}/?t={key}", context=context)
-    for parent in (foreign, leaf):
-        assert urlparse(parent.url).port != urlparse(child_url).port
-        with parent.expect_response(f"{child_url}/") as loaded:
-            parent.locator("body").evaluate(
-                """async (body, url) => {
-                    const frame = document.createElement('iframe');
-                    frame.id = 'framed-leaf';
-                    frame.src = url;
-                    const loaded = new Promise(resolve => frame.addEventListener('load', resolve, {once: true}));
-                    body.append(frame);
-                    await loaded;
-                }""",
-                f"{child_url}/",
-            )
-        response = loaded.value
-        assert response.status == 200
-        assert key in response.request.all_headers()["cookie"]
-    errors = consume_browser_errors(foreign, "Content Security Policy")
-    assert any(is_problem(error, "frame-ancestors 'self'") for error in errors), errors
-    assert foreign.locator("#framed-leaf").evaluate(
-        "frame => frame.contentDocument === null"
-    )
-    framed = leaf.frame_locator("#framed-leaf")
-    expect(framed.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(framed.locator("#t")).to_have_text("Long")
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])
@@ -415,13 +370,14 @@ def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
     )
 
 
-# A window sample whose child holds a sample below its own window, so the child
-# presents while the inner sample's document can wait, and a link out of Leaf.
+# A window sample whose child holds a window sample in view, which starts with the
+# child but doesn't hold its presentation, so the child presents while the inner
+# sample's document can wait, and a link out of Leaf.
 NESTED = (
     '<h1>Containing page</h1><lf-sample id="outer" window>'
     '<template id="outer-source" data-sample><h1>Outer</h1>'
-    '<a href="about:blank" id="leave">Leave</a><div style="height: 300vh"></div>'
-    '<lf-sample id="inner"><template id="inner-source" data-sample>'
+    '<a href="about:blank" id="leave">Leave</a>'
+    '<lf-sample id="inner" window><template id="inner-source" data-sample>'
     "<p>Inner</p></template></lf-sample></template></lf-sample>"
 )
 
@@ -446,16 +402,18 @@ def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve)
 def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     browser, serve
 ):
-    """A block sample below the window starts loading at once, but the page presents
-    and takes keys without it, reading as arriving until it has. A reader who scrolls
+    """A block sample below the window but near it starts loading before the reader
+    reaches it, and the page presents and takes keys without it, reading as arriving
+    until it has. A reader who scrolls
     to it while it loads sees its frame keep its loading height as the child arrives,
     so what follows stays put, until the frame leaves their sight or the tab is
     hidden. A wheel over the frame scrolls past it and claims nothing. Once they click
     inside it, its growth is theirs: a disclosure they open, and growth the child makes
     of its own accord afterwards, apply at once.
 
-    The inner window sample keeps the child arriving until the final step, which
-    checks that completing arrival does not release later unsolicited growth."""
+    The inner window sample, in view in the child, keeps the child arriving until the
+    final step, which checks that completing arrival does not release later
+    unsolicited growth."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
@@ -474,13 +432,15 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
         serve(
             leaf_page(
                 "Sample gesture",
-                '<h1>Containing page</h1><div style="height: 300vh"></div>'
+                # Half a window below the window's foot, within a window of it.
+                '<h1>Containing page</h1><div style="height: 150vh"></div>'
                 + live_sample(
                     "practice",
-                    content='<p id="top">Practice</p><details id="more">'
-                    '<summary>More</summary><div style="height: 400px"></div>'
-                    '</details><div id="room" style="height: 1200px"></div>'
-                    + live_sample("inner", " window", "<p>Inner</p>"),
+                    content='<p id="top">Practice</p>'
+                    + live_sample("inner", " window", "<p>Inner</p>")
+                    + '<details id="more"><summary>More</summary>'
+                    '<div style="height: 400px"></div></details>'
+                    '<div id="room" style="height: 1200px"></div>',
                 )
                 + "<p><button id=after>After the sample</button></p>"
                 '<div style="height: 300vh"></div>',
@@ -628,36 +588,127 @@ def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
     assert page.evaluate(places) == before
 
 
-def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
-    """A sample's child counts as arrived only once its own samples have, so the page
-    holding it reads as arriving until then. A departure to a page that is not Leaf's
-    ends the count of the document that left, whose inner sample never comes. Reset
-    begins a document the page counts as arriving until it, and the samples inside
-    it, have arrived."""
-    page, _ = held_sample_page(browser, serve, NESTED, hold_first=False)
-    page.locator("#outer").evaluate("sample => sample.ready")
-    child = page.locator("#outer iframe").content_frame
-    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
-    assert readiness(page) == "arrived"
-    child.locator("#leave").click()
-    wait_until_ready(page)
-
-    # The departed document's inner sample is never answered; from here every sample
-    # document waits until the step releases it. Each new document starts with its
-    # admission.
-    page.unroute(SAMPLE_DOCUMENT)
-    admissions = []
+def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
+    """A live sample far below the window, or in a closed disclosure, loads nothing,
+    and the page reads ready without it while its `ready` waits. Scrolled to within a
+    window's height of the window, it starts before the reader sees it, so by the time
+    they reach it the frame stands at its child's height. Opening the disclosure starts
+    the sample in it, and a page module's Reset starts one still waiting."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    allocated = []
     page.on(
         "request",
-        lambda request: request.method == "HEAD" and admissions.append(request),
+        lambda request: (
+            request.method == "POST"
+            and request.url.endswith("/api/samples")
+            and allocated.append(request.post_data_json["template"])
+        ),
     )
-
-    held = []
-    page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
-    page.locator("#outer").get_by_role("button", name="Reset").click()
-    holding(page, admissions, 1, "the new document's sample admission")
-    assert readiness(page) == "arrived"
-    page.unroute(SAMPLE_DOCUMENT)
-    for each in held:
-        each.continue_()
+    page.goto(
+        serve(
+            leaf_page(
+                "Samples far down",
+                '<h1>Containing page</h1><div style="height: 400vh"></div>'
+                + live_sample(
+                    "far", content='<p>Far</p><div style="height: 700px"></div>'
+                )
+                + '<details id="fold"><summary>More</summary>'
+                + live_sample("folded")
+                + '</details><div style="height: 400vh"></div>'
+                + live_sample("last"),
+            )
+        )
+    )
     wait_until_ready(page)
+    assert allocated == []
+    waiting = """sample => {
+        let settled = false;
+        sample.ready.then(() => { settled = true; }, () => { settled = true; });
+        return new Promise(done => requestAnimationFrame(() => setTimeout(() => done(settled))));
+    }"""
+    assert page.locator("#last").evaluate(waiting) is False
+
+    far = page.locator("#far iframe")
+    # Half a window below the window's foot.
+    page.evaluate(
+        """() => scrollBy(0, document.querySelector('#far iframe')
+            .getBoundingClientRect().top - 1.5 * innerHeight)"""
+    )
+    page.locator("#far").evaluate("sample => sample.ready")
+    assert allocated == ["far-source"]
+    drawn = far.content_frame.locator("body").evaluate(
+        "body => Math.ceil(body.getBoundingClientRect().height)"
+    )
+    assert drawn > 700
+    far.scroll_into_view_if_needed()
+    assert far.evaluate("frame => frame.clientHeight") == drawn
+
+    page.locator("#fold > summary").click()
+    page.locator("#folded").evaluate("sample => sample.ready")
+    assert allocated == ["far-source", "folded-source"]
+
+    page.locator("#last").evaluate("sample => sample.reset()")
+    assert allocated == ["far-source", "folded-source", "last-source"]
+
+
+# A choice whose press shows at once on a page that has come up.
+CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
+</lf-options></lf-ask>"""
+
+
+def rolling_out(page):
+    """Answer each sample allocation as leaf.page's edge does for the minutes after a
+    deploy that a visitor's container still runs the previous release: 503 and the
+    seconds to wait (`worker/src/index.ts`, `rollingOut`). Returns the allocations
+    asked, each as its time and template, and `end()`, after which they go through."""
+    asked = []
+    rolling = [True]
+
+    def answer(route):
+        asked.append((time.monotonic(), route.request.post_data_json["template"]))
+        if not rolling[0]:
+            route.continue_()
+            return
+        route.fulfill(
+            status=503,
+            body="this release is still starting",
+            headers={"Retry-After": "1", "Cache-Control": "no-store"},
+        )
+
+    page.route("**/api/samples", answer)
+    return asked, lambda: rolling.__setitem__(0, False)
+
+
+def test_a_sample_brought_into_view_releases_the_page_while_its_server_waits(
+    browser, serve
+):
+    """A sample a jump brings into view holds the page's rendering until its frame fits
+    its page, as the landing of that jump, but not through a wait its server names, as
+    during a leaf.page deploy: once the allocation is refused with a wait, the page's
+    rendering settles while the sample reads as loading, and the sample arrives when
+    the rollout ends."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    asked, end = rolling_out(page)
+    page.goto(
+        serve(
+            leaf_page(
+                "Rollout jump",
+                '<p><a id="jump" href="#s">Jump to the sample</a></p>'
+                '<div style="height: 400vh"></div>' + live_sample("s"),
+            )
+        )
+    )
+    wait_until_ready(page)
+    assert asked == []
+    page.locator("#jump").click()
+    holding(page, asked, 1, "the sample's allocation")
+    expect(page.locator("#s .lf-sample-status")).to_have_text("Loading sample…")
+    rendered(page, facts=("preparationsSettled",))
+    end()
+    page.locator("#s").evaluate("sample => sample.ready")
+    wait_until_ready(page)
+    expect(page.locator("#s .lf-sample-status")).to_have_text("")
+    consume_browser_errors(page, http_error_console(503))

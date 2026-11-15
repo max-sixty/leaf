@@ -28,7 +28,7 @@
   // and how far past its edge that band reaches. Two rules in the layer draw it that way —
   // the anchored response bar, which writes `outline: none` so its states keep one
   // silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
-  // focus — and to a user they are the same band as every other ring (--focus-shadow,
+  // focus — and to a user they are the same band as every other ring (--lf-focus-shadow,
   // base.css).
   //
   // What makes it that band rather than the layer's other shadows: no offsets, no blur, and
@@ -38,12 +38,12 @@
   // a caller measures is the whole of the band; nought where the box paints no such thing.
   //
   // The accent arrives resolved twice because the layer spells it twice: a plain
-  // `var(--accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
+  // `var(--lf-accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
   // `color(srgb r g b / a)`. The mix is matched on its triple alone, so how much of the
   // accent a rule laid down is not part of the question — the bar carries an accent border
   // as well and wants less of it than a chip standing over the page's own words.
   function shadowBand(cs, accent, mixed) {
-    const w = parseFloat(cs.getPropertyValue("--focus-ring-w")) || 0;
+    const w = parseFloat(cs.getPropertyValue("--lf-focus-ring-w")) || 0;
     if (!w) return 0;
     // Split on the commas between layers, not on the ones inside `rgba(...)`.
     for (const layer of cs.boxShadow.split(/,(?![^(]*\))/)) {
@@ -74,15 +74,16 @@
   // being read. The same span in <body> answers the same.
   function accentSwatch() {
     const swatch = document.createElement("span");
-    swatch.style.cssText = "outline: 1px solid var(--accent)";
+    swatch.style.cssText = "outline: 1px solid var(--lf-accent)";
     document.head.append(swatch);
     const accent = getComputedStyle(swatch).outlineColor;
-    swatch.style.outlineColor = "color-mix(in srgb, var(--accent) 100%, transparent)";
+    swatch.style.outlineColor =
+      "color-mix(in srgb, var(--lf-accent) 100%, transparent)";
     const mixed =
       getComputedStyle(swatch).outlineColor.match(
         /color\(srgb ([\d.]+ [\d.]+ [\d.]+)/,
       )?.[1] ?? null;
-    swatch.style.outlineColor = "var(--mark-ink)";
+    swatch.style.outlineColor = "var(--lf-mark-ink)";
     const markInk = getComputedStyle(swatch).outlineColor;
     swatch.remove();
     return { accent, mixed, markInk };
@@ -115,21 +116,31 @@
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
   // response bar and the browsed target hint as boxes with no ring on them at all.
-  // A box over the page drawing the ring for the focused element: the projected focus
-  // mark, or the location ring over a decision that holds focus itself, as an arrival
-  // leaves it.
+  // A box drawing the ring for the focused element as its own mark (surfaces.css,
+  // "Every mark on a box is drawn by the box itself"): the target painter's focus state,
+  // the proxy ring round what a focused stop stands for, or the location ring on a
+  // decision that holds focus itself, as an arrival leaves it, and on each box it shows
+  // through.
   const carriesFocus = (el, focused) =>
-    el.matches(".lf-visual-mark-focus, .lf-proxy-ring") ||
-    (el.matches(".lf-location") &&
-      Boolean(focused?.matches?.(".lf-projected-location")));
+    el.matches('[data-lf-mark~="focus"], [data-lf-proxied]') ||
+    (el.matches("[data-lf-projected-location]") &&
+      Boolean(focused?.matches?.("[data-lf-projected-location]")));
+
+  // A gesture's mark on a box: the aim, the margin trace or a comment's mark, which the
+  // box draws as its outline cut to brackets (surfaces.css, "A gesture's mark is
+  // brackets"). It shares the ring's ink and token, but its cut runs say which object
+  // is referenced, not where keyboard input goes.
+  const bracketed = (el) =>
+    el.matches("[data-lf-aimed], [data-lf-traced], [data-lf-mark]") &&
+    getComputedStyle(el).clipPath !== "none";
 
   function ringCandidates() {
     const { accent, mixed } = accentSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
     const hereShadow = (cs) => shadowBand(cs, accent, mixed);
-    // Whether this box paints the layer's ring: `--focus-ring` is
-    // `var(--focus-ring-w) solid var(--accent)`, so style, width and colour are all what
+    // Whether this box paints the layer's ring: `--lf-focus-ring` is
+    // `var(--lf-focus-ring-w) solid var(--lf-accent)`, so style, width and colour are all what
     // the element computes them to.
     //
     // Or the same band cast as a shadow, which is the same ring to the user and so the
@@ -139,7 +150,7 @@
     const focused = deepFocus();
     const isFocusRing = (cs) =>
       (cs.outlineStyle === "solid" &&
-        cs.outlineWidth === cs.getPropertyValue("--focus-ring-w").trim() &&
+        cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
         cs.outlineColor === accent) ||
       hereShadow(cs) > 0;
     // Every box painting the ring, read off the composed page. Whether a ring is there is
@@ -148,7 +159,7 @@
     //
     // An annotated source can also carry an authored contour in the same ink.
     // The rule reading keeps that contour out unless a ring rule or actual focus
-    // claims it. Projected target feedback is excluded by its state below.
+    // claims it. A gesture's mark is excluded by its brackets below (`bracketed`).
     //
     // The focused element joins them whatever paints its outline, since a visible ring
     // cut in half is a fault whoever drew it.
@@ -161,14 +172,7 @@
     for (const root of roots)
       for (const el of root.querySelectorAll("*")) {
         if (el.shadowRoot) roots.push(el.shadowRoot);
-        // Target feedback shares the ring's ink and token, but its clipped ends
-        // say which object is referenced, not where keyboard input goes.
-        if (
-          el.matches(
-            ".lf-aim, .lf-target-trace, .lf-visual-mark:not(.lf-visual-mark-focus)",
-          )
-        )
-          continue;
+        if (bracketed(el)) continue;
         const cs = getComputedStyle(el);
         if (isFocusRing(cs)) claimed.push({ el, cs });
         const after = getComputedStyle(el, "::after");
@@ -179,6 +183,7 @@
       focused &&
       focused !== document.body &&
       focused !== document.documentElement &&
+      !bracketed(focused) &&
       !claimed.some((claim) => claim.el === focused)
     )
       claimed.push({ el: focused, cs: getComputedStyle(focused) });
@@ -223,12 +228,15 @@
     // comment names — it asked only about overflow, so paint containment and
     // content-visibility clipped a ring away with nothing said, and it measured the
     // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfCheckApi();
+    const { shownBand, ringBox } = await window.__lfCheckApi();
     const holds = (a, b) => {
       for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;
     };
     const focused = deepFocus();
+    // The box the runtime rings in the focused control's place (`ringBox`, focus.js), as
+    // a choice's label rings its checkbox: it wears the focused control's ring.
+    const wearer = focused && ringBox(focused);
     const { accent } = accentSwatch();
     // A colour as the screenshot holds it, whatever space it was written in: a canvas
     // paints it into sRGB.
@@ -724,7 +732,7 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || carriesFocus(el, focused),
+        focused: el === focused || el === wearer || carriesFocus(el, focused),
         sample:
           el === focused ||
           carriesFocus(el, focused) ||
@@ -803,7 +811,7 @@
     const { accent, mixed } = accentSwatch();
     const ringed = (cs) =>
       cs.outlineStyle === "solid" &&
-      cs.outlineWidth === cs.getPropertyValue("--focus-ring-w").trim() &&
+      cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
       cs.outlineColor === accent;
     // A box whose own content paints over its outline draws the same ring on a later
     // pseudo-element instead: the scrolling thread list's frame, a page thread over its
@@ -827,29 +835,24 @@
     overlaid(e);
     // The target painter's focus state names the current keyboard carrier even
     // when its source has no id, and so does a focused stop's ring round what it
-    // stands for. The painter's other states are reference brackets.
-    const projected = e.ownerDocument.querySelector(
-      ".lf-visual-mark-focus, .lf-proxy-ring",
-    );
-    if (projected?.checkVisibility({ visibilityProperty: true })) overlaid(projected);
-    // The location ring drawn over a decision is its focus cue too.
-    const location = e.ownerDocument.querySelector(".lf-location");
-    if (
-      e.matches(".lf-projected-location") &&
-      location?.checkVisibility({ visibilityProperty: true })
-    )
-      overlaid(location);
+    // stands for, and the location ring on a decision the stop is, on each box it
+    // shows through (`carriesFocus`). Each box draws it as its own outline. The
+    // painter's other states are reference brackets.
+    for (const box of e.ownerDocument.querySelectorAll(
+      '[data-lf-mark~="focus"], [data-lf-proxied], [data-lf-projected-location]',
+    ))
+      if (
+        carriesFocus(box, e) &&
+        box.checkVisibility({ visibilityProperty: true }) &&
+        ringed(getComputedStyle(box))
+      )
+        carriers.push([box, null]);
     // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))
       if (child.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {
         if (ringed(getComputedStyle(child))) carriers.push([child, null]);
         overlaid(child);
       }
-    // A diff's scroller gives its ring to the following frame so its rows cannot
-    // paint over the band. The frame is outside the focused node's ancestry.
-    const frame = e.nextElementSibling;
-    if (frame?.matches(".lf-diff-frame") && ringed(getComputedStyle(frame)))
-      carriers.push([frame, null]);
     for (let el = flatParent(e); el; el = flatParent(el)) {
       const up = getComputedStyle(el);
       if (up.outlineStyle === "auto") return null;

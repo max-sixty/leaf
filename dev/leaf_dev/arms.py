@@ -1,7 +1,7 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+A command that runs Leaf at two versions, such as `stills`, `probe` or `preview --base`, runs
 `head`, this working tree in place with its uncommitted edits, and `base`, the merge
 base with the local `main` unless `--base REF` names another commit (`choose_arms`,
 `base_option`). The base is the whole tree at its commit, so it serves pages, runs the
@@ -43,8 +43,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterable
-from contextlib import contextmanager
+from collections.abc import Iterable
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from functools import partial
@@ -54,11 +54,12 @@ from typing import IO, NamedTuple, Self, overload
 import click
 
 from leaf.codex import APP_SERVER_ENV
-from leaf.delivery import opened_input_ids
+from leaf.event_log import initialized
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.registry.kernel import kernel_event_kinds
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
-from leaf_dev import ROOT
+from leaf_dev import ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import (
     admit_events,
@@ -106,11 +107,15 @@ MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6.1-sol",
     "user": "gpt-6.1-sol",
+    # It answers only setup and the developer's turns, so a fast one does.
+    "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
     CodexHarness.name: "gpt-6-astra",
 }
+# Models an experiment compares beside the pinned authors and judges.
+COMPARED_MODELS = ("claude-fable-5-2",)
 
 
 def run_directory(parent: Path) -> Path:
@@ -248,12 +253,19 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
 
 
 class ServedPage(NamedTuple):
-    """A page `serving_source` serves: its directory, its keyed address, and its arm's
-    launcher under its state home."""
+    """A page `serving_source` or `live_copies` serves: its directory, its address,
+    and the arm that serves it under the state home `state`."""
 
     directory: Path
     address: str
-    leaf: Callable[..., subprocess.CompletedProcess]
+    arm: Path
+    state: Path
+
+    def leaf(
+        self, *args: str, timeout: float | None = None
+    ) -> subprocess.CompletedProcess:
+        """Run the arm's launcher under the state home, refusing a failed command."""
+        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
@@ -277,20 +289,41 @@ def serving_source(arm: Path, source: Path, scratch: Path, log: Path | None = No
             env=environment(XDG_STATE_HOME=str(state)),
         )
     with serving(arm, state, page) as address:
-        bound = served_page.set(
-            ServedPage(page, address, partial(run_leaf, arm, state, check=True))
-        )
+        bound = served_page.set(ServedPage(page, address, arm, state))
         try:
             yield address
         finally:
             served_page.reset(bound)
 
 
-def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base a command compares
+@contextmanager
+def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
+    """Serve a disposable copy of each saved page directory in `pages`, under its own
+    name, and yield their `ServedPage`s in order. What serving writes, and any edit a
+    reader makes, lands in the copies, so the saved pages stay as their author left
+    them. `plain` pages are ordinary HTML, served as written (`plain_html.serving`);
+    any others are Leaf pages, which `arm` serves under one state home, as the pages
+    they were saved from shared one (`serving`)."""
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-live-copies-") as scratch,
+        ExitStack() as servers,
+    ):
+        state = Path(scratch) / "state"
+        copies = []
+        for page in pages:
+            copy = shutil.copytree(page, Path(scratch) / "pages" / page.name)
+            address = servers.enter_context(
+                plain_html.serving(copy) if plain else serving(arm, state, copy)
+            )
+            copies.append(ServedPage(copy, address, arm, state))
+        yield copies
+
+
+def merge_base() -> str:
+    """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
         capture_output=True,
         text=True,
         check=True,
@@ -682,7 +715,7 @@ def authoring_sandbox(*owned: Path) -> str:
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)|zsh[^/]+$"
-        rf"|leaf-package-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
+        rf"|leaf-path-locks-{uid}(/|$)|leaf-codex-[^/]+(/|$)"
         rf"|codex-daemon-{uid}(/|$)"
     )
     host_plugins = (
@@ -742,22 +775,24 @@ def claude_child(
     *args: str,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    model: str = MODELS[ClaudeCodeHarness.name],
+    model: str | None = None,
     sandbox: bool = True,
 ) -> dict:
     """The `subprocess` arguments for one isolated `claude -p` child in `cwd`.
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
-    `dirs`, unless `sandbox` is False, as a child that drives the harness's own
-    browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
-    and restriction; an unsandboxed launch retires that generated file."""
+    `model` defaults to the Claude Code pin as `MODELS` holds it when called, which
+    a run's `--model` sets. On macOS the child runs under `authoring_sandbox`,
+    owning `cwd`, its home and `dirs`, unless `sandbox` is False, as a child that
+    drives the harness's own browser is. Its private-home CLAUDE.md names the
+    sandbox's scratch directory and restriction; an unsandboxed launch retires that
+    generated file."""
     dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", model,
+        "claude", "-p", *args, "--model", model or MODELS[ClaudeCodeHarness.name],
         "--strict-mcp-config", "--permission-mode", "bypassPermissions",
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
@@ -1092,7 +1127,7 @@ class LiveSession:
 
     def _observe(self, record: dict) -> None:
         # An agent authoring the page has not made it yet.
-        if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
+        if self.watch is None or not initialized(self.watch[2]):
             return
         if not self.url and record.get("type") in ("user", "result"):
             state = read_page_state(*self.watch)
@@ -1143,7 +1178,7 @@ class LiveSession:
                 return True
         return self.answered > since
 
-    def during(self, action, before=None):
+    def during(self, action):
         """Run `action` while the driver records and observes the child's output,
         and return what it returns."""
         done: queue.Queue = queue.Queue()
@@ -1158,7 +1193,7 @@ class LiveSession:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         try:
-            for _ in self.records(idle=0.5, before=before):
+            for _ in self.records(idle=0.5):
                 if not worker.is_alive():
                     break
         finally:
@@ -1216,15 +1251,27 @@ class PageClient:
             return json.loads(response.read())
 
     def post(self, event: dict) -> dict:
-        """Post one move as the page does: keyed, on the served layer, and return the
-        state the server answers with, which shows the move. The caller names the
-        revision and the retry key, as the browser does.
+        """Post one move as the page's tab does, and return the event the log holds
+        for it, as the server's answer names it. The caller names the retry key.
+
+        The move is posted keyed and on the served layer. Any move may name the
+        revision it was made on, as a tab's is made on the revision it shows, and is
+        otherwise made on the active one. The revision goes with the move only where
+        its kind's record has one (`$events.kinds` in the kernel registry). One state
+        read gives the layer and the active revision. A kind the kernel doesn't
+        declare goes as it is, for the server to refuse.
 
         An answer naming another layer than the one posted on admitted nothing: the
         page was re-initialized between the state read and the post. A tab reloads onto
         that layer and the user moves again, so the move is posted again under it.
         """
-        layer = self.state()["layer"]["generation"]
+        read = self.state()
+        layer = read["layer"]["generation"]
+        event = dict(event)
+        if contract := kernel_event_kinds().get(event.get("kind")):
+            made_on = event.pop("revision", None)
+            if "revision" in contract["record"]["properties"]:
+                event["revision"] = made_on or read["active"]["revision"]
         while True:
             request = urllib.request.Request(
                 f"{self.origin}/api/event?t={self.token}",
@@ -1240,7 +1287,7 @@ class PageClient:
                     f"posting {event}: HTTP {error.code} {error.read().decode()}"
                 ) from error
             if answered == layer:
-                return answer["state"]
+                return answer["event"]
             layer = answered
 
 
@@ -1264,19 +1311,6 @@ def commands(record: dict) -> list[str]:
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def inputs_received(events: list[dict], attempts: set[str]) -> bool:
-    """Whether a posted round is admitted and its attention inputs are received.
-
-    Inline context, pointer reads, and attempted ACK commands are presentations,
-    not acceptance. Every attempt must be admitted; only attention-marked inputs
-    require the opened pickups that name exactly what the reader received.
-    Page-authored errors carry no user attempt and do not advance user rounds.
-    """
-    posted = [e for e in events if e.get("attempt") in attempts]
-    inputs = {e["id"] for e in posted if e["attention"]}
-    return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
 
 
 def read_trace(stream: Path) -> list[dict]:
@@ -1393,3 +1427,16 @@ def resumed(summaries: list[dict]) -> list[dict]:
         )
         before = cost if cost is not None else before
     return phases
+
+
+if __name__ == "__main__":
+    # The pins as JSON, for an experiment's Node code (`arms.mjs`).
+    print(
+        json.dumps(
+            {
+                "MODELS": MODELS,
+                "JUDGE_MODELS": JUDGE_MODELS,
+                "COMPARED_MODELS": COMPARED_MODELS,
+            }
+        )
+    )

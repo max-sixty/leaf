@@ -11,6 +11,7 @@ from render_cases_navigation import _publish
 from render_harness import (
     PANEL,
     consume_browser_errors,
+    field_press,
     holding,
     http_error_console,
     leaf_page,
@@ -200,8 +201,8 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     assert drawings[0]["revision"] == 1
     expect(page.locator('[data-lf-thread^="pending:"]')).to_have_count(0)
     # Threads lists the saved conversation beside the two the tab sent early.
-    # Draw mode's steps stand in the marks' place until the user leaves it.
-    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    # Draw mode's way out stands at the panel field's end until the user leaves it.
+    field_press(page).filter(has_text="Close").click()
     open_threads(page)
     rows = page.locator(f"{panel_view('threads')} .lf-fp-thread")
     expect(rows).to_have_count(3)

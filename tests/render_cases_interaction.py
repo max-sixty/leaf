@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from render_harness import (
+    ROOT,
     TOKEN,
     leaf_page,
 )
 
-from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import authored_sources, named_source
 
 # A page with an outline: three headings, and passages under each to hang threads on.
@@ -681,7 +681,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each item of the panel's On view says, as On me's card or On <agent>'s line: its
+# What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
 # obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
 # "agent" or "done"), its title, its prompt where its card is open, and what it says of
 # its ending (such as "Answered: …"), each null where the item has none, and its box.
@@ -946,13 +946,13 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# The location ring drawn over the decision `el` (target-paint.js, `paintLocation`), read
-# as RING reads an outline: its band's style, width and colour, or "none" where no ring
-# stands over `el`.
-LOCATION_RING = """(el) => { const box = document.querySelector('.lf-location');
-    if (!box || box.dataset.lfFor !== el.id || getComputedStyle(box).display === 'none')
+# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
+# reads an outline: its band's style, width and colour, or "none" where `el` stands in
+# no ring.
+LOCATION_RING = """(el) => { if (!el.hasAttribute('data-lf-projected-location'))
       return ['none'];
-    const s = getComputedStyle(box, '::after');
+    const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
 # One parent over two leaves, so a status report has to move both the marker and
 # the parent's computed done-fraction — the state a stylesheet cannot recount.
@@ -1074,10 +1074,10 @@ IN_FORCE_PAGE = leaf_page(
 </lf-options></lf-ask>
 <lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
-  <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="ab-card-preview">
     <article id="ab-card-note"><strong>The cutover lands on Friday</strong><p>Read the migration notes before the freeze.</p></article>
@@ -1125,6 +1125,7 @@ ACTIONS_IN_FORCE = [
         "review",
         {"case": "status-column", "approved": True},
     ),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
     (
         "ab-card",
         "choose",
@@ -1337,7 +1338,7 @@ SEATED_OBLIGATION_ENTRY = {
     ),
     "type": "object",
     "properties": {
-        "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+        "id": {"type": "string"},
         "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },
@@ -1491,3 +1492,57 @@ WORKSHOP_THREAD_EVENTS = tuple(
         },
     )
 )
+
+
+def package_workspace(serve, *, before_reader="", primary=True):
+    """Run the shipped package example against real event admission."""
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    url = serve(
+        leaf_page(
+            "Package reader",
+            '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
+            + before_reader
+            + (
+                '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>'
+                if primary
+                else ""
+            ),
+        ),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
+        layer_widgets={
+            "lf-conversation-workspace.js": (
+                companion / "widgets/lf-conversation-workspace.js"
+            ).read_text()
+        },
+    )
+    for event in [
+        {
+            "id": "channel-question",
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which channel?",
+            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+        },
+        {
+            "id": "opening",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep it concise.",
+        },
+        {
+            "id": "answer",
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "opening",
+            "text": "One paragraph.",
+        },
+    ]:
+        append_carried_log_record(serve.page_dir, event)
+    return url

@@ -11,7 +11,7 @@ second decision reader or repeated render/quality grader for every revision.
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
 Reports capture those pages and retain native timing/token accounting.
-`eval --from --judge pair` compares saved samples without rerunning their authors.
+`eval run --from --judge pair` compares saved samples without rerunning their authors.
 The run centrally selects its viewports, defaulting to one fullscreen desktop for
 every case.
 """
@@ -36,7 +36,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.render_gate import command as render_command_model
 from leaf.service import requires_agent_attention
-from leaf.structure import source_index
+from leaf.structure import source_index, splice
 from leaf.thread import successful_replies
 from leaf.user_views import read_user_views
 from leaf_dev import ROOT, pane_readings, plain_html
@@ -47,6 +47,7 @@ from leaf_dev.arms import (
     LiveSession,
     author_failure,
     environment,
+    live_copies,
     now,
     observed_sum,
     pages,
@@ -56,7 +57,6 @@ from leaf_dev.arms import (
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_result,
     trace_summary,
 )
@@ -65,6 +65,7 @@ from leaf_dev.browser import (
     Window,
     headless_shell,
     load,
+    screenshot,
     shell_executable,
     tab,
 )
@@ -81,8 +82,8 @@ from leaf_dev.leaf_assets import pinned_copy
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
 PREFERENCE = DEFINITION["preference"]
-# Content out of view is reachable through a labeled control, as both judges count
-# it.
+# Content out of view is reachable through a labeled control, as the pairwise judge
+# counts it (`regrade.yaml`).
 REACHABLE = DEFINITION["reachable"]
 # How long a session that has answered stays quiet before the next phase, and how
 # long the harness waits for a turn to start before calling a phase undelivered.
@@ -146,6 +147,12 @@ CASES = {
 }
 
 
+def is_leaf(condition: str) -> bool:
+    """Whether the author in `condition` writes a Leaf page; in `html` it writes plain
+    HTML."""
+    return condition == "leaf"
+
+
 @dataclass(frozen=True)
 class Run:
     subject: str
@@ -163,14 +170,13 @@ class Run:
     @property
     def journey_window(self) -> Window:
         """The one window the user opens the page in, comments from and decides in,
-        as one person would: the first selected window's size, under a mouse. The
-        scripted comment selects with mouse events, and a coarse pointer changes how
-        the composer keeps a selection (`composing/surface.js`)."""
-        return Window(self.windows[self.viewports[0]].size)
+        as one person would: the first selected window, with the pointer it declares, so
+        a phone is driven by touch end to end (`eval_user`)."""
+        return self.windows[self.viewports[0]]
 
     @property
     def leaf_condition(self) -> bool:
-        return self.condition == "leaf"
+        return is_leaf(self.condition)
 
     @property
     def work(self) -> Path:
@@ -319,9 +325,7 @@ def rebase_page_links(source: str, addresses: dict[str, str]) -> str:
                 f'href="{escape(target, quote=True)}"',
             )
         )
-    for start, end, replacement in sorted(edits, reverse=True):
-        source = source[:start] + replacement + source[end:]
-    return source
+    return splice(source, edits)
 
 
 @contextmanager
@@ -333,49 +337,38 @@ def restored_page(saved: dict):
     """
     original = Path(saved["page"])
     manifest = original.with_name(f"{original.name}-pages.json")
-    archived = (
+    archived: list[dict] = (
         json.loads(manifest.read_text())
         if manifest.exists()
         else [{"page": original.name, "url": None}]
     )
-    with (
-        tempfile.TemporaryDirectory(prefix="leaf-judge-") as temporary,
-        ExitStack() as stack,
-    ):
-        work = Path(temporary)
-        copies = {}
-        addresses = {}
-        for entry in archived:
-            assert isinstance(entry["page"], str)
-            source = original.parent / entry["page"]
-            copied = work / entry["page"]
-            shutil.copytree(source, copied)
-            url = stack.enter_context(
-                plain_html.serving(copied)
-                if saved["condition"] == "html"
-                else serving(Path(saved["payload"]), work / "state", copied)
-            )
-            copies[source] = (copied, url)
-            if entry["url"]:
-                addresses[entry["url"]] = url
-        for copied, _ in copies.values():
-            document = copied / "index.html"
+    leaf = is_leaf(saved["condition"])
+    with live_copies(
+        [original.parent / entry["page"] for entry in archived],
+        Path(saved["payload"]),
+        plain=not leaf,
+    ) as copies:
+        addresses = {
+            entry["url"]: copy.address
+            for entry, copy in zip(archived, copies, strict=True)
+            if entry["url"]
+        }
+        for copy in copies:
+            document = copy.directory / "index.html"
             source = document.read_text()
             restored = rebase_page_links(source, addresses)
             if restored != source:
                 document.write_text(restored)
-                if saved["condition"] == "leaf":
-                    state = read_page_state(
-                        Path(saved["payload"]), work / "state", copied
-                    )
+                if leaf:
+                    state = read_page_state(copy.arm, copy.state, copy.directory)
                     if not state["source"]["live"]:
                         raise RuntimeError(state["source"]["error"])
-        yield copies[original][1], addresses
+        [served] = [copy for copy in copies if copy.directory.name == original.name]
+        yield served.address, addresses
 
 
 def latest_seq(page: Path) -> int:
-    events = read_events(page) if (page / "events.jsonl").exists() else []
-    return max((e["seq"] for e in events), default=0)
+    return max((e["seq"] for e in read_events(page)), default=0)
 
 
 def open_as_user(run: Run, url: str) -> None:
@@ -581,24 +574,19 @@ def capture_phase(run: Run, phase: int, page: Path | None = None) -> dict:
     page = page or run.page(phase)
     if page is None:
         return result
-    html = run.condition == "html"
+    html = not run.leaf_condition
     try:
         run.shots.mkdir(parents=True, exist_ok=True)
         with headless_shell() as browser:
             for name, window in run.windows.items():
-                with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
-                    copied = Path(temporary) / "page"
-                    shutil.copytree(page, copied)
-                    server = (
-                        plain_html.serving(copied)
-                        if html
-                        else serving(run.payload, Path(temporary) / "state", copied)
-                    )
-                    with server as url, tab(browser, window) as view:
-                        (plain_html.load if html else load)(view, url)
-                        image = run.shots / f"p{phase}-{name}-0.png"
-                        view.screenshot(path=image)
-                        captures[name] = [str(image)]
+                with (
+                    live_copies([page], run.payload, plain=html) as [served],
+                    tab(browser, window) as view,
+                ):
+                    (plain_html.load if html else load)(view, served.address)
+                    image = run.shots / f"p{phase}-{name}-0.png"
+                    image.write_bytes(screenshot(view))
+                    captures[name] = [str(image)]
     except Exception as error:
         result["capture_errors"] = {
             name: f"{type(error).__name__}: {error}"
@@ -703,7 +691,7 @@ def judge_pages(
                     label: pane_readings.read(address, widths)
                     for label, address in addresses.items()
                 }
-                if all(page["condition"] == "leaf" for page in pages.values())
+                if all(is_leaf(page["condition"]) for page in pages.values())
                 else {}
             )
             (evidence / "panes.json").write_text(json.dumps(panes, indent=2))
@@ -719,7 +707,7 @@ def judge_pages(
             instructions = f"""Judge the live pages below against the task and criterion.
 Use this browser CLI: {shlex.join(command)}
 Open your own headless Chromium with -s=<session> open <URL> --config {browser_config}.
-Use --mobile for {mobile} and resize W H for each required viewport. Choose your own
+Use --mobile for {mobile}, and tap rather than click there. Resize W H for each required viewport. Choose your own
 tabs, navigation, actions and screenshots. Use one browser session
 at a time and close it before opening another. Evaluate the page without editing
 its source; do not consult expected verdicts or control answers.

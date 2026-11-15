@@ -23,6 +23,7 @@
    commands and boot's travel, delivery, and repaint capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, offerAction, responseAction } from "../widget-elements.js";
+import { COMMENT_HINT } from "../words.js";
 import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
@@ -98,7 +99,8 @@ fabBar.setAttribute("part", "composer");
 export const fabInput = textField();
 fabInput.className = "lf-ui lf-response-control lf-fab-input";
 fabInput.name = "comment";
-fabInput.placeholder = "Comment…";
+fabInput.placeholder = COMMENT_HINT;
+fabInput.setAttribute("data-lf-voice", "leaf");
 fabInput.setAttribute("aria-label", "Comment");
 const fab = responseAction(offerAction("response", "lf-fab"), {
   action: "comment",
@@ -106,7 +108,10 @@ const fab = responseAction(offerAction("response", "lf-fab"), {
   behavior: "disclosure",
 });
 fab.id = "lf-comment-button";
-fab.title = "Comment";
+// The field's face while the box rests (composing/surface.js, `restFab`). `c` is its
+// keyboard route, and the box goes with the focus Tab would take to it, so Tab skips it.
+export const fabRest = offerAction("response", "lf-fab-rest");
+fabRest.tabIndex = -1;
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.popover = "auto";
@@ -125,10 +130,12 @@ export const fabOptionsTrigger = offerAction(
   "Other responses",
   { action: "more" },
 );
+fabOptionsTrigger.setAttribute("data-lf-disc", "");
 fabOptionsTrigger.setAttribute("aria-controls", fabOptions.id);
+// The layer stack keeps it as the options open and close (keyboard/layer-stack.js).
 fabOptionsTrigger.setAttribute("aria-expanded", "false");
 fabOptionsTrigger.popoverTargetElement = fabOptions;
-fabBar.append(fab, fabOptions);
+fabBar.append(fab, fabRest, fabOptions);
 
 const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -137,7 +144,7 @@ composer.id = "lf-composer";
 // around it: this is the only injected chrome carrying an id, and "which section is this
 // in" is asked as `[id]:not(.lf-ui)` of the element rather than of its ancestors, so
 // without the class it answers that question with itself.
-export const composerQuote = el("blockquote", "lf-ui lf-quote");
+export const composerQuote = el("blockquote", "lf-ui");
 composerQuote.id = "lf-composer-quote";
 composerQuote.hidden = true;
 // The page-anchored composer is the extended Comment control itself. The hidden
@@ -178,6 +185,7 @@ fabBar.prepend(composer);
  * @property {(handoff: import("./surface.js").FabFocusHandoff, anchor: Anchor | null, stands: () => boolean) => unknown} landFabFocus
  * @property {(anchor: Anchor | null, options?: {point?: Element | null | undefined, reveal?: boolean}) => unknown} showFab
  * @property {() => unknown} letGoOfFab
+ * @property {() => () => unknown} takeDownFab
  * @property {(command: import("../thread/actions.js").CreateComment) => NonNullable<ReturnType<ReturnType<typeof import("../thread/actions.js").createThreadActions>["create"]>>["delivery"] | null} createComment
  * @property {(destination: Element) => unknown} landSent
  * @property {() => Promise<unknown>} refreshThread
@@ -225,6 +233,7 @@ export function createSelectionComposer({
   landFabFocus,
   showFab,
   letGoOfFab,
+  takeDownFab,
   createComment,
   landSent,
   refreshThread,
@@ -353,7 +362,6 @@ export function createSelectionComposer({
       collapse: true,
     });
     keeps(fabSuggest, "aria-label", suggest ? "Suggest" : "Comment");
-    keeps(fabSuggest, "title", suggest ? "Suggest" : "Comment");
     syncComposer();
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do
@@ -436,7 +444,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabOptionsTrigger, "aria-expanded", String(next));
     if (next) showNativeLayer(fabOptions, { source: fabOptionsTrigger });
     else closeNativeLayer(fabOptions);
     if (next && focus) focusResponseOption(focus);
@@ -699,10 +706,21 @@ export function createSelectionComposer({
     detachComposer();
     showFab(null);
   }
+  // This tab's send, while it settles the composer it sends from (`send` below).
+  /** @type {{letGo: (() => unknown) | null} | null} */
+  let sending = null;
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {
     leaveComposer(false);
+    // A send lands the user itself, on the conversation it opens, so the bar it takes
+    // down lets go of no one first. Letting go reads the page's reading place, which
+    // the first read after a change measures across the whole page (reading-place.js,
+    // `runsIn`), only for the send to move the user on.
+    if (sending) {
+      sending.letGo = takeDownFab();
+      return;
+    }
     // Settlement may arrive after Escape has already started another keyboard gesture.
     // Move focus only when it still belongs to the field this settlement hid; showFab's
     // page return makes that distinction from a later focus elsewhere.
@@ -750,7 +768,7 @@ export function createSelectionComposer({
           ? "Replacement text"
           : pendingAbout
             ? "About the layer"
-            : "Comment…",
+            : COMMENT_HINT,
       sends: () => (suggestionMode ? "suggest" : "comment"),
       allowsMedia: () =>
         suggestionMode ? "Images can be added to comments, not replacement text" : true,
@@ -778,29 +796,42 @@ export function createSelectionComposer({
         const currentIntent = retainUserIntent();
         const untouched = retainUserIntent({ source: document.documentElement });
         let flight = null;
-        const sent = sendMessage(
-          ctx,
-          () => composerCtx(pendingAnchor) === ctx && owns(),
-          (attempt) => {
-            // Kept under the attempt, which names the thread before and after the log
-            // answers (`threadKey`), with the words that find the row again.
-            if (point) commitPoint(attempt, point, wordsOf(point));
-            const content = drawing
-              ? raw
-                ? { text: raw, drawing }
-                : { drawing }
-              : { text: raw };
-            return (flight = createComment({
-              ...content,
-              revision,
-              attempt,
-              ...(anchor && { anchor }),
-              ...(suggestion && { suggestion: true }),
-              ...(about && { about }),
-            }));
-          },
-        );
-        if (!sent) return;
+        // A send that lands the user nowhere, its conversation unshown or a later
+        // gesture taking over, lets them go from the bar it took down as the
+        // settlement would have (`takeDownFab`).
+        /** @type {{letGo: (() => unknown) | null}} */
+        const settling = { letGo: null };
+        sending = settling;
+        const landElsewhere = () => settling.letGo?.();
+        /** @type {ReturnType<typeof sendMessage>} */
+        let sent;
+        try {
+          sent = sendMessage(
+            ctx,
+            () => composerCtx(pendingAnchor) === ctx && owns(),
+            (attempt) => {
+              // Kept under the attempt, which names the thread before and after the log
+              // answers (`threadKey`), with the words that find the row again.
+              if (point) commitPoint(attempt, point, wordsOf(point));
+              const content = drawing
+                ? raw
+                  ? { text: raw, drawing }
+                  : { drawing }
+                : { text: raw };
+              return (flight = createComment({
+                ...content,
+                revision,
+                attempt,
+                ...(anchor && { anchor }),
+                ...(suggestion && { suggestion: true }),
+                ...(about && { about }),
+              }));
+            },
+          );
+        } finally {
+          sending = null;
+        }
+        if (!sent) return landElsewhere();
         // A refusal withdraws the thread the send drew and hands the words back to this
         // passage's draft. While the user has done nothing since Send, the box comes back
         // with them, as the page comment card's does. Withdrawing the thread the send
@@ -842,6 +873,7 @@ export function createSelectionComposer({
           const thread = destination && closestAcross(destination, THREAD);
           if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
+        landElsewhere();
       },
     });
     syncComposer.composition().field.append(fabOptionsTrigger);

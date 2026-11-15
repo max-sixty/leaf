@@ -16,25 +16,25 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
-  color: var(--ink);
-  font: 600 13px/1.5 var(--sans);
+  color: var(--lf-ink);
+  font: 600 13px/1.5 var(--lf-sans);
 }
 .study-pair figcaption span {
-  color: var(--muted);
+  color: var(--lf-muted);
   font-weight: 400;
 }
 .study-pair svg {
   display: block;
   width: min(560px, 100%);
   height: 110px;
-  fill: var(--ink);
-  font: 13px var(--sans);
+  fill: var(--lf-ink);
+  font: 13px var(--lf-sans);
 }
 .study-pair svg .quiet {
-  fill: var(--muted);
+  fill: var(--lf-muted);
   font-size: 12px;
 }
 .study-pair figure:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--lf-accent);
   outline-offset: 3px;
 }

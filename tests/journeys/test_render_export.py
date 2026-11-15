@@ -23,7 +23,6 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
 from leaf_dev.example_data import named_source
 
@@ -41,7 +40,7 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     output = tmp_path / "offline.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(output)],
+        ["page", "export", str(serve.page_dir), "--out", str(output), "--runtime"],
     )
     assert result.exit_code == 0, result.output
     exported = output.read_text(encoding="utf-8")
@@ -123,7 +122,7 @@ OFFLINE_REGISTRY = {
         "description": "A page-owned offline export test widget.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "choice": {"type": "string"},
             "restated": {"type": "boolean"},
         },
@@ -181,7 +180,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         ),
     )
     exported = tmp_path / "recordings.html"
-    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exporting_model.cmd_export(serve.page_dir, exported, None, runtime=True)
     exported_source = exported.read_text()
     for filename in ("2930ad3df7819c50.mp4", "b5eb956d4548b3b0.mp3"):
         encoded = base64.b64encode(
@@ -301,6 +300,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
             str(serve.page_dir),
             "--out",
             str(interactive_path),
+            "--runtime",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )

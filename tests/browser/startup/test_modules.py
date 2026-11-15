@@ -14,9 +14,9 @@ from render_cases_widgets import MANIFEST_DIFF_PAGE, MULTI_HUNK_PATCH, TYPED_PAR
 from render_harness import (
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     RELEASE_FOCUS,
     consume_browser_errors,
+    delivered,
     holding,
     open_page,
     open_threads,
@@ -37,6 +37,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import wait_until_ready
 from leaf.runtime_selection import serving_runtime
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -118,9 +119,11 @@ Two classic models.</pre></lf-code>
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
     rows.filter(has_text="Still anchored?").click()
-    quote = page.locator(f"{PANEL_THREAD} .lf-fp-quote")
+    quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
-    expect(quote).not_to_have_attribute("data-lf-detached", "")
+    expect(page.locator(f"{PANEL_THREAD} .lf-thread-quote-head")).not_to_have_attribute(
+        "data-lf-detached", ""
+    )
 
 
 def _asked(context):
@@ -136,9 +139,7 @@ def _asked(context):
 
     def record(request):
         path = urlparse(request.url).path
-        paths.append(
-            re.sub(r"^/revisions/r\d+-[0-9a-f]+/[0-9a-f]+|^/[0-9a-f]+", "", path)
-        )
+        paths.append(re.sub(r"^/revisions/[0-9a-f]+|^/[0-9a-f]+", "", path))
 
     context.on("request", record)
     return paths
@@ -577,7 +578,8 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_state = old_route.fetch().json()
 
     write(page_comment(page), "Newest **snapshot**")
-    with sending(page, "the newer comment"):
+    # Its answer waits on the held import too, so the trip ends at the answer.
+    with sending(page, "the newer comment", until=delivered):
         page.keyboard.press("ControlOrMeta+Enter")
 
     old_route.fulfill(json=old_state)
@@ -615,6 +617,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     context.route("**/leaf-boot.js", boot_after_one_frame)
     page = open_page(browser, url, context=context)
     assert page.evaluate("window.apiImportedBeforeBoot") is True
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     round_trip(page)
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

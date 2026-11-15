@@ -53,7 +53,7 @@ vars:
     | A page dresses its own `button` | Leaf's controls keep their face unless the selector names them | holds |
     | A page restyles a widget's shadow tree | only inherited tokens and exported `::part`s cross | holds |
     | A package styles its own widget | works with `:scope` | holds |
-    | A package adjusts a Layout | only through the tokens the Layout reads (`--col`, `--page-pad-*`); any rule loses, whatever its specificity | gap |
+    | A package adjusts a Layout | only through the tokens the Layout reads (`--lf-col`, `--page-pad-*`); any rule loses, whatever its specificity | gap |
     | A theme package restyles another package's widget | tokens work; an equally specific rule loses to the widget's scoped rule whatever the order | gap |
 
     | Rule | Where | Computed |

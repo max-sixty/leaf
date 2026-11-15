@@ -170,7 +170,7 @@ test("Compared runs share one axis and one playhead, each headed by its name", (
       .eventElement(id)
       .querySelector(".lf-timeline-mark")
       .getAttribute("style")
-      .match(/--lf-timeline-at: ([\d.]+)/)[1];
+      .match(/--lf-axis-at: ([\d.]+)/)[1];
   assert.deepEqual(
     ["before-write", "after-write", "before-done", "after-done"].map(at),
     ["0.5", "0.5", "0.625", "1"],

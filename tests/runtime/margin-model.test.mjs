@@ -10,7 +10,7 @@ import {
 import {
   canFold,
   clusterProjection,
-  marginInventory,
+  marginEntry,
   readingChoices,
   readingContext,
   secondaryCount,
@@ -43,7 +43,7 @@ const group = (options = {}) => ({
   workflowReceipt: null,
   ...options,
 });
-const inventory = (options) => marginInventory([group(options)])[0];
+const inventory = (options) => marginEntry(group(options));
 const marker = (id, kind, options = {}) => ({
   id,
   kind,
@@ -385,19 +385,18 @@ test("declared representation and a workflow carrier suppress only duplicate rea
 });
 
 test("Page Map uses opaque coordinates without delimiter collisions", () => {
-  const entries = marginInventory([
+  const entries = [
     group({ key: "a:b", offers: [offer("c", [control("d")])] }),
     group({
       key: "a",
       offers: [offer("b:c", [control("d")]), offer("b", [control("c:d")])],
     }),
-  ]);
+  ].map(marginEntry);
   const groups = map(entries);
   const actions = groups.flatMap((group) => group.actions);
   assert.equal(new Set(actions.map((action) => action.key)).size, 3);
   assert.equal(new Set(actions.map((action) => action.id)).size, 3);
   assert.equal(groups[0].search, "decision d author's context");
-  assert.ok(Object.isFrozen(entries));
   assert.ok(Object.isFrozen(groups[0].actions));
   assert.ok(Object.isFrozen(actions[0]));
 });

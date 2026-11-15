@@ -29,7 +29,6 @@ from interact_support import (
     found,
     fragment_errors,
     fresh_process,
-    live_versions,
     owed,
     page_state,
     publish,
@@ -69,12 +68,6 @@ def authored_tags(document: SourceDocument) -> set[str]:
     return {element["tag"] for element in document.lf_elements}.union(
         *(authored_tags(sample["document"]) for sample in document.samples)
     )
-
-
-def run_leaf(*args, input_text=None):
-    """One `leaf` command in-process, for `prepare_page`."""
-    result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-    assert result.exit_code == 0, f"leaf {' '.join(args)}: {result.output}"
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -336,7 +329,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
         assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget, or only widgets that ask nothing, would show a
-    # question the On me list never counts; a question answered in words is a
+    # question the On Me list never counts; a question answered in words is a
     # message's obligation instead. A retired source still counts: settling a
     # decision keeps its context.
     for empty in (
@@ -584,7 +577,7 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control name="{name}" label="Setting" {attributes}>'
+            f'<lf-playground-control id="{name}" name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -603,8 +596,6 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     assert not errors('kind="text" value="yes"')
     # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
     assert not errors('kind="toggle" value="false"', name="5xx-pages")
-    # A control is a Leaf element a user points at, so it takes a stable id.
-    assert not errors('kind="toggle" value="false" id="setting-control"')
     # `class` and `style` are the page's styling hooks on a widget as on any element.
     assert not errors('kind="toggle" value="false" class="route"')
     assert not errors('kind="toggle" value="false" style="grid-column: 2"')
@@ -635,9 +626,11 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
 def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
     """A preset's setting and an instruction's value slot name a control of their
     own playground by `name` (a keyed x-refers), and names, choice values and a
-    preset's settings are unique within their owner (x-unique). Both doors refuse a
-    break before any browser draws it: message markup, where a reply's playground
-    otherwise reaches the user with only a static check, and the page's own source."""
+    preset's settings are unique within their owner (x-unique). Each control, choice
+    and preset also carries the id a comment on it records, since without one the
+    comment lands on the whole playground. Both doors refuse a break before any browser
+    draws it: message markup, where a reply's playground otherwise reaches the user with
+    only a static check, and the page's own source."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(ident, controls, presets="", output=""):
@@ -649,19 +642,19 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         )
 
     tone = (
-        '<lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>'
         "</lf-playground-control>"
     )
     size = (
-        '<lf-playground-control name="size" label="Size" kind="range" value="2" '
+        '<lf-playground-control id="size" name="size" label="Size" kind="range" value="2" '
         'max="4"></lf-playground-control>'
     )
 
     def preset(*names):
         return (
-            '<lf-playground-preset label="Loud">'
+            '<lf-playground-preset id="preset-loud" label="Loud">'
             + "".join(
                 f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
                 for name in names
@@ -735,6 +728,18 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         key="for",
         value="tone",
     )
+    for unnamed, tag in (
+        (playground("a", tone.replace(' id="tone"', "")), "<lf-playground-control>"),
+        (
+            playground("a", tone.replace(' id="tone-bold"', "")),
+            "<lf-playground-choice>",
+        ),
+        (
+            playground("a", tone, preset("tone").replace(' id="preset-loud"', "")),
+            "<lf-playground-preset>",
+        ),
+    ):
+        assert found(reply(unnamed), "attribute-schema", tag, keyword="required")
 
     main = (
         '<lf-ask id="ask"><h2>Which?</h2>'
@@ -758,9 +763,9 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     instruction it would be read into, is refused, naming where it may stand."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     tone = (
-        '<lf-playground-control name="{name}" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="{name}" name="{name}" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice id="{name}-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice id="{name}-bold" value="bold" label="Bold"></lf-playground-choice>'
         "</lf-playground-control>"
     )
 
@@ -768,7 +773,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         return fragment_errors(
             f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
             f'<lf-playground id="placed-playground">{rail}'
-            '<lf-playground-preset label="Bold">'
+            '<lf-playground-preset id="preset-bold" label="Bold">'
             '<lf-playground-setting for="item-tone" value="bold">'
             "</lf-playground-setting></lf-playground-preset>"
             '<lf-playground-preview><div class="item"><p>Item</p>'
@@ -804,7 +809,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     # the control's own: its nearest playground is the inner one.
     inner = (
         '<lf-playground id="inner-playground">'
-        '<lf-playground-control name="inner-tone" label="Tone" kind="toggle" '
+        '<lf-playground-control id="inner-tone" name="inner-tone" label="Tone" kind="toggle" '
         'value="false"></lf-playground-control>'
         "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
         "<lf-playground-output>Use it."
@@ -847,34 +852,6 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         + inner.replace(tone.format(name="lost-tone"), "")
         + "</lf-sample>",
     )
-
-
-def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
-    """A thread inserts a message's markup through `template.innerHTML`, which runs no
-    script in it, so the browser run that draws the message's widgets before it posts
-    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            (
-                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
-                '<script type="module">throw new Error("inert-message-script")</script>'
-            ),
-        ],
-    )
-    assert posted.exit_code == 0, posted.output
-    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
@@ -1061,7 +1038,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert json.loads(empty.stderr)["error"] == (
+    assert json.loads(empty.stdout)["error"] == (
         "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
         " any stdin)"
     )
@@ -1163,16 +1140,16 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
         + ["--file", str(reply)],
     )
     assert both.exit_code == 2
-    assert "not both" in json.loads(both.stderr)["error"]
+    assert "not both" in json.loads(both.stdout)["error"]
     renamed = runner.invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
         input="Not the text.",
     )
     assert renamed.exit_code == 0, renamed.output
-    assert [
-        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
-    ] == ["thread_title"]
+    assert [record["kind"] for record in json.loads(renamed.stdout)["records"]] == [
+        "thread_title"
+    ]
 
     planned = runner.invoke(
         cli_model.cli,
@@ -1180,40 +1157,6 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
         + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
     )
     assert planned.exit_code == 0, planned.output
-
-
-def test_the_wire_ships_a_message_as_logged(page_dir):
-    """The wire adds nothing to the log: text is Markdown the page's vendored runtime
-    renders (test_render holds that side), markup is the fragment the CLI gate
-    validated, and the only vocabulary a page's frozen layer has to keep speaking is
-    the log's own, which $events stamps."""
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "text": "two things:\n\n- one\n- **two**",
-        },
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "Fixed in `poll()`.",
-            "--markup",
-            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
-    assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
-    assert "html" not in wire["comment"] and "html" not in wire["reply"]
-    assert wire["reply"]["markup"].startswith("<lf-diagram")
 
 
 def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
@@ -1446,7 +1389,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             ],
         )
         assert result.exit_code == 0, result.output
-        revisions.append(json.loads(result.output))
+        [revision] = json.loads(result.output)["records"]
+        revisions.append(revision)
 
     history_result = CliRunner().invoke(
         cli_model.cli, ["page", "events", str(page_dir)]
@@ -1469,7 +1413,16 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     state = json.loads(state_result.output)
     assert all(
         set(thread)
-        == {"id", "title", "anchor", "detached_from", "resolved", "unread", "attention"}
+        == {
+            "id",
+            "title",
+            "anchor",
+            "detached_from",
+            "resolved",
+            "unread",
+            "attention",
+            "holder",
+        }
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}
@@ -1495,7 +1448,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
     assert foreign.exit_code == 0, foreign.output
-    replacement = json.loads(foreign.output)
+    [replacement] = json.loads(foreign.output)["records"]
     assert replacement["session"] == "worker-2"
     assert replacement["message"] == root["id"]
     before = events_model.read_events(page_dir)
@@ -1529,7 +1482,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     )
     assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert json.loads(unidentified.output)["message"] == sessionless["id"]
+    [unidentified_edit] = json.loads(unidentified.output)["records"]
+    assert unidentified_edit["message"] == sessionless["id"]
 
 
 def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
@@ -1692,6 +1646,35 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
+def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
+    """A rewrite replaced the words its message had when the user made it, and
+    taking back an earlier rewrite later changes nothing it replaced."""
+    from leaf import delivery as delivery_model
+
+    publish(page_dir)
+    asked = append_command(
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "A."}
+    )
+
+    def rewrite(text):
+        return append_command(
+            page_dir,
+            {"kind": "edit", "author": "user", "message": asked["id"], "text": text},
+        )
+
+    second = rewrite("B.")
+    third = rewrite("C.")
+    append_command(page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]})
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == third["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("C.", "B.")
+
+
 def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):
     """The newest exchange stays verbatim when the user rewrites its words.
 
@@ -1753,8 +1736,8 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     revision it was written over, and the door refuses it once that revision is not the
     message's latest, telling the user to edit again. Words the message already says are
     no rewrite. Undoing a rewrite gives the message back the words it replaced, and the
-    rewrite before it is the one the next lands on. Once the agent has answered a
-    rewrite, its answer stands on those words, and the door refuses to take it back."""
+    rewrite before it is the one the next lands on. A rewrite the agent has answered
+    is taken back too, and the agent is told, since it may have acted on its words."""
     publish(page_dir)
     said = append_command(
         page_dir,
@@ -1799,23 +1782,37 @@ def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
     }
     with pytest.raises(events_model.EventRefused):
         rewrite("East.", west["id"])
-    east = rewrite("East.", south["id"])
-    append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": said["id"],
-            "responds": east["id"],
-            "text": "Heading east.",
-        },
-    )
-    with pytest.raises(events_model.EventRefused) as answered:
+
+    def answer(turn, text):
         append_command(
-            page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "parent": said["id"],
+                "responds": turn["id"],
+                "text": text,
+            },
         )
-    assert [finding.code for finding in answered.value.findings] == ["answered-edit"]
+
+    # Answered either way, the undo leaves nothing owed, and still reaches the agent.
+    answer(south, "Heading south.")
+    east = rewrite("East.", south["id"])
+    answer(east, "Heading east.")
+    took_back = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": east["id"]}
+    )
+    assert took_back["attention"] is True
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == [
+        "South.",
+        "Heading south.",
+        "Heading east.",
+    ]
+    assert event_folds_model.unanswered_turns(thread) == []
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
@@ -1916,17 +1913,6 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_note_refuses_a_version_that_fails_check(page_dir):
-    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "broken"],
-    )
-    assert result.exit_code != 0
-    assert "refusing to stamp" in result.output
-    assert live_versions(page_dir) == []
-
-
 def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     examples = ROOT / "examples"
     packages = json.loads((examples / "layer.json").read_text(encoding="utf-8"))
@@ -2000,6 +1986,196 @@ def test_page_state_reads_reactions_as_marks(page_dir):
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
 
+def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
+    """A reaction is the user's to take back however far the agent has got with it,
+    as a rewrite is, where the door used to refuse it once anything answered it. The
+    withdrawal leaves what answered it its context: the thread stays, the reaction's
+    place reads Deleted with what it said, the mark paints nothing, and nothing is
+    owed to it. A reaction on a message keeps its place the same way, and one nothing
+    stands on still leaves every reading."""
+    published(page_dir)
+    mark = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+        },
+    )
+
+    def reply(target, text):
+        posted = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), target, "--text", text],
+        )
+        assert posted.exit_code == 0, posted.output
+        return json.loads(posted.output)
+
+    answer = reply(mark["id"], "Which part is long?")
+    nod = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer["id"],
+            "token": "keep",
+        },
+    )
+    kept = reply(nod["id"], "Keeping that part.")
+    loose = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": kept["id"],
+            "token": "keep",
+        },
+    )
+    # The agent closes the thread by the reaction it acted on, as its instructions say.
+    resolved = CliRunner().invoke(
+        cli_model.cli, ["thread", "resolve", str(page_dir), loose["id"]]
+    )
+    assert resolved.exit_code == 0, resolved.output
+    undos = [
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": gesture["id"]}
+        )
+        for gesture in (loose, nod, mark)
+    ]
+    # Each withdrawal reaches the agent as its reaction did: one that answers no
+    # question wakes nobody, and `page state` stops listing it.
+    assert [undo["attention"] for undo in undos] == [False, False, False]
+
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        mark["id"]
+    ]
+    assert [message["id"] for message in thread["msgs"]] == [
+        mark["id"],
+        answer["id"],
+        nod["id"],
+        kept["id"],
+    ]
+    for gesture, undo, said in ((mark, undos[2], "shorten"), (nod, undos[1], "keep")):
+        placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
+        assert "token" not in placed and placed["text"] == ""
+        assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
+    assert not event_folds_model.bare_reaction(thread)
+    assert event_folds_model.unanswered_turns(thread) == []
+    # Taking back the reaction the resolve named leaves the thread closed.
+    assert thread["resolved"]["kind"] == "resolve"
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [mark["id"]]
+    assert state["reactions"] == []
+
+
+def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
+    """A message with words is the user's to take back as a reaction is, where the
+    door used to refuse it as said rather than unsaid. One the agent answered keeps
+    its place, Deleted, with the words it was sent with; one nothing answered leaves
+    every reading, and nothing is owed to it; a comment nothing answered takes its
+    thread with it. The agent hears of each withdrawal as it heard of the message, and
+    a rewrite of a message taken back is refused."""
+    published(page_dir)
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Too long?"},
+    )
+    answer = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            response_reference(page_dir, asked),
+            "--obligation",
+            "--text",
+            "Which part?",
+        ],
+    )
+    assert answer.exit_code == 0, answer.output
+    answer = json.loads(answer.output)
+    said = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": answer["id"],
+            "text": "The rollout section.",
+        },
+    )
+    kept = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            response_reference(page_dir, said),
+            "--done",
+            "--text",
+            "Cutting it.",
+        ],
+    )
+    assert kept.exit_code == 0, kept.output
+    kept = json.loads(kept.output)
+    loose = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": kept["id"],
+            "text": "And the appendix.",
+        },
+    )
+    lone = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Typo here."},
+    )
+    undos = [
+        append_command(
+            page_dir, {"kind": "undo", "author": "user", "undoes": gesture["id"]}
+        )
+        for gesture in (lone, loose, said)
+    ]
+    assert [undo["attention"] for undo in undos] == [True, True, True]
+
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert list(threads) == [asked["id"]]
+    thread = threads[asked["id"]]
+    assert [message["id"] for message in thread["msgs"]] == [
+        asked["id"],
+        answer["id"],
+        said["id"],
+        kept["id"],
+    ]
+    placed = thread["msgs"][2]
+    assert placed["text"] == ""
+    assert placed["withdrawn"] == {
+        "id": undos[2]["id"],
+        "ts": undos[2]["ts"],
+        "was": "The rollout section.",
+    }
+    assert event_folds_model.unanswered_turns(thread) == []
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [asked["id"]]
+    assert owed(state) == []
+
+    with pytest.raises(Rejected) as refused:
+        append_command(
+            page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": said["id"],
+                "text": "The rollout.",
+            },
+        )
+    assert refused.value.findings[0].code == "withdrawn-message"
+
+
 def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
     page_dir,
 ):
@@ -2063,7 +2239,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         ],
     )
     assert renamed.exit_code == 0, renamed.output
-    title = json.loads(renamed.output)
+    [title] = json.loads(renamed.output)["records"]
     assert (title["kind"], title["thread"], title["title"]) == (
         "thread_title",
         root["id"],

@@ -1,23 +1,33 @@
 """Joint browser proof for immutable page inputs and fresh revision activation."""
 
+import json
+
 import pytest
 from browser.test_render_application_boundary import (
     PAGE_MODULE,
     activation_page,
-    package_workspace,
+    arrived,
+    long_thread,
 )
-from interact_support import append_carried_log_record
+from browser.threads import open_panel_thread
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
     live_url,
+    package_workspace,
 )
+from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
+    before_landing_frame,
+    expect_open_threads,
     holding,
     open_page,
     page_comment,
     panel_control,
+    reported_browser_errors,
+    resized,
     scroll_settled,
     sending,
     stamp_page,
@@ -27,6 +37,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 
@@ -74,7 +85,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         told(page)
 
         assert page.evaluate("performance.timeOrigin") == first_document
-        expect(page).to_have_title("Live first")
+        expect(page).to_have_title("(1) Live first")
         expect(focused_control).to_be_focused()
         assert len(held) == 1
 
@@ -119,7 +130,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     [
         (True, True, 200, False, False),
         (True, False, 200, False, False),
-        # Back interrupts the native trip before its first compositor frame.
+        # Back interrupts the trip before its first frame.
         (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True, False),
@@ -147,7 +158,11 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
             },
         )
     page = open_page(browser, url)
-    page.set_viewport_size({"width": 1440, "height": 320})
+    # The short window moves the workspace's reading regions, and the page puts back
+    # the place it recorded before them on the frame after; scrolling to the source
+    # before that has the page undo it (version.js, `restoreShifted`).
+    resized(page, 1440, 320)
+    rendered(page)
     heading = page.locator("h1")
     heading.evaluate(
         """(node, top) => {
@@ -166,18 +181,13 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         # contextual card travels into the viewport and changes placement plane.
         slow_cpu(page, 6)
     if back_before_frame:
-        page.evaluate("""() => {
-          const scrollTo = Element.prototype.scrollTo;
-          Element.prototype.scrollTo = function(options) {
-            const result = scrollTo.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollTo = scrollTo;
+        before_landing_frame(
+            page,
+            """() => {
               window.backRequestedAt = scrollY;
               queueMicrotask(() => history.back());
-            }
-            return result;
-          };
-        }""")
+            }""",
+        )
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -271,11 +281,10 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both questions; the separate proofread task remains due.
-    # Counts include them, while the compact answer summary names only widget
-    # choices instead of repeating words.
+    # One reply answers both questions. Counts include them, while the compact
+    # answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "1 waiting on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -290,4 +299,154 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     assert any(
         event.get("text") == "New package conversation" and event["kind"] == "comment"
         for event in events_model.read_events(serve.page_dir)
+    )
+
+
+def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
+    """The thread parent absorbs descendants without joining unrelated page work."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const presentation = await window.__lfCheckApi();
+          const held = () => {
+            let release, reject;
+            const promise = new Promise((resolve, fail) => {
+              release = resolve;
+              reject = fail;
+            });
+            return {promise, release, reject};
+          };
+          window.pagePreparation = held();
+          window.threadPreparation = held();
+          window.__heldLocalPresentations = new Map([
+            ['thread-local', threadPreparation.promise],
+          ]);
+          document.querySelector('#page-local').controller.present(
+            pagePreparation.promise
+          );
+          window.whenLeafPresented = presentation.whenApplicationPresented;
+          window.whenLeafRegionsPresented =
+            presentation.whenApplicationRegionsPresented;
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+        }"""
+    )
+
+    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
+    # The panel's thread view is the reader that draws the reply's widget.
+    open_panel_thread(page, arrived(page, "frozen-widget-question"))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "frozen-widget-question",
+            "text": "This widget prepares inside the thread.",
+            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-local",
+            "action": "choose",
+            "detail": {"value": "chosen"},
+        },
+    )
+    page.wait_for_function(
+        """() => {
+          const pending = readLeafPresentation().pending;
+          return document.querySelector('.lf-floating-panel #thread-local') &&
+            pending.includes('thread') &&
+            pending.includes('widget:thread-local:preparation') &&
+            pending.includes('widget:page-local:preparation');
+        }""",
+    )
+    page.evaluate(
+        "threadReady = false; allReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
+        "whenLeafPresented().then(() => { allReady = true; }); true"
+    )
+    assert page.evaluate("threadReady") is False
+    page.evaluate("threadPreparation.release('thread')")
+    page.wait_for_function("threadReady")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
+    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
+        "data-rendered-choice", "chosen"
+    )
+    assert page.evaluate("allReady") is False
+    assert "widget:page-local:preparation" in page.evaluate(
+        "readLeafPresentation().pending"
+    )
+    page.evaluate("pagePreparation.release('page')")
+    page.wait_for_function("allReady")
+
+    # A descendant owns its own fail-soft result. Its failure reports once and settles,
+    # while the parent list, count, and narrowing keep the same candidate reading.
+    page.evaluate(
+        """() => {
+          window.failedThreadPreparation = (() => {
+            let reject;
+            const promise = new Promise((_resolve, fail) => { reject = fail; });
+            return {promise, reject};
+          })();
+          window.__heldLocalPresentations.set(
+            'thread-failing', failedThreadPreparation.promise
+          );
+        }"""
+    )
+    long_thread(
+        serve.page_dir, "failing-widget-question", "Show another frozen widget."
+    )
+    open_panel_thread(page, arrived(page, "failing-widget-question"))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "failing-widget-question",
+            "text": "This widget fails its preparation.",
+            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function(
+        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
+          readLeafPresentation().pending.includes('thread') &&
+          readLeafPresentation().pending.includes(
+            'widget:thread-failing:preparation'
+          )""",
+    )
+    expect_open_threads(page, 2)
+    page.evaluate(
+        "threadReady = false; "
+        "whenLeafRegionsPresented(['thread'], () => true)"
+        ".then(() => { threadReady = true; }); "
+        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
+    )
+    page.wait_for_function("threadReady")
+    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
+    expect_open_threads(page, 2)
+    reported_browser_errors(
+        page, "leaf: Presentation failed: frozen descendant failure"
     )

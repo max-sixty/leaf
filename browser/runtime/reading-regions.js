@@ -45,19 +45,22 @@
    `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
    subject and returns them to it.
 
-   `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
-   It includes unfocusable words, which update the reading region without a focus
-   arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
-   of another passage. Each consumer interprets that target in its own domain. */
-import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+   `onReadingInput` tells a reader where the user explicitly clicked. It includes
+   unfocusable words, which update the reading region without a focus arrival, and a
+   control already holding focus, where the browser announces none. A step by Tab is
+   an arrival, which a reader hears from `onCurrentLocation` (focus.js) as it hears
+   every other. Mechanical returns, programmatic arrivals and scrolling are not
+   choices of another passage. Each consumer interprets that target in its own
+   domain. */
+import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
+import { isElement, skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
-import { reachReadingScroller } from "./reach.js";
+import { holdReach, reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
-import { inPage, layoutBox } from "./passages.js";
+import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
 
 /** @typedef {{id: string, host: Element & Partial<Pick<HTMLElement, "offsetWidth">>, body: Element, subject: string | null | undefined}} ReadingRegion
@@ -87,6 +90,19 @@ const depthOf = (node) => {
 
 /** @template {ReadingRegion} T @param {T | undefined} region @returns {region is T} */
 const live = (region) => Boolean(region?.host.isConnected && region.body.isConnected);
+// The regions each host holds and each body shows, in the order they registered, so a
+// question about the regions around a node climbs from it rather than asking each one.
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byHost = new WeakMap();
+/** @type {WeakMap<Element, RegionRegistration[]>} */
+const byBody = new WeakMap();
+/** @param {RegionRegistration} region */
+const current = (region) => regions.get(region.id) === region && live(region);
+/** @param {Node | null | undefined} node @param {WeakMap<Element, RegionRegistration[]>} index */
+function* regionsAround(node, index) {
+  for (let at = node; at; at = renderedParent(at))
+    if (isElement(at)) yield* (index.get(at) ?? []).filter(current);
+}
 
 // Three questions about a region's visibility, each asked where its cost and answer fit:
 // `concealed` reads the page's own attributes alone, so the inventory decides what to
@@ -141,9 +157,19 @@ export function registerReadingRegion({
   };
   const stopReaching = reachReadingScroller(body, paintContinuation);
   regions.set(id, region);
+  byHost.set(host, [...(byHost.get(host) ?? []), region]);
+  byBody.set(body, [...(byBody.get(body) ?? []), region]);
   sizes.observe(host);
   return () => {
     if (regions.get(id) === region) regions.delete(id);
+    byHost.set(
+      host,
+      (byHost.get(host) ?? []).filter((other) => other !== region),
+    );
+    byBody.set(
+      body,
+      (byBody.get(body) ?? []).filter((other) => other !== region),
+    );
     sizes.unobserve(host);
     stopReaching();
   };
@@ -228,13 +254,9 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
+// The region whose host is nearest around `node`: the first its climb meets.
 /** @param {Node | null | undefined} node */
-const regionAt = (node) => {
-  const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
-    .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
-  return region;
-};
+const regionAt = (node) => regionsAround(node, byHost).next().value ?? undefined;
 
 /** @param {Node | null | undefined} node */
 export const readingRegionFor = (node) => {
@@ -276,8 +298,13 @@ export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
   for (const read of readingInputReaders) read(node);
 };
+// The region the reading keys chose, until the user next acts anywhere
+// (`chooseReadingRegion`).
+/** @type {string | null} */
+let chosenRegionId = null;
 /** @param {Node} at @param {boolean} arriving */
 const actedAt = (at, arriving) => {
+  chosenRegionId = null;
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
@@ -301,24 +328,33 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onCurrentLocation((node, cause) => {
+onCurrentLocation((node) => {
   if (node) actedAt(node, true);
-  if (node && cause === "step") readingInput(node);
 });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.
 /** @param {ReadingRegion | undefined} region */
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
+// A region the reading keys chose for the user (navigation.js, `regionForStep`) is the
+// one they acted in, as a wheel there makes it, so a walk goes on from it. It stays the
+// keys' choice rather than the user's until the user next acts, which the keys read to
+// keep the page ahead of it.
+/** @param {ReadingRegion} region */
+export const chooseReadingRegion = (region) => {
+  actedAt(region.host, false);
+  chosenRegionId = region.id;
+};
+export const chosenReadingRegion = () => shown(readingRegion(chosenRegionId));
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (inPage(at)) return readingRegionFor(at);
+  if (focusInPage(at)) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || inPage(at)) return region;
+  if (region || focusInPage(at)) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 
@@ -368,13 +404,8 @@ export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region) return pageScroller;
   if (regionScrollBehavior(region) === "bounded") return region.body;
-  const containing = [...regions.values()]
-    .filter(
-      (candidate) =>
-        candidate !== region &&
-        live(candidate) &&
-        renderedUnder(region.host, candidate.body),
-    )
+  const containing = [...regionsAround(region.host, byBody)]
+    .filter((candidate) => candidate !== region)
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
 }
@@ -384,7 +415,7 @@ export function effectiveScroller(regionOrNode) {
 // panel's own list for a widget an agent put in a reply, which is scrolled by that and
 // by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
 // that never comes. The list answers here as any region does: the panel registers it as
-// its bounded reading region (`mountPanelReadingRegion`).
+// its bounded reading region (`registerReadingRegion`).
 /** @param {Node | null | undefined} el */
 export const scrollerFor = (el) => {
   const region = containingReadingRegionFor(el);
@@ -392,17 +423,6 @@ export const scrollerFor = (el) => {
 };
 
 installScrollerLookup(scrollerFor);
-
-// The boxes a scroll passes to once each inner one is spent, as native input chains it
-// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
-// scroll still chains to the page, the box its containing block, the viewport, scrolls.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollChainOf(node) {
-  let last = null;
-  for (last of scrollersOf(node)) yield last;
-  if (last !== pageScroller) yield pageScroller;
-}
 
 /** @param {RegionTarget} regionOrNode */
 export function shownRegionBounds(regionOrNode) {
@@ -439,6 +459,7 @@ export async function preserveReadingRegions(owner, change) {
     retained: compositionTransitions.has(owner),
   });
   compositionTransitions.set(owner, transition);
+  const releaseReach = holdReach(owner);
   let completed = false;
   try {
     await change();
@@ -451,6 +472,7 @@ export async function preserveReadingRegions(owner, change) {
         phase: "after",
         cancelled: !completed || !owner.isConnected,
       });
+      releaseReach();
     }
   }
 }
@@ -471,7 +493,7 @@ const pageGeometry = () => ({
   band: landingBand(pageScroller)?.top ?? 0,
 });
 // A band that moves with the window's width shifts the page. One that moves without
-// it, as a page tab strip arriving does (`--lf-root-headers`, page-layout.js), comes with
+// it, as a page tab strip arriving does (`--lf-root-headers`, root-headers.js), comes with
 // the content that moved it, whose owner keeps the reader's place across it, so it is
 // taken as seen wherever it is read: no size need change with it, and left unseen it
 // would read as unsettled, recording nothing, until the window next changed.

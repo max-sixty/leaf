@@ -32,8 +32,9 @@ html[data-lf-draw-mode] body {
    `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
    the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
    reaches meet rather than overlap and the finger's wider reach widens only the
-   toolbar. A code block's Copy is such a toolbar of one mark; a draft's toolbar
-   (draft.css) stands in the same seat. */
+   toolbar. A code block's Copy is such a toolbar of one mark (`data-lf-bar`,
+   controls.css); a draft's toolbar (draft.css) stands in the same seat, and its Copy
+   is one of its marks. */
 :root {
   --lf-block-control-inset: 4px;
 }
@@ -41,11 +42,8 @@ html[data-lf-draw-mode] body {
 .lf-code-copy {
   box-sizing: border-box;
   display: flex;
-  gap: max(2px, var(--aim-floor) - var(--mark-size));
+  gap: max(2px, var(--lf-aim-floor) - var(--lf-mark-size));
   padding: 1px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
 }
 /* Copy stands over its code without changing the block's box or scrolling its text.
    Standing within its block, it shows whole wherever the block does: on the block's
@@ -55,7 +53,7 @@ html[data-lf-draw-mode] body {
    reveals it (code-copy.js). Hidden, it takes no presses, so a finger selecting the
    words beneath it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
-  --lf-code-copy-box: calc(var(--mark-size) + 4px);
+  --lf-code-copy-box: calc(var(--lf-mark-size) + 4px);
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
@@ -111,16 +109,8 @@ html[data-lf-draw-mode] body {
   width: auto;
   height: auto;
   padding: 0;
-  border: 0;
-  background: none;
   opacity: 1;
   pointer-events: auto;
-}
-/* The ring is the shadow button's, and so is the focus a Tab reveals, which the page's
-   landing room (surfaces.css, `:focus`) doesn't reach inside the vendor's tree, so the
-   part keeps the ring's room at a scroller's edge itself. */
-.lf-code-copy::part(button) {
-  scroll-margin: var(--focus-ring-landing);
 }
 /* A heading's link stands in the gutter before its first line, centered on that line
    (heading-links.js writes where the line stands in the heading's box), and at the
@@ -193,11 +183,11 @@ html[data-lf-draw-mode] body {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
-  padding-inline: 0 var(--sp-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
+  gap: var(--lf-sp-1);
+  padding-inline: 0 var(--lf-sp-2);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-paper);
   z-index: 1;
   opacity: 0;
   pointer-events: none;
@@ -211,7 +201,7 @@ html[data-lf-draw-mode] body {
   [data-lf-hovered],
   [data-lf-keyed],
   :hover,
-  :has(:focus-visible)
+  [data-lf-focus-visible-within]
 ) {
   opacity: 1;
   pointer-events: auto;
@@ -224,7 +214,7 @@ html[data-lf-draw-mode] body {
 :is(.lf-video-play, .lf-video-full-screen) {
   flex: none;
   /* Flush with the bar's edge, the ring stays inside the press. */
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-video-play > .lf-action-icon {
   grid-area: 1 / 1;
@@ -237,10 +227,10 @@ html[data-lf-draw-mode] body {
   flex: 1;
   min-inline-size: 0;
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--lf-accent);
 }
 .lf-msg-body a[data-lf-detached] {
-  color: var(--muted);
+  color: var(--lf-muted);
   text-decoration: underline dashed;
   cursor: default;
 }
@@ -250,11 +240,11 @@ html[data-lf-draw-mode] body {
 }
 
 .lf-suggest-label {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 
 .lf-react-said {
-  color: var(--mark-ink);
+  color: var(--lf-mark-ink);
 }
 /* Ordinary thread shape is intrinsic. Only removed passive content reserves a gap.
    Details' summary remains outside its natural flow body. */

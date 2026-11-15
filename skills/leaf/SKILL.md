@@ -21,7 +21,7 @@ Read [SOUL.md](SOUL.md) before authoring or responding on a Leaf page.
 
 ## Must remember
 
-Everything waiting on the user is an obligation on their On me list, including
+Everything waiting on the user is an obligation on their On Me list, including
 each decision you leave to them that your next step doesn't depend on. Register
 it before a page heading, a chat open item or a `needs input:` line mentions it.
 `references/conversation-loop.md`, "The On lists", owns registration and
@@ -46,11 +46,11 @@ new material, including a new section on an existing page, start an author witho
 inherited conversation (`fork_turns: "none"` where available). Give it the reader's
 question, task, relevant facts and constraints, initial content and state, the page
 registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
-Ask it to construct the subject the page discusses, following "Develop the work",
-and return finished files and captions. Keep the research history and existing page
-with you. Integrate the returned material following "Composing a page" and
-`references/authoring-on-me.md` for decisions left to the user. When subagents are
-unavailable, build the material directly.
+Ask it to construct the subject the page discusses, following "Show the subject" and
+"Develop the work", and return finished files and captions. Keep the research
+history and existing page with you. Integrate the returned material following
+"Composing a page" and `references/authoring-on-me.md` for decisions left to the
+user. When subagents are unavailable, build the material directly.
 
 Follow `references/authoring-revisions.md` when changing an existing page, then
 write `<page>/index.html`. Each valid save becomes a live immutable revision. An invalid save leaves the last valid one live
@@ -185,6 +185,8 @@ summary from before a compaction, doesn't carry its rules.
   summarizing or resolving a thread.
 - `references/page-checkpoints.md`: before a pre-handover review, stamping,
   or ending a page.
+- `references/turn-end-check.md`: in Claude Code, what Leaf's turn-end check asks a
+  fork of your session, when one of its messages or records puzzles you.
 
 ### Serve or extend a page
 

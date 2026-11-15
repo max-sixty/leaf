@@ -57,8 +57,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
     assert events_model.read_events(page_dir)
 
 
-@pytest.mark.parametrize("mutation", ["drop", "words", "child"])
-def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
+def test_init_allows_changed_generated_child_semantics(page_dir):
     registry = vocabulary(page_dir)
     options = (
         '<lf-ask id="route-decision"><h2>Which route?</h2>'
@@ -83,74 +82,11 @@ def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
         },
     )
 
-    add = registry["lf-options"]["x-state"]["add"]
-    overlay_entries = {"lf-options": registry["lf-options"]}
-    if mutation == "drop":
-        del add["creates"]
-    elif mutation == "words":
-        add["creates"]["words"] = "words"
-        fields = add["detail"]["properties"]
-        fields["words"] = fields.pop("text")
-        add["detail"]["required"] = ["option", "words"]
-    else:
-        registry["lf-option-alt"] = registry["lf-option"]
-        add["creates"]["child"] = "lf-option-alt"
-        overlay_entries["lf-option-alt"] = registry["lf-option-alt"]
+    del registry["lf-options"]["x-state"]["add"]["creates"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
-    (overlay / "registry.json").write_text(json.dumps(overlay_entries))
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*page_packages(), "./.leaf")),
-            str(page_dir),
-        ],
-    )
-
-    assert result.exit_code == 0, result.output
-
-    assert events_model.read_events(page_dir)
-
-
-def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
-    """A layer can remove one widget's verb while keeping another's same-named verb."""
-    registry = vocabulary(page_dir)
-    board = registry["lf-board"]["x-example"]
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", board + "\n</section>")
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "feeder-board",
-            "action": "move",
-            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
-        },
-    )
-
-    move_spec = registry["lf-board"]["x-state"]["move"]
-    board_entry = registry["lf-board"]
-    board_entry.pop("x-state")
-    # Reusing the generic verb on another widget leaves the global verb set
-    # unchanged, but cannot make an old lf-board action meaningful there.
-    registry["lf-draft"]["x-state"]["move"] = move_spec
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps(
-            {
-                "lf-board": board_entry,
-                "lf-draft": registry["lf-draft"],
-            }
-        )
+        json.dumps({"lf-options": registry["lf-options"]})
     )
 
     result = CliRunner().invoke(

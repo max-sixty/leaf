@@ -47,13 +47,28 @@ COMMENTS = {
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
     "compacting": ("triage-lede", "Which risk worries you most for this release?"),
-    # Questions the conversation already answers, which a fork of it can, and a
-    # request for work, which only the session can do.
+    # A question the conversation already answers and a request for work, on each of
+    # which a fork posts the agent's working line before the session answers.
     "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    "fork-busy": ("triage-why", "Which release did I say passed its checks?"),
     "fork-work": (
         "triage-why",
         "Rename this heading to ‘Why the migration alone blocks the release’.",
+    ),
+    # A question a fork takes and looks up in the page's source, which the user
+    # follows up in its thread as the fork starts (`FOLLOW_UP`).
+    "fork-lookup": (
+        "triage-lede",
+        "How many cards does this page's source hold? Count them in the file.",
+    ),
+    # A question a fork takes, whose rest the user leaves as work for later, which
+    # the fork answers with a to-do on the thread for the session. Asking for the
+    # change itself, even after the session's current work, the line fork judged
+    # the session's on 11 Nov, as a change to the page is.
+    "fork-todo": (
+        "triage-lede",
+        "Which cards on this page mention customers or partners? List them here. "
+        "Tagging those cards on the page is a bigger job for later: don't do it now, "
+        "keep it as a to-do.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
@@ -106,21 +121,14 @@ def post(url: str, step: str, text: str | None = None) -> str:
     tab posts one, and return its admitted id: the scenario's (`COMMENTS`) on its
     section, or `text` on the page as a whole."""
     section, text = COMMENTS[step] if text is None else (None, text)
-    client = PageClient(url)
-    state = client.post(
+    return PageClient(url).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": attempt(step),
             "text": text,
             **({"anchor": {"section": section}} if section else {}),
         }
-    )
-    return next(
-        event["id"]
-        for event in state["events"]
-        if event.get("attempt") == attempt(step)
-    )
+    )["id"]
 
 
 def require[T](condition: T | None, message: str) -> T:

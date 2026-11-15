@@ -4,10 +4,7 @@
     "x-instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. Keep each `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "aria-label": {
         "type": "string",
         "minLength": 1
@@ -59,10 +56,7 @@
     "description": "One event in a timeline lane: an instant at `at`, or a span from `at` to `end`, in milliseconds.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1

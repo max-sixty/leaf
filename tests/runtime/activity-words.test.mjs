@@ -338,14 +338,14 @@ test("the explanation names what waits on each side", () => {
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Ready — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Ready — select text to comment. Waiting on me: 2 to answer, 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A to-do's title is the agent's words; the count around it is Leaf's.
   assert.deepEqual(
     model.explanationParts
       .filter((part) => part.voice === "agent")
       .map((part) => part.text),
-    ["Try the build on a phone", "Rebuild the chart"],
+    ["Rebuild the chart"],
   );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);

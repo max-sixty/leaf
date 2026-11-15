@@ -54,12 +54,14 @@ SYMBOL_SHEET = """async (actions) => {
   const sheet = document.createElement("div");
   sheet.id = "legibility-symbols";
   sheet.style.cssText =
-    "display:grid;grid-template-columns:repeat(8,64px);gap:28px 20px;padding:32px 40px;background:var(--paper);";
+    "display:grid;grid-template-columns:repeat(8,64px);gap:28px 20px;padding:32px 40px;background:var(--lf-paper);";
   for (const shown of byIcon.values()) {
     const press = offerAction("symbol", "", undefined, { action: shown[0] });
     press.type = "button";
     press.dataset.legibility = JSON.stringify(shown);
+    // Under the runtime's own scope, where a symbol such as the leaf gets its mark.
     const cell = document.createElement("div");
+    cell.className = "lf-chrome";
     cell.style.cssText = "display:flex;justify-content:center;";
     cell.append(press);
     sheet.append(cell);

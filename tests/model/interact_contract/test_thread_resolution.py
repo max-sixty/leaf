@@ -242,7 +242,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     def unread(*events):
         thread = model.threads(model.reading(SETTLED, (ASKED, reply, *events)))["e1"]
-        return [item["version"] for item in thread["unread"]]
+        return list(thread["unread"].values())
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
@@ -476,7 +476,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     assert "answer" not in labeled["meaning"]
     assert labeled["meaning"]["depends"] == ["proposal"]
     # Literal text matching an id is not a dependency; ancestry remains live for
-    # declared identities, tested in the named-dependency contrast below.
+    # declared identities, tested in test_admission.py's named-dependency contrast.
     assert revision is not None
     assert not event_folds_model.action_retracted(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}

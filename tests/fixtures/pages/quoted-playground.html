@@ -13,20 +13,20 @@
       .quoted-alert {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
       }
 
       .quoted-alert + .quoted-alert {
-        margin-top: var(--sp-3);
+        margin-top: var(--lf-sp-3);
       }
 
       .quoted-alert-evidence,
       .quoted-alert-settings {
         min-width: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--card);
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
       }
 
       .quoted-alert-evidence {
@@ -34,23 +34,23 @@
       }
 
       .quoted-alert-evidence h3 {
-        margin: 0 0 var(--sp-1);
-        font-size: var(--t-5);
+        margin: 0 0 var(--lf-sp-1);
+        font-size: var(--lf-t-5);
       }
 
       .quoted-alert-evidence p {
         margin: 0;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.4 var(--lf-sans);
       }
 
       .quoted-alert-settings {
         flex: 2 1 12rem;
         display: grid;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.4 var(--lf-sans);
         align-content: start;
-        gap: var(--sp-3);
+        gap: var(--lf-sp-3);
       }
     </style>
   </head>
@@ -65,6 +65,7 @@
       <lf-sample id="quoted-alerts-sample" label="alert settings playground">
         <lf-playground id="quoted-alerts" submit-label="Apply these settings">
           <lf-playground-control
+            id="budget"
             name="budget"
             label="On-call page budget, per 30 days"
             kind="range"
@@ -88,16 +89,19 @@
               >
                 Pages payments on-call.
                 <lf-playground-control
+                  id="quoted-rate-threshold"
                   name="rate-threshold"
                   label="Threshold"
                   kind="choice"
                   value="1%"
                 >
                   <lf-playground-choice
+                    id="quoted-rate-threshold-1"
                     value="1%"
                     label="over 1%"
                   ></lf-playground-choice>
                   <lf-playground-choice
+                    id="quoted-rate-threshold-2"
                     value="2%"
                     label="over 2%"
                   ></lf-playground-choice>
@@ -119,16 +123,19 @@
               >
                 <div class="quoted-field">
                   <lf-playground-control
+                    id="quoted-latency-threshold"
                     name="latency-threshold"
                     label="Threshold"
                     kind="choice"
                     value="800ms"
                   >
                     <lf-playground-choice
+                      id="quoted-latency-threshold-800ms"
                       value="800ms"
                       label="over 800 ms"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="quoted-latency-threshold-1200ms"
                       value="1200ms"
                       label="over 1,200 ms"
                     ></lf-playground-choice>
@@ -136,16 +143,19 @@
                 </div>
                 <div class="quoted-field">
                   <lf-playground-control
+                    id="quoted-latency-route"
                     name="latency-route"
                     label="Route"
                     kind="choice"
                     value="page"
                   >
                     <lf-playground-choice
+                      id="quoted-latency-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="quoted-latency-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>

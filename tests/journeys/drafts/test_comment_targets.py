@@ -10,6 +10,7 @@ from browser.drafts.test_comment_targets import _draft_attachment_boxes
 from playwright.sync_api import expect
 from render_harness import (
     LONG_PAGE,
+    before_landing_frame,
     open_page,
     scroll_settled,
     sending,
@@ -35,7 +36,7 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:
-        # Slow the browser to expose Resume interrupting native smooth travel.
+        # Slow the browser to expose Resume interrupting the trip under way.
         slow_cpu(page, 6)
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     if existing_reply:
@@ -57,23 +58,17 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     before_field, before_target = _draft_attachment_boxes(earlier, "#p3")
     page.keyboard.press("Shift+Tab")
     if resume_before_scroll:
-        # Hold the ordering at the native smooth-scroll call: Resume runs before
-        # its first frame, while both destinations still look readable. The real
-        # browser animation runs, so a Resume that does not cancel it loses them.
-        page.evaluate("""async () => {
-          const {executeCommand} = await window.__lfCheckApi();
-          const scrollTo = Element.prototype.scrollTo;
-          Element.prototype.scrollTo = function(options) {
-            const result = scrollTo.call(this, options);
-            if (this === document.scrollingElement && options.behavior === 'smooth') {
-              Element.prototype.scrollTo = scrollTo;
+        # Resume runs before the trip's first frame, while both destinations still
+        # look readable. The real landing runs, so a Resume that does not cancel it
+        # loses them.
+        before_landing_frame(
+            page,
+            """window.__lfCheckApi().then(({executeCommand}) => () => {
               window.earlyResumeBoxes = ['#p3', '.lf-fab-input'].map(selector =>
                 document.querySelector(selector).getBoundingClientRect().toJSON());
               queueMicrotask(() => executeCommand('writing.resume'));
-            }
-            return result;
-          };
-        }""")
+            })""",
+        )
     page.keyboard.press("t")
     if resume_before_scroll:
         page.wait_for_function("window.earlyResumeBoxes !== undefined")

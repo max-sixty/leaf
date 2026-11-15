@@ -93,12 +93,16 @@ export function orderChildren(parent, nodes) {
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,
-// so unchanged text and native Ranges stay in place without a source mirror.
-/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes */
-export function setRenderedChildren(parent, nodes) {
+// so unchanged text and native Ranges stay in place without a source mirror. A caller
+// that drew its subtree whole before, as setting `innerHTML` does, passes `bounded`: a
+// list whose diff would cost more than `BOUNDED_DIFF_WORK` is then replaced, so an
+// edit rewriting every paragraph costs the list's length rather than its square.
+/** @param {Node & ParentNode} parent @param {Iterable<Node>} nodes @param {{bounded?: boolean}} [options] */
+export function setRenderedChildren(parent, nodes, { bounded = false } = {}) {
   const after = document.createDocumentFragment();
   after.append(...nodes);
   patchChildren(parent, parent, after, {
+    diffWork: bounded ? BOUNDED_DIFF_WORK : Infinity,
     pairs: selfPairs(parent),
     arrive: (node) => node,
     sameValue: (held, wanted) => held === wanted,
@@ -109,6 +113,7 @@ export function setRenderedChildren(parent, nodes) {
     generated: () => false,
     contains: (target, owner) => Boolean(owner?.contains(target)),
     reaches: () => false,
+    traversed: () => false,
   });
 }
 
@@ -227,8 +232,16 @@ function staying(parent, nodes) {
    - `same(before, after)`: two source elements are spelled the same way, read past the
      address each revision was delivered at. Asked of an element whose interior a pass
      other than a controller has taken, or a widget owns.
+   - `traversed(element)`: this live element is patched child by child even where a
+     pass moved or replaced one of its children, as the root always is, because
+     replacing it whole would take back far more than that pass did. Asked of the
+     live element.
    - `generated(node)`: the live node is the runtime's own. Only placement asks, because
      only placement walks live children; nothing here matches or removes on it.
+   - `diffWork`: the most one sibling diff may cost, its lists' length times the edits
+     between them, before it pairs nothing in that list and the patch replaces it. A
+     revision's is unbounded, since its nodes carry the user's state; so is a rendered
+     subtree's, unless its caller replaced it whole before (`setRenderedChildren`).
 
    Matching runs in three passes, narrowest first, and each pass only sees what the one
    before it left. An id is a name the author gave, so it wins outright. Then the siblings
@@ -239,7 +252,9 @@ function staying(parent, nodes) {
 /** @typedef {{pairs: SourcePairs, contains: (target: Node, owner: Node | null | undefined) => boolean,
  * declared: (element: Element) => boolean, body: (element: Element) => Element | null,
  * reaches: (before: Element, after: Element) => boolean,
- * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean}} RetentionRules */
+ * traversed: (element: Element) => boolean,
+ * same: (before: Element, after: Element) => boolean, sameValue: (before: string, after: string) => boolean,
+ * diffWork: number}} RetentionRules */
 /** @typedef {RetentionRules & {arrive: (node: Node, parent: Node) => Node,
  * touched: (element: Element) => void, generated: (node: Node) => boolean}} PatchRules */
 /** @param {Element} before @param {Element} after @param {PatchRules} rules */
@@ -291,7 +306,7 @@ function retainedWithin(before, after, target, rules) {
     return false;
   const children = [...tree(before).childNodes];
   const arriving = [...tree(after).childNodes];
-  const forward = matchNodes(children, arriving);
+  const forward = matchNodes(children, arriving, rules.diffWork);
   const matches = new SourcePairs();
   for (const wanted of arriving) {
     const held = forward.get(wanted);
@@ -441,7 +456,7 @@ function* sourceNodes(node) {
 function patchChildren(liveParent, beforeParent, afterParent, rules) {
   const held = [...beforeParent.childNodes];
   const wanted = [...afterParent.childNodes];
-  const matches = matchNodes(held, wanted);
+  const matches = matchNodes(held, wanted, rules.diffWork);
   const matched = new Set(wanted.map((node) => matches.get(node)));
   for (const node of held) {
     if (!matched.has(node)) evict(node, rules.pairs.require(node), rules);
@@ -527,12 +542,13 @@ function pairInterior(before, after, rules) {
 const atomic = (before, after, live, rules) =>
   before.matches('style, link[rel~="stylesheet" i]') ||
   (rules.declared(before) && !rules.reaches(before, after)) ||
-  [...tree(before).childNodes].some(
-    (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
-  );
+  (!rules.traversed(live) &&
+    [...tree(before).childNodes].some(
+      (node) => rules.pairs.get(node)?.parentNode !== holder(live, rules),
+    ));
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted */
-function matchNodes(held, wanted) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {number} work */
+function matchNodes(held, wanted, work) {
   const matches = new SourcePairs();
   /** @type {Set<Node>} */
   const matched = new Set();
@@ -552,9 +568,17 @@ function matchNodes(held, wanted) {
     held.filter((node) => !matched.has(node)),
     wanted.filter((node) => !matches.has(node)),
     matches,
+    work,
   );
   return matches;
 }
+
+// A sibling diff costs the lists' length times the edits between them: an edit that
+// rewrote every paragraph cost the square of the list's length.
+const BOUNDED_DIFF_WORK = 2 ** 18;
+/** @param {readonly unknown[]} held @param {readonly unknown[]} wanted @param {number} work */
+const editBudget = (held, wanted, work) =>
+  Math.max(1, Math.floor(work / (held.length + wanted.length + 1)));
 
 /** jsdiff's unchanged runs pair these two source positions.
  * @param {readonly Node[]} nodes @param {number} index */
@@ -578,8 +602,8 @@ const signature = (node) => {
   return `1:${node.localName}#${node.id}:${words.replace(COLLAPSE, " ").trim()}`;
 };
 
-/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches */
-function alignRest(held, wanted, matches) {
+/** @param {readonly Node[]} held @param {readonly Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function alignRest(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
   /** @type {Node[]} */
@@ -587,11 +611,14 @@ function alignRest(held, wanted, matches) {
   /** @type {Node[]} */
   let gapWanted = [];
   const closeGap = () => {
-    pairInGap(gapHeld, gapWanted, matches);
+    pairInGap(gapHeld, gapWanted, matches, work);
     gapHeld = [];
     gapWanted = [];
   };
-  for (const run of diffArrays(held.map(signature), wanted.map(signature))) {
+  const runs = diffArrays(held.map(signature), wanted.map(signature), {
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) gapWanted.push(...wanted.slice(wantedAt, (wantedAt += count)));
     else if (run.removed) gapHeld.push(...held.slice(heldAt, (heldAt += count)));
@@ -619,11 +646,15 @@ function alignRest(held, wanted, matches) {
 // that name being given or taken away, which is a thing to do to an element. A key can
 // state the first or the second and not both — `p#a` would have to equal `p` while `p#a`
 // differs from `p#b` — so the rule travels as the comparator it is.
-/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches */
-function pairInGap(held, wanted, matches) {
+/** @param {Node[]} held @param {Node[]} wanted @param {SourcePairs} matches @param {number} work */
+function pairInGap(held, wanted, matches, work) {
   let heldAt = 0;
   let wantedAt = 0;
-  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+  const runs = diffArrays(held, wanted, {
+    comparator: interchangeable,
+    maxEditLength: editBudget(held, wanted, work),
+  });
+  for (const run of runs ?? []) {
     const count = run.value.length;
     if (run.added) wantedAt += count;
     else if (run.removed) heldAt += count;

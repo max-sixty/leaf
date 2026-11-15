@@ -1,17 +1,18 @@
 /* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
  * `touch` names a page command a finger needs a row for; the same row serves a mouse, and
  * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
- * as page search or Draw mode, or a to-do the user stands on, whose Done ends it: while
- * the innermost one stands (dispatch.js, `innermostStance`), the panel's row offers
- * that row as its one way out, drawn as the row's `action` (Close's ✕ unless it names one), and
- * the panel says the scope's `says`, else its title (status-context.js). Words,
- * availability and activation all come from the same row as keyboard dispatch.
+ * as page search or Draw mode: while the innermost one stands (dispatch.js,
+ * `innermostStance`), the panel's row offers that row as its one way out, drawn as
+ * Close's ✕, and the panel says the scope's `says`, else its title
+ * (status-context.js). Words, availability and activation all come from the same row
+ * as keyboard dispatch.
  *
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
  * predicate may read the whole log, which a paint that follows what it reads must not
  * (leaf-element.js). A change in what stands is said with `pageControlsChanged`.
  */
+import { capitalized } from "../words.js";
 import {
   PAGE_CONTROL_RANK,
   pageControlsChanged,
@@ -25,7 +26,7 @@ import { touchPresses } from "./register.js";
 // Each press's latest reading, by the command it invokes, and how its row reads now.
 /** @typedef {ReturnType<typeof touchPresses>[number]} TouchPress
  * @typedef {{label: string, shortcut: string[], disabled: boolean}} Face
- * @typedef {{label: string, action: keyof typeof import("../icon-paths.js").ACTIONS, disabled: boolean, press: {id: string, row: import("./bindings.js").Command, binding: undefined}}} StanceFace
+ * @typedef {{label: string, disabled: boolean, press: {id: string, row: import("./bindings.js").Command, binding: undefined}}} StanceFace
  */
 /** @type {Map<string, {press: TouchPress, face: Face | undefined}>} */
 const presses = new Map();
@@ -79,7 +80,7 @@ function placeStanceExit() {
     rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
-    action: () => stance?.action ?? "close",
+    action: "close",
     group: "page",
     offered: () => Boolean(stance),
     disabled: () => stance?.disabled ?? true,
@@ -90,8 +91,7 @@ function placeStanceExit() {
 }
 
 /** @param {StanceFace | null} a @param {StanceFace | null} b */
-const sameStance = (a, b) =>
-  a?.label === b?.label && a?.disabled === b?.disabled && a?.action === b?.action;
+const sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
 
 /** @param {Face | undefined} a @param {Face | undefined} b */
 const same = (a, b) =>
@@ -108,8 +108,7 @@ export function paintTouchControls() {
   /** @type {StanceFace | null} */
   const nextStance = held
     ? {
-        label: title.charAt(0).toUpperCase() + title.slice(1),
-        action: held.exit.action ?? "close",
+        label: capitalized(title),
         disabled: !live(held.exit),
         press: { id: held.exit.id, row: held.exit, binding: undefined },
       }

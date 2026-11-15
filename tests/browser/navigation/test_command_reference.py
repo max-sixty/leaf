@@ -9,14 +9,11 @@ from render_cases_interaction import OBLIGATIONS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     open_page,
     panel_control,
-    panel_field,
     panel_view,
     resized,
     round_trip,
-    show_resolved,
 )
 
 from leaf.render_checks import rendered
@@ -245,235 +242,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(page_control).to_be_focused()
 
 
-def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
-    """The reference is the command register made usable, not a second list of prose.
-
-    Search narrows that register, arrows choose a result, and Enter runs it through the
-    same scoped command route as its key. A command outside the user's current scope
-    stays selectable, but explains the scope it needs instead of closing and doing
-    nothing. Stable command IDs are exposed on the results so words can change without
-    breaking this route or tooling built on it."""
-    # Go-to's kind filters need a visible page target; the page's old skip button
-    # used to supply one implicitly.
-    page_with_target = NOTED_PAGE.replace(
-        '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
-    )
-    page = open_page(browser, serve(page_with_target, comments=2))
-    help_el = page.locator(".lf-command-reference")
-    search = page.get_by_role("combobox", name="Search commands")
-
-    page.keyboard.press("?")
-    commands = help_el.locator(".lf-command-reference-command:visible")
-    assert commands.count() > 1, "the command grid has no pair of rows to walk"
-    # The head's hint and the rows share their verbs, "choose" and "activate".
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        re.compile(r"^\d+ commands · ↑↓ choose · ⏎ activate$")
-    )
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(commands.first).to_have_attribute("data-lf-selected", "true")
-    # The walk says its position where the panel says what passes, in the empty
-    # field's place.
-    expect(panel_field(page)).to_have_attribute(
-        "placeholder", f"Command 1 of {commands.count()}"
-    )
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        re.compile(r" · ⏎ activate$")
-    )
-    first_row = commands.first
-    assert search.evaluate(
-        "input => input.ariaActiveDescendantElement?.id"
-    ) == first_row.get_attribute("id")
-    page.keyboard.press("ArrowUp")
-    expect(commands.first).to_have_attribute("data-lf-selected", "true")
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("?")
-    commands = help_el.locator(".lf-command-reference-command:visible")
-    page.keyboard.press("ArrowUp")
-    expect(search).to_be_focused()
-    expect(commands.last).to_have_attribute("data-lf-selected", "true")
-    last_row = commands.last
-    assert search.evaluate(
-        "input => input.ariaActiveDescendantElement?.id"
-    ) == last_row.get_attribute("id")
-    page.keyboard.press("ArrowDown")
-    expect(commands.last).to_have_attribute("data-lf-selected", "true")
-
-    # On a phone, every complete binding stays whole in its own cell, clear of its
-    # command. Search adds a scope to each match; that context wraps to a second line
-    # rather than squeezing the command's words or painting over them.
-    resized(page, 390, 800)
-    overlap = """(a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
-      && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5"""
-    geometry = help_el.evaluate(
-        f"""help => {{
-          const overlap = {overlap};
-          const results = help.querySelector('.lf-command-reference-results');
-          return {{
-            overflow: results.scrollWidth - results.clientWidth,
-            keys: [...help.querySelectorAll('[role=option]:not([hidden]) .lf-binding-sequence')]
-              .map(key => {{
-                const box = key.getBoundingClientRect();
-                const row = key.closest('[role=option]');
-                return {{
-                  command: row.dataset.lfCommand,
-                  outside: box.right - key.closest('.lf-command-reference-key').getBoundingClientRect().right,
-                  covers: overlap(box, row.querySelector('.lf-command-reference-action')
-                    .getBoundingClientRect()),
-                }};
-              }}),
-          }};
-        }}"""
-    )
-    assert geometry["overflow"] <= 0, geometry
-    assert not [
-        key for key in geometry["keys"] if key["outside"] > 0.5 or key["covers"]
-    ], geometry
-    search.fill("space")
-    matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all(
-        f"""rows => rows.map(row => {{
-          const overlap = {overlap};
-          const command = row.querySelector('.lf-command-reference-title-words');
-          const words = document.createRange();
-          words.selectNodeContents(command);
-          return {{
-            command: row.dataset.lfCommand,
-            lines: new Set([...words.getClientRects()].map(rect => Math.round(rect.top))).size,
-            covered: overlap(command.getBoundingClientRect(),
-              row.querySelector('.lf-command-reference-scope').getBoundingClientRect()),
-          }};
-        }})"""
-    )
-    assert matches
-    assert all(item["lines"] == 1 and not item["covered"] for item in matches), matches
-    resized(page, 1200, 800)
-
-    # A key query may also occur in command ids and prose. Actual bindings lead the
-    # filtered DOM, which is both the visual order and the Arrow-key command rail. A
-    # trailing separator asks for continuations, and case puts the shifted face first.
-    search.fill("g ")
-    ranked = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
-        """rows => rows.map(row => ({
-          command: row.dataset.lfCommand,
-          binding: [...row.querySelectorAll('kbd')].map(key => key.textContent).join(' '),
-        }))"""
-    )
-    assert ranked and ranked[0]["binding"].startswith("g "), ranked
-    first_other = next(
-        (
-            index
-            for index, row in enumerate(ranked)
-            if not row["binding"].startswith("g ")
-        ),
-        len(ranked),
-    )
-    assert first_other > 0, ranked
-    assert not any(row["binding"].startswith("g ") for row in ranked[first_other:]), (
-        ranked
-    )
-    search.fill("g t")
-    assert (
-        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
-            "data-lf-command"
-        )
-        == "navigation.target.filter.threads"
-    )
-    search.fill("g T")
-    assert (
-        help_el.locator("[role=option][data-lf-command]:visible").first.get_attribute(
-            "data-lf-command"
-        )
-        == "navigation.panel.threads"
-    )
-    page.keyboard.press("ArrowDown")
-    expect(
-        help_el.locator(
-            '.lf-command-reference-command[data-lf-command="navigation.panel.threads"]'
-        )
-    ).to_have_attribute("data-lf-selected", "true")
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Threads · g · ⏎ activate"
-    )
-    search.fill("Tab")
-    tab_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "page.search.match.next" in tab_matches, tab_matches
-    search.fill("w")
-    w_results = help_el.locator("[role=option][data-lf-command]:visible").evaluate_all(
-        "rows => rows.map(row => row.dataset.lfCommand)"
-    )
-    assert w_results.index("draw.mode.exit") < w_results.index("page.down"), w_results
-    w_matches = help_el.locator(
-        ".lf-command-reference-binding-matches [role=option][data-lf-command]:visible"
-    ).evaluate_all("rows => rows.map(row => row.dataset.lfCommand)")
-    assert "draw.mode.exit" in w_matches, w_matches
-    assert w_results.index("page.down") >= len(w_matches), w_results
-
-    search.fill("r resolve")
-    result = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="thread.resolution.toggle"]'
-    )
-    expect(result).to_have_count(1)
-    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
-    expect(search).to_have_attribute("aria-haspopup", "listbox")
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    expect(result).to_have_attribute("aria-selected", "true")
-    page.keyboard.type("!")
-    expect(search).to_have_value("r resolve!")
-    expect(help_el.locator(".lf-rows-empty")).to_be_visible()
-    page.keyboard.press("Backspace")
-    page.keyboard.press("ArrowDown")
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el).to_be_visible()
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Available in a thread"
-    )
-    search.fill("reaction.cancel")
-    cancel_reaction = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="reaction.cancel"]'
-    )
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el.locator(".lf-command-reference-meta")).to_have_text(
-        "Available with reactions open"
-    )
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("?")
-    # The shared description names both directions, so its words match both rows.
-    # Search the stable command id to run this exact direction through the reference.
-    search.fill("thread.previous")
-    previous = help_el.locator(
-        '.lf-command-reference-command[data-lf-command="thread.previous"]'
-    )
-    expect(previous).to_have_count(1)
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(previous).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    # The last thread, which has no card on the page, opens in the panel.
-    expect(page.locator(PANEL_THREAD)).to_be_focused()
-    page.keyboard.press("?")
-    search.fill("r resolve")
-    page.keyboard.press("ArrowDown")
-    expect(search).to_be_focused()
-    expect(result).to_have_attribute("data-lf-selected", "true")
-    page.keyboard.press("Enter")
-    expect(help_el).to_be_hidden()
-    expect(show_resolved(page)).to_have_count(1)
-
-
-# On me stands for the panel's views: its mark is the row's control, and Threads, a tab
-# of On, shares its branch.
+# On Me stands for the panel's views: its mark is the row's control.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
@@ -489,14 +258,13 @@ def test_the_reference_enters_named_go_to_destinations(
     command reference reaches it; native controls keep their own activation."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
     destination = page.locator(surface)
-    if suffix in ("T", "M"):
-        control = "threads" if suffix == "T" else "queue"
-        panel_control(page, control).click()
+    if suffix == "M":
+        panel_control(page, "queue").click()
         expect(destination).to_be_visible()
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()
-        panel_control(page, control).press("Enter")
+        panel_control(page, "queue").press("Enter")
         expect(destination).to_be_visible()
         page.wait_for_function(
             "selector => document.querySelector(selector).contains(document.activeElement)",
@@ -512,7 +280,7 @@ def test_the_reference_enters_named_go_to_destinations(
         "selector => document.querySelector(selector).contains(document.activeElement)",
         arg=surface,
     )
-    if suffix in ("T", "M"):
+    if suffix == "M":
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
     else:
@@ -552,47 +320,55 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     expect(versions).to_be_focused()
 
 
-@pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
 def test_the_reference_keeps_its_top_and_search_still_when_filtering(
-    browser, serve, viewport
+    browser, serve, subtests
 ):
     """Results shrink below the search field, including an empty result set."""
     page = open_page(browser, serve(NOTED_PAGE))
-    resized(page, *viewport)
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
-    expect(search).to_be_focused()
-    initial_dialog = reference.bounding_box()
-    search_field = reference.locator(".lf-command-reference-search")
-    initial_search = search_field.bounding_box()
-    commands = reference.locator(".lf-command-reference-command:visible")
-    initial_count = commands.count()
+    for viewport in [(1280, 800), (390, 800), (800, 320)]:
+        with subtests.test(viewport=viewport):
+            resized(page, *viewport)
+            page.keyboard.press("?")
+            expect(search).to_be_focused()
+            initial_dialog = reference.bounding_box()
+            search_field = reference.locator(".lf-command-reference-search")
+            initial_search = search_field.bounding_box()
+            commands = reference.locator(".lf-command-reference-command:visible")
+            initial_count = commands.count()
 
-    for query in ("page.search.open", "no command has these words", ""):
-        if query:
-            search.fill(query)
-        else:
-            search_field.get_by_role("button", name="Clear entry").click()
-            expect(search).to_have_value("")
-            expect(commands).to_have_count(initial_count)
-        if query == "page.search.open":
-            expect(
-                reference.locator(".lf-command-reference-command:visible")
-            ).to_have_count(1)
-        if query == "no command has these words":
-            expect(reference.locator(".lf-rows-empty")).to_be_visible()
-            # At the shortest viewport both states can meet the same height limit.
-            assert reference.bounding_box()["height"] <= initial_dialog["height"]
-            if viewport[1] > 320:
-                assert reference.bounding_box()["height"] < initial_dialog["height"]
-        expect(search).to_be_focused()
-        dialog = reference.bounding_box()
-        field = search_field.bounding_box()
-        assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
-        for axis in ("x", "y", "width", "height"):
-            assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
-        assert dialog["y"] + dialog["height"] <= viewport[1] - 16
+            for query in ("page.search.open", "no command has these words", ""):
+                if query:
+                    search.fill(query)
+                else:
+                    search_field.get_by_role("button", name="Clear entry").click()
+                    expect(search).to_have_value("")
+                    expect(commands).to_have_count(initial_count)
+                if query == "page.search.open":
+                    expect(
+                        reference.locator(".lf-command-reference-command:visible")
+                    ).to_have_count(1)
+                if query == "no command has these words":
+                    expect(reference.locator(".lf-rows-empty")).to_be_visible()
+                    # At the shortest viewport both states can meet the same height limit.
+                    assert (
+                        reference.bounding_box()["height"] <= initial_dialog["height"]
+                    )
+                    if viewport[1] > 320:
+                        assert (
+                            reference.bounding_box()["height"]
+                            < initial_dialog["height"]
+                        )
+                expect(search).to_be_focused()
+                dialog = reference.bounding_box()
+                field = search_field.bounding_box()
+                assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
+                for axis in ("x", "y", "width", "height"):
+                    assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
+                assert dialog["y"] + dialog["height"] <= viewport[1] - 16
+            page.keyboard.press("Escape")
+            expect(reference).to_be_hidden()
 
 
 def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serve):

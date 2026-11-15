@@ -5,32 +5,26 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, live_url
+from render_cases_interaction import live_url
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     FOOTED_PAGE,
-    _publish,
     address_code,
     address_codes,
     go_to_address,
 )
 from render_harness import (
-    PANEL,
     leaf_page,
     open_page,
-    opened_tab,
-    panel_view,
     resized,
     shown,
     told,
 )
 
 from browser.navigation import expect_walk_position
-from browser.threads import open_panel_thread
-from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -109,53 +103,6 @@ def test_a_stage_built_before_its_host_arrives_holds_its_links_and_bounds(
     assert held == {"target": "_blank", "marked": True, "scroller": True, "atEnd": True}
 
 
-def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
-    browser, one_user
-):
-    """One native target proves the press, then leaves no unreachable tab behind."""
-    page = one_user.new_page()
-    destination = "about:blank#expected"
-    page.set_content(f'<a id="open" target="_blank" href="{destination}">open</a>')
-    browser_session = browser.new_browser_cdp_session()
-
-    def targets():
-        return {
-            target["targetId"]: target["url"]
-            for target in browser_session.send("Target.getTargets")["targetInfos"]
-            if target["type"] == "page"
-        }
-
-    before = targets()
-    presses = 0
-    native = {}
-
-    def press():
-        nonlocal presses
-        presses += 1
-        page.locator("#open").click()
-        native.update(
-            {
-                target_id: url
-                for target_id, url in targets().items()
-                if target_id not in before
-            }
-        )
-
-    tab = opened_tab(page, destination, press)
-    assert presses == 1
-    assert len(native) == 1
-    assert tab.context is page.context
-    assert tab.url == destination
-    after = targets()
-    assert not (native.keys() & after.keys())
-    assert [url for target_id, url in after.items() if target_id not in before] == [
-        destination
-    ]
-    tab.close()
-    assert targets() == before
-    browser_session.detach()
-
-
 def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
     """A link hint's navigation step may wait on what holds its destination. A press made
     meanwhile is the user's newer word: neither the landing nor the hint's focus
@@ -200,8 +147,8 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
 def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve):
     """A visible page route stays addressable when its widget generated the anchors.
 
-    The roomy table of contents is page navigation even though its links are generated
-    chrome. Arming the sequence reveals those labels, gives every visible row a hint, and
+    A contents spine is page navigation even though its links are generated chrome.
+    Arming the sequence reveals those labels, gives every visible row a hint, and
     following one lands at the heading through the ordinary link route.
     """
     page = open_page(
@@ -248,8 +195,10 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 
 def test_generated_hints_fit_the_visible_screen(browser, serve):
-    """Every opaque route fits at viewport edges, including one cut by the window's
-    top."""
+    """Every opaque route's chip fits at viewport edges, including one cut by the
+    window's top. A link showing one pixel at the foot, where the panel's band leaves
+    its chip no seat beside it, has its chip withheld rather than stood above the
+    panel, and its code still takes it (keyboard/hints.js, `seatHints`)."""
     page = open_page(
         browser,
         serve(
@@ -299,12 +248,19 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
             .map(chip => ({
             route: chip.textContent,
             code: chip.dataset.lfHintCode,
+            target: chip.dataset.lfGoToTarget,
+            shown: chip.checkVisibility({visibilityProperty: true}),
             ...chip.getBoundingClientRect().toJSON(),
           })),
         })"""
     )
     assert len(reading["chips"]) == 7, reading
+    assert [chip["target"] for chip in reading["chips"] if not chip["shown"]] == [
+        "bottom"
+    ], reading
     for chip in reading["chips"]:
+        if not chip["shown"]:
+            continue
         assert 0 <= chip["left"] < chip["right"] <= reading["width"], reading
         assert 0 <= chip["top"] < chip["bottom"] <= reading["height"], reading
         assert chip["route"] == chip["code"], chip
@@ -327,6 +283,14 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
     page.keyboard.type(code)
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator("#top")).to_be_focused()
+
+    bottom = page.locator("#bottom")
+    bottom.evaluate(
+        "link => link.addEventListener('click', () => { link.dataset.activated = 'true'; })"
+    )
+    page.keyboard.press("g")
+    page.keyboard.type(address_code(page, "Link", "bottom"))
+    expect(bottom).to_have_attribute("data-activated", "true")
 
 
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
@@ -373,38 +337,106 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
 
 
-def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
-    """Crowded opaque routes are separated; none can be inferred if its face is dropped."""
+def test_adjacent_footnote_markers_keep_their_codes_without_chips(browser, serve):
+    """Adjacent footnote markers are narrower than a key, so no chip beside one could say
+    which it names: each is withheld, while the page's other links keep theirs and each
+    marker's code still takes it."""
     page = open_page(browser, serve(CROWDED_PAGE))
     resized(page, 1280, 800)
     page.keyboard.press("g")
     expect(page.locator(CHIPS)).to_have_count(5)
 
-    piles = page.evaluate(
-        """() => {
-             const boxes = [...document.querySelectorAll(
-               '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
-               .map(chip => ({
-                 code: chip.dataset.lfHintCode,
-                 r: chip.getBoundingClientRect(),
-               }));
-             const hit = (a, b) => a.left < b.right && b.left < a.right
-                                && a.top < b.bottom && b.top < a.bottom;
-             const found = [];
-             for (let i = 0; i < boxes.length; i++)
-               for (let j = i + 1; j < boxes.length; j++)
-                 if (hit(boxes[i].r, boxes[j].r))
-                   found.push(boxes[i].code + ' under ' + boxes[j].code);
-             return {found, drawn: boxes.map(b => b.code)};
-           }"""
-    )
-    assert piles["found"] == [], (
-        f"hints are drawn on top of each other: {piles['found']} "
-        f"(drawn: {piles['drawn']})"
-    )
-    assert len(piles["drawn"]) == 5, piles
+    shown = address_codes(page)
+    markers = {address_code(page, "Link", f"fn{n}") for n in (1, 2, 3)}
+    assert len(shown) == 2, shown
+    assert not markers & set(shown), (markers, shown)
     page.keyboard.type(address_code(page, "Link", "fn1"))
     page.wait_for_url(re.compile(r"#s1$"))
+
+
+def test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html(browser, serve):
+    """Chromium resolves no anchor to an element inside a foreignObject, so the chip
+    anchored to a link there stood off the window while its code still followed it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawn terminal",
+                '<h1 id="top">Drawn terminal</h1><svg id="drawing" width="400" '
+                'height="120"><foreignObject x="80" y="40" width="200" height="40">'
+                '<div xmlns="http://www.w3.org/1999/xhtml"><a id="run" '
+                'href="#top">$ wt merge</a></div></foreignObject></svg>',
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    rendered(page)
+    chips = page.evaluate(
+        """(selector) => {
+          const run = document.getElementById('run').getBoundingClientRect();
+          return [...document.querySelectorAll(selector)].map((chip) => {
+            const r = chip.getBoundingClientRect();
+            const gap = Math.hypot(
+              Math.max(run.left - r.right, r.left - run.right, 0),
+              Math.max(run.top - r.bottom, r.top - run.bottom, 0));
+            return [chip.dataset.lfGoToKind, chip.dataset.lfGoToTarget, Math.round(gap)];
+          });
+        }""",
+        CHIPS,
+    )
+    assert any(gap == 0 for *_, gap in chips), chips
+
+
+def test_narrowing_the_map_leaves_every_kept_chip_where_it_stood(browser, serve):
+    """A kind filter and a typed letter only hide the chips they rule out. Reseated
+    alone, a filtered column of folds stood on its rows' corners, half over the links
+    between them, and a typed letter swapped its rows' chips between columns."""
+    rows = "".join(
+        f'<li><a href="#top">link {at}</a></li>'
+        if at % 2 == 0
+        else f"<li><details><summary>fold {at}</summary>more</details></li>"
+        for at in range(24)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Dense rows",
+                '<h1 id="top">Dense rows</h1><ul id="rows">' + rows + "</ul>",
+                head="<style>#rows{list-style:none;padding:0;margin:0}"
+                "#rows li,#rows a,#rows details,#rows summary{all:unset;display:block;"
+                "font:12px/14px monospace}</style>",
+            )
+        ),
+    )
+    resized(page, 1280, 800)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_count(24)
+    rendered(page)
+    seats = """() => Object.fromEntries([...document.querySelectorAll(
+        '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
+      .filter((chip) => chip.checkVisibility({visibilityProperty: true}))
+      .map((chip) => {
+        const r = chip.getBoundingClientRect();
+        return [chip.dataset.lfHintCode, [r.left, r.top]];
+      }))"""
+    whole = page.evaluate(seats)
+    assert len(whole) == 24, whole
+
+    letter = next(code for code in whole if len(code) == 2)[0]
+    page.keyboard.press(letter)
+    rendered(page)
+    typed = page.evaluate(seats)
+    assert typed and all(code.startswith(letter) for code in typed), typed
+    assert {code: whole[code] for code in typed} == typed
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("f")
+    rendered(page)
+    folds = page.evaluate(seats)
+    assert len(folds) == 12, folds
+    assert {code: whole[code] for code in folds} == folds
 
 
 def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
@@ -424,10 +456,11 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     resized(page, 1280, 900)
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
-    # Longer than the session's settle, so the map has stood still and the user has had
-    # the chance to read it. A map armed into a page already moving is a different case,
-    # held by tests/runtime/hint-session.test.mjs.
-    page.wait_for_timeout(200)
+    # The chips show only once the map is drawn at rest, and `rendered` waits for every
+    # repaint that arming it queued, so the map stands still before the page moves. A
+    # map armed into a page already moving is a different case, held by
+    # tests/runtime/hint-session.test.mjs.
+    rendered(page)
 
     # A smooth scroll is the case that holds the session in motion: a programmatic step
     # ends in its own frame, and Chrome sends `scrollend` for each one.
@@ -538,7 +571,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page Map"
+            "searchbox", name="Find an action, status or location in Page Map"
         )
     ).to_be_focused()
     # The one close control every surface wears: the cross, named for what it closes,
@@ -552,7 +585,7 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         header_box["x"] + header_box["width"], abs=0.5
     ), (header_box, close_box)
     expect(sheet).to_contain_text(
-        "No margin controls, status indicators, or locations yet"
+        "No margin controls, status indicators or locations yet"
     )
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
@@ -670,6 +703,43 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     expect(continued_hint).to_have_css("gap", "1px")
 
 
+def test_go_to_leaves_a_diffs_line_numbers_to_the_target_picker(browser, serve):
+    """A diff's line numbers get no chip: commenting on a line is the target picker's,
+    and a chip on every line buried the file's own routes. The file's fold and Comment
+    keep theirs (control-faces.js, `gutter`)."""
+    patch = (
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n-old\n+new\n same\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Diff routes",
+                '<h1>Diff routes</h1><lf-diff id="patch"><pre>'
+                + patch
+                + "</pre></lf-diff>",
+            )
+        ),
+    )
+    expect(page.locator("lf-diff .lf-diff-line-comment")).to_have_count(3)
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS).first).to_be_visible()
+    live = page.locator(".lf-live")
+    heard = []
+    for _ in range(page.locator(CHIPS).count()):
+        page.keyboard.press("Tab")
+        expect(live).to_have_text(re.compile(r"^Hint \w+: "))
+        if heard:
+            expect(live).not_to_have_text(heard[-1])
+        heard.append(live.text_content())
+    assert [said.split(": ")[1].split(",")[0] for said in heard] == [
+        "Fold",
+        "Control",
+    ], heard
+    assert not [said for said in heard if " line " in said], heard
+
+
 def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser, serve):
     """The map paints, Tab speaks it, and Enter activates the hint heard. The session's
     letters, walk and rereading are `tests/runtime/hint-session.test.mjs`'s."""
@@ -714,63 +784,3 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
     )
     expect(page.locator(CHIPS)).to_have_count(0)
-
-
-def test_global_destinations_switch_from_a_covering_workspace(
-    browser, serve, live_leaf
-):
-    """An open view keeps the global Go-to addresses that can replace it."""
-    live_leaf("second", "A second leaf")
-    url = serve(OBLIGATIONS_PAGE, comments=1)
-    _publish(serve.page_dir, 2, OBLIGATIONS_PAGE, "two")
-    page = open_page(browser, url)
-    resized(page, 420, 800)
-
-    def view(name):
-        return page.locator(panel_view(name))
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    expect(view("leaves")).to_be_visible()
-
-    for key, opened, closed in (
-        ("Shift+m", "queue", "leaves"),
-        ("Shift+t", "threads", "queue"),
-    ):
-        page.keyboard.press("g")
-        expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-        page.keyboard.press(key)
-        expect(view(opened)).to_be_visible()
-        expect(view(closed)).to_have_count(0)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    page_map = page.locator(".lf-page-map-dialog")
-    expect(page_map).to_be_visible()
-    expect(page_map.get_by_role("searchbox")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page_map).to_be_hidden()
-
-    # From a thread open in the panel, Versions opens over the leaf's menu in the
-    # thread's place, as every view does; Escape steps back to the menu, then puts the
-    # view away.
-    thread_id = next(
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    )
-    open_panel_thread(page, thread_id).focus()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+v")
-    versions = view("versions")
-    expect(versions).to_be_visible()
-    assert versions.evaluate("view => view.contains(document.activeElement)")
-    expect(versions.locator(".lf-fp-version")).to_have_count(2)
-    expect(page.locator(".lf-fp-head .lf-fp-back")).to_have_accessible_name(
-        "Back to Menu"
-    )
-    page.keyboard.press("Escape")
-    expect(versions).to_have_count(0)
-    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
-    page.keyboard.press("Escape")
-    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))

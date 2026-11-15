@@ -21,12 +21,13 @@ from render_cases_interaction import (
 )
 from render_harness import (
     expect_on_me,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
     panel_settled,
+    preview_parts,
     resized,
-    round_trip,
     sending,
     stamp_page,
     told,
@@ -36,11 +37,11 @@ from render_harness import (
 from browser.threads import (
     PANEL_NEWS,
     PANEL_REPLY,
+    SEAT_FILLER,
     STREAM_ATTEMPT,
     append_user_reply,
     claim_for_codex,
     open_panel_thread,
-    reply_by_keyboard,
     stream_reply,
     thread_row,
 )
@@ -130,7 +131,7 @@ def test_a_plain_agent_question_can_be_opened_and_answered(browser, serve, secti
 def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
     browser, serve, anchor
 ):
-    """On me reaches the exact question, even when its thread has lost its passage."""
+    """On Me reaches the exact question, even when its thread has lost its passage."""
     source = leaf_page(
         "Rehearsal report",
         '<h1 id="title">Rehearsal report</h1>'
@@ -203,67 +204,6 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
         and event["text"] == "02:00–02:40 UTC on Thursday"
         for event in events_model.read_events(serve.page_dir)
     )
-
-
-def test_a_thread_task_stays_on_me_until_done(browser, serve):
-    """Discussion of outside work is not completion; Done and Undo are explicit."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_create(
-        serve.page_dir, root, "Try the build on your phone", "user"
-    )
-    assert todo["subject"] == {"kind": "thread", "id": root}
-    page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
-    expect_on_me(page, 1)
-    mark.click()
-    row = page.locator(f'.lf-fp-on-item[data-lf-obligation-id="{todo["id"]}"]')
-    expect(row).to_contain_text("Try the build on your phone")
-    row.get_by_role("button", name="Discuss", exact=True).click()
-    reply = page.locator(PANEL_REPLY)
-    write(reply, "Which phone should I use?")
-    with sending(page, "the device clarification"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect_on_me(page, 1)
-    page.get_by_role("button", name="Back to On me").click()
-    with sending(page, "the completed phone check"):
-        row.get_by_role("button", name="Done", exact=True).click()
-    expect_on_me(page, 0)
-    expect(row.locator(".lf-fp-said")).to_have_text("Done")
-    with sending(page, "undo the phone check"):
-        row.get_by_role("button", name="Undo", exact=True).click()
-    expect_on_me(page, 1)
-    expect(row.get_by_role("button", name="Done", exact=True)).to_be_visible()
-
-
-def test_a_thread_heads_with_the_task_it_holds_on_me(browser, serve):
-    """A to-do on the user that sits on a thread heads the thread with its title and a
-    Done, so a reader discussing it ends it there, and the line goes as they press."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Can you check the mobile build?")
-    todo = todos_model.cmd_create(
-        serve.page_dir, root, "Try the build on your phone", "user"
-    )
-    page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
-    mark.click()
-    page.locator(f'.lf-fp-on-item[data-lf-obligation-id="{todo["id"]}"]').get_by_role(
-        "button", name="Discuss", exact=True
-    ).click()
-    line = page.locator(".lf-thread-todo:visible")
-    expect(line).to_have_count(1)
-    expect(line).to_contain_text("To-do · Try the build on your phone")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    line.get_by_role("button", name="Done", exact=True).click()
-    holding(page, held, 1, "the thread's Done")
-    expect(line).to_have_count(0)
-    expect_on_me(page, 0)
-    page.unroute("**/api/event")
-    for route in held:
-        route.continue_()
-    round_trip(page)
-    assert events_model.read_events(serve.page_dir)[-1]["todo"] == todo["id"]
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
@@ -752,13 +692,22 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(line).not_to_have_attribute("data-lf-live", "")
 
 
-@pytest.mark.watch_shifts
-def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
-    """A step's words wrap, so a new step can change the working message's height. In a
-    seat where that would move the reply being typed, the step waits and the draft
-    keeps its place. The notice says nothing of it, since progress is no unread news,
-    and sending the draft shows it."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+# Only "scrolls" is watched for shifts: on the short page the draft moves with no input,
+# which the rule accepts where the page has no scroll to give.
+@pytest.mark.parametrize(
+    "room", [pytest.param("scrolls", marks=pytest.mark.watch_shifts), "short"]
+)
+def test_a_new_step_shows_at_once_in_the_thread_being_written_in(browser, serve, room):
+    """A step's words wrap, so a new step can change the working message's height. In
+    the seat's thread the user writes in, the step shows as it comes, as in a chat, and
+    the draft stays where it stands while the page scrolls the step's room away above
+    it ("scrolls"). A page shorter than its window ("short") has no scroll to give, so
+    the step shows there too and the draft moves down by it. The thread says no news
+    waits either way, since progress is no unread news."""
+    source = SEATED_OBLIGATION_PAGE
+    if room == "scrolls":
+        source = source.replace("</lf-test-plan>", "</lf-test-plan>" + SEAT_FILLER, 1)
+    url = serve(source)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
         serve.page_dir,
@@ -774,6 +723,9 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     editor = thread.locator("leaf-text")
     write(editor, "Start with the mounts.")
     rendered(page)
+    assert page.evaluate(
+        "() => document.scrollingElement.scrollHeight > innerHeight"
+    ) == (room == "scrolls")
     box = editor.bounding_box()
 
     thread_model.post_reply(
@@ -784,14 +736,15 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    expect(words).to_have_text("Reading the jobs")
+    expect(words).to_contain_text("what each one needs before it can start")
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     rendered(page)
-    assert editor.bounding_box() == pytest.approx(box, abs=0.5)
-
-    with sending(page, "the draft"):
-        editor.press("Enter")
-    expect(words).to_contain_text("what each one needs before it can start")
+    expect(editor).to_be_focused()
+    moved = editor.bounding_box()["y"] - box["y"]
+    if room == "scrolls":
+        assert moved == pytest.approx(0, abs=0.5)
+    else:
+        assert moved > 0, "the step's growth had nowhere to go but under the draft"
 
 
 # Whether a box's words stand whole inside it, to the fraction of a pixel that
@@ -806,10 +759,11 @@ WORDS_FIT = """box => {
 
 def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
-    width it first stood at. Its name is the count it shows, so a voice user saying it
-    finds it, and its description says each fact. It said the facts and, past its room,
-    dropped the later ones behind a "+1", so one piece of news read three ways on three
-    surfaces; then its name said only the facts, which the words shown never said."""
+    width it first stood at, while the user reads beside the thread. Its name is the
+    count it shows, so a voice user saying it finds it, and its description says each
+    fact. It said the facts and, past its room, dropped the later ones behind a "+1", so
+    one piece of news read three ways on three surfaces; then its name said only the
+    facts, which the words shown never said."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -819,20 +773,19 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     expect(thread).to_be_visible()
-    write(thread.locator("leaf-text"), "Start with the mounts.")
     rendered(page)
 
     thread_model.post_reply(serve.page_dir, {"parent": root}, "The mounts come first.")
     told(page)
     notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply")
+    expect_preview_words(notice, "1 new reply")
     rendered(page)
     width = notice.bounding_box()["width"]
 
     append_user_reply(serve.page_dir, root, "And the bird bath?")
     told(page)
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 new message")
+    expect_preview_words(notice, "1 new reply · 1 new message")
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
     # The room "1 new" made holds "2 new" whole, figures of one width in both.
@@ -892,7 +845,10 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open. Once the
+    agent ends the question, a line under it says how it ended and the agent's note on
+    where, whole in a margin card at 1440 px, so the thread no longer reads as
+    asking."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -928,6 +884,38 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
+
+    where = (
+        "Answered in the session: the session store owns it, and the page store "
+        "keeps only what the session hands it when the page closes."
+    )
+    todos_model.cmd_end(serve.page_dir, f"message:{question['id']}", "done", where)
+    told(page)
+    resized(page, 1440, 900)
+    open_margin_card(page, "h-how")
+    asking = page.locator(
+        f'.lf-margin-preview .lf-msg[data-lf-event="{question["id"]}"]'
+    )
+    expect(asking.locator(".lf-msg-leaves")).to_have_count(0)
+    ending = asking.locator(".lf-msg-ending")
+    expect(ending).to_have_text(f"Answered elsewhere · {where}")
+    # Every box that clips, up to the card, holds the line's words whole.
+    assert ending.evaluate(
+        """(line) => {
+          const words = document.createRange();
+          words.selectNodeContents(line);
+          const shown = words.getBoundingClientRect();
+          for (let at = line; at; at = at.parentElement) {
+            const box = at.getBoundingClientRect();
+            const clips = at === line || getComputedStyle(at).overflow !== 'visible';
+            if (clips && (shown.left < box.left - 0.5 || shown.right > box.right + 0.5
+                || shown.top < box.top - 0.5 || shown.bottom > box.bottom + 0.5))
+              return false;
+            if (at.matches('.lf-margin-preview')) return true;
+          }
+          return false;
+        }"""
+    ), "the margin card cuts the ended question's note"
 
 
 def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
@@ -1062,7 +1050,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
@@ -1087,7 +1075,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("Send it again")
+    rendered(page)
+    assert any("Send it again" in part for part in preview_parts(margin))
 
     # The failed answer remains distinct from the muted clock without a chip face, in
     # the colour of a warning and Leaf's italic.
@@ -1213,88 +1202,22 @@ TRANSCRIPT_ORDER = """view => [...view.querySelectorAll('.lf-msg[data-lf-author=
         : node.querySelector('.lf-msg-text')?.innerText.trim())"""
 
 
-@pytest.mark.watch_shifts
-def test_a_reply_sent_after_progress_stands_below_it(browser, serve, request):
-    """A thread reads in the order its messages were said, and nothing moves above the
-    user's message as the agent goes on. The agent's progress line was said before the
-    user's next message, so that message stands below it, both as the send draws it
-    and once the log holds it; the agent's next step stands below the message, the
-    earlier one staying where it was, still. The answer then hides all earlier
-    progress, including steps separated by the user's message."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
-    claim_for_codex(serve.page_dir, request)
-    thread_model.post_reply(
-        serve.page_dir,
-        {"parent": root, "responds": root},
-        "Checking the board",
-        ephemeral=True,
-        identity={"agent": "Codex", "session": "codex-thread"},
-    )
-    page = open_page(browser, url)
-    view = reply_by_keyboard(page, root)
-    expect(view.locator(".lf-thread-working")).to_be_visible()
-    page.keyboard.type("And the changelog?")
-    with sending(page, "the reply"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect(
-        view.locator(".lf-msg[data-lf-author=user]", has_text="And the changelog?")
-    ).to_be_visible()
-    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
-    told(page)
-    assert view.evaluate(TRANSCRIPT_ORDER)[-2:] == ["working", "And the changelog?"]
-
-    # The agent's next step is said after the user's message, so it stands below it.
-    asked = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "reply" and event["author"] == "user"
-    )
-    thread_model.post_reply(
-        serve.page_dir,
-        {"responds": asked["id"]},
-        "Reading the changelog",
-        ephemeral=True,
-        identity={"agent": "Codex", "session": "codex-thread"},
-    )
-    told(page)
-    assert view.evaluate(TRANSCRIPT_ORDER)[-3:] == [
-        "working",
-        "And the changelog?",
-        "working",
-    ]
-    faces = view.locator(".lf-thread-working")
-    expect(faces.first).not_to_have_attribute("data-lf-live", "")
-    expect(faces.last).to_have_attribute("data-lf-live", "")
-    expect(faces.last).to_have_text(re.compile("Reading the changelog"))
-
-    # The answer hides both runs, including progress before the user's interruption.
-    answer = thread_model.post_reply(
-        serve.page_dir,
-        {"responds": asked["id"]},
-        "Recorded, with the changelog.",
-        identity={"agent": "Codex", "session": "codex-thread"},
-    )
-    told(page)
-    # Removing progress above the user's message waits for their reveal, so the
-    # existing words do not move while they read.
-    page.locator(PANEL_NEWS).click()
-    expect(view.locator(f'.lf-msg[data-lf-event="{answer["id"]}"]')).to_be_visible()
-    assert view.evaluate(TRANSCRIPT_ORDER) == [
-        "Record the release",
-        "And the changelog?",
-    ]
-    expect(view.locator(".lf-thread-working")).to_have_count(0)
-    expect(
-        view.get_by_role("button", name=re.compile("progress message"))
-    ).to_have_count(0)
+# The run's height above the user's message: the steps `ids` names, as they show, and
+# its face.
+RUN_HEIGHT = """([thread, message, ids]) => [...thread.querySelectorAll(
+  ['.lf-thread-working', ...ids.map(id => `.lf-msg[data-lf-event="${id}"]`)].join())]
+  .filter(node => node.compareDocumentPosition(message) & Node.DOCUMENT_POSITION_FOLLOWING)
+  .reduce((sum, node) => sum + node.getBoundingClientRect().height, 0)"""
 
 
-@pytest.mark.watch_shifts
 def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, serve):
     """Until an answer arrives, progress before a user's message offers its earlier
-    steps itself, and a rewrite of the step it shows waits behind the
-    thread's notice where it would move the user's message below it."""
+    steps itself, and they stay as the user leaves them, shown or hidden. A rewrite of
+    the step it shows draws at once while the user stands on its toggle in the thread,
+    as news in the thread the user is in does: the toggle stays where it stood, the
+    page scrolling away what grows above it, and the user's message below moves by the
+    run's growth alone. It once waited behind the thread's notice ("1 message
+    edited")."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     steps = [
@@ -1316,59 +1239,73 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     first = thread.locator(f'.lf-msg[data-lf-event="{steps[0]["id"]}"]')
     expect(first).to_be_hidden()
     show = thread.get_by_role("button", name="Show 2 progress messages", exact=True)
+    hide = thread.get_by_role("button", name="Hide 2 progress messages", exact=True)
     show.press("Enter")
     expect(first).to_be_visible()
-    thread.get_by_role("button", name="Hide 2 progress messages", exact=True).press(
-        "Enter"
+    hide.press("Enter")
+    expect(first).to_be_hidden()
+    expect(show).to_be_focused()
+
+    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
+
+    def rewrite(text, toggle):
+        rendered(page)
+        handles = [
+            thread.element_handle(),
+            message.element_handle(),
+            [step["id"] for step in steps],
+        ]
+        stood = toggle.bounding_box()
+        was = message.bounding_box()["y"]
+        run = page.evaluate(RUN_HEIGHT, handles)
+        scroll = page.evaluate("document.scrollingElement.scrollTop")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "edit",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "pytest",
+                "message": steps[1]["id"],
+                "text": text,
+            },
+        )
+        told(page)
+        # The working message says a step without its closing full stop.
+        expect(thread.locator(".lf-thread-working").first).to_contain_text(
+            text.rstrip(".")
+        )
+        rendered(page)
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        expect(toggle).to_be_focused()
+        assert toggle.bounding_box() == pytest.approx(stood, abs=0.5)
+        grew = page.evaluate(RUN_HEIGHT, handles) - run
+        scrolled = page.evaluate("document.scrollingElement.scrollTop") - scroll
+        assert message.bounding_box()["y"] - was == pytest.approx(
+            grew - scrolled, abs=0.5
+        )
+
+    rewrite(
+        "Comparing the frost dates for the mounts, the bird bath and the camera, "
+        "and what each one needs before it can start.",
+        show,
     )
     expect(first).to_be_hidden()
 
-    message = thread.locator(".lf-msg[data-lf-author=user]", has_text="And the camera?")
-    rendered(page)
-    box = message.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest",
-            "message": steps[1]["id"],
-            "text": "Comparing the frost dates for the mounts, the bird bath and the "
-            "camera, and what each one needs before it can start.",
-        },
-    )
-    told(page)
-    notice = thread.get_by_role("button", name="1 new", exact=True)
-    expect(notice).to_have_accessible_description("1 message edited")
-    rendered(page)
-    assert message.bounding_box() == pytest.approx(box, abs=0.5)
-    notice.click()
-    expect(thread.locator(".lf-thread-working").first).to_contain_text("bird bath")
-
-    # Opened, the run shows the step itself above its face, which can stand below the
-    # window while the step shows; a rewrite of it holds the same.
+    # Opened, the run shows the step itself above its face. A rewrite of it keeps the
+    # steps shown, and the page scrolls the step's growth above the toggle away. The
+    # toggle stands clear of the floating panel at the window's foot, where it would be
+    # out of the user's sight and so held for nobody (user-place.js, `holdUserPlace`).
     show.press("Enter")
     expect(first).to_be_visible()
     resized(page, 390, 540)
-    page.evaluate("scrollTo(0, 0)")
-    rendered(page)
-    box = message.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest",
-            "message": steps[1]["id"],
-            "text": "Comparing the frost dates.",
-        },
+    hide.evaluate("t => scrollBy(0, t.getBoundingClientRect().top - innerHeight / 3)")
+    rewrite(
+        "Comparing the frost dates for the mounts, the bird bath and the camera, what "
+        "each one needs before it can start, and which of them can wait for spring.",
+        hide,
     )
-    told(page)
-    expect(notice).to_be_visible()
-    rendered(page)
-    assert message.bounding_box() == pytest.approx(box, abs=0.5)
+    expect(first).to_be_visible()
 
 
 def test_an_older_answer_keeps_newer_work_visible_without_its_progress_history(

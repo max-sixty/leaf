@@ -1,0 +1,93 @@
+# Added with `--obligation <id>`, which the user chose on 2026-11-04 over two others: their reply
+# clears a question from On Me at once, so they can empty the list without waiting for
+# the agent, and where the reply left the question standing the agent puts the same item
+# back rather than asking under a new id. The envelopes are real deliveries, generated
+# with the `settled` handling at the commit that adds this case; regenerate them to score
+# a change to that clause. Base has no `--obligation <id>`, so no base arm can pass the first
+# context. Scores the `settled` clause in `$events.handling`, threads.md and
+# conversation-loop.md.
+description: reply-left-standing-reopens
+metadata:
+  purpose:
+    The user's reply answers a question at once whatever it says. An agent whose reply
+    finds the question still standing returns the same item to On Me; one whose reply
+    answered it, or who has a new question of its own, does not.
+  tags:
+    - threads
+    - asks
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf, five hours into a release-review page with the user at /Users/max/.local/state/leaf/pages/release-review. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. A step of the page's plan, Try the build on a phone, names the question you asked them in this thread.
+
+
+    Leaf's prompt hook handed you this complete inline delivery:
+
+    {"format": "leaf-delivery/15", "id": "c5db0eab", "created_at": 1793865501.0575092, "acknowledge": "If the output was cut off, reread it with `leaf delivery read c5db0eab` and follow any `next` commands. Then, before any other work, start `leaf delivery ack c5db0eab && leaf wait /Users/max/.local/state/leaf/pages/release-review` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.", "batches": [{"page": "/Users/max/.local/state/leaf/pages/release-review", "claim": null, "through_seq": 4, "threads": [{"id": "75bc9855", "title": null, "anchor": null, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [{"id": "75bc9855", "seq": 2, "author": "user", "text": "Is this ready for the phone?"}, {"id": "f57b2a02", "seq": 3, "author": "agent", "agent": "Claude", "text": "Can you try the build on your phone, and reply once it opens?"}], "summaries": [], "actions": []}], "handling": {"h1": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history.", "h2": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h3": "The user's message answered your questions in `settled`, as their next message in a thread always does, so those have left On Me. Judge from each one's `text` whether it did. One still stands where its answer is still missing, as when they asked something back or the step is still to do: give `--obligation` its id on your reply in this thread, which asks again, repeating the flag for each such: `leaf thread reply <answer.ref> --obligation <id> --text \"<your reply>\"`. The same question returns to On Me, standing on your reply, and a plan step naming it reads open again. One they answered stays answered, and anything more you need from them, even on the same subject, is a new question: ask it with `--obligation` and no id.", "h4": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h5": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "reply", "author": "user", "parent": "f57b2a02", "text": "Where do I get the build?", "id": "06542a79", "attention": true, "ts": "2026-11-04T23:58:21.055-08:00", "seq": 4, "subject": {"kind": "thread", "id": "75bc9855"}, "threads": ["75bc9855"], "settled": [{"id": "message:f57b2a02", "text": "Can you try the build on your phone, and reply once it opens?"}], "handling": ["h1", "h2", "h3", "h4", "h5"], "answer": {"kind": "reply", "parent": "06542a79", "responds": "06542a79", "ref": "c5db0eab:0:06542a79", "writer": "agent"}}]}]}
+
+
+    The build is at https://builds.example.com/latest.
+
+
+    The page and services are unreachable in this exercise. Write out the command you would run to answer the user's message, with the full text of the reply, then end your answer.
+assert:
+  - type: llm-rubric
+    metric: reopened
+    value:
+      Pass only if the reply that answers the user's message passes `--obligation` the
+      id `message:f57b2a02`, says where to get the build, and asks them again to
+      try it and reply. The user asked something back, so the step is still to do and the
+      plan step should follow. Fail a reply declared `--obligation` with no id, which
+      would ask under a new id and leave the plan step reading done, and one declared
+      `--done`. Other commands and the reply's wording don't matter.
+variants:
+  answered:
+    metadata:
+      purpose: A reply that answers the question leaves it answered.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, five hours into a release-review page with the user at /Users/max/.local/state/leaf/pages/release-review. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. A step of the page's plan, Try the build on a phone, names the question you asked them in this thread.
+
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "c4f3a516", "created_at": 1793865501.860372, "acknowledge": "If the output was cut off, reread it with `leaf delivery read c4f3a516` and follow any `next` commands. Then, before any other work, start `leaf delivery ack c4f3a516 && leaf wait /Users/max/.local/state/leaf/pages/release-review` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.", "batches": [{"page": "/Users/max/.local/state/leaf/pages/release-review", "claim": null, "through_seq": 4, "threads": [{"id": "f3bc0e1e", "title": null, "anchor": null, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [{"id": "f3bc0e1e", "seq": 2, "author": "user", "text": "Is this ready for the phone?"}, {"id": "f76467f0", "seq": 3, "author": "agent", "agent": "Claude", "text": "Can you try the build on your phone, and reply once it opens?"}], "summaries": [], "actions": []}], "handling": {"h1": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history.", "h2": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h3": "The user's message answered your questions in `settled`, as their next message in a thread always does, so those have left On Me. Judge from each one's `text` whether it did. One still stands where its answer is still missing, as when they asked something back or the step is still to do: give `--obligation` its id on your reply in this thread, which asks again, repeating the flag for each such: `leaf thread reply <answer.ref> --obligation <id> --text \"<your reply>\"`. The same question returns to On Me, standing on your reply, and a plan step naming it reads open again. One they answered stays answered, and anything more you need from them, even on the same subject, is a new question: ask it with `--obligation` and no id.", "h4": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h5": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "reply", "author": "user", "parent": "f76467f0", "text": "Tried it, it opens fine.", "id": "d45840ab", "attention": true, "ts": "2026-11-04T23:58:21.847-08:00", "seq": 4, "subject": {"kind": "thread", "id": "f3bc0e1e"}, "threads": ["f3bc0e1e"], "settled": [{"id": "message:f76467f0", "text": "Can you try the build on your phone, and reply once it opens?"}], "handling": ["h1", "h2", "h3", "h4", "h5"], "answer": {"kind": "reply", "parent": "d45840ab", "responds": "d45840ab", "ref": "c4f3a516:0:d45840ab", "writer": "agent"}}]}]}
+
+
+        That was the last step: the user already decided to release, and the release script runs on its own once the phone check passes, so nothing is left to ask them.
+
+
+        The page and services are unreachable in this exercise. Write out the command you would run to answer the user's message, with the full text of the reply, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: stays-answered
+        value:
+          Pass only if the reply that answers the user's message carries no `--obligation`.
+          The user did what the question asked, so nothing is left for
+          them to do. Declaring it `--done` is the expected form, and the reply's wording
+          doesn't matter.
+  new-question:
+    metadata:
+      purpose: A new question takes an id of its own, leaving the answered one answered.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, five hours into a release-review page with the user at /Users/max/.local/state/leaf/pages/release-review. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of their comments since, so act on this without reloading them. A step of the page's plan, Choose the export's cadence, names the question you asked them in this thread.
+
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        {"format": "leaf-delivery/15", "id": "9043adbf", "created_at": 1793865502.577882, "acknowledge": "If the output was cut off, reread it with `leaf delivery read 9043adbf` and follow any `next` commands. Then, before any other work, start `leaf delivery ack 9043adbf && leaf wait /Users/max/.local/state/leaf/pages/release-review` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.", "batches": [{"page": "/Users/max/.local/state/leaf/pages/release-review", "claim": null, "through_seq": 4, "threads": [{"id": "833585af", "title": null, "anchor": null, "detached_from": null, "resolved": null, "elided": {"messages": 0, "actions": 0}, "messages": [{"id": "833585af", "seq": 2, "author": "user", "text": "Schedule the export."}, {"id": "08e78e05", "seq": 3, "author": "agent", "agent": "Claude", "text": "Should the export run weekly or daily?"}], "summaries": [], "actions": []}], "handling": {"h1": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history.", "h2": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.", "h3": "The user's message answered your questions in `settled`, as their next message in a thread always does, so those have left On Me. Judge from each one's `text` whether it did. One still stands where its answer is still missing, as when they asked something back or the step is still to do: give `--obligation` its id on your reply in this thread, which asks again, repeating the flag for each such: `leaf thread reply <answer.ref> --obligation <id> --text \"<your reply>\"`. The same question returns to On Me, standing on your reply, and a plan step naming it reads open again. One they answered stays answered, and anything more you need from them, even on the same subject, is a new question: ask it with `--obligation` and no id.", "h4": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in `--markup` in place of `--obligation`, as `<lf-options id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.", "h5": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."}, "events": [{"kind": "reply", "author": "user", "parent": "08e78e05", "text": "Daily.", "id": "324212f1", "attention": true, "ts": "2026-11-04T23:58:22.558-08:00", "seq": 4, "subject": {"kind": "thread", "id": "833585af"}, "threads": ["833585af"], "settled": [{"id": "message:08e78e05", "text": "Should the export run weekly or daily?"}], "handling": ["h1", "h2", "h3", "h4", "h5"], "answer": {"kind": "reply", "parent": "324212f1", "responds": "324212f1", "ref": "9043adbf:0:324212f1", "writer": "agent"}}]}]}
+
+
+        To schedule it you also need the hour it should run, which only the user knows.
+
+
+        The page and services are unreachable in this exercise. Write out the command you would run to answer the user's message, with the full text of the reply, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: asks-anew
+        value:
+          Pass only if the reply that answers the user's message asks the hour it should
+          run and declares the question with `--obligation` and no id, or with a widget in
+          `--markup` that asks, and names no question id. The user answered the cadence question, so its
+          plan step is done, and the hour is a different question. Other commands and the
+          reply's wording don't matter.

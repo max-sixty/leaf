@@ -31,6 +31,7 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
+    initialized,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -43,6 +44,7 @@ from leaf.state import (
     TIME,
     Record,
     chat_exists,
+    claims_home,
     claims_lock,
     described,
     drop_locator,
@@ -60,7 +62,6 @@ from leaf.state import (
     session_lock_path,
     session_record,
     standing_claims,
-    state_home,
 )
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 
 def claim_path(page_dir: Path) -> Path:
     """The page's one canonical payload, also written by resident page servers."""
-    return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
+    return claims_home() / f"{page_key(page_dir)}.json"
 
 
 CLAIM = Record(
@@ -409,10 +410,6 @@ class PageTransaction:
                 },
             )
 
-    def owned_by(self, harness: Harness | None) -> bool:
-        """Whether this transaction may act for the given waiter."""
-        return claimant_matches(self.active_claim, harness)
-
     def note_messaged(self, ending: str) -> None:
         """Record that input reaching this page messaged its session after a turn
         ended.
@@ -730,7 +727,7 @@ class PageTransaction:
         return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
-        if not self.owned_by(harness):
+        if not claimant_matches(self.active_claim, harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
 
@@ -786,9 +783,10 @@ def claim_page(page_dir: Path) -> bool:
 def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     """Connect delivery before publishing ownership, without starting a server.
 
-    An explicit watcher claims with manual_delivery before its first wait. Hooks do
-    not prepare adapters, so this interval leaves delivery to that watcher; once its
-    wait is live, ordinary serving and reclaiming preserve the selected watch.
+    An explicit watcher claims with manual_delivery before its first wait, in the
+    same turn, and only a prompt hook serving a page again prepares an adapter
+    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
+    live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
     from leaf.session_runtime import select_checkout
@@ -922,7 +920,7 @@ def owned_pages(session_id: str | None) -> list:
     pages = {
         Path(claim["page"])
         for claim in claim_records(session_id)
-        if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
+        if claim_is_active(claim) and initialized(Path(claim["page"]))
     }
     return sorted(pages, key=str)
 

@@ -36,6 +36,7 @@ export interface RenderDriver {
     buffered?: boolean,
   ): () => void;
   startupLayoutShifts(): ShiftReading[];
+  undrawnHeights(): Map<Element, number>;
   captureFirstBoxes(): void;
   firstBoxes(): FirstBox[];
 }

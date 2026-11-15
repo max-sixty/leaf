@@ -14,7 +14,9 @@ test("Screenshot drawing retains controls, frames and images across updates and 
   const frames = [...drawing.frames];
   const viewports = [...drawing.viewports];
   const images = [...host.querySelectorAll(".lf-shotframe img")];
-  const controls = [...host.querySelectorAll("button, input")];
+  const controls = [
+    ...host.querySelectorAll("wa-radio-group, wa-radio, button, input"),
+  ];
   const clicked = [];
   const imagesOf = (suffix) =>
     ["before", "after"].map((state) => {
@@ -48,11 +50,14 @@ test("Screenshot drawing retains controls, frames and images across updates and 
   const beforeLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="before"]');
   const afterLabel = host.querySelector('.lf-shot-toolbar [data-lf-state="after"]');
   try {
-    const slider = controls[0];
-    slider.focus();
+    const options = host.querySelector(".lf-shot-scale");
+    options.focus();
     paint();
-    assert.equal(document.activeElement, slider);
-    slider.click();
+    assert.equal(document.activeElement, options);
+    // The views are a radio group, which says the view chosen in its change.
+    const views = host.querySelector(".lf-shot-views");
+    views.value = "flip";
+    views.dispatchEvent(new Event("change"));
     assert.deepEqual(clicked, ["flip"]);
     assert.equal(beforeLabel.textContent, "Base");
     assert.equal(afterLabel.hasAttribute("data-lf-shot-hidden"), true);
@@ -106,7 +111,10 @@ test("Screenshot drawing retains controls, frames and images across updates and 
     assert.equal(host.querySelector(".lf-shot-outline").disabled, true);
     assert.equal(host.querySelector("input").checked, true);
     assert.equal(frames[0].querySelector("a").hasAttribute("href"), false);
-    assert.deepEqual([...host.querySelectorAll("button, input")], controls);
+    assert.deepEqual(
+      [...host.querySelectorAll("wa-radio-group, wa-radio, button, input")],
+      controls,
+    );
     assert.deepEqual(drawing.frames, frames);
     assert.deepEqual(drawing.viewports, viewports);
     assert.deepEqual([...host.querySelectorAll(".lf-shotframe img")], images);

@@ -44,6 +44,15 @@
    It is read, so assistive technology reaches it as the entry's disclosure, where the
    bars and the outline are empty boxes it passes over.
 
+   A change with blocks puts the keys on its first block (change-walk.js), but a gap
+   holds no element to stand on, and the block beside it is unchanged, so each gap has a
+   stand-in (control-faces.js, `proxy`) on the details shelf, named by what the change
+   did, whose press opens the change's card as its entry's does. The walk lands on it
+   (`removalProxy`), and the user's place while on it is the element the gap stands by
+   (details-shelf.js). Its focus opens what folds the gap away, brings the gap into view
+   and rings it, as a block's focus rings the block, rather than that element, which
+   didn't change and may be a `details` the gap stands outside.
+
    Each box is paint over the page (target-paint-geometry.js, `paintSet`), standing in
    the planes that carry its target, so a scroll moves it without a write and the
    target's own borders, shadows and display are left as authored. A widget drawn
@@ -54,12 +63,21 @@ import { effect, signal } from "/runtime/framework.js";
 import {
   CHANGE_CARD,
   changeRedline,
+  changeSince,
   closeChangeCard,
   comparisonChanges,
+  gapHolder,
   openedChange,
+  toggleChangeCard,
 } from "./version.js";
 import { paintSet } from "./target-paint-geometry.js";
-import { el } from "./widget-elements.js";
+import { el, offerAction, reveal } from "./widget-elements.js";
+import { shelve, unshelve } from "./details-shelf.js";
+import { onCurrentLocation } from "./focus.js";
+import { scrollIntoView } from "./landing-scroll.js";
+import { scrollContainer } from "./geometry.js";
+import { scrollBehavior } from "./motion.js";
+import { retainUserIntent } from "./user-intent.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { keeps, layoutPx } from "./keeps.js";
@@ -80,7 +98,7 @@ const KINDS = /** @type {const} */ ({
 // between blocks set close and stays a mark between blocks set far apart.
 const GAP_BAR = { min: 8, max: 20 };
 // How far the outline stands round a change's blocks, clear of their bars, and how far
-// the card's words stand in from its edge.
+// the card's words stand in from its edge. A gap's outline stands round the gap alone.
 const OUTLINE = { x: 12, y: 6 };
 const CARD_INSET = 13;
 
@@ -88,6 +106,14 @@ const CARD_INSET = 13;
 export const marginBarLayer = el("div", "lf-ui lf-margin-bars");
 
 const outlined = signal(/** @type {Change | null} */ (null));
+// Each gap's stand-in, by its change, and the change each stands in for.
+/** @type {Map<Change, HTMLElement>} */
+const proxies = new Map();
+/** @type {WeakMap<Element, Change>} */
+const proxied = new WeakMap();
+/** Where the keys stand for a change that only took blocks out: its gap's stand-in.
+ * @param {Change} change */
+export const removalProxy = (change) => proxies.get(change) ?? null;
 /** Outline the change the user points at, or nothing.
  * @param {Change | null} change */
 export function outlineChange(change) {
@@ -109,23 +135,71 @@ function barLeft(target, rect, gap) {
       )
     : Math.max(Math.min(rect.left, edge.left) - gap - BAR, 0);
 }
-// The gap a change that only took blocks out stands in: between the block it stands
-// before and the one ahead of it, or after the page's last block.
+// The gap a change that only took blocks out stands in: from the element it stands by to
+// the nearest box across the gap, the next shown sibling, else its parent's own edge
+// where the parent leaves room, as at the foot of a `details`, else the parent's own
+// sibling and so up; no further than a bar's length from a parent's edge. A gap in an
+// element is that element's box.
 /** @param {Change} change @param {Box} rect */
-function gapOf({ at, after }, rect) {
-  const other = (
-    after ? at.nextElementSibling : at.previousElementSibling
-  )?.getBoundingClientRect();
-  return after
-    ? {
-        top: rect.bottom,
-        bottom:
-          other && other.top > rect.bottom ? other.top : rect.bottom + GAP_BAR.max,
-      }
-    : {
-        top: other && other.bottom < rect.top ? other.bottom : rect.top - GAP_BAR.max,
-        bottom: rect.top,
-      };
+function gapOf({ at, gap }, rect) {
+  if (gap === "in")
+    return { top: rect.top, bottom: Math.max(rect.bottom, rect.top + GAP_BAR.min) };
+  const after = gap === "after";
+  const reach = after ? rect.bottom + GAP_BAR.max : rect.top - GAP_BAR.max;
+  const across = (/** @type {number} */ edge) =>
+    after ? edge > rect.bottom : edge < rect.top;
+  let far = reach;
+  for (let box = at; box.parentElement && box !== document.body;) {
+    let sibling = after ? box.nextElementSibling : box.previousElementSibling;
+    while (sibling && !sibling.getClientRects().length)
+      sibling = after ? sibling.nextElementSibling : sibling.previousElementSibling;
+    if (sibling) {
+      const edge = sibling.getBoundingClientRect()[after ? "top" : "bottom"];
+      if (across(edge)) far = edge;
+      break;
+    }
+    box = box.parentElement;
+    const own = box.getBoundingClientRect()[after ? "bottom" : "top"];
+    if (across(own)) {
+      far = after ? Math.min(own, reach) : Math.max(own, reach);
+      break;
+    }
+  }
+  return after ? { top: rect.bottom, bottom: far } : { top: far, bottom: rect.top };
+}
+// Where a scroll finds a gap: from the last words before it to the first after it, so
+// the gap shows with a line either side, and within the scroller holding it, so that
+// scroller is the one that moves; or the element a gap is in.
+/** @param {Change} change @returns {Element | Range} */
+function gapRange(change) {
+  const { at, gap } = change;
+  if (gap === "in") return at;
+  let within = gapHolder(change);
+  while (within !== document.body && !scrollContainer(within) && within.parentElement)
+    within = within.parentElement;
+  const words = document.createTreeWalker(within, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      /\S/.test(node.nodeValue ?? "")
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP,
+  });
+  // Where the gap meets `at`: `at` itself for a gap before it, and its last descendant
+  // for a gap after it, from which the words either side are found.
+  let edge = /** @type {Node} */ (at);
+  if (gap === "after") while (edge.lastChild) edge = edge.lastChild;
+  words.currentNode = edge;
+  const before =
+    gap === "after" && edge instanceof Text && /\S/.test(edge.data)
+      ? edge
+      : words.previousNode();
+  words.currentNode = edge;
+  const after = words.nextNode();
+  const range = document.createRange();
+  if (before instanceof Text) range.setStart(before, before.length);
+  else range.setStartBefore(at);
+  if (after instanceof Text) range.setEnd(after, 0);
+  else range.setEndAfter(at);
+  return range;
 }
 // What a change covers on the page: its blocks' boxes together, or its gap the width of
 // the block it stands by. `rect` is that block's, as its placement read it.
@@ -181,10 +255,14 @@ export function createMarginBars(inventory) {
   /** @type {Map<Change, HTMLElement>} */
   const gaps = new Map();
   const outline = el("span", "lf-change-outline");
+  const ring = el("span", "lf-change-outline lf-change-ring");
   /** @type {{change: Change, node: HTMLElement} | null} */
   let card = null;
   /** @type {Change | null} */
   let pointed = null;
+  // The change whose gap's stand-in holds focus.
+  /** @type {Change | null} */
+  let ringed = null;
   let frame = 0;
 
   /** @returns {{node: HTMLElement, target: Element, rect: (placed: Placement) => Box | {left: number, top: number}}[]} */
@@ -215,24 +293,33 @@ export function createMarginBars(inventory) {
         };
       },
     }));
-    const reach = pointed;
-    const round = reach
-      ? [
-          {
-            node: outline,
-            target: reach.at,
-            rect: (/** @type {Placement} */ { rect }) => {
-              const box = extentOf(reach, rect);
-              return {
-                left: box.left - OUTLINE.x,
-                right: box.right + OUTLINE.x,
-                top: box.top - OUTLINE.y,
-                bottom: box.bottom + OUTLINE.y,
-              };
+    // The ring gives way to its change's card, as the outline does (margin-projection.js).
+    /** @type {[Change | null, HTMLElement][]} */
+    const rounds = [
+      [pointed, outline],
+      [ringed === card?.change ? null : ringed, ring],
+    ];
+    const round = rounds.flatMap(([reach, node]) =>
+      reach
+        ? [
+            {
+              node,
+              target: reach.at,
+              rect: (/** @type {Placement} */ { rect }) => {
+                const box = extentOf(reach, rect);
+                // A gap's outline keeps to the gap, clear of the words on either side.
+                const y = reach.blocks.length ? OUTLINE.y : 0;
+                return {
+                  left: box.left - OUTLINE.x,
+                  right: box.right + OUTLINE.x,
+                  top: box.top - y,
+                  bottom: box.bottom + y,
+                };
+              },
             },
-          },
-        ]
-      : [];
+          ]
+        : [],
+    );
     const open = card;
     const over = open
       ? [
@@ -277,6 +364,7 @@ export function createMarginBars(inventory) {
     const targets = new Set(items().flatMap(({ target }) => target));
     for (const target of card?.change.blocks ?? []) targets.add(target);
     for (const target of pointed?.blocks ?? []) targets.add(target);
+    if (ringed) targets.add(ringed.at);
     for (const target of observed) if (!targets.has(target)) sizes.unobserve(target);
     for (const target of targets) if (!observed.has(target)) sizes.observe(target);
     observed = targets;
@@ -324,17 +412,43 @@ export function createMarginBars(inventory) {
     for (const change of gaps.keys())
       if (!empty.has(change)) {
         gaps.delete(change);
+        const proxy = proxies.get(change);
+        if (proxy) unshelve(change.at, proxy);
+        proxies.delete(change);
         changed = true;
       }
     for (const change of empty)
       if (!gaps.has(change)) {
         const node = el("span", "lf-change-bar");
         keeps(node, "data-lf-for", change.at.id || null);
-        node.dataset.lfGap = change.after ? "after" : "before";
+        node.dataset.lfGap = change.gap ?? "";
         gaps.set(change, node);
+        const proxy = offerAction("proxy", "lf-change-gap", changeSince(change));
+        proxy.tabIndex = -1;
+        keeps(proxy, "aria-controls", CHANGE_CARD);
+        keeps(proxy, "aria-expanded", "false");
+        proxy.addEventListener("click", () => toggleChangeCard(change));
+        shelve(change.at, proxy, () => null, { presents: false });
+        proxies.set(change, proxy);
+        proxied.set(proxy, change);
         changed = true;
       }
     if (changed) redraw();
+  });
+  // Focus on a gap's stand-in opens what folds the gap away, brings the gap into view
+  // and rings it.
+  onCurrentLocation((node) => {
+    const change = (node && proxied.get(node)) ?? null;
+    if (change) {
+      reveal(gapHolder(change), retainUserIntent());
+      scrollIntoView(gapRange(change), {
+        behavior: scrollBehavior(),
+        block: "nearest",
+      });
+    }
+    if (change === ringed) return;
+    ringed = change;
+    redraw();
   });
   effect(() => {
     pointed = outlined.value;
@@ -342,6 +456,8 @@ export function createMarginBars(inventory) {
   });
   effect(() => {
     const change = openedChange();
+    for (const [each, proxy] of proxies)
+      keeps(proxy, "aria-expanded", String(each === change));
     if (card?.change === change) return;
     const node = change ? cardFor(change) : null;
     card = change && node ? { change, node } : null;

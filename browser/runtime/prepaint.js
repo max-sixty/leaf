@@ -536,16 +536,12 @@
     let properties = runtimeStyles.get(node);
     if (!properties) runtimeStyles.set(node, (properties = new Set()));
     properties.add(property);
-    if (
-      node.style.getPropertyValue(property) !== value ||
-      node.style.getPropertyPriority(property) !== priority
-    )
-      node.style.setProperty(property, value, priority);
+    node.style.setProperty(property, value, priority);
   };
   /** @type {LeafRootState["removeRuntimeRootStyle"]} */
   const removeRuntimeRootStyle = (node, property) => {
     runtimeStyles.get(node)?.delete(property);
-    if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
+    node.style.removeProperty(property);
   };
   // What an element wears: attributes and custom properties written as one set, so a
   // later set removes what the earlier one had and the next does not (dress.js). The

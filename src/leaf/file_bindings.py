@@ -28,17 +28,15 @@ from stat import S_ISREG
 
 from .files import file_stamp
 from .leases import page_locked
-from .locations import canonical_path
+from .locations import canonical_path, path_lock
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import (
     STRING,
     Record,
     described,
-    flocked,
     object_schema,
     replace_bytes,
-    state_home,
 )
 
 BINDINGS = Record(
@@ -213,10 +211,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         path = _target(page_dir, binding)
         if path is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
-        key = hashlib.sha256(os.fsencode(path)).hexdigest()
-        locks = state_home() / "files"
-        locks.mkdir(parents=True, exist_ok=True)
-        with flocked(locks / f"{key}.lock"):
+        with path_lock(path):
             before = _read(path)
             current = _snapshot(path, before)
             if posted["revision"] != current["revision"]:

@@ -20,10 +20,13 @@ from pathlib import Path
 from typing import Literal, Protocol
 
 import click
+from click.testing import CliRunner
 
+from leaf.cli import cli
 from leaf.event_log import read_events
 from leaf.interaction_log import append_interactions
 from leaf.media import media_name
+from leaf.registry.storage import layer_record
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
@@ -109,6 +112,9 @@ def source_manifest(source: Path) -> Path | None:
 
 
 def source_packages(source: Path) -> list[str]:
+    # A page directory's `index.html` takes the selection its layer record keeps.
+    if (record := layer_record(source.parent)) is not None:
+        return list(record["packages"])
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
@@ -154,7 +160,7 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
 
 def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
     """Composition inputs besides `path` and the asset pin, including discovery trees."""
-    from leaf_dev.commands import corpus
+    from leaf_dev.commands.generate import corpus as corpus
 
     if root := corpus.source_root(path):
         return corpus.composition_inputs(root)
@@ -163,7 +169,7 @@ def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
 
 def refresh_composition(source: Path) -> None:
     """Materialize a generated fixture before reading its markup and companions."""
-    from leaf_dev.commands import corpus
+    from leaf_dev.commands.generate import corpus as corpus
 
     if root := corpus.source_root(source):
         corpus.generate(root)
@@ -226,6 +232,16 @@ class LeafRunner(Protocol):
     directory and failure report."""
 
     def __call__(self, *args: str, input_text: str | None = None) -> object: ...
+
+
+def leaf_in_process(*args: str, input_text: str | None = None) -> None:
+    """The `LeafRunner` that runs a command in this process, with its environment
+    and working directory, failing with the command's output."""
+    result = CliRunner().invoke(cli, list(args), input=input_text)
+    if result.exit_code:
+        raise click.ClickException(
+            f"leaf {' '.join(args)}: {result.output}"
+        ) from result.exception
 
 
 def import_referenced_media(
@@ -429,7 +445,7 @@ def prepare_page(
 ) -> PreparedPage:
     """Build one page directory from an authored fixture.
 
-    `leaf-dev preview`, `leaf-dev site`, and the render harness's `serve` all build through
+    `leaf-dev preview`, `leaf-dev site build`, and the render harness's `serve` all build through
     here. The current source is written before the data operations, because
     `leaf data set` validates a source against the page's markup and the current
     version is the one that has to bind it. Versions are then stamped oldest first,

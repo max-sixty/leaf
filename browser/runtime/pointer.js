@@ -16,17 +16,23 @@ document.addEventListener("pointermove", remember, { capture: true });
 // A finger can arrive already down, with no preceding pointermove. The press is its
 // position too, and for a tap it is the only statement of it.
 document.addEventListener("pointerdown", remember, { capture: true });
+// A mouse that left the window stands over nothing in it, as `:hover` says once it
+// goes: the browser sends `pointerout` with nothing to relate it to. A finger's out,
+// after every lift, keeps its tap's position.
+document.addEventListener(
+  "pointerout",
+  (ev) => {
+    if (ev.pointerType === "mouse" && !ev.relatedTarget) x = y = -1;
+  },
+  { capture: true },
+);
 
+// Where the pointer stands, or -1 on each axis where it stands over nothing here.
 export const pointerAt = () => ({ x, y });
 
 // Whether the user's primary pointer is a finger, as the theme's `(pointer: coarse)`
 // rules ask it: the query itself, so a surface that follows a change can listen on it.
 export const coarsePointer = matchMedia("(pointer: coarse)");
-
-// Whether the primary pointer really hovers, as the theme's `(hover: hover)` rules ask
-// it. A phone emulates hover on whatever was last tapped and keeps it until the next
-// tap, so a reveal on `:hover` there outstays the tap.
-export const hoveringPointer = matchMedia("(hover: hover)");
 
 // Whether a press event was made by the keyboard rather than by the pointer, asked of
 // the event itself. A `click` with no click count is Enter or Space on the control, or

@@ -2,14 +2,13 @@
   "$data": {
     "contracts": {
       "unified-diff": {
-        "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
+        "description": "A unified patch, either as one text value or as a file manifest holding each file's patch.",
         "instructions": {
           "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script keys each file by its destination path. A file `lf-diff` can't present shows its refusal on the page and reports it to you as the page's error."
         },
         "records": {
           "items": "files",
-          "key": "path",
-          "deferred": "patch"
+          "key": "path"
         },
         "schema": {
           "type": ["string", "object"],
@@ -118,17 +117,11 @@
   },
   "lf-diff": {
     "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
-    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
+    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. The package's author instructions describe supplying a complete patch or files manifest. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "source": { "type": "string" },
       "collapsed": {
         "type": "boolean"
       },
@@ -173,18 +166,9 @@
     "x-instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Keep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
-      "diff": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" },
+      "source": { "type": "string" },
+      "diff": { "type": "string" }
     },
     "required": ["id", "source", "diff"],
     "additionalProperties": false,
@@ -213,10 +197,7 @@
     "x-instructions": "Supply `lf-worktree` members in review order; the collection lists unavailable snapshots apart from its totals.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -231,10 +212,7 @@
     "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -327,10 +305,7 @@
     "x-instructions": "Place directly inside lf-diff, beside pre. Set file to the source path, side to old or new, and at to that side's 1-based source line. For renames, old uses the previous path. Notes follow their file disclosure. A note whose file or line is absent remains at the foot with its unmatched address.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
       "file": {
         "type": "string",
         "minLength": 1

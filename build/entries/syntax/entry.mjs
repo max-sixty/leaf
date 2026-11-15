@@ -20,17 +20,17 @@ export const leafTheme = {
   name: themeName,
   type: "light",
   colors: {
-    "editor.foreground": "var(--code-ink)",
-    "editor.background": "var(--pre-bg)",
+    "editor.foreground": "var(--lf-code-ink)",
+    "editor.background": "var(--lf-pre-bg)",
   },
   tokenColors: [
     {
       scope: ["comment", "string.quoted.docstring"],
-      settings: { foreground: "var(--syn-comment)", fontStyle: "italic" },
+      settings: { foreground: "var(--lf-syn-comment)", fontStyle: "italic" },
     },
     {
       scope: ["keyword", "storage", "constant.language", "constant.other.option"],
-      settings: { foreground: "var(--syn-keyword)" },
+      settings: { foreground: "var(--lf-syn-keyword)" },
     },
     {
       scope: [
@@ -40,9 +40,9 @@ export const leafTheme = {
         "markup.fenced_code",
         "markup.underline.link",
       ],
-      settings: { foreground: "var(--syn-string)" },
+      settings: { foreground: "var(--lf-syn-string)" },
     },
-    { scope: ["constant.numeric"], settings: { foreground: "var(--syn-number)" } },
+    { scope: ["constant.numeric"], settings: { foreground: "var(--lf-syn-number)" } },
     {
       scope: [
         "entity.name.command",
@@ -51,7 +51,7 @@ export const leafTheme = {
         "entity.name.section",
         "markup.heading",
       ],
-      settings: { foreground: "var(--syn-name)" },
+      settings: { foreground: "var(--lf-syn-name)" },
     },
     {
       scope: [
@@ -64,11 +64,11 @@ export const leafTheme = {
         "entity.other.inherited-class",
         "entity.name.selector",
       ],
-      settings: { foreground: "var(--syn-type)" },
+      settings: { foreground: "var(--lf-syn-type)" },
     },
-    { scope: ["markup.inserted"], settings: { foreground: "var(--ok-ink)" } },
-    { scope: ["markup.deleted"], settings: { foreground: "var(--danger-ink)" } },
-    { scope: ["keyword.operator"], settings: { foreground: "var(--code-ink)" } },
+    { scope: ["markup.inserted"], settings: { foreground: "var(--lf-ok-ink)" } },
+    { scope: ["markup.deleted"], settings: { foreground: "var(--lf-danger-ink)" } },
+    { scope: ["keyword.operator"], settings: { foreground: "var(--lf-code-ink)" } },
   ],
 };
 
@@ -112,11 +112,18 @@ export async function registerLanguage(lang, grammar) {
   await instance.loadLanguage(grammar);
 }
 
-/** Offsets preserve original line endings even when Shiki normalizes its lines. */
-/** @param {string} source @param {string} lang */
-export async function tokenize(source, lang) {
+/** Offsets preserve original line endings even when Shiki normalizes its lines. Returns
+ * the tokens and the grammar state their last line ends in, which a later call takes as
+ * `state` to continue from it: a text tokenized a part at a time, each part from the
+ * state the one before it ended in, is coloured as the whole text would be. */
+/** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
+export async function tokenize(source, lang, state) {
   const instance = await createHighlighter({ langs: [lang] });
-  const lines = instance.codeToTokensBase(source, { lang, theme: themeName });
+  const lines = instance.codeToTokensBase(source, {
+    lang,
+    theme: themeName,
+    ...(state && { grammarState: state }),
+  });
   /** @type {{text: string, style: import("@shikijs/core").TokenStyles}[]} */
   const tokens = [];
   /** @param {string} text @param {import("@shikijs/core").TokenStyles} style */
@@ -137,7 +144,7 @@ export async function tokenize(source, lang) {
       cursor = token.offset + token.content.length;
     }
   if (cursor < source.length) append(source.slice(cursor), {});
-  return tokens;
+  return { tokens, state: instance.getLastGrammarState(lines) };
 }
 
 /** @param {string} source @param {import("@shikijs/core").CodeToHastOptions<string, string>} options */

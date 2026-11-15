@@ -34,7 +34,10 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     class unconditionally, so nothing anywhere said the page's own words had
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
-    would be caught here rather than in a page that stopped rendering."""
+    would be caught here rather than in a page that stopped rendering. The button
+    wears the names a kernel idiom gives a page's own control to take Leaf's face
+    (`structure.AUTHORED_CLASSES`), which the reservation leaves to the author, and
+    the one beside them it doesn't."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -42,6 +45,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
             '<p id="q" class="lf-quiet">said out of sight</p>'
             '<p id="n" class="lf-not-coined-yet">a name the runtime has not taken</p>'
             '<p id="k" class="note">an ordinary class the author owns</p>'
+            '<button id="b" class="lf-btn lf-commit lf-icon-action">Send</button>'
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
@@ -55,6 +59,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("<div>", ["lf-chrome"]),
         ("<p>", ["lf-quiet"]),
         ("<p>", ["lf-not-coined-yet"]),
+        ("<button>", ["lf-icon-action"]),
         ("<p>", ["data-lf-gen"]),
     ]
 
@@ -90,6 +95,21 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
 
 
+@pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
+def test_a_reference_names_any_element_the_page_holds(page_dir, target):
+    """An `x-refers` attribute takes the id of whatever element it names, a section
+    whose id a widget couldn't carry included, and `page check` refuses only a value
+    naming no element."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace('<section id="plan">', '<section id="Plan_Notes">').replace(
+            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+        )
+    )
+    _status, findings = check_findings(page_dir)
+    assert not found(findings, "attribute-schema", "<lf-option>")
+    assert bool(found(findings, "unknown-reference")) == (target == "missing-notes")
+
+
 def test_check_rejects_an_unknown_authored_width(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -110,23 +130,39 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     )
 
 
-def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
-    """`data-height` states the box of a widget that draws into one, in whole CSS
-    pixels."""
-    chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
+def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
+    """An allocation means something only where the kernel's `$marks` say it does,
+    and delivery paints none elsewhere, so the page would show no sign of it: a width
+    on a question, which draws no box of its own, a width on `main`, which would size
+    the page, and a stated height on a block no module draws into. `page check` names
+    each so the author can move it. A width on the table inside the question, and a
+    height on a chart, mean what they say."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format(240))
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format("240px"))
+        PAGE.replace("<main>", '<main data-width="wide">')
+        .replace(
+            '<div id="plan-choice-decision">',
+            '<lf-ask id="plan-choice-decision" data-width="available">',
+        )
+        .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
+        .replace(
+            "</lf-options>\n  </div>",
+            "</lf-options>\n"
+            '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
+            '<div id="sized" data-height="200">box</div>\n'
+            '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
+            "</lf-chart>\n  </lf-ask>",
+        )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "allocation-value", attr="data-height", value="240px", allowed=None
-    )
+    assert status == 0
+    assert [
+        (f.at, f.values["attr"], f.values["holds"], f.severity)
+        for f in found(findings, "inert-allocation")
+    ] == [
+        ("<main>", "data-width", "content", "advice"),
+        ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
+        ("<div id=sized>", "data-height", "declared", "advice"),
+    ]
 
 
 def test_check_takes_a_rail_only_by_name(page_dir):
@@ -246,30 +282,37 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     assert structure_model.page_layout(tabs, registry) is None
 
 
+SAMPLE_DOCUMENT_CASES = [
+    ("<noscript>invisible</noscript>", "noscript", ("practice",)),
+    ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
+    ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
+    (
+        "<template data-sample><h1>Child</h1></template>",
+        "unnamed-sample",
+        ("practice",),
+    ),
+    (
+        '<p id="duplicate">One</p><p id="duplicate">Two</p>',
+        "duplicate-ids",
+        ("practice",),
+    ),
+    (
+        '<template id="nested" data-sample><noscript>hidden</noscript></template>',
+        "noscript",
+        ("practice", "nested"),
+    ),
+]
+
+
+# `source.sample_errors` is the one gate either door reads a child through, so the
+# message door takes the one case that also reaches a child's own samples.
 @pytest.mark.parametrize(
-    ("markup", "code", "samples"),
+    ("markup", "code", "samples", "holder"),
     [
-        ("<noscript>invisible</noscript>", "noscript", ("practice",)),
-        ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown-widget", ("practice",)),
-        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None, ()),
-        (
-            "<template data-sample><h1>Child</h1></template>",
-            "unnamed-sample",
-            ("practice",),
-        ),
-        (
-            '<p id="duplicate">One</p><p id="duplicate">Two</p>',
-            "duplicate-ids",
-            ("practice",),
-        ),
-        (
-            '<template id="nested" data-sample><noscript>hidden</noscript></template>',
-            "noscript",
-            ("practice", "nested"),
-        ),
+        *((*case, "page") for case in SAMPLE_DOCUMENT_CASES),
+        (*SAMPLE_DOCUMENT_CASES[-1], "message"),
     ],
 )
-@pytest.mark.parametrize("holder", ["page", "message"])
 def test_check_validates_each_sample_document(page_dir, markup, code, samples, holder):
     findings = sample_holder_findings(
         page_dir, holder, f'<template id="practice" data-sample>{markup}</template>'
@@ -581,117 +624,131 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     assert build_threads(copied, within)["c1"]["resolved"] is None
 
 
+SAMPLE_FIXTURE_REFUSALS = [
+    (
+        "[]",
+        'type="application/json"',
+        'data-sample-events="missing"',
+        "sample-script",
+        {"reference": "missing"},
+    ),
+    (
+        "[]",
+        'type="text/plain"',
+        'data-sample-events="fixture"',
+        "sample-script-type",
+        {},
+    ),
+    (
+        "[]",
+        'type="application/json" src="/page/history.json"',
+        'data-sample-events="fixture"',
+        "sample-script-type",
+        {},
+    ),
+    (
+        '[{"kind":"comment","text":NaN}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-json",
+        {"error": "NaN is not a JSON number"},
+    ),
+    (
+        "{",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-json",
+        {},
+    ),
+    (
+        "{}",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-array",
+        {},
+    ),
+    (
+        "[1]",
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "sample-array",
+        {},
+    ),
+    (
+        '[{"kind": []}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-kind",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"reply","parent":"absent","text":"Reply"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-id-repeated",
+        {"event": 2, "id": "aabb0011"},
+    ),
+    (
+        '[{"kind":"comment","id":"child","text":"Collision"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-id-taken",
+        {"event": 1, "id": "child"},
+    ),
+    (
+        '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"action"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-event",
+        {"event": 1},
+    ),
+    (
+        '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
+        'type="application/json"',
+        'data-sample-events="fixture"',
+        "fixture-ts",
+        {"event": 1},
+    ),
+    (
+        "[]",
+        'type="application/json"',
+        'data-sample-events="fixture" data-sample-threads="aabb0011"',
+        "sample-source-both",
+        {},
+    ),
+]
+
+
+# `sample_content.initial_sample_events` reads a fixture for either door, so the
+# message door takes the one case a holder's own script and a child's ids both reach.
 @pytest.mark.parametrize(
-    ("history", "script_attrs", "template_attrs", "code", "values"),
+    ("history", "script_attrs", "template_attrs", "code", "values", "holder"),
     [
+        *((*case, "page") for case in SAMPLE_FIXTURE_REFUSALS),
         (
-            "[]",
-            'type="application/json"',
-            'data-sample-events="missing"',
-            "sample-script",
-            {"reference": "missing"},
-        ),
-        (
-            "[]",
-            'type="text/plain"',
-            'data-sample-events="fixture"',
-            "sample-script-type",
-            {},
-        ),
-        (
-            "[]",
-            'type="application/json" src="/page/history.json"',
-            'data-sample-events="fixture"',
-            "sample-script-type",
-            {},
-        ),
-        (
-            '[{"kind":"comment","text":NaN}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-json",
-            {"error": "NaN is not a JSON number"},
-        ),
-        (
-            "{",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-json",
-            {},
-        ),
-        (
-            "{}",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-array",
-            {},
-        ),
-        (
-            "[1]",
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "sample-array",
-            {},
-        ),
-        (
-            '[{"kind": []}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-kind",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"reply","parent":"absent","text":"Reply"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"comment","id":"aabb0011","text":"One"},{"kind":"comment","id":"aabb0011","text":"Two"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-id-repeated",
-            {"event": 2, "id": "aabb0011"},
-        ),
-        (
-            '[{"kind":"comment","id":"child","text":"Collision"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-id-taken",
-            {"event": 1, "id": "child"},
-        ),
-        (
-            '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"action"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-event",
-            {"event": 1},
-        ),
-        (
-            '[{"kind":"comment","text":"Bad clock","ts":"yesterday"}]',
-            'type="application/json"',
-            'data-sample-events="fixture"',
-            "fixture-ts",
-            {"event": 1},
-        ),
-        (
-            "[]",
-            'type="application/json"',
-            'data-sample-events="fixture" data-sample-threads="aabb0011"',
-            "sample-source-both",
-            {},
+            *next(
+                case
+                for case in SAMPLE_FIXTURE_REFUSALS
+                if case[3] == "fixture-id-taken"
+            ),
+            "message",
         ),
     ],
 )
-@pytest.mark.parametrize("holder", ["page", "message"])
 def test_sample_fixture_refusals_reach_page_check(
     page_dir, history, script_attrs, template_attrs, code, values, holder
 ):

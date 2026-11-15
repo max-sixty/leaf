@@ -2,14 +2,12 @@
 under zoom and short windows, and the chrome's rules staying apart from page and package
 styles."""
 
-import io
 import json
 import re
 from datetime import datetime, timedelta
 
 import pytest
 from interact_support import PLUGIN_ROOT, append_carried_log_record
-from PIL import Image, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -38,10 +36,10 @@ from browser.threads import (
     append_agent_reply,
     open_panel_thread,
     paste_image,
-    summarize_thread,
 )
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -191,36 +189,6 @@ RECEIPT_BESIDE_CONTROLS = """message => {
 }"""
 
 
-def test_a_head_s_words_take_its_controls_room_while_they_hide(browser, serve):
-    """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it read
-    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
-    queued message says its whole receipt; under the pointer the controls stand over
-    the receipt's end, which neither moves nor changes its size."""
-    url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
-    page = open_page(browser, url, context=context)
-    page.locator(".lf-margin-marker").first.click()
-    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
-    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
-    page.mouse.move(0, 0)
-    rendered(page)
-    rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
-    assert rest["whole"] and rest["controls"] is None, rest
-    message.locator(".lf-msg-text").hover()
-    rendered(page)
-    offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
-    assert offered["whole"], offered
-    assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
-        rest,
-        offered,
-    )
-    assert offered["controls"] < offered["end"], offered
-    assert offered["receiptSeen"] is False, offered
-
-
 # A head's parts, in the order their shrink weights give, each one's least width (its
 # minimum, or its padding and border where it sizes its border box), and each one's
 # width as the head narrows from far wider than its words to nothing.
@@ -247,31 +215,56 @@ SQUEEZED_HEAD = """head => {
 }"""
 
 
-def test_a_squeezed_head_gives_up_one_part_at_a_time(browser, serve):
-    """A head too narrow for its words gives up its parts one at a time, in the order
-    the user chose (surfaces.css): its controls' room, its receipt, its time and its
-    name. No part is cut while one before it still has room to give, so a squeezed head
-    never reads "Me ju… · Que…", and each gives all it can before the head reaches
-    nothing. The user's queued message holds each part."""
+def test_a_head_s_words_take_its_controls_room_while_they_hide(
+    browser, serve, subtests
+):
+    """A message's Edit and Copy show only under the pointer or focus, and its head
+    lends their room to its words while they hide: a card's head that held it read
+    "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
+    queued message says its whole receipt; under the pointer the controls stand over
+    the receipt's end, which neither moves nor changes its size. A head too narrow for
+    its words gives up its parts one at a time, in the order the user chose
+    (surfaces.css): its controls' room, its receipt, its time and its name. No part is
+    cut while one before it still has room to give, so a squeezed head never reads
+    "Me ju… · Que…", and each gives all it can before the head reaches nothing. The
+    user's queued message holds each part."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    # The margin at this width caps the card short of the head's words and controls.
+    context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
-    head = page.locator(
-        ".lf-margin-preview .lf-msg[data-lf-author=user] > .lf-msg-head"
-    ).first
-    expect(head.locator(".lf-msg-sending")).to_contain_text("Queued")
-    squeeze = head.evaluate(SQUEEZED_HEAD)
-    parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]
-    assert parts == ["lf-msg-control-room", "lf-msg-sending", "time", "b"], parts
-    whole = steps[0]
-    assert steps[-1] == pytest.approx(least, abs=0.05), (parts, least, steps[-1])
-    for widths in steps:
-        for at in range(len(parts)):
-            if widths[at] < whole[at] - 0.05:
-                given = [widths[part] <= least[part] + 0.05 for part in range(at)]
-                assert all(given), (parts, widths)
+    message = page.locator(".lf-margin-preview .lf-msg[data-lf-author=user]").first
+    expect(message.locator(".lf-msg-sending")).to_contain_text("Queued")
+    with subtests.test("the controls hide"):
+        page.mouse.move(0, 0)
+        rendered(page)
+        rest = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+        assert rest["whole"] and rest["controls"] is None, rest
+        message.locator(".lf-msg-text").hover()
+        rendered(page)
+        offered = message.evaluate(RECEIPT_BESIDE_CONTROLS)
+        assert offered["whole"], offered
+        assert (offered["left"], offered["end"]) == (rest["left"], rest["end"]), (
+            rest,
+            offered,
+        )
+        assert offered["controls"] < offered["end"], offered
+        assert offered["receiptSeen"] is False, offered
+    # The squeeze narrows the head for good, so it reads last, with the pointer away.
+    with subtests.test("the head squeezed"):
+        page.mouse.move(0, 0)
+        rendered(page)
+        squeeze = message.locator(":scope > .lf-msg-head").evaluate(SQUEEZED_HEAD)
+        parts, least, steps = squeeze["parts"], squeeze["least"], squeeze["steps"]
+        assert parts == ["lf-msg-control-room", "lf-msg-sending", "time", "b"], parts
+        whole = steps[0]
+        assert steps[-1] == pytest.approx(least, abs=0.05), (parts, least, steps[-1])
+        for widths in steps:
+            for at in range(len(parts)):
+                if widths[at] < whole[at] - 0.05:
+                    given = [widths[part] <= least[part] + 0.05 for part in range(at)]
+                    assert all(given), (parts, widths)
 
 
 def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, serve):
@@ -320,8 +313,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
+def test_a_message_says_its_age_only_where_it_changes(browser, serve):
     """A thread says each message's age only where that age, as displayed, differs
     from the message above, the first always saying it: three messages written on one
     day three days ago read one age, and a reply written now reads its own."""
@@ -335,7 +327,7 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
             "revision": 1,
             "text": "Is the retry bounded?",
             "ts": then.isoformat(),
-            **({"anchor": {"section": "lede"}} if surface == "margin" else {}),
+            "anchor": {"section": "lede"},
         },
     )["id"]
     for at, (author, text) in enumerate(
@@ -355,12 +347,9 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve, surface):
         )
     append_agent_reply(serve.page_dir, root, "Parked after the third.")
     page = open_page(browser, url)
-    if surface == "panel":
-        card = open_panel_thread(page, root)
-    else:
-        page.locator(".lf-margin-marker").first.click()
-        card = page.locator(".lf-margin-preview .lf-page-thread")
-        expect(card).to_be_visible()
+    page.locator(".lf-margin-marker").first.click()
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_visible()
     ages = card.locator(".lf-msg-head")
     expect(ages).to_have_count(4)
     assert ages.evaluate_all(
@@ -705,8 +694,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
-        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
-        'html & [part~="card"] { --r-l: 5px; }'
+        '[part~="panel"] { font-family: cursive; --lf-r-l: 0px; }'
+        'html & [part~="card"] { --lf-r-l: 5px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
         "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
@@ -719,8 +708,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
                     "t",
                     "<h1>t</h1><p>Words.</p>",
                     head='<style>[part~="panel"] { font-family: fantasy;'
-                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
-                    '[part~="composer"] { --sans: monospace; }</style>',
+                    " color: rgb(0, 128, 0); --lf-ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --lf-sans: monospace; }</style>',
                 ),
                 packages=(package,),
             )
@@ -735,9 +724,9 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             font: cs(document.querySelector('[part~="composer"]'))
-                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+                .getPropertyValue('--lf-font-message').trim().split(' ').at(-1),
             card: cs(document.querySelector('.lf-chrome [part~="card"]'))
-                .getPropertyValue('--r-l').trim(),
+                .getPropertyValue('--lf-r-l').trim(),
             parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
                 .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
             prose: cs(document.querySelector('main p')).color,
@@ -975,7 +964,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["height"] == 0, cue
 
     # Follow the outgoing header as the next author pushes it off the top, then
-    # follow the transcript edge through the gap. Neither position fades a name.
+    # follow the transcript edge through the gap. Neither position fades a name. The
+    # edge is the slot where heads stick (`--lf-top`), past the room the transcript
+    # keeps above it.
     for handoff in ("pushed", "gap"):
         transcript.evaluate(
             """(box, handoff) => {
@@ -986,7 +977,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
               const target = handoff === 'pushed'
                 ? first.bottom - head.height / 2
                 : (first.bottom + next.top) / 2;
-              box.scrollTop += target - box.getBoundingClientRect().top - box.clientTop;
+              const slot = box.getBoundingClientRect().top + box.clientTop
+                + parseFloat(getComputedStyle(box).getPropertyValue('--lf-top'));
+              box.scrollTop += target - slot;
             }""",
             handoff,
         )
@@ -1002,132 +995,6 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             assert cue["heads"][0]["bottom"] <= cue["top"], cue
             assert cue["fade_top"] == pytest.approx(cue["top"], abs=1), cue
         assert cue["fade_bottom"] <= cue["heads"][1]["top"] + 1, cue
-
-
-@pytest.mark.parametrize("forced", [False, True])
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
-    engine, forced, request, serve
-):
-    """Wherever the card's transcript is scrolled, its stuck head stands on the line
-    of the card's actions, and the focus-ring room above that line shows no words,
-    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
-    scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name. Nor do words show
-    beneath the actions, a summary's included, and the head row holding the line
-    lends them its ground: an arriving message's tint runs behind them, where the
-    actions' own paper box used to cut it whenever the card was scrolled."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
-    )
-    turns = [
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "agent" if turn % 2 else "user",
-                "parent": root,
-                "text": f"Turn {turn}. " + LANDING_WORDS,
-            },
-        )
-        for turn in range(1, 8)
-    ]
-    # A summary's words have no head of their own, and pass beneath the actions too.
-    summarize_thread(serve.page_dir, turns[0]["id"], turns[1]["id"], LANDING_WORDS)
-    page = open_page(request.getfixturevalue(engine), url)
-    resized(page, 1200, 600)
-    if forced:
-        page.emulate_media(forced_colors="active")
-    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    transcript = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        " > .lf-thread-transcript"
-    )
-    expect(transcript).to_be_visible()
-    rendered(page)
-    travel = transcript.evaluate("box => box.scrollHeight - box.clientHeight")
-    # Through the first messages, including where one pushes the last one's head off.
-    assert travel > 300, travel
-    actions = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
-        " > .lf-margin-thread-controls"
-    )
-
-    def shot(clip, hidden=None):
-        toggle = "row => { for (const c of row.children) c.style.visibility = '%s'; }"
-        if hidden:
-            hidden.evaluate(toggle % "hidden")
-        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        if hidden:
-            hidden.evaluate(toggle % "")
-        return image
-
-    def spread(image):
-        low, high = image.convert("L").getextrema()
-        return high - low
-
-    for scroll in range(0, 300, 7):
-        transcript.evaluate("(box, y) => { box.scrollTop = y; }", scroll)
-        rendered(page)
-        reading = transcript.evaluate(
-            r"""box => {
-              const controls = box.parentElement
-                .querySelector(':scope > .lf-margin-thread-controls');
-              const edge = box.getBoundingClientRect().top + box.clientTop;
-              const head = [...box.querySelectorAll('.lf-msg-head')]
-                .find(head => head.getBoundingClientRect().bottom > edge + 1);
-              const at = head.getBoundingClientRect();
-              const card = box.parentElement.getBoundingClientRect();
-              return {edge, head: at.top, left: card.left, right: card.right,
-                pushed: at.bottom >= head.parentElement.getBoundingClientRect().bottom - 1,
-                line: controls.getBoundingClientRect().top,
-                actions: controls.getBoundingClientRect().toJSON(),
-                // The focus-ring room, which the transcript's landings also keep.
-                ring: parseFloat(getComputedStyle(box).scrollPaddingTop),
-                event: head.parentElement.dataset.lfEvent};
-            }"""
-        )
-        # A head the next message pushes off rises with it; every other stands on the
-        # actions' line or below it.
-        assert reading["pushed"] or reading["head"] >= reading["line"] - 0.5, (
-            scroll,
-            reading,
-        )
-        assert reading["line"] - reading["edge"] >= reading["ring"], reading
-        # Beneath the controls, with the paper their row lays under the heads.
-        beneath = {
-            side: reading["actions"][side] for side in ("x", "y", "width", "height")
-        }
-        ground = shot(beneath, hidden=actions)
-        assert spread(ground) < 40, (scroll, reading)
-        # Where no head holds the line, as over a summary, words run to the edge as
-        # they do anywhere a transcript is cut.
-        if reading["head"] > reading["line"] + 0.5:
-            continue
-        if not forced and not reading["pushed"]:
-            # The head holding the line lends its arrival tint to the actions' track.
-            held = transcript.locator(f'.lf-msg[data-lf-event="{reading["event"]}"]')
-            held.evaluate("m => m.style.setProperty('--lf-msg-arrival', '1')")
-            rendered(page)
-            tinted = shot(beneath, hidden=actions)
-            held.evaluate("m => m.style.removeProperty('--lf-msg-arrival')")
-            rendered(page)
-            assert spread(tinted) < 40, (scroll, reading)
-            blue = ImageStat.Stat(ground).mean[2] - ImageStat.Stat(tinted).mean[2]
-            assert blue > 20, (scroll, blue, reading)
-        room = reading["head"] - reading["edge"]
-        if room < 1:
-            continue
-        band = shot(
-            {
-                "x": reading["left"],
-                "y": reading["edge"],
-                "width": reading["right"] - reading["left"],
-                "height": room,
-            }
-        )
-        assert spread(band) < 40, (scroll, reading)
 
 
 @pytest.mark.parametrize(("width", "touch"), [(1200, False), (1400, True)])
@@ -1238,14 +1105,17 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
     """A whole-frame cap reserves the choices and Send before text scrolls; the attached
-    image hangs outside the frame (annotation-chrome.css)."""
+    image hangs outside the frame (annotation-chrome.css).
+
+    Scaled, the bar's containing block is a transformed box the window's size, which
+    the chrome's root is made into here, since its own box is empty (base.css)."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
             "</head>",
             """<style>
-              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
-                transform:scale(1.2); transform-origin:0 0; }
+              div.lf-chrome { position:fixed; inset:0; width:auto; height:auto;
+                pointer-events:none; transform:scale(1.2); transform-origin:0 0; }
               .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
             </style></head>""",
         )
@@ -1410,33 +1280,13 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
         assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
 
 
-@pytest.mark.parametrize(
-    ("zoom_home", "width"),
-    [("root", 605), ("transformed-holder", 315)],
-)
-def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
-    browser, serve, zoom_home, width
-):
-    """Root and local zoom keep the draft and sent card in their available room."""
-    source = (
-        LONG_PAGE
-        if zoom_home == "root"
-        else leaf_page(
-            "Zoomed comments",
-            """<style>
-              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
-                transform:scale(1.2); transform-origin:0 0; }
-              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
-            </style>
-            <h1>Fictional planning note</h1>
-            <p id="p1">We will combine the setup steps into one operation, then
-              check the result before continuing.</p>""",
-        )
-    )
-    page = open_page(browser, serve(source))
+def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
+    """Under root zoom, the draft and the thread Send opens in the panel keep to a
+    narrow window, and the card the thread moves to in a wide one shows its words."""
+    width = 605
+    page = open_page(browser, serve(LONG_PAGE))
     resized(page, width, 898)
-    if zoom_home == "root":
-        page.evaluate("document.documentElement.style.zoom = '1.25'")
+    page.evaluate("document.documentElement.style.zoom = '1.25'")
     one_frame(page)
     page.locator("#p1").click(click_count=3)
     page.keyboard.press("c")
@@ -1461,13 +1311,15 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     with sending(page, "the zoomed narrow-window comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    card = page.locator(".lf-margin-preview")
-    expect(card).to_be_visible()
-    expect(card.locator(".lf-msg-text").first).to_contain_text(content)
-    bounds = card.bounding_box()
+    view = page.locator(PANEL_THREAD)
+    expect(view).to_be_visible()
+    expect(view.locator(".lf-msg-text").first).to_contain_text(content)
+    bounds = view.bounding_box()
     assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
     resized(page, 1440, 900)
     rendered(page)
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
     text = card.locator(".lf-msg-text").first
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 

@@ -21,7 +21,7 @@ from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .findings import Finding, Rejected
 from .page_view import InitialPageView
-from .projection import generated_children, retirement_outcomes, rewritten_bodies
+from .projection import generated_children, logged_words
 from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant
 from .state import now_iso
@@ -74,10 +74,8 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
         # Its section is still captured here; admission checks its data binding.
         "" if "datum" in anchor else anchor.get("quote", ""),
         section,
-        retirement_outcomes(projection.actions),
-        rewritten_bodies(projection.actions),
-        anchor.get("visual"),
-        additions=generated_children(projection.desired, document.ids),
+        part=anchor.get("visual"),
+        **logged_words(projection, document.ids),
     )
     # File capture proves a unique passage and derives its context, including absent
     # neighbours. Supplied context or uncertainty cannot override that observation.

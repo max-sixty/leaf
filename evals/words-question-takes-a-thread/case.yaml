@@ -1,14 +1,14 @@
 # Added when the lf-ask entry and authoring-on-me.md stopped describing an lf-ask
 # with no widget inside as a question the user answers in words. The user asked
 # that Leaf not encourage that form, and never require an lf-ask to put a
-# question on On me: a thread message with --obligation already asks for words.
+# question on On Me: a thread message with --obligation already asks for words.
 # At 57a2881db, base asked the paging question as a bare lf-ask in all 3 Claude Code
 # and 3 Codex runs; the head sent it with --obligation in all 6, and both arms
 # kept the cutover choice a widget (12/12).
 description: words-question-takes-a-thread
 metadata:
   purpose:
-    "Asks: a question the user answers in words reaches On me as a thread message with
+    "Asks: a question the user answers in words reaches On Me as a thread message with
     --obligation, not as an lf-ask holding no widget."
   tags:
     - asks
@@ -32,7 +32,7 @@ assert:
     metric: words-question-asked
     value: |
       Find how the reply asks who should be paged. Pass only if that question reaches
-      the user's On me list through a leaf thread command carrying `--obligation`
+      the user's On Me list through a leaf thread command carrying `--obligation`
       (such as `leaf thread create ... --obligation`), or through a widget whose
       recorded answer is the text the user types. Fail if it is asked as an `lf-ask`
       that holds no answering widget, whether on the page or in a message's markup,

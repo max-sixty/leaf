@@ -26,6 +26,8 @@
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
+import { registerReadingRegion } from "./reading-regions.js";
+import { holdUserPlace } from "./user-place.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -37,14 +39,13 @@ import {
   openLayer,
   openerOf,
 } from "./focus.js";
-import { html, nothing, render, repeat } from "/runtime/framework.js";
+import { guard, html, nothing, render, repeat } from "/runtime/framework.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys, paintKeysWithin } from "./keyboard/scopes.js";
 import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, offeredAction, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
-import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
 import {
   PAGE_CONTROL_RANK,
@@ -80,29 +81,29 @@ dialog.setAttribute("aria-label", "Page Map");
 dialog.setAttribute("aria-modal", "true");
 const dialogHead = el("div", "lf-dialog-head");
 dialogHead.append(el("strong", "lf-dialog-title", "Page Map"));
-const dialogClose = closeControl({
-  name: "Close Page Map",
-  title: "Close Page Map (Esc)",
-});
+const dialogClose = closeControl({ name: "Close Page Map" });
 dialogHead.append(dialogClose);
 const dialogSearch = searchField("lf-page-map-search", {
   name: "page-map-search",
-  label: "Find an action, status, or location in Page Map",
-  placeholder: "Find an action, status, or location",
+  label: "Find an action, status or location in Page Map",
+  placeholder: "Find an action, status or location…",
 });
 const dialogList = el("div", "lf-page-map-list");
 dialogList.toggleAttribute("data-lf-scroll", true);
-// A state update or a search re-renders the open sheet; the row the user was on holds
-// their place in it (user-place.js), under the map key each row is rendered with.
-const place = placeKeeper(dialogList, {
-  items: ".lf-page-map-action",
-  identity: (row) => row.getAttribute("data-lf-map-key"),
-  active: () => dialog.open,
+// While the map stands its list scrolls on its own, so it is a reading region then, as
+// the command reference's list is: the list is what scrolls a row, and what keeps the
+// row the user is on where it stood as the sheet re-renders (user-place.js,
+// `holdUserPlace`).
+/** @type {(() => void) | null} */
+let stopListReading = null;
+dialog.addEventListener("close", () => {
+  stopListReading?.();
+  stopListReading = null;
 });
 const dialogEmpty = el(
   "p",
   "lf-rows-empty",
-  "No matching actions, statuses, or locations.",
+  "No matching actions, statuses or locations.",
 );
 dialogEmpty.hidden = true;
 dialogEmpty.setAttribute("role", "status");
@@ -304,6 +305,11 @@ export function createPageMapDialog({
     </button>`;
   };
 
+  // A group's band cuts its location's name where the band ends (controls.css,
+  // `.lf-rows-group`), in a part with no space around it, so the heading reads as the
+  // name alone. A group's content is guarded by the group itself, which `deriveSheet`
+  // replaces only when the entries change, so a search keystroke updates each
+  // section's `hidden` and leaves its rows alone.
   /** @param {Group} group @param {string} query */
   const sheetGroupTemplate = (group, query) => html`
     <section
@@ -311,31 +317,43 @@ export function createPageMapDialog({
       data-lf-map-group=${group.key}
       ?hidden=${Boolean(query) && !group.search.includes(query)}
     >
-      <h3 class="lf-rows-head">${group.entry.title}</h3>
-      <div class="lf-page-map-actions lf-rows">
-        ${repeat(
-          group.actions,
-          ({ key }) => key,
-          (action) =>
-            action.kind === "item"
-              ? sheetItemTemplate(action)
-              : sheetControlTemplate(action, group.actions),
-        )}
-      </div>
+      ${guard(
+        [group],
+        () => html`
+          <h3 class="lf-rows-head">
+            <span class="lf-row-main">${group.entry.title}</span>
+          </h3>
+          <div class="lf-page-map-actions lf-rows">
+            ${repeat(
+              group.actions,
+              ({ key }) => key,
+              (action) =>
+                action.kind === "item"
+                  ? sheetItemTemplate(action)
+                  : sheetControlTemplate(action, group.actions),
+            )}
+          </div>
+        `,
+      )}
     </section>
   `;
 
-  function renderSheet() {
+  // A keystroke in the search changes only which groups show: the groups and their
+  // search text depend on the entries alone, so they are derived when the entries
+  // change or the map opens (`deriveSheet`), and a keystroke only redraws (`drawSheet`).
+  /** @param {() => void} change */
+  function updateSheet(change) {
     const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
+    change();
     // A control the filter hid or the render removed hands the user to the search.
     restoreFocus?.(dialogSearch);
     // Search bindings read the rendered rows, including those the query hid.
     paintKeysWithin(dialog);
   }
+  const renderSheet = () => updateSheet(deriveSheet);
+  const searchSheet = () => updateSheet(drawSheet);
 
-  function presentSheet() {
-    const query = (dialogSearch.value ?? "").trim().toLocaleLowerCase();
+  function deriveSheet() {
     const searchTextByKey = new Map(
       entries.map((entry) => {
         const passage = blockAt(targetFor(entry));
@@ -343,14 +361,7 @@ export function createPageMapDialog({
       }),
     );
     groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
-    render(
-      html`${repeat(
-        groups,
-        ({ key }) => key,
-        (group) => sheetGroupTemplate(group, query),
-      )}`,
-      dialogList,
-    );
+    drawSheet();
     const liveOffers = new Set(
       groups.flatMap(({ entry }) => entry.offers.map((offer) => offer.source())),
     );
@@ -370,14 +381,26 @@ export function createPageMapDialog({
         );
     }
     trackedOffers = liveOffers;
+  }
+
+  function drawSheet() {
+    const query = (dialogSearch.value ?? "").trim().toLocaleLowerCase();
+    render(
+      html`${repeat(
+        groups,
+        ({ key }) => key,
+        (group) => sheetGroupTemplate(group, query),
+      )}`,
+      dialogList,
+    );
     const shown = groups.filter(
       (group) => !query || group.search.includes(query),
     ).length;
     keepsText(
       dialogEmpty,
       query
-        ? "No matching actions, statuses, or locations."
-        : "No margin controls, status indicators, or locations yet.",
+        ? "No matching actions, statuses or locations."
+        : "No margin controls, status indicators or locations yet.",
     );
     keepsHidden(dialogEmpty, shown !== 0);
   }
@@ -386,7 +409,13 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     if (nextEntries.length !== entries.length) pageControlsChanged();
     entries = nextEntries;
-    if (dialog.open) renderSheet();
+    if (!dialog.open) return;
+    // What the map lists can change with no reading behind it, as a widget's own
+    // contribution does once its work finishes, so the map keeps the row the user is on
+    // across that as a reading does (user-place.js, `holdUserPlace`).
+    const keep = holdUserPlace();
+    renderSheet();
+    keep();
   }
 
   /** @param {Entry | null} [entry] @param {{invoker?: Element | null, focusSpill?: boolean}} [options] */
@@ -396,6 +425,11 @@ export function createPageMapDialog({
     if (!dialog.open) {
       openLayer(dialog, openedFrom);
       dialogSearch.value = "";
+      stopListReading ??= registerReadingRegion({
+        id: "lf-region:page-map",
+        host: dialog,
+        body: dialogList,
+      });
     }
     renderSheet();
     if (!dialog.open) showNativeLayer(dialog);
@@ -451,7 +485,7 @@ export function createPageMapDialog({
 
   /** @param {Element} root */
   function mount(root) {
-    dialogSearch.addEventListener("input", renderSheet);
+    dialogSearch.addEventListener("input", searchSheet);
     keys(
       dialog,
       "In the Page Map",

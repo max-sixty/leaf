@@ -18,11 +18,16 @@ update replaces the installed tree under a running server, and a server must kee
 answering a document's later imports with the bytes its first ones came from.
 
 `identity` is a digest of every runtime input, so a restart of the same build keeps
-it and any runtime change moves it. A host addresses the resources a document runs
-with under it (`http.PageEndpoint._document_asset_root`), so an immutable cached
-address never names other bytes, and a served document and every answer name it, so a
+it and any runtime change moves it. A served document and every answer name it, so a
 tab from before a restart under another runtime refuses the answer and reloads rather
 than reading a newer server's state with older code (`runtime/layer-client.js`).
+
+An execution's identity (`executing`) covers every byte a page server answers under
+the address it gives the execution's resources (`http.assets_path`): the runtime, the
+composed layer and vocabulary, and the files the revision captured, apart from media,
+which answers at the page root. So a cached address never names other bytes. The identity covers nothing of the document itself,
+so the revisions an agent saves as it edits a page's prose share one address, and a
+reload after one of them fetches none of the runtime again.
 
 A package may add modules beside the runtime's and replace a vendor module of the
 kernel's (`layer.compose_layer` refuses one replacing a private runtime module), so a
@@ -55,16 +60,24 @@ from .revision_artifact import (
     RevisionArtifact,
     resource_type,
 )
-from .schema import ASSETS, KERNEL, KERNEL_FILES, RUNTIME_DIRS, RUNTIME_ENTRY
+from .schema import (
+    ASSETS,
+    BROWSER_DIRS,
+    KERNEL,
+    KERNEL_FILES,
+    MEDIA_DIR,
+    PACKAGE_FILES,
+    RUNTIME_DIRS,
+    RUNTIME_ENTRY,
+)
 from .state import PLUGIN_ROOT, json_bytes
-from .themes import theme_package
+from .themes import with_theme
 
-# Non-CSS core inputs and the bundled packages. Core stylesheet identity comes
+# Non-CSS core inputs. Core stylesheet identity comes
 # from the same composition that delivers them, including its imports and roles.
 LAYER_SOURCES = (
     *(f"browser/{name}" for name in KERNEL_FILES if not name.endswith(".css")),
     "browser/widgets",
-    "packages",
 )
 
 
@@ -115,9 +128,10 @@ class ServingRuntime:
 
     @cached_property
     def identity(self) -> str:
-        """Names every runtime input and every layer input this tree holds, so a
+        """Names every runtime input and browser layer contribution this tree holds, so a
         change to a bundled widget, like one to the runtime, gives an open document
-        a server that refuses it."""
+        a server that refuses it. Package scripts, their generated files and author
+        instructions do not change the browser's runtime."""
         return files_identity(
             {
                 **self.source,
@@ -132,6 +146,14 @@ class ServingRuntime:
                 **{
                     f"layer:{path}": data
                     for path, data in _files(PLUGIN_ROOT, *LAYER_SOURCES).items()
+                },
+                **{
+                    f"layer:/packages/{package.name}{path}": data
+                    for package in sorted((PLUGIN_ROOT / "packages").glob("*"))
+                    if package.is_dir()
+                    for path, data in _files(
+                        package, *PACKAGE_FILES, *BROWSER_DIRS
+                    ).items()
                 },
             }
         ).removeprefix("sha256:")[:16]
@@ -222,7 +244,7 @@ def serving_runtime() -> ServingRuntime:
 
 
 def execution_identity(artifact: RevisionArtifact) -> str:
-    """The identity of the same runtime and layer that supplies the artifact's bytes."""
+    """The identity of every byte the artifact's execution serves (`executing`)."""
     return executing(artifact).identity
 
 
@@ -254,7 +276,8 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     if isinstance(artifact, _ExecutingArtifact):
         return artifact
     runtime = serving_runtime()
-    record = json.loads(artifact.manifest)["layer"]
+    manifest = json.loads(artifact.manifest)
+    record = manifest["layer"]
     composition = selected(record, artifact.page_dir)
     held = runtime._executed.get(artifact)
     if held is not None and held[0] is composition:
@@ -267,29 +290,47 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     # copy. Read this execution's vocabulary against the selected composition.
     declarations = artifact.resources.get(PAGE_DECLARATIONS)
     registry = revision_vocabulary(
-        json.loads(artifact.manifest),
+        manifest,
         declarations.data if declarations is not None else None,
         artifact.page_dir,
     )
     layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
+    # Agent instructions belong to the composition's fingerprint, but only the
+    # browser's bytes belong to its immutable resource address: the layer's files,
+    # digested once for every revision that selects the layer, and this revision's
+    # vocabulary. The revision's captured files are served at the same address, so
+    # the identity covers each by the digest its manifest records, and covers each
+    # widget alias, whose module names its implementation at that address. Media
+    # answers at the page root under a name that is its own digest, never at this
+    # address, so the identity leaves it out and a revision that adds an image keeps
+    # the address.
     identity = files_identity(
         {
             "runtime": runtime.identity.encode(),
-            "layer": composition.fingerprint.encode(),
+            "layer": composition.files_digest.encode(),
+            "/registry.json": layer["/registry.json"].data,
+            **{
+                f"capture:{path}": captured["digest"].encode()
+                for path, captured in manifest["resources"].items()
+                if not path.startswith(f"/{MEDIA_DIR}/")
+            },
+            **{
+                f"alias:{alias}": source.encode()
+                for alias, source in artifact.widget_aliases.items()
+                if alias != source
+            },
         }
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package
     # copies this selection needs, using the same file inventory as page init.
     from .vendoring import package_files
 
-    names = [*record["packages"]]
-    if theme := theme_package(record["theme"]):
-        names.append(theme)
+    names = with_theme(tuple(record["packages"]), record["theme"])
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(
             package_files(root)
         )
-        for root in layer_inputs(tuple(names), artifact.page_dir)
+        for root in layer_inputs(names, artifact.page_dir)
         if root.is_relative_to(artifact.page_dir)
     }
     executed = _ExecutingArtifact(

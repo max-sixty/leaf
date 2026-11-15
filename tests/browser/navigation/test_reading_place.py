@@ -12,6 +12,7 @@ from render_cases_navigation import CHIPS, DIFF_PAGE, _publish
 from render_harness import (
     LONG_PAGE,
     PANEL,
+    RELEASE_FOCUS,
     leaf_page,
     open_page,
     panel_control,
@@ -34,7 +35,6 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -130,28 +130,6 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     assert page.evaluate(reading) == before
 
 
-@pytest.mark.parametrize("route", ["Escape", "Close"])
-def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
-    browser, serve, route
-):
-    page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
-    before = page.evaluate("() => document.scrollingElement.scrollTop")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    if route == "Escape":
-        page.keyboard.press("Escape")
-    else:
-        sheet.get_by_role("button", name="Close Page Map").click()
-    expect(sheet).to_be_hidden()
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-
-
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
     """Back and Forward restore the place commands read, not just its pixels."""
     page = open_page(
@@ -235,7 +213,7 @@ ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
@@ -246,8 +224,8 @@ ITEMS_LAYER = {
         "description": "A button that travels to one part of the items it refers to.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "for": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
+            "for": {"type": "string"},
             "key": {"type": "string", "minLength": 1},
         },
         "required": ["id", "for", "key"],
@@ -406,12 +384,13 @@ def test_back_returns_the_passage_chosen_between_trips(
     """A passage the user chose after one trip, by click or Tab, is where the next trip
     departs from, even while the first landing still shows: Back returns to it, and
     another Back to the original reading. A click on words that take no focus is
-    returned as the selection it left."""
+    returned as the selection it left. The large landing's paragraph follows its
+    section, since a click on the commented section opens its thread instead."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
         '<section id="first"><p>The first discussion concerns the importer.</p>'
-        f'<div style="height:1800px"></div>{elsewhere}</section>'
+        f'<div style="height:1800px"></div></section>{elsewhere}'
         if large
         else f'<p id="first">The first discussion concerns the importer.</p>{elsewhere}'
     )
@@ -515,14 +494,12 @@ def test_back_returns_the_passage_chosen_between_trips(
     page.wait_for_function("scrollY < 100")
 
 
-@pytest.mark.parametrize("moved", ["inline", "breakpoint"])
-def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve, moved):
+def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
     """A block whose own box lies below the window can still draw words in it, through a
     positioned child. A reading of the screen passes over a block only when its words
     are drawn inside its box, so the words the reader sees name the place, including
     once a breakpoint moves the child after an earlier reading, with no change to the
     page's text."""
-    style = "position: absolute; top: 200px; left: 0" if moved == "inline" else ""
     source = leaf_page(
         "Words outside their block",
         "<style>@media (width < 800px) {"
@@ -530,23 +507,359 @@ def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve, mo
         '<div style="position: relative">'
         '<div style="height: 1400px"></div>'
         '<p id="carrier">The carrier paragraph sits far below the window.'
-        f'<span id="drawn" style="{style}">'
-        "These positioned words are drawn in the window.</span></p>"
+        '<span id="drawn">These positioned words are drawn in the window.</span></p>'
         "</div>"
         + "".join(f"<p>Later paragraph {n} below the carrier.</p>" for n in range(5)),
     )
     page = open_page(browser, serve(source))
     resized(page, 1000, 600)
     rendered(page)
-    first = """async () => {
+    reading = """async () => {
       const rp = await window.__lfCheckApi();
       return rp.readingBlock()?.id ?? null;
     }"""
-    if moved == "breakpoint":
-        assert page.evaluate(first) is None
-        resized(page, 700, 600)
+    assert page.evaluate(reading) is None
+    resized(page, 700, 600)
+    rendered(page)
+    assert page.evaluate(reading) == "carrier"
+
+
+def test_a_reading_made_as_a_jump_lands_reads_the_words_it_brought(browser, serve):
+    """A reading of the screen in the task that jumps the page far down, before the
+    browser lays the page out again, reads the words the jump brought into the window:
+    the block on screen and the line the place names come from there, not from the
+    words the reading last found near the window."""
+    source = leaf_page(
+        "A long page",
+        "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        ),
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    page.evaluate("async () => (await window.__lfCheckApi()).readingBlock()")
+    rendered(page)
+    landed = page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          const target = document.getElementById("p250");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+          return { block: api.readingBlock()?.id, quote: api.capturePlace()?.quote };
+        }"""
+    )
+    assert landed["block"] == "p250"
+    assert landed["quote"].startswith("Paragraph 250 ")
+
+
+def test_a_reading_after_a_restyle_reads_the_layout_it_made(browser, serve):
+    """A restyle that moves the words under the window, with no change to the page's
+    text or height, leaves the next reading of the screen on the words there now. Scroll
+    anchoring keeps the paragraph read at the window's top as space opens above it, so
+    the reading stays on it."""
+    source = leaf_page(
+        "A restyled page",
+        '<div style="height: 30000px">'
+        + "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = "async () => (await window.__lfCheckApi()).readingBlock()?.id"
+    page.evaluate(
+        """() => {
+          const target = document.getElementById("p150");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(reading) == "p150"
+    page.evaluate(
+        "() => { document.getElementById('p10').style.marginTop = '2000px'; }"
+    )
+    rendered(page)
+    assert page.evaluate(reading) == "p150"
+
+
+def test_a_reading_after_a_scroll_reads_the_words_a_sticky_box_holds(browser, serve):
+    """A scroll carries the page's words past the window while a sticky box, such as a
+    table of contents beside them, stays in it, so a reading of the screen after the
+    scroll still finds the words that box holds there, as the sections a page comment
+    records do (`sectionsInView`)."""
+    source = leaf_page(
+        "A page with contents",
+        '<nav style="position: sticky; top: 0; float: left; width: 180px"><ol>'
+        + "".join(f'<li id="toc{n}">Part {n}</li>' for n in range(3))
+        + '</ol></nav><div style="margin-left: 200px">'
+        + "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "toc0" in page.evaluate(on_screen)
+    page.evaluate(
+        """() => {
+          const target = document.getElementById("p200");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+        }"""
+    )
+    rendered(page)
+    assert {"toc0", "p200"} <= set(page.evaluate(on_screen))
+
+
+def test_a_reading_after_a_scroll_reads_a_sticky_box_anywhere_its_block_lets_it_move(
+    browser, serve
+):
+    """A sticky box moves within its containing block: past an inline wrapper to the
+    block around it, and through the whole of a pane it stands in directly. So a reading
+    after a scroll of the page, or of the pane, still finds the words the sticky box holds
+    in the window."""
+    source = leaf_page(
+        "Sticky boxes",
+        '<section style="height: 3000px"><span>'
+        '<p id="wrapped" style="position: sticky; top: 100px; margin: 0">'
+        "Sticky words inside an inline wrapper, held in the window by sticking.</p>"
+        "</span></section>"
+        '<div id="pane" data-bound="start" style="height: 300px; overflow: auto">'
+        '<p id="heading" style="position: sticky; top: 0; margin: 0; background: white">'
+        "Sticky words standing directly in the pane, at its top as it scrolls.</p>"
+        + "".join(
+            f'<p id="row{n}">Row {n} of the pane, with words enough to name a place.</p>'
+            for n in range(60)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    page_reading = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "wrapped" in page.evaluate(page_reading)
+    page.evaluate("() => scrollTo({ top: 1000, behavior: 'instant' })")
+    rendered(page)
+    assert "wrapped" in page.evaluate(page_reading)
+    pane_reading = """async () => {
+      const api = await window.__lfCheckApi();
+      const region = api.readingRegions().find((each) => each.body.id === "pane");
+      return [...api.blocksOnScreen(region)].map(([block]) => block.id);
+    }"""
+    page.evaluate(
+        """() => document.getElementById("pane").scrollIntoView({ behavior: "instant" })"""
+    )
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 1500; }")
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+
+
+def test_a_reading_finds_words_placed_against_a_box_outside_the_pane_holding_them(
+    browser, serve
+):
+    """A positioned box is placed by its containing block, past a pane between them that
+    neither scrolls nor clips it: words fixed against a transformed section stand in the
+    window though the pane holding them is far below it."""
+    source = leaf_page(
+        "Placed words",
+        '<section style="transform: translateZ(0); height: 5000px; display: flow-root">'
+        '<div style="overflow: auto; height: 200px; margin-top: 3000px">'
+        '<p id="placed" style="position: fixed; top: 100px; left: 0; margin: 0">'
+        "Words positioned against their containing block, drawn in the window.</p>"
+        "</div></section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert page.evaluate(on_screen) == ["placed"]
+
+
+def test_a_reading_after_a_scroll_reads_words_the_browser_skipped_until_then(
+    browser, serve
+):
+    """Words in a box whose contents the browser skips while it is far from the window
+    (`content-visibility: auto`) are read once a scroll brings them into it, though the
+    page's height stays as it was."""
+    source = leaf_page(
+        "A page that skips what it holds",
+        '<p id="first">The first paragraph, far above the words the scroll reaches.</p>'
+        '<div style="height: 10000px"></div>'
+        '<div id="skipper" style="content-visibility: auto;'
+        ' contain-intrinsic-size: 200px; height: 200px">'
+        '<p id="target">Words the browser draws once a scroll brings them near.</p>'
+        '</div><div style="height: 1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = """async () => {
+      const api = await window.__lfCheckApi();
+      return { block: api.readingBlock()?.id, quote: api.capturePlace()?.quote };
+    }"""
+    assert page.evaluate(reading)["block"] == "first"
+    page.evaluate(
+        """() => {
+          const box = document.getElementById("skipper");
+          scrollTo({ top: box.getBoundingClientRect().top + scrollY - 50, behavior: "instant" });
+        }"""
+    )
+    page.wait_for_function(
+        "document.getElementById('target').checkVisibility({contentVisibilityAuto: true})"
+    )
+    rendered(page)
+    assert page.evaluate(reading) == {
+        "block": "target",
+        "quote": "Words the browser draws once a scroll brings them near.",
+    }
+
+
+# Brings line `line` of the text document `#log` to the top of its box's landing band,
+# and says whether the browser draws the document's first line.
+LINE_AT_TOP = """(line) => {
+  const pre = document.querySelector('#log pre');
+  const row = pre.querySelectorAll('.lf-text-document-run > div')[line];
+  return window.__lfCheckApi().then((api) => {
+    pre.scrollTop += row.getBoundingClientRect().top - api.landingBand(pre).top;
+    return pre.querySelector('.lf-text-document-run > div')
+      .checkVisibility({contentVisibilityAuto: true});
+  });
+}"""
+
+
+def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
+    """A reading place in a long text document names the first line drawn at the top of
+    the document's box, with runs of lines the browser skips above it. The place passes
+    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    past a run's end named a line further down."""
+    url = serve(
+        leaf_page(
+            "A long document",
+            '<lf-text-document id="log" source="log-text"></lf-text-document>',
+            head="<style>#log { --lf-bound: 400px; }</style>",
+        )
+    )
+    text = "".join(
+        f"Line {i:04d} names the place a reader stands.\n" for i in range(1500)
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    rendered(page)
+    place = """async () => {
+      const api = await window.__lfCheckApi();
+      return api.capturePlace(api.readingRegionFor(document.querySelector('#log pre')))
+        ?.quote;
+    }"""
+    for line in (300, 512, 700, 1000, 1280):
+        # Twice: the first scroll draws the runs it reaches, which may size them anew.
+        page.evaluate(LINE_AT_TOP, line)
+        scroll_settled(page, "#log pre")
+        assert not page.evaluate(LINE_AT_TOP, line), "the first line is drawn"
+        scroll_settled(page, "#log pre")
         rendered(page)
-    assert page.evaluate(first) == "carrier"
+        assert page.evaluate(place).startswith(f"Line {line:04d} "), line
+
+
+def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
+    """Opening a disclosure shows what it held, though its box keeps its size, so the next
+    reading of the screen finds those words."""
+    source = leaf_page(
+        "A disclosure",
+        '<details id="fold" style="height: 200px">'
+        '<summary aria-label="More"></summary>'
+        '<p id="held">Words the disclosure shows once it opens, in a box that keeps its'
+        " size.</p></details>"
+        '<div style="height: 1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "held" not in page.evaluate(on_screen)
+    page.evaluate("() => { document.getElementById('fold').open = true; }")
+    rendered(page)
+    assert "held" in page.evaluate(on_screen)
+
+
+def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser, serve):
+    """A rearrangement that changes no size, such as a view swap moving words in from far
+    below, is said with `layoutChanged`, and the next reading of the screen finds the
+    words it brought, after each such notice from the box."""
+    source = leaf_page(
+        "A rearranged page",
+        '<section id="area" style="position: relative; height: 5000px">'
+        '<p id="incoming" style="position: absolute; top: 1800px; margin: 0">'
+        "Words a view swap brings into the window from far below it.</p>"
+        '<p id="standing" style="position: absolute; top: 350px; margin: 0">'
+        "Words that stay where they stood through the swap.</p>"
+        '<p id="past" style="position: absolute; top: 1100px; margin: 0">'
+        "Words just below the window, which stay too.</p>"
+        '<p id="later" style="position: absolute; top: 2500px; margin: 0">'
+        "Words a second swap brings into the window from further below.</p>"
+        "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = "async () => (await window.__lfCheckApi()).readingBlock()?.id"
+    assert page.evaluate(reading) == "standing"
+    page.evaluate(
+        """async () => {
+          const area = document.getElementById("area");
+          document.getElementById("incoming").style.transform = "translateY(-1700px)";
+          (await window.__lfWidgetApi()).layoutChanged(area);
+        }"""
+    )
+    assert page.evaluate(reading) == "incoming"
+    on_screen = """async () => {
+      const area = document.getElementById("area");
+      document.getElementById("later").style.transform = "translateY(-2300px)";
+      (await window.__lfWidgetApi()).layoutChanged(area);
+      return [...(await window.__lfCheckApi()).blocksOnScreen()].map(([block]) => block.id);
+    }"""
+    assert "later" in page.evaluate(on_screen)
+
+
+def test_a_reading_in_a_scaled_pane_follows_its_scroll(browser, serve):
+    """A pane drawn at half its size moves its words half a pixel in the window for each
+    pixel it scrolls, so a reading of the pane after a scroll finds the words the scroll
+    brought into it."""
+    source = leaf_page(
+        "A scaled pane",
+        '<div id="pane" data-bound="start" style="height: 200px; width: 700px;'
+        ' overflow: auto; transform: scale(0.5); transform-origin: top left">'
+        '<div style="height: 1200px; position: relative">'
+        '<p id="p0" style="position: absolute; top: 0; margin: 0">'
+        "The first words in the scaled pane, before it scrolls.</p>"
+        '<p id="p9" style="position: absolute; top: 900px; margin: 0">'
+        "The last words in the scaled pane, after it scrolls.</p>"
+        "</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = """async () => {
+      const api = await window.__lfCheckApi();
+      const region = api.readingRegions().find((each) => each.body.id === "pane");
+      return api.readingBlock(region)?.id;
+    }"""
+    assert page.evaluate(reading) == "p0"
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 900; }")
+    rendered(page)
+    assert page.evaluate(reading) == "p9"
 
 
 @pytest.mark.parametrize("separated", [False, True])
@@ -615,14 +928,26 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
 
 
-def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve):
-    """A long text block's row identity survives capture, serialization and reflow."""
+def test_reading_place_names_a_projected_datum(browser, serve, subtests):
+    """A paragraph's later words cannot precede the datum that splits its reading, and a
+    long text block's row identity survives capture, serialization and reflow."""
+    record = (
+        "The projected record is the first visible passage the reader should keep. "
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Reading a projected row",
-                '<h1>Projected text</h1><pre id="rows">'
+                "Projected reading places",
+                '<section id="source"><p id="paragraph">'
+                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
+                '<span id="record" style="display:block">'
+                + record
+                * 4
+                + '</span><span style="display:block">'
+                "The later continuation follows the record and must not take its place."
+                '</span></p></section><div style="height:900px"></div>'
+                '<pre id="rows">'
                 + "".join(
                     f'<span id="row-{n}" style="display:block">'
                     "The same words occur on every independently addressed row.</span>"
@@ -632,76 +957,55 @@ def test_reading_place_keeps_a_projected_row_among_repeated_words(browser, serve
             )
         ),
     )
-    page.evaluate("""() => {
-      for (const row of document.querySelector('#rows').children) {
-        row.dataset.lfProjection = 'rows';
-        row.dataset.lfDatum = row.id;
-      }
-      window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
-    }""")
-    scroll_settled(page)
-    reading = page.evaluate("""async () => {
-      const api = await window.__lfWidgetApi();
-      const place = api.capturePlace();
-      return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
-    }""")
-    assert reading["place"].get("datum"), reading
-    assert reading["place"]["quote"].startswith("The same words")
-    assert reading["top"] is not None
-    # A serialized checkpoint has no live node to disguise a lost datum identity.
-    page.evaluate("""() => {
-      document.querySelector('#row-0').style.height = '400px';
-      window.scrollTo({top: 0, behavior: 'instant'});
-    }""")
-    scroll_settled(page)
-    page.evaluate(
-        """async place => {
-      (await window.__lfWidgetApi()).restorePlace(place);
-    }""",
-        reading["place"],
-    )
-    scroll_settled(page)
-    assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
-        "y"
-    ] == pytest.approx(reading["top"], abs=2)
 
+    with subtests.test(case="a passage inside a paragraph"):
+        page.evaluate("""() => {
+          const record = document.querySelector('#record');
+          record.dataset.lfGen = '1';
+          record.dataset.lfProjection = 'source';
+          record.dataset.lfDatum = 'record';
+          window.scrollBy(0, record.getBoundingClientRect().top - 80);
+        }""")
+        scroll_settled(page)
+        place = page.evaluate(
+            """async () => (await window.__lfWidgetApi()).capturePlace()"""
+        )
+        assert place.get("datum") == "record", place
+        assert place["quote"].startswith(record)
 
-def test_reading_place_visits_a_projected_passage_before_its_parent_continuation(
-    browser, serve
-):
-    """A paragraph's later words cannot precede the datum that splits its reading."""
-    record = (
-        "The projected record is the first visible passage the reader should keep. "
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "A projected passage inside a paragraph",
-                '<section id="source"><p id="paragraph">'
-                '<span style="display:block;height:1100px">Earlier paragraph words.</span>'
-                '<span id="record" style="display:block">'
-                + record
-                * 4
-                + '</span><span style="display:block">'
-                "The later continuation follows the record and must not take its place."
-                '</span></p></section><div style="height:900px"></div>',
-            )
-        ),
-    )
-    page.evaluate("""() => {
-      const record = document.querySelector('#record');
-      record.dataset.lfGen = '1';
-      record.dataset.lfProjection = 'source';
-      record.dataset.lfDatum = 'record';
-      window.scrollBy(0, record.getBoundingClientRect().top - 80);
-    }""")
-    scroll_settled(page)
-    place = page.evaluate(
-        """async () => (await window.__lfWidgetApi()).capturePlace()"""
-    )
-    assert place.get("datum") == "record", place
-    assert place["quote"].startswith(record)
+    with subtests.test(case="a row among repeated words"):
+        page.evaluate("""() => {
+          for (const row of document.querySelector('#rows').children) {
+            row.dataset.lfProjection = 'rows';
+            row.dataset.lfDatum = row.id;
+          }
+          window.scrollBy(0, document.querySelector('#row-40').getBoundingClientRect().top - 100);
+        }""")
+        scroll_settled(page)
+        reading = page.evaluate("""async () => {
+          const api = await window.__lfWidgetApi();
+          const place = api.capturePlace();
+          return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
+        }""")
+        assert reading["place"].get("datum"), reading
+        assert reading["place"]["quote"].startswith("The same words")
+        assert reading["top"] is not None
+        # A serialized checkpoint has no live node to disguise a lost datum identity.
+        page.evaluate("""() => {
+          document.querySelector('#row-0').style.height = '400px';
+          window.scrollTo({top: 0, behavior: 'instant'});
+        }""")
+        scroll_settled(page)
+        page.evaluate(
+            """async place => {
+          (await window.__lfWidgetApi()).restorePlace(place);
+        }""",
+            reading["place"],
+        )
+        scroll_settled(page)
+        assert page.locator(f"#{reading['place']['datum']}").bounding_box()[
+            "y"
+        ] == pytest.approx(reading["top"], abs=2)
 
 
 def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subtests):
@@ -762,7 +1066,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
 def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     """Each step of the obligation walk somewhere else adds a history entry where the user
     stood, as each trip to a thread does, so Back returns to the obligation the user was
-    on, though answering it took it out of On me, and then to where they were reading.
+    on, though answering it took it out of On Me, and then to where they were reading.
     `m` from a thread `t` reached comes back to the thread, its card open again beside
     its passage."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
@@ -846,7 +1150,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert landed < reading - 1000
     assert entry() == start + 1
 
-    # Answering the obligation takes it out of On me, so no walk's Shift reaches it again.
+    # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
@@ -1118,7 +1422,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
       window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
       scrollBy(0,-80);
     }""")
-    panel_control(page, ALIGN_ROW, at="navigate").tap()
+    press_visible(page, panel_control(page, ALIGN_ROW, at="navigate"), touch=True)
     _expect_aligned(page, "#remembered")
     assert page.evaluate("""() => {
       const s = getSelection();
@@ -1164,93 +1468,240 @@ def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     _expect_aligned(page, "#remembered")
 
 
-def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
-    page = open_page(
-        browser, serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests):
+    """`g z` on a row in Threads, or on a control of an obligation in a reply the panel
+    draws, moves nothing on the page and adds no history: the item it aligns is the panel's
+    own."""
+    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": roots[4],
+            "revision": 1,
+            "text": "Choose the follow-up.",
+            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+        },
     )
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel_settled(page, view="threads")
-    row = page.locator(".lf-fp-thread").nth(4)
-    row.focus()
-    rendered(page)
-    before = page.evaluate(
-        "[scrollY,history.length,navigation.currentEntry.key,location.href]"
-    )
-    page.keyboard.press("g")
-    page.keyboard.press("z")
-    rendered(page)
-    expect(row).to_be_focused()
-    panel_settled(page, view="threads")
-    assert (
-        page.evaluate(
-            "[scrollY,history.length,navigation.currentEntry.key,location.href]"
-        )
-        == before
-    )
+    page = open_page(browser, url)
+    travel = "[scrollY,history.length,navigation.currentEntry.key,location.href]"
+
+    with subtests.test(case="a row in Threads"):
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page, view="threads")
+        row = page.locator(".lf-fp-thread").nth(4)
+        row.focus()
+        rendered(page)
+        before = page.evaluate(travel)
+        page.keyboard.press("g")
+        page.keyboard.press("z")
+        rendered(page)
+        expect(row).to_be_focused()
+        panel_settled(page, view="threads")
+        assert page.evaluate(travel) == before
+
+    with subtests.test(case="an obligation in a reply"):
+        view = open_panel_thread(page, roots[4])
+        control = view.locator('lf-option[id="reply-yes"]').get_by_role("checkbox")
+        control.focus()
+        before = page.evaluate(travel)
+        page.keyboard.press("g")
+        page.keyboard.press("z")
+        rendered(page)
+        expect(control).to_be_focused()
+        assert page.evaluate(travel) == before
 
 
-def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
-    browser, serve
+def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
+    browser, serve, subtests
 ):
-    """A landing that follows the user moves nothing for a box already shown: all of it
-    in view where it fits its room, any of it where it does not. A wrapper clipping only
+    """Every nearest landing first asks whether its box is already shown, which it is
+    where the landing would move nothing: all of it in view where it fits its room, and
+    filling the room where it is longer. Each case stands in a part of the page of its
+    own and scrolls to it first, so the cases share one page.
+
+    A box taller than the window that shows only in part still comes in as far as it
+    fits, its opening at the band's top, and is then shown. A wrapper clipping only
     sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
-    tall still fits, and 30px of it in view is not yet shown."""
+    tall still fits, and 30px of it in view is not yet shown.
+
+    The room a box has is what a landing could give it, not what the boxes around it
+    show where they stand now: a 250px box a 300px pane holds whole, the pane's foot
+    below the window, fits the pane, so it is not yet shown, and a nearest landing
+    brings the page up until all of it is.
+
+    A 300px box 100px down a 250px pane that stands 100px above the band shows 150px of
+    itself. A nearest landing scrolls the pane 100px to show 250px, and the page back
+    100px to keep the pane's top in the band, so the box stands where it stood: the two
+    moves cancel on screen but not in what the user sees, so it is not yet shown, and
+    the landing makes both.
+
+    A fixed box stands still while every box around it scrolls, so a landing on one the
+    window doesn't show, as a Tab's arrival makes, moves none of them. A fixed box a
+    transformed box holds is placed in that box, not the window, so it rides the page's
+    scroll and a landing scrolls the page to show it."""
     source = leaf_page(
         "Room",
-        '<div style="height:2000px"></div>'
+        '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
+        '<div style="height:100px"></div><div style="transform:translateZ(0)">'
+        '<button id="carried" style="position:fixed;left:20px;top:1300px">Carried'
+        '</button></div><div style="height:2000px"></div>'
         '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
-        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>'
+        '<div style="height:1200px"></div>'
+        '<div id="pane" style="height:300px;overflow:auto">'
+        '<div id="whole" style="height:250px"></div><div style="height:600px"></div>'
+        '</div><div style="height:1600px"></div>'
+        '<div id="short-pane" style="height:250px;overflow:auto">'
+        '<div style="height:100px"></div><div id="long" style="height:300px"></div>'
+        '<div style="height:600px"></div></div><div style="height:1600px"></div>',
     )
     page = open_page(browser, serve(source))
-    reading = page.evaluate("""async () => {
-      const {alreadyShown, fitsWhole} =
-        await window.__lfCheckApi();
-      const {shownWindow} = await window.__lfWidgetApi();
-      const partly = (node) => {
-        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
-        scrollBy({top, behavior: 'instant'});
-        return [fitsWhole(node), alreadyShown(node)];
-      };
-      return [partly(document.querySelector('#box')),
-              partly(document.querySelector('#tall'))];
-    }""")
-    assert reading == [[True, False], [False, True]]
+    page.set_viewport_size({"width": 1280, "height": 900})
+
+    with subtests.test(case="a fixed box"):
+        assert (
+            page.evaluate("""async () => {
+              const {scrollIntoView} = await window.__lfWidgetApi();
+              scrollTo({top: 100, behavior: 'instant'});
+              const fixed = document.querySelector('#fixed');
+              scrollIntoView(fixed, {block: 'nearest', behavior: 'instant'});
+              return scrollY;
+            }""")
+            == 100
+        )
+
+    with subtests.test(case="a fixed box a transformed box holds"):
+        reading = page.evaluate("""async () => {
+          const {landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          scrollTo({top: 0, behavior: 'instant'});
+          const carried = document.querySelector('#carried');
+          const before = carried.getBoundingClientRect().top;
+          scrollIntoView(carried, {block: 'nearest', behavior: 'instant'});
+          const box = carried.getBoundingClientRect();
+          return {before, bottom: box.bottom, y: scrollY, seen: Boolean(seenRect(carried, new Map())),
+                  band: landingBand(document.scrollingElement).bottom};
+        }""")
+        assert reading["before"] > 900, reading
+        assert reading["y"] > 0, reading
+        assert reading["seen"], reading
+        assert reading["bottom"] <= reading["band"] + 1, reading
+
+    with subtests.test(case="what the window shows"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, fitsWhole, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView, shownWindow} = await window.__lfWidgetApi();
+          const partly = (node) => {
+            const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+            scrollBy({top, behavior: 'instant'});
+            return [fitsWhole(node), alreadyShown(node)];
+          };
+          const tall = document.querySelector('#tall');
+          const readings = [partly(document.querySelector('#box')), partly(tall)];
+          scrollIntoView(tall, {block: 'nearest', behavior: 'instant'});
+          return {readings, landed: alreadyShown(tall),
+                  top: tall.getBoundingClientRect().top,
+                  band: landingBand(document.scrollingElement).top};
+        }""")
+        assert reading["readings"] == [[True, False], [False, False]], reading
+        assert reading["landed"], reading
+        assert reading["top"] == pytest.approx(reading["band"], abs=1), reading
+
+    with subtests.test(case="a box whole in a pane below the window"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#pane');
+          const box = document.querySelector('#whole');
+          scrollBy({top: pane.getBoundingClientRect().top - (innerHeight - 200),
+                    behavior: 'instant'});
+          const before = {shown: alreadyShown(box), bottom: box.getBoundingClientRect().bottom};
+          scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+          return {before, after: alreadyShown(box), bottom: box.getBoundingClientRect().bottom,
+                  band: landingBand(document.scrollingElement).bottom};
+        }""")
+        assert reading["before"]["bottom"] > reading["band"], reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["bottom"] <= reading["band"] + 1, reading
+        assert reading["after"] is True, reading
+
+    with subtests.test(case="a box longer than its pane"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#short-pane');
+          const box = document.querySelector('#long');
+          const band = landingBand(document.scrollingElement).top;
+          scrollBy({top: pane.getBoundingClientRect().top - (band - 100), behavior: 'instant'});
+          const seenHeight = () => {
+            const seen = seenRect(box, new Map());
+            return seen ? Math.round(seen.bottom - seen.top) : 0;
+          };
+          const before = {shown: alreadyShown(box), seen: seenHeight(),
+                          top: Math.round(box.getBoundingClientRect().top)};
+          scrollIntoView(box, {block: 'nearest', behavior: 'instant'});
+          return {before, pane: pane.scrollTop, seen: seenHeight(),
+                  top: Math.round(box.getBoundingClientRect().top), after: alreadyShown(box)};
+        }""")
+        assert reading["before"]["seen"] == 150, reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["pane"] == 100, reading
+        assert reading["seen"] == 250, reading
+        assert reading["top"] == reading["before"]["top"], reading
+        assert reading["after"] is True, reading
 
 
-def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
-    browser, serve
-):
+def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):
+    """`g z` on a tall item in a pane that stands in another pane, both partly above the
+    window, aligns the item's opening in its own pane and then brings that opening to
+    the page's band: each box around reads where the boxes inside it have just put the
+    item, so the opening is not left above the window. The press stays in the current
+    history entry."""
     source = leaf_page(
-        "A tall current item",
-        '<h1>Read the opening</h1><div style="height:600px"></div>'
-        '<div id="inspection" data-bound="start" style="height:300px;overflow:auto;scroll-padding-top:24px">'
-        '<pre id="tall" tabindex="0">'
+        "A tall item two panes deep",
+        '<h1>Read the opening</h1><div style="height:700px"></div>'
+        '<div id="outer" data-bound="start" style="height:300px;overflow:auto">'
+        '<div style="height:200px"></div>'
+        '<div id="inner" data-bound="start" '
+        'style="height:250px;overflow:auto;scroll-padding-top:24px">'
+        '<pre id="tall" tabindex="0" style="margin:0">'
         + "A line in the current item.\n"
         * 80
         + '</pre><div style="height:600px"></div></div>'
-        '<div style="height:1400px"></div>',
+        '<div style="height:1000px"></div></div><div style="height:3000px"></div>',
     )
     page = open_page(browser, serve(source))
+    page.set_viewport_size({"width": 1440, "height": 900})
     page.emulate_media(reduced_motion="reduce")
-    page.locator("#tall").focus()
-    page.evaluate("""async () => {
-      const {landingBand} = await window.__lfCheckApi();
-      const box = document.querySelector('#inspection');
-      const docY = box.getBoundingClientRect().top + scrollY;
-      scrollTo(0, docY - landingBand(document.scrollingElement).top + 80);
-      box.scrollTop = 300;
-    }""")
+    page.locator("#tall").evaluate("el => el.focus({preventScroll: true})")
+    page.evaluate(
+        """() => {
+          const outer = document.querySelector('#outer');
+          scrollTo({top: outer.getBoundingClientRect().top + scrollY + 100,
+                    behavior: 'instant'});
+          document.querySelector('#inner').scrollTop = 300;
+        }"""
+    )
     scroll_settled(page)
-    history = page.evaluate("[history.length,navigation.currentEntry.key]")
     assert page.locator("#tall").bounding_box()["y"] < 0
+    history = page.evaluate("[history.length,navigation.currentEntry.key]")
     page.keyboard.press("g")
     page.keyboard.press("z")
-    scroll_settled(page, "#inspection")
+    scroll_settled(page)
     _expect_aligned(page, "#tall")
+    assert page.locator("#inner").evaluate("box => box.scrollTop") == 0
     expect(page.locator("#tall")).to_be_focused()
-    assert page.locator("#inspection").evaluate("box => box.scrollTop") == 0
     assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
 
 
@@ -1342,15 +1793,14 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
     assert before["top"] > before["height"]
     assert before["axes"] == ([0] if quarter_turn == "owning" else [1, 0])
     assert all(left > 0 for left, _ in before["offsets"])
-    if alignment == "start":
-        page.keyboard.press("g")
-        page.keyboard.press("z")
-    else:
-        page.evaluate("""async () => {
-          const {scrollIntoReadingBand} = await window.__lfWidgetApi();
+    page.evaluate(
+        """async (block) => {
+          const {scrollIntoView} = await window.__lfWidgetApi();
           const target = document.querySelector('#quarter-target');
-          scrollIntoReadingBand(target, target, 'nearest', 'instant');
-        }""")
+          scrollIntoView(target, {block, behavior: 'instant'});
+        }""",
+        alignment,
+    )
     after = page.evaluate("""async () => {
       const {landingBand} = await window.__lfCheckApi();
       const {scrollersOf} = await window.__lfCheckApi();
@@ -1390,41 +1840,6 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     page.keyboard.press("g")
     page.keyboard.press("z")
     expect(threads).to_be_focused()
-    assert (
-        page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
-    )
-
-
-def test_align_current_obligation_in_a_reply_keeps_its_question_extent(browser, serve):
-    url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
-    roots = [
-        event["id"]
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "parent": roots[4],
-            "revision": 1,
-            "text": "Choose the follow-up.",
-            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
-            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
-            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
-        },
-    )
-    page = open_page(browser, url)
-    view = open_panel_thread(page, roots[4])
-    control = view.locator('lf-option[id="reply-yes"]').get_by_role("checkbox")
-    control.focus()
-    before = page.evaluate("[scrollY,history.length,navigation.currentEntry.key]")
-    page.keyboard.press("g")
-    page.keyboard.press("z")
-    rendered(page)
-    expect(control).to_be_focused()
     assert (
         page.evaluate("[scrollY,history.length,navigation.currentEntry.key]") == before
     )
@@ -1701,8 +2116,10 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     page.evaluate("releaseSelectionDatum()")
     expect(line).to_contain_text("violet")
     if not cancel:
+        # The page's field wears `c` once the key has let go of the line scrolled away.
         expect(panel_field(page)).to_have_attribute(
-            "placeholder", "That selected passage is unavailable on this version"
+            "placeholder",
+            re.compile(r"^That selected passage is unavailable on this version"),
         )
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
@@ -1837,66 +2254,137 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
 
 
 def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
-    browser, serve
+    browser, serve, subtests
 ):
-    """A step that lands the user in the document moves the Tab starting point there.
+    """A step that lands the user in the document moves the Tab starting point there, and
+    closing a mode gives back the press that opened it with the user's place, whichever
+    surface it is and however it closes: Threads, the reference, and the Page Map by
+    Escape or by its Close. The page has not moved under it either.
 
     The landing is blurred, so `activeElement` reads `body` whether or not it moved, and
     every journey that asserts only that would pass over a landing that had quietly reset
     the user to the top of the page. The press that tells them apart is the Tab after
     it: from a panel opened four screens down, it belongs on from the words in front of
     the user rather than at the document's first stop.
-    """
-    page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(page.locator(panel_view("threads"))).to_be_focused()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    assert page.evaluate("() => document.activeElement === document.body")
-
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-    # And nothing of the borrow is left on the author's paragraph.
-    assert (
-        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
-    )
-
-
-def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
-    browser, serve
-):
-    """Closing a mode gives back the press that opened it, and the user's place with it.
 
     A user working from the page stands on `body`: `letGo` puts them there so Space and
     PageDown reach the document's own scroll box. `?` from there recorded `body` as the
-    door and closing handed focus back to it — and focusing `body` resets the browser's
+    door and closing handed focus back to it, and focusing `body` resets the browser's
     sequential focus navigation starting point, so the next Tab began at the top of the
-    document. A user who opened the reference four screens down to look a key up was
-    charged the whole page to get back to where they had been.
-
-    The reading is the next Tab rather than the focused element, because that is the fact
-    that was wrong: the restore itself looked fine both before and after, focus being on
-    nothing either way. Authored controls before and after the reading distinguish
-    restarting at the top from carrying on where the user was.
-    """
+    document. Authored controls before and after the reading distinguish restarting at
+    the top from carrying on where the user was. Each case starts from there:
+    `RELEASE_FOCUS` puts the starting point back at the top, where a new page has it."""
     page = open_page(browser, serve(READING_CONTROLS_PAGE))
-    page.evaluate("() => document.getElementById('p40').scrollIntoView()")
-    page_at_rest(page)
+    threads = page.locator(panel_view("threads"))
+    reference = page.locator(".lf-command-reference")
+    page_map = page.get_by_role("dialog", name="Page Map", exact=True)
 
-    page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-command-reference")).to_be_hidden()
+    def close_threads():
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        expect(threads).to_be_focused()
+        page.keyboard.press("Escape")
+        panel_settled(page, open=False)
 
-    page.keyboard.press("Tab")
-    expect(page.locator("#next-control")).to_be_focused()
-    # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
-    # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
-    # signature has no vocabulary for.
-    assert (
-        page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
+    def close_reference():
+        page.keyboard.press("?")
+        expect(reference).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(reference).to_be_hidden()
+
+    def open_page_map():
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+p")
+        expect(page_map).to_be_visible()
+
+    def close_page_map_by_escape():
+        open_page_map()
+        page.keyboard.press("Escape")
+        expect(page_map).to_be_hidden()
+
+    def close_page_map_by_its_close():
+        open_page_map()
+        page_map.get_by_role("button", name="Close Page Map").click()
+        expect(page_map).to_be_hidden()
+
+    for surface, close in (
+        ("threads", close_threads),
+        ("reference", close_reference),
+        ("page map by Escape", close_page_map_by_escape),
+        ("page map by its Close", close_page_map_by_its_close),
+    ):
+        with subtests.test(surface=surface):
+            page.evaluate(RELEASE_FOCUS)
+            page.evaluate("() => document.getElementById('p40').scrollIntoView()")
+            page_at_rest(page)
+            before = page.evaluate("() => document.scrollingElement.scrollTop")
+            close()
+            assert page.evaluate("() => document.activeElement === document.body")
+            assert page.evaluate("() => document.scrollingElement.scrollTop") == before
+
+            page.keyboard.press("Tab")
+            expect(page.locator("#next-control")).to_be_focused()
+            # And nothing of the borrow is left on the author's paragraph: `tabindex` is
+            # not in PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint
+            # the replay signature has no vocabulary for.
+            assert (
+                page.evaluate(
+                    "() => document.querySelectorAll('main [tabindex]').length"
+                )
+                == 0
+            )
+        # What a failed case left up goes before the next case opens its surface.
+        page.keyboard.press("Escape")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
+    engine, request, serve
+):
+    """A navigation takes the reader's place from a scroll the browser is still driving,
+    even where its destination already stands where it lands: the log the reader set
+    moving stops where the landing found it, rather than running on past what they
+    chose. Firefox ran the log on to its end, since it stops no smooth scroll for an
+    instant write of the position the page last saw (arrivals.js,
+    `stopWhereItStands`)."""
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
+    rows = "".join(
+        f"<p>Line {n} of the incident, long enough to read as its own passage.</p>"
+        for n in range(200)
     )
+    source = leaf_page(
+        "Landing during a scroll",
+        f'{filler}<h2 id="section"><span id="named">The section</span> the reader '
+        f'landed on</h2><div id="log" data-bound="start" style="height: 400px">{rows}'
+        f"</div>{filler * 20}",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    page.emulate_media(reduced_motion="no-preference")
+    resized(page, 1280, 800)
+    page.evaluate("location.hash = 'section'")
+    scroll_settled(page)
+    rendered(page)
+    page_top = page.evaluate("document.scrollingElement.scrollTop")
+    # The log's smooth scroll is the browser's to drive; the landing on a name inside the
+    # heading already in place asks nothing to move.
+    started = page.evaluate(
+        """async () => {
+          const log = document.getElementById('log');
+          log.scrollTo({top: log.scrollHeight, behavior: 'smooth'});
+          const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+          while (log.scrollTop < 20) await frame();
+          location.hash = 'named';
+          return log.scrollTop;
+        }"""
+    )
+    scroll_settled(page)
+    rendered(page)
+    after = page.evaluate(
+        """() => {
+          const log = document.getElementById('log');
+          return {log: log.scrollTop, limit: log.scrollHeight - log.clientHeight,
+                  page: document.scrollingElement.scrollTop};
+        }"""
+    )
+    assert after["page"] == pytest.approx(page_top, abs=2), after
+    assert after["log"] < started + 200 < after["limit"], (started, after)

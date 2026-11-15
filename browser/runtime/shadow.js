@@ -4,12 +4,12 @@ import { isStage, liveStages } from "./arrivals.js";
 import { registry } from "./registry.js";
 export { overIn, SAID, UI_MARKS, uiInside, inUi } from "./shadow-tree.js";
 import {
-  isElement,
-  isHTML,
   excludedByInert,
   byRenderedOrder,
   composedParentNode,
+  hostIn,
   renderedOrder,
+  renderedOrdering,
   renderedParent,
   renderedUnder,
   shadowHost,
@@ -20,7 +20,9 @@ export {
   excludedByInert,
   byRenderedOrder,
   composedParentNode,
+  hostIn,
   renderedOrder,
+  renderedOrdering,
   renderedParent,
   renderedUnder,
   shadowHost,
@@ -69,25 +71,6 @@ export const shadowRootsIn = (root) =>
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
   );
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Geometry walks the children that paint here: a host's shadow tree and a slot's
-// assigned (or fallback) content, rather than the separate light-DOM ownership tree.
-/** @param {Node} node */
-export const renderedChildren = (node) =>
-  isHTML(node, "slot")
-    ? node.assignedNodes({ flatten: true })
-    : (isElement(node) ? (node.shadowRoot ?? node) : node).childNodes;
-
-// What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
-// itself when it is in that tree, else the host of the shadow tree holding it, climbed
-// out until one is. Null when none is: a detached node, or one outside `root`
-// altogether. A shadow tree renders where its host stands, so order and range
-// questions, which the platform answers only within one tree, are asked of this.
-/** @param {Node | null} node @param {Node} root */
-export const hostIn = (node, root) => {
-  let at = node;
-  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
-  return at;
-};
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer

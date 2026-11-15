@@ -33,11 +33,11 @@ prompt protects its generation and turn.
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
 
+from .registry.schema import aware_instant
 from .state import (
     advance_turn,
     flocked,
@@ -70,8 +70,8 @@ def transcript_event(line: bytes) -> tuple[str, str, str] | None:
         raise ValueError("Codex transcript turn id must be a string")
     if not isinstance(timestamp, str):
         raise TypeError("Codex transcript timestamp must be a string")
-    if datetime.fromisoformat(timestamp).tzinfo is None:
-        raise ValueError("Codex transcript timestamp needs a time zone")
+    if aware_instant(timestamp) is None:
+        raise ValueError("Codex transcript timestamp must be RFC 3339 with an offset")
     return event, turn, timestamp
 
 

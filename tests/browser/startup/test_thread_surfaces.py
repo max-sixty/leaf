@@ -9,6 +9,7 @@ from render_harness import (
     PANEL,
     comment_note,
     consume_browser_errors,
+    expect_preview_words,
     holding,
     leaf_page,
     open_page,
@@ -25,7 +26,6 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.findings import Finding
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -76,8 +76,8 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "description": "A project-supplied thread surface.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -327,10 +327,11 @@ customElements.define('lf-test-surface', class extends LeafElement {
             },
         )
         told(page)
-        # The notice holding the first reply counts this one too.
-        expect(
-            healthy.get_by_role("button", name="2 new", exact=True)
-        ).to_have_accessible_description("2 new replies")
+        # The notice holding the first reply counts this one too, and its preview
+        # says what it holds.
+        expect_preview_words(
+            healthy.get_by_role("button", name="2 new", exact=True), "2 new replies"
+        )
         expect(broken.locator(".lf-page-thread")).to_have_count(2)
         expect(broken.locator(".lf-page-thread leaf-text").first).to_have_js_property(
             "value", "Keep this unsent reply."
@@ -508,7 +509,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "properties": {
             "id": {"type": "string"},
             "style": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -665,7 +666,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "type": "object",
         "properties": {
             "id": {"type": "string"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "source": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -881,8 +882,8 @@ customElements.define('lf-test-seat',class extends LeafElement{
       document.querySelector('#foreign').moveBefore(document.querySelector('[data-seat=a]'),null);
       releasePage();
     }""")
-    news = page.locator("#rail").get_by_role("button", name="1 new", exact=True)
-    expect(news).to_have_accessible_description("1 new thread")
+    # The widget's thread, its seat gone, joins the page's rail and draws at once.
+    expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     page.wait_for_function(
         "document.querySelector('#rail').contains(document.querySelector('.lf-fab-bar'))"
     )
@@ -894,12 +895,11 @@ customElements.define('lf-test-seat',class extends LeafElement{
         )
         == current
     )
-    # The widget stops offering its seat, so the page presents both threads.
+    # The widget stops offering its seat, so the page keeps presenting both threads.
     page.evaluate("""async()=>{
       const {threadSurface}=await window.__lfWidgetApi();
       const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
     }""")
-    news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     assert len(state_readings) == 1
 

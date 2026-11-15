@@ -9,26 +9,26 @@ lf-file-tree {
   min-inline-size: 0;
   block-size: var(--lf-file-tree-height, 24rem);
   margin-block: 1rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
+  color: var(--lf-ink);
   overflow: clip;
   --lf-block-frame: 1;
   --lf-holds-height: 1;
-  --trees-bg-override: var(--card);
-  --trees-fg-override: var(--ink);
-  --trees-fg-muted-override: var(--muted);
-  --trees-bg-muted-override: var(--chip);
-  --trees-selected-bg-override: var(--accent-tint);
-  --trees-selected-fg-override: var(--ink);
-  --trees-focus-ring-color-override: var(--accent);
-  --trees-font-family-override: var(--mono);
-  --trees-font-size-override: 0.82rem;
-  --trees-git-added-color-override: var(--ok-ink);
-  --trees-git-modified-color-override: var(--warn-ink);
-  --trees-git-deleted-color-override: var(--danger-ink);
-  --trees-git-renamed-color-override: var(--accent);
+  --trees-bg-override: var(--lf-card);
+  --trees-fg-override: var(--lf-ink);
+  --trees-fg-muted-override: var(--lf-muted);
+  --trees-bg-muted-override: var(--lf-chip);
+  --trees-selected-bg-override: var(--lf-accent-tint);
+  --trees-selected-fg-override: var(--lf-ink);
+  --trees-focus-ring-color-override: var(--lf-accent);
+  --trees-font-family-override: var(--lf-mono);
+  --trees-font-size-override: var(--lf-code-size);
+  --trees-git-added-color-override: var(--lf-ok-ink);
+  --trees-git-modified-color-override: var(--lf-warn-ink);
+  --trees-git-deleted-color-override: var(--lf-danger-ink);
+  --trees-git-renamed-color-override: var(--lf-accent);
 }
 @media screen {
   @container style(--lf-full-height: 1) {

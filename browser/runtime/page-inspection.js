@@ -5,6 +5,7 @@
  * here changes authored content, starts a website session, or polls for updates.
  * Page controls own identity values; copyable-text.js supplies every read-only text
  * block with its copy control. This module loads only when About opens. */
+import { capitalized } from "./words.js";
 import { describeFailure } from "./exception.js";
 import { html, nothing, render } from "/runtime/framework.js";
 import { chromeForeground } from "./chrome.js";
@@ -54,10 +55,7 @@ const copy = copyControl("", {
   error: "Diagnostics not copied. Select the report text to copy it manually.",
   trigger: copyLabel,
 });
-const close = closeControl({
-  name: "Close about this page",
-  title: "Close about this page (Esc)",
-});
+const close = closeControl({ name: "Close about this page" });
 head.append(copy, close);
 // The page's status line is behind this modal. Keep copy outcomes beside its
 // trigger; Web Awesome still owns clipboard access and the spoken announcement.
@@ -452,10 +450,9 @@ export async function openPageInspection(intent) {
         .filter((entry) => entry.copies)
         .map(
           (entry) =>
-            html`${copyableText(
-              entry.label.charAt(0).toUpperCase() + entry.label.slice(1),
-              entry.copies,
-            )}${entry.title ? html`<p>${entry.title}</p>` : nothing}`,
+            html`${copyableText(capitalized(entry.label), entry.copies)}${
+              entry.title ? html`<p>${entry.title}</p>` : nothing
+            }`,
         )}`,
     identity,
   );

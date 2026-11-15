@@ -126,6 +126,8 @@ import { TEXT_FIELD } from "./control-selectors.js";
 import { onUserInput } from "./focus.js";
 import { afterSettling, nextRender, sizeObserver } from "./rendering.js";
 import { contentRides } from "./scrolling.js";
+import { userScrollport } from "./geometry.js";
+import { shifted } from "./rect.js";
 
 /** @typedef {import('./rect.js').Box} Box
  * @typedef {keyof Box} Edge
@@ -143,6 +145,11 @@ import { contentRides } from "./scrolling.js";
  * @typedef {{edges: Held, x: number, y: number}} Kept
  * @typedef {{x: number, y: number, kept: Kept | null}} Stood
  * @typedef {{held: () => Held | null, place: () => boolean}} Placement */
+
+// The registered property (base.css) a carried part's `translate` reads while it
+// travels, which tells a reader of the motions under way that the part is moving rather
+// than being cut or faded (user-place.js, `slides`).
+export const CARRY = "--lf-box-carry";
 
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
@@ -191,7 +198,7 @@ const placedParts = sizeObserver((entries) => {
     read?.();
 });
 
-// How far a lift of the theme's (`--raise-N`, base.css) paints past the box it raises,
+// How far a lift of the theme's (`--lf-raise-N`, styles/tokens.css) paints past the box it raises,
 // cast as a filter's drop shadow: its drop, and twice its blur, which a filter takes as
 // the deviation of its Gaussian, so the shadow has faded to nothing seen by then. Read
 // off `element`, where the theme registers them as lengths. Cut at the drop and one
@@ -199,8 +206,8 @@ const placedParts = sizeObserver((entries) => {
 /** @param {Element} element @param {number} level */
 const liftReach = (element, level) => {
   const lift = getComputedStyle(element);
-  const drop = Number.parseFloat(lift.getPropertyValue(`--raise-${level}-drop`));
-  const blur = Number.parseFloat(lift.getPropertyValue(`--raise-${level}-blur`));
+  const drop = Number.parseFloat(lift.getPropertyValue(`--lf-raise-${level}-drop`));
+  const blur = Number.parseFloat(lift.getPropertyValue(`--lf-raise-${level}-blur`));
   return drop + 2 * blur;
 };
 
@@ -229,13 +236,6 @@ const between = (from, to, progress) => ({
   top: from.top + (to.top - from.top) * progress,
   right: from.right + (to.right - from.right) * progress,
   bottom: from.bottom + (to.bottom - from.bottom) * progress,
-});
-/** @param {Box} box @param {number} dx @param {number} dy */
-const shifted = (box, dx, dy) => ({
-  left: box.left + dx,
-  top: box.top + dy,
-  right: box.right + dx,
-  bottom: box.bottom + dy,
 });
 /** @param {Insets} sides @param {number} [radius] */
 const insetOf = ([top, right, bottom, left], radius = 0) =>
@@ -268,7 +268,7 @@ const rings = (style) =>
 // which the caller stands behind the box in the box's plane, and whose rule places it
 // reaching past every outline the box can travel through, against which its cuts are
 // measured, and colours its ring and fill (`--lf-box-ring`, `--lf-box-fill`,
-// chrome.css). lift: the theme's lift (`--raise-N`) whose shadow the surface casts.
+// chrome.css). lift: the theme's lift (`--lf-raise-N`) whose shadow the surface casts.
 // outset: how far the surface's ring stands outside the box, 1 for a ring around it, 0
 // for one drawn inside its edge as a border is. A box fixed in the window, as the panel
 // is, gives its owner's `observer`, which reads the box again (`follow`) when any part
@@ -317,7 +317,7 @@ export function boxMotion({
   // Each layer, how far past the outline it is cut, and what it paints besides.
   /** @returns {[HTMLElement, number, string][]} */
   const surface = () => [
-    [room, shadowReach(), `filter: drop-shadow(var(--raise-${lift})); `],
+    [room, shadowReach(), `filter: drop-shadow(var(--lf-raise-${lift})); `],
     [ring, outset, ""],
     [fill, outset - 1, ""],
   ];
@@ -492,7 +492,7 @@ export function boxMotion({
       box: shifted(boxOf(element.getBoundingClientRect()), -dx, -dy),
       window: style.position === "fixed",
       parts: [],
-      scrolls: /auto|scroll/.test(`${style.overflowX} ${style.overflowY}`),
+      scrolls: userScrollport(style.overflowX) || userScrollport(style.overflowY),
       whole: false,
       holdsWindow: false,
     };
@@ -723,11 +723,8 @@ export function boxMotion({
           priority: inlineStyle(element).getPropertyPriority("translate"),
         });
       translated.add(element);
-      inlineStyle(element).setProperty("translate", "var(--lf-box-carry)");
-      start(element, [
-        { "--lf-box-carry": `${dx}px ${dy}px` },
-        { "--lf-box-carry": "0px 0px" },
-      ]);
+      inlineStyle(element).setProperty("translate", `var(${CARRY})`);
+      start(element, [{ [CARRY]: `${dx}px ${dy}px` }, { [CARRY]: "0px 0px" }]);
     };
     /** @param {Element} element @param {readonly number[]} cut @param {number} [radius] */
     const cutFrom = (element, cut, radius = 0) =>
@@ -1098,7 +1095,7 @@ export function boxMotion({
       for (const element of rests?.keys() ?? []) {
         if (
           element.matches(TEXT_FIELD) ||
-          !/auto|scroll/.test(getComputedStyle(element).overflowY)
+          !userScrollport(getComputedStyle(element).overflowY)
         )
           continue;
         const child = [...element.children].find((node) => node.checkVisibility());

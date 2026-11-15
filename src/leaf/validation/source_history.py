@@ -11,15 +11,10 @@ from typing import NamedTuple
 
 from leaf.anchor_capture import resolve_quote
 from leaf.events import build_threads
-from leaf.files import list_revisions
+from leaf.files import list_revisions, stamped_version
 from leaf.findings import Finding
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import visual_parts
 from leaf.revision_artifact import RevisionArtifact, read_revision
 from leaf.structure import SourceDocument
@@ -30,7 +25,6 @@ class PredecessorReading(NamedTuple):
 
     active: int
     candidate: int
-    committed_active: bool
     # The candidate's captured artifact is the active revision's: its transition
     # was checked when that revision activated.
     unchanged: bool
@@ -42,7 +36,7 @@ class PredecessorReading(NamedTuple):
 
 # The predecessor of a first version or an unreadable source.
 EMPTY_READING = SourceReading(SourceDocument(""), {})
-NO_PREDECESSOR = PredecessorReading(0, 1, False, False, 0, EMPTY_READING)
+NO_PREDECESSOR = PredecessorReading(0, 1, False, 0, EMPTY_READING)
 
 
 def revision_reanchors(
@@ -70,13 +64,7 @@ def revision_reanchors(
     # candidate, and the next activation's look at this one as its predecessor,
     # walk neither page again. Only a thread a revision may have moved asks.
     def passages(page):
-        return cache(
-            lambda: page.reading.decided_passages(
-                retirement_outcomes(page.projection.actions),
-                rewritten_bodies(page.projection.actions),
-                generated_children(page.projection.desired, page.document.ids),
-            )
-        )
+        return cache(lambda: page.reading.decided_passages(**page.logged_words))
 
     previous_passages, current_passages = passages(previous), passages(current)
     moves, advice = {}, []
@@ -150,11 +138,7 @@ def predecessor_reading(
         artifact is None or artifact.digest == read_revision(page_dir, active).digest
     )
     committed_active = bool(
-        active
-        and same_as_active
-        and any(
-            event["kind"] == "note" and event["revision"] == active for event in events
-        )
+        active and same_as_active and stamped_version(events, active) is not None
     )
     predecessor = (
         active
@@ -166,7 +150,6 @@ def predecessor_reading(
         active
         if same_as_active and artifact is not None
         else max(list_revisions(page_dir), default=0) + 1,
-        committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,
         read_revision(page_dir, predecessor) if predecessor else EMPTY_READING,

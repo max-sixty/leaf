@@ -29,7 +29,7 @@ const widgets = () => layerFact("$work")?.widgets ?? {};
 /** @overload @param {Element | null | undefined} element @param {"worker"} role @returns {WorkerRole | null} */
 /** @overload @param {Element | null | undefined} element @param {Role | null} [role] @returns {WorkRole | null} */
 /** @param {Element | null | undefined} element @param {Role | null} [role] */
-export function workRole(element, role = null) {
+function workRole(element, role = null) {
   const spec = element ? widgets()[element.localName] : undefined;
   return spec && (!role || spec.role === role) ? spec : null;
 }
@@ -54,13 +54,9 @@ function workEntries(root, role, { direct = false } = {}) {
       : [];
   });
 }
-/** @param {Element} root @param {Role} role @param {{direct?: boolean}} [options] */
-export function workElements(root, role, options) {
-  return workEntries(root, role, options).map(({ element }) => element);
-}
 /** @param {Element} root @param {Role} role */
-export const directWorkElements = (root, role) =>
-  workElements(root, role, { direct: true });
+const directWorkElements = (root, role) =>
+  workEntries(root, role, { direct: true }).map(({ element }) => element);
 
 /** @param {Element | null | undefined} element @param {Role | null} [role] */
 export function workAncestor(element, role) {

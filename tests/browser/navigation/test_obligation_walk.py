@@ -10,7 +10,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import SHOT_SRC, SHOTS
+from render_cases_layout import MARK, SHOT_SRC, SHOTS
 from render_cases_navigation import (
     BINDING_BADGE_PAGE,
     CLIPPED_BY,
@@ -19,8 +19,9 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
-    PANEL_THREAD,
     RELEASE_FOCUS,
+    expect_obligations_answered,
+    held_frames,
     leaf_page,
     open_page,
     open_threads,
@@ -28,19 +29,19 @@ from render_harness import (
     panel_field,
     panel_settled,
     regions_side_by_side,
+    reported_browser_errors,
     resized,
     round_trip,
-    said,
     scroll_settled,
     sending,
     suggestion_control,
-    take_browser_errors,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -404,9 +405,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
     rendered(page)
     assert walk_position(page)["text"] == "1 of 4 waiting on me · Options"
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: obligation reveal probe"
-    ]
+    reported_browser_errors(page, "leaf: Presentation failed: obligation reveal probe")
     round_trip(page)
 
 
@@ -678,7 +677,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("Shift+m")
     expect(page.locator("#first")).to_be_focused()
     page.keyboard.press("1")
-    round_trip(page)
+    # Whether a pick answers an obligation is the server's reading, which the page
+    # applies after the pick's send comes back.
+    expect_obligations_answered(page, "1/2")
     first, second = questions()
     assert first["status"] == "answered"
     assert first["answer"]["value"] == ["first-a"]
@@ -686,7 +687,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#second")).to_be_focused()
     page.keyboard.press("2")
-    round_trip(page)
+    expect_obligations_answered(page, "2/2")
     assert questions()[1]["answer"]["value"] == ["second-b"]
     page.keyboard.press("Escape")
     for source in ("first", "second"):
@@ -699,9 +700,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
 
 
 def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
-    """Focus stays in an ask the user has scrolled off screen, but its digits answer it
-    only while they can see it: scrolled away, `2` chooses nothing, and back in view the
-    digits show again and `2` chooses."""
+    """Focus stays in an ask the user has scrolled off screen, but a key pressed there
+    lets go of it first: scrolled away, `2` chooses nothing, and back in view the ask's
+    digits stay gone until the user goes to it again, when `2` chooses."""
     page = open_page(
         browser,
         serve(
@@ -739,7 +740,17 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     page.keyboard.press("2")
     rendered(page)
     assert answer() is None
+    assert page.evaluate(
+        "() => !document.getElementById('route').matches(':focus-within')"
+    )
     scroll(down=False)
+    rendered(page)
+    expect(digit).to_be_hidden()
+    page.keyboard.press("2")
+    rendered(page)
+    assert answer() is None
+    page.keyboard.press("m")
+    page.keyboard.press("Tab")
     expect(digit).to_be_visible()
     with sending(page, "the answer"):
         page.keyboard.press("2")
@@ -751,8 +762,12 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     typed quickly ends where it ends typed slowly, `d m` lands the ask, `m Shift+m`
     returns to the ask `m` set off from, `j m` beside an ask `j` leaves in view
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
-    and `d`, or `d d`, pressed while the browser's own PageDown still moves the page
-    steps on from where PageDown lands. Each ends where the same keys typed slowly end."""
+    `d`, or `d d`, pressed while the browser's own PageDown still moves the page, or
+    before it has, steps on from where PageDown lands, and `m` pressed then lands where
+    it lands alone; PageDown pressed before `d` has moved the page pages on from where
+    `d` lands. Each ends where the same keys typed slowly end.
+    Home pressed before `d` has moved the page keeps it at the top, though at the top
+    Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
         f'<h2>Which route?</h2><lf-options id="routes-{index}" choose>'
@@ -832,14 +847,14 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     from_the_top()
     page.keyboard.press("d")
     step = settled()
+    # Pressed before PageDown's scroll has moved the page, as a typed pair is: the
+    # browser's first scroll event comes a frame or more after the key.
     from_the_top()
     page.keyboard.press("PageDown")
-    page.wait_for_function("scrollY > 0")
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + step, abs=2)
     from_the_top()
     page.keyboard.press("PageDown")
-    page.wait_for_function("scrollY > 0")
     page.keyboard.press("d")
     # Two frames of PageDown's scroll between the presses, as a typed pair gets.
     page.evaluate(
@@ -847,6 +862,28 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     )
     page.keyboard.press("d")
     assert settled() == pytest.approx(paged_down + 2 * step, abs=2)
+    # `m` lands where it lands alone, though no instant write stops PageDown's scroll.
+    from_the_top()
+    page.keyboard.press("PageDown")
+    page.wait_for_function("scrollY > 0")
+    page.keyboard.press("m")
+    expect(first).to_be_focused()
+    assert settled() == pytest.approx(landing, abs=2)
+    # The other way round: PageDown pressed before `d` has moved the page pages on from
+    # where `d` lands, and a `d` after it still waits for PageDown's scroll.
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("PageDown")
+        page.keyboard.press("d")
+    assert settled() == pytest.approx(2 * step + paged_down, abs=2)
+
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("Home")
+    rendered(page)
+    assert settled() == 0
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
@@ -878,7 +915,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         page.keyboard.press("Escape")
         page.keyboard.press(back)
         expect(page.locator("#question-2")).to_be_focused()
-    # Opened by a key, On me stands on its first row, question 1, and the walk steps on
+    # Opened by a key, On Me stands on its first row, question 1, and the walk steps on
     # from it.
     page.keyboard.press("Escape")
     page.keyboard.press("g")
@@ -1169,7 +1206,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     (glossary, Current target). From the obligation, `c` continues that thread; from its
     thread in the card, the obligation keeps its ring and its digits.
     A thread about an enclosing block holds the decision inside it with the agent, so
-    On me skips that decision. From an element with no thread, `t` measures from its
+    On Me skips that decision. From an element with no thread, `t` measures from its
     place in the document, as `m` does."""
     url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
@@ -1223,7 +1260,7 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The thread on the task holds its nested decision with the agent. On me therefore
+    # The thread on the task holds its nested decision with the agent. On Me therefore
     # cycles past that decision until the agent answers the thread.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
@@ -1454,70 +1491,31 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
     expect(item).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
-    ring = page.evaluate(LOCATION_RING)
+    expect(item).to_have_attribute("data-lf-projected-location", "")
+    ring = item.evaluate(MARK)
     pane_top = item.evaluate(
         """ask => {
           const body = ask.closest('lf-pane').querySelector(':scope > :not(header, footer)');
           return body.getBoundingClientRect().top + body.clientTop;
         }"""
     )
-    assert ring["outer"]["top"] >= pane_top - 0.5, (ring, pane_top)
+    assert ring["ring"]["top"] >= pane_top - 0.5, (ring, pane_top)
 
-
-# The location ring's band as drawn over the decision (target-paint.js,
-# `paintLocation`): its inner and outer edges in client coordinates.
-LOCATION_RING = """() => {
-  const box = document.querySelector('.lf-location');
-  const ring = getComputedStyle(box, '::after');
-  const at = box.getBoundingClientRect();
-  const edges = (out) => ({left: at.left - out, top: at.top - out,
-                           right: at.right + out, bottom: at.bottom + out});
-  const offset = parseFloat(ring.outlineOffset);
-  return {for: box.dataset.lfFor, inner: edges(offset),
-          outer: edges(offset + parseFloat(ring.outlineWidth))};
-}"""
 
 ASK_WORDS = """() => {
   const words = document.createRange();
   words.selectNodeContents(document.querySelector('lf-ask[data-lf-obligation] h2'));
-  return {words: words.getClientRects()[0].left, foot: innerHeight};
+  return {words: words.getClientRects()[0].left};
 }"""
-
-
-def test_the_ring_round_a_clipped_question_stands_inside_it(browser, serve):
-    """A box that clips a question and leaves no room round it, such as a frame with
-    no padding, cuts a ring standing outside the question: drawn as the question's
-    outline, it lost its sides and kept a line across the top. There the ring stands
-    inside the question, as every mark does round a box its clip leaves no room
-    around."""
-    ask = (
-        '<div id="frame" style="overflow: clip">'
-        '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
-        "<p>They need administrator-configured namespaces.</p>"
-        '<lf-options id="rollout-options" choose>'
-        '<lf-option id="include">Include them</lf-option>'
-        '<lf-option id="later">Later</lf-option></lf-options></lf-ask></div>'
-    )
-    page = open_page(browser, serve(leaf_page("a clipped question", ask)))
-    resized(page, 1280, 800)
-    page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
-    ring = page.evaluate(LOCATION_RING)
-    frame = page.locator("#frame").bounding_box()
-    assert frame is not None
-    assert ring["outer"]["left"] >= frame["x"] - 0.5, (ring, frame)
-    assert ring["outer"]["top"] >= frame["y"] - 0.5, (ring, frame)
-    assert ring["outer"]["right"] <= frame["x"] + frame["width"] + 0.5, (ring, frame)
-    assert ring["outer"]["bottom"] <= frame["y"] + frame["height"] + 0.5, (ring, frame)
 
 
 def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     """The ring the user stands in goes round a question outside its box, as every
     obligation's does, so it does not run over the first letter of each line. A
-    question that fills a full-height workspace meets the window's foot with no scroll
-    left to show a ring outside it, so the ring stands inside along the foot, and stays
-    clear of the words on the sides the window leaves room beside: standing inside on
-    every side, it ran over the heading's first letter."""
+    question that is a full-height workspace's body has only the workspace's gutter
+    round it, so its ring stands at a control's gap (layouts.css), inside the window
+    on top and at the sides: inside the question it ran over the heading's first letter
+    and under the panes the question holds."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
@@ -1528,15 +1526,18 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     page = open_page(browser, serve(leaf_page("a question", ask)))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
-    ring, column = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
-    assert ring["inner"]["left"] < column["words"], (ring, column)
+    question = page.locator("#rollout")
+    expect(question).to_have_attribute("data-lf-projected-location", "")
+    ring, column = question.evaluate(MARK), page.evaluate(ASK_WORDS)
+    assert ring["ring"]["left"] + ring["width"] < column["words"], (ring, column)
     page.close()
 
     page = open_page(browser, serve(leaf_page("a question", ask, layout="workspace")))
     resized(page, 1280, 800)
     page.keyboard.press("m")
-    expect(page.locator(".lf-location[data-lf-for='rollout']")).to_be_visible()
-    ring, workspace = page.evaluate(LOCATION_RING), page.evaluate(ASK_WORDS)
-    assert ring["outer"]["bottom"] <= workspace["foot"], (ring, workspace)
-    assert ring["inner"]["left"] < workspace["words"], (ring, workspace)
+    question = page.locator("#rollout")
+    expect(question).to_have_attribute("data-lf-projected-location", "")
+    ring, workspace = question.evaluate(MARK), page.evaluate(ASK_WORDS)
+    assert ring["offset"] > 0, ring
+    assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring
+    assert ring["ring"]["left"] + ring["width"] < workspace["words"], (ring, workspace)

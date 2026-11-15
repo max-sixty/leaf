@@ -3,7 +3,7 @@
 Run
 ``uv run pytest -n0 tests/*/test_render_thread_snapshots.py``. Baselines are
 reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
-``leaf-dev thread-snapshots --help`` owns snapshot review and acceptance.
+``leaf-dev journey snapshots --help`` owns snapshot review and acceptance.
 """
 
 import pytest
@@ -11,7 +11,7 @@ from PIL import Image
 from playwright.sync_api import FloatRect
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 
-from leaf_dev.commands.thread_snapshots import visible_capture
+from leaf_dev.commands.journey.snapshots import visible_capture
 
 
 def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
@@ -49,7 +49,7 @@ def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
         assert evidence.exists()
         assert str(evidence) in message
     assert "display diff" not in message
-    assert "thread-snapshots" in message
+    assert "journey snapshots" in message
     assert expected.read_bytes() == accepted
     monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", True)
     image_snapshot(black, expected)

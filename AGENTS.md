@@ -62,15 +62,24 @@ each case it misses shows the wrong state until the reading arrives. Where the
 reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds:
-elements, widgets, headings, obligations, threads, events and revisions. The work
-an input does, such as a keystroke, a click or a wheel step, depends on what the
-input changes, and never grows faster than the page. Loading a page, and computing
-or applying a reading of it, grow no faster than the page times the logarithm of
-its size. A step that walks one of those collections for each member of another,
-as finding each obligation's heading by reading every heading did, grows with the
-square of the page. So does a style or layout pass forced once per element, since
-each pass can cover the whole page (`browser/AGENTS.md`, "Runtime ownership").
-`leaf-dev scaling` measures how each cost grows with the page.
+elements, widgets, headings, obligations, threads, events and revisions. An
+input's work depends on what it changes and on what the window shows, not on how
+much the page holds. A keystroke, a wheel step or a hover costs the same on a page
+of ten sections as of five hundred. So work that a pass would redo for the whole
+page, such as a layout, a scan of the page's controls or a derivation of every
+record, runs only for the change that makes it necessary, which its owner records
+when the change happens. Neither an input's work in the browser nor the bytes it
+moves grows with how long the session has run. Loading a page, and computing or
+applying a reading of it, grow no faster than the page times the logarithm of its
+size. The server admits each event against such a reading, so its work per event
+may grow with the events the log holds. On the largest page `leaf-dev bench`
+generates, a keystroke and a wheel step each fit in 8 ms of main-thread time, and a
+click shows the server's reading within 100 ms. A step that walks one of those
+collections for each member of another, as finding each obligation's heading by
+reading every heading did, grows with the square of the page. So does a style or
+layout pass forced once per element, since each pass can cover the whole page
+(`browser/AGENTS.md`, "Runtime ownership"). `leaf-dev bench` measures how each
+cost grows with the page.
 
 ## Pages across Leaf updates
 
@@ -151,7 +160,10 @@ browser assets and the packages into a page's layer.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
   module `claude-code.ts`, and the Pi extension `pi.ts`.
-- `evals/`: cases a headless agent answers, scoring the shipped instructions.
+- `types/`: the contracts the hooks module declares to Claude Code, such as the
+  values it keeps in `$.state`.
+- `evals/`: cases a headless agent answers, scoring the shipped instructions, and
+  experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
   (`examples/AGENTS.md`).
 - `tests/`: the suite, with the runtime's Node tests under `tests/runtime/`
@@ -252,7 +264,7 @@ deletes an event or invents a counter-event.
 The registry keys each widget action and report by its widget, the unit of that
 widget's state it changes, and its verb (`events.md`). From one consistent read
 of the log, Python computes which action wins each key, what was withdrawn, the
-state of each On me obligation and thread, and the user's updates, and serves that to the
+state of each On Me obligation and thread, and the user's updates, and serves that to the
 browser.
 
 In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
@@ -276,8 +288,8 @@ preparation, gesture holds and semantic presentation proof.
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
 not that result. The browser adds only what a gesture decides by itself: a
-to-do the user ends, a thread the user opens, the user's own reply and its wait
-for an answer, and the resend a refused send leaves. A refusal restores the
+thread the user opens, the user's own reply and its wait for an answer, and the
+resend a refused send leaves. A refusal restores the
 server's state.
 
 Focus, scroll, selection, open disclosures, a draft being typed, a drag and
@@ -313,12 +325,87 @@ segments that Python and the browser collapse and resolve by the same rules.
 the rendered page can't resolve. Repeated text with no context to pick one copy
 detaches instead of falling back to order or offsets.
 
+Each fact Leaf derives about the page is derived once, and each place that
+reports the page selects what its purpose needs. Whatever a delivery tells the
+agent about an event, apart from what it asks of the agent at the time (`answer`,
+`handling`, `waiting`, `settled`), `leaf page state` tells a later session about the
+same event, or the message as it now reads, under the same name and from the same code
+(`event_facts.py`). A fact about the past, such as the settings the user had open
+when they wrote, is derived from the log and never stored as a second copy.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
 only a registry entry, its module and theme rules. Everything else reads registry
 declarations, never lists of tag names. Layer-wide facts live under `$` keys;
 each tag's entry is its complete schema.
+
+### Wait for the event that ends the work
+
+Code waits for a response, a process's exit, a lease's release or a socket's
+close, so a slow machine only makes the wait longer. A deadline stands only
+where an outside party imposes one, such as a harness's hook timeout or a peer
+that can hang without closing, or to cap a cost. It is that party's whole
+budget, which every step under it shares, and it sits at least ten times above
+the work on a loaded machine. Where a slower path exists, expiry takes it rather
+than failing.
+
+## Weigh what a change adds
+
+Whoever writes or reviews a change asks whether what it adds is worth what later
+changes and users pay for it, by the bar "Regular maintenance" sets for code already
+there. Size says little: a two-line selector can reach every page.
+
+- **What it adds**: a mode, branch or special case; one more member of a set,
+  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
+  state that may not come; a reliance on a dependency's internals.
+- **What it repeats**: code the change writes may already exist under another name, in
+  another directory, language or package. Search for the question each new helper,
+  constant, selector, style rule or inline check answers, not for its name. A copy is a
+  second home even when a comment names its source. Where the change couldn't reach
+  the owner, export, move or generate the owner rather than copy it.
+- **What it buys**: a behavior a user sees, a request the maintainer made, or a
+  measured cost. A green test buys what the test protects, so name that.
+- **Where its cost lands**: read the change's reach rather than its claim, such as a
+  selector's or guard's scope against the condition it names, what else inherits from
+  or sits in the box it changes, and how often a guard fires on a correct setup. Then
+  compare who pays with who gains: a cost paid in every state or on every page to fix
+  one transition usually outweighs it.
+- **The cheaper change**: a platform or dependency primitive, the fix in the owner
+  rather than a caller, the stale copy deleted, or the gap left open with an issue.
+  When `git log -L` shows earlier changes compensating for the same gap, ask whether
+  the mechanism is the wrong primitive and the cheaper change its general form.
+
+Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
+fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
+for it in review. When the fix for a finding would add another branch, flag or
+condition, first ask whether the finding is about the approach.
+
+## Regular maintenance
+
+Whenever a survey, a review or the nightly sweep reads a file, look for code that
+makes Leaf harder to develop than it is worth:
+
+- **A mechanism users wouldn't miss.** Ask who would notice it gone and what it costs
+  the changes around it. Code woven into the core runtime, the server or a shared
+  contract costs every nearby change, so it must clear a much higher bar. Signs it
+  doesn't: a hold, carry or special case for one widget or gesture spread across
+  several owners; a public API whose only callers are tests or a single example; a
+  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
+  history stops at its last move). Code in its own module, such as a
+  package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
+  it only when it is large and unused. Keep anything users would notice losing,
+  including Leaf's interface guarantees. Taking a feature away is the maintainer's
+  call, so propose the removal with what users lose and what it deletes.
+- **Several implementations of one capability.** Consolidate them into one home and
+  move every caller to it ("Fix the underlying issue"). The other copies seldom sit
+  beside the file you're reading, so search for them as **What it repeats** says.
+- **A mechanism a dependency or the platform already provides.** Delegate it ("Use
+  dependencies").
+
+Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
+gives what it deletes, and a probe or capture of the affected journey shows what users
+lose. A count read off the code overstates the saving.
 
 ## Working on the repository
 
@@ -356,11 +443,11 @@ The TypeScript in `worker/src/`, the browser runtime's type check
 the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
-Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
+Worker's dry-run deploy, `leaf-dev site verify website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
 For a change that can alter browser startup, compare base and head: served
-previews for a runtime change, `leaf-dev verify-site website-worker` for site
+previews for a runtime change, `leaf-dev site verify website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's
 state), and compare the requests and bytes loaded before that last phase

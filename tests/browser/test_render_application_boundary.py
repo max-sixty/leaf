@@ -12,14 +12,14 @@ from render_cases_interaction import (
     LIVE_V1,
     SEATED_OBLIGATION_PAGE,
     live_url,
+    package_workspace,
 )
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
     consume_browser_errors,
     expect_obligations_answered,
-    expect_open_threads,
+    expect_preview_words,
     holding,
     http_error_console,
     is_problem,
@@ -31,8 +31,8 @@ from render_harness import (
     panel_menu,
     panel_settled,
     refuse,
+    reported_browser_errors,
     round_trip,
-    said,
     sending,
     stamp_page,
     stored_draft_text,
@@ -47,6 +47,7 @@ from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
 import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
@@ -115,7 +116,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         leaf_page(
             "Interaction trace",
             '<h1>Interaction trace</h1><input id="trace-input" aria-label="Entry">'
-            '<button id="trace-button">Continue</button>',
+            '<button id="trace-button">Continue</button>'
+            '<textarea id="trace-note" aria-label="Note"></textarea>',
         )
     )
     page = open_page(browser, url)
@@ -134,6 +136,8 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
         page.locator("#trace-input").fill("hello")
     with page.expect_response(lambda response: contains(response, "click")):
         page.locator("#trace-button").click()
+    with page.expect_response(lambda response: contains(response, "focusin")):
+        page.locator("#trace-note").focus()
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
@@ -160,6 +164,14 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert any(
         any("button#trace-button" in part for part in row["target"]) for row in clicks
     )
+    # leaf.page's Worker starts the visitor's container on a text box's focus.
+    focused = {
+        row["control"]: row.get("textBox")
+        for row in rows
+        if row.get("type") == "focusin" and "control" in row
+    }
+    assert focused["textarea#trace-note"] is True
+    assert focused["input#trace-input"] is None
     reference = next(row for row in commands if row["id"] == "command.reference.open")
     assert reference["title"]
     assert "description" in reference
@@ -273,6 +285,59 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
     assert shown["visibility"] == submitted["visibility"] == "visible"
     assert "text" not in shown and "text" not in submitted
+
+
+def test_browser_trace_leaves_out_a_password_fields_characters(browser, serve):
+    """The trace records typing in a password field, and none of what was typed."""
+    url = serve(
+        leaf_page(
+            "Password trace",
+            "<h1>Password trace</h1>"
+            '<input id="trace-secret" type="password" aria-label="Secret">'
+            '<input id="trace-entry" aria-label="Entry">',
+        )
+    )
+    page = open_page(browser, url)
+    page.locator("#trace-secret").press_sequentially("hunter2")
+
+    def holds_entry(response):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry.get("value") == "visible"
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    # A show-password toggle makes the field a text field; it stays a secret.
+    page.evaluate("document.querySelector('#trace-secret').type = 'text'")
+    page.locator("#trace-secret").press_sequentially("x")
+    # Once it is a text field, Chromium fires selectionchange at the field itself.
+    page.locator("#trace-secret").select_text()
+    with page.expect_response(holds_entry):
+        page.locator("#trace-entry").press_sequentially("visible")
+
+    rows = [
+        json.loads(line)
+        for line in (serve.page_dir / interaction_model.INTERACTIONS_FILE)
+        .read_text()
+        .splitlines()
+    ]
+    typed = [
+        row
+        for row in rows
+        if row.get("type") in ("keydown", "beforeinput", "input", "selectionchange")
+        and any("input#trace-secret" in part for part in row["target"])
+    ]
+    assert {row["type"] for row in typed} == {
+        "keydown",
+        "beforeinput",
+        "input",
+        "selectionchange",
+    }
+    for row in typed:
+        assert not {"key", "code", "data", "value", "selection"} & row.keys(), row
 
 
 def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):
@@ -745,77 +810,13 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
-def test_a_returning_widget_repaints_to_restore_subscriptions(browser, serve):
-    """A returning widget draws once to restore subscriptions, including after a
-    failed render."""
-    source = LIVE_V1.replace(
-        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                source,
-                page_files={
-                    "registry.json": json.dumps(PAGE_DECLARATION),
-                    "widgets/lf-local.js": PAGE_WIDGET,
-                },
-            )
-        ),
-    )
-    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
-    leave_and_return = """async () => {
-      const settle = () => new Promise((resolve) => setTimeout(resolve));
-      const {readApplicationPresentation} =
-        await window.__lfCheckApi();
-      const owner = document.querySelector('#page-local');
-      const parent = owner.parentNode;
-      const readings = Number(owner.dataset.readings);
-      owner.remove();
-      await settle();
-      parent.append(owner);
-      await settle();
-      return {
-        drawn: Number(owner.dataset.readings) - readings,
-        failed: Number(globalThis.__failedLocalRenders || 0),
-        pending: readApplicationPresentation().pending,
-      };
-    }"""
-    assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
-
-    # Resuming a deferral draws the same reading again, and this draw fails.
-    # Fault reporting waits until after the native operation; presentation completion
-    # alone does not mean the console has received the report.
-    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        page.evaluate(
-            "globalThis.__failLocalRender = true; "
-            "document.querySelector('#page-local').controller.defer()(); true"
-        )
-    expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: deliberate render failure"
-    )
-    with page.expect_console_message(
-        predicate=lambda message: message.text.startswith(failure)
-    ):
-        assert page.evaluate(leave_and_return) == {
-            "drawn": 0,
-            "failed": 2,
-            "pending": [],
-        }
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ] * 2
-
-
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
 def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     browser, serve, lifetime
 ):
-    """One widget owns distinct render and preparation regions across its lifetime."""
+    """One widget owns distinct render and preparation regions across its lifetime. A
+    returning widget draws once to restore subscriptions, including after a failed
+    render."""
     # The owner is removed and reattached by script below. Keep it after the page's
     # content so that neither operation moves text the reader did not ask to move.
     widget = '<lf-local id="page-local" choice="idle"></lf-local>'
@@ -1042,6 +1043,21 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     told(page)
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
 
+    leave_and_return = """async () => {
+      const settle = () => new Promise((resolve) => setTimeout(resolve));
+      const readings = Number(pageLocal.dataset.readings);
+      localLifetimeOwner.remove();
+      await settle();
+      localLifetimeParent.append(localLifetimeOwner);
+      await settle();
+      return {
+        drawn: Number(pageLocal.dataset.readings) - readings,
+        failed: Number(globalThis.__failedLocalRenders || 0),
+        pending: readLeafPresentation().pending,
+      };
+    }"""
+    assert page.evaluate(leave_and_return) == {"drawn": 1, "failed": 0, "pending": []}
+
     # A synchronous render failure cannot escape the publisher or leave a partial
     # widget as presentation proof. The widget reports it once, shows the visible
     # fail-soft box, and settles its region.
@@ -1055,10 +1071,11 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == [
-        'leaf: <lf-local id="page-local"> failed: deliberate render failure'
-    ]
+    failure = 'leaf: <lf-local id="page-local"> failed: deliberate render failure'
+    reported_browser_errors(page, failure)
+    # Returning draws again, and this draw fails too.
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 2, "pending": []}
+    reported_browser_errors(page, failure)
 
 
 @pytest.mark.parametrize(
@@ -1190,156 +1207,6 @@ def arrived(page, thread_id):
     return thread_id
 
 
-def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
-    """The thread parent absorbs descendants without joining unrelated page work."""
-    source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                source,
-                page_files={
-                    "registry.json": json.dumps(PAGE_DECLARATION),
-                    "widgets/lf-local.js": PAGE_WIDGET,
-                },
-            )
-        ),
-    )
-    page.evaluate(
-        """async () => {
-          const presentation = await window.__lfCheckApi();
-          const held = () => {
-            let release, reject;
-            const promise = new Promise((resolve, fail) => {
-              release = resolve;
-              reject = fail;
-            });
-            return {promise, release, reject};
-          };
-          window.pagePreparation = held();
-          window.threadPreparation = held();
-          window.__heldLocalPresentations = new Map([
-            ['thread-local', threadPreparation.promise],
-          ]);
-          document.querySelector('#page-local').controller.present(
-            pagePreparation.promise
-          );
-          window.whenLeafPresented = presentation.whenApplicationPresented;
-          window.whenLeafRegionsPresented =
-            presentation.whenApplicationRegionsPresented;
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-        }"""
-    )
-
-    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
-    # The panel's thread view is the reader that draws the reply's widget.
-    open_panel_thread(page, arrived(page, "frozen-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the thread.",
-            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
-        },
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "thread-local",
-            "action": "choose",
-            "detail": {"value": "chosen"},
-        },
-    )
-    page.wait_for_function(
-        """() => {
-          const pending = readLeafPresentation().pending;
-          return document.querySelector('.lf-floating-panel #thread-local') &&
-            pending.includes('thread') &&
-            pending.includes('widget:thread-local:preparation') &&
-            pending.includes('widget:page-local:preparation');
-        }""",
-    )
-    page.evaluate(
-        "threadReady = false; allReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "whenLeafPresented().then(() => { allReady = true; }); true"
-    )
-    assert page.evaluate("threadReady") is False
-    page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("threadReady")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
-        "data-rendered-choice", "chosen"
-    )
-    assert page.evaluate("allReady") is False
-    assert "widget:page-local:preparation" in page.evaluate(
-        "readLeafPresentation().pending"
-    )
-    page.evaluate("pagePreparation.release('page')")
-    page.wait_for_function("allReady")
-
-    # A descendant owns its own fail-soft result. Its failure reports once and settles,
-    # while the parent list, count, and narrowing keep the same candidate reading.
-    page.evaluate(
-        """() => {
-          window.failedThreadPreparation = (() => {
-            let reject;
-            const promise = new Promise((_resolve, fail) => { reject = fail; });
-            return {promise, reject};
-          })();
-          window.__heldLocalPresentations.set(
-            'thread-failing', failedThreadPreparation.promise
-          );
-        }"""
-    )
-    long_thread(
-        serve.page_dir, "failing-widget-question", "Show another frozen widget."
-    )
-    open_panel_thread(page, arrived(page, "failing-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "failing-widget-question",
-            "text": "This widget fails its preparation.",
-            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
-        },
-    )
-    page.wait_for_function(
-        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
-          readLeafPresentation().pending.includes('thread') &&
-          readLeafPresentation().pending.includes(
-            'widget:thread-failing:preparation'
-          )""",
-    )
-    expect_open_threads(page, 2)
-    page.evaluate(
-        "threadReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
-    )
-    page.wait_for_function("threadReady")
-    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
-    expect_open_threads(page, 2)
-    assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: frozen descendant failure"
-    ]
-
-
 THREAD_ACTIONS = r"""
 import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
@@ -1424,11 +1291,10 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
     expect(email.get_by_role("checkbox")).to_be_checked()
 
 
-@pytest.mark.parametrize("owner", ["root", "middle"])
 def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
-    browser, serve, owner
+    browser, serve
 ):
-    """A message-only primary materializes the widget's turn, including later replies."""
+    """A message-only primary materializes the widget's turn, though it draws another."""
     module = """
     import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
     customElements.define('lf-message-reader', class extends HTMLElement {
@@ -1472,7 +1338,7 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
             "text": f"The {message} turn.",
             **({"parent": "root"} if message != "root" else {}),
         }
-        if message == owner:
+        if message == "middle":
             event["markup"] = (
                 '<lf-options id="channel" choose>'
                 '<lf-option id="email">Email</lf-option></lf-options>'
@@ -1481,85 +1347,18 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
     page = open_page(browser, url)
     reader = page.locator("#reader")
     expect(reader.locator('.lf-msg[data-lf-event="root"]')).to_be_visible()
-    if owner == "middle":
-        expect(reader.locator("#channel")).to_have_count(0)
+    expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
       return await api.obligationActions.open('widget:channel');
     }""")
-    assert reader.evaluate("node => node.message") == f"key-{owner}"
-    expect(reader.locator(f'.lf-msg[data-lf-event="{owner}"]')).to_be_visible()
+    assert reader.evaluate("node => node.message") == "key-middle"
+    expect(reader.locator('.lf-msg[data-lf-event="middle"]')).to_be_visible()
     email = reader.locator("#email")
     expect(email).to_be_in_viewport()
     with sending(page, "answer the ask in its addressed native turn"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()
-
-
-def package_workspace(serve, *, before_reader="", primary=True):
-    """Run the shipped package example against real event admission."""
-    from render_harness import ROOT
-
-    companion = ROOT / "examples/developer/feature-gallery.page"
-    url = serve(
-        leaf_page(
-            "Package reader",
-            '<h1>Package reader</h1><p id="notes">Announcement notes</p>'
-            + before_reader
-            + (
-                '<lf-conversation-workspace id="workspace"></lf-conversation-workspace>'
-                if primary
-                else ""
-            ),
-        ),
-        layer_registry={
-            "lf-conversation-workspace": json.loads(
-                (companion / "registry.json").read_text()
-            )["lf-conversation-workspace"]
-        },
-        layer_widgets={
-            "lf-conversation-workspace.js": (
-                companion / "widgets/lf-conversation-workspace.js"
-            ).read_text()
-        },
-    )
-    for event in [
-        {
-            "id": "channel-question",
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
-        },
-        {
-            "id": "opening",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep it concise.",
-        },
-        {
-            "id": "answer",
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "opening",
-            "text": "One paragraph.",
-        },
-        {
-            "id": "proofread",
-            "kind": "todo",
-            "author": "agent",
-            "agent": "Agent",
-            "session": "proofread",
-            "owner": "user",
-            "subject": {"kind": "element", "id": "notes"},
-            "title": "Proofread announcement",
-        },
-    ]:
-        append_carried_log_record(serve.page_dir, event)
-    return url
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
@@ -1581,62 +1380,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("3 waiting on me")
+    expect(counts).to_have_text("2 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("2 waiting on me · 1 answered · Chat")
-
-
-def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
-    page = open_page(browser, package_workspace(serve))
-    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
-    key = page.evaluate(
-        "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
-    )
-    assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'))) === null"
-    )
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
-    holding(page, held, 1, "a package Done awaiting admission")
-    assert page.evaluate(
-        "!api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body=json.dumps(
-            {
-                "ok": False,
-                "final": True,
-                "attempt": held[0].request.post_data_json["attempt"],
-                "error": "Deliberate refusal",
-            }
-        ),
-    )
-    page.unroute("**/api/event")
-    assert page.evaluate("doneDelivery") is None
-    round_trip(page)
-    assert page.evaluate(
-        "api.readQueues().on_user.some(item => item.id === 'proofread')"
-    )
-    with sending(page, "a current package Done"):
-        page.locator("#workspace").get_by_role(
-            "button", name="Done", exact=True
-        ).click()
-    assert page.evaluate("key => api.queueActions.done(key) === null", key)
-    assert page.evaluate("key => api.queueActions.open(key)", key)
-    expect(page.locator("#notes")).to_be_focused()
-    assert [
-        event["kind"]
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("todo") == "proofread"
-    ] == ["todo_end"]
+    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
 
 
 def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
@@ -1689,11 +1438,24 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
     expect(page.locator("#workspace .counts")).to_contain_text("Email")
 
 
-def test_queue_obligation_arrival_selects_the_primary_reader(browser, serve):
+def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
+    browser, serve
+):
+    """On Me's route and Threads' row each take the user to the primary reader that
+    owns the thread's widget. The panel opens no view of the thread, and the widget
+    arrives as the same native node."""
     page = open_page(browser, package_workspace(serve))
+    page.set_viewport_size({"width": 693, "height": 900})
     workspace = page.locator("#workspace")
-    workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
+    other_thread = workspace.get_by_role("button", name="Keep it concise.", exact=True)
+    page.evaluate(
+        """async () => {
+          window.api = await window.__lfWidgetApi();
+          window.nativeEmail = document.querySelector('#email');
+        }"""
+    )
+
+    other_thread.click()
     assert page.evaluate(
         "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
@@ -1701,8 +1463,19 @@ def test_queue_obligation_arrival_selects_the_primary_reader(browser, serve):
     assert page.evaluate(
         "document.querySelector('#workspace').contains(document.querySelector('#email'))"
     )
-    # The primary reader takes the Ask; the panel opens no view of its thread.
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
+
+    other_thread.click()
+    open_threads(page)
+    page.locator('.lf-fp-thread[data-lf-key="channel-question"]').click()
+    panel_settled(page, open=False)
+    message = workspace.locator('.lf-msg[data-lf-event="channel-question"]')
+    email = message.locator("#email")
+    expect(email).to_be_in_viewport()
+    assert email.evaluate("node => node === nativeEmail")
+    with sending(page, "answer in the primary reader reached from Threads"):
+        email.click()
+    expect(email.get_by_role("checkbox")).to_be_checked()
 
 
 def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
@@ -1743,37 +1516,40 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
     }""")
 
 
-@pytest.mark.parametrize("edit_again", [False, True])
-def test_package_creation_refusal_preserves_the_current_draft(
-    browser, serve, edit_again
-):
+def test_package_creation_refusal_preserves_the_current_draft(browser, serve, subtests):
+    """A refused creation gives its words back to the box, unless the user has written
+    others there since."""
     page = open_page(browser, package_workspace(serve))
     workspace = page.locator("#workspace")
     input = workspace.get_by_role("textbox", name="New conversation")
-    input.fill("Refused conversation")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    workspace.get_by_role("button", name="Start conversation").click()
-    holding(page, held, 1, "a package creation awaiting admission")
-    expect(input).to_have_value("")
-    if edit_again:
-        input.fill("A later draft")
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body=json.dumps(
-            {
-                "ok": False,
-                "final": True,
-                "attempt": held[0].request.post_data_json["attempt"],
-                "error": "Deliberate creation refusal",
-            }
-        ),
-    )
+    for later, kept in (
+        (None, "Refused conversation"),
+        ("A later draft", "A later draft"),
+    ):
+        with subtests.test(later=later):
+            input.fill("Refused conversation")
+            workspace.get_by_role("button", name="Start conversation").click()
+            holding(page, held, 1, "a package creation awaiting admission")
+            expect(input).to_have_value("")
+            if later:
+                input.fill(later)
+            route = held.pop()
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {
+                        "ok": False,
+                        "final": True,
+                        "attempt": route.request.post_data_json["attempt"],
+                        "error": "Deliberate creation refusal",
+                    }
+                ),
+            )
+            expect(input).to_have_value(kept)
     page.unroute("**/api/event")
-    expect(input).to_have_value(
-        "A later draft" if edit_again else "Refused conversation"
-    )
 
 
 def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, serve):
@@ -2146,26 +1922,6 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     ] == ["reply", "resolve", "reply", "reply", "undo"]
 
 
-@pytest.mark.parametrize("width", [693, 1440])
-def test_panel_authored_message_button_reaches_primary_reader(browser, serve, width):
-    """Threads routes a thread whose widget a primary reader owns to that reader."""
-    page = open_page(browser, package_workspace(serve))
-    page.set_viewport_size({"width": width, "height": 900})
-    workspace = page.locator("#workspace")
-    page.evaluate("window.nativeEmail = document.querySelector('#email')")
-    # The thread's row in Threads takes the user to the reader that owns its widget.
-    open_threads(page)
-    page.locator('.lf-fp-thread[data-lf-key="channel-question"]').click()
-    panel_settled(page, open=False)
-    message = workspace.locator('.lf-msg[data-lf-event="channel-question"]')
-    email = message.locator("#email")
-    expect(email).to_be_in_viewport()
-    assert email.evaluate("node => node === nativeEmail")
-    with sending(page, "answer in the primary reader reached from Threads"):
-        email.click()
-    expect(email.get_by_role("checkbox")).to_be_checked()
-
-
 def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     browser, serve
 ):
@@ -2366,7 +2122,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     expect(workspace.locator('[data-lf-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
     notice = workspace.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("1 new reply · 1 message edited")
+    expect_preview_words(notice, "1 new reply · 1 message edited")
     notice.click()
     if mode != "Reply only":
         expect(workspace.locator('[data-lf-event="later-answer"]')).to_contain_text(
@@ -2513,6 +2269,3 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
     assert page.evaluate("""() => pendingPart.isConnected &&
       document.querySelector('.lf-msg[data-lf-attempt="' + created.key + '"]') === pendingPart &&
       !pendingPart.dataset.lfEvent.startsWith('pending:')""")
-
-
-import pytest

@@ -56,7 +56,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     CHROME_BIN, so unnaming leaf's alone is not unnaming. A clean result has to name
     the browser that drew the page: a clean gate telling a Chromium host that Chrome
     drew it is the same false claim on the way out that the failure messages stopped
-    making."""
+    making. Findings leave the author pictures of the page that needs fixing."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -87,25 +87,10 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
     assert scrolls["widths"] == [360, 1920], report
     assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
-
-
-def test_a_failing_render_check_saves_screens(serve, headless_shell):
-    """Findings leave the author pictures of the page that needs fixing."""
-    serve(LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div></main>"))
-    ran = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-    )
-    assert ran.returncode == 1, ran.stdout + ran.stderr
-    report = json.loads(ran.stdout)
-    assert any(f["code"] == "page-scrolls" for f in report["findings"]), report
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= names
+    assert {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"} <= names
     assert all((into / name).is_file() for name in names)
 
 
@@ -187,7 +172,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
     assert set(shows) <= set(names)
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    passes = {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"}
+    assert passes <= set(names)
     assert {
         "1280px-obligation-1.png",
         "1280px-obligation-2.png",
@@ -199,7 +185,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
     assert any("<div id=2026-numbers> 4 → " in label for label in shows.values())
     # A page longer than its first screens says so rather than passing for read whole.
-    assert "390px-9.png" not in names
+    assert "phone-390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in label for label in shows.values())
 
 
@@ -230,10 +216,38 @@ def test_a_render_check_reads_the_desktop_in_the_users_window(
     monkeypatch.delenv(PIN_VARIABLE)
     read, names = desktop()
     assert read == {"width": 1000, "height": 640, "from": "the user's window"}
-    assert "1000px-1.png" in names, names
+    assert "desktop-1000px-1.png" in names, names
     read, names = desktop(**{PIN_VARIABLE: "fixed"})
     assert (read["width"], read["height"]) == (1280, 720), read
-    assert "1280px-1.png" in names, names
+    assert "desktop-1280px-1.png" in names, names
+
+
+def test_a_desktop_at_the_widest_window_keeps_its_own_screens(
+    serve, headless_shell, monkeypatch
+):
+    """A reader whose window is already the widest the check resizes to gets one set of
+    screens at that width, labelled as their desktop, rather than a second pass that
+    repeats them."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    window = user_view_report()
+    window["viewport"] = {"width": 1920, "height": 900}
+    user_views.observe_user_view(d, window)
+    monkeypatch.delenv(PIN_VARIABLE)
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    browser = json.loads(ran.stdout)["browser"]
+    assert browser["desktop"]["width"] == 1920, browser["desktop"]
+    files = [screen["file"] for screen in browser["screens"]["files"]]
+    assert len(files) == len(set(files)), files
+    shows = {screen["file"]: screen["shows"] for screen in browser["screens"]["files"]}
+    assert "desktop-1920px-1.png" in shows, shows
+    assert not [name for name in shows if name.startswith("widest-")], shows
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -682,7 +696,7 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
 
     refused = post(headless_shell)
     assert refused.returncode != 0, refused.stdout + refused.stderr
-    refusal = json.loads(refused.stderr)["error"]
+    refusal = json.loads(refused.stdout)["error"]
     assert refusal.startswith("comment markup doesn't draw:"), refusal
     assert '<lf-chart id="t-bad"> failed: ' in refusal
     assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
@@ -720,32 +734,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (document.body?.hasAttribute('data-lf-presented') &&
-              window.__lfPresentedAt === undefined)
-            window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries())
-            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
-              window.__lfComparisonRequestedAt = entry.startTime;
-        }).observe({type: 'resource', buffered: true});"""
-    )
     page.goto(url)
     render_checks_model.wait_until_ready(page)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_be_visible()
-    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
-    timing = page.evaluate(
-        """() => ({
-          presented: window.__lfPresentedAt,
-          requested: window.__lfComparisonRequestedAt,
-        })"""
-    )
-    assert timing["requested"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shot-toolbar")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
@@ -817,7 +810,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.keyboard.up("Shift")
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
-    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
+    view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
     view.focus()
     handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {

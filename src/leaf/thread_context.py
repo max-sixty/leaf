@@ -11,7 +11,9 @@ from leaf.events import (
     build_threads,
     conversation_turns,
     event_coordinate,
+    progress_completions,
     retractions,
+    summary_range,
     taken_back,
 )
 from leaf.passages import enclosing_ids
@@ -38,7 +40,7 @@ def sample_events(
     template's declaration deciding whether the page works at all.
 
     That leaves a mistyped id to the one reader who can tell it from a page that has
-    not been written into yet: `leaf-dev corpus` selects against a history it is
+    not been written into yet: `leaf-dev generate corpus` selects against a history it is
     generating from, where every declared thread exists by construction, and refuses
     one that names nothing."""
     names = thread_names(events)
@@ -344,6 +346,9 @@ MESSAGE_FIELDS = (
     # where its "this one" points once the batch that carried it is gone.
     "viewing",
     "edited",
+    # A message the user took back while something stood on it, which keeps its
+    # place with nothing in it (`events.build_threads`).
+    "withdrawn",
 )
 
 # How much of one thread a wait digest carries: the message that opened it,
@@ -493,14 +498,24 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. The suggested range is one exact,
-        # contiguous uncovered run before it, so following the hint can never hide
-        # a new message or create a summary on top of one already in force.
+        # Keep the newest exchange verbatim. The hint starts from the earliest run
+        # of uncovered messages before it that is long enough to suggest. Completed
+        # progress is not drawn, so a run folds it; pending progress is still being
+        # said, so a run stops at it. The hint is the range admission takes for that
+        # run (`events.summary_range`): widened over any message it would leave in
+        # full above a summary, replacing the summaries in force in between. So
+        # following it is never refused, and a short stretch a retired summary left
+        # above a later one doesn't stop every later hint.
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
+        completed = progress_completions(threads[t])
+        ids = [message["id"] for message in threads[t]["msgs"]]
+        at = {identity: index for index, identity in enumerate(ids)}
         runs = []
         run = []
         for message in threads[t]["msgs"]:
-            if message["id"] in covered or message.get("ephemeral"):
+            if message["id"] in covered or (
+                message.get("ephemeral") and message["id"] not in completed
+            ):
                 if run:
                     runs.append(run)
                     run = []
@@ -508,22 +523,24 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
                 run.append(message)
         if run:
             runs.append(run)
-        candidates = [
-            run
-            for run in runs
-            if len(run) >= 2
-            and (
-                len(run) >= 4
-                or sum(len(message.get("text", "")) for message in run) >= 2000
-            )
-        ]
-        candidate = max(candidates, key=len, default=[])
+        candidate = next(
+            (
+                run
+                for run in runs
+                if len(run) >= 2
+                and (
+                    len(run) >= 4
+                    or sum(len(message.get("text", "")) for message in run) >= 2000
+                )
+            ),
+            [],
+        )
         if candidate:
+            start, end = candidate[0]["id"], candidate[-1]["id"]
+            folded = {"covers": ids[at[start] : at[end] + 1]}
+            start, end = summary_range(threads[t], [*summaries, folded], start, end)
             # The range only: what the agent does with it is a `handling` clause.
-            digest["summary_hint"] = {
-                "from": candidate[0]["id"],
-                "through": candidate[-1]["id"],
-            }
+            digest["summary_hint"] = {"from": start, "through": end}
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         carried.append(digest)
@@ -555,18 +572,24 @@ def unsent_at_messages(
     for each widget, the coordinates whose winner records unsent work, updated at
     each step that moves a winner, so an input reads only the work it carries, in
     the order `InForce.winners` keeps it."""
+    spoken = [
+        event
+        for event in batch
+        if event["author"] == "user"
+        and (event["kind"] in kinds_declaring("message") or event["kind"] == "edit")
+    ]
+    if not spoken:
+        return {}
     names = thread_names(events)
     sent = {}
     for widget, holder in thread_widgets(thread_structure(events), names).items():
         sent.setdefault(holder, set()).add(widget)
-    inputs = {}
-    for event in batch:
-        if event["author"] != "user":
-            continue
-        if event["kind"] in kinds_declaring("message"):
-            inputs[event["id"]] = names.get(event["id"])
-        elif event["kind"] == "edit":
-            inputs[event["id"]] = names.get(event["message"])
+    inputs = {
+        event["id"]: names.get(
+            event["message"] if event["kind"] == "edit" else event["id"]
+        )
+        for event in spoken
+    }
     anchors = {}
     about = {}
     for event in events:

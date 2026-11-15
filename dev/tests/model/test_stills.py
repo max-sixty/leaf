@@ -1,5 +1,6 @@
 """Stills report failed catalogue states and compare the captures that complete."""
 
+import io
 import tempfile
 from contextlib import contextmanager, nullcontext
 from dataclasses import replace
@@ -61,13 +62,15 @@ def stills_catalogue(tmp_path, monkeypatch):
         yield arm_dir.name
 
     windows = []
+    white = io.BytesIO()
+    Image.new("RGB", (4, 4), "white").save(white, "PNG")
 
     @contextmanager
     def tab(browser, window, scheme, *, motion, scale):
         windows.append((window, scheme))
         page = SimpleNamespace(
             url="",
-            screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),
+            screenshot=white.getvalue,
             on=lambda event, listener: None,
             add_init_script=lambda *, path: None,
             is_closed=lambda: False,

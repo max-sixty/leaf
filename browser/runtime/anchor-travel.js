@@ -29,7 +29,7 @@
  * Back does after a followed link. Leaf once let a run of steps share one entry while
  * the last landing still showed, so one Back undid a whole `t` or `m` walk. That skipped
  * the item a step left: after `t` then `m`, Back passed over the thread, and once the
- * user answered an obligation, which takes it out of On me, neither Back nor Shift+m
+ * user answered an obligation, which takes it out of On Me, neither Back nor Shift+m
  * returned to it. Limiting the sharing to one walk still missed the second case, so no
  * steps share an entry. A fragment link's
  * navigation step (`followFragment`) uses the history entry the browser added for the link as
@@ -51,31 +51,26 @@ import {
   revealAddressed,
   sectionOf,
 } from "./anchor-resolution.js";
-import {
-  clippedPlace,
-  landingBand,
-  placeBox,
-  placeHolder,
-  showsContents,
-  shownBox,
-} from "./geometry.js";
+import { placeHolder, showsContents } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
-import { scrollersOf, unconcealedReadingRegions } from "./reading-regions.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, scrollGoal, stopScroll } from "./scrolling.js";
-import { landedBox, scrollIntoView } from "./landing-scroll.js";
+import { pageScroller, stopBrowserScroll } from "./scrolling.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  landedBox,
+  scrollIntoView,
+} from "./landing-scroll.js";
 import { reveal } from "./widget-elements.js";
 import { threadNamed } from "./thread/state.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { rangeOf } from "./passages.js";
+import { passageStart, rangeOf } from "./passages.js";
 import { livePoint } from "./pointed-place.js";
 import { notice } from "./notifications.js";
-
-/** @param {Element} element */
-const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -138,12 +133,12 @@ export function createAnchorTravel({
     if (!intent()) return false;
     const initial = resolve();
     if (!initial) return false;
-    // Every new navigation step takes over the outgoing native placement, including when
-    // the new destination still looks readable before the old navigation step's first frame.
-    // Read geometry only after its last compositor update has passed; another
-    // gesture during that wait retains the place it chose.
+    // Every new navigation step takes over the outgoing native placement, and lands from
+    // where a glide of Leaf's is headed (scrolling.js, `stopBrowserScroll`). Read
+    // geometry only after the stopped scroll's last compositor update has passed;
+    // another gesture during that wait retains the place it chose.
     if (initial.scroll.length)
-      await stopScroll(
+      await stopBrowserScroll(
         new Set([
           pageScroller,
           ...unconcealedReadingRegions().map((region) => region.body),
@@ -265,7 +260,8 @@ export function createAnchorTravel({
                   at: current.where,
                   behavior: "instant",
                   when: () =>
-                    !readableDestination(current.where) || !readableDestination(input),
+                    !alreadyShown(current.where, { block: "center" }) ||
+                    !alreadyShown(input),
                 },
                 // The subject and editor can occupy different parts of a tall
                 // page. Finish on the box the user asked to write in.
@@ -302,14 +298,16 @@ export function createAnchorTravel({
   // arrival region), built on the reading it is handed.
   /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
+    // Travel lands a destination at its start or centre, alike for one taller than its
+    // room, so it is already there where that landing would move nothing.
+    /** @param {Destination} where */
+    const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
-        moving = !(
-          where && (there ? there(readableDestination) : readableDestination(where))
-        );
+        moving = !(where && (there ? there(travelShown) : travelShown(where)));
         return moving;
       },
       commit() {
@@ -431,7 +429,11 @@ export function createAnchorTravel({
             where,
             focus: focus ? where : null,
             scroll: [
-              { at: where, block: "start", when: () => !readableDestination(where) },
+              {
+                at: where,
+                block: "start",
+                when: () => !alreadyShown(where, { block: "start" }),
+              },
             ],
           }
         );
@@ -516,53 +518,20 @@ export function createAnchorTravel({
     placeScroll({ at: element, behavior, block }, replacedView);
   }
 
-  // A destination's box and what of it the user can see, which is that box less the
-  // window and whatever clips it, or null when none of it shows.
-  /** @param {Destination} where */
-  function seenOf(where) {
-    const holder = placeHolder(where);
-    if (!holder) return null;
-    const destination = placeBox(where);
-    const seen = clippedPlace(where, new Map(), destination);
-    return seen && { holder, destination, seen };
-  }
-
-  // Whether travel to `where` would leave the page as it stands: the destination stands
-  // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
-  // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the window's head is one a landing still moves. A key pressed while
-  // Leaf still moves the destination's box acts as if the motion had landed, so the band
-  // is asked of where that box's motion will leave the destination (scrolling.js,
-  // `scrollGoal`): `Shift+m` pressed just after `m` finds the obligation `m` is leaving
-  // already gone. What cuts the destination is read where it stands, so one the motion
-  // would bring in from beyond the window's edge still counts as one travel moves to.
-  /** @param {Destination} where */
-  function readableDestination(where) {
-    const shown = seenOf(where);
-    if (!shown) return false;
-    const { holder, destination, seen } = shown;
-    const box = scrollingBoxFor(holder);
-    const band = box ? landingBand(box) : shownBox(pageScroller);
-    if (!band) return false;
-    const rise = box ? scrollGoal(box) - box.scrollTop : 0;
-    /** @param {number} a @param {number} b */
-    const close = (a, b) => Math.abs(a - b) <= 0.5;
-    return (
-      destination.top - rise >= band.top - 0.5 &&
-      destination.bottom - rise <= band.bottom + 0.5 &&
-      close(seen.top, destination.top) &&
-      close(seen.right, destination.right) &&
-      close(seen.bottom, destination.bottom) &&
-      close(seen.left, destination.left)
-    );
-  }
-
   /** @param {Range} where @param {ScrollBehavior} [behavior] */
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
     if (!holder) return;
     const { replacedView } = reveal(holder, retainUserIntent());
     placeScroll({ at: where, behavior }, replacedView);
+  }
+  // A passage is scrolled to where its words start (passages.js, `passageStart`), as a
+  // thread is travelled to (`threadDestination`): a search's match, the comment box
+  // brought back to its passage.
+  /** @param {readonly import("./passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
+  function scrollToPassage(segments, behavior = scrollBehavior()) {
+    const start = passageStart(segments);
+    if (start.length) scrollToRange(rangeOf(start), behavior);
   }
 
   // Hydration may outlive its gesture. After it settles, validate the retained intent
@@ -576,9 +545,9 @@ export function createAnchorTravel({
   /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
-    const segment = targetSegments(placement)[0];
-    const where = segment
-      ? rangeOf([segment])
+    const start = passageStart(targetSegments(placement));
+    const where = start.length
+      ? rangeOf(start)
       : (targetElement(placement) ?? targetPlace(placement));
     return (
       livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
@@ -637,7 +606,16 @@ export function createAnchorTravel({
         /** @type {ScrollPlacement[]} */
         const scroll = [];
         if (target) scroll.push({ at: target, block: "nearest" });
-        scroll.push({ at: where, when: () => !readableDestination(where) });
+        // Then the place lands unless it already shows. A part inside a place taller
+        // than its room, as a seat's thread can be inside its element, skips that
+        // landing, since landing the place would scroll the part back out of view.
+        const inside =
+          target !== where && where instanceof Element && under(target, where);
+        scroll.push({
+          at: where,
+          when: () =>
+            !alreadyShown(where, { block: "center" }) && !(inside && !fitsWhole(where)),
+        });
         return { where, focus: target, scroll };
       },
       {
@@ -660,7 +638,7 @@ export function createAnchorTravel({
     returnToFragment,
     navigateToDatum,
     scrollToElement,
-    readableDestination,
+    scrollToPassage,
     scrollToRange,
     scrollToThread,
     threadDestination,

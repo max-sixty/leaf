@@ -238,7 +238,7 @@ export function createPlayground(host) {
   const nativeInputs = (control) => {
     /** @type {NodeListOf<HTMLInputElement | HTMLSelectElement>} */
     const inputs = control.querySelectorAll(
-      ":scope > input, :scope > select, :scope > .choice > input, :scope > .lf-playground-choices > lf-playground-choice > .choice > input",
+      ":scope > input, :scope > select, :scope > .lf-choice > input, :scope > .lf-playground-choices > lf-playground-choice > .lf-choice > input",
     );
     return [...inputs];
   };
@@ -321,9 +321,6 @@ export function createPlayground(host) {
         ? (view.given?.reset ?? null)
         : (actions()?.querySelector(":scope > .lf-playground-reset") ?? null);
     },
-    get reveal() {
-      return actions()?.querySelector(":scope > .lf-playground-reveal") ?? null;
-    },
     /** @returns {HTMLElement | null} */
     get instruction() {
       return actions()?.querySelector(":scope > .lf-playground-instruction") ?? null;
@@ -367,7 +364,7 @@ export function createPlayground(host) {
     give(given) {
       view.given = given;
       given.submit.replaceChildren();
-      given.submit.dataset.room = submitRoom;
+      given.submit.dataset.lfRoom = submitRoom;
     },
     /** @param {HTMLElement} control @param {EventTarget | null} target */
     isInput(control, target) {
@@ -417,6 +414,12 @@ export function createPlayground(host) {
       for (const control of controls) {
         const { name, kind, choices } = reading(control);
         const label = control.getAttribute("label");
+        // The words beside the input name it, so its preview, which says only what
+        // its face and labels don't, repeats none of them. A span rather than a
+        // `<label>`, since a press on the words selects them and works no control.
+        // Its id takes `lf-`, so a comment aimed at the words names the control
+        // rather than this generated span (anchor-resolution.js, `ADDRESSABLE`).
+        const labelId = `lf-${host.id}-${name}-label`;
         const select =
           kind === "choice" && control.getAttribute("appearance") === "select";
         if (!select)
@@ -425,7 +428,7 @@ export function createPlayground(host) {
               html`
                 ${
                   interactive
-                    ? html`<label class="choice" data-lf-gen="1"
+                    ? html`<label class="lf-choice" data-lf-gen="1"
                         ><input
                           ${radioOffer}
                           type="radio"
@@ -459,7 +462,7 @@ export function createPlayground(host) {
           ${inputOffer}
           id=${`${host.id}-${name}-input`}
           name=${`${host.id}-${name}`}
-          aria-label=${label}
+          aria-labelledby=${labelId}
           role=${kind === "toggle" ? "switch" : nothing}
           min=${control.getAttribute("min") ?? nothing}
           max=${control.getAttribute("max") ?? nothing}
@@ -469,13 +472,15 @@ export function createPlayground(host) {
           .value=${kind === "toggle" ? "on" : next[name]}
         />`;
         render(
-          html`<span class="lf-playground-control-label" data-lf-gen="1">${label}</span>
+          html`<span class="lf-playground-control-label" id=${labelId} data-lf-gen="1"
+              >${label}</span
+            >
             ${
               select
                 ? html`<select
                     ${inputOffer}
                     name=${`${host.id}-${name}`}
-                    aria-label=${label}
+                    aria-labelledby=${labelId}
                     .value=${next[name]}
                   >
                     ${choices.map(
@@ -489,15 +494,18 @@ export function createPlayground(host) {
                     )}
                   </select>`
                 : kind === "choice"
-                  ? html`<div
+                  ? // A group, not a radiogroup, which may hold only radios: a
+                    // candidate's preview keeps its own buttons, fields and media. The
+                    // radios share a name, so the browser walks them as one set.
+                    html`<div
                       class="lf-playground-input lf-playground-choices"
-                      role="radiogroup"
-                      aria-label=${label}
+                      role="group"
+                      aria-labelledby=${labelId}
                     >
                       ${choices}
                     </div>`
                   : kind === "toggle"
-                    ? html`<label class="choice" data-lf-gen="1">${field}</label>`
+                    ? html`<label class="lf-choice" data-lf-gen="1">${field}</label>`
                     : field
             }
             ${
@@ -539,11 +547,11 @@ export function createPlayground(host) {
             aria-controls=${instructionId}
             aria-expanded="false"
           ></button>
-          <button ${submitOffer} data-room=${submitRoom}>
+          <button ${submitOffer} data-lf-room=${submitRoom}>
             ${submitWords(chosen())}
           </button>
           <div
-            class="lf-playground-instruction"
+            class="lf-playground-instruction lf-popover"
             id=${instructionId}
             popover="auto"
             role="dialog"

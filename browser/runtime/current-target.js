@@ -29,7 +29,7 @@
    null when none identifies a page location. A selected tab starts a walk inside its
    controlled panel without changing comment targets.
 
-   Every walk (`t`, `m`, a tally's Next on me) pages through its stops by one rule, read
+   Every walk (`t`, `m`, a tally's Next On Me) pages through its stops by one rule, read
    from one origin (`walkOrigin`): the node the user's place was read from, the place
    it stands for, and whether that is a current location. The user is on a stop while
    their current location is in the stop's destination, where the walk's own arrival
@@ -41,7 +41,10 @@
    the user let go of (focus.js, `onLetGo`) while they still see it, since letting go
    leaves them beside it rather than anywhere else, until they go on from there by
    standing on another page place or by pressing, wheeling or touching the page; failing
-   that, at the first visible reading block. Neither is on a stop. Stepping into Leaf's
+   that, at what they read (reading-place.js, `pageReadingBlock`). Only what they saw as
+   they let go leaves them beside it: a key pressed after scrolling away lets go of focus
+   they no longer see (keyboard/controller.js), and scrolling back to it doesn't put
+   them there again. Neither is on a stop. Stepping into Leaf's
    panel from either keeps it, the panel holding no other page place. So a walk, Escape
    and the walk again returns to the stop the user left, and a second press goes on from
    it. Each press reads the origin afresh. `stepFrom` orders destinations by rendered
@@ -55,7 +58,7 @@ import {
   onLetGo,
   onUserInput,
 } from "./focus.js";
-import { seenRect } from "./geometry.js";
+import { seenAhead } from "./scroll-containers.js";
 import { closestAcross, inChrome } from "./passages.js";
 import { THREAD } from "./thread/selectors.js";
 import { readObligations } from "./obligations/model.js";
@@ -88,12 +91,12 @@ export function declareSide(bridge, { beside = false } = {}) {
 // inside a proposal's new text does, so the nearest place holding the node names the
 // obligation rather than the kind of place: on the inner question's enclosing widget the user
 // is on that question, not on the proposal whose source holds it. Of two standing at one
-// place, as a to-do on a widget does beside the widget's own question, the first the
-// inventory lists names it, and the inventory lists widgets' obligations before to-dos.
-// `items` may be a selection, such as those waiting on the user, placed as the whole
-// `inventory` places them. Only the obligations whose place names one of the node's
-// ancestors are placed (`namedPlaces`), so a keystroke, which asks this many times,
-// costs the node's depth rather than the inventory.
+// place, the first the inventory lists names it. `items` may be a selection, such as
+// those waiting on the user, placed as the whole `inventory` places them. Only the
+// obligations whose place names one of the node's ancestors are placed
+// (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
+// rather than the inventory. The names are read once per list, so that holds for a
+// list the state keeps, such as the inventory, and not for one built for the call.
 /** @template {import("./framework/application.js").ObligationRecord} T
  * @param {readonly T[]} items @param {Node | null} node
  * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
@@ -125,8 +128,8 @@ export function obligationHolding(items, node, inventory = items) {
 // The obligations of a list that could stand at an element, by what names their places
 // (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
 // which stands only at its datum, the widget's id with the datum's key, as the datum
-// carries them (`data-lf-projection`, `data-lf-datum`); and the id of a to-do's subject.
-// Each name keeps the list's order. Read from the records alone, once per list, so it
+// carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
+// order. Read from the records alone, once per list, so it
 // holds however the document changes; a name finds candidates, and placing each says
 // whether it stands there.
 /** @type {WeakMap<readonly import("./framework/application.js").ObligationRecord[], Map<string, [number, any][]>>} */
@@ -146,11 +149,7 @@ function namedPlaces(items) {
   };
   items.forEach((item, order) => {
     const { source } = item;
-    if (source.kind === "todo") {
-      const place = source.subject;
-      if (place.kind !== "page" && place.kind !== "thread")
-        add(`#${place.id}`, order, item);
-    } else if (source.kind === "widget" && source.unit) {
+    if (source.kind === "widget" && source.unit) {
       add(`@${source.id} ${source.unit}`, order, item);
     } else if (source.kind === "widget") {
       add(`#${source.id}`, order, item);
@@ -167,6 +166,13 @@ export const placeOf = (node) => placeFrom(node, new Set(), true);
 // page shows the node, which arrives nowhere.
 /** @param {Node | null | undefined} node */
 export const arrivalOf = (node) => placeFrom(node, new Set(), false);
+// The obligation, answered or not, holding the place `node` stands for, read from the
+// inventory the state publishes, which keeps its identity between readings, so the
+// lookup costs the node's depth (`obligationHolding`). DOM containment says where the
+// node is; it never decides whether the obligation belongs to that inventory.
+/** @param {Node | null | undefined} node */
+export const obligationAt = (node) =>
+  obligationHolding(readObligations().all, placeOf(node));
 
 /** @param {Node | null | undefined} node @param {Set<Element>} visited
  * @param {boolean} countBeside @returns {Element | null} */
@@ -241,11 +247,12 @@ function* locations() {
 }
 
 // What the user let go of, until they go on from it. Chrome holding no page place,
-// such as On me's list or the comment field, is not somewhere else on the page.
+// such as On Me's list or the comment field, is not somewhere else on the page.
 /** @type {WeakRef<Element> | null} */
 let letGone = null;
 onLetGo((node) => {
-  letGone = new WeakRef(node);
+  const place = placeOf(node);
+  letGone = place && seenAhead(place) ? new WeakRef(node) : null;
 });
 onCurrentLocation((node) => {
   if (node && placeOf(node)) letGone = null;
@@ -257,16 +264,16 @@ onUserInput((event) => {
 });
 
 // Where a walk starts: the user's current location, else what they let go of while
-// they still see it, else what the viewport shows. Only a current location can be on a
-// stop; the others are `at` one.
+// they still see it, else what the viewport shows, each read where the glides under way
+// leave it (scroll-containers.js, `seenAhead`; reading-place.js, `readingBlock`). Only a
+// current location can be on a stop; the others are `at` one.
 /** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
   if (here) return here;
   const node = letGone?.deref();
   const left = node?.isConnected ? placeOf(node) : null;
-  if (node && left && seenRect(left, new Map()))
-    return { node, place: left, kind: "at" };
+  if (node && left && seenAhead(left)) return { node, place: left, kind: "at" };
   const block = pageReadingBlock();
   return { node: block, place: block, kind: "at" };
 }
@@ -303,6 +310,5 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
 // The obligation the user is in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they are at.
 export function heldObligation(node = focused()) {
-  const item = obligationHolding(readObligations().all, placeOf(node));
-  return obligationPlace(item).node;
+  return obligationPlace(obligationAt(node)).node;
 }

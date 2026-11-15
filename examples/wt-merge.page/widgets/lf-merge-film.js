@@ -30,7 +30,7 @@ import {
   preserveReadingRegions,
   registerReadingRegion,
   registerVisualParts,
-  scrollIntoReadingBand,
+  scrollIntoView,
   shownWindow,
   sizeObserver,
   whileConnected,
@@ -242,7 +242,7 @@ customElements.define(
     #reveal() {
       if (this.hasAttribute("data-phone")) {
         if (this.settings.open) this.settings.open = false;
-        scrollIntoReadingBand(this, this, "start", "smooth");
+        scrollIntoView(this, { block: "start", behavior: "smooth" });
       }
     }
 
@@ -368,7 +368,10 @@ customElements.define(
       this.#pause();
       if (this.hasAttribute("data-phone")) {
         this.settings.open = false;
-        scrollIntoReadingBand(this.playBtn.parentElement, this, "nearest", "instant");
+        scrollIntoView(this.playBtn.parentElement, {
+          block: "nearest",
+          behavior: "instant",
+        });
       }
       const parts = this.painter.parts();
       if (!parts.length) return;
@@ -483,7 +486,7 @@ customElements.define(
         )
       ) {
         const destination = document.activeElement;
-        scrollIntoReadingBand(destination, destination, "nearest", "instant");
+        scrollIntoView(destination, { block: "nearest", behavior: "instant" });
       }
     }
   },

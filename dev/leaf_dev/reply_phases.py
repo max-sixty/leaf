@@ -461,14 +461,19 @@ def pickup_wait(records: list[dict], admitted: str, picked_up: str) -> dict:
 
 
 def claude_code_transcript(session: str) -> list[dict] | None:
-    """Claude Code's transcript of `session`, from its configuration directory's
-    projects, or None where it is not on disk. Leaf's session record keeps no path
-    to it."""
+    """Claude Code's transcript of `session` (`claude_code_transcript_path`), or None
+    where it is not on disk."""
+    path = claude_code_transcript_path(session)
+    return None if path is None else transcript_records(path)
+
+
+def claude_code_transcript_path(session: str) -> Path | None:
+    """Where Claude Code keeps `session`'s transcript, in its configuration
+    directory's projects, with its subagents' beside it (`<session>/subagents/`), or
+    None where it is not on disk. Leaf's session record keeps no path to it."""
     config = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
     found = sorted(Path(config).glob(f"projects/*/{session}.jsonl"))
-    if not found:
-        return None
-    return transcript_records(found[0])
+    return found[0] if found else None
 
 
 def transcript_records(path: Path) -> list[dict]:

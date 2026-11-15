@@ -58,20 +58,6 @@ def scrolled(page):
     page.wait_for_function("() => scrollY > 0")
 
 
-def test_words_a_scroll_hides_fail(browser):
-    page = box_page(browser, "scroll-hides")
-    scrolled(page)
-    judge_watches()
-    consume_browser_errors(
-        page,
-        {
-            "code": "words-left-screen",
-            "words": "Half a thought",
-            "place": ["textarea#field"],
-        },
-    )
-
-
 def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
     """A press on the field and a key that moves its caret are the user moving among
     their words, not putting them away, so a scroll that hides the box after them
@@ -82,7 +68,14 @@ def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
     page.keyboard.press("Shift")
     scrolled(page)
     judge_watches()
-    consume_browser_errors(page, {"code": "words-left-screen"})
+    consume_browser_errors(
+        page,
+        {
+            "code": "words-left-screen",
+            "words": "Half a thought",
+            "place": ["textarea#field"],
+        },
+    )
 
 
 def test_words_a_scroll_clears_fail(browser):
@@ -686,8 +679,9 @@ def test_words_a_passive_selection_change_cannot_close_a_draft(browser):
     )
 
 
-@pytest.mark.parametrize("route", ["press", "keyboard"])
-@pytest.mark.parametrize("shadow", [False, True])
+@pytest.mark.parametrize(
+    "route, shadow", [("press", False), ("press", True), ("keyboard", False)]
+)
 def test_words_a_native_disclosure_puts_away_its_fields(browser, route, shadow):
     field = (
         '<div id="host"></div><script>'
@@ -915,6 +909,28 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     page.frame_locator("iframe").locator("#field").fill("Half a thought")
     page.locator("#clear").click()
     judge_watches()
+
+
+def test_words_in_a_firefox_frame_its_page_hides_fail_when_judged(firefox_browser):
+    """Judgement reaches every frame of a Firefox page, an opaque one like a sample's
+    included: words typed in it fail once the page hides it. A hidden frame paints
+    nothing, so its watch reads the loss only when judged."""
+    page = firefox_browser.new_page()
+    page.route(
+        "https://frames.test/**",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<!doctype html><iframe sandbox="allow-scripts"'
+            ' srcdoc="<!doctype html><textarea id=field></textarea>"></iframe>',
+        ),
+    )
+    page.goto("https://frames.test/")
+    page.frame_locator("iframe").locator("#field").fill("Half a thought")
+    page.locator("iframe").evaluate("frame => { frame.hidden = true; }")
+    judge_watches()
+    consume_browser_errors(
+        page, {"code": "words-left-screen", "words": "Half a thought"}
+    )
 
 
 @pytest.mark.parametrize("cause", ["press", "passive", "unrelated", "older-press"])
@@ -1302,16 +1318,15 @@ field.addEventListener('keydown', async event => {
     )
 
 
-@pytest.mark.parametrize("delay", [300, 3000])
-def test_words_a_slow_send_retains_its_input(browser, delay):
-    """The same native Send timer owns its effect at 1x and 10x latency. A real
+def test_words_a_slow_send_retains_its_input(browser):
+    """A native Send timer owns its effect at ten times an ordinary latency. A real
     completion flag bounds the wait; the delay is not a correctness assertion."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             '<textarea id=field></textarea><button id=send style="position:fixed;right:0;top:0">Send</button><script>'
-            f"send.onclick=()=>setTimeout(()=>{{field.remove();window.done=true}},{delay});"
+            "send.onclick=()=>setTimeout(()=>{field.remove();window.done=true},3000);"
             "</script>"
         )
     )

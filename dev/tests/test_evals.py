@@ -18,7 +18,7 @@ from click.testing import CliRunner
 
 from leaf_dev import arms
 from leaf_dev.arms import LiveSession, private_program
-from leaf_dev.commands import eval as module
+from leaf_dev.commands.eval import run as module
 from leaf_dev.eval_codex import records_for
 from leaf_dev.eval_records import run_samples
 
@@ -206,6 +206,58 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
     assert trace == activities
 
 
+def test_fork_replay_hands_the_answer_through_the_arms_leaf(tmp_path, monkeypatch):
+    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
+    # and answers it, so this shows the question reaching the fork and the answer
+    # reaching the grader through the arm's Leaf, its edit landing on the page.
+    import os
+
+    from leaf_dev import ROOT, fork_eval
+
+    work = tmp_path / "work"
+    asked = tmp_path / "prompt"
+    answer = {
+        "asks": [],
+        "findings": [
+            {
+                "kind": "stale",
+                "page": str(work / "page"),
+                "summary": "The lede still says 2 of 5 shards are rebuilt.",
+                "quote": "all 5 shards rebuilt; alias search -> search-v7",
+                "edit": {
+                    "words": "2 of 5 shards are rebuilt",
+                    "replacement": "all 5 shards are rebuilt",
+                },
+            }
+        ],
+    }
+    result = {"type": "result", "subtype": "success", "result": json.dumps(answer)}
+    program = (
+        f"import sys; open({str(asked)!r}, 'w').write(sys.stdin.read()); "
+        f"print({json.dumps(result)!r})"
+    )
+
+    def child(cwd, *args, **kwargs):
+        home = cwd.with_name("home")
+        return {
+            "args": [sys.executable, "-c", program],
+            "cwd": cwd,
+            "env": {**os.environ, "HOME": str(home)},
+        }
+
+    monkeypatch.setattr(fork_eval, "claude_child", child)
+    response = fork_eval.execute_scenario("stale-edit", ROOT, work)
+    metadata = response["metadata"]
+    assert metadata["checks"] == {
+        "answered": True,
+        "labels-found": True,
+        "edits-land": True,
+    }
+    assert "<leaf-fork-check>" in asked.read_text()
+    assert (work / "transcript.jsonl").is_file()
+    assert "all 5 shards are rebuilt" in metadata["texts"]["judge"]
+
+
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
     # Configuration shares the external login; no native provider is invoked.
     login = tmp_path / "login"
@@ -335,36 +387,23 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         assert execution["requested_viewports"] == ["desktop"]
 
 
-def test_widget_format_matrix_uses_one_model_and_separate_checks(tmp_path):
+def test_model_option_sets_the_author_of_every_condition(tmp_path):
     config = module.prepare(
-        ["widget-formats/choice"],
+        ["configuration"],
         {"head": tmp_path / "arm"},
         tmp_path / "scratch",
         ("codex",),
-        ("leaf", "json", "adaptive"),
+        ("leaf", "html"),
         tmp_path / "samples",
-        model="gpt-6-luna",
+        model="named-for-this-run",
     )
     assert [test["metadata"]["condition"] for test in config["tests"]] == [
         "leaf",
-        "json",
-        "adaptive",
+        "html",
     ]
     assert {provider["config"]["model"] for provider in config["providers"]} == {
-        "gpt-6-luna"
+        "named-for-this-run"
     }
-    assert all(
-        "Use the Leaf skill" in test["vars"]["prompt"] for test in config["tests"][:2]
-    )
-    assert "Use the Leaf skill" not in config["tests"][2]["vars"]["prompt"]
-    assert [
-        [assertion["metric"] for assertion in test["assert"]]
-        for test in config["tests"]
-    ] == [
-        ["completed", "page-valid", "interaction-proven", "task-fit"],
-        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
-        ["completed", "format-valid", "page-valid", "interaction-proven", "task-fit"],
-    ]
 
 
 def test_eval_command_delegates_configuration_and_status_to_promptfoo(
@@ -504,9 +543,7 @@ def test_from_replays_saved_outputs_under_current_grading(tmp_path, monkeypatch)
         "codex:app-server/head/workflow",
     ]
     assert {p["id"] for p in config["providers"]} == {regrade.REPLAY}
-    current = module.grading(
-        module.catalog()["configuration"], "configuration", "leaf", lambda: {}
-    )
+    current = module.grading(module.catalog()["configuration"], "leaf", lambda: {})
     for test in config["tests"]:
         assert test["assert"] == current["assert"]
         assert test["vars"] == {"prompt": "configuration"}
@@ -532,7 +569,7 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     """Only the live judge is replaced: the tests, their replayed samples, page
     roles, evidence and the report's reading of both orders are real."""
     from leaf_dev import regrade
-    from leaf_dev.commands import eval_report
+    from leaf_dev.commands.eval import report as eval_report
 
     run = saved_run(tmp_path / "saved")
     base, head = (
@@ -627,6 +664,92 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert "Investigate long decision premises" in prompt
     section = eval_report.discovery_section(tmp_path / "report", (judging,))
     assert section.count("Desktop navigation.") == 3
+
+
+def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
+    """The browser is the last of the review's tabs, and each citation draws its saved
+    captures and links that land, while one that names nothing stops the report."""
+    import turbohtml
+    from PIL import Image
+
+    from leaf_dev.commands.eval import report as eval_report
+
+    run = saved_run(tmp_path / "saved")
+    for sample in ("document-base-0", "document-head-1"):
+        shots = run / "screenshots" / sample
+        shots.mkdir(parents=True)
+        for name in run_samples((run,))["document-live-status"][
+            "codex:app-server/base/workflow"
+        ][0]["diagnostics"]["comparison"]["widths"]:
+            for phase in ("3", "5"):
+                Image.new("RGB", (8, 8)).save(shots / f"p{phase}-{name}-1.png")
+    patch = tmp_path / "change.diff"
+    patch.write_text(
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
+        "@@ -1,2 +1,2 @@\n \n-old\n+new\n"
+    )
+    review = tmp_path / "review.html"
+    review.write_text(
+        f"""<h1 id="title">Keeping the “change”</h1>
+<lf-tabs id="review-views">
+  <lf-tab id="report-introduction" label="Introduction">
+    <p>A review’s own words.</p>
+    <lf-eval-cite before="saved/document-base-0" after="saved/document-head-1@3"
+      before-label="Base" aligned></lf-eval-cite>
+    <p><lf-eval-cite file="{patch}" label="The change" links></lf-eval-cite></p>
+    <lf-eval-cite id="patch" file="{patch}" label="The patch"></lf-eval-cite>
+    <p><lf-eval-cite id="head" output="saved/document-head-1" links></lf-eval-cite>
+      <a href="#head">again</a></p>
+    <lf-eval-cite id="uncaptured" output="saved/document-base-0@4"></lf-eval-cite>
+  </lf-tab>
+</lf-tabs>
+"""
+    )
+    page = tmp_path / "report"
+    arguments = [str(page), str(run), "--review", str(review)]
+
+    result = CliRunner().invoke(eval_report.eval_report, arguments)
+
+    assert result.exit_code == 0, result.output
+    written = (page / "index.html").read_text()
+    assert "lf-eval-cite" not in written
+    assert "<title>Keeping the “change”</title>" in written
+    document = turbohtml.parse(written)
+    assert [tab.attrs["id"] for tab in document.select("#review-views > lf-tab")] == [
+        "report-introduction",
+        "all-results",
+    ]
+    assert written.count("<lf-shot ") == 1
+    assert written.count('<lf-diff id="patch" collapsed>') == 1
+    assert "\n&#32;\n-old" in written
+    # Every link the citations write lands, a sample's link back to its citation too.
+    ids = {element.attrs["id"] for element in document.select("[id]")}
+    hrefs = {str(link.attrs["href"])[1:] for link in document.select('a[href^="#"]')}
+    assert hrefs and hrefs <= ids
+    assert "Base and After · " in written
+    # A phase with no captures still offers its links.
+    uncaptured = written.split('id="uncaptured"')[1].split("No screens.")[0]
+    assert "and details</a>" in uncaptured
+    eval_report.leaf("page", "check", str(page))
+
+    for missing in (
+        "saved/document-absent",
+        "elsewhere/document-base-0",
+        "saved/document-base-0@9",
+    ):
+        review.write_text(
+            f'<h1>Report</h1><lf-eval-cite output="{missing}"></lf-eval-cite>'
+        )
+        result = CliRunner().invoke(eval_report.eval_report, arguments)
+        assert result.exit_code != 0 and missing in result.output
+    for refused, said in (
+        ('<lf-eval-cite file="/absent.json"></lf-eval-cite>', "/absent.json"),
+        (f'<lf-eval-cite file="{patch}">Words</lf-eval-cite>', "takes no content"),
+    ):
+        review.write_text(f"<h1>Report</h1>{refused}")
+        result = CliRunner().invoke(eval_report.eval_report, arguments)
+        assert result.exit_code != 0 and said in result.output
+    assert (page / "index.html").read_text() == written
 
 
 def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):

@@ -30,7 +30,7 @@ const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 }
  * state?: ContributionState, visible?: boolean, disabled?: boolean, count?: number,
  * pressed?: boolean | null, workflowReceipt?: import("./framework/application.js").Workflow | null | undefined,
  * relation?: EntryRelationInput | null, activation?: string | null, title?: string | null,
- * className?: string | null, scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
+ * scope?: import("./keyboard/scopes.js").CommandCapability | null | undefined}} EntryInput
  * @typedef {ReturnType<typeof contributionEntry>} ContributionEntry
  * @typedef {ContributionEntry & {owner?: string}} BrandedEntry
  * @typedef {ContributionEntry & {owner: string}} OwnedEntry
@@ -47,14 +47,7 @@ const entryRecords = new WeakSet();
 export const isContributionEntry = (entry) =>
   entry !== undefined && entryRecords.has(entry);
 
-export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
-  tones: Object.freeze(Object.keys(TONES)),
-  behaviors: Object.freeze(Object.keys(BEHAVIORS)),
-  states: Object.freeze(Object.keys(STATE_PRIORITY)),
-  ranks: Object.freeze(Object.keys(RANK_PRIORITY)),
-});
-
-const ENTRY_OPTIONS = new Set([
+const ENTRY_OPTION_NAMES = Object.freeze([
   "key",
   "glyph",
   "action",
@@ -76,9 +69,17 @@ const ENTRY_OPTIONS = new Set([
   "relation",
   "activation",
   "title",
-  "className",
   "scope",
 ]);
+const ENTRY_OPTIONS = new Set(ENTRY_OPTION_NAMES);
+
+export const CONTRIBUTION_ENTRY_SCHEMA = Object.freeze({
+  tones: Object.freeze(Object.keys(TONES)),
+  behaviors: Object.freeze(Object.keys(BEHAVIORS)),
+  states: Object.freeze(Object.keys(STATE_PRIORITY)),
+  ranks: Object.freeze(Object.keys(RANK_PRIORITY)),
+  options: ENTRY_OPTION_NAMES,
+});
 // What a contribution reading or contribution is, and the face and word it wears. A
 // kind whose word is Leaf's account of an update on its way to the agent says so in
 // its `voice`, as each of its receipts does alone (`workflowWord`).
@@ -93,7 +94,7 @@ const kinds = {
     indication: true,
   },
   comment: { label: "Thread", icon: "comment", priority: 1 },
-  "on-me": { label: "On me", icon: "question", priority: 2 },
+  "on-me": { label: "On Me", icon: "question", priority: 2 },
   sent: {
     label: "Queued",
     icon: "sent",
@@ -218,7 +219,6 @@ export function contributionEntry(offered) {
     relation = null,
     activation = key,
     title = null,
-    className = null,
     scope = null,
   } = offered;
   if (!text(key)) throw new TypeError("A contribution entry needs a key");
@@ -265,7 +265,6 @@ export function contributionEntry(offered) {
     workflowReceipt,
     relation: freezeRelation(relation),
     title: text(title) || null,
-    className: text(className) || null,
   };
   const record =
     behavior === "status"

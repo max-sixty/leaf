@@ -6,6 +6,7 @@ import json
 
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, record_claim
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -15,7 +16,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    PANEL_THREAD,
     leaf_page,
     open_page,
     open_threads,
@@ -35,6 +35,7 @@ from leaf import data as data_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
@@ -72,15 +73,25 @@ def open_panel_thread(page, thread_id):
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():
         return view
-    key, resolved = page.evaluate(
-        """async (id) => {
-          const {readThreads} = await window.__lfWidgetApi();
-          const thread = readThreads().threads.find((t) => t.id === id);
-          return [thread?.key ?? null, Boolean(thread?.resolved)];
-        }""",
-        thread_id,
+    # A thread the server's reading brings can arrive after the send's answer: the page
+    # adopts that reading in a task after the frame the gesture owed (`applyState`), so
+    # the trip being over doesn't mean the page holds it yet.
+    page.evaluate(
+        """async () => {
+          window.__lfReadThreads = (await window.__lfWidgetApi()).readThreads;
+        }"""
     )
-    assert key, f"the page holds no thread {thread_id}"
+    try:
+        found = page.wait_for_function(
+            """(id) => {
+              const thread = window.__lfReadThreads().threads.find((t) => t.id === id);
+              return thread ? [thread.key, Boolean(thread.resolved)] : null;
+            }""",
+            arg=thread_id,
+        )
+    except PlaywrightTimeout:
+        raise AssertionError(f"the page holds no thread {thread_id}") from None
+    key, resolved = found.json_value()
     open_threads(page)
     row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
     if resolved and not row.count():

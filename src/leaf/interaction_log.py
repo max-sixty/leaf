@@ -7,7 +7,7 @@ observations.jsonl.
 
 Each `leaf` command records how long it took in every page it acted on, one
 `leaf_command` observation as it exits (`record_command`), so a page says Leaf's own
-share of an agent's reply on any harness. A command acts on the pages it names: an
+share of an agent's reply on any harness, and whether Leaf refused it. A command acts on the pages it names: an
 initialized page as a `PAGE` argument (`cli.resolve_dir`; `page init`, which
 creates or re-initializes one, records nothing), an answer reference's page
 (`delivery.response_address`), or the pages a delivery it reads or acknowledges
@@ -18,18 +18,25 @@ names a page and then waits, as `leaf wait PAGE` does, records its own work as i
 starts waiting. Harness hooks name no command pages; their time shows as delivery in the
 page's pickup receipts. A harness's watch between turns records instead when it
 started and how it ended (`record_watch`), so a pickup that waited with nothing
-waking the session says whether a watch ran and could read the page. A command's time runs from its launcher's start, `bin/leaf`'s uv
-included, to its exit; one the sandbox bridge runs for Claude Code is timed from
-the bridge's start of it.
+waking the session says whether a watch ran and could read the page. A command's
+time runs from its launcher's start, `bin/leaf`'s uv included, to its exit; one the
+sandbox bridge runs for Claude Code is timed from the bridge's start of it.
+
+Claude Code's hooks record in each page the session holds what no command's record
+shows: an agent's `leaf` call the PreToolUse hook denied, which never ran
+(`record_denial`), and whether the session's pages follower keeps threads back for
+line forks (`record_follower`).
 
 A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
 leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
 deduplicates retries and reports sequence gaps before selection. Stored ts belongs
 to the host clock; observed_at and monotonic_ms belong to one browser tab.
 
-TODO(privacy): Define retention, export, and deletion before pages are shared
-with other users. Client traces can contain draft text and entered values;
-decide which fields to redact or omit for those users.
+A page's trace keeps entered values, draft text and selections for debugging, with no
+limit on its size; only a password field's characters stay out, also after a
+show-password toggle, except in a closed shadow root (`interaction-log.js`).
+The user chose this on 2026-11-04 over recording only the structural fields leaf.page's
+Worker keeps, and over recording nothing unless the user turns it on.
 """
 
 import contextlib
@@ -41,6 +48,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .registry.schema import aware_instant
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
 
@@ -80,7 +88,7 @@ def acting_on(page_dir: Path) -> None:
 
 def launched() -> float:
     """When this `leaf` command started: its launcher's start where `bin/leaf`'s uv
-    runs this process as `python -m leaf` with the same arguments, else this
+    runs this process as `python -P -m leaf` with the same arguments, else this
     process's own."""
     import psutil
 
@@ -88,14 +96,18 @@ def launched() -> float:
     args = process.cmdline()[1:]
     parent = process.parent()
     words = parent.cmdline() if parent is not None else []
-    if args[:2] == ["-m", "leaf"] and words[-len(args) :] == args:
+    if args[:3] == ["-P", "-m", "leaf"] and words[-len(args) :] == args:
         return parent.create_time()
     return process.create_time()
 
 
-def record_command(command: str) -> None:
+def record_command(
+    command: str, *, agent: str | None = None, refused: str | None = None
+) -> None:
     """Record in each page this command acted on how long it has taken, with the
-    harness session that ran it, once: a later call records nothing. A diagnostic
+    harness session that ran it, the agent of the session it ran as (`agent`,
+    `leaf --agent-id`), and the error it ended with where Leaf refused it
+    (`refused`, what `cli.LeafGroup` printed), once: a later call records nothing. A diagnostic
     the system won't let this process gather or write, as a sandbox may refuse a
     session record or a page, is dropped, since the command's own result has
     already been decided."""
@@ -118,13 +130,17 @@ def record_command(command: str) -> None:
             "started": datetime.fromtimestamp(started, UTC).isoformat(),
             "durationMs": round((ended - started) * 1000, 1),
             "session": session,
+            **({"agent": agent} if agent else {}),
+            **({"refused": refused} if refused is not None else {}),
             "context": session_context(session),
         }
     except (OSError, psutil.Error):
         return
+    from .event_log import initialized
+
     for page_dir in pages:
         try:
-            if (page_dir / "events.jsonl").is_file():
+            if initialized(page_dir):
                 append_interactions(page_dir, [record])
         except OSError:
             continue
@@ -147,6 +163,50 @@ def record_watch(pages: list[Path], session: str, began: float, ended: str) -> N
         "protocol": kernel_protocol(),
         "ended": ended,
     }
+    _record_in(pages, record)
+
+
+def record_denial(
+    pages: list[Path], session: str, agent: str, command: str, reason: str
+) -> None:
+    """Record in each page a session holds that Leaf's PreToolUse hook denied the
+    Bash call `command` of the session's agent `agent`, with the `reason` the agent
+    read (`hooks.agent_command`). Dropped where the page can't be written, as
+    `record_command` is."""
+    record = {
+        "source": "cli",
+        "type": "command_denied",
+        "session": session,
+        "agent": agent,
+        "command": command,
+        "reason": reason,
+    }
+    _record_in(pages, record)
+
+
+def record_follower(
+    pages: list[Path], session: str, *, module: object, forks: bool, current: bool
+) -> None:
+    """Record in each page a Claude Code session's pages follower starts listing
+    (`hooks.cmd_pages`) whether its hooks module asked for forks (`forks`), the
+    digest the module loaded with (`module`), and whether that module is this
+    Leaf's (`current`, `session_runtime.module_current`): the follower keeps threads
+    back for line forks only where both hold. Dropped where the page can't be
+    written, as `record_command` is."""
+    record = {
+        "source": "cli",
+        "type": "follower",
+        "session": session,
+        "module": module,
+        "forks": forks,
+        "current": current,
+    }
+    _record_in(pages, record)
+
+
+def _record_in(pages: list[Path], record: dict) -> None:
+    """Append `record` to each page's diagnostics, dropped where a page can't be
+    written."""
     for page_dir in pages:
         with contextlib.suppress(OSError):
             append_interactions(page_dir, [record])
@@ -205,14 +265,11 @@ def session_context(session: str | None, claim: dict | None = None) -> dict | No
     }
 
 
-def interaction_time(value: object) -> datetime:
-    """Read an ISO timestamp with an explicit offset, including browser UTC Z."""
-    if not isinstance(value, str):
-        raise TypeError("interaction time must be an ISO timestamp string")
-    result = datetime.fromisoformat(value)
-    if result.tzinfo is None:
-        raise ValueError("interaction times require a timezone offset")
-    return result
+def interaction_time(value: str) -> datetime:
+    """Read a timestamp in Leaf's date-time format (`registry.schema.aware_instant`)."""
+    if (instant := aware_instant(value)) is None:
+        raise ValueError(f"{value!r} is not an RFC 3339 time with its timezone offset")
+    return instant
 
 
 def read_interactions(
@@ -231,26 +288,25 @@ def read_interactions(
     filter; an unsent tail leaves no evidence. Server/developer records have
     no browser session association.
     """
-    lines = []
-    for path in (page_dir / "events.jsonl", page_dir / INTERACTIONS_FILE):
-        if not path.exists():
-            continue
-        for seq, line in enumerate(path.read_bytes().split(b"\n"), 1):
+    from .event_log import read_stored_events
+
+    lines: list[dict] = [
+        {
+            "source": "semantic",
+            "type": "event",
+            "context": event.pop("context", None),
+            "ts": event["ts"],
+            "event": event,
+        }
+        for event in read_stored_events(page_dir)
+    ]
+    path = page_dir / INTERACTIONS_FILE
+    if path.exists():
+        for line in path.read_bytes().split(b"\n"):
             try:
-                row = json.loads(line)
+                lines.append(json.loads(line))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            if path.name == "events.jsonl":
-                context = row.pop("context", None)
-                row = {
-                    "source": "semantic",
-                    "type": "event",
-                    "context": context,
-                    "ts": row["ts"],
-                    "event": row,
-                    "event_seq": seq,
-                }
-            lines.append(row)
     records = []
     seen = set()
     sessions = defaultdict(list)

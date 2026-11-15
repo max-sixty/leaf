@@ -3,7 +3,6 @@
 import struct
 from urllib.parse import quote
 
-import pytest
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
 
@@ -12,31 +11,48 @@ from leaf.revision_delivery import (
 )
 
 
-@pytest.mark.parametrize(
-    ("name", "src"),
-    [
-        ("my 100%20state.mjs", "page/app.mjs"),
-        ("?state.mjs", " \tpage/ap\np.mjs \t"),
-        ("#state.mjs", r"page\app.mjs"),
-    ],
-)
-def test_module_filename_decodes_once_when_the_browser_loads_it(
-    browser, serve, name, src
+def test_a_written_address_decodes_once_when_the_browser_loads_it(
+    browser, serve, subtests
 ):
-    source = leaf_page("Module filename", '<h1 id="title">Module filename</h1>')
+    """Each spelling an author can write names the one file the browser loads: a module
+    whose import escapes a filename, whichever way its script's address is written, and
+    an image whose address the browser strips or normalizes."""
+    modules = {
+        "encoded": ("my 100%20state.mjs", "page/encoded.mjs"),
+        "spaced": ("?state.mjs", " \tpage/spa\nced.mjs \t"),
+        "backslashed": ("#state.mjs", r"page\backslashed.mjs"),
+    }
+    source = leaf_page(
+        "Written addresses",
+        '<h1 id="title">Written addresses</h1>'
+        + "".join(f'<p id="{key}">Waiting</p>' for key in modules)
+        + '<img id="image-spaced" src=" page/image.svg " alt="Image">'
+        + '<img id="image-backslashed" src="page\\image.svg" alt="Image">',
+    )
     source = source.replace(
-        "</head>", f'<script type="module" src="{src}"></script></head>'
+        "</head>",
+        "".join(
+            f'<script type="module" src="{src}"></script>'
+            for _, src in modules.values()
+        )
+        + "</head>",
     )
-    url = serve(
-        source,
-        packages=(),
-        page_files={
-            "app.mjs": f'import {{ title }} from "./{quote(name, safe="")}"; document.title = title;',
-            name: 'export const title = "Exact file loaded";',
-        },
-    )
-    page = open_page(browser, url)
-    expect(page).to_have_title("Exact file loaded")
+    files = {
+        "image.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="7"/>'
+    }
+    for key, (name, _) in modules.items():
+        files[f"{key}.mjs"] = (
+            f'import {{ title }} from "./{quote(name, safe="")}"; '
+            f'document.getElementById("{key}").textContent = title;'
+        )
+        files[name] = 'export const title = "Exact file loaded";'
+    page = open_page(browser, serve(source, packages=(), page_files=files))
+    for key in modules:
+        with subtests.test(module=key):
+            expect(page.locator(f"#{key}")).to_have_text("Exact file loaded")
+    for image in ("image-spaced", "image-backslashed"):
+        with subtests.test(image=image):
+            expect(page.locator(f"#{image}")).to_have_js_property("naturalWidth", 13)
 
 
 def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
@@ -69,20 +85,3 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     # An upload is checked by its signature alone, so a file cut short after it is a
     # file delivery still serves.
     assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None
-
-
-@pytest.mark.parametrize("src", [" page/image.svg ", r"page\image.svg"])
-def test_image_reference_capture_matches_browser_delivery(browser, serve, src):
-    source = leaf_page(
-        "Image reference",
-        f'<h1 id="title">Image</h1><img id="image" src="{src}" alt="Image">',
-    )
-    url = serve(
-        source,
-        packages=(),
-        page_files={
-            "image.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="7"/>'
-        },
-    )
-    page = open_page(browser, url)
-    expect(page.locator("#image")).to_have_js_property("naturalWidth", 13)

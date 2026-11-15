@@ -72,7 +72,7 @@ customElements.define(
       style.textContent = `
       :host { display:block; height:560px; container-type:inline-size; }
       .workspace { height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) auto;
-        gap:12px; padding:12px; border:1px solid var(--rule); border-radius:8px; }
+        gap:12px; padding:12px; border:1px solid var(--lf-rule); border-radius:8px; }
       .toolbar,.compose { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
       .body { display:grid; grid-template-columns:minmax(0,12rem) minmax(0,1fr); gap:16px; min-height:0; }
       /* The index, each queue in it, and the reader scroll on their own within the
@@ -94,7 +94,7 @@ customElements.define(
       .index li > button:last-child:not(:first-child) { width:auto; }
       .reader > div { margin-bottom:16px; }
       .compose input { flex:1; min-width:8rem; }
-      .counts { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+      .counts { color:var(--lf-muted); font-size:12px; font-variant-numeric:tabular-nums; }
       @container (width < 500px) {
         .body { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(14rem,1fr) minmax(0,1fr); gap:8px; }
         .index { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); }
@@ -122,7 +122,7 @@ customElements.define(
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
         ["on_user", "on_agent", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
+          const heading = offer("h4", "", ["On Me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -309,12 +309,7 @@ customElements.define(
             const node = offer("li");
             const open = offerAction("word", "");
             open.addEventListener("click", () => void queueActions.open(key));
-            const done = offerAction("word", "", "Done");
-            done.addEventListener("click", () => {
-              this.indexOrder.release();
-              void queueActions.done(key);
-            });
-            row = { node, open, done };
+            row = { node, open };
             this.queueRows.set(identity, row);
           }
           if (!item) {
@@ -322,7 +317,7 @@ customElements.define(
             return row.node;
           }
           keepsText(row.open, `Open ${queueTitle(item)}`);
-          setChildren(row.node, item.offers.done ? [row.open, row.done] : [row.open]);
+          setChildren(row.node, [row.open]);
           return row.node;
         });
         setChildren(list, rows);

@@ -9,7 +9,6 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from .events import retractions
 from .obligations import page_obligation_readings
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
@@ -67,5 +66,5 @@ def read_document(
         passages=passages,
         items=items,
         within=page.within,
-        floors=retractions(events, revision),
+        floors=page.floors,
     )

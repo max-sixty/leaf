@@ -12,11 +12,13 @@ from browser.test_widget_quality import (
 )
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
+from interact_support import wait_for
 from known_widget_findings import KNOWN, PACKAGES
 from model_folds import leaf_page
 from playwright.sync_api import expect
 
 from leaf import cli as cli_model
+from leaf import event_log
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 
@@ -130,7 +132,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
             INITIAL_DRAWING_PAGE,
             head='<link rel="stylesheet" href="/page/theme.css">'
             + (
-                "<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+                "<style>:root { --lf-sans: Georgia, serif; --lf-mono: Courier, monospace; }</style>"
                 if width == 390
                 else ""
             ),
@@ -155,7 +157,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         page.unroute("**/leaf.js")
         boot.pop().continue_()
         wait_until_ready(page)
-        expect(page.locator('input[aria-label="Title"]')).to_have_value(title)
+        expect(page.get_by_role("textbox", name="Title")).to_have_value(title)
         expect(page.locator("lf-playground-output")).to_contain_text(title)
         assert page.locator(".margin-entry-gallery-face").count() == 44
         assert page.locator(".margin-entry-gallery-item").evaluate_all(
@@ -171,6 +173,18 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         title = "A longer title that wraps the actual instruction in a phone column"
         page.get_by_role("textbox", name="Title").fill(title)
         page.get_by_role("radio", name="Bold", exact=True).check()
+        # The blur records the title and the press then records Bold; the press's
+        # record waits for the first's answer, so a reload before the log holds it
+        # leaves it unsent.
+        wait_for(
+            lambda: [
+                event["detail"]["values"]
+                for event in event_log.read_events(serve.page_dir)
+                if event.get("action") == "tune"
+            ],
+            lambda tunes: tunes and tunes[-1]["tone"] == "bold",
+            failure="the press on Bold was never recorded",
+        )
         first_and_upgraded(lambda: page.reload(wait_until="commit"), title)
         expect(page.get_by_role("radio", name="Bold", exact=True)).to_be_checked()
         assert page.locator("#drawing").evaluate("host => host.values.title") == title
@@ -178,3 +192,38 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
+    """A generated view needs its first box; an equal reserved box is a control."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-first-box"],
+    )
+    assert made.exit_code == 0, made.output
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-first-box"]["x-example"] = (
+        '<lf-first-box id="moving"></lf-first-box>'
+        '<lf-first-box id="reserved"></lf-first-box>'
+    )
+    registry_path.write_text(json.dumps(registry))
+    (package / "defaults.css").write_text(
+        "lf-first-box { display: block; } #reserved { block-size: 40px; }"
+    )
+    (package / "widgets/lf-first-box.js").write_text("""\
+import {LeafElement, html} from "/runtime/widget-api.js";
+customElements.define("lf-first-box", class extends LeafElement {
+  render() { return html`<div style="block-size:40px">Drawn view</div>`; }
+});
+""")
+    findings = [
+        finding
+        for finding in widget_findings(browser.unwatched, package)
+        if finding.code == "keeps-first-box"
+    ]
+    assert {finding.at for finding in findings} == {"<lf-first-box id=moving>"}
+    assert {finding.values["layout"] for finding in findings} == {"column", "workspace"}
+    assert all(finding.values["first"]["height"] == 0 for finding in findings)
+    assert all(finding.values["now"]["height"] == 40 for finding in findings)

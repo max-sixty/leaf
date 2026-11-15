@@ -1,6 +1,5 @@
 """CLI, plugin payload, layer, and customization tests."""
 
-import ast
 import json
 import os
 import re
@@ -15,7 +14,6 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
-    ROOT,
     STATED_TIMEOUT,
     add_test_widget,
     check,
@@ -25,6 +23,7 @@ from interact_support import (
     publish,
     vendored_at_another_protocol,
 )
+from model.test_interact_layer import PLAIN_PAGE, layer_files, layer_files_of_revision
 
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -32,12 +31,13 @@ from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import layer as layer_model
 from leaf import packages as packages_model
+from leaf.registry.contract import stamp_grammars
 from leaf.registry.storage import (
     layer_record,
-    layer_widgets,
     load_registry,
     selected,
 )
+from leaf.revisioning import activate_source
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -158,263 +158,6 @@ def test_the_launcher_installs_quietly_with_an_empty_cache(tmp_path):
     assert (
         "Build and run interactive pages a session shares with its user." in cold.stdout
     )
-
-
-def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
-    """Each of these has one owner in the suite, and the owner is what ends it.
-
-    A process, a browser, and a directory short enough to hold a socket: what a test
-    gets by asking for the fixture is a teardown, and what it gets by calling the
-    primitive itself is a resource the run has no way to take back — a server still
-    serving after the test that started it, a browser held for the rest of the
-    worker, a directory under a root neither sweep walks. A fixture cannot stop a
-    test making its own, so the call is read for here instead, which is the only
-    place the rule can be enforced rather than written down.
-
-    A new exception is a line in this list naming the file it belongs to and the
-    reason, not a call that quietly joins the others.
-
-    The end of the loan is read for too. A page or context the `browser` fixture
-    made is closed by that fixture, after it has read what the page reported; a
-    close where the test ends with it does the same work a step early, and the
-    reading it cuts short is its own. The exception is a page that keeps making
-    the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "Browser errors").
-    """
-    closes_to_stop_a_repeating_fault = {
-        "test_a_website_session_reference_survives_a_failed_first_read",
-        "test_a_malformed_first_state_keeps_interaction_unresolved",
-    }
-    # What hands a test something the browser fixture will close: the fixtures built
-    # on it, and `opened_tab`, whose tab is made readable and so reports into the
-    # collector that fixture reads.
-    lending = {"browser", "iphone", "held_events", "one_user", "opened_tab"}
-    owners = {
-        "Popen": ("spawn", {"conftest.py"}),
-        "mkdtemp": ("socket_dir", {"interact_support.py"}),
-        # The cached Codex schema helper in conftest.py closes its output
-        # directory with a context manager before returning the schemas.
-        "TemporaryDirectory": ("socket_dir", {"interact_support.py", "conftest.py"}),
-        "launch": ("browser, iphone", {"conftest.py"}),
-    }
-    bypassed = []
-    for path in sorted((ROOT / "tests").rglob("*.py")):
-        named = path.relative_to(ROOT / "tests").as_posix()
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            called = (
-                node.func.attr
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                else None
-            )
-            if (
-                isinstance(node, ast.Call)
-                and called in owners
-                and named not in owners[called][1]
-            ):
-                owner = owners[called][0]
-                bypassed.append(f"{named}:{node.lineno} {called} — {owner} owns it")
-        for function in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
-            if function.name in closes_to_stop_a_repeating_fault:
-                continue
-            # A fixture's own teardown is the owner ending what it lent. Read what
-            # the decorator calls, not its whole text, which also carries a
-            # `parametrize` whose ids can say "fixture".
-            if any(
-                ast.unparse(d).split("(")[0].endswith("fixture")
-                for d in function.decorator_list
-            ):
-                continue
-            # What the fixture owns is what came from it, however far the value
-            # travelled and whatever the function was handed it as:
-            # `host, app = open_snapshot_app(browser, page_dir)` hands back a page
-            # as surely as `browser.new_page()` does, `browser, held = held_events`
-            # hands over the browser itself, and `for tab in (first, second)` walks
-            # pages. A list of the spellings that count would read some and miss
-            # the next, so the names are followed until nothing new is reached.
-            bindings = []
-            for node in ast.walk(function):
-                if isinstance(node, ast.Assign):
-                    bindings.append((node.value, node.targets))
-                elif isinstance(node, ast.For):
-                    bindings.append((node.iter, [node.target]))
-                elif isinstance(node, ast.With):
-                    bindings += [
-                        (item.context_expr, [item.optional_vars])
-                        for item in node.items
-                        if item.optional_vars is not None
-                    ]
-            lent = set(lending)
-            while True:
-                reached = {
-                    name.id
-                    for value, targets in bindings
-                    if lent & {n.id for n in ast.walk(value) if isinstance(n, ast.Name)}
-                    for target in targets
-                    for name in ast.walk(target)
-                    if isinstance(name, ast.Name)
-                }
-                if reached <= lent:
-                    break
-                lent |= reached
-            # Only where the test is finished with the page: anywhere in a `finally`,
-            # which is the end of the block the page was used in, and the function's
-            # last line, followed down through a block it ends on. A close written
-            # anywhere else is the gesture under test — a second tab shut to show
-            # what the first one still holds — and the assertions after it are what
-            # read it.
-            endings = [
-                statement
-                for node in ast.walk(function)
-                if isinstance(node, ast.Try)
-                for final in node.finalbody
-                for statement in ast.walk(final)
-            ]
-            last = function.body[-1]
-            while isinstance(last, (ast.For, ast.If, ast.With)):
-                last = last.body[-1]
-            endings.append(last)
-            for node in endings:
-                if not isinstance(node, ast.Expr):
-                    continue
-                ending = ast.unparse(node)
-                if ending.endswith(".close()") and ending[: -len(".close()")] in lent:
-                    bypassed.append(
-                        f"{named}:{node.lineno} {ending} — the browser fixture does"
-                    )
-    assert not bypassed, bypassed
-
-
-def test_a_wait_takes_the_suites_deadline():
-    """A wait in the suite bounds a hang; it does not time the work it waits for.
-
-    A literal deadline is sized to how long the work took where it was written, and
-    a busy runner takes many times that, so a correct product fails the test there
-    (tests/AGENTS.md, "Functional results do not depend on execution speed").
-    A Python-side wait takes `STATED_TIMEOUT`, or a constant derived from it. A
-    browser wait takes `SERVED_TIMEOUT_MS`, which `render_harness` makes the default
-    of every Playwright wait and `expect` that names none, or `HANDOVER_DEADLINE_MS`
-    where it spans a page handover. So each bound is set in one place. A wait whose
-    length is its subject names that value where it is defined, which keeps it out
-    of this check without a list of exceptions here.
-
-    Read are every `timeout` or `timeout_ms` a call passes or a helper defaults;
-    the deadline a thread, future, event or socket takes first, and a page's
-    default deadline; and a deadline a local loop computes from `monotonic()`. A
-    zero timeout asks without waiting and is left alone. A sleep
-    (`wait_for_timeout`) is a pause or an absence window, not a deadline.
-    """
-    deadline_names = {"timeout", "timeout_ms"}
-    deadline_first = {
-        "join",
-        "result",
-        "set_default_navigation_timeout",
-        "set_default_timeout",
-        "settimeout",
-        "wait",
-    }
-
-    def literal(node) -> bool:
-        if isinstance(node, ast.BinOp):
-            return literal(node.left) and literal(node.right)
-        return (
-            isinstance(node, ast.Constant)
-            and type(node.value) in (int, float)
-            and node.value != 0
-        )
-
-    def called(func) -> str | None:
-        return (
-            func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
-        )
-
-    def defaults(arguments):
-        positional = arguments.posonlyargs + arguments.args
-        yield from zip(
-            positional[len(positional) - len(arguments.defaults) :],
-            arguments.defaults,
-            strict=True,
-        )
-        yield from zip(arguments.kwonlyargs, arguments.kw_defaults, strict=True)
-
-    fixed = []
-    for path in sorted((ROOT / "tests").rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-                computed = (
-                    isinstance(node.left, ast.Call)
-                    and called(node.left.func) == "monotonic"
-                    and literal(node.right)
-                )
-            elif isinstance(node, ast.Call):
-                computed = any(
-                    keyword.arg in deadline_names and literal(keyword.value)
-                    for keyword in node.keywords
-                ) or (
-                    called(node.func) in deadline_first
-                    and isinstance(node.func, ast.Attribute)
-                    and bool(node.args)
-                    and literal(node.args[0])
-                )
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-                computed = any(
-                    argument.arg in deadline_names
-                    and default is not None
-                    and literal(default)
-                    for argument, default in defaults(node.args)
-                )
-            else:
-                continue
-            if computed:
-                fixed.append(
-                    f"{path.relative_to(ROOT)}:{node.lineno} "
-                    + ast.unparse(node).split("\n", 1)[0]
-                )
-    assert not fixed, (
-        "these waits fix their own deadline; bound them with STATED_TIMEOUT "
-        "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
-        f"HANDOVER_DEADLINE_MS (leaf.render_checks): {fixed}"
-    )
-
-
-def test_no_test_ends_a_process_with_sigkill():
-    """SIGKILL gives a process no chance to end what it started, so a test ends one
-    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture
-    sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
-    passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
-    or KILL in a command a test runs."""
-    shell_kill = re.compile(r"\bkill\s+-(?:9|KILL|SIGKILL)\b")
-    killed = []
-    for path in sorted((ROOT / "tests").rglob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if (
-                (isinstance(node, ast.Attribute) and node.attr == "SIGKILL")
-                or (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "kill"
-                    and not node.args
-                )
-                or (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr in {"kill", "killpg", "send_signal"}
-                    and node.args
-                    and isinstance(node.args[-1], ast.Constant)
-                    and node.args[-1].value == 9
-                )
-                or (
-                    isinstance(node, ast.Constant)
-                    and isinstance(node.value, str)
-                    and shell_kill.search(node.value)
-                )
-            ):
-                killed.append(
-                    f"{path.relative_to(ROOT / 'tests')}:{node.lineno} "
-                    + ast.unparse(node)[:80]
-                )
-    assert not killed, killed
 
 
 def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
@@ -621,72 +364,6 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     ).read_text() == "lf-installed { color: purple; }\n"
 
 
-def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    package = Path("packages/risk-notes")
-
-    created = runner.invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-risk-note"],
-    )
-
-    assert created.exit_code == 0, created.output
-    package_root = tmp_path / package
-    registry = json.loads((package_root / "registry.json").read_text())
-    entry = registry["lf-risk-note"]
-    assert entry["description"]
-    assert entry["x-content"] == "markup"
-    assert entry["x-upgrade"] is True
-    assert entry["x-verbatim"] is True
-    assert entry["x-example"] == (
-        '<lf-risk-note id="risk-note"><strong>Risk note</strong> The retry budget '
-        "is three attempts before manual review.</lf-risk-note>"
-    )
-    assert (package_root / "defaults.css").read_bytes() == b""
-    module = (package_root / "widgets" / "lf-risk-note.js").read_text()
-    checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
-    assert checked.exit_code == 0, checked.output
-
-    page = tmp_path / "page"
-    initialized = runner.invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            "--package",
-            "diagram",
-            "--package",
-            str(package),
-            str(page),
-        ],
-    )
-    assert initialized.exit_code == 0, initialized.output
-    layer_4 = layer_record(page)
-    assert layer_4 is not None
-    widgets = selected(layer_4, page).directory_files["widgets"]
-    assert widgets["lf-risk-note.js"].decode() == module
-    (page / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-risk-note id="release-risk"><strong>Release risk'
-            "</strong> The retry budget is three attempts before manual review."
-            "</lf-risk-note>",
-        )
-    )
-    result = check(page)
-    assert result.exit_code == 0, result.output
-    # Rendering owns a Playwright loop; a session browser may already own this
-    # process's loop when the full suite reaches this CLI integration.
-    rendered = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(page), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
-
-
 def test_package_writers_only_wait_for_contract_destinations_they_share(
     tmp_path, monkeypatch, spawn
 ):
@@ -718,8 +395,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, packages
-real_lock = packages.flocked
+from leaf import cli, locations
+real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
     with open(path, "a+b") as probe:
@@ -729,7 +406,7 @@ def observed(path):
             print("waiting on shared destination", flush=True)
     with real_lock(path) as held:
         yield held
-packages.flocked = observed
+locations.flocked = observed
 cli.cli.main(args=sys.argv[1:], standalone_mode=False)
 """
     routes = [package, alias, registry_alias]
@@ -835,7 +512,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
     assert theme.index("lf-callout {") < theme.index("@layer lf-overrides")
-    assert load_registry(page)["lf-callout"] == entry
+    # The package's entry, as composition completes it.
+    assert (
+        load_registry(page)["lf-callout"]
+        == stamp_grammars({"lf-callout": entry})["lf-callout"]
+    )
     assert (
         "Use them for short notices."
         in layer.vocabulary.instructions["author.md"].decode()
@@ -861,53 +542,6 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     result = check(page)
     assert result.exit_code == 0, result.output
-
-
-def test_page_init_vendors_an_explicit_package_without_privileging_it(
-    tmp_path, monkeypatch
-):
-    """A bundled vocabulary is selected and removed by the same ordinary layer path."""
-    monkeypatch.chdir(tmp_path)
-    plain = tmp_path / "plain"
-    composed = tmp_path / "composed"
-    runner = CliRunner()
-    plain_result = runner.invoke(cli_model.cli, ["page", "init", str(plain)])
-    packaged_result = runner.invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", str(composed)],
-    )
-    assert plain_result.exit_code == 0, plain_result.output
-    assert packaged_result.exit_code == 0, packaged_result.output
-    plain_registry = load_registry(plain)
-    packaged_registry = load_registry(composed)
-    assert "lf-diagram" not in plain_registry
-    assert "lf-activity" in plain_registry
-    assert "lf-diagram" in packaged_registry
-    assert plain_registry["$layer"]["packages"] == []
-    assert packaged_registry["$layer"]["packages"] == ["diagram"]
-    diagram = "widgets/lf-diagram.js"
-    layer_6 = layer_record(plain)
-    assert layer_6 is not None
-    assert diagram not in layer_widgets(layer_6, plain)
-    layer_7 = layer_record(composed)
-    assert layer_7 is not None
-    assert diagram in layer_widgets(layer_7, composed)
-    revendor = runner.invoke(cli_model.cli, ["page", "init", str(composed)])
-    assert revendor.exit_code == 0, revendor.output
-    assert load_registry(composed)["$layer"]["packages"] == ["diagram"]
-    layer_8 = layer_record(composed)
-    assert layer_8 is not None
-    assert diagram in layer_widgets(layer_8, composed)
-    removed = runner.invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(composed)]
-    )
-    assert removed.exit_code == 0, removed.output
-    removed_registry = load_registry(composed)
-    assert removed_registry["$layer"]["packages"] == []
-    assert "lf-diagram" not in removed_registry
-    layer_9 = layer_record(composed)
-    assert layer_9 is not None
-    assert diagram not in layer_widgets(layer_9, composed)
 
 
 def _replying_after(page, server, edit):
@@ -945,7 +579,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
-    assert f"leaf page init {claimed}" in replied.stderr
+    assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -966,6 +600,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             str(claimed),
             "--out",
             str(tmp_path / "export.html"),
+            "--runtime",
         ],
         capture_output=True,
         text=True,
@@ -984,8 +619,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             check=False,
         )
         assert ran.returncode == 0, ran.stderr
-        assert "re-initialized" not in ran.stderr
-        assert "older page protocol" not in ran.stderr
+        assert "re-initialized" not in ran.stdout + ran.stderr
+        assert "older page protocol" not in ran.stdout + ran.stderr
     assert fetch(f"{server}/api/state")[0] == 200
 
 
@@ -1039,3 +674,169 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
     assert layer_3["protocol"] == vendored
     assert vendoring_model.renew_layer(claimed, None, command=True) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
+
+
+def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_module(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-unfinished")
+
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-unfinished"]["x-upgrade"] = True
+    registry["lf-unfinished"]["x-verbatim"] = True
+    registry_path.write_text(json.dumps(registry))
+
+    for args in (
+        ["package", "check", ".leaf"],
+        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
+    ):
+        result = runner.invoke(cli_model.cli, args)
+        assert result.exit_code != 0
+        assert "widgets/lf-unfinished.js" in result.output
+
+
+def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
+    """An installed package is a bundled one kept somewhere else.
+
+    The store holds the package contract and none of the rest of the author's
+    working directory, and the page reads the store rather than the source, which
+    is gone by the time it is vendored.
+    """
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    source = tmp_path / "src" / "callout"
+    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    add_test_widget(source, "lf-callout", upgrade=True)
+    (source / "README.md").write_text("How to work on this package.\n")
+    (source / "spec").mkdir()
+    (source / "spec" / "case.txt").write_text("the author's own test\n")
+
+    installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+
+    assert installed.exit_code == 0, installed.output
+    stored = Path(json.loads(installed.output)["package"])
+    assert layer_model.named_package("callout") == stored
+    assert sorted(path.name for path in stored.iterdir()) == [
+        "defaults.css",
+        "instructions",
+        "overrides.css",
+        "registry.json",
+        "runtime",
+        "vendor",
+        "widgets",
+    ]
+
+    shutil.rmtree(source)
+    page = tmp_path / "page"
+    vendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "callout", str(page)]
+    )
+
+    assert vendored.exit_code == 0, vendored.output
+    registry = registry_storage.load_registry(page)
+    assert registry["$layer"]["packages"] == ["callout"]
+    assert "lf-callout" in registry
+    assert "/widgets/lf-callout.js" in layer_files(page)
+
+
+def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert initialized.exit_code == 0, initialized.output
+    existing = add_test_widget(package, "lf-existing")
+    instructions = package / "instructions" / "author.md"
+    instructions.write_text("Keep this package instructions.\n")
+    helper = package / "runtime" / "existing-helper.js"
+    helper.write_text("export const existing = true;\n")
+    theme = (package / "overrides.css").read_bytes()
+
+    result = runner.invoke(
+        cli_model.cli,
+        ["package", "init", ".leaf", "--widget", "lf-added-note"],
+    )
+
+    assert result.exit_code == 0, result.output
+    registry = json.loads((package / "registry.json").read_text())
+    assert registry["lf-existing"] == existing
+    assert "lf-added-note" in registry
+    assert (package / "overrides.css").read_bytes() == theme
+    assert instructions.read_text() == "Keep this package instructions.\n"
+    assert helper.read_text() == "export const existing = true;\n"
+
+
+def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
+    tmp_path, monkeypatch
+):
+    """A saved version keeps the package it was written with: dropping the package
+    from the selection leaves its copy for the revisions that name it, and an edit to
+    the package reaches them at a new address, never under one a browser cached, and
+    as a new generation, which an open document reloads on."""
+    from leaf.revision_artifact import read_artifact
+    from leaf.runtime_selection import execution_identity
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "widgets").mkdir(parents=True)
+    (custom / "widgets" / "helper.js").write_text("export const value = 1;\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    first = execution_identity(read_artifact(page, 1))
+    layer_5 = registry_storage.layer_record(page)
+    assert layer_5 is not None
+    generation = layer_5["generation"]
+
+    (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    assert execution_identity(read_artifact(page, 1)) != first
+    layer_6 = registry_storage.layer_record(page)
+    assert layer_6 is not None
+    assert layer_6["generation"] != generation
+
+    cleared = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--no-packages", str(page)]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert registry_storage.layer_packages(page) == []
+    assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
+
+
+def test_package_instructions_do_not_change_a_revisions_browser_address(
+    tmp_path, monkeypatch
+):
+    from leaf.revision_artifact import read_artifact
+    from leaf.runtime_selection import executing
+
+    monkeypatch.chdir(tmp_path)
+    custom = tmp_path / "custom"
+    (custom / "instructions").mkdir(parents=True)
+    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
+    page = tmp_path / "page"
+    init = ["page", "init", "--package", "./custom", str(page)]
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    (page / "index.html").write_text(PLAIN_PAGE)
+    assert activate_source(page).error is None
+    artifact = read_artifact(page, 1)
+    record = json.loads(artifact.manifest)["layer"]
+    first_layer = registry_storage.selected(record, page)
+    first = executing(artifact)
+
+    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
+    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
+    second_layer = registry_storage.selected(record, page)
+    second = executing(artifact)
+
+    assert second_layer.fingerprint != first_layer.fingerprint
+    assert second.package_copies != first.package_copies
+    assert second.resources == first.resources
+    assert second.identity == first.identity

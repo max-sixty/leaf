@@ -16,7 +16,6 @@ from ..thread_context import thread_memberships
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .queues import queues
-from .tail import basis_key
 from .thread import browser_thread
 from .work import WorkState, work_state
 
@@ -128,8 +127,8 @@ def browser_state(
 
     Documents and the append-only log remain the authorities. Each of `readings`
     is one revision's document under the registry it is read in. This object is an
-    ephemeral transport projection, keyed by the exact log sequence and revisions
-    from which it was read, which `basis.key` names (`tail.basis_key`). `revisions`
+    ephemeral transport projection of the exact log sequence and revisions from
+    which it was read; the page server names what it serves (`tail.answer`). `revisions`
     reads a revision a gesture names that is not among `readings`; without it every
     such revision must be there.
     """
@@ -152,16 +151,11 @@ def browser_state(
     withdrawn = durable.log.withdrawn
     threads = durable.threads
     undo_reading = UndoReading(
-        events,
-        threads=threads,
-        withdrawn=withdrawn,
-        absorbed=active_page.projection.absorbed,
+        events, withdrawn=withdrawn, absorbed=active_page.projection.absorbed
     )
     workflows = work.workflows
     todos = durable.page_todos(work.activity["todos"])
-    agent_todos = [
-        todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
-    ]
+    open_todos = [todo for todo in todos if todo["state"] == "open"]
 
     words = GestureWords(events, active_registry, revisions or readings.__getitem__)
     views = {}
@@ -188,7 +182,7 @@ def browser_state(
         # the page's updates', served once: a list row names a
         # record by its id.
         items = viewed.all_obligations["all"] + durable.updates["all"]
-        _apply_thread_attention(items, workflows, thread["threads"], agent_todos)
+        _apply_thread_attention(items, workflows, thread["threads"], open_todos)
         documents[revision] = reading
         projection = reading.projection
         published_at = next(
@@ -201,7 +195,7 @@ def browser_state(
         )
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
-            "document": browser_document(reading, revision),
+            "document": browser_document(page),
             "thread": thread,
             "obligations": items,
             "reports": canonical_reports(projection),
@@ -228,10 +222,7 @@ def browser_state(
     else:
         page_history = {}
     wire = {
-        "basis": {
-            "through_seq": through_seq,
-            "key": basis_key(through_seq, active_revision, view_revisions),
-        },
+        "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
         "todos": todos,
@@ -256,16 +247,11 @@ def browser_state(
 
 
 def project_browser_state(
-    context: PageRead,
-    view_revision: int | None = None,
-    *,
-    include_active_view: bool = True,
+    context: PageRead, view_revision: int | None = None
 ) -> tuple[dict, BrowserReading] | None:
-    """Project only the documents one browser reading can consume.
-
-    A normal state needs the shown and active revisions. Comparison bases and
-    historical gesture words use the same context at the requested log boundary.
-    """
+    """Project only the documents one browser reading can consume: the shown and
+    active revisions. Historical gesture words use the same context at the requested
+    log boundary."""
     active = context.active
     if active is None:
         return None
@@ -280,7 +266,7 @@ def project_browser_state(
         active_revision,
         context.presence,
         active,
-        wanted if include_active_view else {requested_revision},
+        wanted,
         context.now,
         context.live_stream,
         context.revision,

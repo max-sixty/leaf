@@ -33,7 +33,6 @@ from playwright.sync_api import expect
 from render_harness import (
     FEATURE_GALLERY,
     OPEN_THREAD_COUNT,
-    PANEL_THREAD,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -47,6 +46,7 @@ from render_harness import (
     open_threads,
     page_comment,
     panel_menu,
+    resized,
     root_overflow,
     select,
     sending,
@@ -64,6 +64,7 @@ from leaf import data as data_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
@@ -74,8 +75,8 @@ from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
-from leaf_dev.browser import panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -105,6 +106,9 @@ def open_count(page):
 # The theme's paper, light and dark, as the browser reports a background.
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
+# One runtime draws one chrome root; the boxes it nests, such as the preview's stage
+# (preview.js), wear the class too, so the sheet dresses them wherever they stand.
+CHROME_ROOT = ".lf-chrome:not(.lf-chrome .lf-chrome)"
 
 
 # The module-scoped build and host are one shared setup, so they belong to one
@@ -318,17 +322,39 @@ def test_product_pages_select_the_sources_packages(site):
         ], page.name
 
 
-@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+@pytest.mark.parametrize("name", ["index", "using", "how-it-works"])
 def test_published_product_page_renders(site, browser, name):
     """The render gate passes the published product pages: the landing page, a
-    reference page of prose, tables, code and a sample, and the page that holds
-    every widget the docs use. The other routes share their sheet and parts, and
+    guide of prose, tables and a live sample, and the page that holds every widget
+    the docs use. The other routes share their sheet and parts, and
     `test_every_product_route_is_a_live_leaf_page` opens each of them."""
     product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(map(str, failures))
+
+
+def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
+    """The data-structures reference's tables, generated from the schemas, read at a
+    phone's width: on a narrow column each field's description takes the row's whole
+    width under its name, type and flag, so no table scrolls sideways or squeezes a
+    cell to a word a line (`squeezedBoxes`), as 31 of them did with four columns side
+    by side. At 640px the column is just wide enough for the four-column table, which
+    has to fit there too."""
+    page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
+    opened(page, f"{hosted}/data-structures/")
+    wait_until_ready(page)
+    for width in (640, 600, 360):
+        with subtests.test(width=width):
+            resized(page, width, PHONE["height"])
+            scrolling = page.evaluate(
+                "() => [...document.querySelectorAll('table')]"
+                ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
+                ".map((table) => table.closest('section').id)"
+            )
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
+            assert (scrolling, squeezed) == ([], [])
 
 
 def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeypatch):
@@ -832,6 +858,28 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     )
 
 
+# Counts the supervisor's probe rounds in the page: each one asked, and each one
+# handled, which a microtask queued from its answer marks once the round's own
+# continuation, which acts on the answer, has run. The probe asks for `registry.json`
+# past the cache, and the runtime's own read of the same address doesn't. Each probe
+# also carries a header naming it, since a route sees the two requests alike.
+COUNT_PROBES = """
+window.__lfProbes = {asked: 0, handled: 0};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  if (!String(input).includes("registry.json") || init.cache !== "no-store")
+    return nativeFetch(input, init);
+  window.__lfProbes.asked += 1;
+  const headers = new Headers(init.headers);
+  headers.set("Leaf-Test-Probe", "1");
+  const answer = nativeFetch(input, {...init, headers});
+  const handled = () => queueMicrotask(() => { window.__lfProbes.handled += 1; });
+  answer.then(handled, handled);
+  return answer;
+};
+"""
+
+
 def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     served_example, browser
 ):
@@ -844,22 +892,39 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
+    # The supervisor asks again on its clock, so the test runs that clock forward.
+    page.clock.install()
     # One uncaught error before presentation, which is every startup fault this
-    # supervisor watches for that the page can still come up without.
-    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 50);")
-    probes = []
-    page.on("request", lambda request: probes.append(request.url))
+    # supervisor watches for that the page can still come up without. A listener
+    # throws it, because a timer's callback under the installed clock throws without
+    # firing the page's `error` event, and the supervisor would never start.
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded', () => {"
+        " throw new Error('planted fault'); });"
+    )
+    page.add_init_script(COUNT_PROBES)
 
     page.goto(url, wait_until="load")
     notice = page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    # The supervisor took the fault, so its probe has been asking.
+    expect(page.locator("html")).to_have_attribute(
+        "data-lf-startup-error", re.compile("planted fault")
+    )
     expect(notice).to_have_count(0)
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
-    before = sum("registry.json" in probe for probe in probes)
-    page.wait_for_timeout(3000)
-    assert sum("registry.json" in probe for probe in probes) == before
+    # The supervisor sets the timer for its next round only once the last round's
+    # answer lands, so the clock runs a second at a time, each step taken with no round
+    # in flight.
+    idle = "() => window.__lfProbes.asked === window.__lfProbes.handled"
+    page.wait_for_function(idle)
+    before = page.evaluate("window.__lfProbes.asked")
+    for _ in range(3):
+        page.clock.run_for(1000)
+        page.wait_for_function(idle)
+    assert page.evaluate("window.__lfProbes.asked") == before
     consume_browser_errors(page, "planted fault")
 
 
@@ -871,20 +936,15 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     round learned is no longer worth a navigation: it would take a working page out
     from under them.
 
-    Both halves are planted, because the two the page would produce cannot be ordered
-    against each other here: the supervisor's probe and the runtime's own widget read
-    are the same address, so holding one holds the other and nothing presents. The
-    fault and `data-lf-upgraded` are the supervisor's two inputs, and the test lands
-    the second one while its first round is still asking.
+    The fault is planted, and the route holds the supervisor's first round until the
+    page has upgraded. The runtime's own read of the registry is the same address, but
+    only the probe carries `COUNT_PROBES`'s header, so that read goes through and the
+    page comes up on its own while the round is still asking.
     """
     _, url = served_example("triage-board")
     page = browser.new_page()
-    page.add_init_script(
-        """
-        setTimeout(() => { throw new Error('planted fault'); }, 10);
-        setTimeout(() => document.body?.setAttribute('data-lf-upgraded', '1'), 600);
-        """
-    )
+    page.add_init_script("setTimeout(() => { throw new Error('planted fault'); }, 10);")
+    page.add_init_script(COUNT_PROBES)
     documents = []
     page.on(
         "request",
@@ -897,7 +957,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     held = []
 
     def hold_the_first_round(route):
-        if held:
+        if held or "leaf-test-probe" not in route.request.headers:
             route.continue_()
         else:
             held.append(route)
@@ -912,9 +972,8 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     answered = held[0].request.response()
     assert answered and answered.status == 404, "the held round's answer never landed"
     # The round acts on its answer as it lands, so a replacement would be a navigation
-    # starting now. Nothing states that the round declined one; this is the absence.
-    page.wait_for_timeout(2000)
-
+    # already starting once the page has handled the round, the first it asked.
+    page.wait_for_function("() => window.__lfProbes.handled >= 1")
     assert len(documents) == 1, documents
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
@@ -1106,7 +1165,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         assert expected_title
         assert page.title() == expected_title, name
         expect(page.locator("h1")).to_have_text(heading(source))
-        expect(page.locator(".lf-chrome")).to_have_count(1)
+        expect(page.locator(CHROME_ROOT)).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
         expect(page.locator("main > .sitenote")).to_have_count(0)
@@ -1200,7 +1259,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:
@@ -1228,7 +1287,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     page = browser.new_page()
     page.goto(f"{hosted}/examples/", wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-chrome")).to_have_count(1)
+    expect(page.locator(CHROME_ROOT)).to_have_count(1)
     entries = page.locator(".example-catalog > li .example-link")
     assert entries.count() == len(expected)
     pairs = entries.evaluate_all(
@@ -1260,25 +1319,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             560,
         ]
 
-    developer_galleries = page.locator("#developer-galleries")
-    expect(developer_galleries).to_be_visible()
-    developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == {source.stem for source in published_pages()}
-    assert page.evaluate(
-        "() => Boolean(document.querySelector('#pages')"
-        ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
-        " & Node.DOCUMENT_POSITION_FOLLOWING)"
-    )
-    product_gallery = developer_galleries.locator("#product-gallery")
-    expect(product_gallery).to_contain_text("Core product gallery")
-    expect(product_gallery).to_contain_text("core interactions to try live")
-    expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
-    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
-    expect(threads_gallery).to_contain_text("Four live panel views")
-    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, browser):
@@ -1356,6 +1399,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
             expect(samples).to_have_count(3)
+            # A sample starts its page as it nears the window, and these stand in a
+            # shut tab.
+            render_checks_model.start_near_work(page)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:
@@ -1497,8 +1543,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             }"""
     )
     assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"]["through_seq"] == answer["through"]
-    assert set(answer["body"]["browser"]["views"]) == {"1"}
+    assert answer["body"]["document"]["revision"] == 1
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
@@ -1537,8 +1582,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(row).to_have_count(1)
     row.click()
     thread = page.locator(PANEL_THREAD)
-    expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
-    assert thread.locator(".lf-fp-quote[data-lf-detached]").count() == 0, (
+    expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")
+    assert thread.locator(".lf-thread-quote-head[data-lf-detached]").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1616,13 +1661,13 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect_open_threads(page, opened_with + 1)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
     thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
+    expect(thread.locator(".lf-thread-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg[data-lf-author=agent]")).to_have_count(0)
 
 

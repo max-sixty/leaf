@@ -2,14 +2,18 @@
 the notes that tell a screen reader of them."""
 
 import io
+import itertools
+import math
 import re
+import struct
+from collections import Counter
 
 import pytest
 from interact_support import append_carried_log_record
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageCms
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_cases_layout import page_at_rest
+from render_cases_layout import MARK, page_at_rest, token_colour
 from render_cases_navigation import (
     COMMENTED_LIST_PAGE,
     DIFF_PAGE,
@@ -25,9 +29,11 @@ from render_cases_navigation import (
 from render_harness import (
     INLINE_PAGE,
     PANEL,
+    RELEASE_FOCUS,
     accessible_details,
     comment_note,
     expect_comment_notes,
+    leaf_page,
     open_page,
     post_event,
     select,
@@ -42,6 +48,7 @@ from browser.navigation import (
     color_cue_markup,
 )
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -89,23 +96,38 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     assert fills["end"] == fills["rest"], fills
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+# A comment on the words of one line of the diff, whose syntax colours are elements of
+# the widget's shadow tree.
+DIFF_LINE_COMMENT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "Why the address?",
+    "anchor": {
+        "section": "patch",
+        "datum": '["gateway/limits.py","old",39]',
+        "quote": "return request.remote_addr",
+    },
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     request, serve, engine
 ):
-    """Native ranges paint nested syntax with the widget's local palette.
-
-    Root-only highlight selectors lose this paint in Firefox, which accepts
-    the rules but does not inherit highlight styles into descendants.
-    """
-    page = open_page(request.getfixturevalue(engine), serve(DIFF_PAGE))
+    """A comment's marks paint the syntax-coloured words of a shadow widget with the
+    palette set on its host: the elements holding the words, in the widget's shadow
+    tree, are the ones the marks' rules name, and they read the host's tokens."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(DIFF_PAGE, events=[DIFF_LINE_COMMENT])
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     widget = page.locator("#patch")
-    row = widget.locator("[data-line]").first
-    expect(row.locator("span").first).to_be_visible()
+    row = widget.locator("[data-line]").filter(has_text="return request.remote_addr")
+    expect(row).to_have_count(1)
     row.scroll_into_view_if_needed()
     widget.evaluate("""host => {
-      host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
-      host.style.setProperty('--mark-ink', 'light-dark(rgb(120, 0, 40), rgb(250, 200, 230))');
+      host.style.setProperty('--lf-mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
     }""")
     backgrounds = []
     for scheme in ("light", "dark"):
@@ -113,30 +135,413 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         paint = row.evaluate("""row => {
           const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
             'lf-pending', 'lf-react'];
-          const token = row.querySelector('span');
+          // The syntax-coloured element holding the comment's last word.
+          const words = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          let word = words.nextNode();
+          while (!word.data.includes('remote_addr')) word = words.nextNode();
+          const token = word.parentElement;
           const read = (node, name) => {
             const style = getComputedStyle(node, `::highlight(${name})`);
-            return {background: style.backgroundColor, decoration: style.textDecoration};
+            return {background: style.backgroundColor, color: style.color};
           };
-          return Object.fromEntries(names.map(name => [name, read(token, name)]));
+          // The theme's inks as a colour of the token's own would compute them there.
+          const ink = (property) => {
+            const probe = row.appendChild(document.createElement('span'));
+            probe.style.color = `var(${property})`;
+            const colour = getComputedStyle(probe).color;
+            probe.remove();
+            return colour;
+          };
+          return {
+            inks: {comment: ink('--lf-mark-ink-text'), draft: ink('--lf-mark-pending-text')},
+            ...Object.fromEntries(names.map(name => [name, read(token, name)])),
+          };
         }""")
+        inks = paint.pop("inks")
         for name, style in paint.items():
             assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
-            assert "underline" in style["decoration"], (scheme, name, style)
+        # The highlights that set the marked words' ink reach the token, in place of its
+        # syntax colour; hover and the open thread paint under the mark and leave the
+        # ink to it.
+        assert {name: paint[name]["color"] for name in ("lf-mark", "lf-react")} == {
+            "lf-mark": inks["comment"],
+            "lf-react": inks["comment"],
+        }, (scheme, inks, paint)
+        assert paint["lf-pending"]["color"] == inks["draft"], (scheme, inks, paint)
         backgrounds.append(paint["lf-mark"]["background"])
-        page.evaluate("CSS.highlights.delete('lf-mark')")
-        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
-        row.evaluate("""row => {
-          const range = new Range();
-          range.selectNodeContents(row);
-          CSS.highlights.set('lf-mark', new Highlight(range));
-        }""")
         marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        page.evaluate("""() => {
+          window.lfTestMark = CSS.highlights.get('lf-mark');
+          CSS.highlights.delete('lf-mark');
+        }""")
+        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        page.evaluate("CSS.highlights.set('lf-mark', window.lfTestMark)")
         assert ImageChops.difference(quiet, marked).getbbox(), (
             f"{engine} painted no highlight over nested syntax in {scheme}"
         )
-        page.evaluate("CSS.highlights.delete('lf-mark')")
     assert backgrounds == ["rgb(250, 160, 180)", "rgb(90, 50, 120)"]
+
+
+# A passage for each state a mark on words takes, and one nobody has said anything about.
+# Each state's words lie in one text node, the comment's inside a link.
+MARKED_PAGE = leaf_page(
+    "marked",
+    """
+<h1 id="t">Marked</h1>
+<p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
+<p id="kept">A line of prose someone reacted to with a token.</p>
+<p id="aimed">A line of prose the pointer comes to rest on.</p>
+<p id="stood">A line of prose whose thread the user opens.</p>
+<p id="drafted">A line of prose the user starts a comment on and then stops.</p>
+<p id="quiet">A line of prose nobody has said anything about.</p>
+""",
+)
+PASSAGES = {
+    "mark": ("said", "a link someone commented on"),
+    "reaction": ("kept", "someone reacted to"),
+    "pointed at": ("aimed", "the pointer comes to rest on"),
+    "open thread": ("stood", "whose thread the user opens"),
+    "draft": ("drafted", "the user starts a comment on"),
+    "unmarked": ("quiet", "nobody has said anything about"),
+}
+# A passage's words, the box they draw scrolled to the window's middle, clear of the
+# floating panel, and their element's colour.
+WORDS_BOX = """([id, words]) => {
+  const walker = document.createTreeWalker(document.getElementById(id), NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (!node.data.includes(words)) node = walker.nextNode();
+  node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
+  const range = new Range();
+  range.setStart(node, node.data.indexOf(words));
+  range.setEnd(node, node.data.indexOf(words) + words.length);
+  const b = range.getBoundingClientRect();
+  return {box: {x: Math.round(b.x), y: Math.round(b.y),
+                width: Math.round(b.width), height: Math.round(b.height)},
+          own: getComputedStyle(node.parentElement).color.match(/\\d+/g).slice(0, 3)
+            .map(Number)};
+}"""
+# About the least difference between two colours the eye tells apart, in CIELAB.
+SEEN_APART = 2.3
+_TO_LAB = ImageCms.buildTransform(
+    ImageCms.createProfile("sRGB"), ImageCms.createProfile("LAB"), "RGB", "LAB"
+)
+
+
+def _apart(one, other):
+    """How far apart two sRGB colours look: their distance in CIELAB, whose 8-bit form
+    holds L as an unsigned byte over 0–100 and a and b as signed bytes."""
+    lab = ImageCms.applyTransform(
+        Image.frombytes("RGB", (2, 1), bytes([*one, *other])), _TO_LAB
+    )
+    assert lab is not None
+    l1, a1, b1, l2, a2, b2 = struct.unpack("BbbBbb", lab.tobytes())
+    return math.hypot((l1 - l2) * 100 / 255, a1 - a2, b1 - b2)
+
+
+def _contrast(one, other):
+    """WCAG's contrast ratio between two sRGB colours."""
+
+    def luminance(colour):
+        linear = [
+            v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+            for v in (channel / 255 for channel in colour)
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    light, dark = sorted((luminance(one), luminance(other)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+def _drawn(page, passage):
+    """The ground behind a passage's words and the ink of their glyphs, as drawn, and
+    the colour the page gives those words: the commonest colour in the words' box, the
+    commonest of the pixels farthest from it, which are the cores of the strokes, and
+    their element's computed colour."""
+    words = page.evaluate(WORDS_BOX, list(passage))
+    box = words["box"]
+    shot = Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
+    raw = shot.tobytes()
+    counts = Counter(tuple(raw[i : i + 3]) for i in range(0, len(raw), 3))
+    ground = counts.most_common(1)[0][0]
+    far = {colour: math.dist(colour, ground) for colour in counts}
+    top = max(far.values())
+    ink = max((n, c) for c, n in counts.items() if far[c] >= 0.85 * top)[1]
+    return ground, ink, tuple(words["own"])
+
+
+def _point_at(page, passage):
+    box = page.evaluate(WORDS_BOX, list(passage))["box"]
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
+def _comment_on(passage, **fields):
+    """The user's comment on a passage's words, or with `token` their reaction to them."""
+    section, quote = passage
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": section, "quote": quote},
+        **fields,
+    }
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marked_words_are_seen_and_told_apart(request, serve, engine):
+    """A mark on words is the user's notice that somebody said something about them,
+    and each state a gesture puts it in is the answer to that gesture: the words the
+    pointer rests on, those of the thread the user opened, and those their draft is on.
+
+    The wash alone can't be that notice: --lf-mark composites to 1.13:1 over the light
+    paper, and no alpha of its hue reaches 1.5:1. So the words take the mark's ink, and
+    each state's paint, read off the drawn page in both schemes, is seen against the
+    words' own colour, keeps its words legible on its ground, and differs from every
+    other state's in its ground or its ink.
+
+    Read from screenshots rather than computed styles, because what a highlight
+    pseudo may carry is the browser's to decide, and a declaration that stopped
+    applying would say nothing."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            MARKED_PAGE,
+            events=[
+                _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
+                for n, state in enumerate(("mark", "pointed at", "open thread"))
+            ]
+            + [_comment_on(PASSAGES["reaction"], token="keep")],
+        ),
+    )
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 3"
+        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
+    )
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        drawn = {
+            state: _drawn(page, PASSAGES[state])
+            for state in ("mark", "reaction", "unmarked")
+        }
+
+        page.mouse.move(*_point_at(page, PASSAGES["pointed at"]))
+        page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0)")
+        drawn["pointed at"] = _drawn(page, PASSAGES["pointed at"])
+
+        page.mouse.click(*_point_at(page, PASSAGES["open thread"]))
+        wait_current_location(page, PASSAGES["open thread"][1])
+        page.mouse.move(0, 0)
+        page.wait_for_function("() => !CSS.highlights.get('lf-mark-hover')?.size")
+        drawn["open thread"] = _drawn(page, PASSAGES["open thread"])
+        # Out of the thread to its passage, then off the passage, so the card stands
+        # over nothing the next gesture aims at.
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+        box = page.evaluate(WORDS_BOX, list(PASSAGES["draft"]))["box"]
+        middle = box["y"] + box["height"] / 2
+        select(page, (box["x"] + 1, middle), (box["x"] + box["width"] - 1, middle))
+        page.locator(".lf-fab-input").click()
+        wait_for_pending_mark(page)
+        assert pending_text(page) == PASSAGES["draft"][1]
+        page.mouse.move(0, 0)
+        drawn["draft"] = _drawn(page, PASSAGES["draft"])
+        page.keyboard.press("Escape")
+        page.wait_for_function("() => !CSS.highlights.get('lf-pending')?.size")
+
+        # The control: words nobody marked come back in their own colour, so a reading
+        # of marked words that does is reading words the mark left alone.
+        _, ink, own = drawn.pop("unmarked")
+        assert _apart(ink, own) < SEEN_APART, (scheme, ink, own)
+        for state, (ground, words, own) in drawn.items():
+            assert _apart(words, own) >= 10, (
+                f"the {scheme} page's {state} words wear {words}, too near their own "
+                f"{own} for the user to see that anything was said: {drawn}"
+            )
+            assert _contrast(words, ground) >= 3, (
+                f"the {scheme} page's {state} words wear {words} on {ground}, "
+                f"{_contrast(words, ground):.2f}:1: {drawn}"
+            )
+        for one, other in itertools.combinations(drawn, 2):
+            assert (
+                max(
+                    _apart(drawn[one][0], drawn[other][0]),
+                    _apart(drawn[one][1], drawn[other][1]),
+                )
+                >= SEEN_APART
+            ), f"the {scheme} page draws {one} and {other} alike: {drawn}"
+
+
+# A light page holding a panel with a scheme of its own, drawn in the paper and ink a
+# page in that scheme wears, and the same words commented on, on the page and in the
+# panel.
+SCHEMED_PAGE = leaf_page(
+    "schemed",
+    """
+<h1 id="t">Schemed</h1>
+<p id="on-page">Words on the page that someone commented on in the middle of a line.</p>
+<section class="dark-panel">
+<p id="in-panel">Words in the panel that someone commented on in the middle of a line.</p>
+</section>
+""",
+    head="""<style>
+.dark-panel { color-scheme: dark; background: var(--lf-paper); color: var(--lf-ink); }
+</style>""",
+)
+SCHEMED_PASSAGES = {
+    where: (where, "someone commented on") for where in ("on-page", "in-panel")
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_words_marked_in_a_dark_panel_wear_a_dark_pages_marks(request, serve, engine):
+    """Words marked in a region with a `color-scheme` of its own, here a dark panel on a
+    light page, wear the marks a page in that scheme gives them. In the light page's
+    violet they would sink into the panel's dark ground. Read from screenshots, since
+    Chromium has painted a highlight in another scheme than its computed style says
+    (notes/browser-support.md, "A highlight's `light-dark()` colour in a dark
+    region")."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            SCHEMED_PAGE,
+            events=[
+                _comment_on(passage, id=f"c-{where}", text="Why these words?")
+                for where, passage in SCHEMED_PASSAGES.items()
+            ],
+        ),
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+    page.emulate_media(color_scheme="light")
+    in_panel = _drawn(page, SCHEMED_PASSAGES["in-panel"])
+    page.emulate_media(color_scheme="dark")
+    on_dark_page = _drawn(page, SCHEMED_PASSAGES["on-page"])
+    for part, panel, dark in zip(
+        ("ground", "ink"), in_panel[:2], on_dark_page[:2], strict=True
+    ):
+        assert _apart(panel, dark) < SEEN_APART, (
+            f"words marked in the dark panel of a light page wear a {part} of {panel},"
+            f" where a dark page's marked words wear {dark}"
+        )
+
+
+# A comment on a link, a reaction on prose, and a comment on a string in a text
+# document, whose syntax colours are highlights of their own. The document's first
+# string lies far below its first screen, so its colour is registered after the marks
+# are painted. An unmarked string of the same kind wears the colour the marked one owes.
+_STEPS = "\n".join(
+    [f"step_{n} = advance(step_{n - 1}, {n})" for n in range(1, 400)]
+    + ['message = "resend now"', 'fallback = "retry later"']
+)
+OWN_COLOURS_PAGE = leaf_page(
+    "own colours",
+    f"""
+<h1 id="t">Own colours</h1>
+<p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
+<p id="kept">A line of prose someone reacted to with a token.</p>
+<lf-text-document id="doc" language="python" label="steps.py"><pre>{_STEPS}</pre></lf-text-document>
+""",
+)
+OWN_COLOURS = {
+    "link": PASSAGES["mark"],
+    "reaction": PASSAGES["reaction"],
+    "string": ("doc", '"resend now"'),
+}
+UNMARKED_STRING = ("doc", '"retry later"')
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
+    """Hiding the annotations (`o`) takes the durable marks down, and the words they
+    covered wear the page's own colours again: a link's blue, prose's ink, and a text
+    document's syntax colour, which is a highlight under the mark's. While the marks
+    show, their ink is over the syntax colour however late the document colours the
+    words, and showing them again brings the ink back. Standing in a thread while they
+    are hidden washes its words and leaves them their own colour."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            OWN_COLOURS_PAGE,
+            events=[
+                _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
+                _comment_on(PASSAGES["reaction"], token="keep"),
+                # Words in a text document are anchored on its one datum, as capture
+                # writes them.
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "anchor": {
+                        "section": "doc",
+                        "datum": "document",
+                        "identity": "document",
+                        "quote": 'message = "resend now"',
+                    },
+                    "id": "c-doc",
+                    "text": "Why now?",
+                },
+            ],
+        ),
+    )
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2"
+        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
+    )
+    assert not page.evaluate("CSS.highlights.has('lf-token-syn-string')"), (
+        "the document coloured a string before it was scrolled to, so this page no "
+        "longer registers a syntax colour after the marks"
+    )
+    page.evaluate(WORDS_BOX, list(UNMARKED_STRING))
+    page.wait_for_function(
+        "() => (CSS.highlights.get('lf-token-syn-string')?.size ?? 0) >= 2"
+    )
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        owed = {"string": _drawn(page, UNMARKED_STRING)[1]}
+        shown = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        for name, (_, words, own) in shown.items():
+            assert _apart(words, owed.get(name, own)) >= 10, (
+                f"the {scheme} {name} wears {words} under its mark, its own colour "
+                f"{owed.get(name, own)}: {shown}"
+            )
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("o")
+        expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+        hidden = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        for name, (_, words, own) in hidden.items():
+            assert _apart(words, owed.get(name, own)) < SEEN_APART, (
+                f"with the annotations hidden, the {scheme} {name} wears {words}, "
+                f"where its own colour is {owed.get(name, own)}: {hidden}"
+            )
+        # Standing in a thread with the annotations hidden washes its words, and they
+        # keep their own colour under the wash rather than take the mark's ink. Read
+        # against both, since a translucent wash shifts the drawn cores of thin strokes.
+        page.keyboard.press("t")
+        wait_current_location(page, PASSAGES["mark"][1])
+        page.mouse.move(0, 0)
+        ground, words, own = _drawn(page, PASSAGES["mark"])
+        ink = shown["link"][1]
+        assert ground != hidden["link"][0], (
+            f"standing in the {scheme} link's thread drew no wash under its words"
+        )
+        assert _apart(words, own) < _apart(words, ink), (
+            f"standing in the {scheme} link's thread with the annotations hidden, its "
+            f"words wear {words}, nearer the mark's ink {ink} than their own {own}"
+        )
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        wait_current_location(page, "")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("o")
+        expect(page.locator("html")).not_to_have_attribute(
+            "data-lf-annotations", "hidden"
+        )
+        page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+        again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
+        assert all(
+            _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown
+        ), (scheme, shown, again)
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -334,9 +739,12 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
-    expect(thread).to_be_focused()
+    # In its reply, and on the thread once Escape stands the user there.
+    expect(reply).to_be_focused()
     expect(reply).to_be_visible()
     wait_current_location(page, "bold text")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -428,19 +836,20 @@ def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     wait_current_location(page, "bold text")
 
     # The four readings of a marked passage have to stay in this order, or one of them
-    # stops being visible where they overlap: the posted mark, the hover over it, the
-    # current comment's own ink, and above all three the draft the user is writing.
-    # Asked with the pointer actually resting on the current-location mark, because that is the
-    # overlap the order exists for and because nothing registers the hover until a mouse
-    # has been over a passage. A higher highlight supplies only the properties it states,
-    # so this is what lets one mark say "clickable" and "you are here" at once.
+    # stops being visible where they overlap: the hover's wash, the current comment's
+    # deeper wash, the posted mark over both with its ink, and above all three the draft
+    # the user is writing. Asked with the pointer actually resting on the
+    # current-location mark, because that is the overlap the order exists for and
+    # because nothing registers the hover until a mouse has been over a passage. A
+    # higher highlight supplies only the properties it states, so this is what lets one
+    # mark say "clickable" and "you are here" at once, in the posted mark's ink.
     # Opening the inline card moves the document to the passage; settle it before
     # reading pointer geometry.
     page_at_rest(page)
     page.mouse.move(*mark_point(page, "lf-mark-here"))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
     ranks = page.evaluate(
-        """() => ['lf-mark', 'lf-mark-hover', 'lf-mark-here', 'lf-pending']
+        """() => ['lf-mark-hover', 'lf-mark-here', 'lf-mark', 'lf-pending']
             .map(n => CSS.highlights.get(n)?.priority ?? null)"""
     )
     assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (
@@ -519,7 +928,7 @@ def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve)
     # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
     ramp = page.evaluate("""() => {
         const declared = (name) =>
-            getComputedStyle(document.getElementById('p'), `::highlight(${name})`)
+            getComputedStyle(document.querySelector('#p strong'), `::highlight(${name})`)
                 .backgroundColor;
         const paper = getComputedStyle(document.body).backgroundColor;
         const canvas = document.createElement('canvas');
@@ -627,10 +1036,8 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(note).to_be_focused()
     assert note.evaluate("el => getComputedStyle(el).opacity") == "0"
     expect(page.locator("#p1")).to_be_in_viewport()
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_have_count(1)
-    held, block = ring.bounding_box(), page.locator("#p1").bounding_box()
-    assert all(abs(held[side] - block[side]) < 1 for side in held), (held, block)
+    expect(page.locator("[data-lf-proxied]")).to_have_count(1)
+    assert _ring_round(page, "#p1")
     page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
     note.press("Enter")
     expect(inline1).to_be_focused()
@@ -657,7 +1064,10 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no
-    # passage at all is what proves a pass ran without touching the block's count.
+    # passage at all is what proves a pass ran without touching the block's count. The
+    # Enter's own repaint, which takes the margin's trace off the block the note stands
+    # for, lands first.
+    rendered(page)
     page.evaluate("""() => {
         window.__churn = 0;
         new MutationObserver(rs => (window.__churn += rs.length))
@@ -716,16 +1126,19 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
 
 
 def _ring_round(page, selector):
-    """Whether the proxy ring stands round the element `selector` names, at its gap."""
-    held = page.locator(".lf-proxy-ring").bounding_box()
-    block = page.locator(selector).bounding_box()
-    gaps = (
-        block["x"] - held["x"],
-        block["y"] - held["y"],
-        held["x"] + held["width"] - block["x"] - block["width"],
-        held["y"] + held["height"] - block["y"] - block["height"],
+    """Whether the element `selector` names wears the proxy ring (`data-lf-proxied`), which
+    it draws whole round itself in the accent, outside its edge at its gap
+    (surfaces.css)."""
+    block = page.locator(selector)
+    expect(block).to_have_attribute("data-lf-proxied", "")
+    mark = block.evaluate(MARK)
+    return (
+        mark is not None
+        and mark["style"] == "solid"
+        and not mark["brackets"]
+        and mark["offset"] > 0
+        and mark["color"] == token_colour(page, "--lf-accent")
     )
-    return all(0 <= gap <= 4 for gap in gaps)
 
 
 def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, serve):
@@ -751,71 +1164,24 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     note.evaluate("note => note.focus()")
     expect(note).to_be_focused()
     assert not note.evaluate("note => note.matches(':focus-visible')")
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_be_visible()
+    assert _ring_round(page, "#p1")
+    # From the keys, the block also wears the trace of the note's margin entry, whose
+    # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
+    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # reading. Focus back on the note before it is no arrival, since the user never left.
+    page.keyboard.press("Tab")
+    expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
+    note.focus()
+    expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
     assert _ring_round(page, "#p1")
 
+    # The copy leaves the ring's class behind, so the ring on it is the runtime's doing.
     page.locator("#p1").evaluate(
-        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = ''; p.replaceWith(copy); }"
+        "p => { const copy = p.cloneNode(true); copy.dataset.redrawn = '';"
+        " copy.removeAttribute('data-lf-proxied'); p.replaceWith(copy); }"
     )
     expect_comment_notes(page, "#p1[data-redrawn]", 1)
     expect(note).to_be_focused()
-    expect(ring).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-proxy-ring')?.getBoundingClientRect().height > 0"
-    )
-    assert _ring_round(page, "#p1[data-redrawn]")
-
-
-def test_notes_of_one_passage_across_two_blocks_each_follow_their_block_redrawn(
-    browser, serve
-):
-    """A passage across two blocks gives each its note, both entering the same thread.
-    When the page draws both blocks anew in one task, each note goes to its own block's
-    copy: none is left on the shelf named by nothing, and the user on the first block's
-    note stays on it, ringed round the first block's copy."""
-    url = serve(NOTED_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Crosses the boundary.",
-            "anchor": {"quote": "to land in it. A short second"},
-        },
-    )
-    page = open_page(browser, url)
-    expect_comment_notes(page, "#p1", 1)
-    expect_comment_notes(page, "#p2", 1)
-    note = comment_note(page, "#p1")
-    note.evaluate("note => { window.__lfNote = note; note.focus(); }")
-    page.evaluate(
-        """() => {
-          for (const id of ["p1", "p2"]) {
-            const block = document.getElementById(id);
-            const copy = block.cloneNode(true);
-            copy.dataset.redrawn = "";
-            block.replaceWith(copy);
-          }
-        }"""
-    )
-    expect_comment_notes(page, "#p1[data-redrawn]", 1)
-    expect_comment_notes(page, "#p2[data-redrawn]", 1)
-    assert page.evaluate(
-        """() => [...document.querySelectorAll('.lf-mark-note')].map((note) =>
-          [...document.querySelectorAll('[aria-details]')].filter(
-            (block) => block.isConnected && block.ariaDetailsElements?.includes(note),
-          ).map((block) => block.id),
-        )"""
-    ) == [["p1"], ["p2"]]
-    assert page.evaluate(
-        """() => document.activeElement === window.__lfNote &&
-          document.getElementById('p1').ariaDetailsElements.includes(window.__lfNote)"""
-    )
-    page.wait_for_function(
-        "() => document.querySelector('.lf-proxy-ring')?.getBoundingClientRect().height > 0"
-    )
     assert _ring_round(page, "#p1[data-redrawn]")
 
 
@@ -842,12 +1208,10 @@ def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations
     page.keyboard.press("Tab")
     note.focus()
     expect(note).to_be_focused()
-    ring = page.locator(".lf-proxy-ring")
-    expect(ring).to_be_visible()
     assert _ring_round(page, "#p1")
     # Leaving the note takes its ring down.
     note.evaluate("note => note.blur()")
-    expect(ring).to_be_hidden()
+    expect(page.locator("[data-lf-proxied]")).to_have_count(0)
 
 
 def test_a_revision_keeps_a_block_naming_its_comment_note(browser, serve):

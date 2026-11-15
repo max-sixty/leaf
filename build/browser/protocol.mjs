@@ -145,9 +145,7 @@ function readable(schema) {
 
 /** Each change from `old` to `now` the consuming side refuses, as `[path, message]`.
  * `side.newConsumes` says whether the new schema takes the old one's values or the
- * reverse, `side.validates` whether the consumer is the browser door, and
- * `side.overlay` whether the schemas only narrow fields declared elsewhere, as a
- * browser contract narrows its record, so a field newly named there is newly bounded. */
+ * reverse, and `side.validates` whether the consumer is the browser door. */
 function diff(old, now, path, side) {
   if (isDeepStrictEqual(old, now)) return [];
   if (old === true) old = {};
@@ -170,8 +168,8 @@ function diff(old, now, path, side) {
     if (consumer[keyword] !== undefined && !holds(consumer[keyword], producer[keyword]))
       report(keyword, before, after);
   };
-  const nested = (where, before, after, how = side) =>
-    found.push(...diff(before, after, `${path}${where}`, how));
+  const nested = (where, before, after) =>
+    found.push(...diff(before, after, `${path}${where}`, side));
 
   check("$ref", (taken, given) => taken === given);
   // A consumer's `const` or `enum` speaks for its types under "values" below.
@@ -225,13 +223,7 @@ function diff(old, now, path, side) {
     ...Object.keys(now.properties ?? {}),
   ])) {
     const [before, after] = [old.properties?.[name], now.properties?.[name]];
-    // Beside a contract, `side.overlay` is the old record it narrows, which says what
-    // the contract's writer could send where the old contract named nothing: what the
-    // record allowed, and nothing where it named no such field.
-    const record = side.overlay && (side.overlay.properties?.[name] ?? false);
-    const how = side.overlay ? { ...side, overlay: record } : side;
-    if (side.overlay) nested(`.${name}`, before ?? Boolean(record), after ?? true, how);
-    else if (!after) found.push([`${path}.${name}`, "the field is gone"]);
+    if (!after) found.push([`${path}.${name}`, "the field is gone"]);
     else nested(`.${name}`, before ?? unnamed(old), after);
   }
   if (side.validates && closed(consumer) && !closed(producer))
@@ -284,7 +276,8 @@ const OLDER_READS = { newConsumes: false, validates: false };
 const READ = { newConsumes: true, validates: false };
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
- * served state and the x-state verb, which only the generated types read. */
+ * served state, the x-state verb and the widget declaration schema, which only the
+ * generated types read. */
 export const baselineSchemas = ({
   served: _served,
   verb: _verb,

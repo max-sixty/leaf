@@ -28,13 +28,15 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
+    LAYER_FILE,
+    PACKAGES_DIR,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
 )
 from ..service import claim_path, page_claim
-from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
+from ..state import AGENT_TURNS, EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -97,9 +99,10 @@ def page_roots(page_dir: Path) -> set[Path]:
 
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
-    claimant session's lifecycle and forks' hand-overs (`forks.HANDED`), which
-    change what is deliverable, and each bound file. A watcher subscribes to these
-    by path, and follows a new set when the claim or the grants change."""
+    claimant session's lifecycle and its agents' turns (`state.AGENT_TURNS`), and
+    forks' hand-overs (`forks.HANDED`), which change what is deliverable, and each
+    bound file. A watcher subscribes to these by path, and follows a new set when
+    the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
 
@@ -110,6 +113,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
         # Turn openings/closings and SessionEnd are shared session publications,
         # not rewrites of every page claim. They change each claimed page's state.
         named.append(("$session", session_file(claim["id"], SESSION_SUFFIX).resolve()))
+        named.append(("$agents", session_file(claim["id"], AGENT_TURNS.kind).resolve()))
         named.append(("$forks", session_file(claim["id"], "forks").resolve()))
     return named + _bound(page_dir)
 
@@ -142,6 +146,15 @@ def page_reading(page_dir: Path) -> str:
         return held_page_reading(page_dir)
 
 
+def page_readings(page_dir: Path) -> tuple[str, tuple[str, str]]:
+    """`page_reading` and the `source_readings` of the same stamps, from one pass over
+    them under the log's lease, for the news a tab asks for several times a second
+    (`LivePage._activated`)."""
+    with flocked(page_dir / EVENTS_FILE):
+        stamps = _page_stamps(page_dir)
+        return _token([*stamps, *_outside_stamps(page_dir)]), _split(stamps)
+
+
 def held_page_reading(page_dir: Path) -> str:
     """`page_reading` for a caller that holds the log's lease.
 
@@ -167,9 +180,11 @@ def held_page_reading(page_dir: Path) -> str:
     also carries each bound file's stamp (`file_bindings.binding_stamps`), naming
     which binding moved.
     """
-    stamps = _page_stamps(page_dir)
-    stamps.extend((name, file_stamp(path)) for name, path in _outside(page_dir))
-    return _token(stamps)
+    return _token([*_page_stamps(page_dir), *_outside_stamps(page_dir)])
+
+
+def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
+    return [(name, file_stamp(path)) for name, path in _outside(page_dir)]
 
 
 def record_reading(page_dir: Path) -> str:
@@ -201,9 +216,32 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     lease without the next state read validating the whole page again; declaring a
     status and acknowledging a delivery append to the log, which is history.
     """
-    stamps = [
-        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
-    ]
+    return _split(_page_stamps(page_dir))
+
+
+def version_written(page_dir: Path) -> int:
+    """When a file a version is built from was last written, in nanoseconds since the
+    epoch: the document, the layer it selects with the page's package copies, and the
+    trees a capture reads (`revision_artifact.CAPTURED_TREES`). A data update, for one,
+    moves the source but makes no new version. A stamp inside a tree is named under the
+    tree's own name (`_page_stamps`)."""
+    # Here rather than at the top, so that a reader that never asks this, such as a
+    # hook, doesn't import the capture.
+    from ..revision_artifact import CAPTURED_TREES
+
+    inputs = {"index.html", LAYER_FILE, PACKAGES_DIR, *CAPTURED_TREES}
+    return max(
+        (
+            stamp[1]
+            for name, stamp in _page_stamps(page_dir)
+            if isinstance(stamp, tuple) and name.split("/", 1)[0] in inputs
+        ),
+        default=0,
+    )
+
+
+def _split(stamps: list[tuple[str, object]]) -> tuple[str, str]:
+    stamps = [stamp for stamp in stamps if stamp[0] not in SESSION_FILES]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),
         _token([stamp for stamp in stamps if stamp[0] in HISTORY]),

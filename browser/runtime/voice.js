@@ -9,10 +9,13 @@
    with `voiced`, whose `data-lf-voice` the theme gives each speaker's face
    (controls.css); a seat with one face for all its words, such as the field's native
    placeholder, wears the run's one voice (`voiceOf`, floating-panel.css). A
-   string is said by no one: a name, such as a thread's title or a mode's, an offer of
-   a press, such as Reply, or where the user stands in a walk, which the interface
-   states in its own face. So a seat never decides a voice: each word reaches it with
-   its speaker, or as the interface's own. */
+   string is said by no one: a name, such as a thread's title or a mode's, or where the
+   user stands in a walk, which the interface states in its own face. An empty box's
+   words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…, as
+   the user chose on 5 November 2026 (words.js), and a search's prompt, such as Find
+   text…, which every search box marks as Leaf's (control-labels.js, `searchField`).
+   So a seat never decides a voice: each word reaches it with its speaker, or as the
+   interface's own. */
 import { html } from "/vendor/lit.js";
 
 /** @typedef {"agent" | "leaf"} Voice */
@@ -52,6 +55,19 @@ export function voiceOf(words) {
   );
   const [voice = null] = voices;
   return voices.size === 1 ? voice : null;
+}
+
+/** The run's lines, split where a part is a line break ("\n"), as a change's account
+ * stands over what its version was saved after (change-provenance.js), for a seat that
+ * draws each line as its own.
+ * @param {Words} words @returns {(string | Said)[][]} */
+export function linesOf(words) {
+  /** @type {(string | Said)[][]} */
+  const lines = [[]];
+  for (const part of runOf(words))
+    if (part === "\n") lines.push([]);
+    else lines[lines.length - 1]?.push(part);
+  return lines;
 }
 
 /** The words in their speakers' faces.

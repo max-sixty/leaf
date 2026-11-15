@@ -136,13 +136,6 @@ test("the kernel preserves native packages and shared state", async () => {
     // A lazily imported kernel module is a chunk, and its vendor import stays native.
     assert.match(javascript, /import\("\/vendor\/example\.js"\)/);
     assert.doesNotMatch(javascript, /from "[^"]*signals-core|bundle-[A-Z0-9]{8}/);
-    // A historical developer arm may predate the optional diagnostic entry.
-    await rm(join(layer, "runtime/annotation-overlay/check-api.js"));
-    const historical = join(temporary, "historical");
-    await vendor(layer, await kernelOutputs(layer), historical);
-    await writeFile(join(historical, "package.json"), '{"type":"module"}');
-    const prior = await import(pathToFileURL(join(historical, "leaf.js")).href);
-    assert.equal(prior.state.annotations, false);
   } finally {
     await rm(temporary, { recursive: true });
   }

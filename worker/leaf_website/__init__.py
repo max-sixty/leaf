@@ -10,8 +10,10 @@ The adapter also runs the hosted agent. The Worker posts each accepted event tha
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
 thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
 while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
-repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
-installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
+repeated start for the same event starts nothing new. Earlier, when the visitor focuses
+a text box, the Worker posts `/_leaf/agent/prewarm`, and the adapter composes the
+page's layer while they type, so their write doesn't wait for it. Codex has the
+prepared Leaf plugin installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS`
 (`hosted-agent.md`) adds only the session's environment and scope. Each turn is bound to its delivery id, sent as
 `clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
 carries at most one plain reply, which streams into its thread and is committed through
@@ -76,7 +78,7 @@ from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, layer_record, selected
 from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery, runtime_element
 from leaf.revisioning import activate_source
@@ -108,7 +110,7 @@ if TYPE_CHECKING:
 PORT = 8080
 # The model every hosted task runs on. Its threads are titled on Codex's title
 # model (`thread_titles.CODEX_TITLE_MODEL`).
-HOSTED_MODEL = "gpt-5.6-luna"
+HOSTED_MODEL = "gpt-6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
 
@@ -179,6 +181,7 @@ FAILURE_RECEIPTS = {
 CONTAINER_FAILURE = "turn_failed"
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
+AGENT_PREWARM_PATH = "/_leaf/agent/prewarm"
 STARTUP_REPORT_PATH = "/api/performance"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
 # The private diagnostic milestones consumed by hosted reply evaluations. Their
@@ -1359,7 +1362,7 @@ PageRoute = tuple[str, Path, str]
 def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
     """Read the build's page manifest into routes, longest root first.
 
-    `leaf-dev site` writes each directory relative to the build it describes and
+    `leaf-dev site build` writes each directory relative to the build it describes and
     derives each kind itself, so both are read as given.
     """
     return tuple(
@@ -1403,11 +1406,6 @@ def released_path(pages: dict, path: str) -> str | None:
 
 class WebsitePageEndpoint(PageEndpoint):
     """Bind every clean website route to one initialized page directory."""
-
-    # A visitor's private comments and replies would otherwise stay in the browser's
-    # disk cache after their session ends, for anyone who later uses that browser
-    # profile to read. The price is the back/forward cache, which keeps no such page.
-    cache_control = "no-store"
 
     def __init__(
         self,
@@ -1488,7 +1486,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # console (`browser/runtime/bootstrap.js`, `observePublicStartup`).
         return self._content(204, "application/json", b"")
 
-    # The two routes below are for the Worker, which refuses every `/_leaf/` path from
+    # The routes below are for the Worker, which refuses every `/_leaf/` path from
     # outside and sends the event its own admission returned. The container's own agent
     # can reach them too, but what it posts lands in this visitor's page, which it can
     # already write, so they read the body as given.
@@ -1511,11 +1509,24 @@ class WebsitePageEndpoint(PageEndpoint):
             return self._json({"status": "settled"})
         return self._json({"status": "appended", "event": accepted["id"]})
 
+    # The Worker posts here when the visitor focuses a text box, so the write they are
+    # about to send finds the page's layer composed: this process keeps a composition
+    # (`layer.selected_layer`), and on one vCPU composing it takes about 0.9 s, which
+    # would otherwise come out of that write. Only a focus asks for it, so a write with
+    # no focus before it, such as a first click, doesn't share the CPU with composing.
+    def _prewarm_agent(self) -> Response:
+        started = time.monotonic()
+        if (record := layer_record(self.page_dir)) is not None:
+            selected(record, self.page_dir)
+        log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
+        return self._content(204, "application/json", b"")
+
     POST_ROUTES: Mapping[str, PostRoute] = {
         **PageEndpoint.POST_ROUTES,
         STARTUP_REPORT_PATH: PostRoute(_acknowledge_startup_report),
         AGENT_START_PATH: PostRoute(_start_agent, (PageEndpoint._body_gate,)),
         AGENT_FAIL_PATH: PostRoute(_fail_agent, (PageEndpoint._body_gate,)),
+        AGENT_PREWARM_PATH: PostRoute(_prewarm_agent),
     }
 
     def _released_resource(self) -> Response | None:
@@ -1621,7 +1632,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
+    `leaf-dev journey run website-adapter` runs this adapter on a developer's machine and
     stops it exactly this way, where an unreaped App Server would outlive the run
     that started it and keep its memory.
 
@@ -1649,9 +1660,10 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
-    restore(site_root)
+    if restore(site_root):
+        os.environ["LEAF_PAGE_COMMIT"] = PUBLISHER
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])

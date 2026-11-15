@@ -18,11 +18,10 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Stage** and **Fix the underlying issue** sections and
-`/developing-leaf`'s **Weigh what a change adds** to the verdict; most of Tend's own
-pull requests land on this review alone. Once a change moves Leaf toward a coherent
-architecture, its claimed path works and what it adds is worth keeping, the review
-is done. Reserve findings for architectural seams, cross-runtime invariants, public
+Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
+issue** to the verdict; most of Tend's own pull requests land on this review alone.
+Once a change moves Leaf toward a coherent architecture, its claimed path works and
+what it adds is worth keeping, the review is done. Reserve findings for architectural seams, cross-runtime invariants, public
 surface traps, regressions anywhere the change reaches, additions that cost more
 than they buy, or a central claim or test that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
@@ -52,6 +51,27 @@ architectural seam: name the issue, and withhold approval unless the change meet
 deferral condition in **Fix the underlying issue**. A fix for a red test that moves
 the interface beyond what the breaking change meant to, or gives up that change's
 intent without the issue **Reading a red suite** requires, is a regression.
+
+## Issues a change finishes
+
+A `backlog` issue left open once a change has settled it tells the next session
+there is work still to do. So the review checks each change against the open
+backlog: list the open `backlog` issues, and read each one whose subject the change
+touches, with the pull requests that already name it, to learn what of it remains.
+
+- Where the change leaves nothing of an issue to do, by finishing what remains,
+  removing its premise or recording a decision against what it asks, the
+  description says `Closes #N`, so merging closes it.
+- Where it does part, the description says `Part of #N` and what is left, so the
+  review of the last part can tell that it finishes the issue. A `Closes #N` for
+  an issue the change only partly does becomes this.
+
+On Tend's own pull request, edit the description (**Keeping PR titles and
+descriptions current** in `/tend-ci-runner:open-pr`). On someone else's, ask in
+the review, naming each issue and what is left, since its author owns the
+description and may rewrite it. The ask doesn't withhold approval, since it changes
+no code and an edit to the description starts no new review. Where nothing else is
+found, approve with the ask as the review's body.
 
 ## Review test selection
 
@@ -159,11 +179,19 @@ the complete suite takes hours, and later changes may have removed the cause. A 
 alone does not clear a failure that comes and goes.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
-route. An unresolved diagnosis or a missing verification environment remains
-engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
-**A cause issue** route.
+route. An unresolved diagnosis, or a verification environment you can reach another
+way, remains engineering work, owned by the cause's session through
+`/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
+
+A cause waits on the maintainer when its next step is one only they can take: a
+decision, or reproducing a failure only `test-macos` shows once the failing run's
+diagnostics, pictures and the code leave its cause open, since no runner you can
+reach has macOS. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
+names them), say in it what you found and what their answer or reproduction should
+settle, and unassign them once they act. A cause that asks them something without
+assigning them is missing from their list of assigned issues.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then
@@ -176,7 +204,9 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Pull requests run only the later-tier
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
+checks your Linux runner can run suffice (**A red `ci` on main is live** says what
+settles the rest). Pull requests run only the later-tier
 tests they edit, so run the claimed ones yourself. The pull request's CI must
 reach a terminal result on the exact head (`monitor-ci`). A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
@@ -196,9 +226,10 @@ which GitHub records as a cancelled run whose `test` job has no runner (`runner_
 hit its timeout, and that is a failure.
 
 The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
-can't reproduce. For a failure only that job shows, the failing run is the evidence
-from before the fix. For the evidence from after it, dispatch `ci` on the fix's branch
-(`gh workflow run ci --ref <branch>`) and read that run's `test-macos` job.
+can't reproduce, and it takes four to five hours. For a failure only that job shows, the
+failing run is the evidence from before the fix, and the next scheduled run on main,
+after the fix merges, is the evidence from after it. If that run still fails, its
+report brings the failure back to triage.
 
 ## Cloudflare logs
 
@@ -239,8 +270,9 @@ Each nightly run, scan the
 [Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
 [OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
-[Codex releases](https://github.com/openai/codex/releases), and
-[Codex product changelog](https://developers.openai.com/codex/changelog/).
+[Codex releases](https://github.com/openai/codex/releases),
+[Codex product changelog](https://developers.openai.com/codex/changelog/), and
+[Pi releases](https://github.com/earendil-works/pi/releases).
 Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. Report a source that cannot be read in the
 run summary rather than treating it as having no changes. Search open and closed
@@ -258,13 +290,17 @@ Tend's. Change these owners, not model names throughout the tree.
 Prepare a pull request upgrading a default to its suitable stable successor,
 preserving each role's purpose and weighing quality, latency and cost; a newer model
 in a different tier is a candidate to evaluate, not an automatic replacement.
-Verify the exact model id and availability through the actual harness and login,
-and run a small representative eval or journey for the affected role, including
-grading when a judge changes. Record the old and new models, upstream sources
-and validation, and keep model pins the same across arms in a Leaf comparison.
-Regenerate Tend workflows from its config when Tend's default changes, and follow
-**Landing** for changes requiring the control-plane owner's approval. If access
-or a material tradeoff prevents a bump, report what remains to establish.
+Bump prospectively: check the exact id against the provider's current models
+page, run whatever eval or journey for the affected role the session can reach
+(including grading when a judge changes), and land the bump without waiting on a
+check that needs a harness or login the session lacks; the role's own runs after
+landing, such as `publish-site`'s hosted journey, validate it, and a failure there
+comes back as a CI report. Record the old and new models, upstream sources, the
+validation that ran and the validation left to those runs, and keep model pins the
+same across arms in a Leaf comparison. Regenerate Tend workflows from its config
+when Tend's default changes, and follow **Landing** for changes requiring the
+control-plane owner's approval. If a material tradeoff prevents a bump, report what
+remains to establish.
 
 ### Harness opportunities
 
@@ -288,15 +324,42 @@ qualifies, keep the result in the run summary; do not post a digest.
 
 ## Nightly: regular maintenance
 
-In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each file
+In the rolling survey, apply `AGENTS.md`'s "Regular maintenance" to each file
 you review. Propose a removal that takes a feature away in an issue for the
 maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
+
+## Review-runs: benchmark costs that grow
+
+Root `AGENTS.md`, **Responsiveness**, sets how fast each cost may grow with the page,
+and the daily scheduled `ci` run's `bench` job measures those costs. Nothing passes or
+fails on its readings (`tests/AGENTS.md`, **Results do not depend on execution
+speed**), because a CI runner's speed varies from run to run and no single threshold
+separates a regression from a slow runner. So this review weighs the readings in place
+of a cutoff.
+
+Read the report of the latest scheduled run (`gh run list -w ci -e schedule`). Its
+`bench-report-*` artifact holds the browser, documents and server tables, each reading
+by size with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
+`dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
+at 64 sections.
+
+Judge from several runs whether a cost grows with the page faster than that rule
+allows, or rises across runs at the same size, by more than the runner's noise
+explains. The table marks `!` beside each exponent above its reading's `limit`.
+The header of `dev/leaf_dev/commands/bench.py` says which readings a busy runner
+stretches; an exponent compares sizes within one run, so a slow runner moves it less
+than the readings themselves. Where a cost grows, open an issue that names the reading, its
+values at each size, the runs compared, and the commits between the last run that read
+it at its earlier level and the first that read it higher. Where an open issue already
+tracks that cost, add only what it lacks, and leave one labelled `backlog` alone
+(**Leave backlog issues to the maintainer**). Say in the run summary which runs you
+compared, whether or not anything grew.
 
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
 `test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
 runs either moves to `tests/journeys/` or gets faster; a journey within the browser
 budget in both moves to `tests/browser/` when its boundary is one page. A single
 reading moves nothing, since one run's time includes contention. Open one pull
@@ -307,6 +370,20 @@ request with the moves, listing each test and the times behind it.
 Run `/ui-sweep` before dependency maintenance, following its **Reconcile** route:
 a reproduced defect becomes a tested repair, and a design judgment stays in the
 run report.
+
+## Weekly: duplicate implementations
+
+Sweep one area for capabilities implemented more than once, taking the area by ISO
+week number (`date +%V`) modulo 4: 0, the JavaScript under `browser/`; 1, `packages/`
+and the CSS under `browser/`; 2, `src/leaf/` and `hooks/`; 3, `dev/`, `build/`,
+`tests/` and `worker/`. Copies seldom share a name or a directory, so list the
+questions the area's helpers, constants, selectors, style rules and inline checks
+answer, and search the whole tree for other answers to each, as `AGENTS.md`'s **What
+it repeats** says. Consolidate each set into one home with every caller moved, in one
+pull request for the area; leave a set another open pull request is
+changing to a later sweep. In the description, name each copy's introducing pull
+request (`git log -S`), so the copies added since the area's last sweep show what
+review let through.
 
 ## Weekly: vendored browser dependencies
 

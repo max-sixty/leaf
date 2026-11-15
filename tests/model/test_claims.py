@@ -21,7 +21,6 @@ from interact_support import (
     append_carried_log_record,
     claim_and_wait_command,
     lock_contention,
-    neighbour_page,
     page_state,
     record_claim,
     release_codex_command,
@@ -37,7 +36,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import presence as presence_model
-from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -64,6 +62,10 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     claim_record = service_model.page_claim(page)
     assert claim_record is not None
     assert claim_record["pid"] == session.pid
+    assert claim_record["id"] == "thread-shape"
+    assert claim_record["agent"] == "Codex"
+    assert claim_record["harness"] == "codex"
+    assert page_state(page)["agent"] == "Codex"
 
 
 def test_the_nearest_harness_runs_a_command_that_inherits_another(under_codex):
@@ -233,74 +235,6 @@ def test_a_page_names_its_claimant_as_the_harness_does_now(page_dir, monkeypatch
     assert harness_model.CodexHarness("t3", "Codex").session_name() is None
 
 
-def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
-    """`leaf page list` is how a session finds the machine's pages and which session
-    each one's comments reach. A claimed page is listed with its claimant even
-    while nothing serves it, since that is when "who holds it" matters most; a page
-    nothing claimed is listed only while it serves, by its row."""
-    pages = cleanup_model.state_home() / "pages"
-    held, stopped, unclaimed = pages / "held", pages / "stopped", pages / "unclaimed"
-    url = neighbour_page(held, title="Held page", port=59001)
-    record_claim(held, id="s1", cwd="/work/held")
-    registry = harness_model.claude_code_sessions()
-    registry.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(
-        registry / f"{os.getpid()}.json",
-        {
-            "pid": os.getpid(),
-            "sessionId": "s1",
-            "status": "idle",
-            "statusUpdatedAt": int(time.time() * 1000),
-            "name": "Fix the build",
-        },
-    )
-    neighbour_page(stopped, title="Stopped page", dead=True)
-    record_claim(stopped, id="s2", pid=dead_pid, cwd="/work/stopped")
-    neighbour_page(unclaimed, title="Unclaimed page", port=59002)
-
-    listed = CliRunner().invoke(cli_model.cli, ["page", "list"])
-    assert listed.exit_code == 0, listed.output
-    lines = [json.loads(line) for line in listed.output.splitlines()]
-    assert lines == [
-        {
-            "page": str(held.resolve()),
-            "title": "Held page",
-            "url": url,
-            "on_user": 0,
-            "threads": {"open": 0, "unread": 0},
-            "harness": "claude-code",
-            "claim_session": "s1",
-            "session_name": "Fix the build",
-            "session_cwd": "/work/held",
-            "session_alive": True,
-        },
-        {
-            "page": str(stopped.resolve()),
-            "title": "Stopped page",
-            "url": None,
-            "on_user": None,
-            "threads": None,
-            "harness": "claude-code",
-            "claim_session": "s2",
-            "session_name": None,
-            "session_cwd": "/work/stopped",
-            "session_alive": False,
-        },
-        {
-            "page": str(unclaimed.resolve()),
-            "title": "Unclaimed page",
-            "url": server_model.page_url("127.0.0.1", 59002, server_model.host_key()),
-            "on_user": 0,
-            "threads": {"open": 0, "unread": 0},
-            "harness": None,
-            "claim_session": None,
-            "session_name": None,
-            "session_cwd": None,
-            "session_alive": None,
-        },
-    ]
-
-
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
 def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatch):
     """Claude Code's and Codex's macOS sandboxes refuse their commands any signal
@@ -355,9 +289,9 @@ def test_a_sandbox_refusal_says_to_run_outside_it(
         check=False,
     )
     assert done.returncode == 1
-    assert "[Errno 1] Operation not permitted" in done.stderr
-    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stderr
-    assert "Traceback" not in done.stderr
+    assert "[Errno 1] Operation not permitted" in done.stdout
+    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stdout
+    assert "Traceback" not in done.stdout + done.stderr
 
 
 def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
@@ -382,10 +316,11 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     (`presence.page_agent`): its claimant's, else the voice that last wrote on it, else
     the unnamed agent's."""
     voiced = [
-        {"seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
-        {"seq": 2, "kind": "reply", "author": "user"},
-        {"seq": 3, "kind": "reply", "author": "agent", "agent": "Claude"},
-        {"seq": 4, "kind": "reply", "author": "agent"},
+        {"id": "c", "seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
+        {"id": "r1", "seq": 2, "kind": "reply", "parent": "c", "author": "user"},
+        {"id": "r2", "seq": 3, "kind": "reply", "parent": "c", "author": "agent"}
+        | {"agent": "Claude"},
+        {"id": "r3", "seq": 4, "kind": "reply", "parent": "c", "author": "agent"},
     ]
     assert presence_model.presence(page_dir, [])["agent"] == "Agent"
     assert presence_model.presence(page_dir, voiced)["agent"] == "Claude"
@@ -396,20 +331,6 @@ def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypa
     assert claim_record_4 is not None
     claimant = claim_record_4["agent"]
     assert presence_model.presence(page_dir, voiced[:1])["agent"] == claimant
-
-
-def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
-    """A regenerated page is not the deleted page that occupied its path."""
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")
-    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
-
-    shutil.rmtree(page_dir)
-    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert initialized.exit_code == 0, initialized.output
-
-    assert service_model.page_claim(page_dir) is None
-    assert service_model.owned_pages("old-session") == []
 
 
 def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
@@ -504,7 +425,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         check=False,
     )
     assert second.returncode == 2
-    assert "another `leaf wait` is already active" in second.stderr
+    assert "another `leaf wait` is already active" in second.stdout
 
     # SIGTERM unwinds the wait's application cleanup and releases its kernel lease.
     first.terminate()

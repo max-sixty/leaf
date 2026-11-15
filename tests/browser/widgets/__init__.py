@@ -68,19 +68,19 @@ PLAYGROUND_PAGE = leaf_page(
 <lf-ask id="card-playground-ask">
   <h2>How should the card look?</h2>
   <lf-playground id="card-playground">
-    <lf-playground-control name="radius" label="Corner radius" kind="range"
+    <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
       value="12" min="0" max="28" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control name="compact" label="Compact spacing" kind="toggle"
+    <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle"
       value="false"></lf-playground-control>
-    <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+      <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
     </lf-playground-control>
-    <lf-playground-control name="accent" label="Accent" kind="color"
+    <lf-playground-control id="accent" name="accent" label="Accent" kind="color"
       value="#4f766f"></lf-playground-control>
-    <lf-playground-control name="title" label="Title" kind="text"
+    <lf-playground-control id="title" name="title" label="Title" kind="text"
       value="Field note" placeholder="Card title"></lf-playground-control>
-    <lf-playground-preset label="Dense">
+    <lf-playground-preset id="preset-dense" label="Dense">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
       <lf-playground-setting for="tone" value="bold"></lf-playground-setting>

@@ -11,6 +11,10 @@ export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
 /** @param {Element | null | undefined} node */
 export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
+// The page threads drawn under `root` that carry the logged id `id`, in tree order.
+/** @param {ParentNode} root @param {string} id */
+export const drawnThreadsWithId = (root, id) =>
+  root.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`);
 // Where a box the user writes in belongs: a drawn thread, or a seat holding none yet.
 export const SAYS_IN = `${THREAD}, .lf-thread-seat`;
 export const SAY_ROW = ".lf-thread-reply, .lf-say";
@@ -25,9 +29,10 @@ export const SAY_BOX = SAY_ROW.split(", ")
 // where each stands (`declareThreadParts`): `reply` and `settlement`, each a function of
 // that element answering the part, or null while the thread has none there. Every reading
 // of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
-// `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
-// one that declares, as a reader's message parts in the panel's view, has the
-// enclosing drawing's parts where it holds none (`drawingsOf`).
+// `c` answer alike whichever chrome draws the thread. A thread drawn within one that
+// declares, as the thread the panel's view holds, its reply and Resolve drawn on the
+// panel's own lines, has the enclosing drawing's parts where it holds none
+// (`drawingsOf`).
 //
 // Such a presentation also declares `whole`, the element standing for the thread as a
 // whole where its pieces stand apart, as the panel's view does for its head and its

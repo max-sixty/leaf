@@ -11,7 +11,7 @@
    a message's frozen markup is bound when it is prepared, before the thread mounts
    it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
-import { elementDeclarations, exhibits } from "./registry.js";
+import { declaredElements, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
@@ -23,18 +23,6 @@ const byElement = new WeakMap();
 const byId = new Map();
 /** @type {Map<string, Element>} */
 const elements = new Map();
-
-const declaredTags = () => elementDeclarations().map(([tag]) => tag);
-
-/** @param {Document | Element | DocumentFragment} root */
-const candidates = (root) => {
-  const tags = declaredTags();
-  if (!tags.length) return [];
-  const selector = tags.join(",");
-  const found = [...root.querySelectorAll(selector)];
-  if (root instanceof Element && root.matches(selector)) found.unshift(root);
-  return found;
-};
 
 /** @param {Element} element @returns {Element | null} */
 const parentOf = (element) =>
@@ -76,7 +64,7 @@ export function stageWidgetDescriptors(
   const captured = new Map();
   /** @type {{element: Element, descriptor: WidgetDescriptor}[]} */
   const bindings = [];
-  for (const element of candidates(root)) {
+  for (const element of declaredElements(root)) {
     if (!element.id) continue;
     const existing = byElement.get(element);
     if (

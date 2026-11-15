@@ -26,14 +26,9 @@ from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, shown_in
 from leaf.passages import SourceReading
-from leaf.projection import (
-    generated_children,
-    page_reading,
-    retirement_outcomes,
-    rewritten_bodies,
-)
+from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
-from leaf.registry.kernel import kinds_declaring
+from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
@@ -104,7 +99,7 @@ def _attribute_written(attr: str, values: list) -> str:
 
 def refuse_second_request(asking: dict | None) -> None:
     """A message asks once. `--obligation` beside a widget that asks would stay on
-    On me after the user answers the widget, since only their words answer it."""
+    On Me after the user answers the widget, since only their words answer it."""
     if asking is not None:
         raise Rejected(
             [
@@ -255,18 +250,14 @@ def _capture_anchor(
     from leaf.anchor_capture import capture_anchor
 
     page = page_reading(reading, events, revision)
-    decided = retirement_outcomes(page.projection.actions)
-    edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
             page.document,
             page.registry,
             quote,
             section,
-            decided,
-            edited,
-            part,
-            additions=generated_children(page.projection.desired, page.document.ids),
+            part=part,
+            **page.logged_words,
         )
     except ValueError as err:
         held = (
@@ -370,6 +361,39 @@ def open_thread(
     return append_admitted(page, event)[0]
 
 
+def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -> dict:
+    """The agent's message asking `question`, a question an agent message asked in
+    words (`message:<id>`, or the bare id), again in its thread in `page`, an open
+    transaction, as `leaf thread reply <page> <message> --obligation <question>`
+    posts it: the question stands open on this message under its own id, and like
+    any spoken reply it reopens the thread if it was resolved. Refused where the
+    thread owes the user a reply, or `question` names no question asked there."""
+    message = question.removeprefix("message:")
+    addressed = _resolve_obligation(
+        page, {"parent": message}, REFUSE, identity["session"], False, None
+    )
+    assert addressed is not None
+    return _compose_and_append(
+        page,
+        addressed,
+        identity,
+        body,
+        "",
+        attempt=None,
+        failure=None,
+        validate_source=False,
+        todo=None,
+        asks_back=False,
+        explicit_obligation=[f"message:{message}"],
+        ephemeral=False,
+        quote="",
+        section="",
+        part="",
+        detach=False,
+        title=None,
+    )[0]
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [
@@ -404,7 +428,10 @@ class Receipt:
     already picked up is left to the writer following that turn. With `fence`, the
     receipt writes only while `fence` holds of the page under the lock its append
     takes, as a fork's reply writes only while Leaf still holds its thread from the
-    session."""
+    session. A receipt's progress, such as the working line a fork posts as it hands
+    a thread to the session, takes nothing in hand: its writer is not the turn that
+    will answer, and a start would read as that turn's, renewing it and holding the
+    update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
     fence: Callable[[PageTransaction], bool] | None = None
@@ -439,7 +466,7 @@ def post_reply(
     validate_source: bool = False,
     todo: str | None = None,
     asks_back: bool = False,
-    obligation: bool = False,
+    obligation: bool | list[str] = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -466,6 +493,11 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
+    ``claimed_session`` names the session Leaf writes for, as a line fork's working
+    message or a harness's failure receipt: Leaf's own write, which goes in as the
+    claimant's and says nothing beside it. A command's own write says which fork or
+    line fork holds the thread it writes in (`holding.authorize`).
+
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
@@ -476,7 +508,7 @@ def post_reply(
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the page's status, and
     the user's message gets the agent's first words and its Working line from one
-    write.
+    write. A `Receipt`'s progress takes nothing in hand.
     """
     text = checked_text(page_dir, text)
     if markup:
@@ -504,6 +536,26 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import page_holding
+        from .holding import authorize
+
+        # A fork may answer only what its turn holds, and write in no thread
+        # another turn took, and an ended one nothing; it asks first, so a refused
+        # fork is never handed another turn's answer as the repeat of its own. The
+        # main thread writes anywhere, and hears of a fork it writes beside. Only an
+        # answer, which responds to a message, takes the thread.
+        holding = page_holding(page)
+        responds = address.get("responds")
+        beside = authorize(
+            page,
+            holding,
+            posting_identity.get("session"),
+            [responds] if responds else [],
+            thread=None
+            if responds or not address.get("parent")
+            else holding.found.names.get(address["parent"]),
+            answers=responds is not None and not ephemeral,
+        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events,
@@ -545,6 +597,8 @@ def post_reply(
             detach=detach,
             title=title,
         )
+    if beside is not None and claimed_session is None:
+        note(beside)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -601,7 +655,7 @@ def _repeated_reply(
     ephemeral: bool,
     failed: bool,
     todo: str | None,
-    obligation: bool,
+    obligation: bool | list[str],
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
     attempt that named another kind of write: progress, a failure receipt and an
@@ -625,7 +679,7 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo or bool(existing.get("obligation")) != obligation:
+    if existing.get("todo") != todo or existing.get("obligation", False) != obligation:
         # A repeat that promises differently would otherwise return the first
         # answer and drop what this one declares.
         raise Rejected(
@@ -684,7 +738,7 @@ def _resolve_obligation(
                         )
                     ]
                 )
-        elif ephemeral:
+        elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
@@ -749,7 +803,7 @@ def _compose_and_append(
     validate_source: bool,
     todo: str | None,
     asks_back: bool,
-    explicit_obligation: bool,
+    explicit_obligation: bool | list[str],
     ephemeral: bool,
     quote: str,
     section: str,
@@ -783,13 +837,17 @@ def _compose_and_append(
     relocating = moving or detach
     if relocating and opening.get("holds"):
         raise Rejected([Finding("held-anchor", values={"thread": thread_id})])
-    current_thread = (
-        build_threads(events, active_enclosing(page_dir)).get(thread_id)
-        if detach
-        else None
-    )
-    if detach and (current_thread is None or current_thread["anchor"] is None):
-        raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
+    if detach:
+        current_thread = build_threads(events, active_enclosing(page_dir)).get(
+            thread_id
+        )
+        if current_thread is None:
+            raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
+        if current_thread["anchor"] is None:
+            # Already where --detach would put it: activating the edit that removed
+            # the passage, which any tab's poll may do first, detached it. The reply
+            # lands without a transition, so the thread keeps the anchor it left.
+            detach = relocating = False
     reply_revision = None
     prospective_anchor = None
     source_events = events
@@ -881,18 +939,16 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        claim = page.claim
-        turn = (
-            claim["turn"]
-            if claim and claim["id"] == posting_identity.get("session")
-            else None
-        )
-        event["start"] = {
-            "item": in_hand,
-            **({"turn": turn} if turn else {}),
-        }
+        event["start"] = {"item": in_hand}
+    from .state import acting_turn
+
+    # The turn the reply's command acts in, which names the start it carries
+    # (`todos.start_reading`) and holds the messages it answers
+    # (`holding.refuse_unheld`).
+    if turn := acting_turn(page.claim, posting_identity.get("session")):
+        event["turn"] = turn
     if explicit_obligation:
-        event["obligation"] = True
+        event["obligation"] = explicit_obligation
     if todo is not None:
         event["todo"] = todo
     if markup:
@@ -1044,6 +1100,18 @@ def _fail_markup_answer(
             return None
         [update] = [event for event in events if event["id"] == responds]
         return record_pickup(page, [update], phase="failed", failure=failure)
+
+
+def fit_title(words: str) -> str:
+    """`words` as a title a model wrote: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. A model can't count
+    characters, so Leaf fits its title rather than refusing it, which would leave
+    the thread untitled or drop the ask it names."""
+    title = " ".join(words.split())
+    limit = title_limit()
+    if len(title) <= limit:
+        return title
+    return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:

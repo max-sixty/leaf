@@ -26,7 +26,6 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 
 def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
@@ -293,12 +292,14 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
+# A chip a typed letter or a filter rules out keeps its seat, hidden, so a count of the
+# map the user sees counts `:visible` chips.
 CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
     rendered(page)
-    return page.locator(CHIPS).evaluate_all(
+    return page.locator(f"{CHIPS}:visible").evaluate_all(
         "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 
@@ -739,6 +740,9 @@ THIN_V2 = THIN_V1.replace(
 # the widget owes the user the text without them.
 SENTENCE = "The version stamp never lands, so migration 0041 replays on every deploy."
 DRAFT_TEXT = "Run the migration before deploying.\nIt is online."
+# A draft reads as a Markdown file, so its source's line break inside the paragraph
+# draws as a space.
+DRAFT_DRAWN = "Run the migration before deploying. It is online."
 DRAFT_EDITED = "Run the migration before deploying. It takes about a minute."
 JOURNEY_SCAFFOLD = leaf_page(
     "journey",
@@ -997,8 +1001,8 @@ def data_projection_page(serve):
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
+            "source": {"type": "string"},
         },
         "required": ["id", "source"],
         "additionalProperties": False,

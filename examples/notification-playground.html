@@ -31,18 +31,18 @@
       notification-simulator .notification-demo-candidate {
         display: grid;
         grid-template-rows: auto 1fr;
-        gap: var(--sp-2);
+        gap: var(--lf-sp-2);
         min-width: 0;
         margin: 0;
       }
 
       notification-simulator .notification-demo-caption {
         display: flex;
-        gap: var(--sp-2);
+        gap: var(--lf-sp-2);
         align-items: baseline;
         justify-content: space-between;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
       notification-simulator .notification-demo-metric {
@@ -52,61 +52,61 @@
       notification-simulator .notification-demo-feed {
         display: grid;
         align-content: start;
-        gap: var(--sp-2);
+        gap: var(--lf-sp-2);
         min-width: 0;
       }
 
       notification-simulator .notification-demo-card {
         --lf-block-frame: 1;
         min-width: 0;
-        border: 1px solid var(--border-2);
+        border: 1px solid var(--lf-border);
         border-radius: var(--notification-radius);
-        background: var(--card);
+        background: var(--lf-card);
       }
 
       notification-simulator[data-tone="urgent"] .notification-demo-card {
-        background: color-mix(in srgb, var(--notification-accent) 10%, var(--card));
+        background: color-mix(in srgb, var(--notification-accent) 10%, var(--lf-card));
       }
 
       notification-simulator .notification-demo-card-banner {
-        padding: var(--sp-3);
+        padding: var(--lf-sp-3);
       }
 
       notification-simulator[data-compact="true"] .notification-demo-card-banner {
-        padding: var(--sp-2) var(--sp-3);
+        padding: var(--lf-sp-2) var(--lf-sp-3);
       }
 
       notification-simulator[data-compact="true"] .notification-demo-card-status-strip {
-        gap: 0 var(--sp-2);
-        padding: var(--sp-1) var(--sp-2);
+        gap: 0 var(--lf-sp-2);
+        padding: var(--lf-sp-1) var(--lf-sp-2);
       }
 
       notification-simulator[data-compact="true"] .notification-demo-feed {
-        gap: var(--sp-1);
+        gap: var(--lf-sp-1);
       }
 
       notification-simulator .notification-demo-card-head,
       notification-simulator .notification-demo-card-status-strip {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: var(--sp-1) var(--sp-2);
+        gap: var(--lf-sp-1) var(--lf-sp-2);
         align-items: baseline;
       }
 
       notification-simulator .notification-demo-card-head {
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.3 var(--lf-sans);
       }
 
       notification-simulator .notification-demo-card-status-strip {
         grid-template-columns: minmax(4.5rem, 0.55fr) minmax(0, 1.45fr) auto;
-        padding: var(--sp-2);
+        padding: var(--lf-sp-2);
       }
 
       notification-simulator .notification-demo-title {
         min-width: 0;
-        margin: var(--sp-1) 0;
-        font: 650 var(--t-4) / 1.18 var(--sans);
+        margin: var(--lf-sp-1) 0;
+        font: 650 var(--lf-t-4) / 1.18 var(--lf-sans);
         overflow-wrap: anywhere;
       }
 
@@ -114,37 +114,37 @@
         .notification-demo-card-status-strip
         .notification-demo-title {
         margin: 0;
-        font-size: var(--t-5);
+        font-size: var(--lf-t-5);
       }
 
       notification-simulator .notification-demo-state {
-        color: var(--ink-2);
-        font: 600 var(--t-6) / 1.2 var(--sans);
+        color: var(--lf-ink-2);
+        font: 600 var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
       notification-simulator .notification-demo-strip-owner {
         grid-column: 2 / -1;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.2 var(--sans);
+        color: var(--lf-ink-2);
+        font: var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
       notification-simulator .notification-demo-detail,
       notification-simulator .notification-demo-owner {
-        margin: var(--sp-1) 0 0;
+        margin: var(--lf-sp-1) 0 0;
       }
 
       notification-simulator .notification-demo-owner,
       notification-simulator .notification-demo-time {
-        color: var(--ink-2);
-        font-size: var(--t-6);
+        color: var(--lf-ink-2);
+        font-size: var(--lf-t-6);
       }
 
       notification-simulator .notification-demo-card[data-level="warn"] {
-        border-color: color-mix(in srgb, var(--warn) 55%, var(--border-2));
+        border-color: color-mix(in srgb, var(--lf-warn) 55%, var(--lf-border));
       }
 
       notification-simulator .notification-demo-card[data-level="bad"] {
-        border-color: color-mix(in srgb, var(--danger) 55%, var(--border-2));
+        border-color: color-mix(in srgb, var(--lf-danger) 55%, var(--lf-border));
       }
 
       @container (max-width: 32rem) {
@@ -318,7 +318,7 @@
   </head>
   <body>
     <main class="layout-workspace density-working" id="notification-workspace">
-      <lf-ask id="notification-ask" data-width="available">
+      <lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground
           id="notification-playground"
@@ -326,6 +326,7 @@
           submit-label="Create notification"
         >
           <lf-playground-control
+            id="events"
             name="events"
             label="Concurrent release events"
             kind="range"
@@ -335,6 +336,7 @@
             step="1"
           ></lf-playground-control>
           <lf-playground-control
+            id="radius"
             name="radius"
             label="Corner radius"
             kind="range"
@@ -345,28 +347,46 @@
             unit="px"
           ></lf-playground-control>
           <lf-playground-control
+            id="compact"
             name="compact"
             label="Compact spacing"
             kind="toggle"
             value="false"
           ></lf-playground-control>
-          <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
-            <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
-            <lf-playground-choice value="urgent" label="Urgent"></lf-playground-choice>
+          <lf-playground-control
+            id="tone"
+            name="tone"
+            label="Tone"
+            kind="choice"
+            value="calm"
+          >
+            <lf-playground-choice
+              id="tone-calm"
+              value="calm"
+              label="Calm"
+            ></lf-playground-choice>
+            <lf-playground-choice
+              id="tone-urgent"
+              value="urgent"
+              label="Urgent"
+            ></lf-playground-choice>
           </lf-playground-control>
           <lf-playground-control
+            id="show-owner"
             name="show-owner"
             label="Show service owner"
             kind="toggle"
             value="true"
           ></lf-playground-control>
           <lf-playground-control
+            id="accent"
             name="accent"
             label="Accent"
             kind="color"
             value="#4f766f"
           ></lf-playground-control>
           <lf-playground-control
+            id="title"
             name="title"
             label="Notification title"
             kind="text"
@@ -380,7 +400,7 @@
             <lf-playground-setting for="compact" value="false"></lf-playground-setting>
             <lf-playground-setting for="accent" value="#4f766f"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Needs attention">
+          <lf-playground-preset id="preset-needs-attention" label="Needs attention">
             <lf-playground-setting for="events" value="4"></lf-playground-setting>
             <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
             <lf-playground-setting for="compact" value="true"></lf-playground-setting>
@@ -395,13 +415,14 @@
             </p>
             <notification-simulator id="notification-simulator">
               <lf-playground-control
+                id="format"
                 name="format"
                 label="Format"
                 kind="choice"
                 value="banner"
                 class="notification-demo-candidates"
               >
-                <lf-playground-choice value="banner" label="Banner">
+                <lf-playground-choice id="format-banner" value="banner" label="Banner">
                   <figure
                     class="notification-demo-candidate"
                     data-notification-format="banner"
@@ -412,7 +433,11 @@
                     <div class="notification-demo-feed notification-demo-banner"></div>
                   </figure>
                 </lf-playground-choice>
-                <lf-playground-choice value="status strip" label="Status strip">
+                <lf-playground-choice
+                  id="format-status-strip"
+                  value="status strip"
+                  label="Status strip"
+                >
                   <figure
                     class="notification-demo-candidate"
                     data-notification-format="status strip"

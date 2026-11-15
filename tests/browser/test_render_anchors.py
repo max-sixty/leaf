@@ -1,7 +1,7 @@
 """Selection, passage, syntax, and version-travel tests."""
 
-import io
 import json
+import math
 import re
 from html import escape
 from pathlib import Path
@@ -9,11 +9,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference, wait_for
-from journeys import (
-    detached_threads,
-    listed_threads,
-)
-from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -25,6 +20,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AIM_SEAM,
     AIM_SEAM_PAGE,
+    MARK,
     SHOT_SRC,
     SHOTS,
 )
@@ -58,7 +54,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    PANEL_THREAD,
     SAID_PAGE,
     _traffic,
     compare_with,
@@ -69,12 +64,13 @@ from render_harness import (
     holding,
     http_error_console,
     leaf_page,
+    long_press,
     open_page,
     panel_menu,
     panel_settled,
     post_event,
-    reported_browser_errors,
     resized,
+    restyle_counts,
     scroll_settled,
     select,
     selection_field,
@@ -92,8 +88,8 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
+from leaf.render_checks import evaluate_probe, rendered
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -106,9 +102,10 @@ def comment_ids(page_dir):
     ]
 
 
-def thread_quote(page, thread_id):
-    """Open the thread in the panel, once the page reads it, and return the quote
-    heading its view."""
+def thread_head(page, thread_id):
+    """Open the thread in the panel, once the page reads it, and return the head of
+    its view, which names what the thread is about: the quoted words and a label of
+    where they stand."""
     page.evaluate(
         "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
     )
@@ -117,7 +114,7 @@ def thread_quote(page, thread_id):
         arg=thread_id,
     )
     open_panel_thread(page, thread_id)
-    return page.locator(".lf-fp-quote")
+    return page.locator(".lf-thread-quote-head")
 
 
 def show_on_page(page, *, key=False):
@@ -141,7 +138,7 @@ def stranded_quotes(page):
     )
     stranded = []
     for thread_id in ids:
-        quote = thread_quote(page, thread_id)
+        quote = thread_head(page, thread_id)
         if quote.count() and quote.get_attribute("data-lf-detached") is not None:
             stranded.append(quote.inner_text())
     page.locator(".lf-fp-close").click()
@@ -248,8 +245,10 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    quote = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "In flight"
+    quote = thread_head(page, comment_ids(serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
+    assert quote.text_content().strip() == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
     # and the anchor is on a word only the runtime puts there, so it has to be found
@@ -401,8 +400,8 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
     for root in roots:
-        expect(thread_quote(page, root["id"])).to_have_text(
-            f"“{root['anchor']['quote']}”"
+        expect(thread_head(page, root["id"]).locator(".lf-thread-quote")).to_have_text(
+            root["anchor"]["quote"]
         )
     source = (serve.page_dir / "index.html").read_text()
     updated = source.replace(
@@ -415,8 +414,8 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
-        quote = thread_quote(page, root["id"])
-        expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
+        quote = thread_head(page, root["id"])
+        expect(quote).to_contain_text(root["anchor"]["quote"])
         expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
         expect(quote).not_to_have_attribute("data-lf-detached", "")
         expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
@@ -495,24 +494,19 @@ def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, ser
     assert stranded_quotes(page) == []
 
 
-@pytest.mark.parametrize("panes", [False, True], ids=["obligation", "panes"])
-def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
-    """A pane does not turn visible prose into separate quotation islands."""
-    item = """<lf-ask id="decision">
-      <h2 id="question">Which plan should lead?</h2>
-      <lf-options id="plans" choose>
-        <lf-option id="steady">Keep the steady plan.</lf-option>
-        <lf-option id="fast">Try the faster plan.</lf-option>
-      </lf-options>
-    </lf-ask>"""
-    content = (
-        f"""<div id="split">
-          <lf-pane id="decision-pane" label="Decision">{item}</lf-pane>
-          <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-        </div>"""
-        if panes
-        else item
-    )
+def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
+    """Neither a pane nor the obligation inside it turns visible prose into separate
+    quotation islands."""
+    content = """<div id="split">
+      <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
+        <h2 id="question">Which plan should lead?</h2>
+        <lf-options id="plans" choose>
+          <lf-option id="steady">Keep the steady plan.</lf-option>
+          <lf-option id="fast">Try the faster plan.</lf-option>
+        </lf-options>
+      </lf-ask></lf-pane>
+      <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+    </div>"""
     markup = leaf_page(
         "Shared quotation",
         '<h1>Release review</h1><section id="review">'
@@ -551,8 +545,8 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     ][-1]
     assert actual == expected
     page.reload()
-    held = thread_quote(page, comment_ids(serve.page_dir)[-1])
-    expect(held).to_have_text(f"“{quote}”")
+    held = thread_head(page, comment_ids(serve.page_dir)[-1])
+    expect(held.locator(".lf-thread-quote")).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
 
 
@@ -576,7 +570,7 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
         for e in before
         if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
     ]
-    expect(thread_quote(page, thread_id)).to_contain_text(quote)
+    expect(thread_head(page, thread_id)).to_contain_text(quote)
     show_on_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
@@ -624,8 +618,10 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    quote = thread_quote(page, comment_ids(d := serve.page_dir)[-1])
-    assert quote.text_content().strip().strip("“”") == "Heated bird bath"
+    quote = thread_head(page, comment_ids(d := serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
+    assert quote.text_content().strip() == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
@@ -672,7 +668,9 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
     item.get_by_role("button", name=re.compile(r"Reject")).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
-    page.locator("[data-lf-margin-for='sug-in-card'] .lf-sug-accept").focus()
+    page.locator(
+        "[data-lf-margin-for='sug-in-card'] [data-lf-margin-entry-key=accept]"
+    ).focus()
     page.keyboard.press("Enter")
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
 
@@ -719,7 +717,9 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(
         page.locator(".lf-composer")
@@ -772,7 +772,9 @@ def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, s
     assert page.evaluate("getSelection().isCollapsed")
     expect(page.locator(".lf-composer")).to_be_visible()
     write(page.locator(".lf-composer leaf-text"), "Keep this note")
-    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator(
+        "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+    ).focus()
     page.locator("#replace").select_text()
     page.evaluate("getSelection().removeAllRanges()")
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -801,7 +803,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
-    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # The slotted shortcut hint keeps the text field's quiet placeholder ink.
     # Typography shared with sent messages must not turn an empty hint into prose.
     hint_ink = """hint => [getComputedStyle(hint).color,
         getComputedStyle(hint.querySelector('kbd')).color]"""
@@ -965,7 +967,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     quoted = "Paragraph 3. Word024. Word025. Word026."
     page = open_page(browser, serve(unique_page, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
-    card = thread_quote(page, comment_ids(serve.page_dir)[-1])
+    card = thread_head(page, comment_ids(serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
     expect(card).to_be_visible()
     into = card.bounding_box()
     # A paragraph level with the thread's quoted words, so the overshoot is sideways:
@@ -1317,10 +1321,10 @@ def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     )
     page = open_page(browser, url)
     mark = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-mark-size'))"
     )
     floor = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     for index, block in enumerate(("#compact", "#tall")):
         page.locator(block).hover()
@@ -1369,23 +1373,17 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
     # Opening unrelated chrome must not restyle every code control. Compare the
     # browser's invalidated-element count at two populations, independent of time.
     def restyled_on_chrome_insertion():
-        browser.start_tracing(page=page, categories=["devtools.timeline"])
-        try:
-            page.evaluate("""() => {
+        restyled = restyle_counts(
+            page,
+            lambda: page.evaluate("""() => {
               const chrome = document.querySelector('.lf-chrome');
               const probe = document.createElement('div');
               chrome.append(probe);
               void probe.offsetWidth;
               probe.remove();
               void chrome.offsetWidth;
-            }""")
-        finally:
-            trace = json.loads(browser.stop_tracing())
-        restyled = [
-            event["args"]["elementCount"]
-            for event in trace["traceEvents"]
-            if event["name"] == "UpdateLayoutTree"
-        ]
+            }"""),
+        )
         assert restyled, "the chrome insertion must exercise style invalidation"
         return sum(restyled)
 
@@ -1401,7 +1399,8 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
 
 
 def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
-    """Arriving code must leave the browser's skipped subtrees unmeasured."""
+    """Arriving code must leave the browser's skipped subtrees unmeasured. A block
+    revealed later gets its copy control, names its Copy key and copies on Enter."""
     page = open_page(
         browser,
         serve(leaf_page("Hidden arrivals", '<h1>Arrivals</h1><div id="slots"></div>')),
@@ -1429,6 +1428,10 @@ def test_hidden_code_arrivals_do_not_read_skipped_blocks(browser, serve):
     expect(page.locator(".lf-code-copy")).to_have_count(1)
     page.locator("#slots summary").click()
     expect(page.locator(".lf-code-copy")).to_have_count(2)
+    # The revealed block names its Copy key once its control has drawn its button.
+    expect(page.locator("#slots details pre")).to_have_attribute(
+        "aria-keyshortcuts", re.compile(r"\bEnter\b")
+    )
     page.keyboard.press("Tab")
     expect(page.locator("#slots details pre")).to_be_focused()
     page.keyboard.press("Enter")
@@ -1631,8 +1634,15 @@ def test_a_box_off_the_reading_face_keeps_its_own_tables_code_and_comments(
     )
 
 
-def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
-    """Markdown fence labels select the same colors as their full language names."""
+def test_code_colouring_keeps_each_blocks_words_and_annotations(
+    browser, serve, subtests
+):
+    """Markdown fence labels select the same colors as their full language names.
+    Annotations keep their nodes and text while tokens cross their boundaries. A second
+    dressing pass that reaches a block whose tokens are still on their way leaves it to
+    the pass in flight, so that pass colors the text the block holds when its tokens
+    land: text rewritten meanwhile, as a live revision rewrites a block in place, must
+    not be put back to what the first pass read."""
     sources = {
         "js": ("javascript", 'const value = "leaf"; // keep the source\n'),
         "sh": ("bash", 'leaf page check "$PAGE" --render\n'),
@@ -1642,102 +1652,87 @@ def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
         for alias, (name, source) in sources.items()
         for label in (alias, name)
     )
-    page = open_page(browser, serve(leaf_page("Code aliases", blocks)))
-    for alias, (name, source) in sources.items():
-        tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
-        short = page.locator(f"#{alias} code")
-        full = page.locator(f"#{name} code")
-        expect(short).to_have_attribute("data-lf-syntax", name)
-        assert short.text_content() == full.text_content() == source
-        painted = short.evaluate(tokens)
-        assert len({color for _, color in painted}) > 1
-        assert painted == full.evaluate(tokens)
-
-
-def test_code_colouring_preserves_inline_annotations(browser, serve):
-    """Annotations keep their nodes and text while tokens cross their boundaries."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Annotated code",
-                '<pre id="marked"><code class="language-python">'
+                "Code colouring",
+                blocks + '<pre id="marked"><code class="language-python">'
                 '<span id="target"></span>de<mark id="annotation">f load(path):\n'
                 '    return "rea</mark>d"</code></pre>'
                 '<pre id="lines"><code class="language-python">'
                 '<span class="line">def load(path):</span>\n'
                 '<span class="line">    return "read"</span></code></pre>'
                 '<pre id="breaks"><code class="language-python">'
-                'def load(path):<br>    return "read"</code></pre>',
-            )
-        ),
-    )
-    marked = page.locator("#marked code")
-    expect(marked).to_have_attribute("data-lf-syntax", "python")
-    expect(page.locator("#annotation [data-lf-syn]").first).to_be_attached()
-    expect(page.locator("#lines .line [data-lf-syn]").first).to_be_attached()
-    expect(page.locator("#target")).to_be_empty()
-    assert marked.text_content() == 'def load(path):\n    return "read"'
-    # The string token crosses the mark's end, so both pieces keep its colour.
-    assert marked.evaluate("""code => {
-      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-      return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
-        && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
-    }""")
-    # A different language repaints Leaf's tokens inside the same annotations.
-    assert page.evaluate("""async () => {
-      const {highlightBlocks} = await window.__lfWidgetApi();
-      const code = document.querySelector('#marked code');
-      const mark = code.querySelector('mark');
-      const target = code.querySelector('#target');
-      const previous = [...code.querySelectorAll('[data-lf-syn]')];
-      code.className = 'language-javascript';
-      await highlightBlocks(code);
-      const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-      await highlightBlocks(code);
-      return code.querySelector('mark') === mark
-        && code.querySelector('#target') === target
-        && mark.textContent === 'f load(path):\\n    return "rea'
-        && code.dataset.lfSyntax === 'javascript'
-        && previous.some(t => !code.contains(t))
-        && !code.querySelector('[data-lf-syn] [data-lf-syn]')
-        && tokens.every(t => code.contains(t));
-    }""")
-    assert page.locator("#breaks [data-lf-syn]").count() == 0
-
-
-def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
-    """A second dressing pass that reaches a block whose tokens are still on their way
-    leaves it to the pass in flight, so that pass colors the text the block holds when
-    its tokens land. Text rewritten meanwhile, as a live revision rewrites a block in
-    place, must not be put back to what the first pass read."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "rewritten block",
-                '<h1 id="t">Blocks</h1>\n'
+                'def load(path):<br>    return "read"</code></pre>'
                 '<pre id="later"><code class="language-python">x = 1</code></pre>',
             )
         ),
     )
-    expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
-    text = page.evaluate(
-        """async () => {
+
+    with subtests.test(case="language aliases"):
+        for alias, (name, source) in sources.items():
+            tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
+            short = page.locator(f"#{alias} code")
+            full = page.locator(f"#{name} code")
+            expect(short).to_have_attribute("data-lf-syntax", name)
+            assert short.text_content() == full.text_content() == source
+            painted = short.evaluate(tokens)
+            assert len({color for _, color in painted}) > 1
+            assert painted == full.evaluate(tokens)
+
+    with subtests.test(case="inline annotations"):
+        marked = page.locator("#marked code")
+        expect(marked).to_have_attribute("data-lf-syntax", "python")
+        expect(page.locator("#annotation [data-lf-syn]").first).to_be_attached()
+        expect(page.locator("#lines .line [data-lf-syn]").first).to_be_attached()
+        expect(page.locator("#target")).to_be_empty()
+        assert marked.text_content() == 'def load(path):\n    return "read"'
+        # The string token crosses the mark's end, so both pieces keep its colour.
+        assert marked.evaluate("""code => {
+          const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--lf-syn-string)')
+            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--lf-syn-string)');
+        }""")
+        # A different language repaints Leaf's tokens inside the same annotations.
+        assert page.evaluate("""async () => {
           const {highlightBlocks} = await window.__lfWidgetApi();
-          const code = document.createElement('code');
-          code.className = 'language-python';
-          code.textContent = 'old = 1';
-          document.querySelector('#later').after(
-            Object.assign(document.createElement('pre'), {id: 'rewritten'}));
-          document.querySelector('#rewritten').append(code);
-          const first = highlightBlocks(code);
-          code.textContent = 'new = 2';
-          await Promise.all([first, highlightBlocks(code)]);
-          return code.textContent;
-        }"""
-    )
-    assert text == "new = 2"
+          const code = document.querySelector('#marked code');
+          const mark = code.querySelector('mark');
+          const target = code.querySelector('#target');
+          const previous = [...code.querySelectorAll('[data-lf-syn]')];
+          code.className = 'language-javascript';
+          await highlightBlocks(code);
+          const tokens = [...code.querySelectorAll('[data-lf-syn]')];
+          await highlightBlocks(code);
+          return code.querySelector('mark') === mark
+            && code.querySelector('#target') === target
+            && mark.textContent === 'f load(path):\\n    return "rea'
+            && code.dataset.lfSyntax === 'javascript'
+            && previous.some(t => !code.contains(t))
+            && !code.querySelector('[data-lf-syn] [data-lf-syn]')
+            && tokens.every(t => code.contains(t));
+        }""")
+        assert page.locator("#breaks [data-lf-syn]").count() == 0
+
+    with subtests.test(case="a block rewritten while it is colored"):
+        expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
+        text = page.evaluate(
+            """async () => {
+              const {highlightBlocks} = await window.__lfWidgetApi();
+              const code = document.createElement('code');
+              code.className = 'language-python';
+              code.textContent = 'old = 1';
+              document.querySelector('#later').after(
+                Object.assign(document.createElement('pre'), {id: 'rewritten'}));
+              document.querySelector('#rewritten').append(code);
+              const first = highlightBlocks(code);
+              code.textContent = 'new = 2';
+              await Promise.all([first, highlightBlocks(code)]);
+              return code.textContent;
+            }"""
+        )
+        assert text == "new = 2"
 
 
 @pytest.mark.watch_shifts
@@ -1764,15 +1759,15 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
-    assert ["var(--syn-keyword)", "def", "normal"] in colors["widget"]
-    assert ["var(--syn-name)", "bucket_key", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-keyword)", "def", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-name)", "bucket_key", "normal"] in colors["widget"]
     assert {color for color, _, _ in colors["widget"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }, colors["widget"]
     assert [
-        "var(--syn-comment)",
+        "var(--lf-syn-comment)",
         "# apply the migration, then run the marked suite",
         "italic",
     ] in colors["plain"]
@@ -1830,7 +1825,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
+          .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -1944,18 +1939,18 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             ("type", "$OUTPUT"),
         ):
             assert any(
-                token["style"] == f"var(--syn-{color})" and text in token["text"]
+                token["style"] == f"var(--lf-syn-{color})" and text in token["text"]
                 for token in tokens
             ), (surface, color, text, tokens)
         assert any(
-            token["style"] == "var(--syn-string)" and "page" in token["text"]
+            token["style"] == "var(--lf-syn-string)" and "page" in token["text"]
             for token in tokens
         )
         assert (
             "".join(
                 token["text"]
                 for token in tokens
-                if token["style"] == "var(--syn-comment)"
+                if token["style"] == "var(--lf-syn-comment)"
                 and token["fontStyle"] == "italic"
             ).strip()
             == "# inspect"
@@ -1973,7 +1968,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       const tokens = roots.map(root => [...root.querySelectorAll('[data-lf-syn]')]
         .find(token => token.textContent === 'leaf'));
       const before = tokens.map(token => getComputedStyle(token).color);
-      document.documentElement.style.setProperty('--syn-name', '#a12345');
+      document.documentElement.style.setProperty('--lf-syn-name', '#a12345');
       return {before, after: tokens.map(token => getComputedStyle(token).color),
         connected: tokens.every(token => token.isConnected)};
     })""")
@@ -2000,7 +1995,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
           for (const lang of langs)
             for (const src of samples) {
               try {
-                const tokens = await syntax(src, lang);
+                const { tokens } = await syntax(src, lang);
                 const back = tokens.map(t => t.text).join('');
                 if (back !== src) bad.push([lang, src, back]);
               } catch (e) { bad.push([lang, src, String(e)]); }
@@ -2051,15 +2046,15 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     heredoc = page.evaluate("""async () => {
       const { syntax } = await window.__lfWidgetApi();
-      return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
+      return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
-        token["style"].get("color") == "var(--syn-string)"
+        token["style"].get("color") == "var(--lf-syn-string)"
         and "leaf is literal text" in token["text"]
         for token in heredoc
     )
     assert not any(
-        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        token["style"].get("color") == "var(--lf-syn-name)" and "leaf" in token["text"]
         for token in heredoc
     )
 
@@ -2218,19 +2213,21 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     py = by_path["gateway/limits.py"]
     assert any(
-        ["var(--syn-keyword)", "if", "normal"] in line["colors"] for line in py
+        ["var(--lf-syn-keyword)", "if", "normal"] in line["colors"] for line in py
     ), py
     assert {color for line in py for color, _, _ in line["colors"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }
 
     # Docstrings keep the theme's comment color and italic style on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        assert {color for color, _, _ in line["colors"]} == {"var(--syn-comment)"}, line
+        assert {color for color, _, _ in line["colors"]} == {"var(--lf-syn-comment)"}, (
+            line
+        )
         assert {style for _, _, style in line["colors"]} == {"italic"}, line
         assert "".join(text for _, text, _ in line["colors"]) == line["text"], line
 
@@ -2244,7 +2241,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert len(yml) == 2
     for line in yml:
         assert any(
-            color == "var(--syn-type)" and "burst" in text
+            color == "var(--lf-syn-type)" and "burst" in text
             for color, text, _ in line["colors"]
         ), line
     assert {
@@ -2344,8 +2341,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     after = changed("gateway/config.yaml", "change-addition", "burst: 40")
     assert before["marks"] and any("20" in mark for mark in before["marks"])
     assert after["marks"] and any("40" in mark for mark in after["marks"])
-    assert ["var(--syn-number)", "20"] in before["inked"]
-    assert ["var(--syn-number)", "40"] in after["inked"]
+    assert ["var(--lf-syn-number)", "20"] in before["inked"]
+    assert ["var(--lf-syn-number)", "40"] in after["inked"]
 
     changed_lines = [
         line
@@ -2355,9 +2352,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ]
     assert changed_lines
     assert all(line["linePaint"] != line["prePaint"] for line in changed_lines)
-    assert before["linePaint"] != after["linePaint"], (
-        "additions and deletions need distinct semantic fills"
-    )
 
     inline_paint = [paint for line in changed_lines for paint in line["markPaint"]]
     assert inline_paint
@@ -2368,6 +2362,72 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in changed_lines
         for background, _ in line["markPaint"]
     ), "inline changes need a stronger fill than their changed line"
+
+    # An added row and a removed row differ at a glance in either scheme: about as far
+    # apart in Oklab as GitHub's light rows (0.057), where 16% of the muted status
+    # colours mixed into the canvas left them 0.032 apart and near grey. A changed word's
+    # mark stands at least that far from its row, so it still picks out the word. The
+    # browser converts each paint to Oklab itself, whatever form the theme states it in.
+    read_paints = """() => {
+      const root = document.querySelector('#patch').shadowRoot;
+      const probe = document.body.appendChild(document.createElement('i'));
+      const oklab = paint => {
+        probe.style.color = `oklab(from ${paint} l a b)`;
+        return getComputedStyle(probe).color
+          .match(/-?\\d*\\.?\\d+(?:e-?\\d+)?/g).slice(0, 3).map(Number);
+      };
+      const read = kind => {
+        const line = root.querySelector(
+          `.lf-diff-line[data-line-type="${kind}"]:has([data-diff-span])`);
+        return {
+          row: oklab(getComputedStyle(line).backgroundColor),
+          mark: oklab(getComputedStyle(line.querySelector('[data-diff-span]'))
+            .backgroundColor),
+        };
+      };
+      const paints = {
+        canvas: oklab(getComputedStyle(root.querySelector('pre')).backgroundColor),
+        added: read('change-addition'),
+        removed: read('change-deletion'),
+      };
+      probe.remove();
+      return paints;
+    }"""
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paints = page.evaluate(read_paints)
+        added, removed = paints["added"], paints["removed"]
+        apart = math.dist(added["row"], removed["row"])
+        assert apart >= 0.05, f"{scheme}: added and removed rows {apart:.3f} apart"
+        for kind in ("added", "removed"):
+            stands = math.dist(paints[kind]["mark"], paints[kind]["row"])
+            assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
+
+    # A theme or page sets the code inputs apart from the scheme (package-themes.md,
+    # "Theme colors"), as dark code on a light page does. The rows take their lightness
+    # from the code canvas rather than the scheme, so they stand a step from it and the
+    # code on them reads as it does on the canvas.
+    dark_code = {
+        "--lf-pre-bg": "#1b1b1a",
+        "--lf-code-ink": "#e8e7e3",
+        "--lf-syn-comment": "#cac2b3",
+        "--lf-syn-keyword": "#efafa0",
+        "--lf-syn-string": "#9dc4dd",
+        "--lf-syn-number": "#a8c4e2",
+        "--lf-syn-name": "#cdb2e8",
+        "--lf-syn-type": "#e6bc88",
+    }
+    restyle = """tokens => Object.entries(tokens).forEach(([name, value]) =>
+      value ? document.documentElement.style.setProperty(name, value)
+        : document.documentElement.style.removeProperty(name))"""
+    page.evaluate(restyle, dark_code)
+    paints = page.evaluate(read_paints)
+    assert paints["canvas"][0] < 0.3, "the dark code tokens never reached the canvas"
+    for kind in ("added", "removed"):
+        step = paints[kind]["row"][0] - paints["canvas"][0]
+        assert abs(step) < 0.1, f"a {kind} row {step:+.3f} in lightness from dark code"
+    assert evaluate_probe(page, "unreadSyntax") == []
+    page.evaluate(restyle, dict.fromkeys(dark_code, ""))
 
     # Pierre's inline comparison is language-independent. Dockerfile is intentionally
     # plain in Leaf's registry, but the edited dependency is still called out.
@@ -2444,6 +2504,47 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_a_diff_marks_changed_words_only_where_the_line_mostly_stayed(browser, serve):
+    """A word mark locates an edit inside a line that otherwise stayed the same.
+
+    Where most of a changed pair was rewritten, marks would cover most of both lines
+    and point at nothing, so the pair stays a plain removed row above a plain added
+    row, as delta's default `--max-line-distance` leaves it."""
+    markup = leaf_page(
+        "diff",
+        """
+<h1 id="t">Diff</h1>
+<lf-diff id="patch"><pre>
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1,4 +1,4 @@
+ Release steps:
+-1. Run the test suite.
+-2. Tell the team the build is ready.
++1. Run the full test suite.
++2. Tag the commit and push the tag.
+ 3. Close the milestone.
+</pre></lf-diff>
+""",
+    )
+    page = open_page(browser, serve(markup))
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+    marks = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelector('#patch').shadowRoot.querySelectorAll('[data-line]')]
+        .filter(line => line.dataset.lineType.startsWith('change-'))
+        .map(line => [line.textContent,
+          [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent)]))""")
+    assert marks == {
+        "1. Run the test suite.": [],
+        "2. Tell the team the build is ready.": [],
+        "1. Run the full test suite.": ["full "],
+        "2. Tag the commit and push the tag.": [],
+    }
 
 
 def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
@@ -2533,7 +2634,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     )
     page = open_page(browser, url)
 
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
+    page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()
@@ -2545,7 +2646,8 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
 
     summary = page.locator("lf-diff summary").first
     details = page.locator("lf-diff details").first
-    summary.scroll_into_view_if_needed()
+    # Clear of the floating panel, where the user sees the control a key acts on.
+    summary.evaluate("el => el.scrollIntoView({block: 'center'})")
     summary.focus()
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
     page.keyboard.press("Enter")
@@ -2609,10 +2711,7 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_locat
     "removed",
     [
         "layer",
-        "control",
-        "later-close",
         "reparent",
-        "staged-reparent",
         "former-popover",
         "retained-root",
         "retained-immediate",
@@ -2680,26 +2779,20 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
           // must hear it inside the root, while its departing node is still alive.
           root.getElementById('two').focus();
           const layer = root.querySelector('dialog, [popover]');
-          if (removed === 'later-close' || removed === 'former-popover') window.detachedLayer = layer;
+          if (removed === 'former-popover') window.detachedLayer = layer;
           else layer.open = false;
-          (['control', 'staged-reparent'].includes(removed) ? root.getElementById('one') : layer).remove();
+          layer.remove();
         }""",
         removed,
     )
     rendered(page)
-    if removed == "later-close":
+    if removed == "reparent":
         page.evaluate(
-            "() => { window.detachedLayer.open = false; window.detachedLayer = null; }"
-        )
-        rendered(page)
-    elif removed in {"reparent", "staged-reparent"}:
-        page.evaluate(
-            """removed => {
+            """() => {
               const layer = document.createElement('dialog');
-              layer.open = removed === 'reparent';
+              layer.open = true;
               layer.append(window.oldFocus.deref());
-            }""",
-            removed,
+            }"""
         )
         rendered(page)
     elif removed == "former-popover":
@@ -2720,32 +2813,38 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
     assert page.evaluate("() => window.heard") == heard
 
 
-@pytest.mark.parametrize("arrival", ["native", "return"])
-def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arrival):
+def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtests):
     """A component's focus handler can forward its first arrival before focusin.
     The final control still publishes the placement's cause without another input.
     """
     page = open_page(browser, serve(leaf_page("Focus entry", "<h1>Focus entry</h1>")))
     page.evaluate(
-        """async arrival => {
-          const host = document.createElement('div');
-          const root = host.attachShadow({mode: 'open'});
-          root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
-          document.querySelector('main').append(host);
+        """async () => {
           const {onCurrentLocation} = await window.__lfCheckApi();
-          const {focusDestination} = await window.__lfWidgetApi();
-          window.heard = [];
-          onCurrentLocation((node, cause) => window.heard.push([node?.id ?? null, cause]));
-          const one = root.getElementById('one');
-          one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
-          if (arrival === 'return') focusDestination(one, 'return');
-          else one.focus();
-        }""",
-        arrival,
+          onCurrentLocation((node, cause) => window.heard?.push([node?.id ?? null, cause]));
+        }"""
     )
-    assert page.evaluate("() => window.heard") == [
-        ["two", "return" if arrival == "return" else "move"]
-    ]
+    # Each arrival enters a root of its own, whose forwarding handler has not run yet.
+    for arrival in ("native", "return"):
+        with subtests.test(arrival=arrival):
+            page.evaluate(
+                """async arrival => {
+                  const host = document.createElement('div');
+                  const root = host.attachShadow({mode: 'open'});
+                  root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
+                  document.querySelector('main').append(host);
+                  const {focusDestination} = await window.__lfWidgetApi();
+                  window.heard = [];
+                  const one = root.getElementById('one');
+                  one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
+                  if (arrival === 'return') focusDestination(one, 'return');
+                  else one.focus();
+                }""",
+                arrival,
+            )
+            assert page.evaluate("() => window.heard") == [
+                ["two", "return" if arrival == "return" else "move"]
+            ]
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
@@ -2770,27 +2869,21 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     expect_open_threads(page, 2)
     stranded = stranded_quotes(page)
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
-    # The projected contour an open thread raises stays above the figure's own paint
-    # without putting any paint over its contents: it stands outside the figure.
+    # The contour an open thread raises puts no paint over the figure's contents: the
+    # figure draws it as its outline, outside itself at the region's gap.
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     figure.click()
     expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
-    expect(mark).to_be_visible()
-    look = mark.evaluate(
-        """node => { const style = getComputedStyle(node, '::after'); return {
-          background: getComputedStyle(node).backgroundImage,
-          outline: [style.outlineStyle, style.outlineWidth],
-          offset: parseFloat(style.outlineOffset),
-          region: parseFloat(getComputedStyle(document.documentElement)
-            .getPropertyValue('--focus-region-gap')),
-        }; }"""
+    expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
+    look = figure.evaluate(MARK)
+    region = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
-    assert look["background"] == "none", look
-    assert look["outline"][0] == "solid" and look["outline"][1] != "0px", look
-    assert look["offset"] == look["region"], look
+    assert look and look["style"] == "solid" and look["width"] > 0, look
+    assert look["offset"] == region, (look, region)
 
 
 FOCUSED_THREAD = "document.activeElement?.closest('.lf-page-thread')"
@@ -3042,10 +3135,9 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     page = open_page(browser, url)
     figure = page.locator("#fig")
     figure.scroll_into_view_if_needed()
-    mark = page.locator('.lf-visual-mark[data-lf-for="fig"]')
-    expect(mark).to_have_count(0)
+    expect(figure).not_to_have_attribute("data-lf-mark", re.compile(".*"))
 
-    look = """node => { const style = getComputedStyle(node, '::after'); return {
+    look = """node => { const style = getComputedStyle(node); return {
       line: style.outlineStyle,
       drawn: parseFloat(style.outlineWidth) > 0,
     }; }"""
@@ -3057,7 +3149,8 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     # The compact preview card reveals its reply box on request, so what a press lands on
     # is the thread itself; the paint under test is the same either way.
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
-    selected = mark.evaluate(look)
+    expect(figure).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    selected = figure.evaluate(look)
 
     assert selected == {"line": "solid", "drawn": True}
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
@@ -3069,7 +3162,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           const sample = () => {
             window.lfFrames.push({
               contour: Boolean(document.querySelector(
-                '.lf-visual-mark-here[data-lf-for="fig"]')),
+                '#fig[data-lf-mark~="here"]')),
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3162,37 +3255,15 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.move(spot["x"], spot["y"])
-    page.wait_for_function("() => document.body.classList.contains('lf-over-mark')")
+    hand = "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+    page.wait_for_function(f"(spot) => ({hand})(spot) === 'pointer'", arg=spot)
     page.evaluate(
         "() => document.scrollingElement.scrollBy({top: 900, behavior: 'instant'})"
     )
     page.wait_for_function(
-        "() => !document.body.classList.contains('lf-over-mark')"
-        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0"
-    )
-
-
-def test_a_repeated_passage_anchors_where_it_was_picked(browser, serve):
-    """A quote names text, not a place. Where one section says the same thing twice, the
-    words on either side are what tell the copies apart — so an anchor carries them, and
-    the occurrence whose neighbours match wins. Driven through the real button, because
-    the context is captured from the live selection and nowhere else."""
-    page = open_page(browser, serve(TWICE_PAGE))
-    chosen = page.evaluate_handle("""() => {
-        const paras = [...document.querySelectorAll('#repeat p')];
-        const p = paras.at(-1);
-        const phrase = 'The version stamp never lands.';
-        const at = p.firstChild.data.indexOf(phrase);
-        if (at === -1) return 'phrase missing';
-        const want = document.createRange();
-        want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
-        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(want);
-        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
-        return want.cloneRange();
-    }""")
-    assert chosen.evaluate("range => range instanceof Range"), chosen.json_value()
-    assert selected_comment_marks_chosen_start(page, chosen), (
-        "the second copy was picked, but the comment mark went elsewhere"
+        f"(spot) => ({hand})(spot) !== 'pointer'"
+        " && (CSS.highlights.get('lf-mark-hover')?.size ?? 0) === 0",
+        arg=spot,
     )
 
 
@@ -3264,7 +3335,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     assert reply["revision"] == 2 and reply["anchor"]["quote"] == revised_passage
     told(page)
 
-    quote = thread_quote(page, root["id"])
+    quote = thread_head(page, root["id"])
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     expect(quote).to_contain_text(revised_passage)
     painted = page.evaluate(
@@ -3334,10 +3405,10 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
 
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    quote = thread_quote(page, root["id"])
+    quote = thread_head(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_attribute("data-lf-detached", "")
-    expect(quote).to_have_attribute("title", re.compile("no longer"))
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Not in the latest version")
     # With nowhere on the page to go, the view offers no way there.
     expect(
         page.locator(".lf-fp-aux button:enabled[aria-label='Show on page']")
@@ -3411,67 +3482,6 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     assert selected_comment_marks_chosen_start(page, chosen), (
         "the closing copy was picked, but the comment mark went elsewhere"
     )
-
-
-def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
-    browser, serve
-):
-    """The bar is however much was stored. An anchor from an older log carries context
-    clipped at its section's edge; it confirms at that shorter bar exactly as it did when
-    it was written, so nothing already in a log detaches when the capture reaches
-    further."""
-    url = serve(EDGE_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "old bar",
-            "anchor": {
-                "section": "edge",
-                "quote": "the run is retried until it lands",
-                "prefix": "ails again in the night,",
-                "suffix": ". Nothing else moves.",
-            },
-        },
-    )
-    page = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    where = page.evaluate("""() => {
-        const r = [...CSS.highlights.get('lf-mark')][0];
-        return r.startContainer.parentElement.textContent.slice(0, 11);
-    }""")
-    assert where == "First pass:", (
-        f"an old anchor's thin bar changed where it lands: {where!r}"
-    )
-
-
-def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, serve):
-    """A capture that stopped at the section root wrote no prefix at all for a passage
-    opening its section. Read the way the search now reads an empty side — nothing preceded
-    this passage anywhere on the page — that claim is false wherever the section wasn't
-    first, so no occurrence confirms it. With two quote candidates left, the passage is
-    ambiguous and detaches rather than using document order."""
-    url = serve(EDGE_PAGE)
-    # A suffix that fits the second copy and nothing else, stored with no prefix beside it.
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "older anchor",
-            "anchor": {
-                "section": "edge",
-                "quote": "the run is retried until it lands",
-                "suffix": ". Rollout resumes",
-            },
-        },
-    )
-    page = open_page(browser, url)
-    assert len(stranded_quotes(page)) == 1
-    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
@@ -3621,160 +3631,17 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     assert transition["anchor"] == {"section": "thin"}
 
 
-QUEUES_V1 = leaf_page(
-    "Queues",
-    """
-<h1 id="t">Queues</h1>
-<section id="queues">
-<h2>Each side has a queue of open items, and what an item is stays open</h2>
-<p>An item is anything open that one side owes the other.</p>
-</section>
-""",
-)
-QUEUES_V2 = QUEUES_V1.replace(
-    "Each side has a queue of open items, and what an item is stays open",
-    "The two queues today",
-)
-
-
-def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
-    """A version that rewrites the words a comment quoted leaves its thread on their
-    section. The thread keeps naming the quoted words rather than the section's new
-    heading, marked as changed."""
-    quote = "what an item is stays open"
-    url = serve(QUEUES_V1, anchored=[("queues", quote)])
-    page = open_page(browser, live_url(url))
-    stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
-    wait_for_revision(page, 2)
-    [thread] = comment_ids(serve.page_dir)
-    head = thread_quote(page, thread)
-    expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
-    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
-
-
-def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
-    """The other half of a comparison is what each change replaced, on request.
-
-    The Change margin entry is a disclosure per change, a hunk of the block diff, which
-    opens one card over the change: the words a block that kept its id lost, struck, and
-    the words it gained, tinted, then the paragraph the change added, inserted whole.
-    Rewritten sentences stay whole; a local edit is refined to its words. The card stands
-    in the chrome, so the page under it does not move, the existing comments stay
-    attached and selection still reads the current version alone.
-
-    The authored pair supplies the contrasts: one rewritten paragraph with a surviving
-    and a replaced sentence, and the new paragraph after it, which make one change; a
-    rewritten heading and lede, another; and one new list item, the third."""
-    example = named_source("log-retention")
-    page = open_page(browser, serve(example))
-    compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(5)
-
-    # Nothing stands open until a user asks: the marks are the whole first reading.
-    card = page.locator("#lf-change-card")
-    expect(card).to_have_count(0)
-    marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
-    assert page.evaluate(marks) == 2
-    rewritten = page.locator(
-        '[data-lf-margin-for="ret-cost-body"] [data-lf-kinds~="change"]'
-    )
-    expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
-    # A disclosure says what it holds: what the change did, in blocks.
-    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text(
-        "1 paragraph edited, 1 added since v1"
-    )
-
-    # Page Map carries the same account on each change's row, with the versions its
-    # card compares, and both remain searchable away from the passage.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
-    expect(mapped).to_have_count(3)
-    paragraph = mapped.filter(has_text="1 paragraph edited, 1 added · Two years")
-    expect(paragraph).to_have_count(1)
-    expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
-    expect(paragraph).to_have_attribute(
-        "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
-    )
-    page.keyboard.press("Escape")
-    before = page.locator("#ret-cost-body").bounding_box()
-    rewritten.click()
-
-    # One card over the change; the page under it holds still.
-    expect(card).to_be_visible()
-    expect(rewritten).to_have_attribute("aria-expanded", "true")
-    assert page.locator("#ret-cost-body").bounding_box() == before
-    expect(card.locator(".lf-change-card-head")).to_have_text(
-        "1 paragraph edited, 1 added · v1 → v2"
-    )
-    struck = card.locator("del")
-    expect(struck).to_have_count(1)
-    expect(struck).to_contain_text("Both questions were answered")
-    expect(struck).not_to_contain_text("Two years of incident write-ups")
-    inserted = card.locator("ins")
-    expect(inserted).to_have_count(2)
-    expect(inserted.first).to_contain_text("Aggregates supplied the rate")
-    expect(inserted.first).not_to_contain_text("Two years of incident write-ups")
-    # The paragraph the revision added in the same change reads after it, inserted whole.
-    expect(inserted.last).to_contain_text("Keep 5xx request logs for 120 days")
-    expect(
-        page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
-    ).to_have_count(0)
-    expect_panel_says(page, "1 paragraph edited, 1 added since v1 · showing the change")
-
-    # One card at a time: a list item's change takes its place.
-    step = page.locator(
-        '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
-    )
-    step.click()
-    expect(card.locator(".lf-change-card-head")).to_have_text("1 item added · v1 → v2")
-    expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(step).to_have_attribute("aria-expanded", "true")
-
-    # The card is the runtime's own (.lf-ui), so the page's reading does not move under
-    # it: both threads keep the passages they quote.
-    assert stranded_quotes(page) == []
-    assert page.evaluate(marks) == 2
-
-    # Escape closes it, and stopping the comparison takes the marks.
-    page.keyboard.press("Escape")
-    expect(card).to_have_count(0)
-    expect(step).to_have_attribute("aria-expanded", "false")
-    compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(0)
-
-
-def test_a_change_card_reads_the_shared_authored_reading(browser, serve):
-    """A passage crossing element boundaries keeps one text reading."""
+def test_a_change_card_reads_across_elements_and_past_astral_text(
+    browser, serve, subtests
+):
+    """A passage crossing element boundaries keeps one text reading, and astral text
+    before an edit cannot shift its insertion and deletion runs."""
     first = leaf_page(
-        "Nested version passage",
-        "<h1>Review</h1><aside id='note'>Careful<b>!</b> The old wording stood here.</aside>",
-    )
-    second = first.replace("old wording stood", "new wording stands")
-    url = serve(first)
-    page = open_page(browser, live_url(url))
-    d = serve.page_dir
-    stamp_page(d, second, "revise the note")
-    wait_for_revision(page, 2)
-
-    compare_with(page, 1)
-    change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
-    change.click()
-    expect(change).to_have_attribute("aria-expanded", "true")
-    card = page.locator("#lf-change-card")
-    expect(card.locator("del")).to_have_count(2)
-    assert card.locator("del").all_inner_texts() == ["old", "stood"]
-    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
-
-
-def test_a_change_card_aligns_astral_text_by_character(browser, serve):
-    """Astral text before an edit cannot shift its insertion and deletion runs."""
-    first = leaf_page(
-        "Unicode version passage",
+        "Version passages",
         """
-        <h1>Forecast</h1>
+        <h1>Review</h1>
+        <aside id='note'>Careful<b>!</b> The old wording stood here.</aside>
+        <p id='between'>An unchanged line keeps these two changes apart.</p>
         <p id='wording'>Weather 🌧: the old wording stood here.</p>
         <p id='tail'>Weather 🌧: this line keeps a trailing phrase.</p>
         """,
@@ -3783,23 +3650,33 @@ def test_a_change_card_aligns_astral_text_by_character(browser, serve):
         " keeps a trailing phrase", ""
     )
     page = open_page(browser, live_url(serve(first)))
-    d = serve.page_dir
-    stamp_page(d, second, "revise the forecast")
+    stamp_page(serve.page_dir, second, "revise the note and the forecast")
     wait_for_revision(page, 2)
-
     compare_with(page, 1)
-    wording = page.locator('[data-lf-margin-for="wording"] [data-lf-kinds~="change"]')
-    wording.click()
-    expect(wording).to_have_attribute("aria-expanded", "true")
-    # The adjacent edits share one change, and its card holds both.
     card = page.locator("#lf-change-card")
-    expect(card.locator("del")).to_have_count(3)
-    assert [text.strip() for text in card.locator("del").all_inner_texts()] == [
-        "old",
-        "stood",
-        "keeps a trailing phrase",
-    ]
-    assert card.locator("ins").all_inner_texts() == ["new", "stands"]
+
+    with subtests.test(case="across element boundaries"):
+        change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
+        change.click()
+        expect(change).to_have_attribute("aria-expanded", "true")
+        expect(card.locator("del")).to_have_count(2)
+        assert card.locator("del").all_inner_texts() == ["old", "stood"]
+        assert card.locator("ins").all_inner_texts() == ["new", "stands"]
+
+    with subtests.test(case="past astral text"):
+        wording = page.locator(
+            '[data-lf-margin-for="wording"] [data-lf-kinds~="change"]'
+        )
+        wording.click()
+        expect(wording).to_have_attribute("aria-expanded", "true")
+        # The adjacent edits share one change, and its card holds both.
+        expect(card.locator("del")).to_have_count(3)
+        assert [text.strip() for text in card.locator("del").all_inner_texts()] == [
+            "old",
+            "stood",
+            "keeps a trailing phrase",
+        ]
+        assert card.locator("ins").all_inner_texts() == ["new", "stands"]
 
 
 def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve):
@@ -3870,7 +3747,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
                 "type": "object",
-                "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+                "properties": {"id": {"type": "string"}},
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
@@ -3989,7 +3866,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     # 10px into the band keeps the line's middle, where the press lands, off the panel.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
     # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
@@ -4014,7 +3891,7 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
     )
     place_bottom(-560)
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-preview .lf-page-thread leaf-text")).to_be_focused()
     boxes = page.evaluate(
         """() => {
           const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -4304,7 +4181,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-page-thread leaf-text")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    expect(thread_quote(page, comments[0]["id"])).to_have_text("§ app.py · file")
+    expect(thread_head(page, comments[0]["id"])).to_have_text("§ app.py · file")
     expect(page.locator(PANEL_THREAD)).to_contain_text("Review this file as a whole.")
 
     # A thread on a line of the file still unloaded is named as its drawn row would be,
@@ -4328,8 +4205,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect_open_threads(page, 2)
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     quotes = [
-        thread_quote(page, thread).inner_text()
-        for thread in comment_ids(serve.page_dir)
+        thread_head(page, thread).inner_text() for thread in comment_ids(serve.page_dir)
     ]
     assert sorted(" ".join(quote.split()) for quote in quotes) == [
         "§ app.py · file",
@@ -4515,7 +4391,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
-    quote = thread_quote(page, comment_ids(serve.page_dir)[0])
+    quote = thread_head(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_attribute("data-lf-detached", "")
 
     show_on_page(page)
@@ -4555,24 +4431,15 @@ TWO_FILE_MANIFEST = {
     ]
 }
 
-# Observe evidence requests, then hold the second file's textual rendering. Its
-# complete Git evidence is already checked before either closed row is shown.
+# Hold the second file's textual rendering. Its complete Git evidence is already
+# checked before either closed row is shown.
 HOLD_SECOND_FILE = """
-          window.__leafDeferredRequests = [];
-          const originalFetch = window.fetch.bind(window);
-          window.fetch = (input, init) => {
-            const url = new URL(input instanceof Request ? input.url : String(input),
-                                location.href);
-            if (url.pathname === '/api/deferred')
-              window.__leafDeferredRequests.push(url.searchParams.get('key'));
-            return originalFetch(input, init);
-          };
           customElements.whenDefined('lf-diff').then(() => {
             const prototype = customElements.get('lf-diff').prototype;
             const prepare = prototype.prepareEntry;
             prototype.prepareEntry = async function(...args) {
-              if (args[1].path === 'second.py' && !window.__leafReleaseDeferred)
-                await new Promise(resolve => { window.__leafReleaseDeferred = resolve; });
+              if (args[0].path === 'second.py' && !window.__leafReleaseSecond)
+                await new Promise(resolve => { window.__leafReleaseSecond = resolve; });
               return prepare.apply(this, args);
             };
           });
@@ -4583,7 +4450,7 @@ HOLD_SECOND_FILE = """
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
 )
-def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
+def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
     browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
@@ -4594,7 +4461,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     thread's Show on page, in the panel.
     """
     authored = leaf_page(
-        "deferred diff",
+        "collapsed diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed></lf-diff>",
     )
@@ -4624,7 +4491,6 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     page.locator("lf-diff summary").first.click()
     expect(
@@ -4633,20 +4499,19 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(0)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     if activation == "keyboard":
         resized(page, 400, 900)
     [thread] = comment_ids(serve.page_dir)
-    quote = thread_quote(page, thread)
+    quote = thread_head(page, thread)
     expect(quote).not_to_have_attribute("data-lf-detached", "")
     show_on_page(page, key=activation == "keyboard")
-    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
         search.click()
         expect(search).to_be_focused()
-    page.evaluate("window.__leafReleaseDeferred()")
+    page.evaluate("window.__leafReleaseSecond()")
     second = page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
@@ -4666,7 +4531,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if superseded:
         expect(search).to_be_focused()
-        thread_quote(page, thread)
+        thread_head(page, thread)
         show_on_page(page)
     landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
@@ -4677,10 +4542,9 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     details = page.locator("lf-diff .lf-diff-file > details").nth(1)
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
-    thread_quote(page, thread)
+    thread_head(page, thread)
     show_on_page(page, key=True)
     landed()
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
 
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
@@ -4692,7 +4556,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     """
     url = serve(
         leaf_page(
-            "deferred diff",
+            "collapsed diff",
             '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
             "collapsed></lf-diff>",
         )
@@ -4707,9 +4571,9 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect_panel_says(page, "Hunk 1 of 1")
 
     page.keyboard.press("]")
-    page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
+    page.wait_for_function("typeof window.__leafReleaseSecond === 'function'")
     page.locator("#title").click()
-    page.evaluate("window.__leafReleaseDeferred()")
+    page.evaluate("window.__leafReleaseSecond()")
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
@@ -4722,15 +4586,13 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     )
 
 
-def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, serve):
+def test_a_diff_tracks_each_write_of_its_source(browser, serve):
     """A source write is an identity, not its second-resolution modification time.
 
-    Replacing a manifest inside the same second must discard its prior file keys before
-    deferred loads use the new source revision. A transient deferred refusal remains local
-    to that disclosure and closing and reopening it retries the exact current file.
+    Replacing a manifest inside the same second discards its prior files.
     """
     authored = leaf_page(
-        "changing deferred diff",
+        "changing diff",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
         "collapsed></lf-diff>",
     )
@@ -4758,16 +4620,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    refused = []
-
-    def refuse_once(route):
-        if not refused:
-            refused.append(True)
-            route.fulfill(status=500, json={"error": "the patch is unavailable"})
-        else:
-            route.continue_()
-
-    page.route("**/api/deferred*", refuse_once)
     data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("second.py", "old", "second")
     )
@@ -4775,145 +4627,10 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     summary = page.locator("lf-diff summary")
     expect(summary).to_contain_text("second.py")
     expect(summary).not_to_contain_text("first.py")
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "the patch is unavailable"
-    )
-    consume_browser_errors(page, http_error_console(500))
-    summary.click()
     summary.click()
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(1)
-    assert len(refused) == 1
-
-
-def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
-    """A retained manifest cannot read a replacement's same-key payload."""
-    url = serve(
-        leaf_page(
-            "deferred provenance",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-            "collapsed></lf-diff>",
-        )
-    )
-    original = """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--return "old"
-+return "first"
-"""
-    manifest = {
-        "files": [
-            {
-                "path": "app.py",
-                "patch": original,
-            }
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    prior = source_revision(serve.page_dir, "review-patch")
-    page = open_page(browser, url)
-    page.evaluate("window.priorManifest = document.querySelector('#patch').value")
-    replacement = original.replace('return "first"', 'return "replacement"')
-    manifest["files"][0]["patch"] = replacement
-    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
-    told(page)
-    result = page.evaluate(
-        """async () => {
-          const {loadDeferred} = await window.__lfWidgetApi();
-          let stale;
-          try {
-            stale = await loadDeferred(window.priorManifest, 'app.py');
-          } catch (error) {
-            stale = error.message;
-          }
-          const current = await loadDeferred(
-            document.querySelector('#patch').value, 'app.py'
-          );
-          return {stale, current};
-        }"""
-    )
-    assert result == {
-        "stale": f"source review-patch revision {prior} changed before loading "
-        "deferred app.py",
-        "current": replacement,
-    }
-
-
-def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
-    """Thread travel attempts a failing unopened file once rather than recursing.
-
-    Automatic reveal marks the failed entry as terminal for navigation. Closing and
-    reopening its disclosure is the user's explicit request to try the file again.
-    """
-    authored = leaf_page(
-        "failed deferred diff",
-        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed></lf-diff>",
-    )
-    url = serve(authored)
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "path": "second.py",
-                    "patch": """diff --git a/second.py b/second.py
---- a/second.py
-+++ b/second.py
-@@ -1 +1 @@
--return "old"
-+return "new"
-""",
-                }
-            ]
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Review the unavailable line.",
-            "anchor": {"section": "patch", "datum": '["second.py","new",1]'},
-        },
-    )
-    requests = []
-
-    def refuse(route):
-        requests.append(True)
-        route.fulfill(status=500, json={"error": "the patch is unavailable"})
-
-    context = browser.new_context()
-    context.route("**/api/deferred*", refuse)
-    page = open_page(browser, url, context=context)
-    thread_quote(page, comment_ids(serve.page_dir)[0])
-    show_on_page(page)
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "the patch is unavailable"
-    )
-    page.wait_for_timeout(250)
-    assert len(requests) == 1, "thread hydration retried without another user gesture"
-    consume_browser_errors(page, http_error_console(500))
-
-    summary = page.locator("lf-diff summary")
-    summary.click()
-    # The response rather than the request, because the count below is the route
-    # handler's and the request event is not that handler. Nothing orders the two, so a
-    # wait on the request can come back with the retry in the wire and `requests` still
-    # at one, which reads as a reopen that fetched nothing. Which way the driver hands
-    # them over is not the page's to state and not this test's to depend on. The
-    # fulfilled response exists only because the handler ran, so it is the fact this
-    # count is made of.
-    with page.expect_response(
-        lambda response: "/api/deferred" in response.url
-    ) as retried:
-        summary.click()
-    assert len(requests) == 2
-    reported_browser_errors(page, {"code": "console-error", "url": retried.value.url})
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
@@ -4996,165 +4713,12 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     page.wait_for_function(notes, arg=0)
 
 
-# The runtime's whole visible vocabulary for "somebody has said something about these
-# words". Each is painted through the highlight registry, which styles glyphs and no box,
-# so what it can draw is a wash behind the words and a line under them.
-TEXT_MARKS = ("lf-mark", "lf-react")
-
-# The strip is read under the glyphs rather than across them, because a line and a letter
-# are not told apart by colour: both are ink at the same ratio. Below the baseline the
-# only ink a passage has of its own is its descenders, which are stems — a couple of
-# columns each. A solid rule spans most of the strip. So the floor sits far above what
-# descenders reach and far below what the thinner of the two lines draws, and the
-# unmarked control below is what says which side of it this page is on.
-LINE_COVERAGE = 0.3
-
-
-def _channel(value):
-    value /= 255
-    return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
-
-
-def _ratio(one, other):
-    seen = [
-        0.2126 * _channel(c[0]) + 0.7152 * _channel(c[1]) + 0.0722 * _channel(c[2])
-        for c in (one, other)
-    ]
-    return (max(seen) + 0.05) / (min(seen) + 0.05)
-
-
-def _line_under(page, box, paper):
-    """How much of the strip under a passage the layer draws at 3:1, and at what ratio.
-
-    Returns `(coverage, ratio)` for the row that covers most of the strip: the share of
-    columns at 3:1 or better against the page's own ground, and the weakest ratio
-    among them. A wash is read here too, which is the point — a wash the user cannot
-    tell from the paper comes back as the coverage it actually has, nought, rather than as
-    an absence with no number attached.
-    """
-    assert page.evaluate("(b) => b.y >= 0 && b.y + b.height <= innerHeight", box), (
-        f"the strip is not wholly on screen ({box}), and a screenshot clip is the "
-        f"viewport's, so the scan would read a truncated image"
-    )
-    strip = Image.open(io.BytesIO(page.screenshot(clip=box))).convert("RGB")
-    seen = (0.0, 0.0)
-    for y in range(strip.height):
-        row = [strip.getpixel((x, y)) for x in range(strip.width)]
-        band = [c for c in row if _ratio(c, paper) >= 3.0]
-        if band and len(band) / len(row) > seen[0]:
-            seen = (len(band) / len(row), min(_ratio(c, paper) for c in band))
-    return seen
-
-
-def _under_mark(page, name):
-    """The strip just under the words `name` paints, in viewport coordinates."""
-    box = page.evaluate(
-        """(name) => {
-          const [range] = [...(CSS.highlights.get(name) ?? [])];
-          if (!range) return null;
-          const b = range.getBoundingClientRect();
-          // From two pixels above the text box's foot to eight below it: the line is
-          // drawn from the baseline outward and text-underline-offset carries it past
-          // the rect, while the glyphs themselves are all above this.
-          return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
-                  width: Math.round(b.width), height: 10};
-        }""",
-        name,
-    )
-    assert box and box["width"] > 20, (
-        f"{name} painted no range on this page, so the reading has nothing to answer "
-        f"for: {box}"
-    )
-    return box
-
-
-def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(browser, serve):
-    """A mark on a passage is the user's whole notice that the words carry something.
-
-    The wash cannot be that notice, and no alpha can make it one: --mark composites to
-    1.13:1 over the light paper, and its hue does not reach 1.5:1 against that paper at
-    any alpha at all — opaque it stands at 1.38:1. So the layer marks words with a line:
-    a passage wears --mark-ink as an underline, at 9:1.
-
-    A reaction on words was once --react alone, 1.08:1 over the light paper — a mark that
-    is in the log and not on the screen. Both names are read here.
-
-    Read off the drawn page rather than off the rules, because what a highlight pseudo is
-    allowed to carry is the browser's to decide and a declaration that stopped applying
-    would say nothing. Both schemes, because the two grounds are far apart and a hue that
-    clears one is no evidence about the other.
-
-    The unmarked paragraph is the control, and it is what makes the floor mean anything:
-    the same strip over words nobody has said anything about has to come back under it,
-    or the reading is answering about descenders and would pass with every line gone.
-    """
-    page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", "Paragraph 3."),)))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "keep",
-            "anchor": {"section": "p7", "quote": "Paragraph 7."},
-        },
-    )
-    told(page)
-    for name in TEXT_MARKS:
-        page.wait_for_function(
-            "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
-        )
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        line_styles = page.evaluate(
-            "(names) => Object.fromEntries(names.map(name => "
-            "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
-            ".textDecorationStyle]))",
-            TEXT_MARKS,
-        )
-        assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
-        paper = tuple(
-            page.evaluate(
-                "() => getComputedStyle(document.body).backgroundColor"
-                ".match(/\\d+/g).slice(0, 3).map(Number)"
-            )
-        )
-        # Same words, same type, same strip, nothing said about them. "Paragraph 5." carries
-        # the descenders both marked passages carry.
-        quiet = page.evaluate(
-            """() => {
-              const range = new Range();
-              const node = document.getElementById('p5').firstChild;
-              range.setStart(node, 0); range.setEnd(node, 12);
-              const b = range.getBoundingClientRect();
-              return {x: Math.round(b.x), y: Math.round(b.bottom) - 2,
-                      width: Math.round(b.width), height: 10};
-            }"""
-        )
-        control, _ = _line_under(page, quiet, paper)
-        assert control < LINE_COVERAGE / 2, (
-            f"unmarked words already fill {control:.0%} of the strip under them in the "
-            f"{scheme} scheme, so this reading cannot tell a line from the page's own ink"
-        )
-        seen = {
-            name: _line_under(page, _under_mark(page, name), paper)
-            for name in TEXT_MARKS
-        }
-        for name, (covered, band) in seen.items():
-            assert covered >= LINE_COVERAGE and band >= 3.0, (
-                f"the {scheme} page draws no line under a {name} passage: {covered:.0%} of "
-                f"the strip at {band:.2f}:1 against its own ground {paper}, where the "
-                f"unmarked control is at {control:.0%}. A marked passage whose only signal "
-                f"is its wash is one the user never learns is marked. All: {seen}"
-            )
-
-
-@pytest.mark.parametrize("manifest", [False, True])
-@pytest.mark.parametrize("mobile", [False, True])
+# Each source and each posture once: the source decides what loads, the posture what fits.
+@pytest.mark.parametrize(("manifest", "mobile"), [(False, True), (True, False)])
 def test_a_diff_shows_native_file_metadata_without_empty_disclosures(
     browser, serve, manifest, mobile
 ):
-    """Inline and deferred evidence preserve native operations at reading widths."""
+    """Inline and bound evidence preserve native operations at reading widths."""
     source = """diff --git a/app.js b/app.js
 old mode 100644
 new mode 100755
@@ -5269,13 +4833,6 @@ new file mode 120000
     context = browser.new_context(
         viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
     )
-    deferred = []
-    context.on(
-        "request",
-        lambda request: (
-            deferred.append(request.url) if "/api/deferred?" in request.url else None
-        ),
-    )
     page = open_page(browser, url, context=context)
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
@@ -5287,7 +4844,7 @@ new file mode 120000
       const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
@@ -5363,7 +4920,6 @@ new file mode 120000
         "wroteRename": False,
     }
 
-    assert len(deferred) == (14 if manifest else 0), deferred
     for path, side, text in [
         ("type-change", "old", "before"),
         ("type-change", "new", "target"),
@@ -5442,86 +4998,1768 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_have_js_property("value", draft + " What must Finance decide?")
 
 
-def test_a_revised_example_travels_between_its_own_versions(browser, serve):
-    """The corpus's own reading of version travel, on the one example that was revised.
+LATE_STAGE = {
+    "description": "A project widget that stages its authored children when asked.",
+    "type": "object",
+    "properties": {"id": {"type": "string"}},
+    "required": ["id"],
+    "additionalProperties": False,
+    "x-content": "markup",
+    "x-upgrade": True,
+    "x-shadow": True,
+    "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
+}
+LATE_STAGE_MODULE = """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-late-stage', class extends HTMLElement {
+  stage() { shadowStage(this, [...this.childNodes]); }
+});
+"""
 
-    Every other version fixture publishes a second version out of one markup string,
-    which is a page nobody wrote: the two documents differ by whatever the fixture
-    edited, and what a user would see marked is whatever that edit happened to be.
-    The shipped example is an authored pair — a proposal and the version that answered
-    a comment on it — so what the comparison marks here is what a revision is: the
-    paragraph rewritten around the sentence the user quoted, the paragraph and
-    step it grew, and the title and lede updated to state the exception. Everything
-    the revision left alone stays unmarked, including the
-    section the other thread stands on, and both threads stay attached because both
-    quotes survived.
 
-    That is also this file's floor for the corpus. The example sweeps serve the newest
-    version and never press anything, so with no reading here the picker could offer
-    a list nobody walks and a Compare control nobody presses on every page in examples/."""
-    example = named_source("log-retention")
-    page = open_page(browser, serve(example))
-
-    # Served at the newest version, with the earlier one under Versions.
-    versions = panel_menu(page, "versions")
-    expect(
-        versions.locator(".lf-fp-version[data-lf-current] .lf-fp-item")
-    ).to_contain_text("v2")
-    expect(versions.locator(".lf-fp-version")).to_have_count(2)
-    page.locator(".lf-fp-leaf").click()
-
-    compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(5)
-    marked = page.eval_on_selector_all(
-        "main .lf-ins-block", "els => els.map(e => e.id).sort()"
-    )
-    assert marked == [
-        "ret-cost-body",
-        "ret-cost-keep",
-        "ret-lede",
-        "ret-steps-carve",
-        "ret-title",
-    ], marked
-    # A Change margin entry's press says what it reached, in the notice slot: its target is
-    # usually on screen already, so the scroll moves nothing and a press that only spoke
-    # to the live region was, to a sighted user, a press that did nothing. What the
-    # press also discloses is the next test's; this one holds it to naming its target.
-    page.locator(
-        '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
-    ).first.click()
-    expect_panel_says(page, "2 blocks edited since v1")
-
-    # The threads the log opened, both still on their passages: one on a block the
-    # revision rewrote, one on a block it never touched.
-    listed = listed_threads(page)
-    assert len(listed) == 2, listed
-    assert detached_threads(page, listed) == set()
-    painted = re.sub(
-        r"\s",
-        "",
-        page.evaluate(
-            "() => [...CSS.highlights.get('lf-mark')].map(r => r.toString()).join('')"
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request, serve):
+    """A widget that moves its authored words into a declared shadow tree after the
+    page painted their mark takes the mark along: the move collapses the mark's live
+    range onto the host, so the new tree's words are read again and their mark
+    painted at once, with its hand under the pointer, and no other repaint behind it."""
+    url = serve(
+        leaf_page(
+            "Late stage",
+            '<lf-late-stage id="late"><p id="inside">The words that hold a marked '
+            "passage inside the widget.</p></lf-late-stage><p>After.</p>",
         ),
+        layer_registry={"lf-late-stage": LATE_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
     )
-    for quote in (
-        "Two years of incident write-ups name a log older than six weeks exactly twice.",
-        (
-            "Across eighteen months of query history, 90% of reads touch logs less than "
-            "a week old and 95% stay within 42 days."
-        ),
-    ):
-        assert re.sub(r"\s", "", quote) in painted, painted[:160]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Which passage?",
+            "anchor": {"section": "inside", "quote": "a marked passage"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    marked = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String)"
+    page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.wait_for_function(f"() => ({marked})().includes('a marked passage')")
+    box = page.evaluate(
+        """() => {
+          const text = document.getElementById('late').shadowRoot
+            .getElementById('inside').firstChild;
+          const at = text.data.indexOf('a marked passage');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 3);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.mouse.move(box["left"] - 20, box["top"] - 20)
+    page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=3)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
 
-    # And the older document is a real destination, not just a row: choosing it pins
-    # the user to the virtual version address the picker named.
-    panel_menu(page, "versions").locator(
-        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
-    ).click()
-    page.wait_for_url(re.compile(r"/versions/v1\.html"))
-    expect(
-        panel_menu(page, "versions").locator(
-            ".lf-fp-version[data-lf-current] .lf-fp-item"
+
+def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
+    """The anchor paint builds a thread's marks, the index the pointer is found in and
+    the highlight painting them only for a presentation that changes a mark: ten that
+    change none build nothing (anchor-paint.js, `paint`)."""
+    url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About these?",
+            "anchor": {"section": "kept", "quote": "a thread"},
+        },
+    )
+    page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    built = page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          const own = CSS.highlights.set.bind(CSS.highlights);
+          let built = 0;
+          CSS.highlights.set = (name, value) => {
+            if (name === 'lf-mark') built++;
+            return own(name, value);
+          };
+          for (let n = 0; n < 10; n++) {
+            api.presentDocument();
+            await api.whenDocumentPresented();
+          }
+          CSS.highlights.set = own;
+          return built;
+        }"""
+    )
+    assert built == 0, built
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
+    engine, request, serve
+):
+    """A revision that writes words ahead of a marked phrase in its paragraph moves the
+    phrase along its text, and its mark with it: the pointer finds the mark where it is
+    now drawn, by the hand, the preview and a press, and nothing at the words that now
+    stand where the phrase stood."""
+
+    def page_with(prefix):
+        return leaf_page(
+            "Moved",
+            f'<p id="moved">{prefix}Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
         )
-    ).to_contain_text("v1")
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator("#ret-cost-keep")).to_have_count(0)
+
+    url = serve(page_with(""))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "moved", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    words = """(at) => {
+      const text = document.getElementById('moved').firstChild;
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    stood = page.evaluate(
+        "() => document.getElementById('moved').textContent.indexOf('marked')"
+    )
+    _publish(
+        serve.page_dir,
+        2,
+        page_with("An entirely new prefix has been inserted. "),
+        "two",
+    )
+    told(page)
+    expect(page.locator("#moved")).to_contain_text("An entirely new prefix")
+    stands = page.evaluate(
+        "() => document.getElementById('moved').textContent.indexOf('marked')"
+    )
+    assert stands > stood
+    old = page.evaluate(words, stood)
+    page.mouse.move(old["left"] - 30, old["top"] - 30)
+    page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
+    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # the hand where it found a mark.
+    rendered(page)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
+    now = page.evaluate(words, stands)
+    page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(now["left"] + 4, now["top"] + now["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
+    engine, request, serve
+):
+    """A script that writes words ahead of a marked phrase in its text node, with no
+    revision and nothing presented after it, moves the phrase's mark with its words, and
+    the pointer finds the mark where it is now drawn, by the hand and the preview, and a
+    press there opens the thread's card at once and keeps it open, as every reader of the
+    passage reads where its words now stand; nothing answers at the words that now stand
+    where the phrase stood."""
+    url = serve(
+        leaf_page(
+            "Script",
+            '<p id="moved">Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "moved", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    at = "() => document.getElementById('moved').textContent.indexOf('marked')"
+    stood = page.evaluate(at)
+    words = """(at) => {
+      const text = document.getElementById('moved').firstChild;
+      const range = document.createRange();
+      range.setStart(text, at);
+      range.setEnd(text, at + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    # The pointer rests on the phrase first, so the marks have been found where they
+    # stood before the words move.
+    before = page.evaluate(words, stood)
+    page.mouse.move(before["left"] - 30, before["top"] - 30)
+    page.mouse.move(before["left"] + 4, before["top"] + before["height"] / 2, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    page.mouse.move(2, 2)
+    page.evaluate(
+        "() => document.getElementById('moved').firstChild"
+        ".insertData(0, 'A script wrote these words first. ')"
+    )
+    stands = page.evaluate(at)
+    assert stands > stood
+    old = page.evaluate(words, stood)
+    page.mouse.move(old["left"] - 30, old["top"] - 30)
+    page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
+    # Read once, after the hover frame the move queued (`refreshHover`) has run: a
+    # later presentation would find the marks again and hide the fault.
+    rendered(page)
+    assert not page.evaluate(
+        "() => document.querySelector('[data-lf-over-mark]') !== null"
+    )
+    # A press on a mark opens its card in the press's own task, and the card draws
+    # in the passes that task queued.
+    page.mouse.click(old["left"] + 4, old["top"] + old["height"] / 2)
+    rendered(page)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
+    now = page.evaluate(words, stands)
+    page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(now["left"] + 4, now["top"] + now["height"] / 2)
+    card = page.locator(".lf-margin-preview:not([hidden])")
+    expect(card).to_be_visible()
+    # Read once, after every pass the opening queued has read the passage, so a reader
+    # of where it stood would have closed the card; a closed card can open again later.
+    # It fades out still visible, but gives up its placement at once (thread-preview.js,
+    # `close`).
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview')"
+        "?.hasAttribute('data-lf-thread-placement')"
+    )
+    expect(card.locator(".lf-page-thread")).to_contain_text("About the phrase?")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_split_carries_into_a_new_text_node_keep_their_mark(
+    engine, request, serve
+):
+    """A script that splits a marked phrase's text node between its words carries the
+    rest of the phrase, and its mark, into a new text node: the pointer finds the mark
+    on the words in either node, by the hand and the preview."""
+    url = serve(
+        leaf_page(
+            "Split",
+            '<p id="split">Words before the marked phrase and after it.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "split", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('split').firstChild;
+          text.splitText(text.data.indexOf('phrase'));
+        }"""
+    )
+    for word in ("marked", "phrase"):
+        box = page.evaluate(
+            """(word) => {
+              const p = document.getElementById('split');
+              const text = [...p.childNodes].find((node) => node.data.includes(word));
+              const range = document.createRange();
+              range.setStart(text, text.data.indexOf(word) + 1);
+              range.setEnd(text, text.data.indexOf(word) + 3);
+              return range.getBoundingClientRect().toJSON();
+            }""",
+            word,
+        )
+        page.mouse.move(2, 2)
+        rendered(page)
+        assert not page.evaluate(
+            "() => document.querySelector('[data-lf-over-mark]') !== null"
+        )
+        page.mouse.move(box["left"] + 2, box["top"] + box["height"] / 2, steps=2)
+        # Read once, after the hover frame the move queued (`refreshHover`) has run: a
+        # later presentation would find the marks again and hide the fault.
+        rendered(page)
+        assert page.evaluate(
+            "() => document.querySelector('[data-lf-over-mark]') !== null"
+        ), word
+        expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+            "About the phrase?"
+        )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
+    engine, request, serve
+):
+    """A page search's match that starts in the page's words and runs on into a declared
+    shadow stage standing most of a window below them is brought into sight by where its
+    words start, as a thread is travelled to, rather than by where they end."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 420px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.keyboard.press("/")
+    # The whole query at once, as a paste: typed, its first word alone finds the
+    # paragraph's words and brings them into sight before the match crosses the root.
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "match starts here and ends inside"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    # The landing the match set off, and every pass it queued, has drawn.
+    rendered(page)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request, serve):
+    """The comment box of a draft on a passage that runs from the page's words into a
+    declared shadow stage standing most of a window below them comes back, from a page
+    scrolled away, to where the passage's words start, as a search's match and a thread
+    are travelled to, rather than to where they end."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 420px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    # A draft written on the passage, which the page opens again as it loads.
+    page.evaluate(
+        """async () => {
+          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+          const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
+          const {saveDraft} = await load('runtime/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
+          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const anchor = {section: 'both', quote: 'match starts here and ends inside'};
+          saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
+            format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,
+            drawing: null, touched: Date.now(),
+          });
+        }"""
+    )
+    page.reload()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          api.bringBackSurfaceOf(document.querySelector('.lf-fab-bar'), 'instant');
+        }"""
+    )
+    # The landing, and every pass it queued, has drawn.
+    rendered(page)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+# A paragraph whose marked phrase follows other words in its text node, after an
+# element of its own words, so a change can leave the phrase's text node standing
+# after another text node in the paragraph.
+CHANGED = (
+    '<p id="changed"><em>Lead words</em> Prefix words before the marked phrase '
+    "and after it.</p>" + "<p>More.</p>" * 4
+)
+# The phrase's place: the box of its first three characters, wherever its text node is.
+PHRASE_AT = """(words) => {
+  const p = document.getElementById('changed');
+  const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    const at = text.data.indexOf(words);
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(text, at);
+    range.setEnd(text, at + 3);
+    return range.getBoundingClientRect().toJSON();
+  }
+  return null;
+}"""
+
+
+def _changed_page(request, engine, serve):
+    url = serve(leaf_page("Changed", CHANGED))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the phrase?",
+            "anchor": {"section": "changed", "quote": "marked phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    return page
+
+
+def _rest_on(page, box):
+    """Rest the pointer on a box, from away, and read the hand once the hover frame
+    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
+    presentation would find the marks again and hide a fault."""
+    page.mouse.move(2, 2)
+    rendered(page)
+    page.mouse.move(box["left"] - 20, box["top"] - 20)
+    page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=2)
+    rendered(page)
+    return page.evaluate("() => document.querySelector('[data-lf-over-mark]') !== null")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_text_node_lost_the_words_before_it_is_still_found(
+    engine, request, serve
+):
+    """A script that splits a marked phrase's text node just before the phrase and then
+    removes the words before it leaves the phrase standing in a text node of its own
+    after the paragraph's first words: the pointer finds its mark there, by the hand
+    and the preview, and a press opens its thread."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const p = document.getElementById('changed');
+          const text = p.childNodes[1];
+          text.splitText(text.data.indexOf('marked'));
+          text.remove();
+        }"""
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_text_node_a_script_replaced_is_found_in_the_new_one(
+    engine, request, serve
+):
+    """A script that replaces a marked phrase's text node with a new one holding the same
+    phrase takes the phrase's mark to the new node, where the pointer finds it, by the
+    hand and the preview, and a press opens its thread."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const p = document.getElementById('changed');
+          const text = p.childNodes[1];
+          p.replaceChild(document.createTextNode(text.data + ' Then more.'), text);
+        }"""
+    )
+    page.wait_for_function(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join()"
+        " === 'marked phrase'"
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_words_a_script_broke_up_is_marked_no_more(engine, request, serve):
+    """A script that writes other words into a marked phrase leaves no passage the
+    thread's quote names, so the phrase's words are marked no more, the hand stands
+    nowhere on them, and a press there opens nothing, as reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.insertData(text.data.indexOf('phrase'), 'unrelated ');
+        }"""
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 0")
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert not _rest_on(page, box)
+    # A press on a mark opens its card in the press's own task, and the card draws in
+    # the passes that task queued.
+    page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
+    rendered(page)
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
+
+
+MARKED = "() => [...(CSS.highlights.get('lf-mark') ?? [])].map(String).join('|')"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_whose_words_a_script_puts_back_is_marked_again(engine, request, serve):
+    """A script that writes other words into a marked phrase and, in a later task, takes
+    them out again leaves the phrase as the thread's quote names it, so once the
+    pointer asks where the marks stand, the phrase is marked again, where the pointer
+    finds it, as reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.insertData(text.data.indexOf('phrase'), 'unrelated ');
+        }"""
+    )
+    page.wait_for_function(f"() => ({MARKED})() === ''")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('changed').childNodes[1];
+          text.deleteData(text.data.indexOf('unrelated '), 'unrelated '.length);
+        }"""
+    )
+    box = page.evaluate(PHRASE_AT, "marked")
+    _rest_on(page, box)
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'")
+    assert _rest_on(page, box)
+    expect(page.locator("#lf-preview .lf-preview-word")).to_have_text(
+        "About the phrase?"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_marked_phrase_a_script_writes_again_is_marked_no_more(
+    engine, request, serve
+):
+    """A script that writes a marked phrase a second time in its section, where nothing
+    the thread kept around the phrase tells the two apart, leaves its quote naming no
+    one passage: the pointer finds no mark on the first, and once it has asked, the
+    first is marked no more, as reading the page again finds."""
+    page = _changed_page(request, engine, serve)
+    page.evaluate(
+        """() => {
+          const again = document.createElement('em');
+          again.textContent = 'The marked phrase again.';
+          document.getElementById('changed').append(again);
+        }"""
+    )
+    assert not _rest_on(page, page.evaluate(PHRASE_AT, "marked"))
+    page.wait_for_function(f"() => ({MARKED})() === ''")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_puts_inside_a_passage_s_shadow_stage_unmark_it(
+    engine, request, serve
+):
+    """A script that writes a word at the start of a declared shadow stage a marked
+    passage runs into from the page's words before it puts that word inside the
+    passage, which its thread's quote no longer names: the pointer finds no mark on the
+    page's piece, and once it has asked, neither piece is marked, as reading the page
+    again finds."""
+    url = serve(
+        leaf_page(
+            "Across a root",
+            '<div id="both"><p>The first line of the passage ends here.</p>'
+            '<lf-late-stage id="late"><p>Its second line stands inside the widget.</p>'
+            "</lf-late-stage></div>" + "<p>After.</p>" * 4,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Across the root?",
+            "anchor": {
+                "section": "both",
+                "quote": "passage ends here. Its second line",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})().split('|').length === 2")
+    page.evaluate(
+        """() => document.getElementById('late').shadowRoot.querySelector('p')
+          .prepend('Inserted ')"""
+    )
+    line = page.evaluate(
+        """() => {
+          const text = document.querySelector('#both > p').firstChild;
+          const at = text.data.indexOf('passage ends');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 3);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert not _rest_on(page, line)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_a_script_makes_editable_inside_is_marked_no_more(
+    engine, request, serve
+):
+    """A script that makes an element inside a marked passage editable puts an edge of
+    the passage's words at either end of it, which a quote does not run across, so the
+    pointer finds no mark on the passage, and once it has asked, the passage is marked
+    no more, as reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Editable",
+            '<p id="edit">The passage <span id="inner">runs through</span> this '
+            "span.</p>" + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Through it?",
+            "anchor": {"section": "edit", "quote": "passage runs through this"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'passage |runs through| this'")
+    page.evaluate(
+        "() => { document.getElementById('inner').contentEditable = 'true'; }"
+    )
+    word = page.evaluate(
+        """() => {
+          const range = document.createRange();
+          range.setStart(document.getElementById('edit').firstChild, 4);
+          range.setEnd(document.getElementById('edit').firstChild, 7);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert not _rest_on(page, word)
+    page.wait_for_function(f"() => ({MARKED})() === ''")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_thread_walk_reads_threads_where_a_script_left_them(engine, request, serve):
+    """A script that takes a marked passage's words out and, in a later task, puts them
+    back, while the pointer stays away, leaves the threads where they were: the thread
+    walk from the page's top opens the first in reading order, as reading the page
+    again finds."""
+    url = serve(
+        leaf_page(
+            "Reading order",
+            '<div id="all"><h1>Reading order</h1><p id="beta">Beta marked words.</p>'
+            '<p id="alpha">Alpha marked words.</p></div>',
+        )
+    )
+    for name in ("Alpha", "Beta"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"{name} discussion",
+                "anchor": {"section": "all", "quote": f"{name} marked words"},
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})().split('|').length === 2")
+    page.mouse.move(1, 1)
+    alpha = "() => document.querySelector('#alpha').firstChild"
+    # Placement takes in a change to the words a placed passage stands in after its
+    # script, and the marks repaint in the passes that queues.
+    page.evaluate(f"() => {{ ({alpha})().data = 'Other words.'; }}")
+    rendered(page)
+    assert page.evaluate(MARKED) == "Beta marked words"
+    page.evaluate(f"() => {{ ({alpha})().data = 'Alpha marked words.'; }}")
+    rendered(page)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview:not([hidden])")).to_contain_text(
+        "Beta discussion"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_in_the_task_a_script_repeats_a_marked_phrase_opens_nothing(
+    engine, request, serve
+):
+    """A press on a marked phrase in the task in which a script wrote the phrase a second
+    time, where nothing tells the two apart, finds no thread there; once the copy is
+    gone again, the same press opens the thread: a press reads the page as the script
+    left it."""
+    page = _changed_page(request, engine, serve)
+    press = """(again) => {
+      const changed = document.getElementById('changed');
+      const text = [...changed.childNodes]
+        .find((node) => node.nodeType === Node.TEXT_NODE && node.data.includes('marked'));
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf('marked'));
+      range.setEnd(text, text.data.indexOf('marked') + 3);
+      const box = range.getBoundingClientRect();
+      const [x, y] = [box.left + 4, box.top + box.height / 2];
+      if (again)
+        changed.append(Object.assign(document.createElement('em'),
+          {textContent: 'The marked phrase again.'}));
+      document.elementFromPoint(x, y).dispatchEvent(
+        new MouseEvent('click', {bubbles: true, clientX: x, clientY: y, detail: 1}));
+    }"""
+    card = page.locator(".lf-margin-preview:not([hidden])")
+    box = page.evaluate(PHRASE_AT, "marked")
+    assert _rest_on(page, box)
+    page.evaluate(press, True)
+    # Read once, after the passes the press queued have drawn whatever it opened: a
+    # later presentation reads the page again and would hide the fault.
+    rendered(page)
+    assert card.count() == 0
+    page.evaluate("() => document.querySelector('#changed em:last-child').remove()")
+    _rest_on(page, box)
+    page.wait_for_function(f"() => ({MARKED})() === 'marked phrase'")
+    assert _rest_on(page, box)
+    page.evaluate(press, False)
+    expect(card).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_quote_follows_its_section_s_id_to_another_element(engine, request, serve):
+    """A script that swaps two elements' ids moves the section a thread's quote is
+    scoped to, so the quote stands where the section now holds it: the pointer finds the
+    mark on the element that now bears the id and none on the one that bore it, as
+    reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Swapped ids",
+            '<p id="a">First shared phrase.</p><p id="b">Second shared phrase.</p>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Which phrase?",
+            "anchor": {"section": "a", "quote": "shared phrase"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'shared phrase'")
+    page.evaluate(
+        """() => {
+          const [first, second] = [document.getElementById('a'), document.getElementById('b')];
+          first.id = 'b';
+          second.id = 'a';
+        }"""
+    )
+    phrase = """(id) => {
+      const text = document.getElementById(id).firstChild;
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf('shared'));
+      range.setEnd(text, text.data.indexOf('shared') + 3);
+      return range.getBoundingClientRect().toJSON();
+    }"""
+    assert _rest_on(page, page.evaluate(phrase, "a"))
+    assert not _rest_on(page, page.evaluate(phrase, "b"))
+    marked = """() => [...CSS.highlights.get('lf-mark')]
+      .map((range) => range.startContainer.parentElement.id).join()"""
+    page.wait_for_function(f"() => ({marked})() === 'a'")
+
+
+PENDING = "() => [...(CSS.highlights.get('lf-pending') ?? [])].map(String).join('|')"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_draft_s_passage_keeps_its_mark_when_a_script_rewrites_around_it(
+    engine, request, serve
+):
+    """A script that rewrites a paragraph while the user comments on a sentence in it,
+    keeping the sentence, keeps the draft's mark on the sentence, on a page that holds
+    no thread yet: the draft's passage stands where its words still are."""
+    url = serve(
+        leaf_page(
+            "Draft placement",
+            '<p id="words">A marked phrase belongs here.</p>' + "<p>More.</p>" * 3,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    box = page.locator("#words").bounding_box()
+    page.mouse.click(box["x"] + 25, box["y"] + box["height"] / 2, click_count=3)
+    page.keyboard.press("c")
+    page.wait_for_function(f"() => ({PENDING})().includes('A marked phrase')")
+    before = page.evaluate(PENDING)
+    page.evaluate(
+        """() => {
+          document.getElementById('words').textContent =
+            'Prefix A marked phrase belongs here.';
+        }"""
+    )
+    # Read once, after the passes the script's change queued have painted: a later
+    # presentation reads the draft again and would hide the fault.
+    rendered(page)
+    assert page.evaluate(PENDING) == before
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
+    engine, request, serve
+):
+    """A script that stages a section in a new widget's shadow tree and then puts the
+    widget in place of the one whose shadow tree held the section moves the section's
+    thread to the new one: the pointer finds the thread's mark on the new section, as
+    reading the page again finds."""
+    url = serve(
+        leaf_page(
+            "Staged again",
+            '<lf-late-stage id="late"><p id="inner">The staged section.</p>'
+            "</lf-late-stage>" + "<p>After.</p>" * 4,
+        ),
+        layer_registry={"lf-late-stage": LATE_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the section?",
+            "anchor": {"section": "inner"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.evaluate("() => document.getElementById('late').stage()")
+    inner = "() => document.getElementById('late').shadowRoot.getElementById('inner')"
+    page.wait_for_function(f"() => ({inner})()?.classList.contains('lf-mark-el')")
+    page.evaluate(
+        """async () => {
+          const host = document.createElement('lf-late-stage');
+          host.innerHTML = '<p id="inner">The staged section.</p>';
+          host.stage();
+          await new Promise(requestAnimationFrame);
+          host.id = 'late';
+          document.getElementById('late').replaceWith(host);
+        }"""
+    )
+    box = page.evaluate(f"() => ({inner})().getBoundingClientRect().toJSON()")
+    assert _rest_on(page, box)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_words_a_script_sets_in_elements_of_their_own_keep_their_thread(
+    engine, request, serve
+):
+    """A script that sets a marked phrase's two words in inline elements of their own,
+    with nothing between them, leaves the thread on them: where two inline elements
+    meet is a place a word may end, so the quote "one two" still names them, the pointer
+    finds the mark there, and the file's reading finds them too
+    (tests/quote_cases.json)."""
+    url = serve(
+        leaf_page(
+            "Run together",
+            '<p id="pair">Before one two after.</p>' + "<p>More.</p>" * 4,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About these?",
+            "anchor": {"section": "pair", "quote": "one two"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function(f"() => ({MARKED})() === 'one two'")
+    page.evaluate(
+        """() => {
+          document.getElementById('pair').innerHTML =
+            'Before <span>one</span><span>two</span> after.';
+        }"""
+    )
+    box = page.locator("#pair span").first.bounding_box()
+    assert _rest_on(page, {"left": box["x"], "top": box["y"], "height": box["height"]})
+    page.wait_for_function(f"() => ({MARKED})().replace(/[|\\s]/g, '') === 'onetwo'")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_words_two_spans_run_together_outside_a_text_block(
+    engine, request, serve
+):
+    """Page search finds the one word two spans side by side show, where they stand in
+    no text block, as the page shows it and the browser's own find finds it."""
+    url = serve(
+        leaf_page(
+            "Run together",
+            '<div id="joined"><span>alpha</span><span>beta</span></div>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabeta")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_words_an_output_runs_into(engine, request, serve):
+    """Page search finds the one word an `<output>` and the words beside it show, with
+    nothing between them, as the page draws it and the browser's own find finds it."""
+    url = serve(
+        leaf_page(
+            "Output",
+            '<div id="joined">alpha<output>beta</output>gamma</div>'
+            + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabetagamma")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+def test_page_search_passes_a_long_run_of_whitespace_its_next_word_does_not_follow(
+    browser, serve
+):
+    """A query's words stand apart by any run of whitespace, so a long run after its
+    first word that the next word doesn't follow is one more place that doesn't match:
+    page search finds the copy further on, where a search that tried every split of the
+    run held the tab."""
+    url = serve(leaf_page("Runs", f"<p>card{' ' * 80}x</p><p>card It opens</p>"))
+    page = open_page(browser, url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("card It opens")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_two_staged_widgets_side_by_side_apart(
+    engine, request, serve
+):
+    """Two widgets side by side, each staging its words in a shadow tree, read apart, as
+    they did before they staged and as the file's reading reads them: page search
+    finds their words with a space between them."""
+    url = serve(
+        leaf_page(
+            "Two stages",
+            '<div id="pair"><lf-late-stage id="one"><span>alpha</span></lf-late-stage>'
+            '<lf-late-stage id="two"><span>beta</span></lf-late-stage></div>'
+            + "<p>More.</p>"
+            * 4,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => document.getElementById('two')?.shadowRoot")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alpha beta")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("markup", "words"),
+    [
+        (
+            '<div id="row" style="display: flex; gap: 8px"><strong>Status</strong>'
+            "<span>Ready</span></div>",
+            "Status Ready",
+        ),
+        (
+            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            "recommended</small><strong>Drop the oldest documents</strong> Editing "
+            'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
+            "</strong> Nothing leaves.</lf-option></lf-options>",
+            "recommended Drop",
+        ),
+    ],
+    ids=["flex row", "option chip"],
+)
+def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
+    engine, markup, words, request, serve
+):
+    """Two inline elements with nothing between them read as one word or as two, since
+    only the page's CSS says which: a flex row's label and value, or an option's chip
+    and title, are found with a space between them, as they show."""
+    url = serve(leaf_page("Apart by CSS", markup + "<p>More.</p>" * 4))
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_a_shipped_options_chip_and_title_apart(
+    engine, request, serve
+):
+    """The default package's lf-ask example, as shipped, puts a chip and the option's
+    title it stands beside apart, as the theme draws them: page search finds
+    "recommended Drop"."""
+    registry = json.loads(
+        (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
+    )
+    url = serve(leaf_page("Ask", registry["lf-ask"]["x-example"]))
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("recommended Drop")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
+)
+def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
+    engine, source, words, request, serve
+):
+    """A figure caption in the product docs draws its title on a line of its own above
+    its text, and page search finds the title's last word and the text's first apart."""
+    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
+    engine, request, serve
+):
+    """A `<slot>` in no shadow tree is an ordinary element, which draws its children, so
+    page search finds its words among the words beside it, as the file reads them."""
+    url = serve(
+        leaf_page(
+            "Light slot",
+            '<p id="slotted">alpha<slot>beta</slot>gamma</p>' + "<p>More.</p>" * 4,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("alphabetagamma")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_a_said_label_apart_from_its_elements_words(
+    engine, request, serve
+):
+    """A declared `x-says` label, drawn as its element's caption, reads apart from the
+    words the element holds, as the file's reading reads it: page search finds the two
+    with a space between them."""
+    url = serve(
+        leaf_page(
+            "Said label",
+            '<div id="pair"><lf-said-label id="said" label="Head">body words'
+            "</lf-said-label></div>" + "<p>More.</p>" * 4,
+        ),
+        layer_registry={
+            "lf-said-label": {
+                "description": "Words with a label the runtime says before them.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": False,
+                "x-says": {"label": "before"},
+                "x-example": '<lf-said-label id="example" label="Head">Words.'
+                "</lf-said-label>",
+            }
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("Head body")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+
+
+# A thread's quote inside a staged widget, scoped to the element around the widget.
+STAGED_QUOTE = (
+    '<div id="around"><p>Before the widget.</p><lf-late-stage id="late">'
+    '<p id="inside">Words inside the stage hold the passage.</p></lf-late-stage></div>'
+    + "<p>After.</p>"
+    * 4
+)
+# A widget staged alike, filled while it stands apart, then put in the first one's place
+# in a later task, so nothing the filling did reads the page after the swap.
+STAGE_AGAIN = """async () => {
+  const host = document.createElement('lf-late-stage');
+  host.innerHTML = '<p id="inside">Words inside the stage hold the passage.</p>';
+  host.stage();
+  await new Promise(requestAnimationFrame);
+  await new Promise(requestAnimationFrame);
+  host.id = 'late';
+  document.getElementById('late').replaceWith(host);
+}"""
+# Each range a highlight paints: its words, and whether they still stand in the page.
+PAINTED = """(name) => [...(CSS.highlights.get(name) ?? [])]
+  .map((range) => [String(range), range.startContainer.isConnected])"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_in_a_widget_staged_again_moves_to_the_new_stage(engine, request, serve):
+    """A script that replaces a widget whose shadow stage holds a marked passage with one
+    staged alike, the passage's section being the element around the widget, moves the
+    mark to the new stage's words at once, before anything asks where it stands."""
+    url = serve(
+        leaf_page("Staged mark", STAGED_QUOTE),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Inside?",
+            "anchor": {"section": "around", "quote": "inside the stage hold"},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.mouse.move(1, 1)
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.wait_for_function(f"() => ({MARKED})() === 'inside the stage hold'")
+    page.evaluate(STAGE_AGAIN)
+    # Read once, after the passes the swap queued have painted: a reader asking would
+    # settle placement and hide the fault.
+    rendered(page)
+    assert page.evaluate(PAINTED, "lf-mark") == [["inside the stage hold", True]]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_draft_in_a_widget_staged_again_moves_to_the_new_stage(
+    engine, request, serve
+):
+    """A script that replaces a widget whose shadow stage holds the passage a user is
+    commenting on with one staged alike moves the draft's mark to the new stage's words
+    at once, before anything asks where it stands."""
+    url = serve(
+        leaf_page("Staged draft", STAGED_QUOTE),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.evaluate("() => document.getElementById('late').stage()")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('late').shadowRoot
+            .getElementById('inside').firstChild;
+          const at = text.data.indexOf('inside the stage hold');
+          getSelection().setBaseAndExtent(text, at, text, at + 'inside the stage hold'.length);
+        }"""
+    )
+    page.keyboard.press("c")
+    page.wait_for_function(f"() => ({PAINTED})('lf-pending').length > 0")
+    page.mouse.move(1, 1)
+    words = page.evaluate(PAINTED, "lf-pending")
+    page.evaluate(STAGE_AGAIN)
+    rendered(page)
+    assert page.evaluate(PAINTED, "lf-pending") == words
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request, serve):
+    """A page search's match whose end stands in the window while its start stands
+    above it, as one running from the page's words into a declared shadow stage far
+    below them, is brought into sight by where its words start."""
+    url = serve(
+        leaf_page(
+            "Across",
+            "<p>Before.</p>"
+            * 40
+            + '<div id="both"><p id="first">The match starts here</p>'
+            '<lf-late-stage id="late" style="display: block; margin-block-start: 760px">'
+            '<p id="second">and ends inside the stage.</p></lf-late-stage></div>'
+            + "<p>After.</p>"
+            * 40,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 900, "height": 600})
+    page.evaluate(
+        """() => {
+          const late = document.getElementById('late').shadowRoot.getElementById('second');
+          scrollBy(0, late.getBoundingClientRect().top - 280);
+        }"""
+    )
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "match starts here and ends inside"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    # The landing the match set off, and every pass it queued, has drawn.
+    rendered(page)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('first').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 4);
+          range.setEnd(text, 9);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 600, start
+
+
+# A page of four documents in tabs, the first open, each holding "needle" once.
+def _needles_in_tabs(serve):
+    tabs = "".join(
+        f'<lf-tab id="t{i}" label="Doc {i}">'
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
+        for i in range(4)
+    )
+    return serve(
+        leaf_page("Closed tabs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+    )
+
+
+# The page's clock run fast, so each slice of a page search takes one step.
+FAST_CLOCK = """() => {
+  const now = performance.now.bind(performance);
+  let ahead = 0;
+  performance.now = () => now() + (ahead += 20);
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_walk_through_search_matches_in_closed_tabs_reaches_each_in_turn(
+    engine, request, serve
+):
+    """Tab walks a search's matches in order across documents in closed tabs. Bringing a
+    match into sight opens its tab, which changes the page, so the next step searches
+    again; it stands where it stood before stepping, however few matches each of the
+    search's slices takes (`FAST_CLOCK`)."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    expect(status).to_have_text("1 of 4")
+    page.evaluate(FAST_CLOCK)
+    for key, position in (("Tab", 2), ("Tab", 3), ("Tab", 4), ("Shift+Tab", 3)):
+        page.keyboard.press(key)
+        expect(status).to_have_text(re.compile(rf"^{position} of "))
+        expect(page.get_by_role("tab", name=f"Doc {position - 1}")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    # Enter selects the match, and `n` goes on from it.
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(selected, arg="d2")
+    page.keyboard.press("n")
+    page.wait_for_function(selected, arg="d3")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_enter_selects_the_match_while_a_change_to_the_page_searches_again(
+    engine, request, serve
+):
+    """A change to the page's words, such as a step opening a match's tab, starts a
+    search still running again with no matches in. Enter pressed before it finds one
+    selects the match the search stood on; read off the matches found so far, it fell
+    through to the field and selected nothing. Each slice takes one step (`FAST_CLOCK`),
+    and the page's zero-delay timers are held, so the search stands unfinished until
+    they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = window.setTimeout;
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match, then change the
+    # page's words and run them until the search starts again.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.evaluate(
+        """() => {
+          const words = document.createElement("p");
+          words.textContent = "Four documents.";
+          document.getElementById("docs").before(words);
+        }"""
+    )
+    page.wait_for_function(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (status.textContent !== "…" && window.__held.length)
+            window.__held.shift()();
+          return status.textContent === "…";
+        }"""
+    )
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "() => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === 'd0' && String(getSelection()) === 'needle'"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
+    engine, request, serve
+):
+    """While a page search still runs, Shift+Tab from its first match would come round to
+    a last match the search hasn't found; it stays and says the search is still running,
+    rather than holding the page until the search ends, and Tab still goes on to the
+    next. Each slice takes one step (`FAST_CLOCK`), and the page's zero-delay timers are
+    held, so the search stands unfinished until they run."""
+    page = open_page(request.getfixturevalue(engine), _needles_in_tabs(serve))
+    page.keyboard.press("/")
+    page.evaluate(FAST_CLOCK)
+    page.evaluate(
+        """() => {
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+        }"""
+    )
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    status = page.locator(".lf-page-search-status")
+    # Run the held slices until the search lands on the first match.
+    page.evaluate(
+        """() => {
+          const status = document.querySelector(".lf-page-search-status");
+          while (!/ of /.test(status.textContent) && window.__held.length)
+            window.__held.shift()();
+        }"""
+    )
+    expect(status).to_have_text("1 of 1")
+    page.keyboard.press("Shift+Tab")
+    expect(status).to_have_text("1 of 1")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    expect(page.get_by_role("tab", name="Doc 0")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.press("Tab")
+    expect(status).to_have_text("2 of 2")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    expect(status).to_have_text("2 of 4")
+
+
+def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser, serve):
+    """After Enter closes the search and the page changes, Shift+n searches again from
+    the match it selected. While that search still runs, a step back from the first
+    match stays and says "Searching", and the search's first slice landing on the first
+    match in the window moves nothing: once the search ends, Shift+n comes round from
+    the first match to the last. The page's zero-delay timers are held so the search
+    stands unfinished, and its first slice takes a dozen steps (`__steps`)."""
+    lines = "\n".join(f"Line {n}." for n in range(60))
+    documents = "".join(
+        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f"<pre>needle {i}\n{lines}\n</pre></lf-text-document>"
+        for i in range(10)
+    )
+    page = open_page(browser, serve(leaf_page("Documents", documents)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("needle")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 10")
+    page.keyboard.press("Enter")
+    selected = (
+        "(id) => getSelection().anchorNode?.parentElement?.closest('lf-text-document')"
+        "?.id === id && String(getSelection()) === 'needle'"
+    )
+    page.wait_for_function(selected, arg="d0")
+    page.evaluate(
+        """() => {
+          document.getElementById("d1").scrollIntoView({ block: "start" });
+          const now = performance.now.bind(performance);
+          performance.now = () =>
+            window.__steps === undefined || window.__steps-- > 0 ? now() : now() + 1e9;
+          const run = (window.__run = window.setTimeout);
+          window.__held = [];
+          window.setTimeout = (f, ms, ...rest) =>
+            ms ? run(f, ms, ...rest) : (window.__held.push(() => f(...rest)), 0);
+          const note = document.createElement("p");
+          note.textContent = "A paragraph the agent added.";
+          document.querySelector("main").append(note);
+          window.__steps = 12;
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    expect(page.locator(".lf-live")).to_have_text("Searching")
+    page.evaluate(
+        """() => {
+          window.setTimeout = window.__run;
+          delete window.__steps;
+          for (const run of window.__held.splice(0)) run();
+        }"""
+    )
+    page.keyboard.press("Shift+n")
+    page.wait_for_function(selected, arg="d9")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
+    engine, request, serve
+):
+    """The thread walk to a thread whose passage is taller than the window, from a place
+    where only the passage's middle shows, brings its start into sight."""
+    words = " ".join(f"Sentence {n} of the long passage runs on." for n in range(400))
+    url = serve(
+        leaf_page(
+            "Tall",
+            "<p>Before.</p>" * 10 + f'<p id="tall">{words}</p>' + "<p>After.</p>" * 10,
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About all of it?",
+            "anchor": {"section": "tall", "quote": words},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 1200, "height": 500})
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 1")
+    page.evaluate(
+        """() => {
+          const tall = document.getElementById('tall').getBoundingClientRect();
+          scrollBy(0, tall.top + tall.height / 2 - 250);
+        }"""
+    )
+    page.keyboard.press("t")
+    # The walk's landing glides through the page's frames, which `rendered` waits out.
+    rendered(page)
+    start = page.evaluate(
+        """() => {
+          const text = document.getElementById('tall').firstChild;
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, 8);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    assert 0 <= start["top"] and start["bottom"] <= 500, start
+
+
+@pytest.mark.parametrize(
+    ("before", "words", "quote"),
+    [
+        (
+            680,
+            '<p style="writing-mode: vertical-rl; height: 400px; width: 120px">A '
+            "passage whose words run down several columns before they reach the end, "
+            "with a further sentence to fill them.</p>",
+            "A passage whose words run down several columns before they reach the end,"
+            " with a further sentence to fill them.",
+        ),
+        (
+            680,
+            '<p style="writing-mode: vertical-rl; height: 400px; width: 120px">'
+            "<span>A</span> passage whose words run down several columns before they "
+            "reach the end, with a further sentence to fill them.</p>",
+            "A passage whose words run down several columns before they reach the end,"
+            " with a further sentence to fill them.",
+        ),
+        (
+            1600,
+            '<p><span style="display: none">Hidden beginning </span>Visible passage '
+            "ending for the reader.</p>",
+            "Hidden beginning Visible passage ending for the reader.",
+        ),
+    ],
+    ids=["vertical", "vertical-across-nodes", "hidden-start"],
+)
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
+    engine, before, words, quote, request, serve
+):
+    """The thread walk brings into sight the first line its passage draws: in vertical
+    writing, the whole of its first column, though its first word already shows and
+    though the column runs across text nodes, and where its first words draw no box,
+    the line its first drawn words stand on."""
+    url = serve(
+        leaf_page(
+            "First line",
+            f'<p style="height: {before}px">Before.</p>'
+            f'<section id="target">{words}</section>'
+            '<p style="height: 1600px">After.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About this?",
+            "anchor": {"section": "target", "quote": quote},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.set_viewport_size({"width": 1200, "height": 900})
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 1")
+    page.keyboard.press("t")
+    # The walk's landing glides through the page's frames, which `rendered` waits out.
+    rendered(page)
+    box = page.locator("#target p").bounding_box()
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
+
+
+# A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
+# shadow tree as it connects.
+VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}
+STAGED_ON_CONNECT = """
+import {shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-late-stage', class extends HTMLElement {
+  connectedCallback() { shadowStage(this, [...this.childNodes]); }
+});
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_passage_running_into_a_shadow_tree_previews_by_the_line_pointed_at(
+    engine, request, serve
+):
+    """A passage that runs from the page's words into a declared shadow tree is drawn in
+    its segments' own lines, since one range can't cross a root: its preview stands by
+    the line the pointer rests on, in the page's words, rather than where a range
+    across the root collapsed, at the passage's end inside the shadow tree."""
+    url = serve(
+        leaf_page(
+            "Across a root",
+            '<div id="both"><p>The first line of the passage ends here.</p>'
+            '<lf-late-stage id="late"><p>Its second line stands inside the widget.</p>'
+            "</lf-late-stage></div>" + "<p>After.</p>" * 12,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Across the root?",
+            "anchor": {
+                "section": "both",
+                "quote": "passage ends here. Its second line",
+            },
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+    line = page.evaluate(
+        """() => {
+          const text = document.querySelector('#both > p').firstChild;
+          const at = text.data.indexOf('passage ends');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 'passage ends'.length);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.mouse.move(line["left"] - 30, line["top"] - 30)
+    page.mouse.move(line["left"] + 6, line["top"] + line["height"] / 2, steps=3)
+    tip = page.locator("#lf-preview")
+    expect(tip.locator(".lf-preview-word")).to_have_text("Across the root?")
+    box = tip.bounding_box()
+    below = 0 <= box["y"] - line["bottom"] <= 12
+    above = 0 <= line["top"] - (box["y"] + box["height"]) <= 12
+    assert below or above, (box, line)
+    assert abs(box["x"] - line["left"]) <= 12, (box, line)
+
+
+@pytest.mark.parametrize("staged", [False, True], ids=["page", "shadow"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_search_match_across_blocks_marks_and_selects_each_piece(
+    engine, staged, request, serve
+):
+    """A page search's match that runs from one paragraph into the next, in the page's
+    tree or into a declared shadow stage, stands a mark over each piece's words, clipped
+    by that piece's own block, and landing on it selects every piece."""
+    second = '<p id="second">passage inside the stage.</p>'
+    url = serve(
+        leaf_page(
+            "Across",
+            '<div id="both"><p id="first">Words before shadow</p>'
+            + (
+                f'<lf-late-stage id="late">{second}</lf-late-stage>'
+                if staged
+                else second
+            )
+            + "</div>"
+            + "<p>After.</p>" * 6,
+        ),
+        layer_registry={"lf-late-stage": VERBATIM_STAGE},
+        layer_widgets={"lf-late-stage.js": STAGED_ON_CONNECT},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.keyboard.press("/")
+    page.keyboard.type("before shadow passage inside")
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
+    # The input draws the count at once, but the marks in the next repaint frame;
+    # until then they stand where an earlier query's frame put them.
+    rendered(page)
+    boxes = page.evaluate(
+        """() => {
+          const late = document.getElementById('late');
+          const second = (late?.shadowRoot ?? document).getElementById('second');
+          const blocks = [document.getElementById('first'), second]
+            .map((block) => block.getBoundingClientRect());
+          const marks = [...document.querySelectorAll('.lf-page-search-match')]
+            .map((mark) => mark.getBoundingClientRect())
+            .filter((box) => box.width && box.height);
+          return blocks.map((block) => marks.filter((box) =>
+            box.top >= block.top - 1 && box.bottom <= block.bottom + 1).length);
+        }"""
+    )
+    assert boxes[0] >= 1 and boxes[1] >= 1, boxes
+    page.keyboard.press("Enter")
+    selected = page.evaluate(
+        """() => {
+          const late = document.getElementById('late');
+          const roots = late?.shadowRoot ? [late.shadowRoot] : [];
+          const [range] = getSelection().getComposedRanges({shadowRoots: roots});
+          return range && [range.startContainer.parentElement.id, range.startOffset,
+            range.endContainer.parentElement.id, range.endOffset];
+        }"""
+    )
+    assert selected == ["first", 6, "second", 14], selected
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
+    engine, request, serve
+):
+    """A thread on an element is under the pointer wherever the platform's hit test puts
+    the pointer inside that element, as over an image, which holds no text to find, and
+    nowhere past it, as beside a marked word at a line's end, where the nearest
+    character is still the word's. The mark under the pointer for a press is the one
+    that previews: the image's thread to a pointer resting on it, and in Chromium to a
+    finger holding it."""
+    box = (
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' "
+        "height='80'%3E%3Crect width='160' height='80' fill='%23a55'/%3E%3C/svg%3E"
+    )
+    url = serve(
+        leaf_page(
+            "Element marks",
+            f'<p id="holder"><img id="pic" alt="A red box" src="{box}" width="160" '
+            'height="80"> beside words.</p>'
+            '<p id="line">A short line ending in <strong id="bold">bold</strong></p>',
+        )
+    )
+    for section in ("pic", "bold"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {section}?",
+                "anchor": {"section": section},
+            },
+        )
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, url)
+    said = page.locator("#lf-preview .lf-preview-word")
+    pic = page.locator("#pic").bounding_box()
+    bold = page.locator("#bold").bounding_box()
+    middle = bold["y"] + bold["height"] / 2
+    page.mouse.move(pic["x"] + 40, pic["y"] + 40)
+    page.mouse.move(pic["x"] + 60, pic["y"] + 50, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    expect(said).to_have_text("About pic?")
+    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
+    expect(page.locator("#lf-preview")).to_be_hidden()
+    page.mouse.move(bold["x"] + bold["width"] / 2, middle, steps=2)
+    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    expect(said).to_have_text("About bold?")
+    if engine != "browser":
+        return
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, has_touch=True
+    )
+    touched = open_page(browser, url, context=context)
+    held = touched.locator("#pic").bounding_box()
+    point = {"x": held["x"] + 60, "y": held["y"] + 50}
+    cdp = context.new_cdp_session(touched)
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
+    long_press(touched, point)
+    expect(touched.locator("#lf-preview .lf-preview-word")).to_have_text("About pic?")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})

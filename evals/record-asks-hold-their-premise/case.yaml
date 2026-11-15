@@ -61,13 +61,13 @@ variants:
     vars:
       prompt: |
         Write the decision section of a Leaf page about drawing an agent's plan in
-        Leaf's floating panel. The user decides whether each item on their On me list
+        Leaf's floating panel. The user decides whether each item on their On Me list
         should carry a muted line naming the plan goal and step it belongs to, such
         as "Ship the reconnect fix · step 3 of 5". You recommend adding the line.
 
-        You captured the panel's On me view both ways from the same page and log,
+        You captured the panel's On Me view both ways from the same page and log,
         at 2x, each 540 CSS pixels wide:
-        - `/media/5c2f172f22c9e701.png`, 540 by 259: On me today, with "How should
+        - `/media/5c2f172f22c9e701.png`, 540 by 259: On Me today, with "How should
           retries back off" and its choices, and "Try the build" with Done.
         - `/media/1caf95f363a5d13d.png`, 540 by 297: the same list with each item
           headed "Ship the reconnect fix, step 3 of 5" and "step 4 of 5".
@@ -77,10 +77,10 @@ variants:
       - type: llm-rubric
         metric: captures-in-options
         value: |
-          Pass only if the decision offers adding the line and leaving On me as it
+          Pass only if the decision offers adding the line and leaving On Me as it
           is, and each capture's `<img>` stands inside the `lf-option` whose choice
           it shows: the capture with the plan line inside the option that adds it,
-          and today's capture inside the option that leaves On me as it is. Fail if
+          and today's capture inside the option that leaves On Me as it is. Fail if
           either capture stands outside the `lf-options`, such as in a table or
           figure before or after it, even when an option also refers to it.
   compact-values:
@@ -106,7 +106,7 @@ variants:
   # identical Apply/Keep forms. Start before authoring: the user supplied no template.
   cleanup-review:
     metadata:
-      purpose: "On me: a cleanup review carries each proposal's reason, evidence and concrete outcomes at its answering destination."
+      purpose: "On Me: a cleanup review carries each proposal's reason, evidence and concrete outcomes at its answering destination."
     vars:
       prompt: |
         The user asked: "Do a full review for anything else that we don't need /
@@ -344,7 +344,7 @@ variants:
         metric: tradeoff-stated
         value: |
           Grade the HTML. The user is the project's maintainer and knows Leaf and its
-          agents. They answer each of the three decisions later from their On me list,
+          agents. They answer each of the three decisions later from their On Me list,
           with only that decision in view. Pass only if each decision lets them weigh
           the choice for reasons it states:
           1. It says what the shaded words change, through a case they can picture:
@@ -359,7 +359,7 @@ variants:
         value: |
           Grade the HTML. The user is the project's maintainer and knows Leaf and its
           agents. They skimmed the reply quoted in the prompt a few minutes earlier,
-          but answer each decision later from their On me list, with only that
+          but answer each decision later from their On Me list, with only that
           decision in view, and don't recall the evals or the triage. Pass only if
           every agent, run or earlier argument a decision leans on is described where
           it is used. "The exception the triage agent used", "the skeleton Codex

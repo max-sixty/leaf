@@ -16,10 +16,14 @@ import {
   whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
+import { afterOwedFrame } from "./rendering.js";
+import { countTraffic } from "./traffic.js";
+import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
-import { announce, notice } from "./notifications.js";
+import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
@@ -30,6 +34,7 @@ import { commitWidgetDescriptors } from "./widget-descriptors.js";
 import {
   combineSemanticNews,
   currentSemanticNews,
+  newsMoment,
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
@@ -47,10 +52,26 @@ export function createStateApplication({
   notifyDataSubscribers,
   accountPending,
 }) {
-  /** @type {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews} | null} */
+  /** @typedef {{reading: import("./semantic-news.js").NewsReading, observed: import("./semantic-news.js").ObservedNews}} PresentedNews */
+  /** @type {PresentedNews | null} */
   let presentedNews = null;
+  // What a queued news notice says when it shows, against the latest presented reading.
+  // Made here, not in `receiveState`, whose scope holds the activation and the document
+  // it replaced: a notice waiting its turn would keep both alive.
+  /** @param {PresentedNews} current */
+  const newsFormat =
+    (current) =>
+    /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
+    (value) =>
+      semanticNewsNotice(currentSemanticNews(value, current.reading, current.observed));
   let stateApplying = false;
   let admission = Promise.resolve();
+  // Every answer handed in through any door, a state read or a gesture's POST, while
+  // it is still being prepared or applied. Until one is adopted or dropped,
+  // `runtime.state` is the state before it, so whoever asks what the page already
+  // has asks `stateInHand`.
+  /** @type {Set<import("./layer-client.js").CompletedState>} */
+  const inHand = new Set();
 
   /** @template T @param {() => T | Promise<T>} operation */
   async function runSerialized(operation) {
@@ -68,6 +89,27 @@ export function createStateApplication({
 
   /** @param {import("./layer-client.js").CompletedState} state */
   async function receiveState(state) {
+    inHand.add(state);
+    countTraffic("received");
+    try {
+      return await applyState(state);
+    } finally {
+      inHand.delete(state);
+      countTraffic("applied");
+    }
+  }
+
+  // The newest state, by when the server took it, of those the page has adopted or
+  // has in hand.
+  function stateInHand() {
+    let newest = runtime.state;
+    for (const state of inHand)
+      if (!newest || state.taken > newest.taken) newest = state;
+    return newest;
+  }
+
+  /** @param {import("./layer-client.js").CompletedState} state */
+  async function applyState(state) {
     if (!sameLayer(state.layer.generation)) return;
     // Data is ordered by when the server took the reading, even in a crossed older log read.
     const dataChanged = acceptData(state.data, state.taken);
@@ -115,6 +157,11 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
+      // A reading that arrives while a gesture of the user's is unresolved, before the
+      // frame painting what the gesture drew, waits for that frame, so the gesture's own
+      // result paints before the reading's work (rendering.js, `afterOwedFrame`). With no
+      // gesture in flight, as while the page loads, nothing on screen is owed first.
+      if (readApplication().unresolved.length) await afterOwedFrame();
       // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
@@ -154,6 +201,10 @@ export function createStateApplication({
       };
       for (const { frozen } of frozenDocuments)
         if (frozen) commitWidgetDescriptors(frozen.descriptors);
+      // The user's place across the change this reading brings, kept once the page
+      // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
+      // own landing instead (version.js).
+      const keepPlace = installed ? null : holdUserPlace();
       if (!applicationState.adopt(state, documentCapture)) {
         await notifyChangedData();
         return;
@@ -174,6 +225,11 @@ export function createStateApplication({
         // it cannot turn accepted truth into a refusal or strand proved receipts.
         if (installed) await installed.land();
         await notifyDataSubscribers();
+        // A widget's paint from its new data can claim other regions, as a diff that
+        // drops a commented line sends its thread to a margin card, and the place is
+        // kept only once those have drawn too.
+        await whenDocumentPresented();
+        keepPlace?.();
         markStateApplied(state);
         accountPending(state.events);
         // Only the accepted candidate that this full document just presented can
@@ -188,19 +244,17 @@ export function createStateApplication({
           presentedNews.reading = newsReading;
           presentedNews.observed = reading.observed;
         } else presentedNews = { reading: newsReading, observed: reading.observed };
-        // The agent's new words are heard, not shown: the On me mark's dot and each
+        // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
         // The user chose this on 25 October over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
+        // The leaf answers news as it arrives, with the badge and dots, rather than when
+        // a notice held behind the user's own command shows it.
+        const moment = newsMoment(reading.news);
+        if (moment) gesture(moment);
         const shown = reading.news.filter((item) => item.kind !== "agent_content");
         if (shown.length) {
-          const current = presentedNews;
-          /** @param {readonly import("./semantic-news.js").SemanticNews[]} value */
-          const format = (value) => {
-            return semanticNewsNotice(
-              currentSemanticNews(value, current.reading, current.observed),
-            );
-          };
+          const format = newsFormat(presentedNews);
           notice(format(shown), {
             background: true,
             announce: false,
@@ -221,5 +275,10 @@ export function createStateApplication({
     });
   }
 
-  return { isApplying: () => stateApplying, receiveState, runSerialized };
+  return {
+    isApplying: () => stateApplying,
+    stateInHand,
+    receiveState,
+    runSerialized,
+  };
 }

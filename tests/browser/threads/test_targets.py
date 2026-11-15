@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
     EXAMPLE_PACKAGES,
-    PANEL_THREAD,
     any_owner_entry,
     leaf_page,
     open_page,
@@ -39,6 +38,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -97,6 +97,69 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     ).to_be_visible()
 
 
+def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
+    """A press in a commented section opens its thread, but one on a field or button
+    inside it keeps its own meaning (composing/surface.js), so the hand stands over the
+    section's words and the field keeps its own cursor."""
+    source = leaf_page(
+        "Commented form",
+        '<section id="form"><p id="words">Fill this in, please.</p>'
+        '<textarea id="field">Notes</textarea></section>'
+        '<p><button id="act" class="lf-btn">Act</button> '
+        '<button id="twin" class="lf-btn">Twin</button></p>',
+    )
+    page = open_page(
+        browser,
+        serve(
+            source,
+            events=[
+                {
+                    "kind": "comment",
+                    "id": "form-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this form.",
+                    "anchor": {"section": "form"},
+                },
+                {
+                    "kind": "comment",
+                    "id": "act-thread",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "About this button.",
+                    "anchor": {"section": "act"},
+                },
+            ],
+        ),
+    )
+    expect(page.locator("#form")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    at_pointer = "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
+    field = page.locator("#field")
+    field.hover()
+    box = field.bounding_box()
+    centre = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+    rendered(page)
+    expect(field).not_to_have_attribute("data-lf-over-mark", re.compile(".*"))
+    assert page.evaluate(at_pointer, centre) != "pointer"
+    words = page.locator("#words")
+    words.hover()
+    expect(words).to_have_css("cursor", "pointer")
+
+    # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
+    # thread marks it: the same as its unmarked twin's.
+    expect(page.locator("#act")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    armed = {}
+    for button in ("twin", "act"):
+        page.locator(f"#{button}").hover()
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id(button)
+        armed[button] = page.locator(f"#{button}").evaluate(
+            "el => getComputedStyle(el).cursor"
+        )
+        page.keyboard.up("Alt")
+    assert armed["act"] == armed["twin"], armed
+
+
 def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     browser, serve
 ):
@@ -112,8 +175,15 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
+    # A passage in a projected datum is anchored on its datum, as capture writes it.
     patch = panel_comment(
-        d, "Twelve is arbitrary.", {"quote": "the ceiling doubles per approval"}
+        d,
+        "Twelve is arbitrary.",
+        {
+            "section": "how-patch",
+            "datum": '["gateway/limits.py","new",2]',
+            "quote": "the ceiling doubles per approval",
+        },
     )
     both = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
@@ -488,10 +558,10 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
         stamp_page(d, replacement, "Rewrote the plan")
     wait_for_revision(page, 2)
     card = open_from_threads(page, root["id"])
-    quote = card.locator(".lf-quote")
+    quote = card.locator(".lf-thread-quote")
     expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
     if not removed:
-        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+        expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
     # A margin card's quote returns to the passage where it still stands; the panel's
     # names no jump.
     in_panel = card.evaluate("node => node.matches('.lf-fp-view')")
@@ -562,8 +632,7 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     )
     data_model.cmd_data_set(serve.page_dir, "document", old)
     page = open_page(browser, live_url(url))
-    # The code box's first child is the gutter; triple-click the rendered words.
-    select_words(page, "#source [data-content] [data-line] span")
+    select_words(page, "#source .lf-text-document-run > *")
     write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
     with sending(page, "the earlier data comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -576,8 +645,10 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
     card = open_from_threads(page, root["id"])
-    quote = card.locator(".lf-quote")
-    expect(quote).to_have_attribute("data-lf-detached", "")
+    quote = card.locator(".lf-thread-quote")
+    expect(card.locator(".lf-thread-quote-head")).to_have_attribute(
+        "data-lf-detached", ""
+    )
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
@@ -593,6 +664,43 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     rendered(page)
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
     assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+
+
+def test_a_thread_s_head_names_the_headings_over_its_words(browser, serve):
+    """A thread's head names the headings the reader passes to reach its words,
+    outermost first: a flow of h2s stands under the h1 before them, not under the h2
+    before it. Quoted words with no place of their own carry them as their label, and
+    words no heading stands over carry the page's title, so the label is there before
+    a revision gives the words a status. A thread on a place carries its place as its
+    label and the headings as its title, and a heading's own names only those over it."""
+    url = serve(
+        leaf_page(
+            "Release notes",
+            '<p id="lede">Read this first.</p>'
+            '<h1 id="title">Release plan</h1><h2 id="first">Staging</h2>'
+            '<p id="staging">Staging takes a day.</p>'
+            '<h2 id="rollout">Rollout</h2><h3 id="canary">Canary hosts</h3>'
+            '<p id="hosts">Two hosts take the first build.</p>',
+        )
+    )
+    on_words = panel_comment(
+        serve.page_dir, "Which hosts?", {"section": "hosts", "quote": "Two hosts"}
+    )
+    on_lede = panel_comment(
+        serve.page_dir, "Is this needed?", {"section": "lede", "quote": "Read this"}
+    )
+    on_heading = panel_comment(serve.page_dir, "Rename this?", {"section": "rollout"})
+    page = open_page(browser, url)
+    for thread, label in (
+        (on_words, "Release plan › Rollout › Canary hosts"),
+        (on_lede, "Release notes"),
+    ):
+        head = open_from_threads(page, thread).locator(".lf-thread-quote-head")
+        expect(head.locator(".lf-quote-label")).to_have_text(label)
+        expect(head).not_to_have_attribute("title", re.compile(".*"))
+    head = open_from_threads(page, on_heading).locator(".lf-thread-quote-head")
+    expect(head.locator(".lf-quote-label")).to_have_text("§ heading · Rollout")
+    expect(head).to_have_attribute("title", "Release plan")
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])
@@ -620,7 +728,7 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     )
     wait_for_revision(page, 2)
     card = open_from_threads(page, root)
-    expect(card.locator(".lf-quote")).to_be_visible()
+    expect(card.locator(".lf-thread-quote-head")).to_be_visible()
     expect(
         card.get_by_role("button", name="Full quote", exact=True)
     ).not_to_be_visible()
@@ -666,7 +774,7 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                 "properties": {
                     "id": {"type": "string"},
                     "data-words": {"type": "string"},
-                    "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+                    "source": {"type": "string"},
                 },
                 "required": ["id"],
                 "additionalProperties": False,
@@ -706,9 +814,8 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     )
     assert reading == {"kind": "element", "exact": False, "status": "fallback"}
     card = open_from_threads(page, comment["id"])
-    quote = card.locator(".lf-quote")
-    expect(quote).not_to_have_attribute("title", "Jump to this passage")
-    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+    quote = card.locator(".lf-thread-quote")
+    expect(card.locator(".lf-anchor-status")).to_have_text("Changed")
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
@@ -719,6 +826,6 @@ customElements.define('lf-quote-subject', class extends LeafElement {
         "window.quoteSubject.show('Current plan', 'The revised requirement uses automatic review.')"
     )
     rendered(page)
-    assert "Current plan" in quote.inner_text()
+    assert "Current plan" in card.locator(".lf-quote-label").inner_text()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")

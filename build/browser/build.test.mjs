@@ -270,6 +270,25 @@ test("the bundle gate reads the parsed module, not its text", () => {
   checkModule('export const grammar = { begin: "import\\\\(", end: "require(x)" };');
 });
 
+test("an element with id=process leaves syntax highlighting working", () => {
+  // A page's named elements are globals, so `process` can be one, with no `env`.
+  const script = `
+    const node = process;
+    Object.defineProperty(globalThis, "process", { value: {}, configurable: true });
+    const syntax = await import(${JSON.stringify(`${root}${vendor}/syntax.esm.js`)});
+    const python = await import(${JSON.stringify(`${root}${vendor}/syntax/python.js`)});
+    await syntax.registerLanguage("python", python.default);
+    const { tokens } = await syntax.tokenize("x = 1\\n", "python");
+    Object.defineProperty(globalThis, "process", { value: node });
+    console.log(tokens.map((token) => token.text).join(""));
+  `;
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+  });
+  assert.equal(run.stderr, "");
+  assert.equal(run.stdout, "x = 1\n\n");
+});
+
 test("Trees search hides every nonmatch and restores an empty query", async () => {
   // Exercise the actual shipped dependency, including its build adaptations.
   const bundle = outputs.get("packages/file-tree/vendor/pierre-trees.esm.js");

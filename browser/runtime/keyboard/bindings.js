@@ -25,7 +25,7 @@
    - `title` is the command's required concise name, or a function when state changes
      it. The obligation, menu rows, reference, and announcements read these same words.
    - `description` is the row's tooltip in the reference, its meta line when the row
-     is selected, and a line under its title on a touch screen and on an On me card that
+     is selected, and a line under its title on a touch screen and on an On Me card that
      answers a Decision command. Most rows need none. Write one only for something the title and
      section heading leave out and a short title can't hold, such as "Keeps what is
      typed" or the action Undo would take back. If the missing words fit in the title,
@@ -39,7 +39,7 @@
    - `control` is the visible element activating the command. `decision: true` marks a
      command that starts, advances, answers, or revises an obligation; the role does not assign
      bindings. `recommended: true` marks the answer the page advises, so a surface that
-     answers the obligation away from its widget, as On me does, can say so, and
+     answers the obligation away from its widget, as On Me does, can say so, and
      `commits: true` the press that commits the answer the user has composed, such as a
      group's Done, which wears the commit face there as on its widget. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
@@ -116,14 +116,14 @@
    it never reimplements the press.
 
    `aria-keyshortcuts` is another projection of the register. Element scopes expose their
-   currently available rows, including the scope's capability gate. Projected shortcuts
-   on native command buttons describe the dispatcher's currently reachable routes,
-   including contextual aliases and nearer key reservations. A directly attached element
-   scope also names its local keys. `Mod` expands to both Meta and Control because the
-   dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
-   separate alternatives. An associated `control` in a sequence scope therefore omits
-   `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
-   command reference. Call `paintKeys` when a state change moves row liveness so this projection
+   currently available rows, including the scope's capability gate. A control a row or
+   route names also lists the keys that reach it from where the user is now, the
+   dispatcher's reachable routes, contextual aliases and nearer key reservations included
+   (control-keys.js), which its preview's key chips draw too. `Mod` expands to both Meta
+   and Control because the dispatcher accepts both. The attribute cannot express a
+   sequential sequence: spaces separate alternatives. A sequence's destination is reached
+   only once its first key is pressed, so the complete route stays in the keyboard command
+   reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 export { PRESS, rowArrows } from "../control-keys.js";
 import { coarsePointer } from "../pointer.js";
@@ -667,7 +667,7 @@ export function decisionControls(commands, where = "an obligation") {
 // Control or Meta; aria-keyshortcuts therefore states both working sequences. Native Space
 // uses the named key ARIA expects rather than a literal blank token.
 /** @param {string} binding */
-const ariaBindings = (binding) => {
+export const ariaBindings = (binding) => {
   const { key, mods } = parsed(binding);
   const variants = mods.includes("Mod") ? ["Meta", "Control"] : [null];
   return variants.map((modKey) =>
@@ -700,7 +700,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `M` would match the shifted On me walk from a
+// shifted press. Read off the glyph, `M` would match the shifted On Me walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.
@@ -728,12 +728,6 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-/** Registration reads declared invocation capabilities, without evaluating live availability.
- * @param {Command} row @param {"run" | "runKey"} handler */
-export const declaresCommandHandler = (row, handler) =>
-  Boolean(Object.getOwnPropertyDescriptor(row, handler)?.get) ||
-  typeof row[handler] === "function";
-
 /** @template {readonly Command[]} T @param {T} rows @param {string} where @param {(() => boolean)} [ready] @returns {T} */
 export function checked(rows, where, ready) {
   declareCommandReadiness(rows, ready);
@@ -772,23 +766,19 @@ export function checked(rows, where, ready) {
   rows.forEach((row, i) => {
     if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     named(row);
-    // A live handler getter declares the capability even while its action is
-    // unavailable. Registration validates the declaration; dispatch reads it.
-    const declaresRun = declaresCommandHandler(row, "run");
-    const declaresRunKey = declaresCommandHandler(row, "runKey");
     if (row.decision && row.control == null)
       throw new Error(`leaf: ${row.id} is a Decision command with no control`);
     if (row.lands !== undefined && typeof row.lands !== "function")
       throw new TypeError(`leaf: ${row.id} lands must be a function`);
-    if (row.native && !declaresRun && !declaresRunKey)
+    if (row.native && !row.run && !row.runKey)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
-    if (row.exit && (!declaresRun || row.touch || row.routes))
+    if (row.exit && (!row.run || row.touch || row.routes))
       throw new Error(
         `leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`,
       );
-    if (row.touch && (!declaresRun || row.routes))
+    if (row.touch && (!row.run || row.routes))
       throw new Error(
         `leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`,
       );

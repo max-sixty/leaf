@@ -10,7 +10,6 @@ from playwright.sync_api import expect
 from render_cases_navigation import KEYS_PAGE, SMOOTH_LONG_PAGE, _publish, compose
 from render_harness import (
     LONG_PAGE,
-    RELEASE_FOCUS,
     available_commands,
     compare_with,
     draft_control,
@@ -113,8 +112,8 @@ def test_registered_control_keys_activate_once(browser, serve):
 
 def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, serve):
     """The document-level dispatcher owns a few character key shortcuts, not the
-    keyboard. Space, arrows, Home/End, and PageUp/PageDown must still reach the browser
-    when focus is in the authored page
+    keyboard. Space, Shift+Space, arrows, Home/End, and PageUp/PageDown must still reach
+    the browser when focus is in the authored page
     rather than a widget control.
 
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
@@ -125,7 +124,8 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
     a chance to cancel them."""
     page = open_page(browser, serve(KEYS_PAGE))
     keys = [
-        " ",
+        "Space",
+        "Shift+Space",
         "ArrowUp",
         "ArrowDown",
         "ArrowLeft",
@@ -146,8 +146,10 @@ def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, ser
             if (event.key === "?") window.lfObservedKeys["?"] = event.defaultPrevented;
           }, {capture: true});
           document.addEventListener("keydown", event => {
-            if (keys.includes(event.key) && event.key !== "?")
-              window.lfObservedKeys[event.key] = event.defaultPrevented;
+            const key = event.key === " "
+              ? (event.shiftKey ? "Shift+Space" : "Space") : event.key;
+            if (keys.includes(key) && key !== "?")
+              window.lfObservedKeys[key] = event.defaultPrevented;
           });
         }""",
         keys,
@@ -241,31 +243,6 @@ def test_keys_typed_into_leaf_fields_never_bubble_to_the_page(browser, serve):
     assert not [key for key in heard() if "keyup Escape" not in key], (
         "the page heard keys typed into the page search"
     )
-
-
-def test_the_browser_pages_the_document_with_space(browser, serve):
-    """Space and Shift+Space are ordinary browser paging keys on authored content.
-
-    Leaf does not prescribe a distance or animation. The browser chooses both; the
-    contract here is simply that the document moves down and then back up without the
-    runtime canceling either key."""
-    page = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    page.evaluate(RELEASE_FOCUS)
-
-    def press_and_settle(key):
-        page.evaluate("""() => {
-          window.__lfScrollEnded = false;
-          addEventListener('scrollend', () => { window.__lfScrollEnded = true; },
-                           {once: true});
-        }""")
-        page.keyboard.press(key)
-        page.wait_for_function("() => window.__lfScrollEnded")
-        return page.evaluate("() => document.scrollingElement.scrollTop")
-
-    down = press_and_settle("Space")
-    assert down > 0, "the browser did not page the document down"
-    up = press_and_settle("Shift+Space")
-    assert up < down, "the browser did not page the document back up"
 
 
 def test_the_reading_keys_accumulate_and_reverse(browser, serve):

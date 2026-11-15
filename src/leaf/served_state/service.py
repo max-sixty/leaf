@@ -15,7 +15,8 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_data, read_source
+from ..data import read_data
+from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -25,14 +26,16 @@ from ..files import (
     stamped_version,
 )
 from ..passages import SourceReading
-from ..registry.storage import require_registry
+from ..projection import page_reading
+from ..provenance import revision_places, saved_after
 from ..revision_artifact import Resource, RevisionArtifact, read_artifact, read_revision
-from ..revisioning import activate_source
+from ..revisioning import Activation, activate_source, held_activation
 from ..service import PageTransaction
 from . import browser as served_browser
 from . import page as served_page
 from . import reading as served_reading
 from .context import PageRead, read_page
+from .document import browser_document
 from .thread import thread_counts
 
 
@@ -53,8 +56,6 @@ class PageSource(Protocol):
     def active_revision(self) -> int | None: ...
     def artifact(self, revision: int) -> RevisionArtifact: ...
     def revision(self, revision: int) -> SourceReading: ...
-    def active_registry(self) -> dict: ...
-    def data_source(self, source: str, registry: dict) -> dict | None: ...
     def events(self) -> list[dict]: ...
     def published_versions(self, events: list[dict]) -> set[int]: ...
 
@@ -71,10 +72,10 @@ class PageSource(Protocol):
     def other_pages(self) -> list[dict]: ...
 
     def state_read(
-        self, *, with_token: bool = False
-    ) -> AbstractContextManager[tuple[PageRead, str | None, str | None]]:
-        """A context yielding the fold inputs, the news token when asked for, and
-        the source error activation met."""
+        self,
+    ) -> AbstractContextManager[tuple[PageRead, str, str | None]]:
+        """A context yielding the fold inputs, the news token, and the source error
+        activation met."""
 
     def state_reading(self, reading: str, state: dict) -> str:
         """Finalize the state's source-specific refresh facts and return its token,
@@ -104,12 +105,6 @@ class LivePage:
     def revision(self, revision: int) -> SourceReading:
         return read_revision(self.page_dir, revision)
 
-    def active_registry(self) -> dict:
-        return require_registry(self.page_dir)
-
-    def data_source(self, source: str, registry: dict) -> dict | None:
-        return read_source(self.page_dir, source, registry)
-
     def events(self) -> list[dict]:
         return read_events(self.page_dir)
 
@@ -134,24 +129,39 @@ class LivePage:
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
 
     def news(self) -> str:
-        """The token naming the page's current reading."""
-        files = served_reading.page_reading(self.page_dir)
+        """The token naming the page's current reading, the same one a state read
+        would answer with now."""
+        _activation, files = self._activated()
         return served_reading.join_reading(
             files, presence_model.presence_reading(self.page_dir, files)
         )
+
+    def _activated(self, page: PageTransaction | None = None) -> tuple[Activation, str]:
+        """Activate the source, then stamp the page's files, in the order
+        `PageEndpoint.page_state` explains. News and state reads both take their
+        token here, so after a source save the news a tab sees already names the
+        revision the state read it prompts will answer with, and the tab reads
+        once. A state read passes the transaction it holds. News stamps the page
+        once and takes a transaction only when the activation held for those
+        stamps doesn't cover them, since otherwise activating would change nothing
+        they name."""
+        if page is None:
+            files, sources = served_reading.page_readings(self.page_dir)
+            if (activation := held_activation(self.page_dir, *sources)) is not None:
+                return activation, files
+            with PageTransaction(self.page_dir) as page:
+                return self._activated(page)
+        activation = activate_source(self.page_dir, transaction=page)
+        return activation, served_reading.held_page_reading(self.page_dir)
 
     def other_pages(self) -> list[dict]:
         return presence_model.neighbor_reading(self.page_dir)
 
     @contextmanager
-    def state_read(self, *, with_token: bool = False):
+    def state_read(self):
         with PageTransaction(self.page_dir) as page:
-            activation = activate_source(self.page_dir, transaction=page)
-            # Only the complete state response carries a news token. Take it
-            # after activation and before the facts it names.
-            reading = (
-                served_reading.held_page_reading(self.page_dir) if with_token else None
-            )
+            # The token is taken before the facts it names.
+            activation, reading = self._activated(page)
             yield (
                 read_page(
                     self.page_dir, page.events, layer_identity=self.layer_identity
@@ -187,28 +197,20 @@ class PageStateService:
         self.preview = preview
         self.publication = publication
 
-    def page_state(
-        self, view_revision: int | None = None, *, held: str | None = None
-    ) -> dict:
-        with self.source.state_read(with_token=True) as (
-            context,
-            reading,
-            source_error,
-        ):
+    def page_state(self, view_revision: int | None = None) -> dict:
+        with self.source.state_read() as (context, reading, source_error):
             served = served_page.read_served_page(
                 context,
                 preview=self.preview,
                 publication=self.publication,
                 source_error=source_error,
                 view_revision=view_revision,
-                held=held,
             ).state
             state = {
                 "layer": served_page.served_layer_identity(context, view_revision),
                 **served,
             }
         state["others"] = self.source.other_pages()
-        assert reading is not None
         state["reading"] = self.source.state_reading(reading, state)
         return state
 
@@ -220,15 +222,11 @@ class PageStateService:
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         The user's counts are the active view's, as the Leaf panel's marks count
-        them: its On me list, and its threads by `thread_counts`.
+        them: its On Me list, and its threads by `thread_counts`.
         """
         from ..server_rows import compact_activity
 
-        with self.source.state_read(with_token=True) as (
-            context,
-            reading,
-            _source_error,
-        ):
+        with self.source.state_read() as (context, reading, _source_error):
             work = context.work
             projected = served_browser.project_browser_state(context)
             view = (
@@ -250,19 +248,39 @@ class PageStateService:
                 "threads": thread_counts(threads),
             }
             live = {key: context.presence[key] for key in presence_model.LIVE_FACTS}
-        assert reading is not None
         return row, reading, live
 
-    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None = None
+    ) -> dict:
+        """The `/api/view` answer: what a comparison with `revision` folds, its
+        document at the log boundary (`document.browser_document`), and, where the tab
+        compares it with the revision `shown`, the user's messages that waited while
+        the version `shown` was saved (`provenance.saved_after`)."""
         with self.source.state_read() as (context, _reading, _source_error):
             if context.active is None:
                 raise ValueError(missing_revision(self.page_dir))
-            projected = served_browser.project_browser_state(
-                context.through(through_seq),
-                view_revision,
-                include_active_view=False,
+            if revision not in context.revisions:
+                raise ValueError(f"unknown view revision r{revision}")
+            read = context.through(through_seq)
+            page = page_reading(
+                read.revision(revision),
+                read.events,
+                revision,
+                revisions=read.revisions,
+                revision_reader=read.revision,
             )
-            if projected is None:
-                raise ValueError("page registry cannot be projected")
-            view, _reading = projected
-        return view
+            waited = (
+                None
+                if shown is None
+                else saved_after(
+                    EventFacts(self.page_dir, read.events, read.registry),
+                    read.revision,
+                    revision_places(read.events),
+                    read.revisions,
+                    {version["revision"] for version in read.versions},
+                    revision,
+                    shown,
+                )
+            )
+        return {"document": browser_document(page), "saved_after": waited}

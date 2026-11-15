@@ -45,9 +45,11 @@ from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.commands import preview
+from leaf_dev.commands.site import build as site
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import named_source
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 LEAF_S_THEME = {"name": "reading", "source": "default"}
 
@@ -58,7 +60,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --lf-accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -196,12 +198,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     source = named_source(name)
     page = tmp_path / "preview"
     monkeypatch.chdir(ROOT)
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    prepare_page(page, read_fixture(source), leaf_in_process, final_status=None)
     served = SourceDocument((page / "index.html").read_text())
     assert served.tree.select("nav.sitenav a[aria-current=page]")
     assert all(
@@ -275,19 +272,16 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
     (versions / "index.v1.html").write_text(markup(previous))
     source.write_text(markup(current))
     page = tmp_path / "page"
-
-    def run_leaf(*args, input_text=None):
-        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-        assert result.exit_code == 0, result.output
-
-    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    prepare_page(
+        page, read_fixture(source), leaf_in_process, assets=assets, final_status=None
+    )
     expected = {
         media_name(path.read_bytes(), path.suffix) for path in (previous, current)
     }
     assert {path.name for path in (page / "media").iterdir()} == expected
     source.write_text(markup(revised, kind="inline"))
     monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
-    preview.refresh_media(source, page, run_leaf)
+    preview.refresh_media(source, page, leaf_in_process)
     expected.add(media_name(revised.read_bytes(), revised.suffix))
     assert {path.name for path in (page / "media").iterdir()} == expected
 
@@ -671,6 +665,16 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     assert str(nearer) in after.paths
     assert str(inherited) not in after.paths
     assert after.roots == before.roots
+
+
+def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+
+    assert preview.source_packages(page / "index.html") == ["diagram"]
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

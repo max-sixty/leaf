@@ -10,7 +10,7 @@
    A reply's box keeps the caret through its send (replies.js); a first message, or a
    rewrite, whose box goes with the send leaves focus on its thread's card or title
    (`landSent`). Returning to the page is a separate navigation gesture. */
-import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
+import { fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import { seenRect } from "../geometry.js";
 import {
   focusDestination,
@@ -24,7 +24,7 @@ import { closestAcross } from "../passages.js";
 import { SAYS_IN, THREAD, threadPart, wholeThread } from "./selectors.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
-import { dismissReplyAt, replyDraftContext } from "./replies.js";
+import { beginReplyAt, dismissReplyAt, replyDraftContext } from "./replies.js";
 import { copyTrigger } from "../copy-control.js";
 import { threadList } from "./state.js";
 import { focusedThreadTarget, focusThread, threadReplyInput } from "./focus.js";
@@ -123,25 +123,24 @@ pageScope("text entry", {
 });
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
-// arrival. A thread too tall to show whole and already shown stands around the box, and
-// landing its title would take the user away from the turn they were answering, so it
-// is a `return` that leaves it where it is. One that fits, or one the user has
-// scrolled out of view since, is a `move`, brought into view. While the box the user
-// left still stands in front of them, nothing scrolls: it stands beside the gesture,
-// and a landing would carry it, by the room the thread's focus ring asks at its foot or
-// by bringing back a head they scrolled above the window. A box the send gave up, as a
-// seat's does to the thread it starts, leaves nothing there to carry.
+// arrival but a `return`, which previews nothing (preview.js). A thread too tall to show
+// whole, some of which is in front of the user (geometry.js, `seenRect`), stands around
+// the box, and landing its title would take the user away from the turn they were
+// answering, so it is left where it is. One that fits, or one the user has scrolled out
+// of view since, is brought into view where it is not already shown. While the box the user left still
+// stands in front of them, nothing scrolls: it stands beside the gesture, and a landing
+// would carry it, by the room the thread's focus ring asks at its foot or by bringing
+// back a head they scrolled above the window. A box the send gave up, as a seat's does
+// to the thread it starts, leaves nothing there to carry.
+// A send whose box goes, a first message's or a rewrite's, lands here too: it ends text
+// entry while keeping the user in the conversation, on its thread's focus stop; leaving
+// the card belongs to navigation, not Send.
 /** @param {Element} thread */
-function returnToThread(thread) {
-  const shown = alreadyShown(thread);
-  if (!fitsWhole(thread) && shown) {
-    focusThread(thread, "return");
-    return;
-  }
-  focusThread(thread, "move");
+export function returnToThread(thread) {
+  focusThread(thread, "return");
+  if (!fitsWhole(thread) && seenRect(thread, new Map())) return;
   const box = threadReplyInput(thread);
-  if (!shown && !(box && seenRect(box, new Map())))
-    scrollIntoView(thread, { block: "nearest" });
+  if (!(box && seenRect(box, new Map()))) scrollIntoView(thread, { block: "nearest" });
 }
 
 // The thread whose card the user is on.
@@ -172,51 +171,29 @@ function messageCopy(thread) {
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
 /** @param {ThreadLanding} destination */
-function prepareLanding({ held = null, box, route = null }) {
+export function landIn({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= closestAcross(box, SAYS_IN);
   if (route && held && !held.hasAttribute("tabindex")) {
     threadReturns.set(box, route);
     whenLeft(box, () => threadReturns.delete(box));
   }
-  return { held, box };
+  // Entering a reply is a focus move, not a navigation step to its thread or passage.
+  // Reveal only the writing area: a nearest landing leaves a box already shown where
+  // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
+  // margin card included.
+  bringBackSurfaceOf(box);
+  focusDestination(box, "move");
+  beginReplyAt(box);
+  scrollIntoView(box, { block: "nearest", behavior: "instant" });
+  return true;
 }
 
-export function createThreadLanding() {
-  /** @param {ThreadLanding} destination */
-  const landIn = (destination) => {
-    const prepared = prepareLanding(destination);
-    if (!prepared) return false;
-    const { box } = prepared;
-    // Entering a reply is a focus move, not a navigation step to its thread or passage.
-    // Reveal only the writing area: a box already shown (landing-scroll.js,
-    // `alreadyShown`) leaves every scroller where the reader put it, including the
-    // transcript inside a margin card, however tall the box.
-    bringBackSurfaceOf(box);
-    focusDestination(box, "move");
-    if (!alreadyShown(box))
-      scrollIntoView(box, {
-        block: "nearest",
-        behavior: "instant",
-      });
-    return true;
-  };
-  /** @param {Element} box @param {ReturnRoute | null} route */
-  const landInThread = (box, route = null) => landIn({ box, route });
-  // A send whose box goes, a first message's or a rewrite's, ends text entry while
-  // keeping the user in the conversation, on its thread's focus stop; leaving the card
-  // belongs to navigation, not Send.
-  const landSent = returnToThread;
-  return { landIn, landInThread, landSent };
-}
+/** @param {Element} box @param {ReturnRoute | null} route */
+export const landInThread = (box, route = null) => landIn({ box, route });
 
-/** Declare a thread's own keys against the landing the page is using, and the reading
- * of the thread the user is at (destination.js, `threadHere`).
- *
- * Separate from constructing that landing, because they are separate acts: a second
- * landing owner — one a test builds to hold a reveal open — is another way of landing,
- * not another set of keys, and declaring from the constructor would let it quietly take
- * the page's.
+/** Declare a thread's own keys, given the reading of the thread the user is at
+ * (destination.js, `threadHere`).
  *
  * The keys are live wherever the user is at a thread: in it, on the card, the message a
  * click on its words focuses, the quote, a link in a reply; and on the element whose
@@ -229,9 +206,8 @@ export function createThreadLanding() {
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
  * words selected it keeps the browser's copy. Absent a thread, the reference describes
  * the open state users first meet. */
-/** @param {ReturnType<typeof createThreadLanding>["landIn"]} landIn
- * @param {() => Element | null} threadHere */
-export function declareThreadKeys(landIn, threadHere) {
+/** @param {() => Element | null} threadHere */
+export function declareThreadKeys(threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
@@ -262,27 +238,23 @@ export function declareThreadKeys(landIn, threadHere) {
           else resolutionControl(thread)?.click();
         },
       },
+      // `r` presses the thread's own Resolve or Reopen, whose command answers it, so the
+      // control's preview names `r` (control-keys.js).
       {
         id: "thread.resolution.toggle",
         touch: false,
         keys: ["r"],
         title: () =>
           resolutionControl(threadHere())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        when: () =>
-          Boolean(
-            resolutionControl(threadHere())?.matches(
-              ':not(:disabled, [aria-disabled="true"])',
-            ),
-          ),
-        run: () => resolutionControl(threadHere())?.click(),
+        control: () => resolutionControl(threadHere()),
       },
       {
         id: "message.copy",
         touch: false,
         keys: ["Mod+c"],
         title: "copy message as Markdown",
-        when: () => Boolean(messageCopy(threadHere()) && getSelection()?.isCollapsed),
-        run: () => messageCopy(threadHere())?.click(),
+        when: () => Boolean(getSelection()?.isCollapsed),
+        control: () => messageCopy(threadHere()),
       },
     ],
   });

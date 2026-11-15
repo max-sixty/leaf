@@ -53,7 +53,7 @@ import { createPlayground } from "./playground-view.js";
  *
  * Under `actions="page"` the page draws the submission and Reset, and
  * `registerActions` hands this playground the two buttons. They become the controls of
- * its commands, which wire their presses and keep the digit, On me's arrival and
+ * its commands, which wire their presses and keep the digit, On Me's arrival and
  * availability, and this module writes the submission's words, as it does for its own,
  * since the words must say what the press will do. The page's CSS draws them: they are
  * the page's elements, not Leaf's controls. Rejected: methods the page calls from its
@@ -71,7 +71,6 @@ import {
   onCurrentLocation,
   onPress,
   isNativeLayer,
-  keeps,
   LeafElement,
   render,
   registerReadingRegion,
@@ -244,7 +243,7 @@ customElements.define(
             const box = entry.borderBoxSize[0];
             if (!box) continue;
             split?.style.setProperty(
-              "--playground-controls-height",
+              "--lf-playground-controls-height",
               `${box.blockSize}px`,
             );
             return;
@@ -383,7 +382,7 @@ customElements.define(
           if (!choice || choice.closest("lf-playground") !== this) return;
           if (reachedForWords(choice) || worksInside(target, choice)) return;
           /** @type {HTMLInputElement | null} */
-          const radio = choice.querySelector(":scope > .choice > input");
+          const radio = choice.querySelector(":scope > .lf-choice > input");
           if (!radio) throw new Error("A playground choice needs its rendered radio");
           focusDestination(radio, "press");
           radio.click();
@@ -408,7 +407,7 @@ customElements.define(
             });
             this.#draw();
           });
-        const { reveal, instruction } = initial;
+        const { instruction } = initial;
         // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
@@ -428,14 +427,7 @@ customElements.define(
             { capture: true },
           );
           initial.copy = copy;
-          instruction.addEventListener("toggle", (event) => {
-            keeps(
-              reveal,
-              "aria-expanded",
-              event instanceof ToggleEvent && event.newState === "open",
-            );
-            commandsChanged(this);
-          });
+          instruction.addEventListener("toggle", () => commandsChanged(this));
         }
         this.addEventListener("mousedown", (event) => {
           const target = event.target;

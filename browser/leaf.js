@@ -71,18 +71,15 @@ import {
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
+import { refuseBareText } from "./runtime/passages.js";
 import { createPageGeometry } from "./runtime/page-geometry.js";
 import {
   aimLayer,
   clearAim,
   geometryChanged,
   labelAim,
-  locationLayer,
-  mountTargetPaint,
   paintAim,
-  proxyRingLayer,
   shifted,
-  targetTraceLayer,
 } from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
@@ -90,8 +87,10 @@ import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createThreadLanding,
   declareThreadKeys,
+  landIn,
+  landInThread,
+  returnToThread,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -114,7 +113,7 @@ import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { holdToRead } from "./runtime/held-word.js";
+import { mountPreviews } from "./runtime/preview.js";
 
 import { leavesOffered } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -122,11 +121,11 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { presented, windowChromeBoxes } from "./runtime/geometry.js";
+import { coverBoxes, presented } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareCurrentLocation } from "./runtime/keyboard/page.js";
-import { mountKeyboard } from "./runtime/keyboard/controller.js";
+import { letHeldKeysGo, mountKeyboard } from "./runtime/keyboard/controller.js";
 import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { paintCloseRequests } from "./runtime/keyboard/close-requests.js";
@@ -172,7 +171,7 @@ async function boot() {
   initializeServedDocument();
   const initialStateRead = beginRead();
   const initialDocument = takeInitialDocument();
-  if (!(await prepareDocument(initialDocument))) return;
+  if (!(await prepareDocument(initialDocument))) return letHeldKeysGo();
   holdArrivingBounds();
 
   // A published shell may bundle the entry without publishing its source modules beside
@@ -261,9 +260,9 @@ async function boot() {
     },
   });
 
-  // The fixed furniture every generated-hint map is spread around: the window's declared
-  // chrome (geometry.js). Both maps read the same boxes.
-  const hintChrome = { barriers: windowChromeBoxes };
+  // The fixed furniture every generated-hint map is spread around: the boxes the chrome
+  // covers (geometry.js, `coverBoxes`). Both maps read the same boxes.
+  const hintChrome = { barriers: () => coverBoxes() };
   const anchorPlacement = createAnchorPlacement();
   /** @type {ReturnType<NonNullable<typeof annotationRenderer>["createVisualMarkPaint"]> | undefined} */
   let visualMarkPaint;
@@ -276,10 +275,15 @@ async function boot() {
       pointer: pointerAt,
       currentLocationThreadId,
       currentLocationObligation: () => items.currentLocationIn(),
-      rowThread: () => floatingPanel?.hoveredThread() ?? null,
+      rowThread: (under) => floatingPanel?.hoveredThread(under) ?? null,
       threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
       marginThread: () => app?.overlay?.pointedThread() ?? null,
+      placedAt: (id) => anchorPlacement.placedAt(id),
+      pendingAt: () => anchorPlacement.pendingAt(),
+      settle: () => anchorPlacement.settle(),
     });
+    const painting = anchorPaint;
+    anchorPlacement.hearPlaced((change) => painting.replace(change));
   }
   const drawingPaint = createDrawingInk({
     drawings: () => [
@@ -322,7 +326,6 @@ async function boot() {
     pointer: pointerAt,
     designMode,
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
-    visualMarkPaint,
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
     legendScrolled: designMode.legendScrolled,
@@ -346,8 +349,7 @@ async function boot() {
       floatingPanel?.clearFor(destination, landed) ?? null,
     announce,
   });
-  const landing = createThreadLanding();
-  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere() ?? null);
+  declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
@@ -394,7 +396,6 @@ async function boot() {
   app = mountApplication({
     arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
     nextObligationWithin: (options) => queueWalk.nextWithin(options),
-    threadAvailable: !offlineInteractive,
     createEngagement,
     targetPickerOpen: () => targets.targetPickerOpen(),
     wireInput: inputs.wireInput,
@@ -423,8 +424,8 @@ async function boot() {
       restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
-    landInThread: (...args) => landing.landInThread(...args),
-    landSent: (...args) => landing.landSent(...args),
+    landInThread,
+    landSent: returnToThread,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -473,10 +474,14 @@ async function boot() {
     annotationFocus: app.overlay?.mapFocusTarget,
   });
 
+  // The control the user sees for `control`: the margin's copy of one it presents.
+  /** @param {Element} control */
+  const presentedControl = (control) =>
+    app.overlay?.presentedControl(control) ?? control;
   // The obligation view is constructed below by its owner factory; all accesses above are inert closures.
   items = createObligationView({
     focusForNavigation,
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+    presentedControl,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
@@ -484,20 +489,15 @@ async function boot() {
     repaint,
   });
   const queueWalk = createQueueWalk({
-    actions: app.queueActions,
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
-    readableDestination: anchorTravel.readableDestination,
-    showOnMe: (obligation) => floatingPanel.showOnMe(obligation),
     announce,
   });
-  const changeWalk = createChangeWalk();
-  const commandHints = createCommandHints({
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
-  });
+  createChangeWalk();
+  const commandHints = createCommandHints({ presentedControl });
 
   const currentTarget = createCurrentTarget({
     currentLocationIn: items.currentLocationIn,
@@ -506,8 +506,6 @@ async function boot() {
   floatingPanel = createFloatingPanel({
     wireInput: inputs.wireInput,
     observeFeedback: app.read.observeFeedback,
-    firstUnread: app.read.firstUnread,
-    afterReadingPass: app.read.afterPass,
     threadActions: app.threadActions,
     registerChromeThreadPresentation: app.registerChromeThreadPresentation,
     obligations: { choicesOf: items.choicesOf },
@@ -515,7 +513,6 @@ async function boot() {
     arrivesAt: (item) => queueWalk.arrivesAt(item),
     onMe: queueWalk.onMe,
     withdraw: app.withdraw,
-    settlement: app.settlement,
     placedAt: anchorPlacement.placedAt,
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
@@ -530,13 +527,14 @@ async function boot() {
   responseSurface = createResponseSurface({
     rememberSelection: passageSelection.remember,
     createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-    landIn: landing.landIn,
+    landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
     currentTarget,
     markAt: anchorPaint?.markAt,
     scrollToElement: anchorTravel.scrollToElement,
+    scrollToPassage: anchorTravel.scrollToPassage,
     scrollToRange: anchorTravel.scrollToRange,
     visualActionAnchor: anchorControls.visualActionAnchor,
     designModeActive: designMode.active,
@@ -556,7 +554,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: landing.landSent,
+    landSent: returnToThread,
     wireInput: inputs.wireInput,
     drawingEdits,
   });
@@ -578,7 +576,7 @@ async function boot() {
     currentTarget,
   });
   targets = createTargetPicker({
-    scrollToRange: anchorTravel.scrollToRange,
+    scrollToPassage: anchorTravel.scrollToPassage,
     hintChrome,
     commentOnTarget: responseSurface.commentOnTarget,
     updateFab: responseSurface.updateFab,
@@ -685,6 +683,7 @@ async function boot() {
     leavesOffered,
     marginEntries: app.overlay ?? null,
     placeThreadEdge,
+    stepReading: navigation.stepReading,
   });
   const currentLocationPainters = {
     markHere: items.markHere,
@@ -705,6 +704,7 @@ async function boot() {
     paintCommandHints: commandHints.paint,
     paintCoreControls,
     publishInputHint: inputs.publishInputHint,
+    restFab: responseSurface.restFab,
   };
 
   if (!offlineInteractive) {
@@ -717,9 +717,6 @@ async function boot() {
     // One permanent home for the chrome's foreground; none of these live descendants is
     // reparented.
     chromeForeground.append(
-      locationLayer,
-      targetTraceLayer,
-      proxyRingLayer,
       aimLayer,
       liveEl,
       mediaViewer,
@@ -729,7 +726,6 @@ async function boot() {
     chromeRoot.append(
       legendRoot,
       marginBarLayer,
-      ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
       drawingPaint.layer,
       fabBar,
       chromeForeground,
@@ -740,24 +736,20 @@ async function boot() {
     mountPageStatus();
     floatingPanel.mount(chromeForeground);
     responseSurface.mount();
-    holdToRead();
     reactions.mount();
     targets.mount();
     drawing.mount();
     aim.mount();
-    mountTargetPaint();
     anchorPaint?.mount();
     anchorControls.mount();
     pageGeometry.mount();
     pageMapDialog.mount(chromeForeground);
     items.mount();
-    queueWalk.mount();
-    changeWalk.mount();
     commandHints.mount();
     app.mountAnnotations();
     app.overlay?.mount();
     // Margin rows insert before the permanent foreground home, so these chips are laid
-    // out after every target they name while retaining their native modal ancestor.
+    // out after every target they name.
     chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
     app.mountRead();
     layout.mountLayoutObservers();
@@ -781,14 +773,18 @@ async function boot() {
     chromeRoot.append(mediaViewer);
     document.body.after(chromeRoot);
     // Exports retain image inspection, but no page controls. Their other current location is
-    // what a widget's own box shows, such as an options group's addition field.
+    // what a widget's own box shows, such as an options group's addition field, and a
+    // widget's controls name the keys that reach them there as on a live page.
     mountRepaint({
       publishInputHint: inputs.publishInputHint,
       paintCloseRequests,
+      paintCoreControls,
       reflectFirstScopes,
       reflectKeys,
     });
   }
+  // Exports keep previews too: a gloss or a timeline's marks say theirs there as well.
+  mountPreviews(chromeRoot);
 
   // Widget commands belong to interactive documents, including offline exports.
   // The register admits page and chrome commands only in a live document.
@@ -941,6 +937,7 @@ async function boot() {
       setAnchoringReady(false);
       throw error;
     }
+    refuseBareText();
     markPageUpgraded();
     // Restoring an editor requires a visible destination. Its placement certifies
     // drawn content, so it cannot be a prerequisite for revealing the page itself.

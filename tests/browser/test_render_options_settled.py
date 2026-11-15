@@ -18,11 +18,10 @@ from render_harness import (
     SETTLED_PAGE,
     command_reference_rows,
     compare_with,
-    consume_browser_errors,
     open_page,
     page_registry,
+    reported_browser_errors,
     round_trip,
-    said,
     select,
     undo,
     write,
@@ -121,11 +120,11 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     compare_with(page, 1)
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
-    # The paint reports the failure, and nothing else does: no uncaught throw.
-    errors = consume_browser_errors(page, "the marks failed once")
-    assert len(errors) == 1 and said(errors[0]).startswith(
-        'leaf: <lf-tabs id="views"> failed'
-    ), errors
+    # The paint reports the failure, and nothing else does: no uncaught throw. The
+    # report lands after the settled mark repaints, so wait for it to arrive.
+    reported_browser_errors(
+        page, 'leaf: <lf-tabs id="views"> failed: the marks failed once'
+    )
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")

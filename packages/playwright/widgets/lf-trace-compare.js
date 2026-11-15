@@ -9,6 +9,7 @@
  * Shared introductory text belongs outside the comparison. The chooser's
  * measured height clears focus and navigation inside those views. */
 import {
+  actionClass,
   cancelRender,
   el,
   generatedElement,
@@ -78,11 +79,14 @@ customElements.define(
         });
         const choice = offer(
           "wa-radio",
-          "lf-trace-source",
+          actionClass("word", "lf-trace-source"),
           recording.getAttribute("label") ?? recording.getAttribute("source"),
+          undefined,
+          true,
         );
         choice.value = String(index);
-        choice.appearance = "button";
+        // An attribute, so the theme seats it as a chooser from its first paint.
+        choice.setAttribute("appearance", "button");
         choice.disabled = quoted(this);
         choices.append(choice);
       }

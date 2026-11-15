@@ -22,7 +22,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     INLINE_PAGE,
-    PANEL_THREAD,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
     command_reference_rows,
@@ -30,11 +29,13 @@ from render_harness import (
     consume_browser_errors,
     expect_panel_offers,
     expect_panel_says,
+    expect_preview_words,
     leaf_page,
     open_page,
     panel_field,
     panel_menu,
     panel_settled,
+    preview_parts,
     resized,
     scroll_settled,
     sending,
@@ -43,6 +44,7 @@ from render_harness import (
     write,
 )
 
+from journeys import detached_threads, listed_threads
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -53,7 +55,8 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.example_data import patch_manifest
+from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -61,7 +64,7 @@ from browser.test_render_anchors import open_selected_comment
 from browser.threads import open_panel_thread
 
 from journeys import (
-    first_thread_quote,
+    first_thread_head,
 )
 
 
@@ -532,7 +535,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # inside that floor but beside the face still presses Copy.
     face = touch_button.bounding_box()
     floor = touch.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     assert face
     touch.touchscreen.tap(
@@ -753,7 +756,7 @@ diff --git a/README.md b/README.md
 
     summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
+    expect(page.locator("[data-lf-aimed]").first).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -846,7 +849,7 @@ diff --git a/README.md b/README.md
     details.evaluate("element => { element.open = true; }")
     expect(inline).to_have_count(1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
-    whole_line = first_thread_quote(page, serve.page_dir)
+    whole_line = first_thread_head(page, serve.page_dir)
     expect(whole_line).to_have_text("§ app.py · new line 2")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
@@ -858,7 +861,7 @@ diff --git a/README.md b/README.md
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
     # The thread's view goes to the line it quotes with Show on page.
-    first_thread_quote(page, serve.page_dir)
+    first_thread_head(page, serve.page_dir)
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
@@ -935,12 +938,13 @@ diff --git a/README.md b/README.md
             "source": "review-patch",
             "source_revision": revision,
             "quote": "request.token.id",
+            "prefix": 'return f"tok:{',
+            "suffix": '}"',
         },
     ]
     second = open_panel_thread(page, comments[1]["id"])
-    expect(second.locator(".lf-fp-quote")).to_have_text(
-        "app.py · new line 2 · “request.token.id”"
-    )
+    expect(second.locator(".lf-quote-label")).to_have_text("app.py · new line 2")
+    expect(second.locator(".lf-thread-quote")).to_have_text("request.token.id")
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
@@ -962,7 +966,10 @@ diff --git a/README.md b/README.md
     for comment in comments:
         view = open_panel_thread(page, comment["id"])
         expect(view.locator(".lf-anchor-status")).to_have_text("Earlier data")
-        assert view.locator(".lf-fp-quote").get_attribute("data-lf-detached") is None
+        assert (
+            view.locator(".lf-thread-quote-head").get_attribute("data-lf-detached")
+            is None
+        )
 
 
 def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serve):
@@ -1117,7 +1124,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     # The seat holds arrivals that would move the diff on screen behind its notice:
     # the user's own two messages. The agent's reply, already read, is not among them.
     notice = thread.get_by_role("button", name="2 new", exact=True)
-    expect(notice).to_have_accessible_description("2 new messages")
+    expect_preview_words(notice, "2 new messages")
     notice.click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view in (thread, panel_thread):
@@ -1206,10 +1213,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     readings = page.locator("lf-diff").evaluate_all(
         """hosts => Object.fromEntries(hosts.map(host => [host.id, {
           rendered: host.classList.contains('lf-rendered'),
-          errors: [...new Set([...host.querySelectorAll('.lf-error'),
-            ...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
-            .map(box => box.firstChild?.textContent ?? null))],
-          source: host.querySelector('.lf-error pre')?.textContent ?? null,
+          errors: [...(host.shadowRoot?.querySelectorAll('.lf-error') ?? [])]
+            .map(box => box.firstChild?.textContent ?? null),
+          source: host.shadowRoot?.querySelector('.lf-error pre')?.textContent ?? null,
           files: [...(host.shadowRoot?.querySelectorAll('.lf-diff-path') ?? [])].map(
             path => (path.querySelector('.lf-diff-destination-path') ?? path)
               .textContent.replaceAll('\\u200b', '')),
@@ -1269,7 +1275,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre').length ?? 0,
         renameCount: renames.length,
@@ -1313,7 +1319,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const host = document.querySelector('#final-empty-context-diff');
       return {
         rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        error: host.shadowRoot?.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
       };
@@ -1563,3 +1569,180 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     assert selected_comment_marks_chosen_start(page, chosen), (
         "'set up' anchored onto 'setup', an earlier and different word"
     )
+
+
+def test_a_change_opens_what_it_replaced_in_a_card_over_it(browser, serve):
+    """The other half of a comparison is what each change replaced, on request.
+
+    The Change margin entry is a disclosure per change, a hunk of the block diff, which
+    opens one card over the change: the words a block that kept its id lost, struck, and
+    the words it gained, tinted, then the paragraph the change added, inserted whole.
+    Rewritten sentences stay whole; a local edit is refined to its words. The card stands
+    in the chrome, so the page under it does not move, the existing comments stay
+    attached and selection still reads the current version alone.
+
+    The authored pair supplies the contrasts: one rewritten paragraph with a surviving
+    and a replaced sentence, and the new paragraph after it, which make one change; a
+    rewritten heading and lede, another; and one new list item, the third."""
+    example = named_source("log-retention")
+    page = open_page(browser, serve(example))
+    compare_with(page, 1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(5)
+
+    # Nothing stands open until a user asks: the marks are the whole first reading.
+    card = page.locator("#lf-change-card")
+    expect(card).to_have_count(0)
+    marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
+    assert page.evaluate(marks) == 2
+    rewritten = page.locator(
+        '[data-lf-margin-for="ret-cost-body"] [data-lf-kinds~="change"]'
+    )
+    expect(rewritten).to_have_attribute("aria-expanded", "false")
+    expect(rewritten).to_have_attribute("aria-controls", "lf-change-card")
+    # A disclosure says what it holds: what the change did, in blocks.
+    assert preview_parts(rewritten)[1:2] == ["1 paragraph edited, 1 added since v1"]
+
+    # Page Map carries the same account on each change's row, with the versions its
+    # card compares, and both remain searchable away from the passage.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
+    mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
+    expect(mapped).to_have_count(3)
+    paragraph = mapped.filter(has_text="1 paragraph edited, 1 added · Two years")
+    expect(paragraph).to_have_count(1)
+    expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
+    expect(paragraph).to_have_attribute(
+        "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
+    )
+    page.keyboard.press("Escape")
+    before = page.locator("#ret-cost-body").bounding_box()
+    rewritten.click()
+
+    # One card over the change; the page under it holds still.
+    expect(card).to_be_visible()
+    expect(rewritten).to_have_attribute("aria-expanded", "true")
+    assert page.locator("#ret-cost-body").bounding_box() == before
+    expect(card.locator(".lf-change-card-head")).to_have_text(
+        "1 paragraph edited, 1 added · v1 → v2"
+    )
+    struck = card.locator("del")
+    expect(struck).to_have_count(1)
+    expect(struck).to_contain_text("Both questions were answered")
+    expect(struck).not_to_contain_text("Two years of incident write-ups")
+    inserted = card.locator("ins")
+    expect(inserted).to_have_count(2)
+    expect(inserted.first).to_contain_text("Aggregates supplied the rate")
+    expect(inserted.first).not_to_contain_text("Two years of incident write-ups")
+    # The paragraph the revision added in the same change reads after it, inserted whole.
+    expect(inserted.last).to_contain_text("Keep 5xx request logs for 120 days")
+    expect(
+        page.locator('[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]')
+    ).to_have_count(0)
+    expect_panel_says(page, "1 paragraph edited, 1 added since v1 · showing the change")
+
+    # One card at a time: a list item's change takes its place.
+    step = page.locator(
+        '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
+    )
+    step.click()
+    expect(card.locator(".lf-change-card-head")).to_have_text("1 item added · v1 → v2")
+    expect(rewritten).to_have_attribute("aria-expanded", "false")
+    expect(step).to_have_attribute("aria-expanded", "true")
+
+    # The card is the runtime's own (.lf-ui), so the page's reading does not move under
+    # it: both threads keep the passages they quote.
+    assert stranded_quotes(page) == []
+    assert page.evaluate(marks) == 2
+
+    # Escape closes it, and stopping the comparison takes the marks.
+    page.keyboard.press("Escape")
+    expect(card).to_have_count(0)
+    expect(step).to_have_attribute("aria-expanded", "false")
+    compare_with(page, 1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(0)
+
+
+def test_a_revised_example_travels_between_its_own_versions(browser, serve):
+    """The corpus's own reading of version travel, on the one example that was revised.
+
+    Every other version fixture publishes a second version out of one markup string,
+    which is a page nobody wrote: the two documents differ by whatever the fixture
+    edited, and what a user would see marked is whatever that edit happened to be.
+    The shipped example is an authored pair — a proposal and the version that answered
+    a comment on it — so what the comparison marks here is what a revision is: the
+    paragraph rewritten around the sentence the user quoted, the paragraph and
+    step it grew, and the title and lede updated to state the exception. Everything
+    the revision left alone stays unmarked, including the
+    section the other thread stands on, and both threads stay attached because both
+    quotes survived.
+
+    That is also this file's floor for the corpus. The example sweeps serve the newest
+    version and never press anything, so with no reading here the picker could offer
+    a list nobody walks and a Compare control nobody presses on every page in examples/."""
+    example = named_source("log-retention")
+    page = open_page(browser, serve(example))
+
+    # Served at the newest version, with the earlier one under Versions.
+    versions = panel_menu(page, "versions")
+    expect(
+        versions.locator(".lf-fp-version[data-lf-current] .lf-fp-item")
+    ).to_contain_text("v2")
+    expect(versions.locator(".lf-fp-version")).to_have_count(2)
+    page.locator(".lf-fp-leaf").click()
+
+    compare_with(page, 1)
+    expect(page.locator("main .lf-ins-block")).to_have_count(5)
+    marked = page.eval_on_selector_all(
+        "main .lf-ins-block", "els => els.map(e => e.id).sort()"
+    )
+    assert marked == [
+        "ret-cost-body",
+        "ret-cost-keep",
+        "ret-lede",
+        "ret-steps-carve",
+        "ret-title",
+    ], marked
+    # A Change margin entry's press says what it reached, in the notice slot: its target is
+    # usually on screen already, so the scroll moves nothing and a press that only spoke
+    # to the live region was, to a sighted user, a press that did nothing. What the
+    # press also discloses is the next test's; this one holds it to naming its target.
+    page.locator(
+        '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
+    ).first.click()
+    expect_panel_says(page, "2 blocks edited since v1")
+
+    # The threads the log opened, both still on their passages: one on a block the
+    # revision rewrote, one on a block it never touched.
+    listed = listed_threads(page)
+    assert len(listed) == 2, listed
+    assert detached_threads(page, listed) == set()
+    painted = re.sub(
+        r"\s",
+        "",
+        page.evaluate(
+            "() => [...CSS.highlights.get('lf-mark')].map(r => r.toString()).join('')"
+        ),
+    )
+    for quote in (
+        "Two years of incident write-ups name a log older than six weeks exactly twice.",
+        (
+            "Across eighteen months of query history, 90% of reads touch logs less than "
+            "a week old and 95% stay within 42 days."
+        ),
+    ):
+        assert re.sub(r"\s", "", quote) in painted, painted[:160]
+
+    # And the older document is a real destination, not just a row: choosing it pins
+    # the user to the virtual version address the picker named.
+    panel_menu(page, "versions").locator(
+        ".lf-fp-version:not([data-lf-current]) > .lf-fp-item"
+    ).click()
+    page.wait_for_url(re.compile(r"/versions/v1\.html"))
+    expect(
+        panel_menu(page, "versions").locator(
+            ".lf-fp-version[data-lf-current] .lf-fp-item"
+        )
+    ).to_contain_text("v1")
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator("#ret-cost-keep")).to_have_count(0)

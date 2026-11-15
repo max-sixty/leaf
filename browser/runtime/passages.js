@@ -1906,15 +1906,20 @@ const changesTheReading = (record, reads) => {
 // read. A change forgets the reading of the document it lands in and that one alone
 // (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
 // all. What a reader keeps to know which reading it read is the record's `token`, an
-// empty object, so a key or a kept answer that outlives the reading holds none of it.
-/** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>}} DocumentReading */
+// empty object, so a key or a kept answer that outlives the reading holds none of it. An
+// answer that holds the page's nodes is kept on the record instead (`keptWithPageReading`),
+// so it goes with the reading it was derived from.
+/** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>, kept: Map<object, unknown>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
 let documents = new WeakMap();
 /** @param {Element} scope */
 function documentReading(scope) {
   let kept = documents.get(scope);
   if (!kept)
-    documents.set(scope, (kept = { token: {}, outline: null, within: new WeakMap() }));
+    documents.set(
+      scope,
+      (kept = { token: {}, outline: null, within: new WeakMap(), kept: new Map() }),
+    );
   return kept;
 }
 /** @param {Element | null} scope */
@@ -2055,6 +2060,17 @@ const holdsSlot = (node) =>
 export function pageReadingVersion() {
   catchUpReading();
   return documentReading(pageDocument()).token;
+}
+/** What a reader derives from the page's reading and keeps while that reading stands,
+ * under the reader's own `owner`: made by `make` for each new reading and dropped with
+ * the old one, so an answer holding the page's nodes keeps none past a revision that
+ * removes them.
+ * @template T @param {object} owner @param {() => T} make @returns {T} */
+export function keptWithPageReading(owner, make) {
+  catchUpReading();
+  const { kept } = documentReading(pageDocument());
+  if (!kept.has(owner)) kept.set(owner, make());
+  return /** @type {T} */ (kept.get(owner));
 }
 // What the watcher heard: each document a record changes the reading of forgets it, and
 // where the page's is among them, or an id moved where `elementById` looks, whoever keeps

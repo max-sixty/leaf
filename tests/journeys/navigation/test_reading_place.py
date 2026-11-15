@@ -29,29 +29,19 @@ PLACES_PAGE = (
 # One glide of each kind: the two walks, travel to an edge, and a step.
 GLIDES = ("t", "m", "g g", "d")
 # Each key reads where the user is: `c` and Tab the focus they stand on, a walk where it
-# starts, and a step where the reading is.
-FOLLOWS = ("c", "Tab", "Shift+Tab", "t", "m", "d")
+# starts, a step where the reading is, and PageDown the browser's own step.
+FOLLOWS = ("c", "Tab", "Shift+Tab", "t", "m", "d", "PageDown")
 
 # Pairs that end elsewhere pressed at once, each a defect to fix rather than a rule. An
 # entry that no longer fails fails the test, so a fix takes its entry away.
-REVEAL = (
-    "The reveal of the control Tab reaches, the browser's or Leaf's, reads the page "
-    "where the glide has it rather than where it lands, and stops the glide there"
-)
 KNOWN = {
-    ("t", "Tab"): ({"chromium"}, REVEAL),
-    ("m", "Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("m", "Shift+Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("d", "Shift+Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("m", "c"): (
-        {"chromium", "firefox"},
-        "`c` reads whether the ask is seen where the glide has it, so it brings the "
-        "ask forward and stops the glide short",
+    ("t", "Tab"): (
+        {"chromium"},
+        "Chromium reveals the card's next control where the card stood before the walk's "
+        "glide landed, since a box the page carries by anchoring takes a scroll at the "
+        "next frame",
     ),
 }
-# The same defect where it comes and goes with the frames the page gets: Chromium fails
-# it unthrottled and passes it at a tenth of the CPU, and Firefox fails it most runs.
-SOMETIMES = {("t", "Shift+Tab"): REVEAL}
 
 # Where focus stands, named by the Leaf surfaces down to it from the nearest authored
 # id, whether the user sees it, and the page's scroll.
@@ -98,8 +88,6 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
     engines, reason = KNOWN.get((glide, follow), ((), ""))
     if browser.browser_type.name in engines:
         request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
-    elif reason := SOMETIMES.get((glide, follow)):
-        request.applymarker(pytest.mark.xfail(strict=False, reason=reason))
 
     def run(at_once):
         page = open_page(

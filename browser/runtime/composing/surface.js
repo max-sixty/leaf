@@ -85,6 +85,7 @@ import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
+import { landGlides } from "../scrolling.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
@@ -1429,7 +1430,14 @@ export function createResponseSurface({
         ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
         rest: here,
-        go: () => commentOnTarget(here),
+        // The box's placement measures its target where it stands, so the glides under
+        // way land first (scrolling.js, `landGlides`): `c` pressed as `m` sets off
+        // opens the box beside the ask where `m` lands it, where a box placed mid-glide
+        // took the side with room then and ended off screen with focus in it.
+        go: () => {
+          landGlides();
+          commentOnTarget(here);
+        },
       };
     // The page's own box is the floating panel's field.
     return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
@@ -1532,6 +1540,8 @@ export function createResponseSurface({
       const selection = pageSelection();
       const anchor = selection ? selectionAnchor(selection) : null;
       if (hasQuote(anchor)) {
+        // Placed beside the words as they stand, like a target's box below.
+        landGlides();
         commentOnSelection(anchor);
         return;
       }

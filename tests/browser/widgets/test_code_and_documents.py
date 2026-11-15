@@ -1377,10 +1377,9 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     )
     expected = fresh.evaluate(ROW_COLOURS)
     page.wait_for_function(
-        f"expected => JSON.stringify(({ROW_COLOURS})()) === expected",
-        arg=json.dumps(expected, separators=(",", ":")),
-        timeout=10_000,
+        f"() => ({ROW_COLOURS})()[8].some(([name]) => name.includes('string'))"
     )
+    assert page.evaluate(ROW_COLOURS) == expected
 
 
 def drawn_numbers(page, document):

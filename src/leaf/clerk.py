@@ -22,7 +22,8 @@ it hears the old and new words and changes them back or rewrites them as it woul
 own edit. That reverses the rejection of a clerk that rewrites the page for fixes of a
 few words; a fix that needs more goes to the agent as a message.
 
-Three principles, the user's (2026-10-30), bound what the fork may do:
+Four principles, the user's, bound what the fork may do, the first three set on
+2026-10-30:
 
 - It adds attention, not an actor. The fork is the agent looking again at its own
   bookkeeping, and gives the agent reminders; it does none of the user's work.
@@ -40,6 +41,16 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
   whether it still holds.
+- It is a check, not a review (2026-11-15). It answers briefly from what it holds:
+  the conversation it inherits, which the cache serves, and the page facts Leaf
+  hands it. It does no research, so each thing Leaf asks of it must be one those
+  two settle, and it leaves out a finding they don't.
+  Claude Code's `$.model.fork` already denies every tool call and stops the fork
+  after a second request (read in 2.1.325's source), so the rule bounds what Leaf
+  asks rather than what the fork can do. Leaf's question is never cached, and an
+  uncached token costs ten times a cached one: on 37 forks of five sessions on
+  Opus 5.5 from 2026-11-14 to 11-15, the input the cache didn't serve was a median
+  24,000 of 248,000 tokens and 38% of a fork's cost.
 
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of

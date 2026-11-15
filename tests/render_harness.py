@@ -859,14 +859,15 @@ def _until(page, fact, wanted):
 # drawn (state-application.js), so a read straight after delivery alone finds the
 # tab's own copy: a pending thread id, an Undo not yet offered. A test that holds
 # requests on a route must release every one, that report included.
+def answered(reading):
+    """Whether one ledger reading says what the page sent has all come back."""
+    return reading.acked == reading.sends and not reading.pending
+
+
 def heard_back(reading):
     """Whether one ledger reading says what the page sent has all come back, and the
     page has finished applying the state it brought."""
-    return (
-        reading.acked == reading.sends
-        and not reading.pending
-        and reading.applied == reading.received
-    )
+    return answered(reading) and reading.applied == reading.received
 
 
 def round_trip(page):
@@ -874,6 +875,13 @@ def round_trip(page):
     have finished applying the server's reading the answers carried; a reading it
     failed to show is a browser problem the `browser` fixture reports."""
     _until(page, heard_back, "heard back what it sent")
+
+
+def delivered(page):
+    """Wait for what this page has sent to have come back to it, but not for the page
+    to apply what the answers carried: for a test that holds that application on
+    purpose, behind a module, a timer or a frame it has yet to release."""
+    _until(page, answered, "heard back what it sent")
 
 
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so
@@ -884,11 +892,12 @@ def round_trip(page):
 # slow enough to lose the race. Naming the gesture's own send first is the arrangement
 # that closes the window; `_until` is what waits on it.
 @contextmanager
-def sending(page, what):
+def sending(page, what, *, until=round_trip):
     """Enclose a gesture whose own event has to be in the wire before its trip is over.
 
-    Waits for one further send to enter the wire, then for everything the page has sent
-    to come back, so a log or state read behind the block is a read of this gesture.
+    Waits for one further send to enter the wire, then for the trip to end (`until`:
+    `round_trip`, or `delivered` where the test holds the page's application of the
+    answer), so a log or state read behind the block is a read of this gesture.
     `what` names the send for the failure a wait that runs out raises. The ledger is the
     document's, so a gesture that navigates cannot be enclosed here: the count it would
     wait to grow starts over with the new document.
@@ -896,7 +905,7 @@ def sending(page, what):
     sends = _traffic(page).sends
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
-    round_trip(page)
+    until(page)
 
 
 def back_gesture(page):

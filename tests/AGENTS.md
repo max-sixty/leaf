@@ -407,7 +407,8 @@ matching frame even if the gesture goes on to another result. The helpers in
 
 - `sending` wraps a gesture whose own event the next read needs;
 - `round_trip` waits until everything sent has come back and the page has applied
-  the server's reading of it;
+  the server's reading of it, and `delivered` only until it has come back, for a test
+  that holds that application on purpose;
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;

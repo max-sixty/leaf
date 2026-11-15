@@ -1738,6 +1738,18 @@
   .lf-fp-on-head:has(> :is(.lf-fp-on-place, .lf-fp-on-title):first-child) {
     align-items: center;
   }
+  /* A card's choices give way to the widget they answer while the card's own drawing
+     of the message asking it holds the widget (messages.js, `data-lf-holds`), whichever
+     drawing holds it as threads open and close beside On Me (floating-panel.js,
+     `onItemCard`). A message the card carries (`data-lf-carried`) holds widgets of its
+     own, not the card's. The rule reads the drawing's mark rather than asking `:has()`
+     whether the widget stands in the outlet, since Firefox 159 kept the choices hidden
+     after the widget moved out (notes/browser-support.md, 2026-11-15). */
+  .lf-fp-on-item:has(.lf-fp-asked:not([data-lf-carried]) .lf-msg[data-lf-holds])
+    .lf-fp-answers
+    > :is(.lf-fp-answer, .lf-fp-commit) {
+    display: none;
+  }
   /* A commit among the answers, a group's Done (floating-panel.js, `commits`), stands
      as tall as the answers beside it, inside its one-pixel contour. */
   .lf-fp-answers > .lf-fp-commit {

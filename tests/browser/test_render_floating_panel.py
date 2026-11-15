@@ -71,7 +71,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ROUTES, ink_box, settled
+from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -3710,20 +3710,16 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     functional guarantee."""
     from io import BytesIO
 
-    from PIL import Image, ImageColor
+    from PIL import Image
 
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
     leaf = page.locator(".lf-fp-leaf")
-    colours = leaf.evaluate("""node => ({
-      ring: getComputedStyle(node).outlineColor,
-      mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
-    })""")
+    colours = mark_colours(leaf)
     # Authored words can share the mark's colour; only the panel's pixels count.
     page.locator("#title").evaluate(
-        "(node, colour) => node.style.color = colour", colours["mark"]
+        "(node, colour) => node.style.color = colour", f"rgb{colours['mark']}"
     )
-    colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
 
     for route, action in ROUTES:
         if action == ".lf-fp-minimize":
@@ -3733,9 +3729,7 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             field(page).click()
             page.keyboard.press("Shift+Tab")
             expect(leaf).to_be_focused()
-            colours["ring"] = ImageColor.getrgb(
-                leaf.evaluate("node => getComputedStyle(node).outlineColor")
-            )
+            colours["ring"] = mark_colours(leaf)["ring"]
         if route == "keyboard":
             page.keyboard.press(action)
         else:

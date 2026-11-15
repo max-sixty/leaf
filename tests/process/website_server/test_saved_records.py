@@ -21,10 +21,12 @@ from interact_support import (
 )
 
 import leaf_website as website_server
+from leaf import media as media_model
 from leaf.event_log import read_events
-from leaf.files import revision_path
+from leaf.files import latest_revision, revision_path
 from leaf.service import PageTransaction
 from leaf.structure import SourceDocument
+from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     write_manifest,
 )
@@ -323,3 +325,46 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     published = f"{page['assets']}/revisions/{revision_path(private, 1).stem}"
     assert f'data-lf-entry="{published}/leaf.js"'.encode() in document
     assert not any(path.startswith("revisions/") for path in publication["responses"])
+
+
+def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkeypatch):
+    """Revisions that differ only in the images they show share the address their
+    resources answer at, and an image answers at the page root, never there. A
+    session that shows a screenshot, swaps it for another and goes on editing saves
+    every revision, and both images at the page root."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        shots = media_model.cmd_media(
+            private,
+            [
+                example_media() / "051bee487bfb5d13.png",
+                example_media() / "006a318b091c6d1d.png",
+            ],
+        )
+        for heading in [
+            f'<h2>Plan</h2><p><img src="{shot["path"]}" alt="A shot"></p>'
+            for shot in shots
+        ] + ["<h2>Plan, later</h2>"]:
+            (private / "index.html").write_text(PAGE.replace("<h2>Plan</h2>", heading))
+            with PageTransaction(private):
+                pass
+        publication = stored["publications"][-1]
+    assert latest_revision(private) == 4
+    assert b"Plan, later" in b"".join(
+        stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
+    )
+    assert {shot["path"].lstrip("/") for shot in shots} <= set(publication["responses"])

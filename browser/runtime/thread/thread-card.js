@@ -99,6 +99,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
+  HOLDS,
   anchorPlace,
   messageReading,
   threadPassage,
@@ -399,8 +400,9 @@ export function threadReading(thread, surface, commands) {
     .map((message) =>
       messageReading(message, {
         // Where a message's widgets stand when several drawings show it (messages.js,
-        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        // `HOLDS`).
+        authoredRank:
+          commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
         endings: ended.get(message.id) ?? [],

@@ -38,11 +38,13 @@ from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from leaf.files import latest_revision, revision_path
+from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
 from leaf.runtime_selection import executing, execution_identity
 from leaf.schema import (
+    MEDIA_DIR,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
@@ -268,17 +270,16 @@ def _responses(
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
-        name = snapshot.revision_names[item]
-        paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: under the identity of
-        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
-        served = (
-            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
-        )
+        paths.add(f"revisions/{snapshot.revision_names[item]}")
+        # Where the container serves the revision's resources, which the revisions
+        # that differ only in their document share. Media answers at the page root
+        # (below), never there.
+        served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):
-            paths.add(f"{served}{logical}")
+            if not logical.startswith(f"/{MEDIA_DIR}/"):
+                paths.add(f"{served}{logical}")
     paths.update(
         f"versions/v{version['version']}.html" for version in snapshot.context.versions
     )

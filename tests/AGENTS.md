@@ -279,7 +279,13 @@ one user share `one_user`.
 
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
-effect on scroll is the subject, scroll first and read the baseline after.
+effect on scroll is the subject, scroll first and read the baseline after. After a
+scroll, Chromium moves a box that CSS anchor positioning places, such as a popover hung
+from its trigger or a margin card, only at the page's next rendering update. A click
+whose target it first scrolls into view, as it does a target in the root's foot
+padding, can then press where the box stood before the scroll. Scroll the target into
+view and wait for `rendered` before the click (`press_scale` in
+`browser/test_render_playwright_trace.py`).
 Each Playwright tap waits out the page's previous one, so two taps never make a
 double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 

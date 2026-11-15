@@ -1839,6 +1839,11 @@ export default [
     languageOptions: { sourceType: "script" },
   },
   {
+    // The script an export draws its page with (`exporting.static_document`).
+    files: ["src/leaf/static-export.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+  },
+  {
     // Properties the layer and its packages reach only through their owner. A file
     // takes a rule's options from the last block matching it, not a merge of every
     // block's, so all of them stand in this one list, and the history owners' block

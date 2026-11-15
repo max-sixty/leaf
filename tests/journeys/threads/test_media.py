@@ -47,7 +47,7 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
     )
     if offline:
         out = tmp_path / "image-report.html"
-        exporting_model.cmd_export(serve.page_dir, out, None)
+        exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
         url = out.as_uri()
     page = open_page(browser, url)
     viewer = page.get_by_role("dialog", name="Image preview")

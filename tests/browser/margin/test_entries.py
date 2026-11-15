@@ -12,6 +12,7 @@ from render_cases_interaction import PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_harness import (
     PREVIEW,
+    cursor_over,
     draft_control,
     leaf_page,
     long_press,
@@ -1078,7 +1079,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     edit = draft_control(page, "edit", "draft")
-    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    assert cursor_over(page, edit) != "crosshair"
     edit.click()
     expect(page.locator("#draft leaf-text")).to_be_focused()
     draft_control(page, "cancel", "draft").click()

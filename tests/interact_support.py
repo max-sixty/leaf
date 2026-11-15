@@ -75,6 +75,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.http import assets_path
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
@@ -167,10 +168,9 @@ def append_carried_log_record(page_dir, event):
 
 
 def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a page's server answers revision `revision`'s resources: under the
-    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
-    name = files_model.revision_path(page_dir, revision).stem
-    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+    """Where a page's server answers revision `revision`'s resources
+    (`http.assets_path`)."""
+    return assets_path(execution_identity(read_artifact(page_dir, revision)))
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -2638,16 +2638,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:

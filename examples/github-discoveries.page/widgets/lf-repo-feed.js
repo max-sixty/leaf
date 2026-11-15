@@ -12,7 +12,6 @@ import {
   tabStore,
   HeldReading,
   keeps,
-  publishOutput,
   threadActions,
   readThreads,
   quoted,
@@ -202,7 +201,9 @@ class RepoFeed extends LeafElement {
             : [...current.items, ...stories],
       };
       this.liveFeed = value;
-      publishOutput(this, "stories", value);
+      // The `stories` output: held here, and `change` says it moved.
+      this.stories = value;
+      this.dispatchEvent(new Event("change"));
       this.workState.exhausted = !this.github.hasMore(this.distance);
       this.readAheadPaused = stories.length === 0;
       if (action === "more" && reveal) this.limit += 12;

@@ -244,6 +244,10 @@ Only Design mode and Draw mode are *modes*, lasting until an explicit exit; `o`
 toggles what the page shows without changing what input means. Commands have stable
 dotted ids.
 
+An *invoker command* is HTML's request from a button to another element
+(`commandfor`, `command="--seek"`), which one widget sends another; a bare *command* is
+always a keyboard command.
+
 A *binding* is one key a scope's row declares for a command; code, the register and
 package authors use this word. A *shortcut* is the whole key sequence a user
 presses, prefix included (`g d`), and the only word visible text uses. A *keyboard

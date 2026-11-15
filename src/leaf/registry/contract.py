@@ -150,45 +150,20 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
     return VisualParts(all=visual["parts"] in record.get("attrs", {}))
 
 
-def registry_path(registry: dict, path: str):
-    """Resolve a dotted package declaration such as `$work.widgets`."""
-    value = registry
-    for part in path.split("."):
-        if not isinstance(value, dict) or part not in value:
-            return None
-        value = value[part]
-    return value
-
-
 def reference_relation_problem(
-    reference: dict, registry: dict, declarations: dict
+    reference: dict, declarations: dict
 ) -> tuple[str, dict] | None:
-    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
-    widget, as a finding's code and values. A keyed relation needs its key declared
-    unique on the member, which also supplies the owner it resolves within, so one
-    reference names at most one member."""
+    """Why one `{tag, key}` relation cannot name a declared member, as a finding's
+    code and values. A keyed relation needs its key declared unique on the member,
+    which also supplies the owner it resolves within, so one reference names at most
+    one member."""
     if member := reference.get("tag"):
         key = reference["key"]
         if member not in declarations:
             return "refers-unknown-member", {"member": member}
         if key not in declarations[member].get("x-unique", {}):
             return "refers-unkeyed", {"member": member, "key": key}
-        return None
-    via = reference.get("via")
-    if via is None:
-        return None
-    relation = registry_path(registry, via)
-    if not isinstance(relation, dict):
-        return "refers-unknown-map", {"via": via}
-    predicate = reference["where"]
-    if any(
-        target in declarations
-        and isinstance(declaration, dict)
-        and all(declaration.get(key) == value for key, value in predicate.items())
-        for target, declaration in relation.items()
-    ):
-        return None
-    return "refers-unmatched", {"via": via, "where": predicate}
+    return None
 
 
 class RegistryError(Rejected):

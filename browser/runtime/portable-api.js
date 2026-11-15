@@ -96,8 +96,6 @@ export { describeFailure } from "./exception.js";
 export { shadowStage } from "./shadow-stage.js";
 export { LeafElement } from "./leaf-element.js";
 
-export { publishOutput } from "./widget-output.js";
-
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 

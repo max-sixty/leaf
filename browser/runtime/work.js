@@ -1,7 +1,8 @@
 /* Work projections read declared roles against one application publication.
- * Pages own their task and worker vocabulary through $work.widgets; this reader
- * owns progress, assignments, report age and stopped-work meaning independently
- * of how a dashboard composes those facts. */
+ * Leaf owns the roles; a package maps its tags onto them in $work.widgets, which
+ * composition holds to each tag's declaration (`registry.validation.validate_work_roles`),
+ * so this reader takes the entries as given. It owns progress, assignments, report age
+ * and stopped-work meaning independently of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
 import { hasObligationSource } from "./obligations/source.js";
@@ -64,36 +65,26 @@ export function workAncestor(element, role) {
   return null;
 }
 
-// The role's state verb is also its report verb when the agent writes it.
+// The role's state verb: the one widget value record on its state attribute, which
+// composition requires. It is also the role's report verb when the agent writes it.
 /** @param {Element} element @param {GoalRole | WorkerRole} role */
-function stateVerb(element, role) {
-  const stamped = registry.$states[element.localName];
-  const matches = Object.entries(declarationFor(element, "x-state") ?? {}).flatMap(
-    ([verb, spec]) => {
-      const state = stamped?.[verb];
-      return spec.unit === "widget" &&
+const stateVerb = (element, role) =>
+  /** @type {string} */ (
+    Object.entries(declarationFor(element, "x-state") ?? {}).find(
+      ([, spec]) =>
+        spec.unit === "widget" &&
         spec.record?.kind === "value" &&
-        spec.record.attr === role.state &&
-        state
-        ? [{ verb, state }]
-        : [];
-    },
+        spec.record.attr === role.state,
+    )?.[0]
   );
-  const match = matches[0];
-  if (!match || matches.length !== 1)
-    throw new Error(
-      `leaf: $work ${role.role} <${element.localName}> state ${role.state} needs one recorded widget verb`,
-    );
-  return match;
-}
 /** @param {Element} element @param {GoalRole | WorkerRole} role */
 function stateReport(element, role) {
-  const { verb, state } = stateVerb(element, role);
-  return state.writer === "agent" ? verb : null;
+  const verb = stateVerb(element, role);
+  return registry.$states[element.localName]?.[verb]?.writer === "agent" ? verb : null;
 }
 /** @param {Element} element @param {GoalRole | WorkerRole} role @param {ReadWidget} read */
 const roleState = (element, role, read) => {
-  const state = read(element).state[stateVerb(element, role).verb];
+  const state = read(element).state[stateVerb(element, role)];
   return state && "value" in state ? state.value : null;
 };
 

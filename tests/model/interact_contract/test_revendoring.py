@@ -167,7 +167,9 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
+    # The task's goal role reads the verb, so the layer retires the role with it.
+    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    (overlay / "registry.json").write_text(json.dumps(retired))
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -287,7 +289,9 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
+    # The task's goal role reads the verb, so the layer retires the role with it.
+    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    (overlay / "registry.json").write_text(json.dumps(retired))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
         monkeypatch,

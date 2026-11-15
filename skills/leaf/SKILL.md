@@ -206,7 +206,8 @@ summary from before a compaction, doesn't carry its rules.
   that adds controls or changes what moves when the page changes.
 - `references/packages.md`: for package design, registry declarations, or a design
   comment whose fix belongs in a package; `references/package-themes.md` for theme
-  rules; `references/package-data.md` for user state and data contracts.
+  rules; `references/package-data.md` for how widgets work together, user
+  state and data contracts.
 
 ### Set up a Codex connection
 

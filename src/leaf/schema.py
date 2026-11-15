@@ -140,14 +140,10 @@ ACTION_CREATES = {
     "additionalProperties": False,
 }
 
-# One package-neutral relation shape for authored attributes. An empty object accepts
-# any authored element. A typed relation selects a package registry map
-# and an equality predicate within that map; the names and values remain vocabulary.
-# `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`). A keyed relation names a member,
-# not an element id: the `tag` member whose `key` attribute holds the value, which
-# that tag declares unique within an owner (x-unique), looked up in the referrer's own
-# enclosing owner.
+# The relation an authored attribute names. An empty object accepts any element id.
+# A keyed relation names a member, not an element id: the `tag` member whose `key`
+# attribute holds the value, which that tag declares unique within an owner
+# (x-unique), looked up in the referrer's own enclosing owner.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -155,29 +151,10 @@ REFERENCE_SCHEMA = {
     "additionalProperties": {
         "type": "object",
         "properties": {
-            "via": {
-                "type": "string",
-                "pattern": r"^\$[a-z][a-z0-9-]*(?:\.[a-z][A-Za-z0-9-]*)*$",
-            },
-            "where": {
-                "type": "object",
-                "minProperties": 1,
-                "additionalProperties": {
-                    "type": ["string", "number", "boolean", "null"]
-                },
-            },
-            "owns": {"const": True},
             "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "dependentRequired": {
-            "via": ["where"],
-            "where": ["via"],
-            "owns": ["via"],
-            "tag": ["key"],
-            "key": ["tag"],
-        },
-        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
+        "dependentRequired": {"tag": ["key"], "key": ["tag"]},
         "additionalProperties": False,
     },
 }
@@ -317,15 +294,15 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The x-refers attribute naming a widget, whose one output of this
+            # input's contract the input reads.
             "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
         },
-        "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
-        "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
+        "anyOf": [{"required": ["source"]}, {"required": ["reference"]}],
         "additionalProperties": False,
     },
 }
@@ -358,10 +335,11 @@ EXTENSION_SCHEMA = {
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
+        # Each output's name is the element property holding it (data.js).
         "x-output": {
             "type": "object",
             "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "propertyNames": {"pattern": "^[a-z][A-Za-z0-9]*$"},
             "additionalProperties": {
                 "type": "object",
                 "properties": {
@@ -609,6 +587,71 @@ LAYER_FACTS = {
             }
         },
         "required": ["tokens"],
+    },
+}
+# The work roles, which Leaf owns and `runtime/work.js` reads: what each role's
+# `$work.widgets` entry holds beside `role`, then which of those it must hold. A goal
+# or worker names its recorded state attribute and the values of it that mean done or
+# stopped, running or retired, and may name the attribute saying when it stopped or
+# which goal it works on; a scope or evidence holds nothing more.
+_WORK_VALUES = {"type": "array", "items": {"type": "string"}}
+_WORK_ROLES = {
+    "scope": ({}, []),
+    "evidence": ({}, []),
+    "goal": (
+        {
+            "state": _ATTRIBUTE_NAME,
+            "done": _WORK_VALUES,
+            "stopped": _WORK_VALUES,
+            "stoppedAt": _ATTRIBUTE_NAME,
+        },
+        ["state", "done", "stopped"],
+    ),
+    "worker": (
+        {
+            "state": _ATTRIBUTE_NAME,
+            "running": _WORK_VALUES,
+            "retired": _WORK_VALUES,
+            "on": _ATTRIBUTE_NAME,
+        },
+        ["state", "running", "retired"],
+    ),
+}
+# The shared layer facts a vocabulary may leave out, each held to its schema where a
+# layer declares it (`registry.validation.check_layer_facts`). A package maps its tags
+# onto the work roles in `$work.widgets`, and `registry.validation.validate_work_roles`
+# holds each entry to its tag's declaration.
+OPTIONAL_LAYER_FACTS = {
+    "$work": {
+        "type": "object",
+        "properties": {
+            "description": _NONEMPTY,
+            "widgets": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {"role": {"enum": list(_WORK_ROLES)}},
+                    "required": ["role"],
+                    # A clause per role, so a refusal names the key its role refused.
+                    "allOf": [
+                        {
+                            "if": {
+                                "properties": {"role": {"const": role}},
+                                "required": ["role"],
+                            },
+                            "then": {
+                                "properties": {"role": True, **keys},
+                                "required": required,
+                                "additionalProperties": False,
+                            },
+                        }
+                        for role, (keys, required) in _WORK_ROLES.items()
+                    ],
+                },
+            },
+        },
+        "required": ["widgets"],
+        "additionalProperties": False,
     },
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape

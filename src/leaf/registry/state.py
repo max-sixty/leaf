@@ -249,7 +249,6 @@ def validate_answered_conditions(
             not binding
             or not binding.get("source")
             or binding.get("reference")
-            or binding.get("output")
             or not data["contracts"][binding["contract"]].get("records")
         ):
             raise registry_error("awaits-records", path, tag)

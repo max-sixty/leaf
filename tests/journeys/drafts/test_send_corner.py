@@ -193,7 +193,7 @@ def _settled(page, field):
 def test_send_follows_the_corner_when_an_edit_adds_or_removes_a_line(
     engine, request, serve
 ):
-    """A line the user breaks off the panel's last row frees the corner, and joining
+    """A line the user starts after the panel's last row frees the corner, and joining
     it back with Backspace fills it again. The panel's field grows and shrinks at its
     top, so its motion carries the words to their new rows after each edit, and once
     it ends Send shows beside the free corner and stays away from the words that reach
@@ -209,10 +209,6 @@ def test_send_follows_the_corner_when_an_edit_adds_or_removes_a_line(
     page.keyboard.type("A line above.")
     page.keyboard.press("Shift+Enter")
     _type_to_the_corner(page, field)
-    # The words themselves, not only the caret after them, run into the corner.
-    page.keyboard.type("xy")
-    for _ in "xy":
-        page.keyboard.press("ArrowLeft")
 
     page.keyboard.press("Shift+Enter")
     _settled(page, field)

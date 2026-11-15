@@ -208,6 +208,8 @@ def run_leaf(
     base = environment() if env is None else dict(env)
     if state is not None:
         base["XDG_STATE_HOME"] = str(state)
+    # From the repository root, against which a page's layer resolves a relative
+    # package path, as the site's `docs/layer.json` names `./docs/package`.
     proc = subprocess.run(
         [*command, *args],
         input=input_text,
@@ -216,6 +218,7 @@ def run_leaf(
         check=False,
         timeout=timeout,
         env=fixture_environment(base),
+        cwd=ROOT,
     )
     if check and proc.returncode:
         raise error(

@@ -1038,6 +1038,22 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
 
+### A row moved to the head of a skipped run in Chromium
+
+Playwright Chromium 158.0.8127.18 (build 1254) builds no `::before` box for a row that
+`moveBefore` moves to the head of a `content-visibility: auto` box it is skipping, so
+where the head row resets a counter for the rows after it, as a text document's first
+row in each run does (`text-document.css`), that row draws no line number and the
+rows after it count from 1, also once the box comes into view. The same move made with
+`insertBefore` or `prepend`, or while the box is drawn, numbers right. On 2026-11-15
+#5916's reproduction (three such boxes of 40 rows, each drawn once and scrolled back
+out of view, then each box's last row moved to the head of the next with `moveBefore`)
+drew no number on the moved row in the third box and numbered the rows after it from
+1; with `insertBefore`, every row read its line. A text document moves a row only onto
+the end of a run or into a run a split has just made (`lf-text-document.js`,
+`regroup`). Recheck by running that reproduction: once the moved row reads its line
+number, a text document may move rows to a run's head again.
+
 ### Styling content Firefox skips
 
 Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose

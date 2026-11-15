@@ -1311,6 +1311,78 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     assert all(text == str(line) for line, text in drawn), drawn
 
 
+# The syntax colour of rows 250 to 262 of `#log`: for each, the highlights over its
+# text and where each starts and ends in it.
+ROW_COLOURS = """() => {
+  const rows = [...document.querySelectorAll('#log .lf-text-document-run > *')].slice(250, 263);
+  const found = rows.map(() => []);
+  for (const [name, highlight] of CSS.highlights)
+    for (const range of highlight) {
+      const at = rows.indexOf(range.startContainer.parentElement);
+      if (at >= 0) found[at].push([name, range.startOffset, range.endOffset]);
+    }
+  return found.map((row) => row.sort((a, b) => a[1] - b[1]));
+}"""
+
+
+def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
+    """A run a rewrite splits is coloured from the grammar state its new parts start in,
+    as a fresh load colours it: a triple-quoted string opened above the split and closed
+    below it keeps its rows a string after an edit below the split. Kept by its place,
+    the state of the run that stood second before the rewrite coloured the second part,
+    which starts inside the string, as code."""
+    lines = [f"value_{at} = {at}" for at in range(600)]
+    url = serve(
+        leaf_page(
+            "Split colour",
+            '<lf-text-document id="log" source="log-text" language="python">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page = open_page(browser, url)
+    # 122 lines in the second run, which grows to 250 rows, with a string over lines
+    # 250 to 260.
+    block = [
+        'doc = """opening'
+        if at == 250
+        else 'closing"""'
+        if at == 260
+        else f"inside the string {at}"
+        if 250 < at < 260
+        else f"item_{at} = {at}"
+        for at in range(140, 262)
+    ]
+    grown = [*lines[:140], *block, *lines[140:]]
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(grown) + "\n")
+    told(page)
+    rendered(page)
+    page.locator(ROWS).nth(258).evaluate("row => row.scrollIntoView({block: 'center'})")
+    rendered(page)
+    page.wait_for_function(f"() => ({ROW_COLOURS})()[8].length")
+    # Ten lines added below the split point: the run splits at line 256, and the new
+    # text's first change, at line 328, falls in its second part.
+    split = [*grown[:328], *(f"added_{at} = {at}" for at in range(10)), *grown[328:]]
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
+    told(page)
+    rendered(page)
+    fresh = open_page(browser, url)
+    fresh.locator(ROWS).nth(258).evaluate(
+        "row => row.scrollIntoView({block: 'center'})"
+    )
+    rendered(fresh)
+    # Row 258 is a string's once its run is coloured from the state it starts in.
+    fresh.wait_for_function(
+        f"() => ({ROW_COLOURS})()[8].some(([name]) => name.includes('string'))"
+    )
+    expected = fresh.evaluate(ROW_COLOURS)
+    page.wait_for_function(
+        f"expected => JSON.stringify(({ROW_COLOURS})()) === expected",
+        arg=json.dumps(expected, separators=(",", ":")),
+        timeout=10_000,
+    )
+
+
 def drawn_numbers(page, document):
     """The number each drawn row of the text document `document` shows, as
     [(line, text)], read off Chromium's layout tree, since script can't read the text a

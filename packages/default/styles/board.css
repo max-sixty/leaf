@@ -44,7 +44,7 @@ lf-board {
     min-inline-size: min(
       calc(
         var(--lf-board-columns) * var(--lf-reading-column-floor) +
-          (var(--lf-board-columns) - 1) * var(--sp-2)
+          (var(--lf-board-columns) - 1) * var(--lf-sp-2)
       ),
       var(--lf-reach, min(100%, 100cqi)),
       var(--lf-box-cap, 100vw)
@@ -78,7 +78,7 @@ lf-board {
       var(--lf-card-inset) + var(--lf-grip-room, 0px) + 2px
   ); /* the card's two 1px borders */
   grid-auto-columns: 1fr;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   margin: 14px 0;
   align-items: stretch;
   overflow-x: auto;
@@ -93,10 +93,10 @@ lf-board {
    sized as one too, and its min-height restates the outer box it stated before. */
 lf-column {
   display: block;
-  --lf-ground: var(--field);
+  --lf-ground: var(--lf-field);
   background: var(--lf-ground);
   box-sizing: border-box;
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   padding: var(--lf-reading-column-inset);
   min-width: var(--lf-reading-column-floor);
   min-height: calc(64px + 2 * var(--lf-reading-column-inset));
@@ -130,12 +130,12 @@ lf-column {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: var(--sp-1);
-      margin-top: var(--sp-2);
+      gap: var(--lf-sp-1);
+      margin-top: var(--lf-sp-2);
     }
     .lf-board-destinations-label {
-      color: var(--muted);
-      font: var(--font-small);
+      color: var(--lf-muted);
+      font: var(--lf-font-small);
     }
   }
 }
@@ -148,8 +148,8 @@ lf-column {
 lf-column::before,
 lf-column > [data-lf-said="label"] {
   display: block;
-  font: var(--font-title);
-  color: var(--ink-2);
+  font: var(--lf-font-title);
+  color: var(--lf-ink-2);
   padding: 2px var(--lf-card-inset) 10px;
 }
 lf-column::before {
@@ -162,16 +162,16 @@ lf-column::before {
    every heading starts at the same place. */
 lf-column {
   position: relative;
-  --lf-tone-dot: var(--border-2);
+  --lf-tone-dot: var(--lf-border);
 }
 lf-column[tone="ok"] {
-  --lf-tone-dot: var(--ok);
+  --lf-tone-dot: var(--lf-ok);
 }
 lf-column[tone="warn"] {
-  --lf-tone-dot: var(--warn);
+  --lf-tone-dot: var(--lf-warn);
 }
 lf-column[tone="danger"] {
-  --lf-tone-dot: var(--danger);
+  --lf-tone-dot: var(--lf-danger);
 }
 lf-column::before,
 lf-column > [data-lf-said="label"] {
@@ -184,8 +184,8 @@ lf-column > .lf-column-count {
   position: absolute;
   top: calc(var(--lf-reading-column-inset) + 2px);
   right: calc(var(--lf-reading-column-inset) + var(--lf-card-inset));
-  font: var(--font-title);
-  color: var(--muted);
+  font: var(--lf-font-title);
+  color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
 lf-column:has(> [data-lf-said="label"])::before {
@@ -196,13 +196,13 @@ lf-card {
   --lf-grip-inset-block: 2px;
   display: block;
   position: relative;
-  --lf-ground: var(--card);
+  --lf-ground: var(--lf-card);
   background: var(--lf-ground);
-  font: var(--font-widget);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
+  font: var(--lf-font-widget);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
   padding: var(--lf-card-inset-block) var(--lf-card-inset);
-  margin: 0 0 var(--sp-2);
+  margin: 0 0 var(--lf-sp-2);
   container-type: inline-size;
   --lf-block-frame: 1;
 }
@@ -250,7 +250,7 @@ lf-card {
    set its prose 13px lower than a sentence's. */
 lf-card > strong {
   display: block;
-  font: var(--font-title);
+  font: var(--lf-font-title);
   margin: 0;
 }
 lf-card > strong + p {
@@ -281,18 +281,18 @@ lf-card .lf-grip {
      cards, so the ring's right run and both corners on that side fell outside the clip
      while the grip itself stayed whole. An inset ring cannot leave the box it names, at
      any scroll position. */
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 lf-card.lf-ghost {
   opacity: 0.4;
   border-style: dashed;
-  border-color: var(--accent);
+  border-color: var(--lf-accent);
 }
 /* A held card says so with its contour. The lift's shadow alone does not show on the
    dark paper, which left a card grabbed by keyboard looking exactly like one whose grip
    is merely focused. */
 lf-card.lf-lift {
-  box-shadow: var(--raise-1);
-  border-color: var(--accent);
+  box-shadow: var(--lf-raise-1);
+  border-color: var(--lf-accent);
 }

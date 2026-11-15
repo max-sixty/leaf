@@ -20,7 +20,7 @@
  * @param {readonly Summary[]} summaries
  * @returns {readonly MessageRange<M>[]}
  */
-export function summaryRanges(messages, summaries = []) {
+export function summaryRanges(messages, summaries) {
   const index = new Map(messages.map((message, at) => [message.id, { message, at }]));
   /** @type {Map<number, {summary: Summary, messages: [M, ...M[]], last: M}>} */
   const byStart = new Map();

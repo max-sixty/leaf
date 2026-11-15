@@ -2019,9 +2019,13 @@ export function createFloatingPanel({
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
-  // for unseen. Other news in an open thread is still held. A thread's view declares
-  // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
-  // exactly this growth (tests/shift_watch.js, `appendGrowth`).
+  // for unseen. The growth carries Resolve and a message's pencil from under a pointer
+  // resting on one, which the user called secondary and let move on 14 November 2026
+  // (`browser/AGENTS.md`); a hold built for that pointer, which kept the answer behind
+  // the notice while it rested on a control, also held replies that would have moved
+  // nothing and missed a pointer on Copy. Other news in an open thread is still held.
+  // A thread's view declares that it stands on its foot (`data-lf-rises`), which the
+  // shift watch credits for exactly this growth (tests/shift_watch.js, `appendGrowth`).
   // Whether this opening of a thread has shown Show on page (`onPageSeat`), whose seat
   // then stands while the view does, so a revision detaching the thread moves nothing
   // beside it.

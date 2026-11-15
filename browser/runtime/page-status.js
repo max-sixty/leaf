@@ -55,7 +55,7 @@ export const statusReading = () => currentStatus()?.model ?? null;
 // them; the tab strip is the whole of what the browser shows about a page nobody has
 // open, so the state that decides whether to go there belongs in it. The tone is taken
 // off the leaf mark the chrome draws (`.lf-dot`, chrome.css) rather than mapped from kind
-// to token again: one answer to what a tone looks like, so a project overriding --ok
+// to token again: one answer to what a tone looks like, so a project overriding --lf-ok
 // overrides the tab with it. It is a read of the theme, not of the rendering.
 //
 // The mark is the layer's icon.svg, composed like the theme, so a package

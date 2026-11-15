@@ -1,7 +1,7 @@
 # Focus rings at a bounded block's side
 
 A focus ring is drawn outside its box, and a scroller clips at its padding edge. At a
-scroller's top and foot a landing keeps the ring's room (`--focus-ring-landing`,
+scroller's top and foot a landing keeps the ring's room (`--lf-focus-ring-landing`,
 `browser/styles/components/surfaces.css`), for a vendor control's focused node too. A
 bounded block (`[data-lf-bound]`, `browser/base.css`) has no inline padding and usually
 nothing to scroll sideways, so a box flush with its side loses that side of its ring
@@ -47,8 +47,8 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
 
   ```css
   [data-lf-bound] {
-    padding-inline: var(--focus-region-room);
-    margin-inline: calc(-1 * var(--focus-region-room));
+    padding-inline: var(--lf-focus-region-room);
+    margin-inline: calc(-1 * var(--lf-focus-region-room));
   }
   ```
 
@@ -62,7 +62,7 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
   ```css
   @layer lf-reset {
     [data-lf-bound] {
-      padding-inline: var(--focus-region-room);
+      padding-inline: var(--lf-focus-region-room);
     }
   }
   ```
@@ -74,10 +74,10 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
   ```css
   wa-input::part(base lf-focus-visible-within),
   wa-select::part(combobox lf-focus-visible-within) {
-    outline-offset: var(--focus-ring-inset);
+    outline-offset: var(--lf-focus-ring-inset);
   }
   input.lf-field {
-    --lf-ring-at: var(--focus-ring-inset);
+    --lf-ring-at: var(--lf-focus-ring-inset);
   }
   ```
 
@@ -105,8 +105,8 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
     right: anchor(right);
     bottom: anchor(bottom);
     left: anchor(left);
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-gap);
+    outline: var(--lf-focus-ring);
+    outline-offset: var(--lf-focus-ring-gap);
     position-visibility: var(--lf-anchor-visible);
     pointer-events: none;
   }

@@ -2334,7 +2334,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
     )
-    agent_said(
+    answered = agent_said(
         serve.page_dir,
         root,
         "The workshop fits, including a fifteen-minute break.",
@@ -2353,7 +2353,9 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     said = agent_said(
         serve.page_dir, root, "The room stays free until seven. " * 4, responds=asked
     )
-    summarize_thread(serve.page_dir, asked, said, "The room is free until seven.")
+    summarize_thread(
+        serve.page_dir, answered, said, "It fits, and the room is free until seven."
+    )
     agent_said(serve.page_dir, root, "Booked it for the afternoon.")
     page = floating(browser, url)
     page.locator("body").focus()
@@ -4517,7 +4519,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--ink)';
+          ink.style.color = 'var(--lf-ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();
@@ -5630,7 +5632,7 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
     page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
-        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"
+        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--lf-accent)';"
         " document.body.append(probe); const seen = getComputedStyle(probe).color;"
         " probe.remove(); return seen; }"
     )

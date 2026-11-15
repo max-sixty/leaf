@@ -965,7 +965,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--lf-accent"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-workflow", "working")
         expect(control).to_have_css(
@@ -1004,20 +1004,22 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
     )
     expect(selected).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--accent")
+        "color", token_colour(page, "--lf-accent")
     )
 
     interactive = sample("hover or focus")
     interactive.hover()
-    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
-    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive).to_have_css("background-color", token_colour(page, "--lf-chip"))
+    expect(interactive).to_have_css(
+        "border-top-color", token_colour(page, "--lf-accent")
+    )
     expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     interactive.focus()
@@ -1031,7 +1033,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
     )
     expect(opened).to_have_attribute("aria-expanded", "true")
-    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(opened_result).to_be_visible()
     opened.click()
     expect(opened).to_have_attribute("aria-expanded", "false")
@@ -1526,7 +1528,13 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
-    page.wait_for_timeout(100)
+    # Once Escape clears the filter's word, the waiting news takes the panel's seat
+    # after the notices queued ahead of it retire. The live region speaks
+    # announcements in the order they are made, so the next Escape's word arrives
+    # after any announcement made as the news showed.
+    expect_panel_says(page, "Agent replied — open Threads")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
     assert (
         page.evaluate(
             "() => window.__liveChanges.filter(words => "
@@ -1536,7 +1544,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ), "showing deferred news announced it a second time"
 
     # The obligation route may scroll these hyperlinks out of the visible target map.
-    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     scroll_settled(page)

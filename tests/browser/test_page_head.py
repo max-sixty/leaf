@@ -28,8 +28,8 @@ HEAD = (
     ' platform team</p><nav><a id="to-risks" href="#risks">Risks</a></nav></header>'
 )
 LOOK = (
-    "#site-head { top: 0; z-index: 5; padding: 8px 16px; background: var(--paper);"
-    " border-block-end: 1px solid var(--rule); }"
+    "#site-head { top: 0; z-index: 5; padding: 8px 16px; background: var(--lf-paper);"
+    " border-block-end: 1px solid var(--lf-rule); }"
     " #site-head > p { margin: 0; }"
 )
 BODY = (
@@ -39,7 +39,7 @@ BODY = (
     "./verify --all\necho done</code></pre>"
     + _filler(8, 4)
     + '<p id="tool" style="position: sticky; top: var(--lf-top); z-index: 1;'
-    ' background: var(--paper)">A row a package sticks at the slot.</p>'
+    ' background: var(--lf-paper)">A row a package sticks at the slot.</p>'
     + _filler(12, 8)
     + '<section id="risks"><h2>Risks</h2><p>Disk pressure remains the risk.</p></section>'
     + _filler(20, 30)
@@ -70,7 +70,7 @@ def _sticky_in_main():
         f"<style>{LOOK} #site-head {{ position: sticky; top: 8px; }}"
         " .skip { position: absolute; left: -9999px; }"
         " #bar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 9;"
-        " background: var(--accent); } html { scroll-padding-top: 80px; }</style>"
+        " background: var(--lf-accent); } html { scroll-padding-top: 80px; }</style>"
     )
     leading = '<a class="skip" href="#title">Skip to the brief</a><div id="top"></div>'
     source = leaf_page("A sticky site header", leading + HEAD + BODY, head=style)
@@ -219,7 +219,7 @@ def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
               pill.id = 'pill';
               pill.textContent = 'Quarterly brief';
               pill.style.cssText = 'position: fixed; top: 12px; left: 20%; right: 20%;'
-                + ' height: 40px; z-index: 5; background: var(--paper)';
+                + ' height: 40px; z-index: 5; background: var(--lf-paper)';
               document.body.append(pill);
             }""")
             page.evaluate(

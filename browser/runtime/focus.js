@@ -100,12 +100,10 @@ import {
 // its author took out of the order (a negative `tabindex`) takes its whole tree out
 // with it, so Tab skips what it renders.
 //
-// The walk steps from sibling to sibling and never reads `children`. Chromium keeps
-// the collection `children` returns for as long as its element lives, and the walk
-// reaches every row of a text document whose tab opens, so each 4 MB document opened
-// kept 35 MB of collections for the life of the page. It collects into one array, as
-// its caller wants: walked through a generator for each element, Tab stops over a
-// listing of 96,000 rows took Firefox 54 to 60 ms, and 36 to 39 ms with the array.
+// It steps from sibling to sibling, as browser/AGENTS.md ("One answer for each
+// question") says a walk does, and collects into one array, as its caller wants:
+// walked through a generator for each element, Tab stops over a listing of 96,000 rows
+// took Firefox 54 to 60 ms, and 36 to 39 ms with the array.
 /** @param {Element | Document | ShadowRoot} node @param {Element[]} [into] */
 function renderedElements(node, into = []) {
   /** @param {Element} child */

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  authorsObligation,
   obligationsIn,
   obligationPlace,
   subjectPlace,
@@ -64,43 +63,6 @@ test("the innermost obligation holding a node is where the user stands", () => {
       assert.equal(obligationHolding(items, at("text")), change);
     }
   } finally {
-    document.body.replaceChildren();
-  }
-});
-
-test("a region authors an obligation where the markup declares an asking widget in it", () => {
-  // Read from the descriptors captured as the page loads, before any reading admits
-  // the obligation, so a queue row keeps its mark's room from its first paint.
-  document.body.innerHTML =
-    '<section id="queue"><div id="asks"></div><div id="quiet"></div></section>';
-  const descriptor = (id, ancestors, awaits = true, quoted = false) => [
-    id,
-    {
-      id,
-      tag: "lf-probe",
-      document: { kind: "page", revision: 1 },
-      declaration: awaits ? { "x-awaits": { value: "pick" } } : {},
-      parent: ancestors[0] ? { id: ancestors[0], tag: "lf-probe" } : null,
-      ancestors: ancestors.map((owner) => ({ id: owner, tag: "lf-probe" })),
-      quoted,
-    },
-  ];
-  const prior = applicationState.read().document;
-  applicationState.captureDocument({
-    ...prior,
-    descriptors: new Map([
-      descriptor("pick", ["asks", "queue"]),
-      descriptor("chart", ["quiet", "queue"], false),
-      descriptor("shown", ["quiet", "queue"], true, true),
-    ]),
-  });
-  const authors = (id) => authorsObligation(document.getElementById(id));
-  try {
-    assert.equal(authors("queue"), true);
-    assert.equal(authors("asks"), true);
-    assert.equal(authors("quiet"), false, "a quoted widget asks nothing");
-  } finally {
-    applicationState.captureDocument(prior);
     document.body.replaceChildren();
   }
 });

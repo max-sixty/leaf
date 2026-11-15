@@ -71,8 +71,7 @@
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
  * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
- * authors an obligation (`authorsObligation`, read from the widgets its markup declares) keeps
- * the mark's room either way, so an answer moves no row. While the
+ * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -94,7 +93,7 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   cycledRow,
-  authorsObligation,
+  elementsDeclaring,
   keepView,
   keeps,
   layoutChanged,
@@ -416,7 +415,7 @@ export class TabSet extends LeafElement {
   /** @param {Element} panel */
   #tab(panel) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && authorsObligation(panel);
+    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
     const items = hasAnswer ? obligationsIn(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");

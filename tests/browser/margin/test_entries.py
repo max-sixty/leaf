@@ -888,14 +888,14 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         inks = [face.pop("ink") for face in faces]
         assert faces == [faces[0]] * len(faces), faces
         assert faces[0]["radius"] == "6px 6px 6px 0px", faces[0]
-        assert faces[0]["background"] == token_colour(page, "--paper"), faces[0]
-        assert faces[0]["border"] == ["1px", token_colour(page, "--border-2")]
+        assert faces[0]["background"] == token_colour(page, "--lf-paper"), faces[0]
+        assert faces[0]["border"] == ["1px", token_colour(page, "--lf-border")]
         # The glyphs keep what they say on the rail: Accept's tone, a thread's blue.
         assert inks == [
-            token_colour(page, "--ink-2"),
-            token_colour(page, "--ok-ink"),
-            token_colour(page, "--accent"),
-            token_colour(page, "--ink-2"),
+            token_colour(page, "--lf-ink-2"),
+            token_colour(page, "--lf-ok-ink"),
+            token_colour(page, "--lf-accent"),
+            token_colour(page, "--lf-ink-2"),
         ], inks
         status.hover()
         assert status.evaluate(read_face) == {**faces[0], "ink": inks[0]}
@@ -908,7 +908,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         page.keyboard.press("Tab")
         assert reject.evaluate(read_face) == {
             **faces[0],
-            "ink": token_colour(page, "--danger-ink"),
+            "ink": token_colour(page, "--lf-danger-ink"),
         }
         # The Tab showed Reject's preview, which the first Escape puts away; the
         # second folds the cluster.

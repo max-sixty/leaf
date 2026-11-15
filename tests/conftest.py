@@ -34,7 +34,7 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
 from leaf.render_gate import handover_pass as handover_pass_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import FIREFOX_PREFS, shell_executable, use_linux_fonts
+from leaf_dev.browser import FIREFOX_PREFS, linux_font_environment, shell_executable
 from leaf_dev.page_fixtures import package_selection_args
 
 __all__ = ["LEAF_COMMAND"]
@@ -44,13 +44,93 @@ __all__ = ["LEAF_COMMAND"]
 # `bin/leaf`.
 LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 
-# Start every child the way a terminal starts one. A run launched as a shell's
-# background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
-# survives both Python startup and `exec`, so everything the run spawns ignores
-# the signal too: a test that interrupts its own child would pass or fail on how
-# the run was launched, and the child would outlive it still serving its page.
-# A caught signal is what `exec` resets to the default in each child.
-signal.signal(signal.SIGINT, signal.default_int_handler)
+# A `claude`, a `codex` and a `pi` that fail at once. Page servers ask the claimant's
+# harness to name user threads (`thread_titles`), so the run puts these ahead of the
+# developer's own on PATH; a test about titling puts its own program first.
+FAILING_HARNESS_PROGRAMS = Path(__file__).parent / "fixtures" / "programs" / "failing"
+
+
+def pytest_configure(config):
+    """Set the conditions every test in this process runs under, before any of them.
+
+    The run's entry point sets its environment and signal handlers here, through a
+    `MonkeyPatch` the run undoes when it ends. A test changes them only through its own
+    `monkeypatch`, and leaves them as it found them (`pytest_runtest_teardown`).
+
+    - The failing harness programs go first on PATH.
+    - The run is a host, and names its browser the way one does, through
+      LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the pinned headless
+      shell the `_browser` fixture drives. A test whose subject is how a host that
+      named no browser gets one clears every variable (`test_render_commands`,
+      `unnamed_browser`).
+    - On Linux, text is laid out in the fixed fontconfig's faces
+      (`leaf_dev.browser.linux_font_environment`).
+    - Every child starts the way a terminal starts one. A run launched as a shell's
+      background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN survives
+      both Python startup and `exec`, so everything the run spawns would ignore the
+      signal too: a test that interrupts its own child would pass or fail on how the run
+      was launched, and the child would outlive it still serving its page. A caught
+      signal is what `exec` resets to the default in each child.
+    """
+    run = pytest.MonkeyPatch()
+    config.add_cleanup(run.undo)
+    run.setenv("PATH", f"{FAILING_HARNESS_PROGRAMS}{os.pathsep}{os.environ['PATH']}")
+    run.setenv(browser_model.VARIABLE, shell_executable())
+    for name, value in linux_font_environment().items():
+        run.setenv(name, value)
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+_PROCESS_STATE = pytest.StashKey[dict]()
+# The signals a command takes when it runs as a process.
+_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+def _process_state():
+    """What a test may change in the process running it only through `monkeypatch`,
+    which puts it back when the test ends."""
+    return {
+        # Pytest names the test and phase it is in, and takes the name away when the
+        # phase ends, whatever a run inherited from a run around it.
+        "environment": {
+            name: value
+            for name, value in os.environ.items()
+            if name != "PYTEST_CURRENT_TEST"
+        },
+        "working directory": os.getcwd(),
+        **{f"{number.name} handler": signal.getsignal(number) for number in _SIGNALS},
+    }
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item):
+    item.stash[_PROCESS_STATE] = _process_state()
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(item):
+    """Fail a test that leaves the process other than it found it, once its teardown
+    has ended the fixtures that end with it.
+
+    A test, a fixture or the product code they call that writes `os.environ`, changes
+    directory or takes a signal changes it for every later test in the worker, which
+    then passes or fails on the order the run took. Nothing puts the process back
+    between tests, so a test changes it through `monkeypatch`, and code a test calls in
+    process leaves it to its process's entry point (tests/AGENTS.md, "Fixtures")."""
+    result = yield
+    before, after = item.stash[_PROCESS_STATE], _process_state()
+    was, now = before.pop("environment"), after.pop("environment")
+    variables = sorted(
+        name for name in was.keys() | now.keys() if was.get(name) != now.get(name)
+    )
+    changed = [f"environment ({', '.join(variables)})"] if variables else []
+    changed += [fact for fact in before if before[fact] != after[fact]]
+    assert not changed, (
+        f"the test left the process changed: {'; '.join(changed)}. A test changes it "
+        "through monkeypatch, and code it calls in process changes none"
+    )
+    return result
 
 
 # `wait_for_function` takes an async predicate's promise as a truthy answer and returns
@@ -485,20 +565,6 @@ HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 _SESSIONS = itertools.count()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def failing_harness_programs(tmp_path_factory):
-    """Put a `claude`, a `codex` and a `pi` that fail at once ahead of the developer's
-    own on PATH, for the entire worker lifetime, before any fixture starts a server.
-    Page servers ask the claimant's harness to name user threads (`thread_titles`);
-    a test about titling puts its own program first."""
-    programs = tmp_path_factory.mktemp("harness-programs")
-    for name in ("claude", "codex", "pi"):
-        program = programs / name
-        program.write_text("#!/bin/sh\nexit 1\n")
-        program.chmod(0o755)
-    os.environ["PATH"] = f"{programs}{os.pathsep}{os.environ['PATH']}"
-
-
 @pytest.fixture(autouse=True)
 def isolated_session(tmp_path_factory, monkeypatch):
     """The run is an agent session of its own, in state directories of its own.
@@ -508,9 +574,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint, host launcher override and page commit
-    provider so a fake task cannot use them and a website restore cannot leave
-    its provider in later tests.
+    developer's App Server endpoint and host launcher override so a fake task cannot
+    use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -540,7 +605,6 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)
@@ -561,6 +625,31 @@ def isolated_session(tmp_path_factory, monkeypatch):
         leases_model.mark_hooks(session)
         leases_model.mark_module(session, os.getpid())
     return cleanup_model.state_home()
+
+
+@pytest.fixture(autouse=True)
+def commands_leave_the_workers_signals(monkeypatch):
+    """A command a test runs in process through `CliRunner` is its process's entry
+    point, and takes signals as one: `leaf wait` unwinds on SIGTERM and SIGHUP
+    (`leases.release_on_termination`), and `leaf page events` exits quietly on
+    SIGTERM. In process those would be the worker's handlers for every later test, so
+    each invocation's handlers last only while it runs, as `CliRunner` already keeps
+    its streams. A test of how a command ends on a signal runs it as a process
+    (`test_claims`)."""
+    isolation = CliRunner.isolation
+
+    @contextlib.contextmanager
+    def isolated(self, *args, **kwargs):
+        held = {number: signal.getsignal(number) for number in _SIGNALS}
+        try:
+            with isolation(self, *args, **kwargs) as streams:
+                yield streams
+        finally:
+            for number, handler in held.items():
+                if signal.getsignal(number) is not handler:
+                    signal.signal(number, handler)
+
+    monkeypatch.setattr(CliRunner, "isolation", isolated)
 
 
 @pytest.fixture(autouse=True)
@@ -880,17 +969,8 @@ def scrollbar_browser(_playwright, request):
         shown.close()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def headless_shell():
-    """Name the pinned headless shell as the host's browser for the rest of the run,
-    and return its path.
-
-    The run is a host, and names its browser the way one does, through
-    LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the build the `_browser`
-    fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
-    a host that named no browser gets one clears every variable
-    (`test_render_commands`, `unnamed_browser`)."""
-    use_linux_fonts()
-    executable = shell_executable()
-    os.environ[browser_model.VARIABLE] = executable
-    return executable
+    """The pinned headless shell the run names as the host's browser
+    (`pytest_configure`)."""
+    return os.environ[browser_model.VARIABLE]

@@ -52,7 +52,7 @@ def test_the_ring_rule_reading_uses_browser_serialization(browser):
         @scope (.surface) {
           .absent, .carrier:has(
             > :is(button,input)
-          )[data-note="x,  y"] { outline: var(--focus-ring); }
+          )[data-note="x,  y"] { outline: var(--lf-focus-ring); }
         }
       </style>
       <div class="surface"><div class="carrier" data-note="x,  y">
@@ -120,7 +120,9 @@ def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
     page.keyboard.press("Shift+Tab")
     expect(code).to_be_focused()
     rendered(page)
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
     for scrolled in (False, True):
         if scrolled:
             page.keyboard.press("ArrowRight")
@@ -176,12 +178,14 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         "id => document.getElementById(id).scrollTop > 100", arg=ident
     )
     scroll_settled(page, f"#{ident}")
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
     # A page's tabs hang their panel's ring from the strip's rule and stand it a region's
     # room out on its other three sides (tabs.css), clear of the text's first letter; a
     # boxed set's panel is padded inside its frame, and its ring stays inside.
     room = page.evaluate(
-        """() => ['--focus-region-gap', '--focus-ring-w'].reduce((sum, name) =>
+        """() => ['--lf-focus-region-gap', '--lf-focus-ring-w'].reduce((sum, name) =>
           sum + parseFloat(getComputedStyle(document.documentElement)
             .getPropertyValue(name)), 0)"""
     )
@@ -226,7 +230,9 @@ def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
     )
     assert reach["hit"] == "words-0", reach
     assert reach["panel"] == pytest.approx(reach["list"], abs=1), reach
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
     edges = mark_edges(page, "item-0", accent)
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
@@ -262,7 +268,9 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
     box = page.locator("#first").bounding_box()
     clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
     shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    accent = tuple(
+        int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-accent"))
+    )
     assert rgb_pixel(shot, (0, 0)) == accent, [
         rgb_pixel(shot, (x, 0)) for x in range(4)
     ]
@@ -448,7 +456,7 @@ def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
             },
         )
     page = open_page(browser, url, context=context)
-    ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--mark-ink")))
+    ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-mark-ink")))
     for ident in ("approach", "col-doing"):
         target = page.locator(f"#{ident}")
         expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -655,13 +663,13 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
       box.classList.toggle('probe-target', true);
       box.style.cssText = `position: fixed; left: 40px; top: ${innerHeight - 30}px;
         width: 120px; height: 30px; box-sizing: border-box; margin: 0`;
-      if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--shade)';
+      if (how === 'a lift') box.style.boxShadow = '0 2px 8px var(--lf-shade)';
       if (how === 'an inset wash')
-        box.style.boxShadow = 'inset var(--focus-shadow)';
+        box.style.boxShadow = 'inset var(--lf-focus-shadow)';
       if (how === 'a wider band')
-        box.style.boxShadow = '0 0 0 calc(var(--focus-ring-w) + 1px) var(--accent)';
+        box.style.boxShadow = '0 0 0 calc(var(--lf-focus-ring-w) + 1px) var(--lf-accent)';
       if (how === 'the band itself')
-        box.style.boxShadow = 'var(--focus-shadow)';
+        box.style.boxShadow = 'var(--lf-focus-shadow)';
       const cs = getComputedStyle(box);
       return [cs.boxShadow, cs.outlineStyle, box.getBoundingClientRect().bottom,
               innerHeight];
@@ -703,7 +711,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
     # foot, so the width reported outside it is the whole of the band and nothing else.
     width = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        "  .getPropertyValue('--focus-ring-w'))"
+        "  .getPropertyValue('--lf-focus-ring-w'))"
     )
     assert any(
         f"its bottom edge is {width:g}px outside the window" in cut
@@ -791,7 +799,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
           document.getElementById('ring-holder').style.position = 'relative';
           const control = document.getElementById('ring-control');
           control.style.cssText = `position: relative; z-index: 1;
-            outline: var(--focus-ring); outline-offset: 2px;`;
+            outline: var(--lf-focus-ring); outline-offset: 2px;`;
           control.focus();
         }"""
     )
@@ -910,7 +918,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
         """() => {
           const control = document.getElementById('ring-control');
           control.style.cssText = `position: relative; z-index: auto;
-            outline: var(--focus-ring); outline-offset: 2px;`;
+            outline: var(--lf-focus-ring); outline-offset: 2px;`;
           control.focus();
         }"""
     )
@@ -1030,7 +1038,7 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
             moving: el.getAnimations().map(
               (a) => a.transitionProperty || a.animationName || 'animation'),
             ring: [cs.outlineWidth, cs.outlineStyle, cs.outlineOffset],
-            want: cs.getPropertyValue('--focus-ring').trim(),
+            want: cs.getPropertyValue('--lf-focus-ring').trim(),
           };
         }"""
     )
@@ -1071,9 +1079,9 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     inset = page.evaluate(
         """() => {
       const control = document.getElementById('ring-control');
-      control.style.cssText = `--focus-ring-w: 4px;
-        outline: var(--focus-ring-w) solid var(--accent);
-        outline-offset: calc(-1 * var(--focus-ring-w)); padding: 12px 24px;`;
+      control.style.cssText = `--lf-focus-ring-w: 4px;
+        outline: var(--lf-focus-ring-w) solid var(--lf-accent);
+        outline-offset: calc(-1 * var(--lf-focus-ring-w)); padding: 12px 24px;`;
       control.focus();
       const s = getComputedStyle(control);
       return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
@@ -1097,7 +1105,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
       over.className = 'lf-ring-plant';
       Object.assign(over.style, {
         position: 'fixed', zIndex: '9999',
-        background: 'var(--card)',
+        background: 'var(--lf-card)',
         left: `${r.left}px`, top: `${r.top}px`,
         width: `${r.width}px`, height: `${depth}px`,
       });
@@ -1143,7 +1151,7 @@ def test_the_ring_reading_measures_a_displaced_pseudo_element(browser, serve):
         #ring-control::after {
           content: ''; position: absolute; pointer-events: none;
           left: 80px; top: 80px; width: 120px; height: 30px;
-          outline: var(--focus-ring); outline-offset: -2px;
+          outline: var(--lf-focus-ring); outline-offset: -2px;
         }`;
       document.getElementById('ring-control').focus();
     }""")

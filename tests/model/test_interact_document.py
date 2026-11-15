@@ -3774,14 +3774,15 @@ def _apart(a, b, vision=None):
     return math.dist(seen(a), seen(b)) * 100
 
 
-def _palette(theme, half):
-    """The series steps and the paper they sit on: `half` 0 or 1 of each `light-dark()`."""
+def _palette(theme, look, half):
+    """The series steps and the paper they sit on, which the reading look states:
+    `half` 0 or 1 of each `light-dark()`."""
     pair = r"light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)"
     steps = {
         number: colours[half]
-        for number, *colours in re.findall(rf"--series-(\d+):\s*{pair}", theme)
+        for number, *colours in re.findall(rf"--lf-series-(\d+):\s*{pair}", theme)
     }
-    match = re.search(rf"--paper:\s*{pair}", theme)
+    match = re.search(rf"--lf-paper:\s*{pair}", look)
     assert match is not None
     paper = match[half + 1]
     assert steps, "no series tokens in the theme"
@@ -3803,12 +3804,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
 
     for scheme, half in (("light", 0), ("dark", 1)):
-        steps, paper = _palette(theme, half)
+        steps, paper = _palette(theme, look, half)
         assert len(steps) == declared, (
             f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         )

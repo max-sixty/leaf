@@ -343,6 +343,9 @@ const HOLD = 500;
 // exposes `GestureEvent`, desktop Safari's included, where no touch reaches a hold.
 const holdsUntold = () => "GestureEvent" in window;
 const WARM = 400;
+// The timers above, for a reader outside the page that runs the page's clock past one
+// (check-api.js).
+export const PREVIEW_TIMERS = Object.freeze({ DWELL, HOLD, WARM });
 
 // The one element every preview draws in.
 const tip = document.createElement("div");

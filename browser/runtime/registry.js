@@ -119,11 +119,29 @@ export const declarationFor = (el, key) =>
 /** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
-/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
-export const elementsDeclaring = (root, key, { direct = false } = {}) => {
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  return candidates.filter((el) => declarationFor(el, key) !== undefined);
+// The widgets at or under `root` whose declaration `holds` answers for, in document
+// order. The browser matches their tags, so a root holding a long document of plain
+// rows, as a tab set's panel can, costs a native match of each row rather than a
+// script's look at it. The match costs more for each tag it names: on #4781's page,
+// every declared tag took 0.4 s over the 30 panels where the few declaring `x-awaits`
+// took 0.05 s, so a question about some widgets names only theirs.
+/** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} [holds] */
+export const declaredElements = (root, holds = () => true) => {
+  const tags = tagsDeclaring(holds);
+  if (!tags.length) return [];
+  const selector = tags.join(",");
+  const found = [...root.querySelectorAll(selector)];
+  if (root instanceof Element && root.matches(selector)) found.unshift(root);
+  return found;
 };
+
+/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
+export const elementsDeclaring = (root, key, { direct = false } = {}) =>
+  direct
+    ? [...root.children].filter((el) => declarationFor(el, key) !== undefined)
+    : declaredElements(root, (entry) => entry[key] !== undefined).filter(
+        (el) => el !== root,
+      );
 
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key

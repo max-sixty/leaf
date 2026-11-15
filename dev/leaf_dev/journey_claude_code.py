@@ -840,7 +840,7 @@ def steps(
             def agent_of(turn: str) -> str | None:
                 return next(
                     (
-                        record["agentId"]
+                        record["agent"]
                         for record in (user.forks() if user.forks else [])
                         if record.get("step") == "start" and record["turn"] == turn
                     ),

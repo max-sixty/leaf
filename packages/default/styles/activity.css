@@ -4,8 +4,8 @@
  * muted. A row taken back keeps its place, struck through and marked undone. */
 lf-activity {
   display: block;
-  margin: var(--sp-3) 0;
-  font: var(--font-ui);
+  margin: var(--lf-sp-3) 0;
+  font: var(--lf-font-ui);
   /* The feed it draws wears markup's reading face (`reading.css`) whatever theme the
      page takes, its rows' spacing at working density included. */
   --lf-reading-face: 1;
@@ -17,8 +17,8 @@ lf-activity .lf-activity-news {
   display: block;
   box-sizing: border-box;
   inline-size: 100%;
-  block-size: var(--aim-floor);
-  min-block-size: var(--aim-floor);
+  block-size: var(--lf-aim-floor);
+  min-block-size: var(--lf-aim-floor);
   text-align: start;
   white-space: nowrap;
   overflow: hidden;
@@ -34,7 +34,7 @@ lf-activity .lf-activity-list {
    at its top. */
 @media screen {
   html[data-lf-interactive] lf-activity {
-    min-block-size: var(--aim-floor);
+    min-block-size: var(--lf-aim-floor);
   }
   lf-activity[data-lf-bound] {
     --lf-bound-box: .lf-activity-list;
@@ -51,7 +51,7 @@ lf-activity .lf-activity-list {
 }
 lf-activity .lf-activity-row {
   padding: 7px 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--lf-rule);
 }
 lf-activity .lf-activity-row:first-child {
   border-top: 0;
@@ -61,20 +61,20 @@ lf-activity .lf-activity-line {
   overflow-wrap: anywhere;
 }
 lf-activity .lf-activity-actor {
-  color: var(--ink);
+  color: var(--lf-ink);
   font-weight: 600;
 }
 lf-activity .lf-activity-what {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
 }
 /* A row's place: a widget it reached is a link, drawn as the page's links are
    (reading.css), and a thread it reached a press among the line's words, the inline
    face (controls.css), which the feed only seats in its line. */
 lf-activity a[href].lf-activity-target {
-  color: var(--accent);
+  color: var(--lf-accent);
   text-decoration: underline;
-  text-underline-offset: var(--link-underline-offset);
-  text-decoration-color: var(--link-underline);
+  text-underline-offset: var(--lf-link-underline-offset);
+  text-decoration-color: var(--lf-link-underline);
 }
 lf-activity a[href].lf-activity-target:hover {
   text-decoration-color: currentColor;
@@ -83,11 +83,11 @@ lf-activity button.lf-activity-target {
   text-align: start;
 }
 lf-activity :is(span, a:not([href])).lf-activity-target {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
   text-decoration: none;
 }
 lf-activity .lf-activity-time {
-  color: var(--muted);
+  color: var(--lf-muted);
   white-space: nowrap;
   display: inline-block;
   inline-size: 10ch;
@@ -100,26 +100,26 @@ lf-activity .lf-activity-time::before {
   content: "· ";
 }
 lf-activity .lf-activity-undone {
-  color: var(--muted);
-  font: var(--font-chip);
-  border: 1px solid var(--border-2);
-  border-radius: var(--chip-r);
-  padding: var(--chip-pad);
+  color: var(--lf-muted);
+  font: var(--lf-font-chip);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-chip-r);
+  padding: var(--lf-chip-pad);
 }
 lf-activity
   [data-lf-undone]
   :is(.lf-activity-what, .lf-activity-target, .lf-activity-excerpt) {
   text-decoration: line-through;
-  text-decoration-color: var(--muted);
+  text-decoration-color: var(--lf-muted);
 }
 lf-activity .lf-activity-excerpt {
   margin: 2px 0 0;
-  color: var(--muted);
+  color: var(--lf-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 lf-activity .lf-activity-empty {
   margin: 0;
-  color: var(--muted);
+  color: var(--lf-muted);
 }

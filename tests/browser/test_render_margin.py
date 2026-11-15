@@ -337,7 +337,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
                   wordsRight: words.right, cardLeft: card.left, cardRight: card.right,
                   cardWidth: card.width, viewport: innerWidth,
                   preferred: parseFloat(getComputedStyle(cardNode)
-                    .getPropertyValue('--thread-card')),
+                    .getPropertyValue('--lf-thread-card')),
                   bottomChrome: bottomChrome.length,
                   coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
@@ -414,7 +414,7 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
                       cardTop: card.top, cardWidth: card.width, coveredControls,
                       targetTop: target.top, targetBottom: target.bottom,
                       preferred: parseFloat(getComputedStyle(cardNode)
-                        .getPropertyValue('--thread-card'))};
+                        .getPropertyValue('--lf-thread-card'))};
             }"""
         )
         # With room for its whole measure, the card clears both its words and its cluster,
@@ -503,8 +503,8 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
               return {placement: cardNode.dataset.lfThreadPlacement,
                       cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
                       wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
-                      minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
-                      preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                      minimum: parseFloat(style.getPropertyValue('--lf-thread-card-min')),
+                      preferred: parseFloat(style.getPropertyValue('--lf-thread-card')),
                       clipped: list.scrollHeight - list.clientHeight};
             }"""
         )
@@ -541,7 +541,7 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
                       cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
                       clipped: list.scrollHeight - list.clientHeight,
                       wordsLeft: words.left, viewport: innerWidth,
-                      minimum: parseFloat(style.getPropertyValue('--thread-card-min'))};
+                      minimum: parseFloat(style.getPropertyValue('--lf-thread-card-min'))};
             }"""
         )
         words = page.evaluate(WORDS_RIGHT)

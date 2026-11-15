@@ -929,7 +929,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
     assert json.loads(early.stdout)["state"] == "waiting"
-    [owed] = said(early.stderr)
+    [owed] = said(early.stdout)["findings"]
     assert owed["code"] == "page-open-owes"
     assert owed["text"] == (
         "1 user update with no answer (`leaf thread reply <answer.ref>` with "
@@ -960,13 +960,13 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
                 {
                     moment: {
                         "exit": result.exit_code,
-                        # The status as written, less the instant it was written at.
+                        # The status as written, less the instant it was written at,
+                        # with what the command noted beside it.
                         "status": {
                             key: value
-                            for key, value in json.loads(result.stdout).items()
+                            for key, value in said(result.stdout).items()
                             if key != "ts"
                         },
-                        "note": said(result.stderr),
                     }
                     for moment, result in (
                         ("before reply", early),

@@ -139,7 +139,7 @@ def native_provider(
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS[ClaudeCodeHarness.name],
+                "model": model or MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
@@ -640,7 +640,8 @@ def run_name(scope: str, globs: tuple[str, ...]) -> str:
 )
 @click.option(
     "--model",
-    help="Codex author model for this run; all selected conditions use the same model.",
+    help="Author model for this run in place of the harness's pin; all selected "
+    "conditions use the same model.",
 )
 @click.option(
     "--condition",
@@ -700,10 +701,6 @@ def eval(
     else:
         cases = select_cases(globs)
         harnesses = HARNESSES if harness == "both" else (harness,)
-        if model is not None and harness != "codex":
-            raise click.BadParameter(
-                "--model currently requires --harness codex", param_hint="--model"
-            )
         conditions = ("leaf", "html") if condition == "both" else (condition,)
         # Only the Leaf condition runs on more than the working tree.
         if "leaf" not in conditions:

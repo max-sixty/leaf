@@ -9,17 +9,17 @@ lf-diff-note {
   box-sizing: border-box;
   min-inline-size: 0;
   padding: 10px 18px;
-  border-block: 1px solid var(--rule);
-  background: var(--paper);
-  color: var(--ink);
+  border-block: 1px solid var(--lf-rule);
+  background: var(--lf-paper);
+  color: var(--lf-ink);
   white-space: normal;
   overflow-wrap: anywhere;
-  font: var(--font-widget);
+  font: var(--lf-font-widget);
   contain: inline-size;
 }
 lf-diff-note[data-lf-unmatched]::before {
   content: attr(data-lf-unmatched);
   display: block;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }

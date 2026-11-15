@@ -19,6 +19,7 @@ import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 import click
 from PIL import Image
@@ -48,24 +49,19 @@ def serve_examples(site: Path) -> Generator[str]:
     # As in the demo recorder, the host's open pages are not part of the scene.
     # Isolate their discovery before serving so `All leaves` cannot change the
     # captured chrome or expose the host's page titles.
-    previous_state_home = os.environ.get("XDG_STATE_HOME")
-    with tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home:
-        os.environ["XDG_STATE_HOME"] = state_home
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-preview-state-") as state_home,
+        patch.dict(os.environ, XDG_STATE_HOME=state_home),
+    ):
+        server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
         try:
-            server = LeafHTTPServer(("127.0.0.1", 0), leaf_website.site_endpoint(site))
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                yield f"http://127.0.0.1:{server.server_address[1]}"
-            finally:
-                server.shutdown()
-                thread.join()
-                server.server_close()
+            yield f"http://127.0.0.1:{server.server_address[1]}"
         finally:
-            if previous_state_home is None:
-                os.environ.pop("XDG_STATE_HOME")
-            else:
-                os.environ["XDG_STATE_HOME"] = previous_state_home
+            server.shutdown()
+            thread.join()
+            server.server_close()
 
 
 def require_capture_fonts(page: Page) -> None:

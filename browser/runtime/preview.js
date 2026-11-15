@@ -562,7 +562,19 @@ function labelsOf(control) {
   const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
     control
   );
-  return [...(labels ?? []), ...(control.ariaLabelledByElements ?? [])];
+  return [...(labels ?? []), ...labelledBy(control)];
+}
+// The elements a control's `aria-labelledby` names, found by id in its tree. Not its
+// `ariaLabelledByElements`: Firefox's content process crashes once the page and an
+// isolated world, such as Playwright's role locator, have both read that property
+// (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
+/** @param {Element} control @returns {Element[]} */
+function labelledBy(control) {
+  const root = /** @type {Document | ShadowRoot} */ (control.getRootNode());
+  if (!("getElementById" in root)) return [];
+  return (control.getAttribute("aria-labelledby") ?? "")
+    .split(/\s+/)
+    .flatMap((id) => (id && root.getElementById(id)) || []);
 }
 // The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more
@@ -709,8 +721,8 @@ const faceSays = (face, name) =>
 function markupName(control) {
   const label = control.getAttribute("aria-label")?.trim();
   if (label) return label;
-  const by = control.ariaLabelledByElements;
-  if (by?.length)
+  const by = labelledBy(control);
+  if (by.length)
     return by
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")

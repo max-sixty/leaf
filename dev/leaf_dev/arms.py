@@ -1342,6 +1342,18 @@ def read_trace(stream: Path) -> list[dict]:
     )
 
 
+def phase_traces(trace: list[dict]) -> list[list[dict]]:
+    """A session's records split at the `eval_phase` marks its driver noted, each
+    phase opening with its mark, and any records before the first mark a phase of
+    their own."""
+    phases: list[list[dict]] = []
+    for record in trace:
+        if record.get("type") == "eval_phase" or not phases:
+            phases.append([])
+        phases[-1].append(record)
+    return phases
+
+
 def trace_result(trace: list[dict]) -> dict:
     """The trace's closing `result` event, or {} when the child never finished."""
     return next((d for d in reversed(trace) if d.get("type") == "result"), {})

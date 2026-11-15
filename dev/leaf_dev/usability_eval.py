@@ -41,6 +41,7 @@ from leaf_dev.arms import (
     now,
     observed_sum,
     pages,
+    phase_traces,
     read_page_state,
     read_trace,
     resumed,
@@ -100,17 +101,11 @@ class Run:
 
     def traces(self) -> list[list[dict]]:
         """Keep each chat phase distinct within the continuous native session."""
-        phases = []
-        for path in sorted(self.dir.glob("stream-*.jsonl")):
-            phase = []
-            for record in read_trace(path):
-                if record["type"] == "eval_phase" and phase:
-                    phases.append(phase)
-                    phase = []
-                phase.append(record)
-            if phase:
-                phases.append(phase)
-        return phases
+        return [
+            phase
+            for path in sorted(self.dir.glob("stream-*.jsonl"))
+            for phase in phase_traces(read_trace(path))
+        ]
 
     def usable(self) -> bool:
         """Whether the native author finished the requested phases."""

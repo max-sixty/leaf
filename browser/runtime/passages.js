@@ -1912,7 +1912,7 @@ const changesTheReading = (record, reads) => {
 // (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
 // all. What a reader keeps to know which reading it read is the record's `token`, an
 // empty object, so a key or a kept answer that outlives the reading holds none of it. An
-// answer that holds the page's nodes is kept on the record instead (`keptWithPageReading`),
+// answer that holds a document's nodes is kept on the record instead (`keptWithReading`),
 // so it goes with the reading it was derived from.
 /** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>, kept: Map<object, unknown>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
@@ -2066,14 +2066,18 @@ export function pageReadingVersion() {
   catchUpReading();
   return documentReading(pageDocument()).token;
 }
-/** What a reader derives from the page's reading and keeps while that reading stands,
- * under the reader's own `owner`: made by `make` for each new reading and dropped with
- * the old one, so an answer holding the page's nodes keeps none past a revision that
- * removes them.
- * @template T @param {object} owner @param {() => T} make @returns {T} */
-export function keptWithPageReading(owner, make) {
+/** What a reader derives from the reading of the document `scope` (`authoredScope`) and
+ * keeps while that reading stands, under the reader's own `owner`: made by `make` for
+ * each new reading and dropped with the old one, so an answer holding the document's
+ * nodes keeps none past a change that removes them. A document the watcher doesn't
+ * hear, such as a message body no longer in this document, detached or in another,
+ * is answered afresh each time.
+ * @template T @param {Element} scope @param {object} owner @param {() => T} make
+ * @returns {T} */
+export function keptWithReading(scope, owner, make) {
+  if (!scope.isConnected || scope.ownerDocument !== document) return make();
   catchUpReading();
-  const { kept } = documentReading(pageDocument());
+  const { kept } = documentReading(scope);
   if (!kept.has(owner)) kept.set(owner, make());
   return /** @type {T} */ (kept.get(owner));
 }

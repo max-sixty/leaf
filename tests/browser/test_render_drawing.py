@@ -1741,3 +1741,29 @@ def test_a_drawing_on_a_view_the_page_hides_stands_only_while_it_shows(browser, 
     expect(ink).to_have_count(0)
     widget.locator(f'.lf-vr-case-button[aria-controls$="-{drawn}"]').click()
     expect(ink).to_have_count(1)
+
+
+BOXLESS_PAGE = leaf_page(
+    "boxless drawing target",
+    '<h1 id="title">Notes</h1>'
+    '<div id="boxless" style="display: contents"><p>Words a wrapper with no box of'
+    " its own holds, laid out by the paragraph inside it.</p></div>",
+)
+
+
+def test_a_drawing_on_a_boxless_target_stands_over_its_shown_parts(browser, serve):
+    """A target with no box of its own, as `display: contents` leaves one, shows
+    through its parts, so ink on it stands while they show, as drawn, sent and saved."""
+    page = open_page(browser, serve(BOXLESS_PAGE))
+    resized(page, 1200, 800)
+    draw_over(page, page.locator("#boxless > p"))
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    page.keyboard.type("This line")
+    with sending(page, "send a drawing on a boxless target"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"]["section"] == "boxless"
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    page.reload()
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)

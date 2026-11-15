@@ -101,6 +101,31 @@ const destination = (target, path) => {
   return new URL(path.replace(/^\/+/, ""), base).href;
 };
 
+// The cases whose obligation is the agent's, by the review that owns them, read once per
+// obligation inventory, so drawing the queue or stepping through it costs nothing per
+// obligation elsewhere on the page (root AGENTS.md, "Responsiveness"), as
+// obligations/place.js reads its contexts once.
+/** @typedef {ReturnType<typeof readObligations>["all"]} Obligations */
+/** @type {WeakMap<Obligations, Map<string, Set<string>>>} */
+const agentHeld = new WeakMap();
+/** @type {ReadonlySet<string>} */
+const NONE_HELD = new Set();
+/** @param {Obligations} items */
+function heldByAgent(items) {
+  let held = agentHeld.get(items);
+  if (held) return held;
+  held = new Map();
+  for (const { source, status, next_actor } of items) {
+    if (source.kind !== "widget" || !source.unit) continue;
+    if (status !== "open" || next_actor !== "agent") continue;
+    const owned = held.get(source.id);
+    if (owned) owned.add(source.unit);
+    else held.set(source.id, new Set([source.unit]));
+  }
+  agentHeld.set(items, held);
+  return held;
+}
+
 customElements.define(
   "lf-visual-review",
   class extends LeafElement {
@@ -330,17 +355,7 @@ customElements.define(
     // Whose turn each open case is, by the server's obligation reading: the case ids
     // whose obligation is the agent's.
     #withAgent() {
-      return new Set(
-        readObligations().all.flatMap(({ source, status, next_actor }) =>
-          source.kind === "widget" &&
-          source.id === this.id &&
-          source.unit &&
-          status === "open" &&
-          next_actor === "agent"
-            ? [source.unit]
-            : [],
-        ),
-      );
+      return heldByAgent(readObligations().all).get(this.id) ?? NONE_HELD;
     }
     #nextUnchecked() {
       const records = this.#run?.cases ?? [];

@@ -12,8 +12,9 @@
  * its edge. Ink still being drawn is cut by nothing, since the pen goes where the
  * user puts it. Equal complete descriptions retain the actual SVG node.
  *
- * A target the page doesn't show, by `display`, `content-visibility` or `visibility`,
- * takes no ink, and a repaint draws it again once the target shows.
+ * A target the page doesn't draw, by `display`, `content-visibility`, `visibility` or
+ * `inert`, takes no ink, and a repaint draws it again once the target shows; a boxless
+ * target, as `display: contents` leaves one, shows through its parts.
  *
  * A mark keeps its local offsets from the target's origin through affine transforms.
  * Intrinsic visuals carry ink as their contents resize. HTML layout growth does not
@@ -23,6 +24,7 @@
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { el } from "../widget-elements.js";
 import { paintSet } from "../target-paint-geometry.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -88,10 +90,11 @@ export function createDrawingInk({ drawings }) {
   function mark(drawing, target, className, id = "") {
     if (!drawing) return null;
     const geometry = drawingGeometry(drawing, target);
-    // Ink stands only over a target the page shows. A widget can keep a hidden view
-    // laid out under the shown one, as a visual review stacks its cases in one cell,
-    // and ink on the hidden view's picture would stand over the shown one's.
-    if (!geometry?.target.checkVisibility({ visibilityProperty: true })) return null;
+    // Ink stands only over a target the page draws (`visibleTargetParts`), a boxless one
+    // through its shown parts. A widget can keep a hidden view laid out under the shown
+    // one, as a visual review stacks its cases in one cell, and ink on the hidden view's
+    // picture would stand over the shown one's.
+    if (!geometry || !visibleTargetParts(geometry.target).length) return null;
     const { box, strokes } = geometry;
     const frame = drawingFrame(strokes);
     const { width, height } = frame;

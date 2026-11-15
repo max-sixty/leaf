@@ -533,12 +533,17 @@ def test_a_case_the_user_comments_on_says_whose_turn_it_is_in_the_queue(browser,
     expect(widget.locator(".lf-vr-progress")).to_have_text(
         "0 of 3 look right · 1 on Claude"
     )
+    # From the last case, Next unchecked comes round past the case the agent holds, the
+    # first, to the second.
+    run = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())
+    first, second, third = (each["id"] for each in run["gallery-visual-run"]["cases"])
+    assert commented == first
+    widget.locator(f'.lf-vr-case-button[aria-controls$="-{third}"]').click()
+    expect(case).to_have_attribute("data-lf-datum", third)
     case.get_by_role("button", name="Next unchecked").click()
-    expect(case).not_to_have_attribute("data-lf-datum", commented)
+    expect(case).to_have_attribute("data-lf-datum", second)
     with sending(page, "approve another case"):
         case.get_by_role("checkbox", name="Looks right").check()
-    case.get_by_role("button", name="Next unchecked").click()
-    expect(case).not_to_have_attribute("data-lf-datum", commented)
     # Approving the case the agent holds answers it, as a check.
     widget.locator(f'.lf-vr-case-button[aria-controls$="-{commented}"]').click()
     with sending(page, "approve the commented case"):

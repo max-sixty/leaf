@@ -102,6 +102,12 @@
 // that settles it until the loop settles again, so a page script's move in the task
 // after the fit is the input's too; one after the landing settles is reported.
 // Native effects it began retain their sampled displacement within their subtree.
+// An effect a ResizeObserver delivery begins in the frame its rendering first draws,
+// news still unlanded, is one it began, from that moment: a box that follows its own
+// layout starts there, after the frame's tick, as box-motion.js carries a floating
+// box's parts, and a long frame can end that effect, or news land, before the next
+// tick reads it. The runtime holds news that arrives while the gesture is unresolved
+// until that frame paints (state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued
 // lifetime never owns unrelated page movement. A script re-times motion by cancelling
@@ -1184,6 +1190,7 @@
       consumers,
     });
     continueMotion(animation);
+    if (moves(animation)) deliveredBy()?.own.add(animation);
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -1205,6 +1212,7 @@
         beganAt.set(this, { at });
         if (origin) origins.set(this, origin);
         continueMotion(this);
+        if (moves(this)) deliveredBy()?.own.add(this);
       }
       return result;
     };
@@ -1869,6 +1877,27 @@
   const renderings = [];
   const inputRenderings = new WeakMap();
   let open = null;
+  // Each frame's tick is counted, and the open rendering notes the frame it first
+  // draws in while news has not sealed it (`drawsIn`). A ResizeObserver delivery
+  // follows that tick in the same frame, so the effects it begins are the
+  // rendering's own as they begin (`deliveredBy`).
+  let frameCount = 0;
+  let delivering = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    constructor(callback) {
+      super((entries, observer) => {
+        delivering++;
+        try {
+          return callback(entries, observer);
+        } finally {
+          delivering--;
+        }
+      });
+    }
+  };
+  const deliveredBy = () =>
+    delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
@@ -1972,6 +2001,8 @@
       if (open.last && settled()) end();
       else open.last = settled();
     }
+    frameCount++;
+    if (open?.first && !open.told) open.drawsIn = frameCount;
     for (const rendering of landing) {
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);

@@ -86,16 +86,14 @@
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
 /* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
-   answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
-   arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
-   cursor and mark cannot disagree. The arrow is one declaration on the body, inherited,
-   which changes as the page arms; the hand stands on the element under the pointer
-   (page-geometry.js), so a crossing restyles only what that element holds. A control
-   keeps its own cursor while armed. The chrome holds itself out from inside its own
-   scope. */
-body:is([data-lf-aiming], [data-lf-design-mode]) {
-  cursor: default;
-}
+   answers which item a press takes, and the hand over it that a press takes one.
+   Derived at the paint from what refreshAim resolved, so cursor and mark cannot
+   disagree. The hand stands on the element under the pointer (page-geometry.js), so
+   arming and a crossing restyle only what that element holds. Elsewhere a press takes
+   nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
+   holds: an arrow declared on the body for them restyled every element each time the
+   page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty 4 MB text
+   documents. A control keeps its own cursor while armed. */
 body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
@@ -230,7 +228,7 @@ html[data-lf-region-capture]
      position, so a page's broad positioning cannot make the wrapper or the legend's
      paint host a containing block for document-attached floats, except the root after
      `body`, which stands at the origin to stack over the page (base.css); cursor,
-     since the body may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
+     which a page may state on the body; the whole face, since the guard keeps light page rules
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be
@@ -1105,7 +1103,6 @@ html[data-lf-region-capture]
     left: -1px;
     bottom: 100%;
     max-width: 40vw;
-    visibility: var(--lf-design-tag-visibility, visible);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1122,6 +1119,11 @@ html[data-lf-region-capture]
     bottom: auto;
     top: 0;
     border: 0;
+  }
+  /* The target picker's keys name the legend's corners while it stands (aim.js,
+     `armChanged`). */
+  .lf-legend.lf-picking .lf-legend-tag {
+    visibility: hidden;
   }
   /* Standing in the planes of the box it names (target-paint.js, `labelAim`), so a
      scroll carries the two together. */

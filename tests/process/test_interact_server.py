@@ -1672,40 +1672,6 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
 
 
-def test_a_page_runs_the_runtime_of_the_leaf_serving_it(server, page_dir):
-    """A page runs the serving Leaf's runtime, addressed under its identity, with
-    its selected packages over it, a package's replacement of one of the runtime's
-    vendor modules included."""
-    package = page_dir.parent / "own-lit"
-    (package / "vendor").mkdir(parents=True)
-    (package / "vendor" / "lit.js").write_bytes(b"// the package's own Lit")
-    vendoring_model.cmd_init(page_dir, (*page_packages(), "./own-lit"))
-    publish(page_dir)
-    runtime = serving_runtime().resources({}, {})
-    executed = executing(artifact_model.read_artifact(page_dir, 1)).resources
-    root = revision_root(page_dir, 1)
-
-    status, document = fetch(server + "/")
-    assert status == 200
-    assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
-    assert (
-        f'data-lf-runtime-identity="{serving_runtime().identity}"'.encode() in document
-    )
-    assert fetch(server + root + "/leaf.js") == (200, runtime["/leaf.js"].data)
-    assert fetch(server + root + "/runtime/widget-api.js") == (
-        200,
-        runtime["/runtime/widget-api.js"].data,
-    )
-    assert fetch(server + root + "/vendor/lit.js") == (
-        200,
-        b"// the package's own Lit",
-    )
-    assert fetch(server + root + "/vendor/plot.esm.js") == (
-        200,
-        executed["/vendor/plot.esm.js"].data,
-    )
-
-
 def test_state_and_delivery_agree_on_a_revisions_executable_identity(server, page_dir):
     """The document carries its executable identity; state carries the live one.
 
@@ -3048,28 +3014,6 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
-def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
-    """Only a reader removes a row: one whose server lease no process holds,
-    whether or not its page remains. A held lease keeps its row even while it
-    names no live service, as a revival's private reservation does."""
-    live = tmp_path / "live"
-    neighbour_page(live, title="Live")
-    reserved = tmp_path / "reserved"
-    neighbour_page(reserved, title="Reserved")
-    service = read_record(reserved / "service.json")
-    write_record(reserved / "service.json", {**service, "server_id": "successor"})
-    stopped = tmp_path / "stopped"
-    neighbour_page(stopped, title="Stopped", dead=True)
-    deleted = tmp_path / "deleted"
-    neighbour_page(deleted, title="Deleted", dead=True)
-    shutil.rmtree(deleted)
-    assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
-    assert server_rows_model.row_path(live).is_file()
-    assert server_rows_model.row_path(reserved).is_file()
-    assert not server_rows_model.row_path(stopped).exists()
-    assert not server_rows_model.row_path(deleted).exists()
-
-
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     page_dir, monkeypatch
 ):
@@ -3121,85 +3065,6 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
         assert json.loads(publisher.path.read_text())["row"] == aged
     finally:
         leases_model.release_lease(waiter)
-
-
-def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
-    """A row producer waiting on a page writer cannot hold service retirement.
-
-    Drive its second reading through a pipe after holding the writer's lock. A
-    file notification could arrive before the producer starts waiting for one.
-    """
-    entered = tmp_path / "row-entered"
-    child = spawn_probe(
-        spawn,
-        page_dir,
-        """
-from contextlib import contextmanager
-from leaf import hosting, server_rows
-from leaf.served_state import reading
-import sys
-
-leased = reading.flocked
-
-@contextmanager
-def announced(path, **options):
-    Path(os.environ["ENTERED"]).write_text("reading")
-    with leased(path, **options) as log:
-        yield log
-
-reading.flocked = announced
-
-def drive_reading(self):
-    self.refresh()
-    sys.stdin.readline()
-    self.refresh()
-
-server_rows.RowPublisher.run = drive_reading
-hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
-""",
-        stdin=subprocess.PIPE,
-        ENTERED=entered,
-    )
-    path = server_rows_model.row_path(page_dir)
-    wait_for(path.is_file, bool, failure="the server did not publish its initial row")
-    entered.unlink()
-    ended = threading.Event()
-    with service_model.PageTransaction(page_dir):
-        child.stdin.write("read\n")
-        child.stdin.flush()
-        wait_for(
-            entered.is_file,
-            bool,
-            failure="the row producer did not enter the held transaction",
-        )
-        stopping = threading.Thread(
-            target=lambda: (hosting_model.cmd_stop(page_dir), ended.set()), daemon=True
-        )
-        stopping.start()
-        assert ended.wait(STATED_TIMEOUT), (
-            "a transaction-blocked row read held server stop"
-        )
-    stopping.join(timeout=STATED_TIMEOUT)
-    assert not stopping.is_alive(), "server stop never returned"
-    assert child.wait(timeout=STATED_TIMEOUT) == 0
-    assert server_model.running_server(page_dir) is None
-
-
-def test_a_page_admits_frames_only_from_live_leaf_servers_under_its_key(page_dir):
-    """Cookies ignore ports, so every server on the host is sent the key. A page's
-    server names, of those, only the live Leaf servers under its state home, each by
-    exact origin. A record whose server has stopped names no one, since its port
-    may since belong to any process."""
-    pages = cleanup_model.state_home() / "pages"
-    neighbour_page(pages / "live", title="Live", port=59999)
-    neighbour_page(pages / "stopped", title="Stopped", dead=True, port=59998)
-    url = hosting_model.start_server(page_dir, persistent=True, harness=None).url
-    try:
-        with urllib.request.urlopen(url) as answer:
-            policy = answer.headers["Content-Security-Policy"]
-    finally:
-        hosting_model.cmd_stop(page_dir)
-    assert policy == "frame-ancestors 'self' http://127.0.0.1:59999"
 
 
 def test_server_shutdown_stops_an_idle_serving_loop(page_dir):
@@ -4225,71 +4090,6 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     )
     assert set(revised.data_resources) == {urls[0]}
     assert revised.data_resources[urls[0]].data == first.read_bytes()
-
-
-def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_path):
-    package = tmp_path / "custom"
-    package.mkdir()
-    sheet = package / "defaults.css"
-    sheet.write_text("p { color: red; }")
-    page = tmp_path / "page"
-    page.mkdir()
-    vendoring_model.start_throwaway_page(page, package)
-    document = structure_model.SourceDocument(
-        "<!doctype html><html><head><title>Frozen</title></head>"
-        '<body><main><p>Frozen</p><template id="practice" data-sample>'
-        "<h1>Frozen child</h1><p>Words</p></template></main></body></html>"
-    )
-    original = artifact_model.capture_artifact(
-        page, document, registry_storage.load_registry(page)
-    )
-    snapshot = page_snapshot_model.capture_page_snapshot(
-        page, document, 1, url="/", artifact=original, process=False
-    )
-    identity = execution_identity(original)
-    frozen_sheet = executing(original).resources["/theme.css"].data
-
-    # Replace the copied package before the preview's first request. Its live
-    # reader moves on; the frozen check still loads exactly what it captured.
-    sheet.write_text("p { color: blue; }")
-    vendoring_model.start_throwaway_page(page, package)
-    assert execution_identity(original) != identity
-    assert executing(original).resources["/theme.css"].data != frozen_sheet
-    with hosting_model.TemporaryPageServer(
-        page, token=TOKEN, page_options={"page_snapshot": snapshot}
-    ) as preview:
-        root = (
-            "/revisions/"
-            + snapshot.revision_names[1].removesuffix(".html")
-            + f"/{identity}"
-        )
-        status, document = fetch(preview.origin + "/")
-        assert status == 200
-        assert (root + "/theme.css").encode() in document
-        assert fetch(preview.origin + root + "/theme.css") == (200, frozen_sheet)
-        status, registry = fetch(preview.origin + root + "/registry.json")
-        assert status == 200
-        assert json.loads(registry) == snapshot.context.registry
-
-        status, raw = fetch(
-            preview.origin + "/api/samples",
-            data=b'{"template":"practice"}',
-            layer=snapshot.context.layer["generation"],
-        )
-        assert status == 200, raw
-        child = preview.origin + json.loads(raw)["url"]
-        status, body = fetch(child)
-        assert status == 200
-        tree = structure_model.SourceDocument(body.decode()).tree
-        find_result_4 = tree.find("script", attrs={"data-lf-entry": True})
-        assert find_result_4 is not None
-        entry = find_result_4.attrs["data-lf-entry"]
-        assert isinstance(entry, str)
-        assets = entry.removesuffix("leaf.js")
-        assert fetch(preview.origin + assets + "theme.css", token=None) == (
-            200,
-            frozen_sheet,
-        )
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

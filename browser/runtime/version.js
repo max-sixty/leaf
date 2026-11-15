@@ -200,7 +200,6 @@ import {
   placeNode,
   placeOffset,
   restorePlace,
-  textBlocks,
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
 import { tick } from "./version-signal.js";
@@ -2314,11 +2313,10 @@ export function createVersionController({
   /** @returns {CapturedView} */
   function captureView() {
     dropGonePlaces();
-    const blocks = textBlocks();
-    const active = activeReadingRegion(readingRegions(), blocks);
+    const active = activeReadingRegion(readingRegions());
     /** @type {CapturedView} */
     const view = {
-      page: capturePlace(null, blocks),
+      page: capturePlace(null),
       revision: runtime.currentRevision,
       activeRegion: active?.id,
       regions: Object.fromEntries(
@@ -2331,7 +2329,7 @@ export function createVersionController({
       if (!shownRegionBounds(region)) continue;
       if (regionScrollBehavior(region) !== "bounded" && region.id !== active?.id)
         continue;
-      const reading = capturePlace(region, blocks);
+      const reading = capturePlace(region);
       if (reading) view.regions[region.id] = reading;
     }
     return view;
@@ -2396,10 +2394,7 @@ export function createVersionController({
   // regions share lands where that one left it. Focus names a region only while it is
   // where the user is (user-place.js, `focusPlace`): a pane the reader scrolled away
   // from, though it keeps their focus, would take them back to it.
-  const activeReadingRegion = (
-    candidates = readingRegions(),
-    blocks = textBlocks(),
-  ) => {
+  const activeReadingRegion = (candidates = readingRegions()) => {
     const focusedRegion = containingReadingRegionFor(focusPlace());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
@@ -2407,7 +2402,7 @@ export function createVersionController({
     if (recent) return recent;
     return candidates
       .flatMap((region) => {
-        const measured = blocksOnScreen(region, blocks).next().value;
+        const measured = blocksOnScreen(region).next().value;
         return measured ? [{ region, rect: measured[1] }] : [];
       })
       .sort((a, b) => a.rect.top - b.rect.top)[0]?.region;

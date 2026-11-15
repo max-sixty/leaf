@@ -1819,11 +1819,15 @@ def confirming_resize_notices(page, attempt, again=None):
 
     A platform notice seen once under load is not a page fault; one that the
     confirming attempt, `again` or else `attempt` itself, repeats is, reported with the
-    `confirmation` value `recurred`, as the render gate reports one. Everything else
-    remains on the page from the attempt that reported it, and anything arriving after
-    this helper returns remains strict.
+    `confirmation` value `recurred`, as the render gate reports one. Every other
+    problem stands once: the confirming attempt's record starts empty, and a problem
+    only the first attempt raised is kept beside it, so one a load raises each time,
+    as a widget's refusal, isn't counted twice. Anything arriving after this helper
+    returns remains strict. What the page wrote to its server's log is not this
+    helper's: the log only grows, and a test reading it sees both loads' writes.
     """
     errors = page.lf_errors
+    start = len(errors)
 
     def noticed(act):
         # A test that adjudicates the page's notices itself keeps its own list.
@@ -1841,11 +1845,20 @@ def confirming_resize_notices(page, attempt, again=None):
     notices = noticed(attempt)
     if not notices:
         return
+    first = errors[start:]
+    del errors[start:]
     try:
         confirming_notices = noticed(again or attempt)
     except Exception:
         errors.extend(notice for notice in notices if notice not in errors)
         raise
+    finally:
+        repeated = errors[start:]
+        for problem in first:
+            if problem in repeated:
+                repeated.remove(problem)
+            else:
+                errors.append(problem)
     if confirming_notices:
         errors.append(confirming_notices[0].but(values={"confirmation": "recurred"}))
 

@@ -443,7 +443,8 @@ alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest
 `leaf-dev suite flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
-server and every engine on the efficiency cores: it reproduced ten of the nightly macOS
+server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
+copy: it reproduced ten of the nightly macOS
 job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
 base under the same condition to learn whether the change caused it. A test whose subject
 is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.

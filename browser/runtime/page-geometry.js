@@ -18,34 +18,12 @@ import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsOnOne, keepsText } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { closestAcross, elementFromPointAcross, inChrome } from "./passages.js";
+import { closestAcross, elementFromPointAcross } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
-import { isHTML } from "./shadow-tree.js";
-import { declaredRoot } from "./shadow.js";
-
-// Whether the point is over `el`'s own words, or in content the user edits there: the
-// places a cursor of `auto` draws as anything but the arrow. The caret reading answers
-// for a shadow tree only when named, with every tree on the way to it (user-place.js).
-// The pointer reaches no further than the host of a tree Leaf does not read, such as a
-// page script's own element's (shadow.js, `declaredRoot`), whose words inherit its cursor.
-/** @param {Element} el @param {{x: number, y: number}} at */
-function wordsAt(el, at) {
-  if (isHTML(el) && el.isContentEditable) return true;
-  if (el.shadowRoot && !declaredRoot(el)) return true;
-  /** @type {ShadowRoot[]} */
-  const shadowRoots = [];
-  for (let root = el.getRootNode(); root instanceof ShadowRoot;) {
-    shadowRoots.push(root);
-    root = root.host.getRootNode();
-  }
-  const node = document.caretPositionFromPoint(at.x, at.y, { shadowRoots })?.offsetNode;
-  return node === el || node?.parentNode === el;
-}
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,
  * aim: {isOn: ReturnType<typeof import("./composing/aim.js").createAim>["aimIsOn"],
- * armed: ReturnType<typeof import("./composing/aim.js").createAim>["armed"],
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
@@ -80,53 +58,18 @@ export function createPageGeometry({
     return null;
   }
 
-  // The armed page's cursor says whether a press takes anything: the hand where it takes
-  // an item, the arrow where it takes nothing, and a control's own cursor on a control.
-  // Each stands on the element under the pointer, as a mark's hand does (anchor-paint.js),
-  // so arming and moving restyle what that element holds rather than all `body` does: an
-  // arrow inherited from `body` restyled 2.4 million elements each time the page armed
-  // or disarmed on a page of thirty 4 MB text documents in tabs, 1.0 to 1.2 s in
-  // Firefox. The hand stands on the document's element
-  // (chrome.css), so a widget's shadow tree keeps any cursor it states.
-  //
-  // The arrow stands on the innermost element, whose cursor the browser draws
-  // (marks.css), and only where it changes what the browser draws: where that element's
-  // cursor is `auto` and the pointer is over the element's own words or in content the
-  // user edits, the only places `auto` draws anything but the arrow. Over the gap
-  // between two blocks, `auto` on the element holding both draws the arrow already, and
-  // an arrow stood on that element would restyle all it holds at every crossing.
-  const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
-  const paintArrow = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.armedArrow);
-  /** @type {Element | null} */
-  let arrowAsked = null;
-  /** @param {Element | null} aimed */
-  function paintArmedCursor(aimed) {
-    const at = pointer();
-    const under = aim.armed() ? elementFromPointAcross(at.x, at.y) : null;
-    const takes = aimed && under && !closestAcross(under, WORKS);
-    paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
-    // The arrow answers for the page, which `body` holds; the chrome states its own
-    // cursors (chrome.css).
-    const bare =
-      !takes &&
-      under &&
-      closestAcross(under, "body") &&
-      !inChrome(under) &&
-      wordsAt(under, at)
-        ? under
-        : null;
-    if (bare === arrowAsked) return;
-    arrowAsked = bare;
-    // Asked with no arrow standing, which would answer for what it holds.
-    paintArrow(null);
-    if (bare && getComputedStyle(bare).cursor === "auto") paintArrow(bare);
-  }
-
   // Aim paint is synchronous: the keydown that arms the page and the press that follows
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
+  // The hand where an armed press takes an item stands on the element under the pointer
+  // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
+  // element holds rather than all `body` does; a control keeps its own cursor.
+  const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
   function refreshAim() {
     const target = aimTarget();
-    paintArmedCursor(target?.element ?? null);
+    const aimed = target?.element ?? null;
+    const at = pointer();
+    const takes = aimed && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
+    paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
     const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();

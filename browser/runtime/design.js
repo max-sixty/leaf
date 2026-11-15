@@ -158,17 +158,8 @@ export function createDesignMode({
       .filter((name) => name && !name.startsWith("lf-"))
       .sort()
       .join(" ");
-  const {
-    aimed,
-    traced,
-    proxied,
-    location,
-    overMark,
-    aiming,
-    overItem,
-    armedArrow,
-    markedWords,
-  } = RUNTIME_PAINT_ATTRIBUTE;
+  const { aimed, traced, proxied, location, overMark, aiming, overItem, markedWords } =
+    RUNTIME_PAINT_ATTRIBUTE;
   const unmoving = new Set([
     "data-lf-content-start",
     aimed,
@@ -178,7 +169,6 @@ export function createDesignMode({
     overMark,
     aiming,
     overItem,
-    armedArrow,
     markedWords,
   ]);
   const movesPage = (/** @type {MutationRecord} */ r) =>

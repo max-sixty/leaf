@@ -9,16 +9,6 @@
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
-/* The armed page's arrow, where a press takes nothing, stands on the innermost element
-   under the pointer where that element would draw `auto` over words
-   (page-geometry.js, `paintArmedCursor`). Every shadow stage adopts this sheet, so the
-   arrow reaches an element in one. In the lowest layer, so a cursor any of the page's
-   or Leaf's rules states still wins. */
-@layer lf-reset {
-  [data-lf-armed-arrow] {
-    cursor: default;
-  }
-}
 /* The start of what a scroller holds, for chrome standing beside words its scroll
    carries to anchor to (css-anchors.js, `contentStart`): empty and inline, so it lays
    out and paints nothing, and named by the attribute its owner writes. */

@@ -1940,10 +1940,10 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
-    # on nothing where there is none (claimPress), so the hand and the arrow are those two
-    # states, read where the user's pointer is, since the promise is only kept if it
-    # arrives at the glyphs. `auto` is the resting state: unarmed, the browser draws an
-    # I-beam over words.
+    # on nothing where there is none (claimPress), so the hand says it takes one, read
+    # where the user's pointer is, since the promise is only kept if it arrives at the
+    # glyphs. Where a press takes nothing the page keeps its own cursor (chrome.css).
+    # `auto` is the resting state: unarmed, the browser draws an I-beam over words.
     with subtests.test(case="the cursor says whether a press would take anything"):
         at_pointer = """([x, y]) =>
             getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -1953,10 +1953,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         )
         # Beside the column, level with the same paragraph: body's own margin, which the
         # centred 720px column leaves on a 1200px viewport, and no element there carries
-        # an id for an armed press to take. No words stand there either, where `auto`
-        # already draws the arrow, so the arm states no cursor of its own
-        # (page-geometry.js, `paintArmedCursor`); over words it states the arrow
-        # (`test_arming_the_page_restyles_only_what_the_pointer_is_over`).
+        # an id for an armed press to take.
         in_gap = [40, on_item[1]]
         assert page.evaluate(at_pointer, on_item) == "auto", (
             "an unarmed page already named a cursor, so the arm has nothing left to say"
@@ -1971,7 +1968,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
 
         page.mouse.move(*in_gap)
         expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-        assert page.evaluate(at_pointer, in_gap) in ("auto", "default"), (
+        assert page.evaluate(at_pointer, in_gap) == "auto", (
             "the aim had nothing to take and the hand promised a press anyway"
         )
 
@@ -2013,6 +2010,27 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         }""",
             arg=first,
         )
+        page.keyboard.up("Alt")
+
+    # A mouse that leaves the window stands over nothing a press could take, though the
+    # key is still down, so the box and the hand come off with it.
+    with subtests.test(case="a pointer leaving the window takes the promise with it"):
+        on_item = page.locator("#p2").evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.left + 20, r.top + r.height / 2]; }"
+        )
+        page.mouse.move(*on_item)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        expect(page.locator("[data-lf-over-item]")).to_have_count(1)
+        page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("
+            "'pointerout', {bubbles: true, composed: true, pointerType: 'mouse',"
+            " relatedTarget: null}))",
+            on_item,
+        )
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        expect(page.locator("[data-lf-over-item]")).to_have_count(0)
         page.keyboard.up("Alt")
 
     # What ⌥ arms is the page. An aim that reached into the chrome would take the panel

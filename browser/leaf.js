@@ -320,7 +320,7 @@ async function boot() {
   });
   pageGeometry = createPageGeometry({
     refreshAnchorHover: anchorPaint?.refreshHover,
-    aim: { isOn: aim.aimIsOn, armed: aim.armed, target: aim.aimedTarget },
+    aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },

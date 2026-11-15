@@ -110,10 +110,6 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
-  // Whether the page is armed for the cursor (page-geometry.js, `paintArmedCursor`): the
-  // modifier held or the picker standing, as the body's marker says, or Design mode.
-  // Read without the mode gate, as the marker is.
-  const armed = () => aiming || targetPicker.active() || designMode.active();
   // The armed page's one writer, called when either source of the arm changes.
   function armChanged() {
     setRuntimeRootAttribute(
@@ -150,6 +146,13 @@ export function createAim({
     const held = ev.getModifierState(AIM.modifier);
     if (held !== aiming) setAiming(held);
     else refreshAim();
+  };
+  // A mouse that leaves the window stands over nothing a press could take, so the hand and
+  // the box come off while the page stays armed. The shared recorder hears the same
+  // event first and forgets the position (pointer.js).
+  /** @param {PointerEvent} ev */
+  const pointerOut = (ev) => {
+    if (ev.pointerType === "mouse" && !ev.relatedTarget) refreshAim();
   };
 
   // ⌥-click means the item under the pointer, whatever it holds. It costs the page no
@@ -266,8 +269,9 @@ export function createAim({
     addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);
     document.addEventListener("pointermove", pointerMove);
+    document.addEventListener("pointerout", pointerOut);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armed, armChanged, mount };
+  return { aimIsOn, aimedTarget, armChanged, mount };
 }

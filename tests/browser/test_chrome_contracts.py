@@ -280,14 +280,13 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_arming_the_page_restyles_only_what_the_pointer_is_over(browser, serve):
-    """Holding ⌥, the target picker and Design mode arm the page. Over words no item
-    holds the armed cursor is an arrow, and over an item the aim boxes it. Inherited
-    from `body`, the arrow restyled every element each time the page armed or disarmed,
-    1.0 to 1.2 s in Firefox on a page of thirty 4 MB text documents; it stands on the
-    element under the pointer instead (page-geometry.js, `paintArmedCursor`). The box's
-    veil, inherited too, restyled all the item held, 370 ms over one of those documents
-    (base.css, `--lf-aim-veil`). Counted in the browser's own restyled elements,
-    against a restyle of the whole page."""
+    """Holding ⌥, the target picker and Design mode arm the page, and over an item the
+    hand and the aim's box say a press takes it. An arrow on `body` for the words no
+    item holds restyled every element each time the page armed or disarmed, 1.0 to
+    1.2 s in Firefox on a page of thirty 4 MB text documents. The box's veil, which
+    inherited, restyled all the item held, 370 ms over one of those documents (base.css,
+    `--lf-aim-veil`). Counted in the browser's own restyled elements, against a restyle
+    of the whole page."""
     paragraphs = "".join(f"<p>Paragraph {i} of the section.</p>" for i in range(600))
     page = open_page(
         browser,
@@ -298,11 +297,7 @@ def test_arming_the_page_restyles_only_what_the_pointer_is_over(browser, serve):
         ),
     )
     root = page.locator("html")
-    cursor = """([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"""
-
-    def words(locator):
-        box = locator.bounding_box()
-        return [box["x"] + 20, box["y"] + box["height"] / 2]
+    aimed = page.locator("[data-lf-aimed]")
 
     def restyled(move):
         """The most elements one style recalc restyled while `move` ran."""
@@ -314,24 +309,21 @@ def test_arming_the_page_restyles_only_what_the_pointer_is_over(browser, serve):
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
-    at = words(page.locator("h1"))
-    page.mouse.move(*at)
+    words = page.locator("#section p").nth(3)
+    box = words.bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
     moves = {"⌥ down": restyled(lambda: page.keyboard.down("Alt"))}
-    assert page.evaluate(cursor, at) == "default"
+    expect(aimed).to_have_id("section")
+    expect(words).to_have_css("cursor", "pointer")
     moves["⌥ up"] = restyled(lambda: page.keyboard.up("Alt"))
-    assert page.evaluate(cursor, at) == "auto"
+    expect(aimed).to_have_count(0)
     moves["picker open"] = restyled(lambda: page.keyboard.press("s"))
-    assert page.evaluate(cursor, at) == "default"
+    expect(aimed).to_have_id("section")
     moves["picker close"] = restyled(lambda: page.keyboard.press("Escape"))
     moves["Design mode in"] = restyled(lambda: page.keyboard.press("l"))
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     moves["Design mode out"] = restyled(lambda: page.keyboard.press("Escape"))
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
-    page.mouse.move(*words(page.locator("#section p").nth(3)))
-    moves["⌥ down over an item"] = restyled(lambda: page.keyboard.down("Alt"))
-    expect(page.locator("[data-lf-aimed]")).to_have_id("section")
-    moves["⌥ up over an item"] = restyled(lambda: page.keyboard.up("Alt"))
-    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     assert max(moves.values()) < whole / 4, {**moves, "whole page": whole}
 
 

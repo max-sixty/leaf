@@ -13,11 +13,9 @@ from render_harness import (
     before_landing_frame,
     open_page,
     scroll_settled,
-    sending,
     write,
 )
 
-from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
@@ -30,9 +28,10 @@ from leaf_dev.browser import slow_cpu
 def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     browser, serve, existing_reply, resume_before_scroll
 ):
-    """A chrome thread is a destination; an earlier draft follows its own passage.
+    """A chrome thread is a destination; an earlier draft stays with its own passage.
 
-    Resume returns its words and caret before Comment answers the current thread.
+    Resume returns its words and caret before Comment answers the current thread, and
+    Comment there opens the thread's own reply draft.
     """
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     if not resume_before_scroll:
@@ -102,29 +101,15 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     expect(thread).to_be_focused()
     expect(page.locator("#p3")).not_to_be_in_viewport()
     expect(earlier).not_to_be_in_viewport()
+    # Comment in the thread opens the thread's own reply draft, and the earlier words
+    # stay with Paragraph 3, where Resume writing still leads.
     page.keyboard.press("c")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", existing_reply or words)
-    if existing_reply:
-        page.keyboard.press("Escape")
-        page.keyboard.press("g")
-        page.keyboard.press("i")
-        expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
-    else:
-        page.keyboard.press("Escape")
-        page.keyboard.press("g")
-        page.keyboard.press("i")
-        reply = page.locator("leaf-text[name=reply]:focus")
-        expect(reply).to_be_focused()
-        expect(reply).to_have_js_property("value", words)
-        expect(reply).to_have_js_property("selectionStart", 1)
-        with sending(page, "carried reply"):
-            page.keyboard.press("Enter")
-        replies = [
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "reply"
-        ]
-        assert [event["text"] for event in replies] == [words]
+    expect(reply).to_have_js_property("value", existing_reply)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(earlier).to_be_focused()
+    expect(earlier).to_have_js_property("value", words)
+    expect(earlier).to_have_attribute("aria-label", re.compile("Paragraph 3"))

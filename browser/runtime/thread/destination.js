@@ -74,7 +74,7 @@ import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { discussed } from "./model.js";
+import { deleted, discussed, editable } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -566,11 +566,16 @@ export function createThreadDestinations({
     return card ? openMessageEditIn(card, name) : null;
   }
   // The thread a thread-held draft is written under: the thread a reply is keyed by, or
-  // the one holding the message a rewrite is of; none once it has left the log's reading.
+  // the one holding the message a rewrite is of; none once it has left the log's
+  // reading, and none for a rewrite of a message the user may no longer rewrite, as one
+  // taken back while an answer stands on it, which opens no editor.
   /** @param {string} context */
   function threadHolding(context) {
     const route = threadDraft(context);
-    return route ? threadNamed(route.name) : null;
+    const thread = route ? threadNamed(route.name) : null;
+    if (!thread || route?.part !== "rewrite") return thread;
+    const message = thread.msgs.find(({ id }) => id === route.name);
+    return message && editable(message) && !deleted(message) ? thread : null;
   }
 
   return {

@@ -1051,6 +1051,16 @@ def hover_step(tab: Tab) -> None:
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
+def design_key(tab: Tab) -> None:
+    """Enter Design mode, or leave it."""
+    tab.page.keyboard.press("l")
+
+
+def draw_key(tab: Tab) -> None:
+    """Enter Draw mode, or leave it."""
+    tab.page.keyboard.press("w")
+
+
 def aim_at_title(tab: Tab) -> Goals:
     title = tab.page.locator("h1").first
     title.scroll_into_view_if_needed()
@@ -1360,9 +1370,11 @@ def search_word(tab: Tab) -> None:
 # Every input, in the order a pass takes them. Those that open the panel's views or
 # add threads and to-dos to the page come after those on the page's own content, and
 # a selection after any revision, which the runtime holds back while the user's
-# selection stands beside what it changes. Those that open tabs come after every
-# input on the document first shown, and a search before `browse`, since each tab
-# `browse` opens keeps its colour, which every later input would meet.
+# selection stands beside what it changes. Design mode and Draw mode are each entered
+# and left with the pointer resting on the page's content, before any input adds a
+# mark or opens a tab. Those that open tabs come after every input on the document
+# first shown, and a search before `browse`, since each tab `browse` opens keeps its
+# colour, which every later input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,
@@ -1378,6 +1390,8 @@ INPUTS: dict[str, Input] = {
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "design": Input(design_key, 2, halfway, each=False, after=400),
+    "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "data": Input(
         agent_data,
         2,

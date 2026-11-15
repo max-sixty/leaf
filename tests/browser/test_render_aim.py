@@ -3161,6 +3161,76 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     _label_stands_on_the_aim(page, p)
 
 
+def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
+    """A legend box takes the corners of what it names, read once the element shows.
+    Chromium answers a style read inside a closed tab by styling everything the tab
+    holds, and on a page of thirty text documents in closed tabs entering Design mode
+    the first time took 38 s (design.js, `paintLegend`). The box of what the tab holds
+    takes its corners once the tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two"><p id="closed-words" '
+                'style="border-radius: 6px">Words in the closed tab.</p></lf-tab>'
+                "</lf-tabs>",
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      window.closedStyles = [];
+      const read = window.getComputedStyle;
+      window.getComputedStyle = function (element, ...rest) {
+        if (element?.parentElement?.closest('lf-tab[hidden]'))
+          closedStyles.push(element.localName);
+        return read.call(this, element, ...rest);
+      };
+    }""")
+    page.keyboard.press("l")
+    expect(page.locator('.lf-legend-box[data-lf-for="open-words"]')).to_be_visible()
+    assert page.evaluate("closedStyles") == []
+
+    # Design mode takes presses on the page, and the keyboard still opens the tab.
+    page.get_by_role("tab", name="Two", exact=True).focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#closed-words")).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="closed-words"]')).to_have_css(
+        "border-radius", "6px"
+    )
+
+
+def test_a_design_target_s_spoken_name_says_a_phrase_of_a_long_document(browser, serve):
+    """Over a text document, Design mode aims at its view, a picture whose own words
+    are the whole document. The name the picker speaks for it says a phrase of them:
+    read whole for each move of the pointer, a document of 50,000 lines took 1.5 s a
+    move in Firefox (anchor-resolution.js, `controlContext`)."""
+    lines = "".join(f"line {n} of the document\n" for n in range(3000))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Document",
+                '<lf-text-document id="doc" label="notes.txt">'
+                f"<pre>{lines}</pre></lf-text-document>",
+            )
+        ),
+    )
+    row = page.locator("#doc .lf-text-document-run > div").first
+    expect(row).to_be_visible()
+    label = page.evaluate(
+        """async () => {
+          const {aimTargetAt} = await window.__lfCheckApi();
+          const row = document.querySelector('#doc .lf-text-document-run > div');
+          return aimTargetAt(row, {design: true}).label;
+        }"""
+    )
+    assert "line 0 of the document" in label, label[:200]
+    assert len(label) < 1000, f"the name said all {len(label)} characters"
+
+
 def _label_stands_on_the_aim(page, target):
     """The design name stands on the aim's top-left corner, touching the outer edge of
     the outline `target` draws it as, so this still checks attachment when its gap

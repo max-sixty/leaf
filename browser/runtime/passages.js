@@ -1301,13 +1301,14 @@ export const says = (el, options = {}) => {
 };
 /** The start of what an element says, as `says` reads it, for a reader that shows no
  * more than that: read no further than `upTo` characters other than whitespace and, in
- * the lines format, `lines` line breaks (`textNodesUnder`). `cut` is whether a bound ended
- * it with words still to follow, so the reader can say the place runs on.
+ * the lines format, `lines` line breaks (`textNodesUnder`), leaving out the words of each
+ * element `skip` answers true for. `cut` is whether a bound ended it with words still to
+ * follow, so the reader can say the place runs on.
  * @param {Node} el
- * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number, lines?: number}} options
+ * @param {{format?: "prose" | "lines", drawn?: boolean, until?: Element | null, upTo?: number, lines?: number, skip?: ((element: Element) => boolean) | null}} options
  * @returns {{text: string, cut: boolean}} */
 export function excerpt(el, options) {
-  const segments = textNodesUnder(el, "says", null, options.format, options);
+  const segments = textNodesUnder(el, "says", options.skip, options.format, options);
   return {
     text: options.format === "lines" ? linesFrom(segments) : quoteFrom(segments),
     cut: segments.at(-1)?.cut === true,

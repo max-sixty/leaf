@@ -136,7 +136,7 @@ export function createDesignMode({
   // boxes cannot afford. So the box set is settled first, every box is measured and
   // placed (`place` reads them all before it writes), and only the tags are left.
   /** @typedef {{holder: Element | null, from: number}} LegendCut */
-  /** @typedef {{addressable: Element, box: HTMLDivElement, tag: HTMLSpanElement | null, radius: string, cuts: LegendCut[], tagW?: number}} LegendEntry */
+  /** @typedef {{addressable: Element, box: HTMLDivElement, tag: HTMLSpanElement | null, radius?: string, cuts: LegendCut[], tagW?: number}} LegendEntry */
   /** @type {Map<Element, LegendEntry>} */
   const legendBoxes = new Map(); // addressable → { box, radius, tagW, cuts }
   // The addressables in document order, as the last pass found them.
@@ -237,23 +237,25 @@ export function createDesignMode({
           ? null
           : el("span", "lf-legend-tag", designName(addressable));
         if (tag) box.append(tag);
-        entry = {
-          addressable,
-          box,
-          tag,
-          radius: getComputedStyle(addressable).borderRadius,
-          cuts: [],
-        };
+        entry = { addressable, box, tag, cuts: [] };
         legendBoxes.set(addressable, entry);
         legendSizes.observe(addressable);
       }
       entries.push(entry);
     }
-    // Hidden targets retain their frames until scrolling brings them back.
-    const shown = entries.filter(({ addressable }) => addressable.checkVisibility());
+    // Hidden targets retain their frames until scrolling brings them back. A box takes
+    // its element's corners, read once the element shows: Chromium answers a style read
+    // inside a closed tab by styling everything the tab holds, which took 38 s on a page
+    // of thirty text documents in closed tabs.
+    const shown = entries
+      .filter(({ addressable }) => addressable.checkVisibility())
+      .map((entry) => ({
+        entry,
+        radius: (entry.radius ??= getComputedStyle(entry.addressable).borderRadius),
+      }));
     const placed = legend
       .place(
-        shown.map(({ addressable, box }) => ({
+        shown.map(({ entry: { addressable, box } }) => ({
           node: box,
           target: addressable,
           rect: ({ rect }) => ({
@@ -265,9 +267,9 @@ export function createDesignMode({
         })),
       )
       .values();
-    for (const entry of shown) {
-      if (entry.box.style.borderRadius !== entry.radius)
-        entry.box.style.borderRadius = entry.radius;
+    for (const { entry, radius } of shown) {
+      if (entry.box.style.borderRadius !== radius)
+        entry.box.style.borderRadius = radius;
       const placement = placed.next().value;
       entry.cuts = (placement?.levels ?? [])
         .filter(({ axes }) => axes.y)

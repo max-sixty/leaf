@@ -261,8 +261,9 @@ jobs:
           { echo '```'; cat .tmp/bench-report/browser.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       # #4781's tabs of large text documents, reading only the inputs that need its
-      # tabs and sources, which keeps it to minutes; the `document` page's text grows
-      # under every other input.
+      # tabs and sources and the modes whose cost grew with every document's lines,
+      # which keeps it to minutes; the `document` page's text grows under every other
+      # input.
       - name: Measure the documents page in the browser
         if: success() || failure()
         timeout-minutes: 30
@@ -270,6 +271,7 @@ jobs:
         run: |
           mkdir -p .tmp/bench-report
           uv run leaf-dev bench documents --sizes 64,128,256 --rounds 2 \
+            --input design --input draw \
             --input data --input reveal --input search --input matches --input browse \
             | tee .tmp/bench-report/documents.txt
           { echo '```'; cat .tmp/bench-report/documents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

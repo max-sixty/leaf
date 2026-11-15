@@ -98,24 +98,28 @@ body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
 /* Region capture and draw mode take presses on the whole plane. Region capture's
-   crosshair is important over whatever cursor the page states; draw mode's, which
-   spares Leaf's surfaces, is shared with shadow trees (integration.css). */
+   crosshair is important over whatever cursor the page states; draw mode's stands on
+   the element under the pointer (integration.css). */
 html[data-lf-region-capture],
-html[data-lf-region-capture] body,
-html[data-lf-draw-mode],
-html[data-lf-draw-mode] body {
+html[data-lf-region-capture] body {
   cursor: crosshair;
 }
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
    moves about the page, so two fingers still pan and zoom it there; a second finger
-   landing takes back the stroke the first began (drawing.js, `begin`). */
+   landing takes back the stroke the first began (drawing.js, `begin`). Draw mode
+   states it on the root alone, and only where a finger can reach the page, since
+   touch-action decides nothing for a mouse: Firefox updates every box of the page
+   when the root's changes, 24 to 90 ms each way on a page of thirty text documents,
+   and a rule for `body` beneath the root's attribute made it visit every element
+   besides. */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body {
   touch-action: none;
 }
-html[data-lf-draw-mode],
-html[data-lf-draw-mode] body {
-  touch-action: pinch-zoom;
+@media (any-pointer: coarse) {
+  html[data-lf-draw-mode] {
+    touch-action: pinch-zoom;
+  }
 }
 html[data-lf-region-capture]
   body

@@ -18,7 +18,7 @@ import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-upgrade.js";
 import { keepsOnOne, keepsText } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { closestAcross, elementFromPointAcross } from "./passages.js";
+import { closestAcross, elementFromPointAcross, leafSurface } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
@@ -27,6 +27,7 @@ import { WORKS } from "./control-selectors.js";
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
+ * drawModeActive: () => boolean,
  * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
  * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],
@@ -37,6 +38,7 @@ export function createPageGeometry({
   aim,
   pointer,
   designMode,
+  drawModeActive,
   targetPaint,
   shiftDrawings,
   queueLegend,
@@ -62,14 +64,23 @@ export function createPageGeometry({
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
   // The hand where an armed press takes an item stands on the element under the pointer
   // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
-  // element holds rather than all `body` does; a control keeps its own cursor.
+  // element holds rather than all `body` does; a control keeps its own cursor. Draw
+  // mode's crosshair stands there too (integration.css), on the element inside a
+  // widget's tree where the pointer is over one, so a widget's control shows it, and
+  // never on Leaf's own surfaces, which keep their gestures and their cursors.
   const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
+  const paintCrosshair = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.drawAt);
   function refreshAim() {
     const target = aimTarget();
     const aimed = target?.element ?? null;
     const at = pointer();
-    const takes = aimed && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
+    const under =
+      (aimed || drawModeActive()) && at.x >= 0
+        ? elementFromPointAcross(at.x, at.y)
+        : null;
+    const takes = aimed && !closestAcross(under, WORKS);
     paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
+    paintCrosshair(drawModeActive() && under && !leafSurface(under) ? under : null);
     const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();
@@ -146,6 +157,8 @@ export function createPageGeometry({
     actionFrame = 0;
     targetPaint.clearAim();
     paintInspect(null);
+    paintItemHand(null);
+    paintCrosshair(null);
   }
 
   return {

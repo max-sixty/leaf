@@ -931,6 +931,32 @@ def long_press(page, point):
     )
 
 
+def cursor_at(page, x, y):
+    """The cursor the user sees at a point of the viewport: the computed cursor of the
+    element a press there lands on, through every open shadow tree it crosses, since
+    the runtime paints a cursor on that element and no other (page-geometry.js)."""
+    return page.evaluate(
+        """([x, y]) => {
+          let at = document.elementFromPoint(x, y);
+          while (at?.shadowRoot) {
+            const inner = at.shadowRoot.elementFromPoint(x, y);
+            if (!inner || inner === at) break;
+            at = inner;
+          }
+          return getComputedStyle(at).cursor;
+        }""",
+        [x, y],
+    )
+
+
+def cursor_over(page, locator):
+    """Rest the pointer over the middle of `locator`, as a hover does, and return the
+    cursor the user sees there (`cursor_at`)."""
+    locator.hover()
+    box = locator.bounding_box()
+    return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000

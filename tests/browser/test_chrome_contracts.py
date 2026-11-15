@@ -279,14 +279,15 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
     assert max(opening, closing) < whole / 4, moves
 
 
-def test_arming_the_page_restyles_only_what_the_pointer_is_over(browser, serve):
+def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     """Holding ⌥, the target picker and Design mode arm the page, and over an item the
-    hand and the aim's box say a press takes it. An arrow on `body` for the words no
-    item holds restyled every element each time the page armed or disarmed, 1.0 to
-    1.2 s in Firefox on a page of thirty 4 MB text documents. The box's veil, which
-    inherited, restyled all the item held, 370 ms over one of those documents (base.css,
-    `--lf-aim-veil`). Counted in the browser's own restyled elements, against a restyle
-    of the whole page."""
+    hand and the aim's box say a press takes it; in Draw mode the crosshair says a
+    press draws. An arrow on `body` for the words no item holds restyled every element
+    each time the page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty
+    4 MB text documents, and Draw mode's crosshair on every element 2.3 to 4.8 s. The
+    box's veil, which inherited, restyled all the item held, 370 ms over one of those
+    documents (base.css, `--lf-aim-veil`). Counted in the browser's own restyled
+    elements, against a restyle of the whole page."""
     paragraphs = "".join(f"<p>Paragraph {i} of the section.</p>" for i in range(600))
     page = open_page(
         browser,
@@ -324,6 +325,10 @@ def test_arming_the_page_restyles_only_what_the_pointer_is_over(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     moves["Design mode out"] = restyled(lambda: page.keyboard.press("Escape"))
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    moves["Draw mode in"] = restyled(lambda: page.keyboard.press("w"))
+    expect(words).to_have_css("cursor", "crosshair")
+    moves["Draw mode out"] = restyled(lambda: page.keyboard.press("Escape"))
+    expect(root).not_to_have_attribute("data-lf-draw-mode", "")
     assert max(moves.values()) < whole / 4, {**moves, "whole page": whole}
 
 

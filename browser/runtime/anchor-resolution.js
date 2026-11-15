@@ -46,7 +46,7 @@ import {
   spanIn,
   DATUM,
   elementById,
-  elementReading,
+  excerpt,
   findQuote,
   fileModelsPassage,
   inChrome,
@@ -498,8 +498,20 @@ const namedParts = (owner, name) =>
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
+// The most of its block's and its own words, other than whitespace, a control's spoken
+// context reads, as much as a preview shows of a paragraph (place-preview.js). A
+// picture can be its own block, as a text document's view is, and reading all of one
+// took 1.5 s in Firefox for each move of the pointer over a document of 50,000 lines in
+// Design mode.
+const CONTEXT_READ = 280;
+/** @param {Element} element @param {((element: Element) => boolean) | null} [skip] */
+const contextWords = (element, skip = null) => {
+  const said = excerpt(element, { upTo: CONTEXT_READ, skip });
+  return said.cut ? `${said.text}…` : said.text;
+};
 // Spoken context includes prose and this control's visible face, never a neighbour's
-// label. The shared block prose is read once per inventory; chosen capture stays lazy.
+// label. The shared block prose is read once per inventory, stepping over every
+// control; chosen capture stays lazy.
 /** @param {Element} control @param {Map<Element, string>} contexts */
 function controlContext(control, contexts) {
   const block = blockAt(control);
@@ -507,11 +519,11 @@ function controlContext(control, contexts) {
   if (!contexts.has(block))
     contexts.set(
       block,
-      quoteFrom(
-        textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS)),
-      ),
+      closestAcross(block, WORKS)
+        ? ""
+        : contextWords(block, (element) => element.matches(WORKS)),
     );
-  return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
+  return [contexts.get(block), contextWords(control)].filter(Boolean).join(" ");
 }
 // Keep inline emphasis in one label passage, but never cross the nested field's
 // words or native box to pretend its options are part of the visible label.

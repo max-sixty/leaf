@@ -189,11 +189,8 @@ last request.
 The fork thinks at the session's own effort, and the check's reference asks it to
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. From 2026-11-04 to 2026-11-14 the fork
-asked for `low` effort instead, which kept the cache only where Claude Code's
-per-message effort reaches the model. Elsewhere, as on Vertex, a low fork wrote the
-whole conversation to the cache again (#5891, #5904), and the hooks module learned
-that per backend from each check's usage (#5892, #5907): a stored answer, a rewrite
-to learn it and another to check it again each week. On the 15 turn-end cases of
+asked for `low` effort instead, which can cost a rewrite of the conversation to the
+cache (`runFork` in `hooks/claude-code.ts` says when). On the 15 turn-end cases of
 `leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
 answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
 output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements

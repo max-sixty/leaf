@@ -2424,14 +2424,18 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 only_if_unclaimed=False,
                 claimed_session=session_id,
             )
+        # The failed pickup names every input the receipt passes, as every receipt's
+        # pickup does, so input the cursor passed that no pickup names is input a
+        # holder kept from the main thread (`delivery.deliverable`). On an input the
+        # failure answer settled it changes nothing: only an action still owed reads
+        # a failed pickup (`workflows`).
         with (
             PageTransaction(page_dir) as page,
             receive_batch(page, batch, session_id=session_id) as events,
         ):
-            owed = current_responses(page_dir, page.events)
             record_pickup(
                 page,
-                [event for event in events if event["id"] in owed],
+                list(events),
                 phase="failed",
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,

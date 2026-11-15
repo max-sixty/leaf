@@ -38,6 +38,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
+from leaf import holding as holding_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -46,6 +47,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.events import build_threads
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
 
@@ -418,7 +420,8 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_closed": None,
         "turn_takes_input": False,
         "agent_turns": {},
-        "kept_back": [],
+        "fork_lane": None,
+        "handed": [],
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -451,7 +454,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
-        holding=activity_model.present_holding(present, events, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
@@ -464,7 +469,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
-        holding=activity_model.present_holding(present, events, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -502,7 +509,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
-        holding=activity_model.present_holding(present, events, now.isoformat()),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 

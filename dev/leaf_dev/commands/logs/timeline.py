@@ -61,8 +61,8 @@ import click
 
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
-from leaf.events import is_answer
-from leaf.holding import reading
+from leaf.events import build_threads, is_answer
+from leaf.holding import reading, rounds
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import (
@@ -401,7 +401,14 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
-    holding = reading(events, session, turns, running, live=session_live(record))
+    holding = reading(
+        events,
+        session,
+        turns,
+        running,
+        live=session_live(record),
+        found=rounds(events, build_threads(events, {})),
+    )
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
         took = sorted(holding.took.get(turn, ()))

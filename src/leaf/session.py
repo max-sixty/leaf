@@ -786,7 +786,7 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            frozenset(running_turns(agent_turn_stamps(claim)))
+            frozenset(running_turns(agent_turn_stamps(claim, page.events)))
             if claim
             else frozenset(),
         )

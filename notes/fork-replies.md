@@ -390,8 +390,9 @@ them, `clerk` and the new `agent-turns`, start at 44.
    Follow-ups are built, behind the same flag. Where a thread's last answer names a
    fork's turn that has closed in the session's present generation
    (`forks._resumable`), the take opens a new turn and records its pickup while the
-   thread is still kept back, as a first take does. The module then resumes the fork
-   by its agent id, and names the turn with it (`forks.started`), with Leaf's message
+   thread is still kept back, as a first take does, naming the turn with the fork's
+   agent id as it opens it. The module then resumes the fork by that id, with Leaf's
+   message
    (`forks.resume_prompt`): the thread's delivery, and an instruction to read
    `leaf page state` before answering, since the fork's transcript holds what the
    session had done when that turn began, and nothing it did while the fork ran. A correction the main

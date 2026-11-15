@@ -57,7 +57,7 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
-    "kept_back": [],
+    "handed": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,

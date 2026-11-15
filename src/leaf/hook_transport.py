@@ -447,8 +447,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
-    (`holding.pickable`).
+    Debt the main thread doesn't owe, which a running fork or the line fork holds,
+    is theirs, so the pickup leaves it out (`holding.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page

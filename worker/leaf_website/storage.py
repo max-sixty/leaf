@@ -38,6 +38,7 @@ from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from leaf.files import latest_revision, revision_path
+from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
@@ -268,13 +269,10 @@ def _responses(
     for item, artifact in snapshot.artifacts.items():
         if item in published:
             continue
-        name = snapshot.revision_names[item]
-        paths.add(f"revisions/{name}")
-        # Where the container serves the revision's resources: under the identity of
-        # the runtime and layer it executes (`http.PageEndpoint._named_root`).
-        served = (
-            f"revisions/{name.removesuffix('.html')}/{execution_identity(artifact)}"
-        )
+        paths.add(f"revisions/{snapshot.revision_names[item]}")
+        # Where the container serves the revision's resources, which the revisions
+        # that differ only in their document share.
+        served = assets_path(execution_identity(artifact)).lstrip("/")
         for logical in set(executing(artifact).resources) | set(
             artifact.widget_aliases
         ):

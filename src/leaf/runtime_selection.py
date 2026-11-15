@@ -18,11 +18,16 @@ update replaces the installed tree under a running server, and a server must kee
 answering a document's later imports with the bytes its first ones came from.
 
 `identity` is a digest of every runtime input, so a restart of the same build keeps
-it and any runtime change moves it. A host addresses the resources a document runs
-with under it (`http.PageEndpoint._document_asset_root`), so an immutable cached
-address never names other bytes, and a served document and every answer name it, so a
+it and any runtime change moves it. A served document and every answer name it, so a
 tab from before a restart under another runtime refuses the answer and reloads rather
 than reading a newer server's state with older code (`runtime/layer-client.js`).
+
+An execution's identity (`executing`) covers every byte a page server answers under
+the address it gives the execution's resources (`http.assets_path`): the runtime, the
+composed layer and vocabulary, and the files the revision captured. So a cached
+address never names other bytes. The identity covers nothing of the document itself,
+so the revisions an agent saves as it edits a page's prose share one address, and a
+reload after one of them fetches none of the runtime again.
 
 A package may add modules beside the runtime's and replace a vendor module of the
 kernel's (`layer.compose_layer` refuses one replacing a private runtime module), so a
@@ -60,6 +65,7 @@ from .schema import (
     BROWSER_DIRS,
     KERNEL,
     KERNEL_FILES,
+    MEDIA_DIR,
     PACKAGE_FILES,
     RUNTIME_DIRS,
     RUNTIME_ENTRY,
@@ -238,7 +244,7 @@ def serving_runtime() -> ServingRuntime:
 
 
 def execution_identity(artifact: RevisionArtifact) -> str:
-    """The identity of the same runtime and layer that supplies the artifact's bytes."""
+    """The identity of every byte the artifact's execution serves (`executing`)."""
     return executing(artifact).identity
 
 
@@ -270,7 +276,8 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     if isinstance(artifact, _ExecutingArtifact):
         return artifact
     runtime = serving_runtime()
-    record = json.loads(artifact.manifest)["layer"]
+    manifest = json.loads(artifact.manifest)
+    record = manifest["layer"]
     composition = selected(record, artifact.page_dir)
     held = runtime._executed.get(artifact)
     if held is not None and held[0] is composition:
@@ -283,17 +290,32 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     # copy. Read this execution's vocabulary against the selected composition.
     declarations = artifact.resources.get(PAGE_DECLARATIONS)
     registry = revision_vocabulary(
-        json.loads(artifact.manifest),
+        manifest,
         declarations.data if declarations is not None else None,
         artifact.page_dir,
     )
     layer["/registry.json"] = Resource(json_bytes(registry), "application/json")
     # Agent instructions belong to the composition's fingerprint, but only the
-    # browser's bytes belong to its immutable resource address.
+    # browser's bytes belong to its immutable resource address. The revision's
+    # captured files are served at the same address, so the identity covers each by
+    # the digest its manifest records, and covers each widget alias, whose module
+    # names its implementation at that address. Media answers at the page root under
+    # a name that is its own digest, so the identity leaves it out, and a revision
+    # that adds an image keeps the address.
     identity = files_identity(
         {
             "runtime": runtime.identity.encode(),
             **{path: resource.data for path, resource in layer.items()},
+            **{
+                f"capture:{path}": captured["digest"].encode()
+                for path, captured in manifest["resources"].items()
+                if not path.startswith(f"/{MEDIA_DIR}/")
+            },
+            **{
+                f"alias:{alias}": source.encode()
+                for alias, source in artifact.widget_aliases.items()
+                if alias != source
+            },
         }
     ).removeprefix("sha256:")[:16]
     # Samples re-compose in their own directory. Keep just the local package

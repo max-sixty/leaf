@@ -50,6 +50,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.http import assets_path
 from leaf.registry import storage as registry_storage
 from leaf.runtime_selection import executing, execution_identity, serving_runtime
 from leaf_dev.page_fixtures import package_selection_args
@@ -1469,11 +1470,7 @@ def test_a_frozen_preview_keeps_package_bytes_and_addresses_after_reinit(tmp_pat
     with hosting_model.TemporaryPageServer(
         page, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
-        root = (
-            "/revisions/"
-            + snapshot.revision_names[1].removesuffix(".html")
-            + f"/{identity}"
-        )
+        root = assets_path(identity)
         status, document = fetch(preview.origin + "/")
         assert status == 200
         assert (root + "/theme.css").encode() in document

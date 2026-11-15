@@ -50,6 +50,7 @@ from interact_support import (
     declare_on_page,
     declare_work,
     fetch,
+    fresh_process,
     live_versions,
     neighbour_page,
     page_packages,
@@ -1747,12 +1748,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     server, page_dir
 ):
-    """A revision's resources are named by its digest and the runtime's identity, and
-    page media by a digest of its bytes, so the browser keeps them for every document
-    that names them, a gallery's live samples and later revisions included. The
-    document and the page's state may be stored, which lets the back/forward cache
-    keep the page, but each reuse asks what the page is now, and so does a path under
-    either namespace that names nothing, or names a runtime this server does not run."""
+    """A revision's resources are named by the identity of every byte served
+    beneath them, and page media by a digest of its bytes, so the browser keeps them
+    for every document that names them, a gallery's live samples and later revisions
+    included. The document and the page's state may be stored, which lets the
+    back/forward cache keep the page, but each reuse asks what the page is now, and so
+    does a path under either namespace that names nothing, or names an identity no
+    revision executes under here, such as one from another runtime."""
     media = media_model.cmd_media(page_dir, [example_media() / "051bee487bfb5d13.png"])
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
@@ -1773,8 +1775,48 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
-    assert cache_control(f"{revision}/0123456789abcdef/leaf.js") == (404, "no-cache")
+    assert cache_control("/revisions/0123456789abcdef/leaf.js") == (404, "no-cache")
     assert cache_control(f"{revision}/leaf.js") == (404, "no-cache")
+
+
+def test_revisions_that_change_only_their_document_share_their_resources(
+    server, page_dir
+):
+    """An agent saves a revision at each edit, and a reload fetches again every
+    resource whose address moved, which was the whole runtime, about 8 MB, while the
+    address named the revision. Revisions that capture the same files share one
+    address. A revision whose page module changed gets another, and the earlier
+    address still answers with the bytes it named, for a tab still showing that
+    revision, after a restart too."""
+    module = page_dir / "page" / "app.js"
+    module.parent.mkdir(exist_ok=True)
+    module.write_text('document.title = "First";')
+    page = PAGE.replace(
+        "</head>", '<script type="module" src="./page/app.js"></script></head>'
+    )
+    (page_dir / "index.html").write_text(page)
+
+    def served_root():
+        body = fetch(server + "/")[1]
+        match = re.search(rb'data-lf-entry="([^"]+)/leaf\.js"', body)
+        assert match is not None
+        return match[1].decode()
+
+    first = served_root()
+    revision = files_model.latest_revision(page_dir)
+    assert revision is not None
+    (page_dir / "index.html").write_text(
+        page.replace("<h2>Plan</h2>", "<h2>The plan, restated</h2>")
+    )
+    assert served_root() == first
+    assert files_model.latest_revision(page_dir) == revision + 1
+
+    module.write_text('document.title = "Second";')
+    second = served_root()
+    assert second != first
+    assert fetch(server + second + "/page/app.js")[1] == b'document.title = "Second";'
+    with fresh_process():
+        assert fetch(server + first + "/page/app.js")[1] == b'document.title = "First";'
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
@@ -4117,11 +4159,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
         page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
     ) as preview:
         assert checked.artifact is not None
-        root = (
-            "/revisions/"
-            + snapshot.revision_names[revision].removesuffix(".html")
-            + f"/{execution_identity(checked.artifact)}"
-        )
+        root = http_model.assets_path(execution_identity(checked.artifact))
         status, document = fetch(preview.origin + "/")
         assert status == 200
         assert f'src="{root}/page/app.js"'.encode() in document

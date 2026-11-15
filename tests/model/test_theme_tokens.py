@@ -24,8 +24,8 @@ DECLARED = re.compile(
     r"(?<![\w-])(--[A-Za-z0-9_-]+)\s*:|@property\s+(--[A-Za-z0-9_-]+)"
 )
 COMMENT = re.compile(r"/\*.*?\*/", re.S)
-# A property a module names in a string of its own, which is how one sets it.
-SET_BY_NAME = re.compile(r"[\"'`](--lf-[a-z0-9-]+)[\"'`]")
+# A stylesheet's or a module's comments, which name properties without using them.
+CODE_COMMENT = re.compile(r"/\*.*?\*/|(?<![:\"'`])//[^\n]*", re.S)
 
 
 def sheets():
@@ -120,18 +120,22 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
     )
 
 
-def test_every_token_a_reference_names_exists():
-    """A reference that names a property nothing declares teaches a rule that does
-    nothing: `var()` of an unset property makes its whole declaration invalid, with no
-    error an author would see. A sheet declares a property, and a module or delivery
-    sets one by naming it in a string of its own, as `setProperty("--lf-top", …)` does;
-    a module's `var(--lf-paper)` only reads it."""
-    known = set()
-    for sheet in sheets():
-        known |= declared(sheet.read_text())
+def test_every_token_a_reference_names_is_one_leaf_uses():
+    """The references' tokens are the contract an author reads, so each names a property
+    Leaf's own code knows: one a sheet declares or reads, as it reads an author's
+    `--lf-bound`, or one a module sets or reads by name. A name nothing uses is a
+    renamed or removed token the prose still teaches, and a rule written from it does
+    nothing, with no error its author would see. Whether each property a sheet reads
+    is also set is `test_every_token_a_sheet_reads_is_set_somewhere`'s to hold."""
+    used = set()
     sources = (ASSETS, BUNDLED_PACKAGES, PLUGIN_ROOT / "src/leaf")
-    for module in sorted(path for root in sources for path in root.rglob("*")):
-        if module.suffix in {".js", ".py"} and "vendor" not in module.parts:
-            known |= set(SET_BY_NAME.findall(module.read_text()))
-    missing = sorted(documented() - known)
-    assert not missing, f"the references name properties nothing declares: {missing}"
+    for source in sorted(path for root in sources for path in root.rglob("*")):
+        if source.suffix in {".css", ".js", ".py"} and "vendor" not in source.parts:
+            text = source.read_text()
+            used |= set(
+                NAME.findall(
+                    text if source.suffix == ".py" else CODE_COMMENT.sub("", text)
+                )
+            )
+    unused = sorted(documented() - used)
+    assert not unused, f"the references name properties Leaf never uses: {unused}"

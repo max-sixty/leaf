@@ -196,10 +196,11 @@ FITTED = 3
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
 # A held reading's floor is this share of its own reading on the BASE page, as a server
-# path's is its own (`server_paths.floors`). A keystroke's CPU is a few ms, less than
-# the load's share, so a floor from the load would hide its doubling. In the daily
-# runs of 2026-11-12 to 14, an input's CPU differed between two rounds by a median of
-# 4%, and by 18% at the 90th percentile.
+# path's is its own (`server_paths.floors`), and a held count's is at least one. A
+# keystroke's CPU is a few ms, less than the load's share, so a floor from the load
+# would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
+# fixed 10 KB. In the daily runs of 2026-11-12 to 14, an input's CPU differed between
+# two rounds by a median of 4%, and by 18% at the 90th percentile.
 HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
@@ -238,9 +239,10 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
 DOCUMENT_STEPS = 1024
 # A word every line of `steps` holds, which `matches` searches for.
 WORD = "value"
-# What the inputs on `side_documents`' pages need: documents in tabs, each bound to a
-# source an agent writes.
-DOCUMENTS = "lf-tabs lf-text-document[source]"
+# What the inputs on `side_documents`' pages need: its tab list and first document,
+# bound to a source, by the ids the page gives them, which the inputs find the other
+# tabs and documents by.
+DOCUMENTS = "#docs #d0[source]"
 
 # Leave nothing focused, put the scroller under the window's centre halfway down, less
 # half of `band`: the page, then any scroller inside it there, as a text document's
@@ -284,7 +286,7 @@ TAB_CONTROL = """(panel) => {
 }"""
 # The number of the document `side_documents` shows, in the tab open now.
 SHOWN_DOCUMENT = """() => Number(document
-  .querySelector('[role=tab][aria-selected="true"]')
+  .querySelector('#docs [role=tab][aria-selected="true"]')
   .getAttribute("aria-controls").slice(1))"""
 # Whether document `d`'s first line shows in its syntax colour.
 COLOURED = """(d) => {
@@ -472,10 +474,10 @@ def document_lines(n: int) -> str:
 
 
 def documents(n: int) -> int:
-    """How many documents `side_documents(n)` holds: the one shown, and one in a
-    closed tab for each eight of `n`, so the BASE page has a closed tab to open and
-    256 holds about #4781's thirty."""
-    return 1 + max(1, n // 8)
+    """How many documents `side_documents(n)` holds: the one shown, one in a closed
+    tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
+    `reveal` opens and 256 holds about #4781's thirty."""
+    return 2 + n // 8
 
 
 def side_documents(n: int) -> str:
@@ -911,9 +913,9 @@ class BenchPage:
         """Run the arm's `leaf` with `args` and return when it first changed `file`,
         by default the page's log, in epoch milliseconds: the write itself, whatever
         the command spent starting up before it."""
-        log = file or self.served.directory / "events.jsonl"
+        file = file or self.served.directory / "events.jsonl"
         command = [str(self.served.arm / "bin" / "leaf"), *args]
-        before = log.stat().st_mtime_ns
+        before = file.stat().st_mtime_ns
         process = subprocess.Popen(
             command,
             env=environment(XDG_STATE_HOME=str(self.served.state)),
@@ -923,7 +925,7 @@ class BenchPage:
         )
         while True:
             exited = process.poll() is not None
-            written = log.stat().st_mtime_ns
+            written = file.stat().st_mtime_ns
             if written != before or exited:
                 break
             time.sleep(0.0005)
@@ -931,7 +933,7 @@ class BenchPage:
         if process.returncode or written == before:
             raise click.ClickException(
                 f"leaf {' '.join(args)} exited {process.returncode}, "
-                f"{'unchanged' if written == before else 'changed'} {log.name}:\n"
+                f"{'unchanged' if written == before else 'changed'} {file.name}:\n"
                 f"{output}"
             )
         return written / 1e6
@@ -1268,21 +1270,26 @@ def first_line(d: int) -> str:
 
 def aim_at_tab(tab: Tab) -> Goals:
     """Rest the mouse over the control of the second tab at the first sample and the
-    first at the next, each closed until it opens. The page finds the control
+    third at the next, each never opened. The page finds the control
     (`TAB_CONTROL`), as it finds everything on `side_documents`' pages, since a
     Playwright locator walks every element of a page for each query."""
-    d = (tab.sample + 1) % 2
+    d = tab.sample + 1
     tab.page.mouse.move(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))
     tab.quiet(600)
     return {"painted": ("shows", [first_line(d), ""])}
 
 
 def open_tabs(tab: Tab) -> Goals:
-    """Open every closed tab in turn, as a reader looks through the documents, each
-    once the last has drawn and coloured its lines in view (`COLOURED`), and ending
-    on the last; then rest the mouse over its listing halfway down (`halfway`), and
-    read how tall a run of its lines stands (`RUN_HEIGHT`), which a step scrolls."""
-    count = tab.page.evaluate("() => document.querySelectorAll('[role=tab]').length")
+    """Put away page search where an earlier input left it open, then open every
+    closed tab in turn, as a reader looks through the documents, each once the last
+    has drawn and coloured its lines in view (`COLOURED`), and ending on the last;
+    then rest the mouse over its listing halfway down (`halfway`), and read how tall
+    a run of its lines stands (`RUN_HEIGHT`), which a step scrolls."""
+    if tab.page.evaluate("() => window.__leafBench.met('searching')"):
+        tab.page.keyboard.press("Escape")
+    count = tab.page.evaluate(
+        "() => document.querySelectorAll('#docs [role=tab]').length"
+    )
     for d in range(1, count):
         tab.page.mouse.click(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))
         until(tab.page, COLOURED, "an opened tab's lines were never coloured", d)
@@ -1354,7 +1361,8 @@ def search_word(tab: Tab) -> None:
 # add threads and to-dos to the page come after those on the page's own content, and
 # a selection after any revision, which the runtime holds back while the user's
 # selection stands beside what it changes. Those that open tabs come after every
-# input on the document first shown, and a search, which the pass leaves open, last.
+# input on the document first shown, and a search before `browse`, since each tab
+# `browse` opens keeps its colour, which every later input would meet.
 INPUTS: dict[str, Input] = {
     "click": Input(
         press,
@@ -1408,11 +1416,11 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "browse": Input(run_step, 8, open_tabs, each=False, after=300, needs=DOCUMENTS),
     "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
     "matches": Input(
         search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
     ),
+    "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
 
 
@@ -2027,8 +2035,10 @@ def held(reading: str, readings: Container[str]) -> bool:
     the main-thread CPU of one the browser answers alone. An input that posted events
     on the page, which its `event` reading shows, or an agent's write, brings the
     server's reading of the page, and applying that may grow as computing it may. A
-    `whole` input's result is made of the page, so any of its readings may grow."""
-    name, _, measure = reading.rpartition(" ")
+    `whole` input's result is made of the page, so any of its readings may grow. A
+    reading names its input first, as `click event KB` does, the size of the answer
+    to the click's POST."""
+    name, *_, measure = reading.split()
     each = INPUTS.get(name)
     if each is None or each.whole:
         return False
@@ -2045,14 +2055,15 @@ def limit(reading: str, readings: Container[str]) -> float:
 
 def floor(reading: str, base: dict[str, float], readings: Container[str]) -> float:
     """`reading`'s noise floor (`exponent`), from `base`, the BASE page's readings of
-    the same run: a share of its load CPU for a time, of its own for a held one, and a
-    fixed floor for a size or a count. Without the load's CPU, a time has no floor,
-    and so no exponent."""
+    the same run: a share of its own for a held one, at least one of a count, a fixed
+    floor for any other size or count, and a share of the load's CPU for a time.
+    Without the load's CPU, a time has no floor, and so no exponent."""
     measure = reading.rsplit(" ", 1)[-1]
+    if held(reading, readings):
+        own = HELD_FLOOR_SHARE * base[reading]
+        return max(own, 1) if measure in COUNT_FLOORS else own
     if measure in COUNT_FLOORS:
         return COUNT_FLOORS[measure]
-    if held(reading, readings):
-        return HELD_FLOOR_SHARE * base[reading]
     share = FLOOR_SHARES["cpu" if measure == "cpu" else "elapsed"]
     return share * base["load cpu"] if "load cpu" in base else math.inf
 

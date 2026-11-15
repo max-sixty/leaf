@@ -476,6 +476,14 @@ export function createAnnotationInventory({
     return best?.ids ?? [];
   }
 
+  // Each collection builds every group on the page again from every record, and sorts
+  // them all, though a gesture changes few of them: about 10 ms a collection on the
+  // 1,024-section page `leaf-dev bench` generates, and sending a comment runs two. Not
+  // yet built: keep each group between collections while its records are the same
+  // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
+  // again only the groups that changed, and sort again only when that reading moves,
+  // placing a new group into the kept order. A collection would then cost what the
+  // gesture changed.
   function collectEntries() {
     /** @type {Groups} */
     const groups = new Map();

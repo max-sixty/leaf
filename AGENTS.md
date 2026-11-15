@@ -137,7 +137,7 @@ The repository is the plugin: `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json` name `./` as the payload, and
 `package.json`'s `pi` key makes it a Pi package. The payload is the whole
 repository, whether a harness copies it into a cache or loads it in place.
-Read an area's `AGENTS.md` before changing it.
+Read an area's `AGENTS.md` before changing or reviewing it.
 
 The **plugin root** is the installation and execution boundary: manifests register
 harness components there, and `bin/leaf` runs its uv project. The **skill root**,

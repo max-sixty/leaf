@@ -940,9 +940,10 @@ export function messageHolding(id) {
   return null;
 }
 
-// The element a coordinate names: the page's, else one a message keeps.
+// The element an id names: the page's, else one a message keeps, drawn or not.
 /** @param {string} id */
-const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
+export const addressableAt = (id) =>
+  elementById(id) ?? messageHolding(id)?.element ?? null;
 
 // What a coordinate names besides any words it quotes: a design subject, a datum, a
 // drawing's part or a section. A passage is named by its words alone.

@@ -27,12 +27,14 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    sending,
     show_done,
     told,
     watched,
 )
 
 from browser.navigation import expect_walk_position
+from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import panel_tab
 
@@ -828,6 +830,67 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
     done.click()
     round_trip(page)
     expect(page.locator("#tags .lf-done")).to_have_attribute("aria-pressed", "true")
+
+
+def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
+    """A choice the agent asks in a thread that isn't drawn stands on its On Me card,
+    in the message that asks it. With the card focused, digits pick its options, and
+    the pick is the same action a pick in the thread records. Done then names the
+    option, after the view is put away and after a reload, while the thread stays
+    undrawn. Until 15 November 2026 the card offered only Discuss and Show, and Done
+    said a bare Answered."""
+    url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
+    # As `leaf thread create --markup` writes it.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" choose>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#ship")).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("ArrowDown")
+    card = on_card(page, "widget:ship")
+    expect(card).to_be_focused()
+    expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
+    expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
+    with sending(page, "the pick"):
+        page.keyboard.press("1")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert (event["kind"], event["widget"], event["action"]) == (
+        "action",
+        "ship",
+        "choose",
+    ), event
+    assert event["detail"]["value"] == ["ship-friday"], event
+    expect(card.locator(".lf-fp-said")).to_have_text("Answered: Ship Friday")
+
+    def done_says():
+        open_on_me(page)
+        show_done(page)
+        expect(card).to_have_attribute("data-lf-list", "done")
+        expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+            "Answered: Ship Friday"
+        )
+
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    done_says()
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(page.locator("#ship")).to_have_count(0)
+    done_says()
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

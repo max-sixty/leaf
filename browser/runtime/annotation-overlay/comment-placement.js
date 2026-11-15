@@ -82,7 +82,15 @@
    view as scrolling approaches it. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. Only `makeRoom` scrolls, for a card opening under
-   or over its target (`size-page-still`).
+   or over its target (`size-page-still`). Opening lasts until the surface first
+   stands, and again until it stands after a landing the input that opened it makes
+   (scrolling.js, `chosenSince`): a walk opens its card before its landing brings the
+   card's words in from beyond the window, and a long card that chose over words below
+   the window was left covering them once they landed (2026-11-14). The room is read
+   where the landing leaves them, and a glide under way takes the move into its goal,
+   so the page lands once. A scroll a later input makes, or none does, such as a
+   keeper holding the reader's place, makes no room, so a card growing as an answer
+   arrives never moves the page.
 
    A surface may choose which edge of its last rectangle to hold (`edge`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
@@ -143,7 +151,16 @@ import {
   shownRect,
 } from "../geometry.js";
 import { clamp, union } from "../rect.js";
-import { moveScrollerBy, pageScroller, scrollLimit } from "../scrolling.js";
+import {
+  chosenSince,
+  glideTo,
+  moveScrollerBy,
+  pageScroller,
+  scrollChoices,
+  scrollGoal,
+  scrollLimit,
+} from "../scrolling.js";
+import { inputs } from "../inputs.js";
 
 import { scrollerFor } from "../reading-regions.js";
 import { pointBand } from "../pointed-place.js";
@@ -344,15 +361,14 @@ const vertical = (side) => side === "top" || side === "bottom";
 // Vertical room is read in viewport pixels, while the browser scrolls in local CSS
 // pixels. Project available travel through the scroller's actual transformed axis;
 // an inverted axis reverses which local end can expose room on the requested side.
-/** @param {Side} side @param {Element} scroller */
-function roomTravel(side, scroller) {
+// The travel is counted from `from`, the scroller's offset where it stands unless the
+// caller reads it where it is headed.
+/** @param {Side} side @param {Element} scroller @param {number} [from] */
+function roomTravel(side, scroller, from = scroller.scrollTop) {
   const projection = scrollAxes(scroller).y.y;
   const direction = side === "top" ? -1 : 1;
   const localDirection = direction * Math.sign(projection);
-  const local =
-    localDirection < 0
-      ? scroller.scrollTop
-      : Math.max(0, scrollLimit(scroller) - scroller.scrollTop);
+  const local = localDirection < 0 ? from : Math.max(0, scrollLimit(scroller) - from);
   return { projection, direction, available: local * Math.abs(projection) };
 }
 
@@ -378,20 +394,32 @@ function reachableRoom(side, extent, boundary, scroller) {
 // Scrolls `scroller` to make the room a surface `height` tall needs on `side` of `clear`,
 // under or over it, as far as the scroller travels; whether it moved. Where `extent`
 // and this surface cannot show together, no scroll makes that room. The boundary
-// then holds the surface over its subject instead of scrolling the subject away.
+// then holds the surface over its subject instead of scrolling the subject away. The
+// room is read where the scroller is headed (scrolling.js, `scrollGoal`), as a key
+// pressed while the page glides acts as though the glide had landed, and a glide under
+// way takes the move into its goal (`glideTo`), so the page lands once, with the room
+// made.
 /** @param {Side} side @param {Extent} clear @param {Extent} extent @param {number} height @param {Boundary} boundary @param {Element} scroller */
 export function makeRoom(side, clear, extent, height, boundary, scroller) {
   const gap = subjectGap();
   if (extent.height + gap + height > boundary.height) return false;
+  const goal = scrollGoal(scroller);
+  const { available: travel, projection, direction } = roomTravel(side, scroller, goal);
+  // How far the glide under way will still carry `clear` up the window.
+  const ahead = (goal - scroller.scrollTop) * projection;
   const overflow =
     side === "top"
-      ? boundary.top - (clear.top - gap - height)
-      : clear.bottom + gap + height - boundary.bottom;
-  const { available: travel, projection, direction } = roomTravel(side, scroller);
+      ? boundary.top - (clear.top - ahead - gap - height)
+      : clear.bottom - ahead + gap + height - boundary.bottom;
   const movement = Math.max(0, Math.min(overflow, travel));
   if (movement <= 0.5) return false;
+  const by = (direction * movement) / projection;
+  if (goal !== scroller.scrollTop) {
+    glideTo(scroller, goal + by);
+    return true;
+  }
   const before = scroller.scrollTop;
-  moveScrollerBy(scroller, (direction * movement) / projection);
+  moveScrollerBy(scroller, by);
   return Math.abs((scroller.scrollTop - before) * projection) > 0.5;
 }
 
@@ -497,10 +525,19 @@ export function commentPlacement() {
   // The tallest the surface has stood since its line last moved, and that line.
   /** @type {{height: number, line: number} | null} */
   let tallest = null;
+  // The input that opened the surface, and how many landings the reader had made when
+  // it last made room (scrolling.js, `scrollChoices`).
+  /** @type {{input: number, choices: number} | null} */
+  let opened = null;
+  // Whether that input has landed the page since, and no placement has stood the
+  // surface there yet.
+  let reopened = false;
   const forget = () => {
     side = null;
     inline = null;
     input = null;
+    opened = null;
+    reopened = false;
     pending = null;
     carriedInline = null;
     initialHold = null;
@@ -863,6 +900,9 @@ export function commentPlacement() {
           Math.abs(key.right - input.right) > 0.5)
       ) {
         forget();
+      } else if (!input && opened) {
+        // The scroll the surface asked for (`scrolled`) is no landing of the input's.
+        opened.choices = scrollChoices();
       }
       input = key;
       // A choice is fresh where it picks the side. The surface is opening until it
@@ -871,7 +911,14 @@ export function commentPlacement() {
       // only `opening` says it has yet to make room clear of its target. A choice after
       // the first keeps what that one began, such as the transcript's reading.
       const fresh = side === null;
-      const opening = held === null && initialHold === null;
+      // A landing the input that opened the surface made since, as a walk's is, takes
+      // its subject somewhere else after the surface first stood, so it makes room
+      // again there (`size-page-still`).
+      if (opened?.input === inputs.count && chosenSince(scroller, opened.choices)) {
+        opened.choices = scrollChoices();
+        reopened = true;
+      }
+      const opening = (held === null && initialHold === null) || reopened;
       side ??= unanchored
         ? "bottom"
         : commentSide({
@@ -882,6 +929,8 @@ export function commentPlacement() {
             scroller,
             coarse,
           });
+      if (fresh && !unanchored)
+        opened = { input: inputs.count, choices: scrollChoices() };
       return {
         side,
         fresh,
@@ -893,6 +942,7 @@ export function commentPlacement() {
     /** @param {Position} answer */
     landed({ x, y, middlewareData }) {
       initialHold = null;
+      reopened = false;
       const { scale, column, attachmentInline, line } = middlewareData.scaled;
       // A left-side surface keeps its right edge beside the target, so a change of its
       // room moves its left edge, never the edge by the words.

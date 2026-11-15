@@ -53,6 +53,7 @@ import {
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { paintLocation } from "../target-paint.js";
 import { scrollBehavior } from "../motion.js";
+import { bringBackSurfaceOf } from "../off-flow.js";
 import { OBLIGATION_CONTROL } from "./view-elements.js";
 import { obligationWord, ownedObligationControl } from "./answer.js";
 import { obligationAt, placeOf } from "../current-target.js";
@@ -657,6 +658,11 @@ export function createObligationView({
       },
       { intent: mayArrive, departure },
     );
+    // An obligation in a thread card's answer stands in a surface fixed over the page,
+    // which no scroll of the boxes around it moves, so the arrival brings the card back
+    // with it (off-flow.js), as Tab does reaching a control in it.
+    const here = arrived ? destination() : null;
+    if (here && !here.box) bringBackSurfaceOf(here.target);
     return arrived;
   }
 

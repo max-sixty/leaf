@@ -7,7 +7,8 @@
    would have revealed an ordinary control:
 
    - a landing in it (`bringBackSurfaceOf`), which `scrollThreadIntoView` makes for every
-     thread and the comment box makes when `c` enters it;
+     thread, the comment box makes when `c` enters it, and an obligation's arrival
+     makes for a question in a card's answer (obligations/view.js);
    - an edit in it, as a browser brings a field back into view for the caret: the words
      typed, deleted, or pasted into a box it holds;
    - Tab reaching one of its controls, or focus moving from one of its controls to

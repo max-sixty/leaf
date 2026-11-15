@@ -5,7 +5,7 @@ exactly what the dial changed."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, resized
+from render_harness import leaf_page, open_page, preview_parts, resized
 
 from leaf_dev.example_data import named_source
 
@@ -151,8 +151,9 @@ def test_a_folded_block_that_sets_its_own_height_takes_no_room(browser, serve):
 def test_a_section_without_a_gist_folds_whole(browser, serve):
     """Skim kept every heading, so a section the author gave no gist still showed its
     heading over nothing. A heading stands only for a lede or gist it heads, in a
-    `section`, in flat markup or inside a `header`, so such a section folds whole
-    behind its ⋯."""
+    `section`, in flat markup or inside a `header`, so such a section folds whole. It
+    joins the gap before it, under one ⋯ whose preview names the sections it holds:
+    a gist-less section after a nested one drew a second ⋯ under the first."""
     page = open_page(
         browser,
         serve(
@@ -194,7 +195,16 @@ def test_a_section_without_a_gist_folds_whole(browser, serve):
         "#appendix-0",
     ):
         expect(page.locator(folded)).to_be_hidden()
-    page.locator("#cause .lf-dial-more button").click()
+    # One ⋯ for each gap: Cause's rest with Method, the byline, and Fix's rest.
+    expect(page.locator("main .lf-dial-more")).to_have_count(3)
+    gap = page.locator("#cause .lf-dial-more button")
+    assert preview_parts(gap) == ["Show the rest", "Detail", "Method"]
+    assert preview_parts(page.locator("#impact .lf-dial-more button")) == [
+        "Show the rest"
+    ]
+    gap.click()
     expect(page.locator("#detail-heading")).to_be_visible()
+    expect(page.locator("#method-heading")).to_be_visible()
+    expect(page.locator("#appendix-heading")).to_be_hidden()
     depth(page, "Read")
     expect(page.locator("main [hidden]")).to_have_count(0)

@@ -248,7 +248,8 @@ def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
     browser, serve, body, head, folded
 ):
     """Only a sidebar the Layout narrows to the map's spine lets the map rest as that
-    spine and lay its labels over the body. A document's sidebar keeps a column's room
+    spine and lay its labels over the body. The prose stands centred in the window
+    beside an outline column too, whichever side of the body the aside stands on. A document's sidebar keeps a column's room
     for a status beside the map, where the narrowed sidebar would have crushed the
     status to a word a line, and for an aside after the body, where the labels would
     have spread past the window's edge; the outline stands open in that column. A
@@ -264,6 +265,11 @@ def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
         expect(toc.locator("summary")).to_be_visible()
         return
     assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
+    off_centre = page.evaluate(
+        "() => { const box = document.querySelector('#body p').getBoundingClientRect();"
+        " return Math.round((box.left + box.right) / 2 - innerWidth / 2); }"
+    )
+    assert abs(off_centre) <= 1, off_centre
     expect(toc.locator(".lf-toc-heading")).to_be_visible()
     expect(toc.get_by_role("link", name="Section 1", exact=True)).to_have_css(
         "opacity", "1"
@@ -274,10 +280,11 @@ def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
 def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     browser, serve, direction
 ):
-    """The narrowed sidebar stands at the body's inline start in either direction. At
+    """The narrowed sidebar stands at the body's inline start in either direction, and
+    the prose stands centred in the window, as a column page's does. At
     rest the map lays nothing over the prose, and pointing at its spine shows its labels
-    over the body, inside the window. On paper, where nothing points at it, the sidebar takes a
-    column's room and the outline reads whole."""
+    over the page past the spine's track, inside the window. On paper, where nothing
+    points at it, the sidebar takes a column's room and the outline reads whole."""
     source = leaf_page(
         "contents spine",
         f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
@@ -293,8 +300,10 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
       return {
         forward: rtl ? -1 : 1,
         asideWidth: aside.width,
+        asideEnd: rtl ? aside.left : aside.right,
         asideBeforeProse: rtl ? aside.left >= prose.right : aside.right <= prose.left,
         proseStart: rtl ? prose.right : prose.left,
+        proseOffCentre: Math.round((prose.left + prose.right) / 2 - innerWidth / 2),
         proseY: prose.top + prose.height / 2,
         spine: rtl ? rows.right : rows.left,
         rowsY: rows.top + rows.height / 2,
@@ -304,6 +313,7 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     assert forward == (-1 if direction == "rtl" else 1)
     assert geometry["asideWidth"] <= 64, geometry
     assert geometry["asideBeforeProse"], geometry
+    assert abs(geometry["proseOffCentre"]) <= 1, geometry
     covered = page.evaluate(
         """([forward, proseStart, y]) => {
           const toc = document.getElementById('contents');
@@ -324,18 +334,18 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     label = page.locator("#contents").get_by_role("link", name="Section 2", exact=True)
     expect(label).to_have_css("opacity", "1")
     revealed = label.evaluate(
-        """(link, proseStart) => {
+        """(link, asideEnd) => {
           const box = link.getBoundingClientRect();
           const rtl = getComputedStyle(link).direction === 'rtl';
           return {
             inWindow: box.left >= 0 && box.right <= innerWidth,
-            overBody: rtl ? box.left < proseStart - 20 : box.right > proseStart + 20,
+            pastTrack: rtl ? box.left < asideEnd : box.right > asideEnd,
             scrollsSideways: document.documentElement.scrollWidth > innerWidth,
           };
         }""",
-        geometry["proseStart"],
+        geometry["asideEnd"],
     )
-    assert revealed == {"inWindow": True, "overBody": True, "scrollsSideways": False}
+    assert revealed == {"inWindow": True, "pastTrack": True, "scrollsSideways": False}
 
     page.emulate_media(media="print")
     assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
@@ -343,10 +353,11 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
 
 
 def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, serve):
-    """The revealed map lies over the body's start edge and covers every box the body
-    paints there: a table, which the theme makes a positioned scroll box, bullets the
-    page draws in positioned boxes, and a box the page lifts with its own z-index. The
-    narrowed sidebar's Layout paints its aside over the body for this (layouts.css)."""
+    """On a window narrow enough that the prose stands just past the spine, the revealed
+    map lies over the body's start edge and covers every box the body paints there: a
+    table, which the theme makes a positioned scroll box, bullets the page draws in
+    positioned boxes, and a box the page lifts with its own z-index. The narrowed
+    sidebar's Layout paints its aside over the body for this (layouts.css)."""
     source = leaf_page(
         "contents spine over positioned boxes",
         '<aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
@@ -364,7 +375,7 @@ def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, s
         layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
-    resized(page, 1440, 900)
+    resized(page, 960, 900)
     nav = page.locator("#contents .lf-toc-nav")
     rows = page.locator("#contents .lf-toc-rows").bounding_box()
     page.mouse.move(rows["x"] + 2, rows["y"] + rows["height"] / 2)

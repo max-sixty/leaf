@@ -42,12 +42,15 @@ request in the window to its starter, and which names the POST's attempt.
 
 Each reading is a row of its page's table, with a column for each size and arm. With
 three sizes or more, each reading's growth above the BASE page is fitted over the
-largest sizes (least squares of log growth on log size), and an exponent above
-SUPERLINEAR is marked `!`: a step nesting one walk of the page inside another. Fitting
+largest sizes (least squares of log growth on log size), and an exponent above the
+reading's `limit` is marked `!`. The CPU of an input the browser answers alone, such
+as a keystroke or a wheel step, shouldn't grow at all (`held`), so above GROWING it
+marks a walk of the page on each input. Any other reading may grow with the page, so
+above SUPERLINEAR it marks a step nesting one walk of the page inside another. Fitting
 the cost itself would let fixed work hide that: 30 ms per click plus 20/80/320 ms of
-quadratic work fits 1.4 over 64-256, and its growth fits 2.0. A mark is for the reader;
-nothing passes or fails on it (tests/AGENTS.md, "Results do not depend on execution
-speed").
+quadratic work fits 1.4 over 64-256, and its growth fits 2.0. A mark is for the
+reader; nothing passes or fails on it (tests/AGENTS.md, "Results do not depend on
+execution speed").
 
 Each pass reads a page built afresh, so no input meets what another pass or round made
 on the page, and a pass takes the inputs on the page's own content before those that
@@ -61,11 +64,11 @@ readings by page, size and arm (`lowest`).
 
 --profile records a V8 CPU profile (`leaf_dev.profiles`) of each span a reading covers,
 and no more, in the first round. The CPU pass's, at the smallest and largest size, list
-the functions whose time over an input's spans grew superlinearly between them, which
-names a nested walk. The paint pass's, at the largest size, run under a Chrome trace
-too, and say what held the main thread from the input to the last painted goal
-(`attribute`). Profiling slows the page, so read proportions from a profiled run and
-durations from one without.
+the functions whose time over an input's spans grew between them past the input's
+`limit`, which names the walk. The paint pass's, at the largest size, run under a
+Chrome trace too, and say what held the main thread from the input to the last
+painted goal (`attribute`). Profiling slows the page, so read proportions from a
+profiled run and durations from one without.
 
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
@@ -100,6 +103,7 @@ import time
 from collections import Counter
 from collections.abc import (
     Callable,
+    Container,
     Generator,
     Hashable,
     Iterable,
@@ -173,6 +177,9 @@ BASE = 8
 # An exponent above this is superlinear growth. It stands halfway between linear and
 # quadratic: above BASE, linear growth fits about 1.07 over 64-256, and n log n 1.25.
 SUPERLINEAR = 1.5
+# An exponent above this, halfway between constant and linear, is growth, where a
+# reading shouldn't grow with the page at all (`held`).
+GROWING = 0.5
 # How many of the largest sizes the exponent is fitted over.
 FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
@@ -184,6 +191,12 @@ FITTED = 3
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
+# A held reading's floor is this share of its own reading on the BASE page, as a server
+# path's is its own (`server_paths.floors`). A keystroke's CPU is a few ms, less than
+# the load's share, so a floor from the load would hide its doubling. In the daily
+# runs of 2026-11-12 to 14, an input's CPU differed between two rounds by a median of
+# 4%, and by 18% at the 90th percentile.
+HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
 BUDGET_MS = 100
@@ -193,8 +206,10 @@ BUDGET_MS = 100
 DEADLINE_MS = 300_000
 # A notch of a mouse wheel, which Chromium and Firefox here both scroll 100 px.
 NOTCH = 100
-# A wheel or Tab takes RUN steps one way and then as many back, so it stays among the
-# same few rows or stops at every size, the smallest page's included.
+# How far the pointer moves at each step of a hover, about a line of the page's text.
+LINE = 24
+# A wheel, a hover or Tab takes RUN steps one way and then as many back, so it stays
+# among the same few rows or stops at every size, the smallest page's included.
 RUN = 4
 WAYS = (1,) * RUN + (-1,) * RUN
 # A half second in which the page's main thread spends under this is quiet; two in a
@@ -871,7 +886,8 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`."""
+    page reads the input only where it holds `needs`. An `agent` input is an agent's
+    write, which reaches the page only in the server's reading."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
@@ -880,6 +896,7 @@ class Input(NamedTuple):
     paints: bool = False
     after: float = 0
     needs: str = ""
+    agent: bool = False
 
 
 def aim_at_option(tab: Tab) -> Goals:
@@ -928,13 +945,22 @@ def tab_step(tab: Tab) -> None:
 
 
 def halfway(tab: Tab) -> Goals:
-    tab.page.mouse.move(*tab.page.evaluate(HALFWAY, RUN * NOTCH))
+    x, y = tab.page.evaluate(HALFWAY, RUN * NOTCH)
+    tab.target = {"x": x, "y": y}
+    tab.page.mouse.move(x, y)
     tab.quiet(600)
     return {}
 
 
 def wheel_step(tab: Tab) -> None:
     tab.page.mouse.wheel(0, NOTCH * WAYS[tab.sample % len(WAYS)])
+
+
+def hover_step(tab: Tab) -> None:
+    """Move the pointer a LINE down or up the page's text from where `halfway` left
+    it, as a reader's hand drifts over what they read."""
+    lines = sum(WAYS[: tab.sample % len(WAYS) + 1])
+    tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
 def aim_at_title(tab: Tab) -> Goals:
@@ -1167,19 +1193,33 @@ INPUTS: dict[str, Input] = {
     "leave": Input(leave_field, 4, enter_field, after=200),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
+    "hover": Input(hover_step, 32, halfway, each=False, after=50),
     "revision": Input(
-        agent_revision, 2, name_revision, paints=True, after=600, needs="h1"
+        agent_revision,
+        2,
+        name_revision,
+        paints=True,
+        after=600,
+        needs="h1",
+        agent=True,
     ),
     "stamp": Input(
-        agent_stamp, ready=name_revision, paints=True, after=600, needs="h1"
+        agent_stamp,
+        ready=name_revision,
+        paints=True,
+        after=600,
+        needs="h1",
+        agent=True,
     ),
     "select": Input(triple_click, 4, aim_at_title, each=False, after=400, needs="h1"),
     "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
     "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),
-    "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300),
-    "status": Input(agent_status, ready=name_status, paints=True, after=300),
+    "reply": Input(agent_reply, ready=ask_agent, paints=True, after=300, agent=True),
+    "status": Input(
+        agent_status, ready=name_status, paints=True, after=300, agent=True
+    ),
 }
 
 
@@ -1785,13 +1825,38 @@ def owners(windows: list[dict]) -> list[str]:
     ] + [f"    {render:6.0f}         style, layout and paint after scripts"]
 
 
-def floor(reading: str, base: dict[str, float]) -> float:
+def held(reading: str, readings: Container[str]) -> bool:
+    """Whether `reading`, one of a page's `readings`, is the main-thread CPU of an
+    input the browser answers alone, which root `AGENTS.md`, "Responsiveness", holds
+    to what the input changes and what the window shows, so that it doesn't grow with
+    the page. An input that posted events on the page, which its `event` reading
+    shows, or an agent's write, brings the server's reading of the page, and applying
+    that may grow as computing it may."""
+    name, _, measure = reading.rpartition(" ")
+    return (
+        measure == "cpu"
+        and name in INPUTS
+        and not INPUTS[name].agent
+        and f"{name} event" not in readings
+    )
+
+
+def limit(reading: str, readings: Container[str]) -> float:
+    """The exponent above which `reading`, one of a page's `readings`, grows faster
+    than root `AGENTS.md`, "Responsiveness", allows."""
+    return GROWING if held(reading, readings) else SUPERLINEAR
+
+
+def floor(reading: str, base: dict[str, float], readings: Container[str]) -> float:
     """`reading`'s noise floor (`exponent`), from `base`, the BASE page's readings of
-    the same run: a share of its load CPU for a time, and a fixed floor for a size or
-    a count. Without the load's CPU, a time has no floor, and so no exponent."""
+    the same run: a share of its load CPU for a time, of its own for a held one, and a
+    fixed floor for a size or a count. Without the load's CPU, a time has no floor,
+    and so no exponent."""
     measure = reading.rsplit(" ", 1)[-1]
     if measure in COUNT_FLOORS:
         return COUNT_FLOORS[measure]
+    if held(reading, readings):
+        return HELD_FLOOR_SHARE * base[reading]
     share = FLOOR_SHARES["cpu" if measure == "cpu" else "elapsed"]
     return share * base["load cpu"] if "load cpu" in base else math.inf
 
@@ -1802,14 +1867,16 @@ def exponent(
     """The least-squares slope of log growth on log size over the `fitted` largest
     sizes, where a cost's growth is what it adds to its cost at the first size,
     BASE. A size whose growth is under `floor` is left out, its growth the host's
-    noise. With fewer than all but one of the fitted sizes left, or fewer than two,
-    there is no exponent: the two largest of four server sizes stand 1.56 apart, and
-    a slope across them reads a loaded host's noise as growth."""
+    noise, and so is one that didn't grow, which a held reading's floor lets through
+    where the input cost nothing on the BASE page. With fewer than all but one of the
+    fitted sizes left, or fewer than two, there is no exponent: the two largest of
+    four server sizes stand 1.56 apart, and a slope across them reads a loaded host's
+    noise as growth."""
     fixed = costs[0]
     pairs = [
         (math.log(n), math.log(c - fixed))
         for n, c in list(zip(sizes, costs, strict=True))[-fitted:]
-        if c - fixed >= floor
+        if c - fixed >= floor and c > fixed
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
@@ -1835,9 +1902,9 @@ def lowest[K: Hashable](readings: Iterable[tuple[K, dict[str, float]]]):
     is the nearest the host lets a reading come to the work alone."""
     least: dict[K, dict[str, float]] = {}
     for key, taken in readings:
-        held = least.setdefault(key, {})
+        kept = least.setdefault(key, {})
         for cost, value in taken.items():
-            held[cost] = min(held.get(cost, math.inf), value)
+            kept[cost] = min(kept.get(cost, math.inf), value)
     return least
 
 
@@ -1853,40 +1920,42 @@ def table(
     title: str,
     columns: list[tuple[str, dict[str, float]]],
     readings: Sequence[str],
-    fits: list[tuple[str, dict[str, float | None]]],
+    fits: Sequence[tuple[str, dict[str, float | None], Container[str]]],
 ) -> str:
     """Each of `readings` a line under its label, with its value in each of `columns`,
-    then its exponent in each of `fits`, marked `!` above SUPERLINEAR."""
+    then its exponent in each of `fits`, marked `!` above its `limit` among the
+    readings that fit's arm read."""
     width = max((len(label(reading)) for reading in readings), default=0) + 1
     lines = [
         title,
-        " " * width + "".join(f"{head:>11}" for head, _ in [*columns, *fits]),
+        " " * width + "".join(f"{head:>11}" for head, *_ in [*columns, *fits]),
     ]
     for reading in readings:
         cells = [
             f"{values[reading]:>11.1f}" if reading in values else f"{'-':>11}"
             for _, values in columns
         ]
-        for _, slopes in fits:
+        for _, slopes, read in fits:
             slope = slopes.get(reading)
-            mark = "!" if slope is not None and slope > SUPERLINEAR else " "
+            mark = "!" if slope is not None and slope > limit(reading, read) else " "
             cells.append(f"{'-' if slope is None else f'{slope:.2f}':>10}{mark}")
         lines.append(f"{label(reading):<{width}}" + "".join(cells))
     return "\n".join(lines)
 
 
 def growth(
-    before: dict[str, float], after: dict[str, float], ratio: float
+    before: dict[str, float], after: dict[str, float], ratio: float, bound: float
 ) -> list[str]:
-    """The functions whose inclusive ms grew superlinearly from `before` to `after`,
-    profiles of the smallest and largest page, whose sizes stand at `ratio`."""
+    """The functions whose inclusive ms grew with an exponent above `bound` from
+    `before` to `after`, profiles of the smallest and largest page, whose sizes stand
+    at `ratio`."""
     grown = []
     for name, ms in after.items():
         if ms < GROWTH_FLOOR_MS or name.startswith(("(root)", "(program)", "(idle)")):
             continue
         was = before.get(name, 0)
         slope = math.log(ms / was) / math.log(ratio) if was else math.inf
-        if slope > SUPERLINEAR:
+        if slope > bound:
             grown.append((ms, was, slope, name))
     return [
         f"  {was:8.0f} -> {ms:8.0f} ms  exponent {slope:5.2f}  {name}"
@@ -1894,12 +1963,16 @@ def growth(
     ]
 
 
-def report_growth(title: str, profiles: dict, ratio: float) -> None:
-    """Echo the functions that grew superlinearly in each of `profiles`, a pair of
-    inclusive ms by function (smallest page, largest) by what was profiled."""
+def report_growth(
+    title: str, profiles: dict, ratio: float, readings: Container[str] = ()
+) -> None:
+    """Echo the functions that grew past the `limit` of what was profiled in each of
+    `profiles`, a pair of inclusive ms by function (smallest page, largest) by what
+    was profiled, on a page of `readings`."""
     for name, (before, after) in profiles.items():
-        if lines := growth(before, after, ratio):
-            click.echo(f"{title} {name}: superlinear functions")
+        bound = limit(f"{name} cpu", readings)
+        if lines := growth(before, after, ratio, bound):
+            click.echo(f"{title} {name}: functions growing with exponent over {bound}")
             click.echo("\n".join(lines) + "\n")
 
 
@@ -2033,6 +2106,8 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
         for n in sizes
         for arm in arms
     ]
+    # Each arm's readings at any size, which decide what its limits are (`held`).
+    seen = {arm: {r for n in sizes for r in least[n, arm]} for arm in arms}
     fits = [
         (
             "exponent" if len(arms) == 1 else f"{arm} exp",
@@ -2040,12 +2115,13 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
                 reading: exponent(
                     [n or 0 for n in sizes],
                     [least[n, arm][reading] for n in sizes],
-                    floor(reading, least[sizes[0], arm]),
+                    floor(reading, least[sizes[0], arm], seen[arm]),
                 )
                 for reading in readings
                 if reading != "elements"
                 and all(reading in least[n, arm] for n in sizes)
             },
+            seen[arm],
         )
         for arm in arms
         if len(sizes) > 2
@@ -2111,6 +2187,7 @@ def report(records: list[Record], arms: dict[str, Arm], run: Path, profile: bool
                     for each in timed
                 },
                 (sizes[-1] or 1) / (sizes[0] or 1),
+                seen[arm],
             )
     for each in painted:
         by_arm = {
@@ -2150,7 +2227,9 @@ def bench_server(
             for path in paths
         }
         columns = [(str(row["n"]), row) for row in rows]
-        click.echo(table(name, columns, ["events", *paths], [("exponent", fits)]))
+        click.echo(
+            table(name, columns, ["events", *paths], [("exponent", fits, paths)])
+        )
         if why := over_budget(rows):
             click.echo(f"  click: {why}")
         click.echo()

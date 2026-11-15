@@ -1330,6 +1330,42 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
+def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
+    server, page_dir
+):
+    """A tab naming the reading it holds, and the data version it holds, is sent after
+    one of the page's sources is rewritten that source alone, though the answer it
+    holds left its sources out (`http.sent`, `served_state.tail`)."""
+    declare_data_input(page_dir, "builds", {"type": "string"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-test-data id="notes-data" source="notes"></lf-test-data>\n</main>',
+        )
+    )
+    assert revisioning_model.activate_source(page_dir).error is None
+    data_model.cmd_data_set(page_dir, "builds", "green")
+    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
+    holding = {"Leaf-Data-Version": version}
+    held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+    assert held["data"] == {"version": version}
+
+    data_model.cmd_data_set(page_dir, "builds", "red")
+    holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
+    tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+
+    assert tail["since"] == {"key": holding["Leaf-Held-Basis"]}
+    assert "data" not in tail
+    data = {tuple(change["at"]): change for change in tail["patch"]}
+    assert {at[:3] for at in data if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "builds"),
+    }
+    assert data[("data", "sources", "builds", "value")]["value"] == "red"
+
+
 def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):
@@ -4549,16 +4585,27 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
 
 
 def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypatch):
-    """An occupied address refuses after the wait budget, retaining EADDRINUSE."""
-    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0.01)
+    """An address another listener holds refuses at its first bind, retaining
+    EADDRINUSE: the bind passes TIME_WAIT, so only a live listener refuses it, and
+    waiting would not move that listener."""
+    attempts = []
+    native_bind = socket.socket.bind
+
+    def counted_bind(sock, address):
+        attempts.append(address)
+        return native_bind(sock, address)
+
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
+        address = occupied.getsockname()
+        monkeypatch.setattr(socket.socket, "bind", counted_bind)
         with pytest.raises(OSError) as refused:
             hosting_model.LeafHTTPServer(
-                occupied.getsockname(), http_model.page_endpoint(page_dir, TOKEN)
+                address, http_model.page_endpoint(page_dir, TOKEN)
             )
     assert refused.value.errno == errno.EADDRINUSE
+    assert attempts == [address]
 
 
 @pytest.mark.parametrize(
@@ -4610,11 +4657,15 @@ else:
         first.server_close()
 
 
-def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
-    """Both preview lifetimes use native port availability, without changing URLs.
+def test_a_wildcard_restart_waits_for_its_port_on_a_bsd_kernel(page_dir, monkeypatch):
+    """A BSD kernel refuses a wildcard bind over the TIME_WAIT its previous server
+    left, since address reuse there would also admit it beside a specific listener,
+    so a `--host` restart waits for its port rather than changing its URL.
 
-    A held listener arranges EADDRINUSE, which address reuse never passes.
+    A held wildcard listener arranges the same EADDRINUSE without the cooldown.
     """
+    if hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("Linux rebinds every address over TIME_WAIT, so nothing waits")
     refused = threading.Event()
     native_bind = socket.socket.bind
 
@@ -4627,13 +4678,16 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             raise
 
     monkeypatch.setattr(socket.socket, "bind", observed_bind)
-    occupied = socket.socket()
-    occupied.bind(("127.0.0.1", 0))
+    occupied = socket.socket(socket.AF_INET6)
+    occupied.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    occupied.bind(("::", 0))
     occupied.listen()
     port = occupied.getsockname()[1]
     with ThreadPoolExecutor(max_workers=1) as workers:
         restarting = workers.submit(
-            hosting_model.TemporaryPageServer, page_dir, token=TOKEN, port=port
+            hosting_model.LeafHTTPServer,
+            ("::", port),
+            http_model.page_endpoint(page_dir, TOKEN),
         )
         try:
             assert refused.wait(STATED_TIMEOUT), (
@@ -4642,9 +4696,10 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             assert not restarting.done()
         finally:
             occupied.close()
-        with restarting.result(timeout=STATED_TIMEOUT) as server:
-            assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert fetch(f"{server.origin}/api/state")[0] == 200
+        httpd = restarting.result(timeout=STATED_TIMEOUT)
+    with running_http_server(httpd):
+        assert httpd.server_address[1] == port
+        assert fetch(f"http://127.0.0.1:{port}/api/state?t={TOKEN}")[0] == 200
 
 
 @pytest.mark.parametrize("bind", ["127.0.0.1", "::"])

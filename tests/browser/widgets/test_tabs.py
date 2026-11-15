@@ -1458,7 +1458,8 @@ def test_a_walk_down_a_side_list_longer_than_the_window_keeps_each_tab_in_view(
     resized(page, 1200, 500)
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs.last).not_to_be_in_viewport()
-    tabs.first.focus()
+    tabs.first.click()
+    expect(tabs.first).to_be_focused()
     # Down every tab and round to the first, then up round to the last and past it.
     for key, landing in [("ArrowDown", i % 16) for i in range(1, 17)] + [
         ("ArrowUp", 15),

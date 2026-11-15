@@ -329,6 +329,8 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
 
 import pytest
 
+FIGURE_EDGE_STROKE = ((0.03, 0.62), (0.09, 0.25), (0.15, 0.62))
+
 
 @pytest.mark.shifts_unsurveyed
 def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, serve):
@@ -348,8 +350,10 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
     expect(field).to_be_focused()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
 
-    # Begun over another element, the stroke still belongs to the prose drawing.
-    start = stroke_over(page, page.locator("#fig"))
+    # Begun over another element, the stroke still belongs to the prose drawing. The
+    # strokes over the figure keep to its left edge: the full-measure comment box and
+    # thread card stand under the prose and cover the rest of it.
+    start = stroke_over(page, page.locator("#fig"), points=FIGURE_EDGE_STROKE)
     origin = prose.bounding_box()
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*$"))
     expect(field).to_be_focused()
@@ -382,7 +386,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
 
     # The sent draft holds no drawing any more, so the next stroke starts one.
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    stroke_over(page, page.locator("#fig"))
+    stroke_over(page, page.locator("#fig"), points=FIGURE_EDGE_STROKE)
     expect(pending).to_have_count(1)
     expect(pending).to_have_attribute("d", re.compile(r"^M[^M]*$"))
     expect(field).to_be_focused()

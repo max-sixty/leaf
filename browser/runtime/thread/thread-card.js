@@ -358,20 +358,23 @@ export function threadReading(thread, surface, commands) {
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
   // thread. Once the agent ends a question it asked (`task end`), because the user
-  // answered it elsewhere or it no longer applies, the head says how the question
-  // ended, in the words On Me's Done uses (`obligationEnding`), followed by the agent's
-  // note on where or why (`end.detail`). The thread then no longer reads as asking.
-  /** @type {Map<string | null, import("../voice.js").Words>} */
+  // answered it elsewhere or it no longer applies, a line under the question says how
+  // it ended, in the words On Me's Done uses (`obligationEnding`), followed by the
+  // agent's note on where or why (`end.detail`), one line for each question the message
+  // asked. The thread then no longer reads as asking.
+  /** @type {Map<string | null, import("../voice.js").Words[]>} */
   const ended = new Map();
   for (const item of thread.obligations)
-    if (item.end && answeredInWords(item))
-      ended.set(
-        item.message,
+    if (item.end && answeredInWords(item)) {
+      const lines = ended.get(item.message) ?? [];
+      ended.set(item.message, lines);
+      lines.push(
         [
           obligationEnding(item),
           ...(item.end.detail ? [" · ", agentSays(labelWords(item.end.detail))] : []),
         ].flat(),
       );
+    }
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -399,7 +402,8 @@ export function threadReading(thread, surface, commands) {
         // `authoredHolders`): the primary reader's, then a margin card, then a seat.
         authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
         workflows: message.workflows,
-        leaves: leaves(message) ?? ended.get(message.id) ?? null,
+        leaves: leaves(message),
+        endings: ended.get(message.id) ?? [],
       }),
     );
   const summary = threadSummary(thread);

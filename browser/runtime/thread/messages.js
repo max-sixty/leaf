@@ -446,10 +446,11 @@ export function authoredHolder(id) {
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
  * workflows: readonly import("../framework/application.js").Workflow[],
- * leaves?: import("../voice.js").Words | null}} options */
+ * leaves?: import("../voice.js").Said | null,
+ * endings?: readonly import("../voice.js").Words[]}} options */
 export function messageReading(
   message,
-  { authoredRank = 0, workflows, leaves = null },
+  { authoredRank = 0, workflows, leaves = null, endings = [] },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = message.token ? tokenEntry(message.token) : null;
@@ -473,9 +474,11 @@ export function messageReading(
     progress: Boolean(message.ephemeral),
     // What an answer leaves standing, while it stands: Leaf's "Waiting on me" for the
     // question the user owes words to, the agent's Still to do (`todoWord`) for work it
-    // promised and has not ended; and, once the agent ends its question, how the
-    // question ended and the agent's note on where or why (thread-card.js).
+    // promised and has not ended (thread-card.js).
     leaves,
+    // How each question the message asked ended, once the agent ended it: On Me's
+    // words for that and the agent's note on where or why (thread-card.js).
+    endings,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.
     sequence: message.seq ?? Infinity,
@@ -707,10 +710,6 @@ export class MessageView {
     const react = this.#reaction && model.reactions ? this.#reaction.trigger : nothing;
     const copy =
       model.markdown && !editor ? this.#copyControl(model.markdown) : nothing;
-    // The head is one line and cuts words that run past its end, as an ended
-    // question's note can, so pointing at them reads them whole; words the head shows
-    // whole preview nothing (preview.js, `beyondFace`).
-    const { leaves } = model;
     const receipt = model.workflowWord
       ? html`<span
           class="lf-msg-sending"
@@ -738,12 +737,8 @@ export class MessageView {
           }
           ${receipt}
           ${
-            leaves
-              ? html`<span
-                  class="lf-msg-leaves"
-                  .lfPreview=${() => ({ name: wordsText(leaves) })}
-                  >${voiced(leaves)}</span
-                >`
+            model.leaves
+              ? html`<span class="lf-msg-leaves">${voiced(model.leaves)}</span>`
               : nothing
           }
           ${
@@ -796,6 +791,9 @@ export class MessageView {
               : nothing
           }
           ${holds ? keyed(this.#authoredTake, authored) : nothing}
+          ${model.endings.map(
+            (words) => html`<div class="lf-msg-ending lf-ui">${voiced(words)}</div>`,
+          )}
         </div>
         ${strip}
       `,

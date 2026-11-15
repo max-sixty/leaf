@@ -41,7 +41,7 @@ export function answerWords(item) {
 }
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show,
-   as does the head of a thread message whose question the agent ended (thread-card.js):
+   as does the line under a thread message whose question the agent ended (thread-card.js):
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. Leaf says what became of what the page asked of the
    user (voice.js); the answer itself is the user's value, in the interface's face. */

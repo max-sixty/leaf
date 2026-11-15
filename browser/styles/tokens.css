@@ -111,24 +111,40 @@
   --lf-z-panel: 9000; /* the floating panel */
   --lf-z-chrome-paint: 9060; /* paint whose target is inside the chrome */
   --lf-z-key-badges: 9070; /* a key chip naming what stands in a surface */
-  /* The document is warm paper. Code uses a white editor canvas and quiet gray chrome
-     to keep source visually distinct from document fields. The dark page keeps its
-     warm ground, and its code canvas stays near-neutral for the same reason. Each
-     colour states both schemes in one `light-dark()`; `color-scheme` picks the half. */
-  --lf-paper: light-dark(#faf9f5, #191815);
-  --lf-ink: light-dark(#1c1b18, #e8e4db);
+  /* The theme's colours. A theme or a page sets three on the root: the page's ground,
+     its ink and its accent. The neutrals under them are steps from the ground toward
+     the ink, so a page that restates the three recolours all Leaf draws on it: the
+     panel, thread cards, widgets and controls. A page with no theme keeps the
+     browser's own canvas and text, in whichever scheme `color-scheme` picks, and the
+     `reading` theme sets its warm paper (packages/reading). A colour that states both
+     schemes does so in one `light-dark()`. Code keeps a white editor canvas and quiet
+     grey chrome, so source stays distinct from the document's fields.
+
+     Each step is the light scheme's, then the dark's, which takes a longer step for
+     the same visible difference. They are OKLab mixes, the space in which equal steps
+     look equal, and the reading theme's paper and ink land each within 1.4 of the
+     colour it was tuned to by hand (OKLab distance x100; about 2 is the least a reader
+     sees). A theme restates a neutral it wants otherwise. */
+  --lf-paper: Canvas;
+  --lf-ink: CanvasText;
   /* What qualifies a line, in the page's prose and the interface alike: a caption, a
-     row's end, a status, a group heading, a field's hint. It holds 4.5:1 against every
-     surface the layer paints, tints and washes included; the darkest is a panel row
-     washed by its linked passage's hover (--lf-mark-hover), where it reads 4.6:1 in
-     either scheme. */
-  --lf-muted: light-dark(#676257, #b1aa9d);
+     row's end, a status, a group heading, a field's hint. On the reading theme's paper
+     it holds 4.5:1 against every surface the layer paints, tints and washes included;
+     the darkest is a panel row washed by its linked passage's hover (--lf-mark-hover),
+     where it reads 4.6:1 in either scheme. */
+  --lf-muted: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 64%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 75%)
+  );
   /* A step dimmer than --lf-muted, for words that stand in for what isn't there yet: an
      empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
      as dim as WCAG AA's 4.5:1 lets text be on the page's paper in the light scheme,
      where it reads 4.8:1; the 48% the panel's status first wore read 3.1:1. */
   --lf-quiet: color-mix(in srgb, var(--lf-ink) 62%, transparent);
-  --lf-rule: light-dark(#e7e3d9, #34312b);
+  --lf-rule: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 8.5%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 15%)
+  );
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
      three semantic colors it appears beside. That rules out the warm end: a clay
@@ -152,10 +168,12 @@
      that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
      --lf-r-l, so the controls inside it stay clear of its corners. Only what is round by
      meaning is round: a dot, a radio mark, a count's pill. A role's own token, such as
-     --lf-chip-r, names its size here rather than a length. */
-  --lf-r-s: 3px;
+     --lf-chip-r, names its size here rather than a length. A theme sets --lf-r, and
+     the other two are half and twice it, so one length squares or rounds every
+     corner. */
   --lf-r: 6px;
-  --lf-r-l: 12px;
+  --lf-r-s: calc(var(--lf-r) / 2);
+  --lf-r-l: calc(var(--lf-r) * 2);
   /* The compact label every layer draws a small fact in: .tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
@@ -352,11 +370,17 @@
   --lf-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --lf-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* Raised surfaces, such as cards, panels and controls, stand lighter than the
+     ground in either scheme. */
   --lf-card: light-dark(
-    #fffefb,
-    #201e1a
-  ); /* raised surfaces: cards, panels, controls */
-  --lf-field: light-dark(#f4f1e8, #232019); /* tinted fields and callout emphasis */
+    color-mix(in oklab, var(--lf-paper), white 80%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 4%)
+  );
+  /* Tinted fields and callout emphasis. */
+  --lf-field: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 3%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5%)
+  );
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
@@ -408,18 +432,32 @@
   --lf-tip-turn-ink: color-mix(in oklab, var(--lf-turn-ink), var(--lf-tip-ink));
   --lf-tip-pad: 4px 7px;
   --lf-tip-r: var(--lf-r-s);
-  /* Inline code's ground is measured against the paper it sits on, not the white code
-     canvas: GitHub's #f6f8fa over this ivory is 1.01:1, so the chip vanished and its
-     side padding read as double spaces around every span. */
-  --lf-code-bg: light-dark(#ecebe5, #2b2b29);
+  /* Inline code's ground is a step from the paper it sits on, not the white code
+     canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
+     vanished and its side padding read as double spaces around every span. */
+  --lf-code-bg: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.5%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 11%)
+  );
   --lf-pre-bg: light-dark(#fff, #1b1b1a);
   --lf-code-chrome: light-dark(#f6f8fa, #222220);
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
   --lf-code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
-  --lf-chip: light-dark(#eeeade, #2d2922); /* neutral chip */
-  --lf-ink-2: light-dark(#3c3934, #c9c3b6);
-  --lf-border: light-dark(#d5cfc2, #453f36);
+  /* A neutral chip's ground. */
+  --lf-chip: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 6%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 10.5%)
+  );
+  --lf-ink-2: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 84%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 86%)
+  );
+  /* A control's or a box's edge, a step stronger than --lf-rule's hairline. */
+  --lf-border: light-dark(
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 16.5%),
+    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 23%)
+  );
   /* A translucent backdrop is the paper it floats over, so it is derived rather than
      restated: a project that overrides --lf-paper gets a backdrop that follows it, where a
      second hex kept the default ivory behind a recoloured page. */
@@ -741,8 +779,9 @@ html:not([data-lf-live]) {
   --lf-text-scroll-track: 15px;
 }
 /* The root supplies the ground a widget's opaque controls paint (`--lf-ground`) to the
- * page's body and Leaf's chrome after it alike: the canvas the browser draws, until a
- * theme or the page paints its own (package-themes.md). */
+ * page's body and Leaf's chrome after it alike: the page's own (`--lf-paper`), which is
+ * the canvas the browser draws until a theme or the page sets another
+ * (package-themes.md). */
 :root {
-  --lf-ground: Canvas;
+  --lf-ground: var(--lf-paper);
 }

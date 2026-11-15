@@ -28,10 +28,13 @@
  * else; each is a screen serif with a large x-height, which is the property that
  * matters at 17px. */
 
+/* The document is warm paper under near-black ink, in either scheme. Leaf steps its
+   neutrals from these two (browser/styles/tokens.css). */
 :root {
   color-scheme: light dark;
   --lf-reading-face: 1;
-  --lf-ground: var(--lf-paper);
+  --lf-paper: light-dark(#faf9f5, #191815);
+  --lf-ink: light-dark(#1c1b18, #e8e4db);
 }
 body {
   background: var(--lf-ground);

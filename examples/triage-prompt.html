@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Fix the triage prompt's failing cases</title>
+    <meta
+      name="description"
+      content="Read the four eval cases an issue-triage prompt now labels wrong, rewrite the prompt file beside them, and choose how much of the eval set to run again."
+    />
+    <style>
+      /* The cases and the file they fix share the window, so the reader edits a line
+         without scrolling the case that asked for it away. */
+      #tp-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      }
+      @media (width < 900px) {
+        #tp-regions {
+          grid-template-columns: minmax(0, 1fr);
+          grid-auto-rows: max-content;
+          --lf-full-height: 0;
+        }
+      }
+      #tp-cases > article + article {
+        margin-top: var(--sp-4);
+        padding-top: var(--sp-3);
+        border-top: 1px solid var(--rule);
+      }
+      /* The file takes the pane's whole height; the pane's own padding stays outside
+         the editor's frame. */
+      #tp-prompt-body {
+        display: flex;
+        flex-direction: column;
+      }
+      #tp-prompt-body > lf-file-editor {
+        flex: 1;
+        block-size: auto;
+        min-block-size: 24rem;
+        margin-block: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-workspace density-working" id="tp-workspace">
+      <header>
+        <h1>Fix the four cases the triage prompt gets wrong</h1>
+        <p id="tp-legend">
+          <span class="tag danger">4 of 40 failing</span>
+          <span class="tag">run 214, after the October label change</span>
+          Edits save to <code>triage/prompt.md</code> as you type.
+        </p>
+      </header>
+
+      <div id="tp-regions">
+        <lf-pane id="tp-cases-pane" label="Failing cases">
+          <header>
+            <h2>Each failure turns on what a label means</h2>
+          </header>
+          <div id="tp-cases">
+            <p id="tp-premise">
+              The labels in <code>triage/cases.yaml</code> were set by the team; the
+              prompt's definitions are older. Line numbers point into the file on the
+              right.
+            </p>
+
+            <article id="tp-case-1182">
+              <h3>#1182 Since 3.4, <code>sync --watch</code> exits after one change</h3>
+              <blockquote>
+                <p>
+                  After upgrading to 3.4.0,
+                  <code>ferry sync ./photos s3://backup --watch</code> uploads the first
+                  changed file and exits with status 0. It runs as a launchd job, so it
+                  just stops syncing.
+                </p>
+              </blockquote>
+              <dl class="facts">
+                <dt>Expected</dt>
+                <dd><code>regression</code></dd>
+                <dt>Got</dt>
+                <dd><code>bug</code></dd>
+                <dt>Why it said</dt>
+                <dd>"The reporter does not name the last version that worked."</dd>
+              </dl>
+              <p id="tp-case-1182-cause">
+                Lines 14–15 accept a regression only when the last good version is
+                named. "After upgrading to 3.4.0" says the release before it worked
+                without naming it. Should an upgrade that broke something be enough?
+              </p>
+            </article>
+
+            <article id="tp-case-1207">
+              <h3>#1207 <code>--dry-run</code> prints nothing</h3>
+              <blockquote>
+                <p>
+                  The README says <code>ferry sync --dry-run</code> prints the plan of
+                  uploads and deletes. On 3.4.0 it exits silently. I wanted to see what
+                  a sync would delete before running it.
+                </p>
+              </blockquote>
+              <dl class="facts">
+                <dt>Expected</dt>
+                <dd><code>bug</code></dd>
+                <dt>Got</dt>
+                <dd><code>docs</code></dd>
+                <dt>Why it said</dt>
+                <dd>
+                  "The documentation describes output that <code>--dry-run</code> does
+                  not produce."
+                </dd>
+              </dl>
+              <p id="tp-case-1207-cause">
+                Line 12 calls it a bug when ferry differs from its docs, and line 17
+                calls it docs when the docs are wrong. Both fit, and the model took
+                docs. Which wins when the README describes behaviour ferry lacks?
+              </p>
+            </article>
+
+            <article id="tp-case-1220">
+              <h3>#1220 Sync keeps copying node_modules through a symlink</h3>
+              <blockquote>
+                <p>
+                  My project links <code>vendor -&gt; ../shared/node_modules</code> and
+                  every sync uploads 40,000 files from it. This makes ferry unusable for
+                  JS projects.
+                </p>
+              </blockquote>
+              <dl class="facts">
+                <dt>Expected</dt>
+                <dd><code>question</code></dd>
+                <dt>Got</dt>
+                <dd><code>bug</code></dd>
+                <dt>Why it said</dt>
+                <dd>"Ferry uploads files the reporter did not want uploaded."</dd>
+              </dl>
+              <p id="tp-case-1220-cause">
+                Following symlinks is documented, and <code>--no-follow</code> stops it.
+                Line 18 makes an issue a question only when the reporter asks one, and
+                this one complains. Is documented behaviour the reporter didn't expect a
+                question?
+              </p>
+            </article>
+
+            <article id="tp-case-1231">
+              <h3>#1231 Debug log shows my secret key</h3>
+              <blockquote>
+                <p>
+                  With <code>--log-level debug</code> the first lines print the request
+                  signing details, including <code>secret_access_key=8kQ2vN…</code>.
+                </p>
+              </blockquote>
+              <dl class="facts">
+                <dt>Expected</dt>
+                <dd><code>security</code></dd>
+                <dt>Got</dt>
+                <dd><code>bug</code></dd>
+                <dt>Why it said</dt>
+                <dd>
+                  "Debug logging prints <code>secret_access_key=8kQ2vN…</code>, which
+                  the docs do not describe."
+                </dd>
+              </dl>
+              <p id="tp-case-1231-cause">
+                The prompt has no <code>security</code> label, which the team added in
+                October, and line 31 asks for a quote, so the public answer repeated the
+                key (line 6). What should the bot do with a leaked secret, and whom
+                should it tell?
+              </p>
+            </article>
+
+            <lf-ask id="tp-rerun-question">
+              <h3>Run the cases again against your edits?</h3>
+              <p>
+                The run reads <code>triage/prompt.md</code> as it stands when you
+                choose. A changed definition can also flip a case that passes today.
+              </p>
+              <lf-options id="tp-rerun" choose>
+                <lf-option id="tp-rerun-failing">
+                  <small class="tag">4 cases · 30 s</small>
+                  <strong>Rerun the four failing cases</strong>
+                </lf-option>
+                <lf-option id="tp-rerun-all">
+                  <small class="tag">40 cases · 4 min</small>
+                  <small class="tag ok">recommended</small>
+                  <strong>Rerun all 40 cases</strong>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </div>
+        </lf-pane>
+
+        <lf-pane id="tp-prompt-pane" label="The prompt">
+          <div id="tp-prompt-body">
+            <lf-file-editor id="tp-prompt" binding="prompt"></lf-file-editor>
+          </div>
+        </lf-pane>
+      </div>
+    </main>
+  </body>
+</html>

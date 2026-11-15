@@ -1272,7 +1272,8 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 ROW_MARKS = """(toc) => Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
   .filter((row) => row.dataset.lfTocMark && (
     row.querySelector(':scope > .lf-toc-mark')?.checkVisibility()
-    || (row.checkVisibility() && getComputedStyle(row, '::before').boxShadow !== 'none')))
+    || (row.checkVisibility() && getComputedStyle(row, '::before').display !== 'none'
+      && getComputedStyle(row, '::before').boxShadow !== 'none')))
   .map((row) => [row.querySelector('a').textContent.trim(), row.dataset.lfTocMark]))"""
 # Where each shown row's link and marker stand, which no mark may move.
 ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]

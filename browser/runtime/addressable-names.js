@@ -105,29 +105,30 @@ function readLeadingTitle(container) {
   }
   return null;
 }
-// The element a heading titles: the outermost element the naming rule below names
-// after it (`addressableName`), where no attribute of its own names it (`x-name`) and its
-// leading title is the heading, or the heading itself where it titles none. Every
-// element between the two is named after the heading as well, as a question's `hgroup`
-// and the question holding it both are, and the page's column is where the page's title
-// leads it. A `section` holding a question leads with the question rather than a
-// heading, so the question's heading titles the question and stops there; a tab or pane
-// is named by its label, so a heading opening it titles only itself. A heading counts
-// each element it titles as its own, in the contents' rows and in the conversations its
-// link previews (thread/placement.js, `conversationsAbout`), so a thread about a whole
-// question or section counts under its heading, while `partOver` places the question in
-// the part around it, where On Me groups it. The other way round is `titlingHeading`.
+// The element a heading titles: the outermost element whose first heading it is, short
+// of one an attribute of its own names (`x-name`), or the heading itself where it is no
+// element's first. So a question's heading titles its `hgroup`, the question and a
+// `section` wrapping the question, whatever words or widgets stand before it there, as
+// a section's first heading titles the section after an introduction; a heading after
+// the question in that section titles only itself; and a tab, pane or sample is named by
+// its label, so a heading inside it titles only what lies inside it. The contents start
+// each row's stretch of the page at the element its heading titles, and a heading's
+// link preview counts the conversations about it (thread/placement.js,
+// `conversationsAbout`). `titlingHeading` reads it the other way round.
 //
-// Replaced: the contents had a rule of their own, the identified `section` whose first
-// heading this was at any depth, and a heading's link one that let a heading title a
-// labelled tab. Where no such section held a question, a thread about the whole
-// question counted in the contents under the heading before it.
+// Replaced: the contents took an identified `section` whose first heading this was, and
+// a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
+// which stops at a question inside a section and lets a sub-heading after a question
+// title the section around both. Neither took a question with no section around it.
 /** @param {Element} heading @returns {Element} */
-export function titledElement(heading) {
+export const titledElement = (heading) =>
+  keptAnswer(heading, "titled element", () => readTitledElement(heading));
+/** @param {Element} heading @returns {Element} */
+function readTitledElement(heading) {
   let titled = heading;
   for (
     let at = heading.parentElement;
-    at && titlingHeading(at) === heading;
+    at && !declaredName(at) && firstHeading(at) === heading;
     at = at.parentElement
   )
     titled = at;
@@ -136,10 +137,18 @@ export function titledElement(heading) {
 /** The heading that titles `element` (`titledElement`), or null.
  * @param {Element} element @returns {Element | null} */
 export function titlingHeading(element) {
-  if (declaredName(element)) return null;
-  const title = leadingTitle(element);
-  return title?.matches(HEADING) ? title : null;
+  const heading = firstHeading(element);
+  return heading && titledElement(heading).contains(element) ? heading : null;
 }
+// The first heading an element holds, as the page reads it, kept as long as the page
+// reading stands (`keptAnswer`), so the climbs of every heading read each element once.
+/** @param {Element} element @returns {Element | null} */
+const firstHeading = (element) =>
+  keptAnswer(element, "first heading", () => {
+    for (const heading of element.querySelectorAll(HEADING))
+      if (!uiInside(heading, element)) return heading;
+    return null;
+  });
 // The title an element's attribute holds, as its declaration names (`x-name`), such
 // as a tab's label.
 /** @param {Element} element */

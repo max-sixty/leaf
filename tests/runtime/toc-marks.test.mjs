@@ -138,8 +138,10 @@ test("a thread about a whole section counts in it, and one in a nested section i
       },
     ),
     {
-      Prepare: { threads: 2, onMe: 0, changes: 0 },
-      "Check access": { threads: 1, onMe: 0, changes: 0 },
+      // What follows a nested section before the next heading is in its stretch, as
+      // the map draws it.
+      Prepare: { threads: 1, onMe: 0, changes: 0 },
+      "Check access": { threads: 2, onMe: 0, changes: 0 },
       Switch: { threads: 1, onMe: 0, changes: 0 },
     },
   );
@@ -161,6 +163,7 @@ test("a thread about a whole question or card counts in the row of the heading t
       <article id="card"><h3>First card</h3><p>Its words.</p></article>`,
       {
         threads: [
+          { id: "decision" },
           { id: "ask" },
           { id: "ask-title" },
           { id: "ask-context" },
@@ -170,7 +173,7 @@ test("a thread about a whole question or card counts in the row of the heading t
       },
     ),
     {
-      "Which store?": { threads: 3, onMe: 0, changes: 0 },
+      "Which store?": { threads: 4, onMe: 0, changes: 0 },
       "Which region?": { threads: 1, onMe: 0, changes: 0 },
       "First card": { threads: 1, onMe: 0, changes: 0 },
     },
@@ -184,4 +187,28 @@ test("a section's marks read as its counts, and none read as nothing", () => {
   );
   assert.equal(marksWords({ threads: 0, onMe: 2, changes: 0 }), "2 waiting on me");
   assert.equal(marksWords(undefined), "");
+});
+
+test("what follows a question before the next heading counts in the question's row", () => {
+  // As the map draws the question's stretch, a note after it, a removal after it and a
+  // heading after it inside the section around it agree.
+  assert.deepEqual(
+    marked(
+      `<h1>Plan</h1><h2>Context</h2><p>Why.</p>
+      <lf-ask id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p>Two fit.</p></lf-ask>
+      <p id="after">A note after the question.</p>
+      <section id="s"><lf-ask><h2>Which region?</h2></lf-ask>
+        <h3>Notes</h3><p id="notes">Its words.</p></section>`,
+      {
+        threads: [{ id: "after" }, { id: "s" }, { id: "notes" }],
+        changes: [{ at: "ask", gap: "after" }],
+      },
+    ),
+    {
+      "Which store?": { threads: 1, onMe: 0, changes: 1 },
+      "Which region?": { threads: 1, onMe: 0, changes: 0 },
+      Notes: { threads: 1, onMe: 0, changes: 0 },
+    },
+  );
 });

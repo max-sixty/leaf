@@ -38,13 +38,13 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 widget whose title is an attribute, as a column's `label` is, declares it with
 `x-name`.
 
-`titledElement(heading)` is the element a heading titles: the outermost element named
-after it by the rule `addressableLabel` reads first, such as the question or `section`
-the heading opens, directly or inside a leading `header` or `hgroup`; where it titles
-none, the heading itself. An element whose `x-name` attribute names it, such as a tab,
-is not titled by a heading inside it. Every element between the two is titled by the
-heading too. `lf-toc` links each heading to one of them and counts a thread about any
-of them in the heading's row.
+`titledElement(heading)` is the element a heading titles: the outermost element whose
+first heading it is, such as its `hgroup`, the question it opens and a `section`
+wrapping that question; where it is no element's first heading, the heading itself.
+An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
+inside it. Every element between the two is titled by the heading too. `lf-toc` links
+each heading to one of them, and a heading's link preview counts a thread about any of
+them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
@@ -268,10 +268,11 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
 `null`. On me groups its items by it and a link's preview names a place by it. A
-question or section stands in the part around it, past its own heading, so a module
-that counts items per heading, as `lf-toc` does, climbs `partOver` from each item's
-element and counts the item under the first heading it meets, or under the heading
-that titles an element it meets (`titledElement`, "Naming elements").
+question or section stands in the part around it, past its own heading. A module that
+counts items per heading as the reader moves through them, as `lf-toc` does, gives
+each heading the stretch of the page from the element it titles (`titledElement`,
+"Naming elements") to the next heading's, and counts each item in the stretch holding
+its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

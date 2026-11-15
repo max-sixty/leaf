@@ -280,15 +280,24 @@ export function conversationsAbout(place) {
   const { inside, headed } = gatherConversations();
   return (place.matches(HEADING) ? headed : inside).get(place) ?? null;
 }
-// The heading that heads `element`: the first met climbing from it through the parts
-// over it (`partOver`) that is a heading or that a heading titles (`titlingHeading`).
+// The heading that heads `element`, the later in the page of two: the first heading met
+// climbing the parts over it (`partOver`), and the heading titling the nearest element
+// around it that a heading titles (`titlingHeading`). So a thread about a question, or
+// about the section wrapping it, is its heading's, though `partOver` puts the question
+// in the part around it, and a sub-heading inside a titled section still heads what
+// follows it there.
 /** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
-  for (let at = /** @type {Element | null} */ (element); at; at = partOver(at)) {
-    const title = at.matches(HEADING) ? at : titlingHeading(at);
-    if (title) return title;
-  }
-  return null;
+  let over = element.matches(HEADING) ? element : partOver(element);
+  while (over && !over.matches(HEADING)) over = partOver(over);
+  /** @type {Element | null} */
+  let titled = null;
+  for (let at = /** @type {Element | null} */ (element); at && !titled; at = upFrom(at))
+    titled = at.matches(HEADING) ? at : titlingHeading(at);
+  if (!over || !titled) return over ?? titled;
+  return over.compareDocumentPosition(titled) & Node.DOCUMENT_POSITION_FOLLOWING
+    ? titled
+    : over;
 }
 // The heading whose part holds `heading`'s: the first heading over it at a higher level.
 /** @param {Element} heading @param {Map<Element, Element | null>} parents @returns {Element | null} */

@@ -1,16 +1,16 @@
 /* Where the page's open threads, its On me items and, while the changes view is on, its
  * changes stand along the contents: how many of each the section each row leads holds.
  *
- * A row's section is the element its heading titles (`titledElement`) and what the
- * heading heads, by the rule On me groups its items by and a link's preview names a
- * place by (`partOver`): an item belongs to the first row met climbing from its element
- * through the parts over it, and a row holds its heading and each element the heading
- * titles. So a paragraph under a heading the outline leaves out, past `max-level`,
- * counts in the row above that heading, and a thread about a whole section or question
- * counts in its heading's row, as the heading's link preview counts it, though
- * `partOver` puts the question in the part around it, where On me groups it. Anything
- * above the first section's heading belongs to the start row. Items outside the
- * document the outline covers count nowhere.
+ * A row's section is its stretch of the page, as the map draws it: from its destination
+ * (toc-view.js), the element its heading titles or an identified one inside that
+ * (`titledElement`), to the next row's. An item counts in the row whose stretch holds
+ * its first word, so a thread about a whole question or the section around it counts
+ * in the question's row, as does a paragraph after the question before the next
+ * heading, which the map marks as part of that row while the reader is on it. A heading
+ * the outline leaves out, past `max-level`, starts no stretch, so what stands under it
+ * counts in the row above. Anything before the first section's destination belongs to
+ * the start row. Items outside the document the outline covers count nowhere, and one
+ * inside a widget's shadow tree stands where its host does.
  *
  * Threads are the open ones, each at the element its anchor names, as a heading's link
  * preview counts them. On me items are the obligations waiting on the user that the
@@ -21,12 +21,16 @@
  * by where its gap stands: a paragraph taken from a section's end, whose gap stands
  * before the next section's heading, counts in the section that held it.
  *
- * Climbing costs a node's depth for each part it passes, and every element met on the
- * way keeps the row it reached, so the items under one heading climb it once. */
-import { elementById, partOver, titledElement, under } from "/runtime/widget-api.js";
+ * Rejected: counting each item under the first row met climbing the parts over it
+ * (`partOver`), the rule On me groups by, which puts a question in the part around it,
+ * so a thread about a whole question counted in the row above, and a paragraph after a
+ * question in a different row from the map's.
+ *
+ * Each item costs a binary search over the rows, comparing positions in the document. */
+import { elementById, under } from "/runtime/widget-api.js";
 
 /** @typedef {{threads: number, onMe: number, changes: number}} SectionMarks */
-/** @typedef {{heading: Element | null}} MarkedSection */
+/** @typedef {{heading: Element | null, destination: Element}} MarkedSection */
 /** @typedef {{
  *   threads: readonly {resolved?: unknown, anchor: {section?: string | null} | null}[],
  *   onMe: readonly {source: {id: string}}[],
@@ -46,43 +50,36 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
   /** @type {Map<Element | null, SectionMarks>} */
   const marks = new Map();
   if (!start) return marks;
-  /** @type {Map<Element, MarkedSection>} */
-  const rows = new Map();
-  for (const section of sections) {
-    const { heading } = section;
-    const titled = heading && titledElement(heading);
-    for (let at = heading; at; at = at === titled ? null : at.parentElement)
-      rows.set(at, section);
-  }
-  /** @type {Map<Element, MarkedSection>} */
-  const reached = new Map();
-  /** @param {Element} element */
-  const rowFor = (element) => {
-    /** @type {Set<Element>} */
-    const climbed = new Set();
-    let row = null;
-    for (
-      let at = /** @type {Element | null} */ (element);
-      at && !climbed.has(at);
-      at = partOver(at)
-    ) {
-      row = rows.get(at) ?? reached.get(at) ?? null;
-      if (row) break;
-      climbed.add(at);
+  // Each row's stretch starts at its destination's first word, in the page's order,
+  // which the outline's order keeps: a heading's destination never holds an earlier one.
+  const starts = sections
+    .slice(1)
+    .map((row) => ({ row, at: firstWord(row.destination) }));
+  // The row whose stretch holds `node`: the last starting at it or before it, or with
+  // `strictly`, before it.
+  /** @param {Node} node @param {boolean} [strictly] */
+  const rowAt = (node, strictly = false) => {
+    let low = 0;
+    let high = starts.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const at = /** @type {Node} */ (starts[middle]?.at);
+      if (at === node ? !strictly : follows(at, node)) low = middle + 1;
+      else high = middle;
     }
-    row ??= start;
-    for (const at of climbed) reached.set(at, row);
-    return row;
+    return starts[low - 1]?.row ?? start;
   };
-  // The row a removal was taken from: the one holding the element its gap stands after
-  // or in, and for a gap before an element, the part over that element as the page's
-  // reading reached it, which a heading opening the next section is not in, nor the
-  // section that heading titles.
+  /** @param {Element} element */
+  const rowFor = (element) => rowAt(firstWord(inScope(element, scope)));
+  // The row a removal was taken from: the one holding the last word its gap stands after
+  // or in, and for a gap before an element, the one holding what stands before that
+  // element's first word, which is not the row an element opens.
   /** @param {MarkedReadings["changes"][number]} removal */
   const removedFrom = ({ at, gap }) => {
-    if (gap !== "before") return rowFor(at);
-    const over = partOver(at);
-    return over ? rowFor(over) : start;
+    const element = inScope(at, scope);
+    return gap === "before"
+      ? rowAt(firstWord(element), true)
+      : rowAt(lastWord(element));
   };
   /** @param {MarkedSection} row @param {keyof SectionMarks} kind */
   const count = (row, kind) => {
@@ -123,4 +120,38 @@ export function marksWords(marks) {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+// Whether `node` stands after `at` in the page, inside it included.
+/** @param {Node} at @param {Node} node */
+const follows = (at, node) =>
+  Boolean(at.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+// The element's first and last words, or the element where it has none.
+/** @param {Element} element @returns {Node} */
+function firstWord(element) {
+  const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode())
+    if (node.textContent?.trim()) return node;
+  return element;
+}
+/** @param {Element} element @returns {Node} */
+function lastWord(element) {
+  const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = walker.lastChild(); node; node = walker.previousNode())
+    if (node.textContent?.trim()) return node;
+  return element;
+}
+// Where an element stands in the outline's document: itself, or the host of the shadow
+// tree it stands in.
+/** @param {Element} element @param {Element} scope @returns {Element} */
+function inScope(element, scope) {
+  let at = element;
+  for (
+    let root = at.getRootNode();
+    root !== scope.getRootNode();
+    root = at.getRootNode()
+  )
+    if (root instanceof ShadowRoot) at = root.host;
+    else break;
+  return at;
 }

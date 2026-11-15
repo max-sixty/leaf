@@ -452,7 +452,9 @@ test("a heading counts the conversations about what it titles, as about its own 
     <lf-ask id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
       <p>Two stores fit.</p></lf-ask>
     <lf-ask id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
-      <p>One region fits.</p></lf-ask></main>`;
+      <p>One region fits.</p></lf-ask>
+    <section id="third"><lf-ask><hgroup><p>Decision 3</p><h2>Which size?</h2></hgroup>
+      <p>Two sizes fit.</p></lf-ask></section></main>`;
   const comment = {
     id: "c1",
     seq: 1,
@@ -465,9 +467,15 @@ test("a heading counts the conversations about what it titles, as about its own 
     content_version: "c1",
   };
   const thread = servedThread([comment], { anchor: { section: "second" } });
+  // A thread about the section wrapping a question is the question's too.
+  const wrapped = servedThread([{ ...comment, id: "c2", content_version: "c2" }], {
+    anchor: { section: "third" },
+  });
   try {
     applicationState.adopt(
-      servedState({ browser: { views: { 1: { thread: { threads: [thread] } } } } }),
+      servedState({
+        browser: { views: { 1: { thread: { threads: [thread, wrapped] } } } },
+      }),
     );
     assert.deepEqual(
       [...document.querySelectorAll("h1, h2")].map((heading) => [
@@ -475,9 +483,10 @@ test("a heading counts the conversations about what it titles, as about its own 
         conversationsAbout(heading)?.threads ?? 0,
       ]),
       [
-        ["Plan", 1],
+        ["Plan", 2],
         ["Which store?", 0],
         ["Which region?", 1],
+        ["Which size?", 1],
       ],
     );
   } finally {

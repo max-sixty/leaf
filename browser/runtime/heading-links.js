@@ -36,7 +36,7 @@
    over every row. A heading named already, by its author or in its style, keeps
    those names, and the link writes a name of the heading's own beside them into its
    style, as other owners do, since a rule can't add a name to the ones a box has. */
-import { leadingTitle, titledElement } from "./addressable-names.js";
+import { titledElement, titlingHeading } from "./addressable-names.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import { isAddressable } from "./anchor-resolution.js";
 import { watchOwner } from "./arrivals.js";
@@ -97,7 +97,7 @@ function headingAt(node) {
 function headingOn(node) {
   if (!(node instanceof Element)) return null;
   if (headingAt(node) === node) return headingAddress(node) ? node : null;
-  const title = leadingTitle(node);
+  const title = titlingHeading(node);
   return title && headingAt(title) === title && headingAddress(title) === node
     ? title
     : null;

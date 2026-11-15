@@ -138,15 +138,17 @@ test("past every name, plain markup is its words and a widget is its word", () =
   for (const tag of Object.keys(registry)) delete registry[tag];
 });
 
-test("a heading titles the outermost element named after it, and none its label names", () => {
+test("a heading titles the outermost element it is the first heading of, short of a label", () => {
   declare({ "lf-tab": { "x-name": "label" } });
-  document.body.innerHTML = `<main>
+  document.body.innerHTML = `<main><h1>Plan</h1>
     <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
       <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>
     <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
     <section id="outer"><lf-ask id="inner"><h2 id="region">Which region?</h2></lf-ask>
     </section>
-    <div>Words first.<hgroup id="pair"><h2 id="first">First title</h2>
+    <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
+      <h3 id="notes">Notes</h3><p>Words.</p></section>
+    <div><h2>Before</h2><hgroup id="pair"><h2 id="first">First title</h2>
       <h3 id="second">Second</h3></hgroup></div>
   </main>`;
   const titled = (/** @type {string} */ id) =>
@@ -154,8 +156,11 @@ test("a heading titles the outermost element named after it, and none its label 
   assert.equal(titled("question"), "ask");
   // A tab is named by its label, so the heading opening it titles only itself.
   assert.equal(titled("step"), "step");
-  // A section opening with a question, not a heading, is not titled by its heading.
-  assert.equal(titled("region"), "inner");
+  // A section wrapping a question is titled by the question's heading, its first.
+  assert.equal(titled("region"), "outer");
+  // A heading after the question titles only itself.
+  assert.equal(titled("store"), "notes-section");
+  assert.equal(titled("notes"), "notes");
   // Only an hgroup's leading heading titles it.
   assert.equal(titled("first"), "pair");
   assert.equal(titled("second"), "second");

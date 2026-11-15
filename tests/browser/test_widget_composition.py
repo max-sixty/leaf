@@ -17,11 +17,13 @@ import json
 import os
 import re
 
+from click.testing import CliRunner
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, sending, told, undo
+from render_harness import leaf_page, open_page, round_trip, sending, told, undo
 from smoke.test_plain_page import ROOT, host_page, install
 
+from leaf import cli as cli_model
 from leaf import event_log
 from leaf.revision_delivery import layer_import_map
 from leaf.schema import PLUGIN_ROOT
@@ -142,3 +144,36 @@ def test_the_same_two_modules_work_on_a_page_without_leaf(browser, monkeypatch):
         expect(hires.get_by_role("button", name="Grace Hopper")).to_have_attribute(
             "aria-pressed", "false"
         )
+
+
+def test_an_exported_page_keeps_the_pair_reading_the_recorded_pick(
+    browser, serve, tmp_path
+):
+    """One file, with no server: the owner draws the pick the log recorded, and the
+    other package's widget reads it off the owner as it does on the live page."""
+    url = live_url(
+        serve(
+            leaf_page("Final round", pair(ADA, GRACE)), packages=(SHORTLIST, FINALISTS)
+        )
+    )
+    live = open_page(browser, url)
+    with sending(live, "the pick"):
+        live.locator("#hires").get_by_role("button", name="Ada Lovelace").click()
+    round_trip(live)
+    live.close()
+
+    exported = tmp_path / "final-round.html"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "export", str(serve.page_dir), "--out", str(exported)]
+    )
+    assert result.exit_code == 0, result.output
+
+    page = browser.new_page()
+    page.goto(exported.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    hires, finalists = page.locator("#hires"), page.locator("#finalists")
+    expect(hires.get_by_role("button", name="Ada Lovelace")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(finalists.get_by_role("button", name="Drop Ada Lovelace")).to_be_visible()
+    expect(finalists).not_to_contain_text("Grace Hopper")

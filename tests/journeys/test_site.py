@@ -775,7 +775,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         if replaced:
             route.fulfill(response=answer)
             return
-        replaced.append(answer.text())
+        replaced.append(answer.json()["reading"])
         route.fulfill(
             response=answer,
             headers={

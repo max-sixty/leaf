@@ -871,8 +871,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
 
 
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
-    """A comment box opens at the full measure and grows only downward, so a key that
-    takes it a new line stands it at its new height in the frame the key lands, as a
+    """A comment box keeps its width as it takes its first lines and grows downward, so
+    a key that takes it a new line stands it at its new height in the frame the key lands, as a
     textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
     used to start a tween that trailed the caret, and the field's cut hid what was
     just typed until the tween caught up. A line taken at the window's foot is
@@ -887,7 +887,7 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    # Wide enough for the box to stand right of the passage, where it sizes to its words.
+    # Wide enough for the box to stand right of the passage, at the card's least width.
     resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
     open_compact_comment(page, "The first line")

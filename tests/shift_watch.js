@@ -9,8 +9,8 @@
 // driven included, through sampled translation or reflow from size changes.
 // Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the document while it parses, the page before it
-// presents or as it returns from a hidden tab, and runtime regions declared with
-// `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
+// presents or as it returns from a hidden tab, runtime regions declared with
+// `data-lf-reflow`, and a runtime box declared with `data-lf-widens` widening. A script that moves a box by writing its geometry has no credit
 // of its own, however the page means it, so a surface that should follow something
 // stands by a native mechanism that does. A new layout shape therefore needs no rule
 // here: where its motion is native, the general rule already credits it, and where it
@@ -1712,6 +1712,7 @@
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         appendTail: !range && node.hasAttribute("data-lf-append-tail"),
         rises: !range && node.hasAttribute("data-lf-rises"),
+        widens: !range && node.hasAttribute("data-lf-widens"),
         appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
@@ -2523,6 +2524,37 @@
       if (!inside(previousRect) || !inside(currentRect)) return false;
     }
     return true;
+  };
+  // A runtime box that declares it may widen (`data-lf-widens`), as a thread card at its
+  // least width does until a long message arrives (thread-preview.js), may grow at its
+  // inline end, keeping its inline start and top, and carry all it holds as its words
+  // take the new width. It is the one case where news may carry controls sideways,
+  // which the user chose on 14 November 2026 for a card that widens once.
+  const permittedWidening = ({ node, previousRect, currentRect }, around) => {
+    const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
+    if (around.length !== 3) return false;
+    const first = around[0].at,
+      last = around[2].at;
+    const inside = (rect, frame) =>
+      rect.left >= frame.left - 1 &&
+      rect.top >= frame.top - 1 &&
+      rect.right <= frame.right + 1 &&
+      rect.bottom <= frame.bottom + 1;
+    return ancestryAt(element, first).some((owner) => {
+      if (!paintAt(owner, first)?.widens) return false;
+      if (!ancestryAt(owner, first).some((box) => paintAt(box, first)?.runtime))
+        return false;
+      const from = boxAt(owner, first),
+        to = boxAt(owner, last);
+      return (
+        Boolean(from && to) &&
+        Math.abs(to.left - from.left) < 1 &&
+        Math.abs(to.top - from.top) < 1 &&
+        to.right - from.right >= 1 &&
+        inside(previousRect, from) &&
+        inside(currentRect, to)
+      );
+    });
   };
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
@@ -3655,6 +3687,14 @@
             readIn(around[before], node) &&
             readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
+            !permittedWidening(
+              {
+                node,
+                previousRect: fromPaint.painted,
+                currentRect: toPaint.painted,
+              },
+              around,
+            ) &&
             !permittedReflow(
               {
                 node,

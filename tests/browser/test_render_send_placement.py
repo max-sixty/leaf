@@ -531,12 +531,15 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_a_short_comment_s_box_is_narrow_and_send_opens_the_card_at_its_width(
+def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
     browser, serve
 ):
-    """The comment box is as wide as its words, from the card's least width up. Send
-    opens the card from the box's start at the card's own width, the measure or its
-    room, and reopening stands the card in the same rectangle, whatever its words hold."""
+    """Beside its text, the comment box and its card stand at the card's least width
+    while each message fits in four lines there, so Send opens the card in the box's
+    rectangle and a short answer keeps it. A long answer widens the card from its
+    start as it arrives, carrying the card's controls, which the shift watch credits to
+    the card's declaration (`permittedWidening`). Reopening stands the card between the
+    same sides."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -554,9 +557,35 @@ def test_a_short_comment_s_box_is_narrow_and_send_opens_the_card_at_its_width(
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
+    sides = ("left", "right")
     sent = page.evaluate(RECT, ".lf-margin-preview")
-    assert sent["left"] == pytest.approx(frame["left"], abs=0.5), (frame, sent)
-    assert sent["right"] > frame["right"] + 1, (frame, sent)
+    assert {side: sent[side] for side in sides} == pytest.approx(
+        {side: frame[side] for side in sides}, abs=0.5
+    ), (frame, sent)
+    root = next(
+        event
+        for event in reversed(event_log.read_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )["id"]
+    append_agent_reply(serve.page_dir, root, "Checking which runner the plan pins.")
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(2)
+    rendered(page)
+    short = page.evaluate(RECT, ".lf-margin-preview")
+    assert {side: short[side] for side in sides} == pytest.approx(
+        {side: sent[side] for side in sides}, abs=0.5
+    ), (sent, short)
+    append_agent_reply(
+        serve.page_dir,
+        root,
+        "The plan pins the runner to one image so every step builds alike. " * 3,
+    )
+    told(page)
+    expect(card.locator(".lf-msg")).to_have_count(3)
+    rendered(page)
+    wide = page.evaluate(RECT, ".lf-margin-preview")
+    assert wide["left"] == pytest.approx(sent["left"], abs=0.5), (sent, wide)
+    assert wide["right"] > sent["right"] + 1, (sent, wide)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
@@ -564,10 +593,36 @@ def test_a_short_comment_s_box_is_narrow_and_send_opens_the_card_at_its_width(
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     reopened = page.evaluate(RECT, ".lf-margin-preview")
-    edges = ("left", "right", "top", "bottom")
-    assert {edge: sent[edge] for edge in edges} == pytest.approx(
-        {edge: reopened[edge] for edge in edges}, abs=0.5
-    ), (sent, reopened)
+    assert {side: wide[side] for side in sides} == pytest.approx(
+        {side: reopened[side] for side in sides}, abs=0.5
+    ), (wide, reopened)
+
+
+def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
+    browser, serve
+):
+    """The comment box keeps the card's least width however many lines are typed in
+    it. Send opens the card at the measure from the box's start where the words run
+    past four lines there."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    page = open_page(browser, serve(PAGE), context=context)
+    FIRST_LINE.open(page, False)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "data-lf-placement", re.compile(".+")
+    )
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
+    page.keyboard.insert_text("\n".join(f"Line {n}" for n in range(1, 7)))
+    rendered(page)
+    frame = page.evaluate(RECT, ".lf-fab-bar")
+    assert frame["right"] - frame["left"] == pytest.approx(minimum, abs=0.5), frame
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-margin-preview")).to_have_css("opacity", "1")
+    rendered(page)
+    sent = page.evaluate(RECT, ".lf-margin-preview")
+    assert sent["left"] == pytest.approx(frame["left"], abs=0.5), (frame, sent)
+    assert sent["right"] > frame["right"] + 1, (frame, sent)
 
 
 def test_a_box_whose_start_stands_away_from_its_text_takes_the_card_s_width(
@@ -1557,7 +1612,7 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
         ((1440, 900), 0.4, "passage", True, False, False, "browser"),
-        # A one-line comment, whose box is narrower than its card, in Firefox.
+        # A one-line comment at the least width, in Firefox.
         pytest.param(
             (1728, 999),
             0.4,
@@ -1584,11 +1639,10 @@ def test_send_grows_thread_around_the_words(
     request, serve, size, at, long, touch, again, options, engine
 ):
     """The box being written paints only its field, and Send grows the card out of it
-    from the start and in the rows the box's frame reserved, so the draft's words stand
-    where they were typed through Send and its acknowledgement: the box and the card
-    share one text column and foot, and the card stands its words as far above its end
-    as the box did. The card is its own width, which a short comment's box is narrower
-    than.
+    in the rectangle the box's frame reserved, so the draft's words stand where they were
+    typed through Send and its acknowledgement: the box and the card share one width,
+    text column and foot, and the card stands its words as far above its end as the box
+    did.
     The growth only cuts the card's surface and parts, so the words its layout places
     are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
@@ -1621,7 +1675,9 @@ def test_send_grows_thread_around_the_words(
     on.open(page, touch)
     text = (
         "Keep the runner checkout fixed while the disposable workspace is safely removed. "
-        * (80 if long in (True, "scrolled") else 2)
+        # One sentence takes a few lines in a box at the least width, short of the
+        # four past which Send widens the card.
+        * (80 if long in (True, "scrolled") else 1)
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
@@ -1725,15 +1781,12 @@ def test_send_grows_thread_around_the_words(
     assert not reading["box"]["painted"], "The box being written painted its frame"
     assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
-    # The card takes the editor's reserved start and rows, and is no narrower.
-    edges = ("left", "top") if options else ("left", "top", "bottom")
+    # The card takes the editor's reserved width and rows.
+    edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
         assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(
             {edge: reading["box"]["frame"][edge] for edge in edges}, abs=0.75
         ), reading
-        assert frame["frame"]["right"] >= reading["box"]["frame"]["right"] - 0.75, (
-            reading
-        )
         assert frame["frame"]["left"] >= -0.75
         assert frame["frame"]["right"] <= size[0] + 0.75
         assert frame["frame"]["top"] >= -0.75

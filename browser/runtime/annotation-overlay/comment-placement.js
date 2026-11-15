@@ -16,11 +16,11 @@
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
    `column` is the passage's inline start when it quotes words;
-   without one, the card's width ends at `clear`'s right edge. Under or over, a card
-   stands at the measure (`--thread-card`), or the boundary's width where that is
-   narrower, so where that start would carry it past the boundary's right edge it
-   starts further left rather than narrowing (`place-under-or-over`), and the comment
-   box starts where its card will. `margin` is where
+   without one, the card's width ends at `clear`'s right edge. Under or over, a card's
+   start keeps room for the measure (`--thread-card`), or the boundary's width where
+   that is narrower, so where that start would carry it past the boundary's right edge
+   it starts further left rather than narrowing (`place-under-or-over`), a slim card
+   widens without moving its start, and the comment box starts where its card will. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
    or nothing where no row stands and its rows would be pins. A caller requesting
@@ -420,15 +420,36 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 }
 
 // The minimum width chooses the side: a side whose room holds less stands nothing. The
-// measure is the width a card takes where its room holds it, and the widest the comment
-// box grows with its words (`size-width`), and decides whether clearing the margin row
-// would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
+// measure is the width a card takes once a message outgrows the minimum, or where its
+// start stands away from its text (`size-width`), and decides whether clearing the
+// margin row would sacrifice it. `commentPlacement` reads both, so the comment box and its sent
 // card share the same placement rule.
 /** @param {string} name */
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
+// A card by its text stands at the least width while each sent message in it fits in
+// `NARROW_LINES` lines there, and at the measure from the first that runs past them
+// (`size-width`): a short comment stays slim, as it does through the agent's progress
+// steps, which a card draws apart from its messages, and a paragraph long enough to read
+// gets the measure's line length.
+const NARROW_LINES = 4;
+/** Whether any of `texts`, laid out at the width it stands at, is as tall as one line
+ * more than `NARROW_LINES`, which a paragraph's own spacing doesn't reach.
+ * @param {Iterable<Element>} texts */
+export const outgrowsNarrow = (texts) => {
+  for (const text of texts) {
+    const style = getComputedStyle(text);
+    const line = parseFloat(style.lineHeight) || 1.2 * parseFloat(style.fontSize);
+    const words =
+      text.scrollHeight -
+      parseFloat(style.paddingTop) -
+      parseFloat(style.paddingBottom);
+    if (words > (NARROW_LINES + 1) * line - 0.5) return true;
+  }
+  return false;
+};
 // How far a surface stands from what it is about (`place-clear`): the room a mark on a
 // region takes (`--focus-region-room`), then the gap it keeps from the edge of its room,
 // so the mark's line and the surface's edge have that gap between them too. It holds
@@ -481,10 +502,10 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    never carries it across the words it comments on. `fromSubject` says its inline
    start stands by what it is about: beside it on the right, under or over quoted words
    at their first character, or at the room's edge with nothing to stand by. A surface
-   narrower than the measure, as the comment box is for few words, stands by its
-   subject and widens away from it only there. Elsewhere its start is the measure's far
-   end from its subject, where a narrower surface would stand apart from it and widen
-   by moving its words, so the box takes the card's width there. */
+   narrower than the measure, as the box and a slim card are, stands by its subject
+   and widens away from it only there. Elsewhere its start is the measure's far end
+   from its subject, where a narrower surface would stand apart from it and widen by
+   moving its words, so the box and card take the measure there. */
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;

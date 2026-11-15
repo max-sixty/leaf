@@ -39,7 +39,7 @@ import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { layoutWindow } from "../geometry.js";
-import { scrolling, watchScrollEnds } from "../arrivals.js";
+import { scrollDrawn, scrolling, watchScrollEnds } from "../arrivals.js";
 import { announce } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
@@ -636,13 +636,32 @@ export function createHintSession({
     return found;
   }
 
-  function arm() {
+  // The map is read from a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
+  // scroll a script has just written, as `g` writes landing the glides under way, leaves
+  // a box anchored to what it moved where it stood until the next rendering update, so a
+  // map read at once named a margin entry the thread card the walk had opened was
+  // arriving to cover, and Tab walked to it. Armed before then, the map holds no members
+  // until it is read; `then` hears what it found, in this task where the scene is drawn.
+  /** @type {Promise<void> | null} */
+  let reading = null;
+  /** @param {(found: C[]) => void} [then] */
+  function arm(then = () => {}) {
     armed = true;
-    return hold(read());
+    const drawn = scrollDrawn();
+    reading = drawn;
+    if (!drawn) return then(hold(read()));
+    hold([]);
+    drawn.then(() => {
+      if (!armed || reading !== drawn) return;
+      reading = null;
+      then(hold(read()));
+      repaint();
+    });
   }
 
   function disarm() {
     armed = false;
+    reading = null;
     hold([]);
     seats.clear();
   }
@@ -842,7 +861,7 @@ export function createHintSession({
       seats.clear();
       return;
     }
-    const moving = scrolling();
+    const moving = scrolling() || scrollDrawn() !== null;
     const wasWalking = at >= 0;
     const heard = hinted()[at];
     const emptyBefore = mapped.length === 0;
@@ -875,9 +894,10 @@ export function createHintSession({
   }
 
   // A page that moves under an armed map makes opaque labels temporarily untrustworthy,
-  // so the map is read again once the scroll settles. Only while armed: what the
-  // page's own repaint door says holds at every scroll position, no list's membership
-  // moving with the page.
+  // so the map is read again once the scroll settles and the browser has drawn where it
+  // left the page: a script's scroll ends before the update that moves what is anchored
+  // to the page (`arm`). Only while armed: what the page's own repaint door says holds
+  // at every scroll position, no list's membership moving with the page.
   function mount() {
     document.addEventListener("lf-keyboard-preference", invalidate);
     watchScrollEnds(() => {
@@ -885,6 +905,7 @@ export function createHintSession({
       stale = true;
       seating = null;
       repaint();
+      scrollDrawn()?.then(repaint);
     });
     addEventListener("resize", () => {
       if (!armed) return;

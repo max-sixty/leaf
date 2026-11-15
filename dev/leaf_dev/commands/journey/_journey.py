@@ -113,7 +113,7 @@ from leaf_dev.commands.site.verify import (
     await_presentation,
     capture_script_responses,
     check,
-    observe_startup,
+    load_presented,
     read_state,
     said,
     startup_profile,
@@ -1506,10 +1506,7 @@ def local_session(browser, url: str) -> Session:
     width, height = WINDOWS["macbook"].size
     context = browser.new_context(viewport={"width": width, "height": height})
     page = context.new_page()
-    failures = observe_startup(page)
-    response = page.goto(url, wait_until="load", timeout=120_000)
-    check(response is not None and response.ok, f"{url} did not load")
-    await_presentation(page, url, failures)
+    failures, _ = load_presented(page, url)
     state_url = PageClient(url).state_url
     state = read_state(context.request, state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)

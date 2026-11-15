@@ -486,9 +486,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     leaves it to guess at the id it needs next.
 
     Every write prints what it wrote, as JSON: an appended event exactly as `page
-    events` reads it back, `seq` included, one line per record, and a status as its
-    declaration stands in the status file. A command that also names its thread
-    prints both records. `test_receipt_settles_one_known_request_once` holds the
+    events` reads it back, `seq` included, and a status as its declaration stands in
+    the status file. A `thread edit` that also renames its thread prints both
+    records, in `records`. `test_receipt_settles_one_known_request_once` holds the
     receipt's, since it needs a page with a request seat.
 
     The default layer declares no instructions audiences, which is why the page is
@@ -498,10 +498,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     runner = CliRunner()
     page_dir = tmp_path / "page"
 
-    def written(args) -> list[dict]:
+    def written(args) -> dict:
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code == 0, result.output
-        return [json.loads(line) for line in result.output.splitlines()]
+        return json.loads(result.output)
 
     def logged(record: dict) -> dict:
         return next(
@@ -510,14 +510,14 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    assert written(["page", "init", str(page_dir)]) == [{"page": str(page_dir)}]
+    assert written(["page", "init", str(page_dir)]) == {"page": str(page_dir)}
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
     assert audiences.exit_code == 0, audiences.output
     assert json.loads(audiences.output) == {}
 
-    [stamped] = written(["page", "stamp", str(page_dir), "--text", "first cut"])
+    stamped = written(["page", "stamp", str(page_dir), "--text", "first cut"])
     assert stamped == logged(stamped)
     assert (stamped["kind"], stamped["version"], stamped["seq"]) == ("note", 1, 1)
 
@@ -527,12 +527,12 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert again.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in again.output
 
-    [waiting] = written(["page", "open", str(page_dir)])
+    waiting = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
     assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
-    [opened] = written(
+    opened = written(
         [
             "thread",
             "create",
@@ -599,9 +599,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.
-    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])
+    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])[
+        "records"
+    ]
     assert (renamed["thread"], renamed["title"]) == (root, "Store")
-    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])
+    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])[
+        "records"
+    ]
     assert (edited["kind"], edited["message"]) == ("edit", later)
     read = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), later])
     assert read.exit_code == 0, read.output
@@ -613,12 +617,12 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [todo] = written(
+    todo = written(
         ["thread", "reply", str(page_dir), later, "--text", "On it.", "--todo", "Trace"]
     )
     assert (todo["parent"], todo["todo"]) == (later, "Trace")
 
-    [closed] = written(["thread", "resolve", str(page_dir), later])
+    closed = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
 
 
@@ -3492,7 +3496,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert f"leaf page init '{page}'" in json.loads(result.stderr)["error"]
+    assert f"leaf page init '{page}'" in json.loads(result.stdout)["error"]
     assert list(page.iterdir()) == []
 
 
@@ -4984,6 +4988,7 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert failed.returncode == 3
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
+    # A script owns `package run`'s stdout, so its refusal goes to stderr.
     assert json.loads(missing.stderr)["error"] == (
         "package 'tally' has no script 'total.py'; available: count.py"
     )
@@ -5014,7 +5019,7 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     message = "needs an inline `# /// script` metadata block"
     assert message in refused["text"]
     assert installed.exit_code == 1
-    assert message in json.loads(installed.stderr)["error"]
+    assert message in json.loads(installed.stdout)["error"]
     assert not (machine_model.package_store() / "tally").exists()
 
 

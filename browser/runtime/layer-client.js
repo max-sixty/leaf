@@ -149,13 +149,13 @@ export function layerHeaders(headers) {
  * }} Held */
 
 // A state request names what the tab holds, and the answer leaves that out for its
-// reader to restore from the same holding (http.py, `page_state` and `sent`). An answer
-// at the data version the tab names leaves out its sources, since data moves only when
-// an agent sets it. An answer to a request naming the reading the tab adopted, by its
-// `browser.basis.key`, may instead carry only the changes since that reading and the
-// events logged after it (`served_state/tail.py`). A newer reading can be adopted while
-// a request is out, so its reader captures the holding before asking and completes the
-// answer from that.
+// reader to restore from the same holding (http.py, `sent`). An answer to a request
+// naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
+// changes since that reading, each data source that changed among them, and the
+// events logged after it (`served_state/tail.py`). A whole answer at the data version
+// the tab names leaves out its sources, since data moves only when an agent sets it.
+// A newer reading can be adopted while a request is out, so its reader captures the
+// holding before asking and completes the answer from that.
 /** @returns {Held} */
 export const heldReading = () => ({ data: runtime.data, state: runtime.state });
 /** @param {Held} held */
@@ -242,20 +242,21 @@ function patched(reading, patch) {
   return /** @type {T} */ (root);
 }
 
-// The whole answer: its data sources, and for an answer carrying the changes since the
-// reading its request named, the rest restored from that reading, which is exactly
-// the answer the server would have sent whole.
+// The whole answer: for an answer carrying the changes since the reading its request
+// named, that reading with them applied, which is exactly the answer the server would
+// have sent whole; else the answer, with the sources of the data it named restored.
 /** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
 export function completeState(answer, held) {
-  const sources = answer.data.sources ?? held.data.sources;
-  if (!("since" in answer)) return { ...answer, data: { ...answer.data, sources } };
-  const { since, patch, events, data } = answer;
+  if (!("since" in answer)) {
+    const sources = answer.data.sources ?? held.data.sources;
+    return { ...answer, data: { ...answer.data, sources } };
+  }
+  const { since, patch, events } = answer;
   const prior = held.state;
   if (!prior || prior.browser.basis.key !== since.key)
     throw new Error("The state answer extends a reading this tab did not name");
   return {
     ...patched(prior, patch),
-    data: { ...data, sources },
     events: events.length ? [...prior.events, ...events] : prior.events,
   };
 }

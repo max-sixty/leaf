@@ -1,7 +1,7 @@
 """The `codex-app-server` and `codex-queue` journeys: a real Codex task reaching Leaf
 through one transport, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey codex-app-server|codex-queue [--preview] [--sandbox]
+    uv run leaf-dev journey run codex-app-server|codex-queue [--preview] [--sandbox]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -89,7 +89,7 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.codex_task import Task, trust_plugin_hooks
-from leaf_dev.commands.journey import (
+from leaf_dev.commands.journey.run import (
     Isolation,
     Terminal,
     User,

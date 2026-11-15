@@ -27,7 +27,7 @@ class Window:
     description: str = ""
 
 
-# The windows a tool opens a page in by name, as `eval --viewport large` or
+# The windows a tool opens a page in by name, as `eval run --viewport large` or
 # `stills --viewport phone` does. `tab`, and stills and probe for a state that names
 # no window of its own (`states.State`), open `macbook` unless told another. An eval
 # author's request and a judge's instructions give a window's description, which
@@ -80,7 +80,8 @@ def linux_font_environment() -> dict[str, str]:
     """The environment that lays text out in the DejaVu faces the fixed fontconfig
     names, in every browser and leaf a process holding it starts; empty off Linux,
     where the host's faces serve. The suite runs under it, and so does a command whose
-    readings the suite asserts (`leaf-dev pins`), so the two measure the same text."""
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
     if sys.platform != "linux":
         return {}
     require_linux_fonts()
@@ -360,6 +361,29 @@ def settle(page: Page) -> None:
         settle(page)
 
 
+# The range of the first run of `words` in the text under `root`, across text nodes
+# as a passage may run, or null where the text holds none: a JavaScript function's
+# source, which a page script embeds as `({QUOTE_RANGE})(root, words)`.
+QUOTE_RANGE = """(root, words) => {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  let text = "";
+  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    nodes.push([node, text.length]);
+    text += node.data;
+  }
+  const start = text.indexOf(words);
+  if (start < 0) return null;
+  const at = (offset) => {
+    const [node, base] = nodes.findLast(([, base]) => base <= offset);
+    return [node, offset - base];
+  };
+  const range = document.createRange();
+  range.setStart(...at(start));
+  range.setEnd(...at(start + words.length));
+  return range;
+}"""
+
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
 # drops, with no button held. On 2026-11-04 its `pointercancel` read (0, 0) in Chromium
@@ -563,7 +587,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `verify-site` do, takes this
+    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

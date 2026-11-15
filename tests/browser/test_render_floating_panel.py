@@ -2052,6 +2052,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     assert long["panel"] >= long["window"] * 0.1, long
 
 
+# The field's place is its words': while the caret is in it, its slot runs out to the
+# panel's edges for its ring, and the words stay put (floating-panel.css).
 GROWTH = """() => {
   const view = document.querySelector('.lf-fp-view[data-lf-route=thread]');
   const box = (node) => node.getBoundingClientRect();
@@ -2063,7 +2065,7 @@ GROWTH = """() => {
     height: box(view).height,
     cap: parseFloat(getComputedStyle(view.parentElement).maxHeight),
     bottom: box(view).bottom,
-    field: box(document.querySelector('.lf-fp-field')).top,
+    field: box(document.querySelector('.lf-fp-field leaf-text')).top,
     turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
                    foot ? box(foot).top - box(turn).bottom : box(view).bottom - box(turn).bottom],
     foot: foot && box(foot).bottom,

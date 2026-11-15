@@ -160,6 +160,8 @@ browser assets and the packages into a page's layer.
 - `hooks/`: each harness's registration of `leaf hook` (`hooks.json` for Claude
   Code, `codex.json` for Codex), the scripts they run, Claude Code's hooks
   module `claude-code.ts`, and the Pi extension `pi.ts`.
+- `types/`: the contracts the hooks module declares to Claude Code, such as the
+  values it keeps in `$.state`.
 - `evals/`: cases a headless agent answers, scoring the shipped instructions, and
   experiments with their own Promptfoo configs (`dev/AGENTS.md`, "Experiments").
 - `examples/`: the pages the site publishes, also the render corpus
@@ -338,6 +340,16 @@ only a registry entry, its module and theme rules. Everything else reads registr
 declarations, never lists of tag names. Layer-wide facts live under `$` keys;
 each tag's entry is its complete schema.
 
+### Wait for the event that ends the work
+
+Code waits for a response, a process's exit, a lease's release or a socket's
+close, so a slow machine only makes the wait longer. A deadline stands only
+where an outside party imposes one, such as a harness's hook timeout or a peer
+that can hang without closing, or to cap a cost. It is that party's whole
+budget, which every step under it shares, and it sits at least ten times above
+the work on a loaded machine. Where a slower path exists, expiry takes it rather
+than failing.
+
 ## Working on the repository
 
 When the user is to choose among designs, show the candidates side by side and
@@ -374,11 +386,11 @@ The TypeScript in `worker/src/`, the browser runtime's type check
 the suite and pre-commit don't reach.
 `pnpm run check` runs them, and both
 landing paths run them too. The website's delivery checks (the site build, the
-Worker's dry-run deploy, `leaf-dev verify-site website-worker`) run on a pull
+Worker's dry-run deploy, `leaf-dev site verify website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
 For a change that can alter browser startup, compare base and head: served
-previews for a runtime change, `leaf-dev verify-site website-worker` for site
+previews for a runtime change, `leaf-dev site verify website-worker` for site
 delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's
 state), and compare the requests and bytes loaded before that last phase

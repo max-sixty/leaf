@@ -162,13 +162,15 @@ def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     reading = (
         None
         if publication is None
-        else (
-            publication,
-            hashlib.sha256(json_bytes(publication["value"])).hexdigest()[:16],
-        )
+        else (publication, value_revision(publication["value"]))
     )
     held[source] = (stamp, reading)
     return reading
+
+
+def value_revision(value) -> str:
+    """The revision a source holding `value` reads as: a digest of its encoding."""
+    return hashlib.sha256(json_bytes(value)).hexdigest()[:16]
 
 
 def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
@@ -191,12 +193,9 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
 
 
 def read_data(page_dir: Path, registry: dict | None) -> dict:
-    """Every source the page holds, read and judged against `registry`.
-
-    `version` digests each source's contract, publication and validity, so a
-    changed contract or validation result is news even when the value matches.
-    A rerun is news even when it writes the same value. A page whose layer cannot be
-    read has no contracts to judge its values by, and reads as holding none."""
+    """Every source the page holds, read and judged against `registry`, with their
+    `data_version`. A page whose layer cannot be read has no contracts to judge its
+    values by, and reads as holding none."""
     names = _source_names(page_dir)
     # A source the page no longer holds keeps nothing.
     held = memo(page_dir, _Publications).held
@@ -210,6 +209,14 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
     }
+    return {"version": data_version(sources), "sources": sources}
+
+
+def data_version(sources: dict) -> str:
+    """The version of data holding these source readings (`read_source`): a digest of
+    each source's contract, publication and validity, so a changed contract or
+    validation result is news even when the value matches, and a rerun is news even
+    when it writes the same value."""
     identity = json.dumps(
         {
             source: [
@@ -222,10 +229,7 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
             for source, reading in sources.items()
         }
     )
-    return {
-        "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
-        "sources": sources,
-    }
+    return hashlib.sha256(identity.encode()).hexdigest()[:16]
 
 
 def data_errors(stored: dict) -> list[str]:

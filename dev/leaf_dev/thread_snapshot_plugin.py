@@ -44,7 +44,7 @@ def image_snapshot(request):
             )
             raise ImageMismatchError(
                 f"Image does not match the snapshot stored in {path}.{evidence}"
-                " Review evidence, then use leaf-dev thread-snapshots capture and accept."
+                " Review evidence, then use leaf-dev journey snapshots capture and accept."
             ) from None
 
     return compare
@@ -72,8 +72,8 @@ def thread_expected_store(pytestconfig):
         return store if store.is_absolute() else ROOT / store
     if pytestconfig.getoption("--image-snapshot-update"):
         raise pytest.UsageError(
-            "Use leaf-dev thread-snapshots capture before accepting reviewed images"
+            "Use leaf-dev journey snapshots capture before accepting reviewed images"
         )
-    from leaf_dev.commands.thread_snapshots import expected_store
+    from leaf_dev.commands.journey.snapshots import expected_store
 
     return expected_store()

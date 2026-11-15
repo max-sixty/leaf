@@ -383,9 +383,11 @@ A text document's runs are `visible` under a fold
 (`packages/default/styles/text-document.css`), so a closed tab Firefox opens reads
 and colours only the runs in view; with `auto` there, opening a tab of 95,000 lines
 on #4781's page held the main thread for 6.6 s rather than 2 s, the page reading and
-colouring every line. Recheck with that 50-box fixture, the boxes `auto` throughout:
-once Firefox reports nothing while folded and the boxes in view drawn as the fold
-opens, the rule can go.
+colouring every line. `test_opening_a_closed_tab_draws_only_the_lines_in_view` in
+`tests/browser/widgets/test_code_and_documents.py` fails in Firefox without the rule,
+drawing all 32 runs of its document in the first frame after the press. Recheck by
+deleting the rule's `content-visibility: visible` and running that test: once its
+Firefox arm passes, the rule can go.
 
 ### Native focus and scrolling inside samples
 

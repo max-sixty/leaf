@@ -120,16 +120,6 @@ lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
 lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
   color: var(--danger-ink);
 }
-/* A folded panel's rows (`hidden="until-found"`, as a closed tab's) count no numbers
-   until it opens. Firefox styles and builds the generated content of rows it doesn't
-   draw: in a folded document of 70,000 lines the numbers took about 120 of the 150 ms
-   its styling cost. */
-:where([hidden="until-found"]) lf-text-document .lf-text-document-run > * {
-  counter-increment: none;
-  &::before {
-    content: none;
-  }
-}
 /* A run of rows (lf-text-document.js, `inRuns`) is drawn only while it is in view. */
 lf-text-document .lf-text-document-run {
   content-visibility: auto;
@@ -139,18 +129,25 @@ lf-text-document .lf-text-document-run {
 lf-text-document .lf-text-document-run:only-child {
   content-visibility: visible;
 }
-/* Under a fold (a closed tab's `hidden="until-found"` panel, a shut details) the fold
-   skips every run, so a run skips nothing itself until the fold opens, and the browser
-   then decides afresh which runs are in view. Firefox 159 reports every `auto` run
-   under a fold as drawn. When the fold opens, the runs stay drawn until Firefox
-   reports the ones out of view over the next frames, so the page read and coloured
-   every line of the closed tab it opened: 6.6 s for a tab of 95,000 lines, against
-   2 s with this rule (notes/browser-support.md, "An `auto` box under a fold in
-   Firefox"). The text under a fold stays in reach of find-in-page. */
+/* A fold, a closed tab's `hidden="until-found"` panel or a shut details, skips every
+   run it holds, and find-in-page still reaches their text. Until the fold opens:
+   - A run skips nothing itself, so the browser decides afresh which runs are in view
+     as the fold opens. Firefox reports an `auto` run under a fold drawn and keeps it
+     drawn as the fold opens (notes/browser-support.md, "An `auto` box under a fold in
+     Firefox").
+   - Its rows count no numbers. Firefox styles and builds the generated content of
+     rows it doesn't draw: in a folded document of 70,000 lines the numbers took about
+     120 of the 150 ms its styling cost. */
 :where([hidden="until-found"], details:not([open]))
   lf-text-document
   .lf-text-document-run {
   content-visibility: visible;
+  & > * {
+    counter-increment: none;
+    &::before {
+      content: none;
+    }
+  }
 }
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that
    stays put: the Source tab's box with a preview, the listing's own without one. The

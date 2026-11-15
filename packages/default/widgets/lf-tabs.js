@@ -176,6 +176,17 @@ export class TabSet extends LeafElement {
   #revealMotion = null;
   /** @type {(() => void) | null} */
   #stopList = null;
+  // Whether each panel of a side list authors an obligation, which its row keeps the
+  // mark's room for. The strip draws on every switch, and asking each panel's content
+  // then made a switch cost every panel's document; the answer stands until a change
+  // under the panel, such as a revision patching it, takes it back.
+  /** @type {WeakMap<Element, boolean>} */
+  #authors = new WeakMap();
+  #contents = new MutationObserver((records) => {
+    for (const { target } of records)
+      for (const panel of this.#panels)
+        if (panel.contains(target)) this.#authors.delete(panel);
+  });
 
   createRenderRoot() {
     return this.#strip ?? this;
@@ -330,8 +341,14 @@ export class TabSet extends LeafElement {
             }),
           )
         : [];
+      // Away, the set hears no change under its panels, so it asks them again.
+      this.#authors = new WeakMap();
+      if (this.#side)
+        for (const panel of this.#panels)
+          this.#contents.observe(panel, { childList: true, subtree: true });
       this.#syncRegions();
       return () => {
+        this.#contents.disconnect();
         for (const stop of stopPanels) stop();
         this.#stopList?.();
         this.#stopList = null;
@@ -407,6 +424,16 @@ export class TabSet extends LeafElement {
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
 
+  /** @param {Element} panel */
+  #authorsObligation(panel) {
+    let authors = this.#authors.get(panel);
+    if (authors === undefined) {
+      authors = elementsDeclaring(panel, "x-awaits").length > 0;
+      this.#authors.set(panel, authors);
+    }
+    return authors;
+  }
+
   #currentButton() {
     const active = this.#active.value;
     return active ? this.#buttons.get(active) : undefined;
@@ -415,7 +442,7 @@ export class TabSet extends LeafElement {
   /** @param {Element} panel */
   #tab(panel) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
+    const hasAnswer = this.#side && this.#authorsObligation(panel);
     const items = hasAnswer ? obligationsIn(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");

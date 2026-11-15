@@ -110,6 +110,10 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
+  // Whether the page is armed for the cursor (page-geometry.js, `paintArmedCursor`): the
+  // modifier held or the picker standing, as the body's marker says, or Design mode.
+  // Read without the mode gate, as the marker is.
+  const armed = () => aiming || targetPicker.active() || designMode.active();
   // The armed page's one writer, called when either source of the arm changes.
   function armChanged() {
     setRuntimeRootAttribute(
@@ -265,5 +269,5 @@ export function createAim({
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armChanged, mount };
+  return { aimIsOn, aimedTarget, armed, armChanged, mount };
 }

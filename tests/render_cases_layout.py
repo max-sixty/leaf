@@ -957,7 +957,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
                 "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
-                "data-lf-over-item"])
+                "data-lf-over-item", "data-lf-armed-arrow"])
                 el.removeAttribute?.(paint);
             // Anchor naming is presentation state. A heading borrows a name by
             // attribute while its link shows, and the layout may copy a name

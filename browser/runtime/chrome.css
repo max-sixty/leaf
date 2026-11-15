@@ -88,14 +88,10 @@
 /* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
    answers which item a press takes; the cursor answers whether it takes any: the hand over an item, the
    arrow elsewhere (claimPress). Derived at the paint from what refreshAim resolved, so
-   cursor and mark cannot disagree. The arrow is one declaration on the body, inherited,
-   which changes as the page arms; the hand stands on the element under the pointer
-   (page-geometry.js), so a crossing restyles only what that element holds. A control
-   keeps its own cursor while armed. The chrome holds itself out from inside its own
-   scope. */
-body:is([data-lf-aiming], [data-lf-design-mode]) {
-  cursor: default;
-}
+   cursor and mark cannot disagree. Each stands on the element under the pointer
+   (page-geometry.js, `paintArmedCursor`), the arrow in marks.css, so arming and a
+   crossing restyle only what that element holds. A control keeps its own cursor while
+   armed. */
 body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
@@ -230,7 +226,7 @@ html[data-lf-region-capture]
      position, so a page's broad positioning cannot make the wrapper or the legend's
      paint host a containing block for document-attached floats, except the root after
      `body`, which stands at the origin to stack over the page (base.css); cursor,
-     since the body may be armed for ⌥ aiming; the whole face, since the guard keeps light page rules
+     which a page may state on the body; the whole face, since the guard keeps light page rules
      off the chrome (chrome-guard.css) but inheritance still reaches it; and user-select, because a
      drag that reaches any selectable part of the chrome extends the range through
      everything between, so the root answers for every surface and what may still be

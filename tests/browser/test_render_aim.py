@@ -1941,9 +1941,9 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
     # on nothing where there is none (claimPress), so the hand and the arrow are those two
-    # states, read where the user's pointer is, since the aim declares the cursor on body
-    # and the promise is only kept if it arrives at the glyphs. `auto` is the resting
-    # state: unarmed, the browser draws an I-beam over words.
+    # states, read where the user's pointer is, since the promise is only kept if it
+    # arrives at the glyphs. `auto` is the resting state: unarmed, the browser draws an
+    # I-beam over words.
     with subtests.test(case="the cursor says whether a press would take anything"):
         at_pointer = """([x, y]) =>
             getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -1953,7 +1953,10 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         )
         # Beside the column, level with the same paragraph: body's own margin, which the
         # centred 720px column leaves on a 1200px viewport, and no element there carries
-        # an id for an armed press to take.
+        # an id for an armed press to take. No words stand there either, where `auto`
+        # already draws the arrow, so the arm states no cursor of its own
+        # (page-geometry.js, `paintArmedCursor`); over words it states the arrow
+        # (`test_arming_the_page_restyles_only_what_the_pointer_is_over`).
         in_gap = [40, on_item[1]]
         assert page.evaluate(at_pointer, on_item) == "auto", (
             "an unarmed page already named a cursor, so the arm has nothing left to say"
@@ -1968,7 +1971,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
 
         page.mouse.move(*in_gap)
         expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-        assert page.evaluate(at_pointer, in_gap) == "default", (
+        assert page.evaluate(at_pointer, in_gap) in ("auto", "default"), (
             "the aim had nothing to take and the hand promised a press anyway"
         )
 

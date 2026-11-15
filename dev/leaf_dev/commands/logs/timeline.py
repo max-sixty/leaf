@@ -63,6 +63,7 @@ from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
 from leaf.holding import turn_threads
+from leaf.hook_transport import inline_delivery
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
@@ -93,9 +94,6 @@ DIAGNOSTICS = (
 QUIET = {"seen", "read", "reanchor", "receipt"}
 # How long after a message `--message` reads where nothing answered it.
 UNANSWERED_WINDOW = timedelta(minutes=10)
-# The line a hook carries Leaf's input in, before the delivery's JSON
-# (`hook_transport.INLINE_OPENING`).
-DELIVERY_OPENING = "Leaf has new input"
 # A shell command that runs `leaf`, anywhere in it, as `hooks/claude-code.ts` finds one.
 LEAF_COMMAND = re.compile(r"(^|[\s;&|(/])leaf(\s|$)")
 
@@ -499,15 +497,10 @@ def native(path: Path) -> list[dict]:
 def told(text: str) -> list[str]:
     """What one context a Leaf hook gave the session says: the delivery it carried, by
     event id, and each line Leaf's clerk queued after it (`clerk.queued`)."""
-    if not text.startswith(DELIVERY_OPENING):
+    if (delivery := inline_delivery(text)) is None:
         return [
             f"said “{clip(line, 90)}”" for line in text.splitlines() if line.strip()
         ]
-    start = text.find("{")
-    try:
-        delivery, end = json.JSONDecoder().raw_decode(text, start)
-    except ValueError:
-        return [f"said “{clip(text, 90)}”"]
     ids = [
         event["id"]
         for batch in delivery.get("batches", [])
@@ -515,7 +508,8 @@ def told(text: str) -> list[str]:
     ]
     return [
         f"carried delivery {delivery.get('id')}: {', '.join(ids) or 'no events'}",
-        *told(text[end:].strip()),
+        # The lines after the delivery's own, which the clerk queued.
+        *told("".join(text.split("\n", 2)[2:])),
     ]
 
 
@@ -561,7 +555,7 @@ def session_entries(path: Path, session: str, *, calls: bool) -> list[dict]:
         attachment = record.get("attachment") or {}
         if attachment.get("type") == "hook_additional_context":
             for text in attachment.get("content") or []:
-                if not text.startswith(DELIVERY_OPENING) and "Leaf" not in text[:200]:
+                if "Leaf" not in text[:200]:
                     continue
                 out.extend(
                     entry(
@@ -656,7 +650,7 @@ def subagent_entries(meta: Path, session: str) -> list[dict]:
                     session=session,
                 )
                 for text in attachment.get("content") or []
-                if text.startswith(DELIVERY_OPENING)
+                if inline_delivery(text) is not None
                 for line in told(text)
             )
     return [

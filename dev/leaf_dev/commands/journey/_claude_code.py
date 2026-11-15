@@ -138,7 +138,7 @@ from leaf.harness import (
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING
+from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, inline_delivery
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.state import turn_open
@@ -505,16 +505,11 @@ def steps(
         """The delivery steps, from `mid-turn` to `compacting`."""
         started = time.monotonic()
         mid_turn = cc.mid_turn(user, page)
+        records = native_records(cc.home, session)
         require(
             any(
-                event["id"] == mid_turn
-                for record in native_records(cc.home, session)
-                if (attachment := record.get("attachment", {})).get("hookEvent")
-                == "PostToolBatch"
-                for content in attachment["content"]
-                if content.startswith(INLINE_OPENING + "\n")
-                for batch in json.loads(content.split("\n")[1])["batches"]
-                for event in batch["events"]
+                records[position]["attachment"].get("hookEvent") == "PostToolBatch"
+                for position in deliveries(records, mid_turn)
             ),
             "mid-turn: PostToolBatch did not hand the exact input to the model",
         )
@@ -1232,8 +1227,8 @@ def deliveries(records: list[dict], update: str) -> list[int]:
         and any(
             event["id"] == update
             for content in attachment.get("content") or []
-            if content.startswith(INLINE_OPENING + "\n")
-            for batch in json.loads(content.split("\n")[1])["batches"]
+            if (delivery := inline_delivery(content)) is not None
+            for batch in delivery["batches"]
             for event in batch["events"]
         )
     ]

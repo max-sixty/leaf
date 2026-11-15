@@ -11,7 +11,7 @@ from typing import NamedTuple
 
 from leaf.anchor_capture import resolve_quote
 from leaf.events import build_threads
-from leaf.files import list_revisions
+from leaf.files import list_revisions, stamped_version
 from leaf.findings import Finding
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
@@ -138,11 +138,7 @@ def predecessor_reading(
         artifact is None or artifact.digest == read_revision(page_dir, active).digest
     )
     committed_active = bool(
-        active
-        and same_as_active
-        and any(
-            event["kind"] == "note" and event["revision"] == active for event in events
-        )
+        active and same_as_active and stamped_version(events, active) is not None
     )
     predecessor = (
         active

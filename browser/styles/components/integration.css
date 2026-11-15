@@ -17,10 +17,12 @@
    Firefox on a page of thirty text documents.
 
    The element's children take `auto` rather than inherit the crosshair. None of them
-   is under the pointer, so none shows its cursor, and a box the pointer crosses, such
-   as `body` between blocks, restyles its children rather than everything it holds.
-   Where the page gives such a box a cursor of its own, its children's subtrees restyle
-   too, since `auto` differs from what they inherited. */
+   is under the pointer, so none shows its cursor, and in Firefox a box the pointer
+   crosses, such as `body` between blocks, restyles its children rather than
+   everything it holds. Where the page gives such a box a cursor of its own, its
+   children's subtrees restyle too, since `auto` differs from what they inherited.
+   Chromium restyles everything such a box holds either way, past what
+   `content-visibility` skips. */
 [data-lf-crosshair] {
   cursor: crosshair !important;
 }

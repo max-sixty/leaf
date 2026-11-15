@@ -238,7 +238,7 @@ MAP_TRACK = '<div class="layout-track"><lf-toc id="contents"></lf-toc></div>'
         ),
         pytest.param(
             f'<aside id="route">{MAP_TRACK}</aside><div id="body">{SECTIONS}</div>',
-            "<style>main { --aside: 56px; }</style>",
+            "<style>main { --lf-aside: 56px; }</style>",
             True,
             id="narrow-sidebar-of-the-page",
         ),

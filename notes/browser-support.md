@@ -188,6 +188,19 @@ kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
 `test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 
+### A near-grey colour's hue in relative `oklch()` in Chromium
+
+Playwright Chromium 158.0.8127.18 (build 1254) reads the hue of a low-chroma colour as
+`none` in a relative `oklch()`: on 2026-11-14,
+`oklch(from #d1d0cc l calc(c * 3.4) h)` computed to `oklch(0.857 0.019 none)` and
+painted `rgb(219, 203, 207)`, a pink, where Firefox 159 and WebKit 27.2 kept the hue
+(95) and painted `rgb(212, 208, 195)`. The colour's chroma is 0.0055, and a hue of
+`none` is drawn at 0. The theme's neutrals are near-grey mixes of the paper and ink
+whose chroma is raised (`browser/styles/tokens.css`, at `--lf-paper`), so they scale
+the two axes of `oklab()` instead, which holds no hue and paints the same in all three
+engines. Recheck by loading that `oklch()` declaration in the engine: the gap stands
+while it computes a hue of `none`.
+
 ### Contents spine lens
 
 `packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll

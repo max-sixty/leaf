@@ -739,7 +739,7 @@ Retained, in commit order on the campaign branch:
 - A panel heading names its region and the panel's first line states its finding. All
   7 Leaf dashboards with panels written without that line had a panel heading over 40
   characters (up to 129, in small capitals); the 2 written with it had none over 20.
-- Queue summaries take `--t-working-label` instead of the label size, in an 18rem list.
+- Queue summaries take `--lf-t-working-label` instead of the label size, in an 18rem list.
 - An applied playground stays open, authored at the chosen values, as its record
   (`authoring-revisions.md`). Authors given the line did so 7 of 8 times, authors on
   main 0 of 4 (today's values, or the tuner in a disclosure). Judgments against base

@@ -29,7 +29,7 @@ for what it examines rather than for the mechanisms inside it, so the code a new
 needs may sit in a command whose name doesn't suggest it. Before writing a mechanism,
 or turning a script of your own into a command, search `dev/`, `evals/` and `src/leaf/`
 for code that already does the job, by the calls it has to make (the widget whose markup it writes,
-the library it draws or measures with) rather than by name, as `/developing-leaf`'s
+the library it draws or measures with) rather than by name, as the root `AGENTS.md`'s
 **What it repeats** says. Move what you find into a module here that both tools
 import. The modules beside `cli.py` hold what several tools share already, such as
 the arms and harness sessions in `arms.py`, page directories in `page_fixtures.py`,

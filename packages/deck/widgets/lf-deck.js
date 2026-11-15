@@ -67,7 +67,6 @@ import {
   nameAction,
   rowArrows,
   dragging,
-  elementById,
   fitsWhole,
   focusDestination,
   focused,
@@ -134,7 +133,7 @@ customElements.define(
     /** @type {HTMLElement[]} */
     #cards = [];
     // Each card's obligations by the last inventory read (`#readings`).
-    /** @type {{all: object, held: Map<HTMLElement, DeckHeld>} | null} */
+    /** @type {{all: ReturnType<typeof readObligations>["all"], held: Map<HTMLElement, DeckHeld>} | null} */
     #held = null;
     // The open card, or null once the pass is over.
     /** @type {import("@preact/signals-core").Signal<HTMLElement | null>} */
@@ -224,36 +223,22 @@ customElements.define(
       });
     }
 
-    // Each card's obligations, or null until the page's first reading is in. The deck's
-    // members (`obligationsIn`) are filed once per inventory under the card holding each
-    // one's widget, so reading every card costs one pass over the page's obligations
-    // rather than a pass per card.
+    // Each card's obligations, or null until the page's first reading is in: what the
+    // card holds by the one rule every count of a region reads (`obligationsIn`), asked
+    // once per card and reading and kept until the inventory changes, rather than again
+    // for each mark, word and row a render draws.
     /** @returns {DeckReadings | null} */
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      if (this.#held?.all !== items.all) {
-        /** @type {Map<HTMLElement, DeckHeld>} */
-        const held = new Map();
-        for (const item of obligationsIn(this, items.all)) {
-          const card =
-            item.source.kind === "widget" &&
-            this.#cardHolding(elementById(item.source.id));
-          if (card) held.set(card, [...(held.get(card) ?? []), item]);
-        }
-        this.#held = { all: items.all, held };
-      }
-      const { held } = this.#held;
-      return (card) => held.get(card) ?? [];
-    }
-
-    // The card `node` stands in, climbing out of any shadow tree on the way.
-    /** @param {Node | null} node */
-    #cardHolding(node) {
-      let at = node;
-      while (at && at.parentNode !== this)
-        at = at.parentNode instanceof ShadowRoot ? at.parentNode.host : at.parentNode;
-      return at instanceof HTMLElement ? at : null;
+      if (this.#held?.all !== items.all)
+        this.#held = { all: items.all, held: new Map() };
+      const { all, held } = this.#held;
+      return (card) => {
+        let members = held.get(card);
+        if (!members) held.set(card, (members = obligationsIn(card, all)));
+        return members;
+      };
     }
 
     // Show one card, or none once the pass is over, without motion.

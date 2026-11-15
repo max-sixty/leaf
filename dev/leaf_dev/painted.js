@@ -46,11 +46,9 @@
   );
   const shown = (node) => Boolean(node?.checkVisibility());
   const messages = (words) =>
-    [
-      ...document.querySelectorAll(
-        ":is(.lf-thread, .lf-page-thread) :is([data-mid], [data-lf-event])",
-      ),
-    ].filter((node) => node.textContent.includes(words) && shown(node));
+    [...document.querySelectorAll(".lf-page-thread [data-lf-event]")].filter(
+      (node) => node.textContent.includes(words) && shown(node),
+    );
   let semantic = null;
   let stopWatching = null;
   async function diagnostics() {

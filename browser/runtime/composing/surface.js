@@ -173,7 +173,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * @typedef {ReturnType<typeof import("../thread/destination.js").createThreadDestinations>} ThreadDestinations
  * @typedef {Pick<ComposerOptions, "reactionTokens" | "setReact" | "designModeActive" | "openPageThread" | "createComment" | "landSent" | "refreshThread" | "wireInput" | "drawingEdits"> & {
  * rememberSelection: ReturnType<typeof import("./capture.js").createPassageSelection>["remember"],
- * landIn: ReturnType<typeof import("../thread/landing.js").createThreadLanding>["landIn"],
+ * landIn: typeof import("../thread/landing.js").landIn,
  * threadHere: ThreadDestinations["threadHere"], threadAtCurrentLocation: ThreadDestinations["threadAtCurrentLocation"], threadTarget: ThreadDestinations["threadTarget"],
  * currentTarget: ReturnType<typeof import("./current-target.js").createCurrentTarget>,
  * markAt?: ((x: number, y: number) => string | null) | undefined,

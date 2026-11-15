@@ -76,14 +76,14 @@ class Profile:
                 node_id = parent.get(node_id)
             self.samples.append((at, following, chain))
 
-    def dominant(self, lo: float, hi: float, count: int = 2) -> list:
-        """The runtime call paths holding most samples between lo and hi."""
+    def dominant(self, lo: float, hi: float) -> list:
+        """The two runtime call paths holding most samples between lo and hi."""
         paths = Counter()
         for at, _, chain in self.samples:
             if lo <= at < hi:
                 named = [f for f in reversed(chain) if not f.startswith(OPAQUE)]
                 paths[" > ".join(named[:3]) or chain[0]] += 1
-        return [path for path, _ in paths.most_common(count)]
+        return [path for path, _ in paths.most_common(2)]
 
     def functions(
         self, lo: float = -math.inf, hi: float = math.inf

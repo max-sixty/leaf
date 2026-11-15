@@ -903,7 +903,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
-        before = AdmissionReadings(view, events, active_registry)
+        # An event made against the newest revision was admitted in the active
+        # vocabulary, so `readings` already reads the log before it in that one.
+        before = (
+            readings
+            if active_registry is registry
+            else AdmissionReadings(view, events, active_registry)
+        )
         after = AdmissionReadings(view, [*events, candidate], active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}

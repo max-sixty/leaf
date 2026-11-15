@@ -147,7 +147,7 @@ Where no state reaches a surface the change touches, add one to `STATES`
 never one per scheme, size or pointer, which a run chooses with `--scheme`,
 `--viewport` and `--touch` (the `states.py` header says when a state keeps its own).
 
-For a change to thread-card placement, also run `uv run leaf-dev placements --base`,
+For a change to thread-card placement, also run `uv run leaf-dev placement cards --base`,
 a gallery of cards across subjects, messages, routes and windows, and add a case to its
 `CASES` for each new shape a reader meets.
 
@@ -169,14 +169,14 @@ or serve a scratch page.
 
 ## Run the agent journey
 
-`uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
+`uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
 real agent. Run it on each harness a change touches, such as a change to how that
 harness runs Leaf's hooks or sandbox; `references/agent-journey.md` names the target
 for each file, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
-`uv run leaf-dev compare <example>` serves the merge-base runtime beside this checkout,
+`uv run leaf-dev preview <example> --base` serves the merge-base runtime beside this checkout,
 in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
 the default shared source for a runtime change, pass `--authored` when the authored
 content changed, and pass `--user` only when the URLs go to the user.
@@ -215,65 +215,6 @@ Score an instruction change when you can't be sure how an agent will read it: a 
 or reworded rule, a goal that competes with another, or a cut that may have carried a
 behavior. Before changing the instructions an authoring agent follows, or scoring any
 change, read `references/instruction-changes.md`.
-
-## Weigh what a change adds
-
-Whoever writes or reviews a change asks whether what it adds is worth what later
-changes and users pay for it, by the bar "Regular maintenance" sets for code already
-there. Size says little: a two-line selector can reach every page.
-
-- **What it adds**: a mode, branch or special case; one more member of a set,
-  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
-  state that may not come; a reliance on a dependency's internals.
-- **What it repeats**: code the change writes may already exist under another name, in
-  another directory, language or package. Search for the question each new helper,
-  constant, selector, style rule or inline check answers, not for its name. A copy is a
-  second home even when a comment names its source. Where the change couldn't reach
-  the owner, export, move or generate the owner rather than copy it.
-- **What it buys**: a behavior a user sees, a request the maintainer made, or a
-  measured cost. A green test buys what the test protects, so name that.
-- **Where its cost lands**: read the change's reach rather than its claim, such as a
-  selector's or guard's scope against the condition it names, what else inherits from
-  or sits in the box it changes, and how often a guard fires on a correct setup. Then
-  compare who pays with who gains: a cost paid in every state or on every page to fix
-  one transition usually outweighs it.
-- **The cheaper change**: a platform or dependency primitive, the fix in the owner
-  rather than a caller, the stale copy deleted, or the gap left open with an issue.
-  When `git log -L` shows earlier changes compensating for the same gap, ask whether
-  the mechanism is the wrong primitive and the cheaper change its general form.
-
-Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
-fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
-for it in review. When the fix for a finding would add another branch, flag or
-condition, first ask whether the finding is about the approach.
-
-## Regular maintenance
-
-Whenever a survey, a review or the nightly sweep reads a file, look for code that
-makes Leaf harder to develop than it is worth:
-
-- **A mechanism users wouldn't miss.** Ask who would notice it gone and what it costs
-  the changes around it. `uv run leaf-dev usage` counts what the pages on this machine
-  used: each widget, package, command and `leaf` command. Code woven into the core runtime, the server or a shared
-  contract costs every nearby change, so it must clear a much higher bar. Signs it
-  doesn't: a hold, carry or special case for one widget or gesture spread across
-  several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
-  history stops at its last move). Code in its own module, such as a
-  package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
-  it only when it is large and unused. Keep anything users would notice losing,
-  including Leaf's interface guarantees. Taking a feature away is the maintainer's
-  call, so propose the removal with what users lose and what it deletes.
-- **Several implementations of one capability.** Consolidate them into one home and
-  move every caller to it (root `AGENTS.md`, "Fix the underlying issue"). The other
-  copies seldom sit beside the file you're reading, so search for them as **What it
-  repeats** says.
-- **A mechanism a dependency or the platform already provides.** Delegate it (root
-  `AGENTS.md`, "Use dependencies").
-
-Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
-gives what it deletes, and a probe or capture of the affected journey shows what users
-lose. A count read off the code overstates the saving.
 
 ## Land a change
 

@@ -20,6 +20,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     RELEASE_FOCUS,
+    expect_obligations_answered,
     held_frames,
     leaf_page,
     open_page,
@@ -676,7 +677,9 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("Shift+m")
     expect(page.locator("#first")).to_be_focused()
     page.keyboard.press("1")
-    round_trip(page)
+    # Whether a pick answers an obligation is the server's reading, which the page
+    # applies after the pick's send comes back.
+    expect_obligations_answered(page, "1/2")
     first, second = questions()
     assert first["status"] == "answered"
     assert first["answer"]["value"] == ["first-a"]
@@ -684,7 +687,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#second")).to_be_focused()
     page.keyboard.press("2")
-    round_trip(page)
+    expect_obligations_answered(page, "2/2")
     assert questions()[1]["answer"]["value"] == ["second-b"]
     page.keyboard.press("Escape")
     for source in ("first", "second"):
@@ -761,7 +764,8 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     moves no further than `j`, Back after `m m` returns to where the first `m` lands,
     `d`, or `d d`, pressed while the browser's own PageDown still moves the page, or
     before it has, steps on from where PageDown lands, and `m` pressed then lands where
-    it lands alone. Each ends where the same keys typed slowly end.
+    it lands alone; PageDown pressed before `d` has moved the page pages on from where
+    `d` lands. Each ends where the same keys typed slowly end.
     Home pressed before `d` has moved the page keeps it at the top, though at the top
     Home itself moves nothing."""
     asks = "".join(
@@ -865,6 +869,14 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     page.keyboard.press("m")
     expect(first).to_be_focused()
     assert settled() == pytest.approx(landing, abs=2)
+    # The other way round: PageDown pressed before `d` has moved the page pages on from
+    # where `d` lands, and a `d` after it still waits for PageDown's scroll.
+    from_the_top()
+    with held_frames(page):
+        page.keyboard.press("d")
+        page.keyboard.press("PageDown")
+        page.keyboard.press("d")
+    assert settled() == pytest.approx(2 * step + paged_down, abs=2)
 
     from_the_top()
     with held_frames(page):

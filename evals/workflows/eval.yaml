@@ -25,5 +25,5 @@ source_grading_prompt:
 # what the case was written with, whenever it runs. A case whose fixtures stand at
 # another time sets its own as `vars.now`.
 now: "2026-10-08T01:30:00-07:00"
-# The windows a run opens unless `eval --viewport` names others (`leaf_dev.browser.WINDOWS`).
+# The windows a run opens unless `eval run --viewport` names others (`leaf_dev.browser.WINDOWS`).
 default_viewports: [desktop]

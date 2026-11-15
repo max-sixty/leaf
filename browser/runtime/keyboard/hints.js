@@ -19,12 +19,14 @@
    A hint code is generated from a caller-owned alphabet. Replacing one leaf with all of
    its children keeps the result prefix-free while leaving most targets on one letter;
    only the tail branches when a scene contains more targets than the alphabet. The
-   placement pass spreads colliding chips apart, but only to seats where each still
-   reads as its own target's (`seatHints`): a chip standing beside another target names
+   placement pass spreads colliding chips apart, side by side further apart than a
+   code's own keycaps, but only to seats where each still reads as its own target's
+   (`seatHints`): a chip standing beside another target names
    that one, and its press would act on the wrong thing. In a list of rows shorter than
    a chip, every other row's corner chip steps out a column, level with its row, so every
    row keeps a chip where there is room beside the list. A chip with no seat at all is
-   withheld, and its member stays in the map, which the walk still reaches aloud. Where
+   withheld, as is each chip of a run of targets side by side too narrow to tell apart,
+   and its member stays in the map, which the walk still reaches aloud. Where
    seating in page order would withhold the chip the walk is on, that chip is seated
    first, so it shows wherever its target leaves room for one. A withheld chip's code
    still takes it, as every member's does. Until 11 November 2026 every chip was shown,
@@ -44,7 +46,7 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 /** @typedef {import("../rect.js").Box & {held?: boolean}} HintBarrier */
 /** @typedef {import("../rect.js").Box & {width: number, height: number, held?: boolean, clippedTop?: boolean}} HintBox
- * @typedef {"corner" | "below" | "before" | "above"} HintPlacement
+ * @typedef {"corner" | "before" | "above"} HintPlacement
  * @typedef {{start: HintBox, target: HintBox, placement?: HintPlacement}} HintFace
  */
 
@@ -126,9 +128,10 @@ const sameBoxes = (some, others) =>
     return other !== undefined && sameBox(box, other);
   });
 
-// The open top nearest `preferred` that `admits`, and what decided it: the window's
-// edge, a barrier the seat stands clear of, or nothing where the preferred top is open.
-// None where no open top is admitted.
+// Of the preferred top, the window's edges and the tops just clear of each barrier, the
+// open one nearest `preferred` that `admits`, and what decided it: the window's edge, a
+// barrier the seat stands clear of, or nothing where the preferred top is open. None
+// where none of those is admitted.
 /** @param {HintBox} box @param {number} preferred @param {HintBarrier[]} barriers @param {number} top @param {number} bottom @param {number} gap @param {(top: number) => boolean} admits */
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
   const last = Math.max(top, bottom - box.height);
@@ -166,8 +169,7 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass. A chip
 // withheld for want of a seat that reads as its target's stays where it was drawn,
 // hidden rather than removed, so a pass that changes nothing writes nothing.
-// `placement` chooses the corner, below, before, or above the target;
-// outside seats keep the target clear.
+// `placement` chooses the corner, before or above the target (`seatHints`).
 /** @param {ReturnType<typeof chipSeats>} seats
  * @param {{seat: HTMLElement, at: {left: number, top: number}, target: HintBox, placement?: HintPlacement, element: Element | null, browsed: boolean}[]} hints
  * @param {{barriers: HintBarrier[]}} options */
@@ -293,39 +295,96 @@ export function seatHints(
   // paints one, so it has that space to itself. Seated to the gap alone both cleared by
   // coincidence, the gap and the band both being 2px.
   const clear = Math.max(gap, band);
+  // Side by side, two chips stand `apart`, well clear of the 1px between one code's own
+  // keycaps (`.lf-binding-sequence`, chrome.css), so a row of two-letter chips reads as
+  // codes: touching, `na` and `ng` read as `n a n g`. Stacked chips keep only `clear`,
+  // since a code reads across. Until 14 November 2026 chips could touch side by side.
+  const apart = 6;
+  /** @param {HintBox} box @returns {HintBox} */
+  const widened = (box) => ({
+    ...box,
+    left: box.left - apart,
+    right: box.right + apart,
+  });
   const edgeLeft = viewport.left + band;
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
   const edgeBottom = viewport.bottom - band;
   /** @param {HintFace} face */
   const beforeLeft = ({ start, target }) => target.left - start.width - clear;
+  // Whether a chip at `seat` reads as its own target's, the one test every seat a chip
+  // takes passes. Off its own target, a chip reads as any other target that stands
+  // between its middle and its own target, its middle included, as a seat before a
+  // button does on the button to its left, or one stepped out of a column does on a
+  // target beside the column. And it reads as the target whose rows are nearest its
+  // middle among those in its column or its own target's, as in a list or a stack of
+  // controls; ties stand, as where a corner chip straddles two rows or two targets share
+  // an edge. A target around its own competes with neither, since its chip stands
+  // a step out (`nestOutsets`). So a chip in the gutter between two cards, level with its
+  // own target's first line, reads as its own though the other card's edge is nearer its
+  // middle. Nor may it stand further above or below its target than one more chip would
+  // fill, as a chip pushed past two others stacked over its target would.
+  /** @param {HintBox} seat @param {HintFace} face */
+  const readsAs = (seat, face) => {
+    const own = face.target;
+    if (Math.max(own.top - seat.bottom, seat.top - own.bottom) > seat.height + clear)
+      return false;
+    const x = (seat.left + seat.right) / 2;
+    const y = (seat.top + seat.bottom) / 2;
+    /** @param {import("../rect.js").Box} rows */
+    const off = (rows) => Math.max(rows.top - y, y - rows.bottom, 0);
+    // The stretch from the chip's middle to the nearest point of its own target.
+    const near = { x: clamp(x, own.left, own.right), y: clamp(y, own.top, own.bottom) };
+    /** @param {import("../rect.js").Box} box */
+    const between = (box) =>
+      box.left < Math.max(x, near.x) &&
+      box.right > Math.min(x, near.x) &&
+      box.top < Math.max(y, near.y) &&
+      box.bottom > Math.min(y, near.y);
+    const onOwn = near.x === x && near.y === y;
+    return targets.every(
+      (target) =>
+        sameBox(target, own) ||
+        encloses(target, own) ||
+        ((onOwn || !between(target)) &&
+          (!(overlapsAcross(target, own) || overlapsAcross(target, seat)) ||
+            off(target) >= off(own))),
+    );
+  };
   // A before seat stands level with its target's first line, so in a list of short rows
-  // each chip reads as its own row's rather than the boundary with the row above. A
-  // chip that would cover its own target at the window's edge, or a neighbour's words
-  // in a row of buttons, keeps its target's corner, which covers less of them.
+  // each chip reads as its own row's rather than the boundary with the row above.
   /** @param {HintFace} face */
   const level = ({ start, target }) =>
     target.top + (Math.min(target.height, 2 * start.height) - start.height) / 2;
-  /** @param {T} face @param {number} left */
-  const levelTop = (face, left) => {
-    const { start, target } = face;
-    const top = level(face);
-    const seat = movedTo(start, left, top);
-    const covers = faces.some(
-      (other) =>
-        overlaps(seat, other.target) &&
-        (other === face || !encloses(other.target, target)),
-    );
-    return covers ? start.top : top;
-  };
   // A corner chip hangs half above its target, which reads as the target's while the
   // target runs on below it. In a list of rows shorter than a chip, it covers the row
   // above as much as its own, so wherever two rows' corner chips would collide, each
   // stands level with its own row instead (`level`). Rows sharing a column and no line
-  // are neighbours; a footnote marker beside another shares neither and stays on its
-  // corner.
+  // are neighbours; a target beside another shares neither and keeps its corner.
   /** @param {HintFace} face */
   const corner = (face) => (face.placement ?? "corner") === "corner";
+  // A target narrower than a key, with another as narrow beside it on its line less than
+  // a key away, as a film's slots in a narrow window or adjacent footnote markers are,
+  // gets no chip: no seat beside it says which of the run it names, and chips for a whole
+  // run bury it. A narrow target beside a wide one, as an icon beside a field, keeps its
+  // chip. Its member stays in the map, so its code still takes it and a walk onto it
+  // shows its chip. A key is a chip's height, one keycap. Rows stacked one under another,
+  // as in a contents list, share no line and keep their chips. Until 14 November 2026
+  // such a run's chips stacked or scattered around it.
+  /** @param {HintFace} face */
+  const bunched = ({ start, target }) =>
+    target.width < start.height &&
+    targets.some(
+      (other) =>
+        other !== target &&
+        other.width < start.height &&
+        !sameBox(other, target) &&
+        !encloses(other, target) &&
+        !encloses(target, other) &&
+        other.top < target.bottom &&
+        target.top < other.bottom &&
+        Math.max(other.left - target.right, target.left - other.right) < start.height,
+    );
   /** @param {import("../rect.js").Box} one @param {import("../rect.js").Box} other */
   const rowNeighbours = (one, other) =>
     overlapsAcross(one, other) && (one.bottom <= other.top || other.bottom <= one.top);
@@ -356,80 +415,48 @@ export function seatHints(
         )
         .map(({ start }) => start.width),
     );
+  // Each face stands in the first seat its placement offers that reads as its own
+  // target's where the window lets it stand. An owner's chip stands before its target,
+  // and above it where the seat before reads as a neighbour's, as in a row of cards; a
+  // control's stands above, and before it where the seat above is a neighbour's. Both
+  // seats stand outside the target, so one the window pushes onto its own target is
+  // neither. Where neither reads as its own, as in a grid of buttons, the chip stands on
+  // its target's corner, as every Go-to chip does.
   const measured = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft).map(
     ({ face, outset }) => {
-      const { start, target, placement = "corner" } = face;
+      const { start, target } = face;
+      /** @param {{left: number, top: number}} at */
+      const inWindow = ({ left, top }) =>
+        movedTo(
+          start,
+          clamp(left, edgeLeft, Math.max(edgeLeft, edgeRight - start.width)),
+          clamp(top, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
+        );
+      const before = { left: beforeLeft(face) - outset, top: level(face) };
+      const above = { left: target.left, top: target.top - start.height - clear };
+      const outside = {
+        before: [before, above],
+        above: [above, before],
+        corner: [],
+      }[face.placement ?? "corner"].find((at) => {
+        const seat = inWindow(at);
+        return !overlaps(seat, target) && readsAs(seat, face);
+      });
       const column = crowded.has(face) ? columnWidth(face) : start.width;
-      const preferredLeft =
-        placement === "below"
-          ? target.left + (target.width - start.width) / 2
-          : placement === "before"
-            ? beforeLeft({ start, target }) - outset
-            : placement === "above"
-              ? target.left
-              : start.left + (start.width - column) / 2;
-      const left = clamp(
-        preferredLeft,
-        edgeLeft,
-        Math.max(edgeLeft, edgeRight - start.width),
-      );
-      const preferredTop =
-        placement === "below"
-          ? target.bottom + clear
-          : placement === "above"
-            ? target.top - start.height - clear
-            : placement === "before"
-              ? levelTop(face, left)
-              : crowded.has(face)
-                ? level(face)
-                : start.top;
-      const first = movedTo(
-        start,
-        left,
-        clamp(preferredTop, edgeTop, Math.max(edgeTop, edgeBottom - start.height)),
-      );
-      const held = first.left !== preferredLeft || first.top !== preferredTop;
+      const at = outside ?? {
+        left: start.left + (start.width - column) / 2,
+        top: crowded.has(face) ? level(face) : start.top,
+      };
+      const seated = inWindow(at);
       return {
         face,
-        seated: first,
-        ownTarget: placement !== "corner" ? target : null,
-        clamped: held,
+        seated,
+        ownTarget: outside ? target : null,
+        clamped: seated.left !== at.left || seated.top !== at.top,
         column,
       };
     },
   );
-  // Whether a chip moved off its placement's seat to `seat`, by the chips around it or
-  // by the window's edge, still reads as its own target's. Up or down, what it can come
-  // to stand level with is another target in its own target's column: none of those may
-  // have its rows nearer the chip's middle than its own target's, but one around its
-  // own, whose chip stands a step out (`nestOutsets`). Ties stand, as where a corner
-  // chip straddles two rows. Nor may it stand further above or below its target's rows
-  // than one more chip would fill, as the third of three footnote markers' chips does,
-  // stacked on the other two.
-  /** @param {HintBox} seat @param {T} face */
-  const readsAs = (seat, face) => {
-    const own = face.target;
-    if (Math.max(own.top - seat.bottom, seat.top - own.bottom) > seat.height + clear)
-      return false;
-    const middle = (seat.top + seat.bottom) / 2;
-    /** @param {import("../rect.js").Box} rows */
-    const off = (rows) => Math.max(rows.top - middle, middle - rows.bottom, 0);
-    return targets.every(
-      (target) =>
-        !overlapsAcross(target, own) ||
-        encloses(target, own) ||
-        off(target) >= off(own),
-    );
-  };
-  // Whether `seat` stands on a target other than `face`'s or one around it.
-  /** @param {HintBox} seat @param {T} face */
-  const coversAnother = (seat, face) =>
-    targets.some(
-      (target) =>
-        target !== face.target &&
-        !encloses(target, face.target) &&
-        overlaps(seat, target),
-    );
   // Faces are seated in turn, each clear of those before it, so the order decides which
   // of two crowded chips steps out or is withheld.
   /** @param {typeof measured} order */
@@ -441,26 +468,19 @@ export function seatHints(
   };
   /** @param {typeof measured[number]} measuredFace @param {Map<T, HintBox | null>} placed */
   const seatOne = ({ face, seated, ownTarget, clamped, column }, placed) => {
+    if (face !== browsed && bunched(face)) return null;
     /** @param {HintBox} seat */
     const barriersAcross = (seat) => [
       ...fixedBarriers.filter((other) => overlapsAcross(other, seat)),
       ...[...placed.values()].flatMap((box) =>
-        box && overlapsAcross(box, seat) ? [box] : [],
+        box && overlapsAcross(widened(box), seat) ? [widened(box)] : [],
       ),
     ];
     const barriers = barriersAcross(seated);
     /** @param {HintBarrier[]} around */
     const openTop = (around) =>
-      nearestOpenTop(
-        seated,
-        seated.top,
-        around,
-        edgeTop,
-        edgeBottom,
-        clear,
-        (top) =>
-          (!clamped && top === seated.top) ||
-          readsAs(movedTo(seated, seated.left, top), face),
+      nearestOpenTop(seated, seated.top, around, edgeTop, edgeBottom, clear, (top) =>
+        readsAs(movedTo(seated, seated.left, top), face),
       );
     // An outside seat keeps off its own target where the column leaves it room, and
     // stands on it where the target fills the room, as a block at the window's left
@@ -490,13 +510,12 @@ export function seatHints(
     /** @returns {HintBox | null} */
     const levelled = () => {
       for (const step of [0, 1, 2]) {
-        const left = seated.left - step * (column + clear);
+        const left = seated.left - step * (column + apart);
         if (left < edgeLeft) break;
         const seat = movedTo(seated, left, seated.top);
         if (
           !barriersAcross(seat).some((barrier) => overlaps(seat, barrier)) &&
-          (step ? !coversAnother(seat, face) : true) &&
-          (step || clamped ? readsAs(seat, face) : true)
+          readsAs(seat, face)
         )
           return Object.assign(seat, { held: clamped });
       }

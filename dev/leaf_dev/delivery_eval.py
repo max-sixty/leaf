@@ -18,7 +18,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import LiveChild, LiveSession, PageClient, run_leaf, scratch
-from leaf_dev.commands.response_times import distribution, page_timings
+from leaf_dev.commands.logs.response_times import distribution, page_timings
 from leaf_dev.eval_cases import definition
 from leaf_dev.review_scenario import prepare
 

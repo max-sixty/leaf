@@ -288,12 +288,29 @@ def rewrite_attribute_references(
     tag: str, attrs: dict, name: str, value: str, rewrite
 ) -> str | None:
     """Rewrite just the URL spans `attribute_references` reads in one value."""
-    for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
+    edits = []
+    for start, end in attribute_references(tag, attrs, name, value):
         replacement = rewrite(value[start:end])
         if replacement is None:
             return None
-        value = value[:start] + replacement + value[end:]
-    return value
+        edits.append((start, end, replacement))
+    return splice(value, edits)
+
+
+def splice(source, edits):
+    """`source`, a str or bytes, with each `(start, end, text)` edit's range replaced
+    by its text.
+
+    The ranges must not overlap. Edits at one offset land in the order their texts
+    sort. Joining the pieces once keeps the splice linear in the source's size, where
+    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    pieces = []
+    at = 0
+    for start, end, text in sorted(edits):
+        pieces += (source[at:start], text)
+        at = end
+    pieces.append(source[at:])
+    return source[:0].join(pieces)
 
 
 def pre_body(element) -> str | None:

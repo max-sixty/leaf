@@ -14,6 +14,7 @@ from render_harness import (
     open_page,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     tab_onto,
     told,
@@ -496,6 +497,103 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     for _ in range(reached):
         page.keyboard.press("Shift+Tab")
     expect(page.locator("#after-margin-entries")).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine):
+    """Tab from the page's last stop enters the rail at its highest row in view, after a
+    scroll either way and when a new row is drawn there, and with no row in view at the
+    row nearest the window, from either side of a gap. The rail reads which rows stand
+    in view from those the window holds, which change with each of these."""
+    rows = [f"row-{n}" for n in range(12)]
+    # `late` stands between rows 3 and 4 and gains its comment while the page is open.
+    near = "".join(
+        f'<p id="{at}" style="min-height: 6rem">A finding about the release.</p>'
+        for at in [*rows[:4], "late", *rows[4:]]
+    )
+    gap = '<div style="height: 6000px"></div>'
+    # The page's last stop stands fixed in the window, so it is in view at every scroll
+    # and Tab moves on from it rather than from what the reader sees (keyboard/AGENTS.md,
+    # "Scope resolution").
+    body = (
+        f'<h1>Rail way in</h1>{near}{gap}<p id="far">The far finding.</p>{gap}'
+        '<button id="last" style="position: fixed; top: 1rem; left: 1rem">Last</button>'
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("Rail way in", body),
+            events=[_comment_on(at) for at in [*rows, "far"]],
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    # Each row's marker, by target, and the top of `late`, in the page's coordinates.
+    markers = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll(
+            '.lf-margin-cluster .lf-margin-marker')].map(marker => {
+          const box = marker.getBoundingClientRect();
+          return [marker.closest('[data-lf-margin-for]').dataset.lfMarginFor,
+                  {top: box.top + scrollY, bottom: box.bottom + scrollY}];
+        }))"""
+    )
+    late = page.evaluate(
+        "() => document.getElementById('late').getBoundingClientRect().top + scrollY"
+    )
+    window = page.evaluate("() => innerHeight")
+
+    def scroll_to(top):
+        """Leave the rail for the page's last stop, and scroll the window's top to
+        `top`."""
+        page.locator("#last").focus()
+        page.evaluate("top => scrollTo({top, behavior: 'instant'})", top)
+        scroll_settled(page)
+        rendered(page)
+        at = page.evaluate("() => scrollY")
+        assert at == pytest.approx(top, abs=1), (at, top)
+
+    def tab_in():
+        """Tab from the page's last stop until a marker takes focus, which is the
+        rail's one stop, and name its target."""
+        for _ in range(20):
+            page.keyboard.press("Tab")
+            reached = page.evaluate(
+                """() => {
+                  let at = document.activeElement;
+                  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+                  return at?.matches('.lf-margin-marker')
+                    ? at.closest('[data-lf-margin-for]').dataset.lfMarginFor : null;
+                }"""
+            )
+            if reached:
+                return reached
+        raise AssertionError("Tab never reached the rail")
+
+    # Rows 0 to 3 scrolled past: row 4 is the highest the window shows, and `late`,
+    # above it, has no row yet.
+    between = (markers["row-3"]["bottom"] + late) / 2
+    scroll_to(between)
+    assert tab_in() == "row-4"
+    # Out of the rail first, since the stop stays on the row focus stands on.
+    scroll_to(between)
+    append_carried_log_record(serve.page_dir, _comment_on("late"))
+    told(page)
+    expect(
+        page.locator('[data-lf-margin-for="late"] .lf-margin-marker')
+    ).to_be_visible()
+    rendered(page)
+    assert tab_in() == "late"
+    # Back up: rows 2 and 3 come into view above the rows the window already held.
+    scroll_to((markers["row-1"]["bottom"] + markers["row-2"]["top"]) / 2)
+    assert tab_in() == "row-2"
+    # In the gap, nearer the far row below than the last row above, and then the reverse.
+    last_near = markers["row-11"]["bottom"]
+    far = markers["far"]["top"]
+    assert far - last_near > 3 * window, "the gap no longer outruns the window"
+    scroll_to(far - window - 200)
+    assert tab_in() == "far"
+    scroll_to(last_near + 200)
+    assert tab_in() == "row-11"
 
 
 def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, serve):

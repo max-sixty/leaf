@@ -7,8 +7,10 @@
  * heading the outline leaves out, past `max-level`, counts in the row above that
  * heading, and On me's bands and the contents agree on where an item stands. An element
  * a row goes to (its `destination`), such as a section a thread is about as a whole,
- * belongs to that row, and anything above the first section's heading to the start
- * row. Items outside the document the outline covers count nowhere.
+ * belongs to that row, and so does each element between the row's heading and its
+ * destination, such as a question's frame holding the heading, which `partOver` would
+ * place in the part above it. Anything above the first section's heading belongs to the
+ * start row. Items outside the document the outline covers count nowhere.
  *
  * Threads are the open ones, each at the element its anchor names, as a heading's link
  * preview counts them. On me items are the obligations waiting on the user that the
@@ -47,8 +49,10 @@ export function sectionMarks(scope, sections, { threads, onMe, changes }) {
   /** @type {Map<Element, MarkedSection>} */
   const rows = new Map();
   for (const section of sections) {
-    rows.set(section.destination, section);
-    if (section.heading) rows.set(section.heading, section);
+    const { heading, destination } = section;
+    rows.set(destination, section);
+    for (let at = heading; at && destination.contains(at); at = at.parentElement)
+      rows.set(at, section);
   }
   /** @type {Map<Element, MarkedSection>} */
   const reached = new Map();

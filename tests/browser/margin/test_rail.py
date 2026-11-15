@@ -504,7 +504,7 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     """Tab from the page's last stop enters the rail at its highest row in view, after a
     scroll either way and when a new row is drawn there, and with no row in view at the
     row nearest the window, from either side of a gap. The rail reads which rows stand
-    in view from those the window holds, which change with each of these."""
+    in view from the rows near the window, which change with each of these."""
     rows = [f"row-{n}" for n in range(12)]
     # `late` stands between rows 3 and 4 and gains its comment while the page is open.
     near = "".join(
@@ -594,6 +594,71 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     assert tab_in() == "far"
     scroll_to(last_near + 200)
     assert tab_in() == "row-11"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_rail_s_tab_stop_moves_in_the_frame_that_draws_a_scroll(
+    request, serve, engine
+):
+    """A key pressed straight after a scroll up meets the Tab stop that scroll's own
+    frame set: the highest row in view, rows the scroll brought in at the top included.
+    The test reads the stop in a task after that frame and before the next, where such
+    a key lands. While the rail read only the rows the window held, the observer
+    reported a row the scroll brought into view after that frame, so the stop stood
+    below it for a frame or two, and Shift+Tab 16 ms after a wheel step up landed on a
+    lower row."""
+    rows = [f"row-{n}" for n in range(30)]
+    body = "<h1>A scroll's frame</h1>" + "".join(
+        f'<p id="{at}" style="min-height: 6rem">A finding about the release.</p>'
+        for at in rows
+    )
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page("A scroll's frame", body),
+            events=[_comment_on(at) for at in rows],
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    markers = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll(
+            '.lf-margin-cluster .lf-margin-marker')].map(marker => {
+          const box = marker.getBoundingClientRect();
+          return [marker.closest('[data-lf-margin-for]').dataset.lfMarginFor,
+                  {top: box.top + scrollY, bottom: box.bottom + scrollY}];
+        }))"""
+    )
+
+    def between(upper, lower):
+        return (markers[upper]["bottom"] + markers[lower]["top"]) / 2
+
+    page.evaluate(
+        "top => scrollTo({top, behavior: 'instant'})", between("row-14", "row-15")
+    )
+    scroll_settled(page)
+    rendered(page)
+    # Up three rows, so rows 12 to 14, above the window until now, come into view.
+    read = page.evaluate(
+        """async (by) => {
+          scrollBy({top: -by, behavior: 'instant'});
+          await new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
+          const name = (marker) =>
+            marker.closest('[data-lf-margin-for]').dataset.lfMarginFor;
+          const markers = [...document.querySelectorAll(
+            '.lf-margin-cluster .lf-margin-marker')];
+          const shown = markers
+            .map((marker) => ({marker, box: marker.getBoundingClientRect()}))
+            .filter(({box}) => box.bottom > 0 && box.top < innerHeight)
+            .sort((a, b) => a.box.top - b.box.top);
+          return {
+            stops: markers.filter((marker) => marker.tabIndex === 0).map(name),
+            highest: name(shown[0].marker),
+          };
+        }""",
+        between("row-14", "row-15") - between("row-11", "row-12"),
+    )
+    assert read == {"stops": ["row-12"], "highest": "row-12"}
 
 
 def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, serve):

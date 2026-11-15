@@ -399,8 +399,8 @@ DELIVERY = Record(
         object_schema(
             {
                 "id": described(
-                    "The delivery id, eight hex characters, which the agent's pointer "
-                    "names.",
+                    "The delivery id, sixteen hex characters, which the agent's "
+                    "pointer names.",
                     STRING,
                 ),
                 "created_at": described(
@@ -458,7 +458,7 @@ DELIVERY = Record(
     ),
     since=15,
 )
-DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
+DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
 
 class DeliveryIdConflict(RuntimeError):
@@ -466,8 +466,10 @@ class DeliveryIdConflict(RuntimeError):
 
 
 def new_delivery_id() -> str:
-    """Mint one candidate in the agent-facing delivery-id vocabulary."""
-    return secrets.token_hex(4)
+    """Mint a delivery id: 64 random bits, so no id needs checking against the
+    deliveries before it. A million deliveries on one machine share an id with odds
+    of about 3 in 100 million."""
+    return secrets.token_hex(8)
 
 
 def delivery_pointer_prompt(delivery_id: str) -> str:
@@ -492,18 +494,15 @@ def delivery_path(delivery_id: str) -> Path:
     return state_home() / "deliveries" / f"{delivery_id}.json"
 
 
-def _retire_gone_deliveries() -> None:
+def retire_gone_deliveries() -> None:
     """Remove envelopes whose pages are all gone, whichever Leaf froze them.
 
-    Envelopes are read one id at a time, so the only enumeration of them is here,
-    under the lock every new one is written under."""
+    Envelopes are read one id at a time, so the only enumeration of them is here.
+    Each page server runs it once as it starts (`hosting.cmd_serve`), away from
+    any delivery an agent or a hook waits on: the read grows with every envelope
+    the machine has kept."""
     for path in (state_home() / "deliveries").glob("*.json"):
         retire_if_gone(path)
-
-
-def _delivery_lock_path() -> Path:
-    """Serialize machine-wide delivery identity selection and creation."""
-    return state_home() / "deliveries.lock"
 
 
 def _registry(page_dir: Path):
@@ -769,47 +768,40 @@ def freeze_delivery(
     confirmation after the complete envelope reaches context. When the harness
     establishes receipt directly, omit it and the envelope records `null`.
     `turn_replies` is set where the turn the delivery opens writes its thread
-    reply with its own messages."""
-    lock = _delivery_lock_path()
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(lock):
-        _retire_gone_deliveries()
-        if delivery_id is None:
-            while True:
-                delivery_id = new_delivery_id()
-                path = delivery_path(delivery_id)
-                if not path.exists():
-                    break
-        else:
-            path = delivery_path(delivery_id)
-        payload = {
-            "id": delivery_id,
-            "created_at": created_at if created_at is not None else time.time(),
-            "acknowledge": acknowledge(delivery_id) if acknowledge else None,
-            **({"correction": correction} if correction is not None else {}),
-            "batches": [
-                {field: batch[field] for field in _BATCH["properties"]}
-                for batch in (
-                    handled(
-                        batch,
-                        delivery_id,
-                        index,
-                        turn_replies=turn_replies,
-                        preserve_refs=correction is not None,
-                    )
-                    for index, batch in enumerate(batches)
+    reply with its own messages. A caller that supplies `delivery_id`, as a Codex
+    task's record does, may freeze it again with the same input, and serializes
+    its own freezes."""
+    supplied = delivery_id is not None
+    delivery_id = delivery_id if delivery_id is not None else new_delivery_id()
+    path = delivery_path(delivery_id)
+    payload = {
+        "id": delivery_id,
+        "created_at": created_at if created_at is not None else time.time(),
+        "acknowledge": acknowledge(delivery_id) if acknowledge else None,
+        **({"correction": correction} if correction is not None else {}),
+        "batches": [
+            {field: batch[field] for field in _BATCH["properties"]}
+            for batch in (
+                handled(
+                    batch,
+                    delivery_id,
+                    index,
+                    turn_replies=turn_replies,
+                    preserve_refs=correction is not None,
                 )
-            ],
-        }
-        if path.exists():
-            if DELIVERY.read(path) != payload:
-                raise DeliveryIdConflict(
-                    f"delivery {delivery_id!r} already exists with other data"
-                )
-        else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            DELIVERY.write(path, payload)
-        return DELIVERY.stored(payload)
+                for index, batch in enumerate(batches)
+            )
+        ],
+    }
+    if supplied and path.exists():
+        if DELIVERY.read(path) != payload:
+            raise DeliveryIdConflict(
+                f"delivery {delivery_id!r} already exists with other data"
+            )
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        DELIVERY.write(path, payload)
+    return DELIVERY.stored(payload)
 
 
 def stored_delivery(delivery_id: str) -> dict | None:

@@ -3039,7 +3039,7 @@ def _interaction_prompt_evidence(page, value):
         if isinstance(item, str):
             item = item.replace(str(page), "<page>")
             item = re.sub(
-                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r'(<leaf-delivery id=")[0-9a-f]{16}(" operation="delivery read" />)',
                 r"\1<delivery>\2",
                 item,
             )

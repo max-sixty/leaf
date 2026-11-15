@@ -945,19 +945,38 @@ def holding(page, held, count, what):
 
 @contextmanager
 def held_frames(page):
-    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent.
+
+    The page's frame clock, each frame's timestamp and `performance.now()`, stands still
+    while held, so a motion a press sets off stands where it started however long the
+    hold lasts. The hold yields `step`, which runs the frames held so far in one real
+    frame, a frame's length (1/60 s) on, so a press after it meets the motion that far
+    along on a fast machine or a slow one. Leaving the hold rejoins real time and runs
+    the frames still held."""
     page.evaluate(
         """() => {
           const frame = requestAnimationFrame.bind(window);
           const cancel = cancelAnimationFrame.bind(window);
+          let clock = performance.now();
           const held = new Map();
           let handle = 1e6;
+          performance.now = () => clock;
           window.requestAnimationFrame = callback => {
             held.set(++handle, callback);
             return handle;
           };
           window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafStepFrame = () => new Promise(resolve => frame(() => {
+            clock += 1000 / 60;
+            const due = [...held.values()];
+            held.clear();
+            for (const callback of due) {
+              try { callback(clock); } catch (error) { reportError(error); }
+            }
+            resolve();
+          }));
           window.leafReleaseFrames = () => {
+            delete performance.now;
             window.requestAnimationFrame = frame;
             window.cancelAnimationFrame = cancel;
             for (const callback of held.values()) frame(callback);
@@ -966,7 +985,7 @@ def held_frames(page):
         }"""
     )
     try:
-        yield
+        yield lambda: page.evaluate("leafStepFrame()")
     finally:
         page.evaluate("leafReleaseFrames()")
 

@@ -100,18 +100,19 @@ export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrom
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
 // The same step taken down, as the browser draws the tree: `each` is handed each node
-// drawn as `node`'s child, in order, and `eachRenderedElement` each element. A slot in a
-// shadow tree draws what is assigned to it, a slot forwarded into it among them, or its
-// own children where nothing is; anywhere else a slot is an ordinary element. A host
-// draws the shadow root `rootOf` names in place of its children, and a light child only
-// through a slot there: its open root by default, and its children where it names none,
-// so a walk names the tree it reads: the page reading enters only declared roots
-// (passages.js, `readingChildren`), the keyboard's walk a closed stage too, and a walk of
-// one tree none. Each steps from sibling to sibling, as a walk does (browser/AGENTS.md,
-// "One answer for each question"), since Chromium keeps a node's `children` or
-// `childNodes` list for the node's life once it is asked for. A walk of elements steps
-// over the text between them unasked: handed every node, Tab stops over a 5,000-row
-// table took Chromium a third longer.
+// drawn as `node`'s child, in order, with any comment among them for the caller to pass
+// over, and `eachRenderedElement` each element. A slot in a shadow tree draws what is
+// assigned to it, a slot forwarded into it among them, or its own children where nothing
+// is; anywhere else a slot is an ordinary element. A host draws the shadow root `rootOf`
+// names in place of its children, and a light child only through a slot there: its open
+// root by default, and its children where it names none, so a walk names the tree it
+// reads: the page reading enters only declared roots (passages.js, `readingChildren`),
+// the keyboard's walk a closed stage too, and a walk of one tree none. Each steps from
+// sibling to sibling, as a walk does (browser/AGENTS.md, "One answer for each
+// question"), since Chromium keeps a node's `children` or `childNodes` list for the
+// node's life once it is asked for. A walk of elements steps over the text between them
+// unasked: handed every node, Tab stops over a 5,000-row table took Chromium a third
+// longer.
 /** @typedef {(host: Element) => ShadowRoot | null} RootOf */
 /** @param {Element} host */
 const openRoot = (host) => host.shadowRoot;

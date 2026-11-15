@@ -386,8 +386,9 @@ function* drawnSegments(segments, range, drawn = new Map()) {
 // long text document's skipped lines cost a few questions a run of them rather than one
 // a line: over 96,000 lines, 11,000 rather than 96,000 a scroll rest, and a reading of
 // the document's place took Firefox 3.5 ms rather than 6. A segment `box` draws without
-// holding it, as a slot draws what is assigned to it, may end the search early, and
-// passes on through `drawnSegments`'s own question.
+// holding it, as a slot draws what is assigned to it, can stand among those it holds.
+// The search may stop at it, and `drawnSegments` asks it its own question, or step over
+// it, which gives it the same answer: whatever a skipped box draws is undrawn too.
 /** @param {readonly Segment[]} segments @param {number} at @param {Element} box */
 function lastHeld(segments, at, box) {
   /** @param {number} i */

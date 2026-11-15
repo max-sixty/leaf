@@ -47,10 +47,10 @@ inherited conversation (`fork_turns: "none"` where available). Give it the reade
 question, task, relevant facts and constraints, initial content and state, the page
 registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
 Ask it to construct the subject the page discusses, following "Show the subject" and
-"Develop the work", and return finished files and captions. Keep the research history and existing page
-with you. Integrate the returned material following "Composing a page" and
-`references/authoring-on-me.md` for decisions left to the user. When subagents are
-unavailable, build the material directly.
+"Develop the work", and return finished files and captions. Keep the research
+history and existing page with you. Integrate the returned material following
+"Composing a page" and `references/authoring-on-me.md` for decisions left to the
+user. When subagents are unavailable, build the material directly.
 
 Follow `references/authoring-revisions.md` when changing an existing page, then
 write `<page>/index.html`. Each valid save becomes a live immutable revision. An invalid save leaves the last valid one live

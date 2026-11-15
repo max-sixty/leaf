@@ -30,7 +30,7 @@ import { bareReaction } from "../thread/model.js";
 import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
 import { pointRange } from "../preview.js";
-import { renderedParent, shadowHost } from "../shadow.js";
+import { renderedParent, shadowHost, upFrom } from "../shadow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { keepsOnOne } from "../keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -40,6 +40,7 @@ const PENDING = "lf-pending";
 const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
+const MARKED_WORDS = RUNTIME_PAINT_ATTRIBUTE.markedWords;
 
 // A text node's pieces as a centred interval tree: each node holds the pieces covering
 // its centre character, sorted by start and by end, with those wholly before and after
@@ -195,6 +196,38 @@ export function createAnchorPaint({
     paintDurable(MARK);
     paintDurable(REACT);
   });
+
+  // The highlights' rules name the elements whose words they paint (annotation-marks.css),
+  // so each such element carries MARKED_WORDS while it holds a comment's, a reaction's or
+  // the draft's words, hidden or shown. A mark then takes its colours from its own
+  // element's tokens and `color-scheme` in every engine, with or without highlight
+  // inheritance (notes/browser-support.md, "Highlight style inheritance"). The element is
+  // the words' parent in their own tree, the light parent of slotted words, which is the
+  // one element whose rule paints them in Firefox, or the host of a shadow tree holding
+  // them directly. A paint of the page holds exactly the elements its passages stand in
+  // (`holdOnlyWords`); a placement that moves some and a new draft add theirs, and the
+  // next paint lets go of the rest.
+  /** @type {Set<Element>} */
+  let wordsHeld = new Set();
+  /** @param {Iterable<AbstractRange>} ranges */
+  function holdWords(ranges) {
+    for (const range of ranges)
+      for (const node of [range.startContainer, range.endContainer]) {
+        const element = upFrom(node);
+        if (!element || wordsHeld.has(element)) continue;
+        wordsHeld.add(element);
+        if (!element.hasAttribute(MARKED_WORDS)) element.setAttribute(MARKED_WORDS, "");
+      }
+  }
+  function holdOnlyWords() {
+    const before = wordsHeld;
+    wordsHeld = new Set();
+    holdWords([...passages.values()].flatMap(({ ranges }) => ranges));
+    holdWords([...reacted.values()].flat());
+    holdWords(CSS.highlights.get(PENDING)?.keys() ?? []);
+    for (const element of before)
+      if (!wordsHeld.has(element)) element.removeAttribute(MARKED_WORDS);
+  }
 
   /** @param {string | null} id */
   const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
@@ -459,6 +492,7 @@ export function createAnchorPaint({
         )
       : [];
     if (resolved) rememberVisual(resolved);
+    holdWords(ranges);
     CSS.highlights.set(
       PENDING,
       Object.assign(new Highlight(...ranges), { priority: 3 }),
@@ -504,6 +538,7 @@ export function createAnchorPaint({
       if (was) {
         for (const range of was) react?.delete(range);
         reacted.set(id, ranges ?? []);
+        holdWords(ranges ?? []);
         for (const range of ranges ?? []) react?.add(range);
         continue;
       }
@@ -518,6 +553,7 @@ export function createAnchorPaint({
       }
       passages.set(id, { order: old.order, segments, ranges });
       marked.set(id, [...ranges]);
+      holdWords(ranges);
       for (const range of ranges) mark?.add(range);
       for (const segment of segments) nodes.add(segment.node);
     }
@@ -716,6 +752,7 @@ export function createAnchorPaint({
     if (remarked) index();
     draftDraws = Boolean(draft.drawing);
     paintPending(draft.resolved);
+    holdOnlyWords();
 
     actionOutline = targetElement(action) ? targetParts(action) : [];
     if (action) rememberVisual(action);
@@ -765,6 +802,7 @@ export function createAnchorPaint({
     for (const element of [...hoverParts, hoveredRow])
       element?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
+    holdOnlyWords();
     targetPaint.setTargets([]);
     visualTargets.clear();
     hovering = null;

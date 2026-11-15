@@ -97,17 +97,37 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     assert fills["end"] == fills["rest"], fills
 
 
+# A comment on the words of one line of the diff, whose syntax colours are elements of
+# the widget's shadow tree.
+DIFF_LINE_COMMENT = {
+    "kind": "comment",
+    "author": "user",
+    "revision": 1,
+    "text": "Why the address?",
+    "anchor": {
+        "section": "patch",
+        "datum": '["gateway/limits.py","old",39]',
+        "quote": "return request.remote_addr",
+    },
+}
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     request, serve, engine
 ):
-    """Native ranges paint nested syntax in a shadow widget with the palette set on its
-    host: inherited from the host in Chromium and WebKit, and from the rules widened to
-    every element in Firefox, which inherits no highlight style."""
-    page = open_page(request.getfixturevalue(engine), serve(DIFF_PAGE))
+    """A comment's marks paint the syntax-coloured words of a shadow widget with the
+    palette set on its host: the elements holding the words, in the widget's shadow
+    tree, are the ones the marks' rules name, and they read the host's tokens."""
+    page = open_page(
+        request.getfixturevalue(engine), serve(DIFF_PAGE, events=[DIFF_LINE_COMMENT])
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     widget = page.locator("#patch")
-    row = widget.locator("[data-line]").first
-    expect(row.locator("span").first).to_be_visible()
+    row = widget.locator("[data-line]").filter(
+        has=page.locator("[data-lf-marked-words]")
+    )
+    expect(row).to_have_count(1)
     row.scroll_into_view_if_needed()
     widget.evaluate("""host => {
       host.style.setProperty('--mark', 'light-dark(rgb(250, 160, 180), rgb(90, 50, 120))');
@@ -118,7 +138,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         paint = row.evaluate("""row => {
           const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
             'lf-pending', 'lf-react'];
-          const token = row.querySelector('span');
+          const token = row.querySelector('[data-lf-marked-words]');
           const read = (node, name) => {
             const style = getComputedStyle(node, `::highlight(${name})`);
             return {background: style.backgroundColor, color: style.color};
@@ -140,25 +160,24 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         for name, style in paint.items():
             assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
         # The highlights that set the marked words' ink reach the token, in place of its
-        # syntax colour; hover and the open thread keep the ink of the mark below them.
-        assert {name: paint[name]["color"] for name in ("lf-mark", "lf-react")} == {
-            "lf-mark": inks["comment"],
-            "lf-react": inks["comment"],
-        }, (scheme, inks, paint)
+        # syntax colour. Hover and the open thread state the comment's ink themselves,
+        # since WebKit paints one that states none in the token's own colour.
+        comment = ("lf-mark", "lf-mark-hover", "lf-mark-here", "lf-react")
+        assert {name: paint[name]["color"] for name in comment} == dict.fromkeys(
+            comment, inks["comment"]
+        ), (scheme, inks, paint)
         assert paint["lf-pending"]["color"] == inks["draft"], (scheme, inks, paint)
         backgrounds.append(paint["lf-mark"]["background"])
-        page.evaluate("CSS.highlights.delete('lf-mark')")
-        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
-        row.evaluate("""row => {
-          const range = new Range();
-          range.selectNodeContents(row);
-          CSS.highlights.set('lf-mark', new Highlight(range));
-        }""")
         marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        page.evaluate("""() => {
+          window.lfTestMark = CSS.highlights.get('lf-mark');
+          CSS.highlights.delete('lf-mark');
+        }""")
+        quiet = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
+        page.evaluate("CSS.highlights.set('lf-mark', window.lfTestMark)")
         assert ImageChops.difference(quiet, marked).getbbox(), (
             f"{engine} painted no highlight over nested syntax in {scheme}"
         )
-        page.evaluate("CSS.highlights.delete('lf-mark')")
     assert backgrounds == ["rgb(250, 160, 180)", "rgb(90, 50, 120)"]
 
 
@@ -266,7 +285,8 @@ def _comment_on(passage, **fields):
     }
 
 
-def test_marked_words_are_seen_and_told_apart(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_marked_words_are_seen_and_told_apart(request, serve, engine):
     """A mark on words is the user's notice that somebody said something about them,
     and each state a gesture puts it in is the answer to that gesture: the words the
     pointer rests on, those of the thread the user opened, and those their draft is on.
@@ -281,7 +301,7 @@ def test_marked_words_are_seen_and_told_apart(browser, serve):
     pseudo may carry is the browser's to decide, and a declaration that stopped
     applying would say nothing."""
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(
             MARKED_PAGE,
             events=[
@@ -355,6 +375,59 @@ def test_marked_words_are_seen_and_told_apart(browser, serve):
                 )
                 >= SEEN_APART
             ), f"the {scheme} page draws {one} and {other} alike: {drawn}"
+
+
+# A light page holding a panel with a scheme of its own, drawn in the paper and ink a
+# page in that scheme wears, and the same words commented on, on the page and in the
+# panel.
+SCHEMED_PAGE = leaf_page(
+    "schemed",
+    """
+<h1 id="t">Schemed</h1>
+<p id="on-page">Words on the page that someone commented on in the middle of a line.</p>
+<section class="dark-panel">
+<p id="in-panel">Words in the panel that someone commented on in the middle of a line.</p>
+</section>
+""",
+    head="""<style>
+.dark-panel { color-scheme: dark; background: var(--paper); color: var(--ink); }
+</style>""",
+)
+SCHEMED_PASSAGES = {
+    where: (where, "someone commented on") for where in ("on-page", "in-panel")
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_words_marked_in_a_dark_panel_wear_a_dark_pages_marks(request, serve, engine):
+    """Words marked in a region with a `color-scheme` of its own, here a dark panel on a
+    light page, wear the marks a page in that scheme gives them. In the light page's
+    violet they would sink into the panel's dark ground. Read from screenshots, since
+    Chromium has painted a highlight in another scheme than its computed style says
+    (notes/browser-support.md, "A highlight's `light-dark()` colour in a dark
+    region")."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            SCHEMED_PAGE,
+            events=[
+                _comment_on(passage, id=f"c-{where}", text="Why these words?")
+                for where, passage in SCHEMED_PASSAGES.items()
+            ],
+        ),
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+    page.emulate_media(color_scheme="light")
+    in_panel = _drawn(page, SCHEMED_PASSAGES["in-panel"])
+    page.emulate_media(color_scheme="dark")
+    on_dark_page = _drawn(page, SCHEMED_PASSAGES["on-page"])
+    for part, panel, dark in zip(
+        ("ground", "ink"), in_panel[:2], on_dark_page[:2], strict=True
+    ):
+        assert _apart(panel, dark) < SEEN_APART, (
+            f"words marked in the dark panel of a light page wear a {part} of {panel},"
+            f" where a dark page's marked words wear {dark}"
+        )
 
 
 # A comment on a link, a reaction on prose, and a comment on a string in a text
@@ -837,7 +910,7 @@ def test_the_mark_ramp_ranks_posted_pointed_and_current_location(browser, serve)
     # and the palette's own 6.4 and 6.5 in light, 7.4 and 7.2 in dark.
     ramp = page.evaluate("""() => {
         const declared = (name) =>
-            getComputedStyle(document.getElementById('p'), `::highlight(${name})`)
+            getComputedStyle(document.querySelector('#p strong'), `::highlight(${name})`)
                 .backgroundColor;
         const paper = getComputedStyle(document.body).backgroundColor;
         const canvas = document.createElement('canvas');

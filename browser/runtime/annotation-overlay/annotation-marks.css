@@ -2,50 +2,46 @@
  * The runtime's highlight registry paints these ranges without wrapping their words.
  * Message delivery and version insertion remain in marks.css. */
 
-/* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`, and a
-   higher one supplies only the properties it states. A comment sets its words in violet
-   ink over a faint violet wash; pointing at it and standing in its thread deepen the
-   wash and keep the ink, so pointing at one comment while standing in another still
-   says both. A draft sets its words in the accent. The words take the mark's ink rather
+/* The highlights rank `lf-mark`, `lf-mark-hover`, `lf-mark-here`, `lf-pending`. A
+   comment sets its words in violet ink over a faint violet wash; pointing at it and
+   standing in its thread deepen the wash and keep the ink, so pointing at one comment
+   while standing in another still says both. Each states the ink itself: from a rule
+   naming its element, WebKit paints a highlight that sets no colour in the element's
+   own colour, over the ink of the highlight below. So with the annotations hidden,
+   the words the user points at, or whose thread they stand in, wear the ink too. A
+   draft sets its words in the accent. The words take the mark's ink rather
    than a line under them: Chromium rechecks a highlight's text decoration across the
    whole page on every click and keystroke. Hiding the annotations (`o`) empties the
    durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
    rule here depends on it.
 
-   The rules style each highlight on the root and on each shadow stage's host, and every
-   element below, in shadow trees too, inherits that style. A mark therefore takes its
-   colours where a rule matches, on the root or on the nearest shadow host. A widget
-   that sets `--mark` on its host recolours the marks inside it, while a `--mark` set
-   on a section of the page doesn't. A region with its own `color-scheme` gets the
-   root's half of each `light-dark()` token, so words marked in a dark panel on a light
-   page wear the light page's ink. A rule matching every element cost a seventh of a
-   large page's load in Chromium, which resolves a highlight's style for each element a
-   rule matches. In an engine without highlight inheritance, the runtime widens the
-   rules to every element by putting `*` in place of `:root` and `:host`
-   (stylesheets.js, `markSheet`), and there each element reads its own tokens and
-   scheme. Each rule names the two in a selector list rather than nesting under
-   `:root, :host`, which reads as `:is(:root, :host)` and, on a plain page, cost
-   Chromium a fifth of the style time that styling every element added. */
-:root::highlight(lf-mark),
-:host::highlight(lf-mark) {
+   The rules name the elements holding the words the highlights paint, which the runtime
+   marks `data-lf-marked-words` (anchor-paint.js, `holdWords`), so a mark reads its
+   colours on the element its words stand in: words marked in a dark panel on a light
+   page wear the dark scheme's ink and wash, and a `--mark` set on a section, or on a
+   widget's host, recolours the marks inside it. A rule matching every element cost a
+   seventh of a large page's load in Chromium, which resolves a highlight's style for
+   each element a rule matches. A rule on the root alone reaches the other elements
+   only where highlight styles inherit, not in Firefox or Safari 26, and there it pins
+   every mark to the root's tokens and scheme (notes/browser-support.md, "Highlight
+   style inheritance" and "A highlight's `light-dark()` colour in a dark region"). */
+[data-lf-marked-words]::highlight(lf-mark) {
   background-color: var(--mark);
   color: var(--mark-ink-text);
 }
-:root::highlight(lf-mark-hover),
-:host::highlight(lf-mark-hover) {
+[data-lf-marked-words]::highlight(lf-mark-hover) {
   background-color: var(--mark-hover);
+  color: var(--mark-ink-text);
 }
-:root::highlight(lf-mark-here),
-:host::highlight(lf-mark-here) {
+[data-lf-marked-words]::highlight(lf-mark-here) {
   background-color: var(--mark-strong);
+  color: var(--mark-ink-text);
 }
-:root::highlight(lf-pending),
-:host::highlight(lf-pending) {
+[data-lf-marked-words]::highlight(lf-pending) {
   background-color: var(--mark-pending);
   color: var(--mark-pending-text);
 }
-:root::highlight(lf-react),
-:host::highlight(lf-react) {
+[data-lf-marked-words]::highlight(lf-react) {
   background-color: var(--react);
   color: var(--mark-ink-text);
 }

@@ -492,6 +492,19 @@ PASSAGE_COMMENT = {
 }
 
 
+def passage_comment(t: int) -> dict:
+    """The user's comment on the words of section `t` of `prose_sections`, a passage
+    mark like `PASSAGE_COMMENT`."""
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "id": f"p{t}",
+        "text": f"Why these words in section {t}?",
+        "anchor": {"section": f"s{t}", "quote": f"Some words about section {t},"},
+    }
+
+
 def answer(t: int) -> dict:
     """The agent answering thread `t`."""
     return {
@@ -566,6 +579,10 @@ COLLECTIONS: dict[str, Collection] = {
     "asks-marked": Collection(ask_sections, lambda _: [PASSAGE_COMMENT]),
     "document": Collection(document_lines),
     "prose": Collection(prose_sections),
+    # The same with a passage mark in every section.
+    "passages": Collection(
+        prose_sections, lambda n: [passage_comment(t) for t in range(1, n + 1)]
+    ),
     "rows": Collection(table_rows),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]

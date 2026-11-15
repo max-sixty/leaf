@@ -272,13 +272,13 @@ words red under the page below, and blue with the two rules on `:root`, though r
 again once `:root` also set `color: red`; Chromium 158.0.8127.18 (build 1254) and
 Firefox 159.0 (build 1572) painted them blue under the page below. Writing
 `color: currentcolor` on the upper rule kept them red in WebKit and turned Firefox's red
-too. So the hover and current-location marks, which name the elements holding the
-words, state the comment's ink themselves
+too. So the hover and current-location marks, which set no colour, paint under the
+comment's mark, whose ink stays on top
 (`browser/runtime/annotation-overlay/annotation-marks.css`), and
-`test_marked_words_are_seen_and_told_apart` reads their ink off the drawn page in
-WebKit. Recheck by loading the page in WebKit: the gap has closed once the words paint
-blue. The two declarations could then go, and with the annotations hidden the words
-under those marks would wear their own colour again.
+`test_marked_words_are_seen_and_told_apart` reads their words' ink off the drawn page
+in WebKit. Recheck by loading the page in WebKit: the gap has closed once the words
+paint blue. The two marks could then paint above the comment's again, which nothing
+needs today.
 
 ```html
 <style>

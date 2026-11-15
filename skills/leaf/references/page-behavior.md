@@ -49,6 +49,11 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
+Leaf writes a few attributes of its own on the page's elements, so a script that reads,
+copies or observes attributes meets them: a commented block names its comment's note in
+`aria-details`, each element holding commented words carries `data-lf-marked-words`,
+and other states Leaf shows on an element take `data-lf-` attributes and `lf-` classes.
+
 A page script may define custom elements with shadow DOM of their own. Comments can't
 quote the words only such a shadow root shows, and Leaf reads the element's own children
 in its place, so put words the user should quote in the light DOM and slot them, or

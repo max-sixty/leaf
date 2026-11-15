@@ -124,9 +124,7 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     widget = page.locator("#patch")
-    row = widget.locator("[data-line]").filter(
-        has=page.locator("[data-lf-marked-words]")
-    )
+    row = widget.locator("[data-line]").filter(has_text="return request.remote_addr")
     expect(row).to_have_count(1)
     row.scroll_into_view_if_needed()
     widget.evaluate("""host => {
@@ -138,7 +136,11 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         paint = row.evaluate("""row => {
           const names = ['lf-mark', 'lf-mark-hover', 'lf-mark-here',
             'lf-pending', 'lf-react'];
-          const token = row.querySelector('[data-lf-marked-words]');
+          // The syntax-coloured element holding the comment's last word.
+          const words = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          let word = words.nextNode();
+          while (!word.data.includes('remote_addr')) word = words.nextNode();
+          const token = word.parentElement;
           const read = (node, name) => {
             const style = getComputedStyle(node, `::highlight(${name})`);
             return {background: style.backgroundColor, color: style.color};
@@ -160,12 +162,12 @@ def test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme(
         for name, style in paint.items():
             assert style["background"] != "rgba(0, 0, 0, 0)", (scheme, name, style)
         # The highlights that set the marked words' ink reach the token, in place of its
-        # syntax colour. Hover and the open thread state the comment's ink themselves,
-        # since WebKit paints one that states none in the token's own colour.
-        comment = ("lf-mark", "lf-mark-hover", "lf-mark-here", "lf-react")
-        assert {name: paint[name]["color"] for name in comment} == dict.fromkeys(
-            comment, inks["comment"]
-        ), (scheme, inks, paint)
+        # syntax colour; hover and the open thread paint under the mark and leave the
+        # ink to it.
+        assert {name: paint[name]["color"] for name in ("lf-mark", "lf-react")} == {
+            "lf-mark": inks["comment"],
+            "lf-react": inks["comment"],
+        }, (scheme, inks, paint)
         assert paint["lf-pending"]["color"] == inks["draft"], (scheme, inks, paint)
         backgrounds.append(paint["lf-mark"]["background"])
         marked = Image.open(io.BytesIO(row.screenshot())).convert("RGB")
@@ -819,19 +821,20 @@ def test_the_page_marks_the_comment_the_user_is_located_in(browser, serve):
     wait_current_location(page, "bold text")
 
     # The four readings of a marked passage have to stay in this order, or one of them
-    # stops being visible where they overlap: the posted mark, the hover over it, the
-    # current comment's own ink, and above all three the draft the user is writing.
-    # Asked with the pointer actually resting on the current-location mark, because that is the
-    # overlap the order exists for and because nothing registers the hover until a mouse
-    # has been over a passage. A higher highlight supplies only the properties it states,
-    # so this is what lets one mark say "clickable" and "you are here" at once.
+    # stops being visible where they overlap: the hover's wash, the current comment's
+    # deeper wash, the posted mark over both with its ink, and above all three the draft
+    # the user is writing. Asked with the pointer actually resting on the
+    # current-location mark, because that is the overlap the order exists for and
+    # because nothing registers the hover until a mouse has been over a passage. A
+    # higher highlight supplies only the properties it states, so this is what lets one
+    # mark say "clickable" and "you are here" at once, in the posted mark's ink.
     # Opening the inline card moves the document to the passage; settle it before
     # reading pointer geometry.
     page_at_rest(page)
     page.mouse.move(*mark_point(page, "lf-mark-here"))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0) > 0")
     ranks = page.evaluate(
-        """() => ['lf-mark', 'lf-mark-hover', 'lf-mark-here', 'lf-pending']
+        """() => ['lf-mark-hover', 'lf-mark-here', 'lf-mark', 'lf-pending']
             .map(n => CSS.highlights.get(n)?.priority ?? null)"""
     )
     assert all(r is not None for r in ranks) and ranks == sorted(set(ranks)), (

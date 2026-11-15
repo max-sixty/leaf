@@ -332,7 +332,7 @@ export function createAnchorPaint({
     CSS.highlights.set(
       HOVER,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
-        priority: 1,
+        priority: -3,
       }),
     );
     if (repaintVisuals) paintVisualStates();
@@ -364,7 +364,7 @@ export function createAnchorPaint({
     CSS.highlights.set(
       HERE,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
-        priority: 2,
+        priority: -2,
       }),
     );
     if (repaintVisuals) paintVisualStates();

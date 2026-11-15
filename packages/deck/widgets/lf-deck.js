@@ -35,9 +35,12 @@
  * asks something: its question, linked to the card, beside what became of it, the
  * answer in the runtime's words (`answerWords`) or who it still waits on. The cards are
  * put away by then, and without the list the record of the pass hid behind Back, one
- * card at a time. A row opens its card as any fragment link does (`beforematch`), by
- * pointer, finger or Enter, and the rows are kept nodes, so a reading that arrives
- * while one has focus leaves it there. The bar's controls are symbols of one size and one style, named by
+ * card at a time. A row links to where its question is answered, so it opens the card
+ * holding it as any fragment link does (`beforematch`), by pointer, finger or Enter,
+ * whether or not the card has an id of its own. `render()` draws the bar and the end
+ * frame, each a generated container, keeping Back, forward and the step back in as
+ * retained nodes and each row by its card (`repeat`), so a reading that arrives while
+ * a row has focus leaves it there. The bar's controls are symbols of one size and one style, named by
  * their titles as a draft's actions are. Each is a command row whose control it is, so the arrow
  * keys toward and away from the text's start are Back and forward wherever the user is
  * in the deck, and Leaf shows Back unavailable on the first card while focus stays on it.
@@ -64,6 +67,7 @@ import {
   nameAction,
   rowArrows,
   dragging,
+  elementById,
   fitsWhole,
   focusDestination,
   focused,
@@ -84,6 +88,8 @@ import {
   viewMembers,
   quoted,
   readObligations,
+  render,
+  repeat,
   scrollBehavior,
   scrollIntoView,
   shownWindow,
@@ -114,23 +120,22 @@ const ARRIVE = "cubic-bezier(0.05, 0.7, 0.1, 1)";
 const waitsOn = (held) =>
   held.some((item) => item.status === "open" && item.next_actor === "user");
 
-/** @typedef {(card: HTMLElement) => ReturnType<typeof obligationsIn>} DeckReadings */
+/** @typedef {ReturnType<typeof obligationsIn>} DeckHeld */
+/** @typedef {(card: HTMLElement) => DeckHeld} DeckReadings */
 
 customElements.define(
   "lf-deck",
   class extends LeafElement {
     #bar = offer("div", "lf-deck-bar");
-    #status = document.createElement("span");
     #back = offerAction("symbol", "lf-deck-back", "Back", { action: "previous" });
     #forward = offerAction("symbol", "lf-deck-forward", undefined, { action: "next" });
     #end = offer("div", "lf-deck-end");
     #again = offerAction("word", "lf-deck-again");
-    // The end frame's record of the pass: a row per card, made once and kept.
-    #recap = document.createElement("ol");
-    /** @type {Map<HTMLElement, {row: HTMLLIElement, question: HTMLAnchorElement, ending: HTMLSpanElement}>} */
-    #rows = new Map();
     /** @type {HTMLElement[]} */
     #cards = [];
+    // Each card's obligations by the last inventory read (`#readings`).
+    /** @type {{all: object, held: Map<HTMLElement, DeckHeld>} | null} */
+    #held = null;
     // The open card, or null once the pass is over.
     /** @type {import("@preact/signals-core").Signal<HTMLElement | null>} */
     #open = signal(null);
@@ -151,8 +156,10 @@ customElements.define(
     // and the address named none, so the first reading may open the first that waits.
     #defaulted = false;
 
+    // The bar is the render root, holding Back and the forward control as retained nodes
+    // around the drawn status; `render()` draws the end frame too.
     createRenderRoot() {
-      return this.#cards.length ? this.#status : this;
+      return this.#cards.length ? this.#bar : this;
     }
 
     setup() {
@@ -162,25 +169,12 @@ customElements.define(
         return card;
       });
       if (!this.#cards.length) return;
-      this.#status.className = "lf-deck-status";
-      this.#bar.append(this.#back, this.#status, this.#forward);
-      // Where the cards stood once the pass is over: what is left, and a way back in.
+      // Where the cards stood once the pass is over: what is left, a way back in, and
+      // the record of the pass (`#drawEnd`). Drawn now so the step back in is in the
+      // page for a keyboard user who reaches the end before the next render.
       this.#end.hidden = true;
-      this.#end.append(document.createElement("p"));
+      this.#drawEnd(null);
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
-      this.#end.append(this.#again);
-      this.#recap.className = "lf-deck-recap";
-      for (const card of this.#cards) {
-        const row = document.createElement("li");
-        const question = document.createElement("a");
-        if (card.id) question.href = `#${card.id}`;
-        const ending = document.createElement("span");
-        row.hidden = true;
-        row.append(question, ending);
-        this.#rows.set(card, { row, question, ending });
-        this.#recap.append(row);
-      }
-      this.#end.append(this.#recap);
       const [back, ahead] = rowArrows(this);
       /** @type {HTMLElement["lfCommands"]} */
       const commands = {
@@ -230,11 +224,36 @@ customElements.define(
       });
     }
 
-    // Each card's obligations, or null until the page's first reading is in.
+    // Each card's obligations, or null until the page's first reading is in. The deck's
+    // members (`obligationsIn`) are filed once per inventory under the card holding each
+    // one's widget, so reading every card costs one pass over the page's obligations
+    // rather than a pass per card.
+    /** @returns {DeckReadings | null} */
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => obligationsIn(card, items.all);
+      if (this.#held?.all !== items.all) {
+        /** @type {Map<HTMLElement, DeckHeld>} */
+        const held = new Map();
+        for (const item of obligationsIn(this, items.all)) {
+          const card =
+            item.source.kind === "widget" &&
+            this.#cardHolding(elementById(item.source.id));
+          if (card) held.set(card, [...(held.get(card) ?? []), item]);
+        }
+        this.#held = { all: items.all, held };
+      }
+      const { held } = this.#held;
+      return (card) => held.get(card) ?? [];
+    }
+
+    // The card `node` stands in, climbing out of any shadow tree on the way.
+    /** @param {Node | null} node */
+    #cardHolding(node) {
+      let at = node;
+      while (at && at.parentNode !== this)
+        at = at.parentNode instanceof ShadowRoot ? at.parentNode.host : at.parentNode;
+      return at instanceof HTMLElement ? at : null;
     }
 
     // Show one card, or none once the pass is over, without motion.
@@ -613,20 +632,61 @@ customElements.define(
         if (waits(each)) return "waiting";
         return held.some((item) => item.status === "open") ? "agent" : "done";
       };
-      return html`
-        <span class="lf-deck-pips" aria-hidden="true"
-          >${this.#cards.map(
-            (each) =>
-              html`<span class="lf-deck-pip" data-lf-state=${mark(each)}></span>`,
-          )}</span
-        >
-        <span class="lf-deck-count" role="status">${count}</span>
-      `;
+      if (!card) this.#drawEnd(readings);
+      return html`${this.#back}<span class="lf-deck-status"
+          ><span class="lf-deck-pips" aria-hidden="true"
+            >${this.#cards.map(
+              (each) =>
+                html`<span class="lf-deck-pip" data-lf-state=${mark(each)}></span>`,
+            )}</span
+          ><span class="lf-deck-count" role="status">${count}</span></span
+        >${this.#forward}`;
+    }
+
+    // The end frame once the pass is over: how many still wait, the step back in (a
+    // retained node), and the record of the pass, a row for each card that asks
+    // something. A row's question, as On Me names it (`prompt.text`), links to where
+    // the user answers it (`prompt.target`), so a card with no id of its own opens too.
+    /** @param {DeckReadings | null} readings */
+    #drawEnd(readings) {
+      const left = readings
+        ? this.#cards.filter((each) => waitsOn(readings(each))).length
+        : 0;
+      const asked = readings ? this.#cards.filter((each) => readings(each).length) : [];
+      const row = (/** @type {HTMLElement} */ each) => {
+        const held = readings?.(each) ?? [];
+        const [first] = held;
+        if (!first) return nothing;
+        const target = first.prompt.target ?? each.id;
+        const [words, voice] = this.#ending(held);
+        return html`<li>
+          <a href=${target ? `#${target}` : nothing}>${first.prompt.text ?? target}</a
+          ><span data-lf-voice=${voice ?? nothing}>${words}</span>
+        </li>`;
+      };
+      render(
+        html`<p>
+            ${
+              left
+                ? `You've been through every card. ${left === 1 ? "One still waits" : `${left} still wait`} on you.`
+                : "You've been through every card, and none waits on you."
+            }
+          </p>
+          ${this.#again}
+          ${
+            asked.length
+              ? html`<ol class="lf-deck-recap">
+                  ${repeat(asked, (each) => each, row)}
+                </ol>`
+              : nothing
+          }`,
+        this.#end,
+      );
     }
 
     // What became of a card's question, and who says it: the answers given, in the
     // runtime's words and the interface's face, or Leaf's word for whom it waits on.
-    /** @param {ReturnType<typeof obligationsIn>} held @returns {[string, "leaf" | null]} */
+    /** @param {DeckHeld} held @returns {[string, "leaf" | null]} */
     #ending(held) {
       if (waitsOn(held)) return ["Still waiting", "leaf"];
       if (held.some((item) => item.status === "open"))
@@ -643,29 +703,7 @@ customElements.define(
       keeps(this.#forward, "hidden", this.#open.value ? null : "");
       const readings = this.#readings();
       keepsHidden(this.#end, Boolean(this.#open.value));
-      if (!this.#open.value) {
-        const left = readings
-          ? this.#cards.filter((each) => waitsOn(readings(each))).length
-          : 0;
-        keepsText(
-          this.#end.firstChild,
-          left
-            ? `You've been through every card. ${left === 1 ? "One still waits" : `${left} still wait`} on you.`
-            : "You've been through every card, and none waits on you.",
-        );
-        keepsText(this.#again, word);
-        for (const [each, { row, question, ending }] of this.#rows) {
-          const held = readings?.(each) ?? [];
-          const [first] = held;
-          keepsHidden(row, !first);
-          if (!first) continue;
-          // The question's heading, as On Me names it (`prompt.text`).
-          keepsText(question, first.prompt.text ?? each.id);
-          const [words, voice] = this.#ending(held);
-          keepsText(ending, words);
-          keeps(ending, "data-lf-voice", voice);
-        }
-      }
+      if (!this.#open.value) keepsText(this.#again, word);
       if (!readings || this.#drag) return;
       const card = this.#open.value;
       const waiting = this.#cards.filter((each) => waitsOn(readings(each)));

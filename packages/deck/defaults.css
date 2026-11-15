@@ -82,7 +82,7 @@ lf-deck[data-lf-deck-flying] {
   border-top: 1px solid var(--rule);
   list-style: none;
 }
-.lf-deck-recap > li:not([hidden]) {
+.lf-deck-recap > li {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(14em, 100%), 1fr));
   gap: 2px var(--sp-3);

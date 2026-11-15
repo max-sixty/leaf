@@ -144,15 +144,17 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
             argument handling.
           </p>
           <p>
-            One gap: a path containing a newline splits in two.
-            <code>git ls-files -z</code> and <code>find -print0</code> separate paths
-            with NUL bytes for exactly this, the way <code>xargs -0</code> reads them.
-            Such paths are rare in a docs tree, and adding <code>-0</code> later changes
-            nothing for line-separated input.
+            One gap: without <code>-z</code>, <code>git ls-files</code> quotes any path
+            holding a non-ASCII character or a newline, so
+            <code>docs/ja/入門.md</code> arrives as
+            <code>"docs/ja/\345\205\245\351\226\200.md"</code> and fails to open.
+            <code>git ls-files -z</code> writes each path whole, ended by a NUL byte,
+            the way <code>xargs -0</code> reads them, and adding <code>-0</code>
+            later changes nothing for line-separated input.
           </p>
           <lf-draft id="cu-stdin-review">
             <pre>
-Thanks, this is a clean change and the tests cover it well. Before I merge, could you add `-0` so `--stdin` can also read NUL-separated paths, as `git ls-files -z` writes them? Then a filename containing a newline can't split in two. Happy to point you at where the parser would take it.</pre>
+Thanks, this is a clean change and the tests cover it well. Before I merge, could you add `-0` so `--stdin` can also read NUL-separated paths, as `git ls-files -z` writes them? Without it, git quotes a name like `docs/ja/入門.md`, which then doesn't open. Happy to point you at where the parser would take it.</pre>
           </lf-draft>
           <lf-options id="cu-stdin-choice" choose>
             <lf-option id="cu-stdin-ask">

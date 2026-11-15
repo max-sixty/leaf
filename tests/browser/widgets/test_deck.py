@@ -85,24 +85,29 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
 
 def test_the_end_of_the_pass_lists_each_answer_and_a_row_opens_its_card(browser, serve):
     """Once the pass is over, the cards are put away but the end frame lists each one's
-    question beside the answer given, or that it still waits; a row opens its card, by
+    question beside the answer given, or that it still waits. A pass by keyboard ends
+    on the step back in, the rows follow it in Tab order, and a row opens its card, by
     Enter as by pointer."""
     page = open_page(browser, serve(DECK_PAGE))
-    open_card(page, "store-ask")
-    answer(page, "store-yes")
+    page.keyboard.press("m")
+    expect(page.locator("#store-ask")).to_be_focused()
+    page.keyboard.press("1")
+    round_trip(page)
     open_card(page, "beta-ask")
-    forward(page, "Later")
+    expect(page.locator("#beta-ask")).to_be_focused()
+    page.keyboard.press("ArrowRight")
     open_card(page, "notes-ask")
-    answer(page, "notes-no")
-    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+    page.keyboard.press("2")
+    round_trip(page)
+    end = page.locator("lf-deck .lf-deck-end")
+    expect(end.get_by_role("button", name="Go through the 1 left")).to_be_focused()
 
-    recap = page.locator("lf-deck .lf-deck-end .lf-deck-recap > li")
+    recap = end.locator(".lf-deck-recap > li")
     expect(recap.locator("a")).to_have_text(
         ["Keep Redis?", "Ship the beta?", "Post the notes?"]
     )
     expect(recap.locator("span")).to_have_text(["Yes", "Still waiting", "No"])
 
-    page.locator("lf-deck .lf-deck-end").get_by_role("button").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Tab")
     expect(recap.get_by_role("link", name="Ship the beta?")).to_be_focused()
@@ -112,6 +117,32 @@ def test_the_end_of_the_pass_lists_each_answer_and_a_row_opens_its_card(browser,
     expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
     recap.get_by_role("link", name="Keep Redis?").click()
     open_card(page, "store-ask")
+
+
+PLAIN_CARD_PAGE = leaf_page(
+    "Deck with a card of no id",
+    '<h1>Before the release</h1><lf-deck id="deck">'
+    + card("store", "Keep Redis?")
+    + "<section>"
+    + card("docs", "Ship the docs?")
+    + "</section></lf-deck>",
+)
+
+
+def test_a_recap_row_opens_a_card_with_no_id_of_its_own(browser, serve):
+    """A card can be a plain wrapper around the question it holds; its row in the
+    end frame still links to where the user answers it, and opens it."""
+    page = open_page(browser, serve(PLAIN_CARD_PAGE))
+    open_card(page, "store-ask")
+    answer(page, "store-yes")
+    expect(page.locator("#docs-ask")).to_be_visible()
+    answer(page, "docs-no")
+    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+
+    page.locator("lf-deck .lf-deck-recap").get_by_role(
+        "link", name="Ship the docs?"
+    ).click()
+    expect(page.locator("#docs-ask")).to_be_visible()
 
 
 def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):
@@ -182,22 +213,22 @@ TALL_DECK_PAGE = leaf_page(
     + '<lf-deck id="deck">'
     + card("store", "Keep Redis?")
     + '<lf-ask id="tall-ask"><h3>Ship the beta on every platform?</h3>'
-    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(7))
+    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
     + '<lf-options id="tall-choice" choose>'
     '<lf-option id="tall-yes"><strong>Yes</strong></lf-option>'
     '<lf-option id="tall-no"><strong>No</strong></lf-option>'
     "</lf-options></lf-ask></lf-deck><p>After the deck.</p>",
 )
 
-# Whether the open card's last option stands clear of the panel, which covers the
-# window's foot, with the deck's bar in the window above it.
-ANSWERABLE = """() => {
+# Whether the open card, landed, stands whole in the room above the panel's top, with
+# the deck's bar in the window above it. A scroll that brings it there only moves it up,
+# so once this holds it holds where the scroll ends.
+WHOLE_ABOVE = """(panelTop) => {
   const deck = document.querySelector('lf-deck');
-  const last = deck.querySelector(':scope > [data-lf-deck-open] lf-option:last-of-type');
-  if (!last || deck.matches('[data-lf-deck-flying]')) return false;
-  const box = last.getBoundingClientRect();
-  const hit = document.elementFromPoint(box.left + box.width / 2, box.bottom - 4);
-  return last.contains(hit) && deck.querySelector('.lf-deck-bar').getBoundingClientRect().top >= 0;
+  const card = deck.querySelector(':scope > [data-lf-deck-open]');
+  if (!card || deck.matches('[data-lf-deck-flying]')) return false;
+  const bar = deck.querySelector('.lf-deck-bar').getBoundingClientRect();
+  return bar.top >= 0 && card.getBoundingClientRect().bottom <= panelTop;
 }"""
 
 
@@ -205,8 +236,8 @@ def test_a_card_brought_back_below_the_opening_stands_whole_above_the_panel(
     browser, serve
 ):
     """Go through brings back a card left for later where the pass began, below the
-    page's opening. A card taller than the room there scrolls up until its options
-    clear the panel, with the bar still above it, so the press that brought it leaves
+    page's opening. A card taller than the room there scrolls up until the whole card
+    clears the panel, with the bar still above it, so the press that brought it leaves
     it answerable."""
     page = open_page(browser, serve(TALL_DECK_PAGE))
     open_card(page, "store-ask")
@@ -217,7 +248,8 @@ def test_a_card_brought_back_below_the_opening_stands_whole_above_the_panel(
 
     again(page, "Go through the 1 left")
     open_card(page, "tall-ask")
-    page.wait_for_function(ANSWERABLE)
+    panel_top = page.locator(".lf-fp-row").bounding_box()["y"]
+    page.wait_for_function(WHOLE_ABOVE, arg=panel_top)
 
 
 def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):

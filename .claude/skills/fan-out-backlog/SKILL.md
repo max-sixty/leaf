@@ -61,7 +61,7 @@ counts carried across a compaction drift.
 
 Give each PR an independent reviewer in its own worktree, briefed with the PR
 and what to check, not with the author's conclusions, and told to verify by
-running and to weigh what the change adds (`/developing-leaf`, "Weigh what a
+running and to weigh what the change adds (root `AGENTS.md`, "Weigh what a
 change adds"). In one run 22 of 55 PRs had a substantive defect: a regression, a
 false central claim, a red test, or lost input, and reviewers who checked
 correctness alone passed every addition the user later cut.

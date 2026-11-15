@@ -7,7 +7,7 @@
 lf-tally {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   max-width: 100%;
   vertical-align: middle;
 }
@@ -15,7 +15,7 @@ lf-tally {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-1) var(--sp-2);
+  gap: var(--lf-sp-1) var(--lf-sp-2);
   max-width: 100%;
 }
 :host(lf-tally) .lf-tally-face:not([data-lf-ready]) {
@@ -38,27 +38,27 @@ lf-tally {
  * it paints over whatever of its focus ring reaches the chip, and a space between the
  * two is narrower than the ring, so it keeps the ring's room after it. */
 :host(lf-tally) .lf-tally-next {
-  font: var(--font-small);
+  font: var(--lf-font-small);
   padding-block: 0;
-  min-height: var(--aim-floor);
-  margin-inline-end: var(--focus-ring-room);
+  min-height: var(--lf-aim-floor);
+  margin-inline-end: var(--lf-focus-ring-room);
 }
 
 lf-tally:not(:defined)::before {
   content: "00 left to answer · 00 on the agent";
   display: inline-block;
   visibility: hidden;
-  font: var(--font-chip);
-  padding: var(--chip-pad);
+  font: var(--lf-font-chip);
+  padding: var(--lf-chip-pad);
 }
 lf-tally[next]:not(:defined)::after {
   content: "Next On Me";
   display: inline-block;
   visibility: hidden;
-  font: var(--font-small);
+  font: var(--lf-font-small);
   box-sizing: border-box;
   padding-inline: var(--wa-form-control-padding-inline);
   border: 1px solid transparent;
-  margin-inline-end: var(--focus-ring-room);
-  min-block-size: var(--aim-floor);
+  margin-inline-end: var(--lf-focus-ring-room);
+  min-block-size: var(--lf-aim-floor);
 }

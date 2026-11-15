@@ -319,11 +319,11 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         yield copies
 
 
-def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base a command compares
+def merge_base() -> str:
+    """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
         capture_output=True,
         text=True,
         check=True,
@@ -775,22 +775,24 @@ def claude_child(
     *args: str,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    model: str = MODELS[ClaudeCodeHarness.name],
+    model: str | None = None,
     sandbox: bool = True,
 ) -> dict:
     """The `subprocess` arguments for one isolated `claude -p` child in `cwd`.
 
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json.
-    On macOS the child runs under `authoring_sandbox`, owning `cwd`, its home and
-    `dirs`, unless `sandbox` is False, as a child that drives the harness's own
-    browser is. Its private-home CLAUDE.md names the sandbox's scratch directory
-    and restriction; an unsandboxed launch retires that generated file."""
+    `model` defaults to the Claude Code pin as `MODELS` holds it when called, which
+    a run's `--model` sets. On macOS the child runs under `authoring_sandbox`,
+    owning `cwd`, its home and `dirs`, unless `sandbox` is False, as a child that
+    drives the harness's own browser is. Its private-home CLAUDE.md names the
+    sandbox's scratch directory and restriction; an unsandboxed launch retires that
+    generated file."""
     dirs = list(dirs)
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", model,
+        "claude", "-p", *args, "--model", model or MODELS[ClaudeCodeHarness.name],
         "--strict-mcp-config", "--permission-mode", "bypassPermissions",
         "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
@@ -1176,7 +1178,7 @@ class LiveSession:
                 return True
         return self.answered > since
 
-    def during(self, action, before=None):
+    def during(self, action):
         """Run `action` while the driver records and observes the child's output,
         and return what it returns."""
         done: queue.Queue = queue.Queue()
@@ -1191,7 +1193,7 @@ class LiveSession:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         try:
-            for _ in self.records(idle=0.5, before=before):
+            for _ in self.records(idle=0.5):
                 if not worker.is_alive():
                     break
         finally:

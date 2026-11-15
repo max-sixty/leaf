@@ -330,7 +330,7 @@ export function prepareAuthoredMessage(message, thread) {
       thread,
       message: message.id,
     });
-    const authored = stageAuthoredStates(template.content, new Map());
+    const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
     const text = template.content.textContent;
     const nodes = Object.freeze([...template.content.childNodes]);
@@ -446,10 +446,11 @@ export function authoredHolder(id) {
 /** @param {MessageRecord} message
  * @param {{authoredRank?: number,
  * workflows: readonly import("../framework/application.js").Workflow[],
- * leaves?: import("../voice.js").Said | null}} options */
+ * leaves?: import("../voice.js").Said | null,
+ * endings?: readonly import("../voice.js").Words[]}} options */
 export function messageReading(
   message,
-  { authoredRank = 0, workflows, leaves = null },
+  { authoredRank = 0, workflows, leaves = null, endings = [] },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = message.token ? tokenEntry(message.token) : null;
@@ -475,6 +476,9 @@ export function messageReading(
     // question the user owes words to, the agent's Still to do (`todoWord`) for work it
     // promised and has not ended (thread-card.js).
     leaves,
+    // How each question the message asked ended, once the agent ended it: On Me's
+    // words for that and the agent's note on where or why (thread-card.js).
+    endings,
     version: message.content_version,
     // Original log order: edits move the words without moving where they were said.
     sequence: message.seq ?? Infinity,
@@ -787,6 +791,9 @@ export class MessageView {
               : nothing
           }
           ${holds ? keyed(this.#authoredTake, authored) : nothing}
+          ${model.endings.map(
+            (words) => html`<div class="lf-msg-ending lf-ui">${voiced(words)}</div>`,
+          )}
         </div>
         ${strip}
       `,

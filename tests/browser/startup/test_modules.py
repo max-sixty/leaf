@@ -16,6 +16,7 @@ from render_harness import (
     PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
+    delivered,
     holding,
     open_page,
     open_threads,
@@ -579,7 +580,8 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_state = old_route.fetch().json()
 
     write(page_comment(page), "Newest **snapshot**")
-    with sending(page, "the newer comment"):
+    # Its answer waits on the held import too, so the trip ends at the answer.
+    with sending(page, "the newer comment", until=delivered):
         page.keyboard.press("ControlOrMeta+Enter")
 
     old_route.fulfill(json=old_state)

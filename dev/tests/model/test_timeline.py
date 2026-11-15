@@ -109,7 +109,6 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "ts": at(1, 1),
                 "type": "fork_outcome",
                 "outcome": "take",
-                "agent": "leaf-c1",
                 "turn": running,
             },
             {
@@ -118,8 +117,7 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "type": "fork_outcome",
                 "step": "start",
                 "outcome": "start",
-                "agent": "leaf-c1",
-                "agentId": "agent-1",
+                "agent": "agent-1",
                 "turn": running,
             },
             {
@@ -157,9 +155,11 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     assert result.exit_code == 0, result.output
     out = result.output
     # Which fork's turn answered, and what Leaf refused or denied it.
-    assert f"answer to c1 in leaf-c1's turn {running[:8]}" in out
-    assert "leaf thread reply (300 ms) by leaf-c1 refused: this agent's turn" in out
-    assert "denied leaf-c1's `cd /tmp && leaf thread reply ref --text 3.12`" in out
+    assert f"answer to c1 in agent agent-1's turn {running[:8]}" in out
+    assert "leaf thread reply (300 ms) by agent agent-1 refused: this agent's" in out
+    assert (
+        "denied agent agent-1's `cd /tmp && leaf thread reply ref --text 3.12`" in out
+    )
     # Why admission found no fork lane, each cause told apart.
     assert "c0 not kept back: no fork lane: no pages follower noted" in out
     assert "c2 not kept back: no fork lane: the hooks module has forks off" in out

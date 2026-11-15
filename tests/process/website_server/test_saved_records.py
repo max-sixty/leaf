@@ -209,7 +209,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     remembered readings alone, and the tab's next answer is still only what changed
     (`served_state.tail`), even where the server remembers a single reading."""
     from leaf.served_state import tail
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
     site = tmp_path / "site"
@@ -223,7 +223,8 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
 
         def commit():
             with PageTransaction(private):
@@ -239,7 +240,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
 def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     page_dir, tmp_path, monkeypatch
 ):
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     site = tmp_path / "site"
     private = site / "page"
@@ -257,7 +258,8 @@ def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, _stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
 
         async def commit_with_running_loop():
             with PageTransaction(private):
@@ -286,7 +288,7 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     resources: the release publishes those beside the runtime it runs, so the saved
     document names them there, and a reload while the container sleeps loads them
     from the edge rather than waking it for them."""
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
     publish(page_dir)
     site = tmp_path / "site"
@@ -301,8 +303,8 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-        restore(site)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
         append_command(
             private,
             {

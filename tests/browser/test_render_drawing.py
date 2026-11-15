@@ -16,6 +16,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
+    delivered,
     field_press,
     leaf_page,
     open_page,
@@ -633,7 +634,8 @@ def test_a_keyboard_send_reaches_send_while_the_stroke_still_owes_its_press(
     page.mouse.up()
     submit = page.locator(".lf-composer .lf-compose-submit")
     expect(submit).to_have_attribute("aria-disabled", "false")
-    with sending(page, "the drawing the keyboard sent"):
+    # Applying its answer waits on the held timers, so the trip ends at the answer.
+    with sending(page, "the drawing the keyboard sent", until=delivered):
         page.keyboard.press("ControlOrMeta+Enter")
     assert page.evaluate("() => window.__releaseHeldTimers()")
 
@@ -1182,7 +1184,7 @@ CLIPPED_DRAWING_PAGE = leaf_page(
     '<h1 id="title">Inspect a captured detail</h1>'
     '<div id="viewport"><div id="pixels">Captured pixels</div></div>',
     head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
-    "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
+    "#pixels { width: 360px; height: 200px; background: var(--lf-paper); }</style>",
 )
 
 
@@ -1225,7 +1227,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     source = CLIPPED_DRAWING_PAGE.replace(
         '<div id="pixels">Captured pixels</div>',
         '<svg id="pixels" viewBox="0 0 180 100" role="img" aria-label="Sample">'
-        '<rect width="180" height="100" fill="var(--paper)"/></svg>',
+        '<rect width="180" height="100" fill="var(--lf-paper)"/></svg>',
     )
     page = open_page(browser, serve(source))
     target = page.locator("#pixels")

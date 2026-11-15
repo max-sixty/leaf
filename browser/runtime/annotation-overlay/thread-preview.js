@@ -41,7 +41,10 @@
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
    press or send (`heldEdge`). News at the thread's end shows at once where that edge
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
-   thread-card.js, `newsMoves`).
+   thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
+   not where the user is, so that news may carry the control from under it, as the
+   floating panel's growth does (floating-panel.js, the user's choice of 14 November
+   2026).
 
    The user chose this rule on 5 November 2026 as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and

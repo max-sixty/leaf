@@ -818,9 +818,23 @@ def put_on_me_turned_back(page, built):
 CARD = ".lf-margin-preview:not([hidden])"
 CARD_REPLY = f"{CARD} .lf-thread-reply leaf-text"
 CARD_RESOLVE = f'{CARD} button[aria-label="Resolve thread"]'
+CARD_SEND = f"{CARD} .lf-thread-reply .lf-compose-submit"
 PANEL_VIEW = '.lf-fp-view[data-lf-route="thread"]:not([data-lf-leaving])'
 PANEL_REPLY = ".lf-floating-panel .lf-thread-reply leaf-text"
 PANEL_RESOLVE = '.lf-floating-panel .lf-fp-head button[aria-label="Resolve thread"]'
+PANEL_SEND = ".lf-floating-panel .lf-compose-submit"
+
+
+def rest(page, on, tabbed):
+    """Rest the pointer on `on`, which Tab from the reply box focused first where
+    `tabbed`, or aside on no control."""
+    if tabbed:
+        page.keyboard.press("Tab")
+        expect(page.locator(on).first).to_be_focused()
+    if on:
+        page.locator(on).first.hover()
+    else:
+        page.mouse.move(*ASIDE)
 
 
 def open_card(page, built, thread):
@@ -837,21 +851,18 @@ def open_card(page, built, thread):
     return card
 
 
-def put_card(thread, *, words=False, on=None):
+def put_card(thread, *, words=False, on=None, tabbed=False):
     def put(page, built):
         card = open_card(page, built, thread)
         if words:
             card.get_by_role("textbox", name="Reply", exact=True).click()
             page.keyboard.type("Half a thought")
-        if on:
-            page.locator(on).first.hover()
-        else:
-            page.mouse.move(*ASIDE)
+        rest(page, on, tabbed)
 
     return put
 
 
-def put_panel(thread, *, words=False, on=None):
+def put_panel(thread, *, words=False, on=None, tabbed=False):
     def put(page, built):
         """Open `thread` in the floating panel from Threads."""
         scroll_to(page, "#p-20", 300)
@@ -864,30 +875,34 @@ def put_panel(thread, *, words=False, on=None):
         if words:
             page.locator(PANEL_REPLY).click()
             page.keyboard.type("Half a thought")
-        if on:
-            page.locator(on).first.hover()
-        else:
-            page.mouse.move(*ASIDE)
+        rest(page, on, tabbed)
 
     return put
 
 
 def floating_places():
     """The places in a thread's two floating boxes, the margin card and the floating
-    panel's view: writing a reply, the caret in the empty reply box, and the pointer
-    resting on Resolve at the box's head, with and without words in the reply box, in
-    a thread whose next message is news (`told`) and in one whose next message answers
-    the user (`asked`)."""
+    panel's view: writing a reply, on Send with the reply written, the caret in the
+    empty reply box, and the pointer resting on Resolve at the box's head, with and
+    without words in the reply box, in a thread whose next message is news (`told`) and
+    in one whose next message answers the user (`asked`)."""
     for thread in ("told", "asked"):
-        for box, put, reply, resolve in (
-            ("card", put_card, CARD_REPLY, CARD_RESOLVE),
-            ("panel", put_panel, PANEL_REPLY, PANEL_RESOLVE),
+        for box, put, reply, resolve, send in (
+            ("card", put_card, CARD_REPLY, CARD_RESOLVE, CARD_SEND),
+            ("panel", put_panel, PANEL_REPLY, PANEL_RESOLVE, PANEL_SEND),
         ):
             yield Place(
                 f"{box}-typing-{thread}",
                 "floating",
                 put(thread, words=True),
                 Found(reply),
+                {"thread above": thread},
+            )
+            yield Place(
+                f"{box}-send-{thread}",
+                "floating",
+                put(thread, words=True, on=send, tabbed=True),
+                Found(send),
                 {"thread above": thread},
             )
             yield Place(
@@ -1711,20 +1726,6 @@ GROWN_AFTER_GLIDE = (
     "the glide; Chromium held it before #5397"
 )
 
-RESOLVE_IN_PANEL = (
-    "the panel's view grows from its top edge for the answer the user waits for and "
-    "carries Resolve 216px up from under the pointer resting on it, where a message's "
-    "pencil then stands"
-)
-RESOLVE_ON_CARD = (
-    "the card lifts beside its subject for the reply and carries Resolve 93-93.5px up "
-    "from under the pointer resting on it, where a reply's reaction press then stands"
-)
-RESOLVE_OVER_WORDS = (
-    "the card holds its foot under the words in its reply box, grows up for the reply "
-    "and carries Resolve 284-284.5px up from under the pointer resting on it"
-)
-
 # The cases the runtime fails today, with what each measured: a fix flips one to a
 # pass, and its strict mark then fails until its entry goes.
 MOVES_ON_MAIN = {
@@ -1748,6 +1749,42 @@ MOVES_ON_MAIN = {
     "shadow-pointer-deletions-firefox": DELETIONS,
     "dial-grown-after-glide-chromium": GROWN_AFTER_GLIDE,
     "dial-grown-after-glide-firefox": GROWN_AFTER_GLIDE,
+}
+
+
+# The cases where the place moves because the user chose the rule that moves it: the
+# rule's owner records the choice, and a change of mind there flips the case to a pass,
+# whose strict mark then fails until its entry goes.
+EMPTY_REPLY = (
+    "a card grows down past the empty reply box a send or an opening left the caret "
+    "in, 239px, so the answer shows under the words read (thread-preview.js, the "
+    "user's choices of 5 and 9 November 2026)"
+)
+# News that grows a thread's box may carry its secondary controls from under a resting
+# pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
+# "News moves what the reader reads only in the thread they are in").
+SECONDARY = " (browser/AGENTS.md, the user's choice of 14 November 2026)"
+RESOLVE_IN_PANEL = (
+    "the panel's view grows from its top edge for the answer the user waits for and "
+    "carries Resolve 216px up from under the pointer resting on it, where a message's "
+    "pencil then stands" + SECONDARY
+)
+RESOLVE_ON_CARD = (
+    "the card lifts beside its subject for the reply and carries Resolve 93-93.5px up "
+    "from under the pointer resting on it, where a reply's reaction press then stands"
+    + SECONDARY
+)
+RESOLVE_OVER_WORDS = (
+    "the card holds its foot under the words in its reply box, grows up for the reply "
+    "and carries Resolve 284-284.5px up from under the pointer resting on it"
+    + SECONDARY
+)
+MOVES_BY_CHOICE = {
+    **{
+        f"card-caret-{thread}-reply-above-{engine}": EMPTY_REPLY
+        for thread in ("told", "asked")
+        for engine in ENGINES.values()
+    },
     **{
         f"panel-{place}-asked-reply-below-{engine}": RESOLVE_IN_PANEL
         for place in ("resolve", "writing-on-resolve")
@@ -1763,21 +1800,6 @@ MOVES_ON_MAIN = {
         for thread in ("told", "asked")
         for engine in ENGINES.values()
     },
-}
-
-
-# The cases where the place moves because the user chose the rule that moves it: the
-# rule's owner records the choice, and a change of mind there flips the case to a pass,
-# whose strict mark then fails until its entry goes.
-EMPTY_REPLY = (
-    "a card grows down past the empty reply box a send or an opening left the caret "
-    "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices of 5 and 9 November 2026)"
-)
-MOVES_BY_CHOICE = {
-    f"card-caret-{thread}-reply-above-{engine}": EMPTY_REPLY
-    for thread in ("told", "asked")
-    for engine in ("chromium", "firefox")
 }
 
 

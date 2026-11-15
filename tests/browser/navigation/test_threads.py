@@ -1359,6 +1359,11 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
     assert page.locator("#second").is_visible()
     expect(linked_thread(page, "anchor01")).to_be_visible()
     assert urlsplit(page.url).fragment == ""
+    # The card stands under its passage at the full measure, over the link below it,
+    # so the reader puts it away before the press.
+    preview = page.locator(".lf-margin-preview")
+    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(preview).to_be_hidden()
     # Opening an authored fragment link in a new document inherits the query,
     # just as Copy Link or Open in New Tab does.
     heading_url = page.get_by_role("link", name="Return to the heading").evaluate(

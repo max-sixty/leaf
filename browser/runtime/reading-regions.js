@@ -58,7 +58,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
-import { reachReadingScroller } from "./reach.js";
+import { holdReach, reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
@@ -445,6 +445,7 @@ export async function preserveReadingRegions(owner, change) {
     retained: compositionTransitions.has(owner),
   });
   compositionTransitions.set(owner, transition);
+  const releaseReach = holdReach(owner);
   let completed = false;
   try {
     await change();
@@ -457,6 +458,7 @@ export async function preserveReadingRegions(owner, change) {
         phase: "after",
         cancelled: !completed || !owner.isConnected,
       });
+      releaseReach();
     }
   }
 }

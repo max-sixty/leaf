@@ -10,7 +10,9 @@
 # shares its words with its positive case. A stale label's `edit` is the words its
 # fix must remove, or null where the turn-end check's prompt asks for no edit
 # (skills/leaf/references/turn-end-check.md). A reply case judges the working line
-# the fork posted as it handed the message to the session.
+# the fork posted as it handed the message to the session, and its label `work`
+# says who should do the work: `take` where a fork of the session could do it
+# beside the session without touching or awaiting what the session is doing.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -668,8 +670,8 @@ cases:
       - *items
 
   why-ci:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -683,11 +685,13 @@ cases:
         anchor:
           section: ft-lede
           quote: fails in about 1 run in 30 on CI and never on a laptop
+    labels:
+      work: take
     assert:
       - *line
   meaning:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -701,11 +705,13 @@ cases:
         anchor:
           section: ft-cause-body
           quote: launches the warmup as a background task
+    labels:
+      work: take
     assert:
       - *line
   work-request:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -719,11 +725,13 @@ cases:
         anchor:
           section: ft-cause
           quote: Cause
+    labels:
+      work: hand_over
     assert:
       - *line
   user-decides:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     log:
       - kind: comment
         author: agent
@@ -759,11 +767,13 @@ cases:
         parent: q1
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
+    labels:
+      work: hand_over
     assert:
       - *line
   still-running:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -789,11 +799,13 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
+    labels:
+      work: hand_over
     assert:
       - *line
   work-out:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -807,11 +819,13 @@ cases:
         anchor:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
+    labels:
+      work: take
     assert:
       - *line
   still-deciding:
-    fork: reply
-    page: fork-reply/pages/flaky-test.html
+    fork: line
+    page: line-fork/pages/flaky-test.html
     conversation:
       - from: flaky
       - *flaky-reply
@@ -830,5 +844,7 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
+    labels:
+      work: hand_over
     assert:
       - *line

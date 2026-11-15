@@ -442,6 +442,106 @@ test("another page's change reads the list of pages, never this page's state", a
   assert.equal(asked("/api/state"), 0, "another page's change read this page's state");
 });
 
+test("a read of the list still out ends when the news names another or hears nothing", async (t) => {
+  t.after(() => window.happyDOM.cancelAsync());
+  const listeners = [];
+  const add = document.addEventListener.bind(document);
+  t.mock.method(document, "addEventListener", (name, listener, options) => {
+    listeners.push([name, listener, options]);
+    add(name, listener, options);
+  });
+  t.after(() => {
+    for (const args of listeners) document.removeEventListener(...args);
+  });
+  const looks = [];
+  t.mock.method(globalThis, "setTimeout", (callback, delay) => {
+    if (delay === 250) looks.push(callback);
+    return 1;
+  });
+  t.mock.method(globalThis, "clearTimeout", () => {});
+  t.mock.method(globalThis, "setInterval", () => 1);
+  const { leavesRows } = await import("/runtime/live-leaves.js");
+  const neighbour = (title) => ({
+    page_key: "other",
+    url: "http://127.0.0.1:9/",
+    title,
+    session_cwd: null,
+    activity: state("neighbour").activity,
+  });
+  let pages = null;
+  let hearing = true;
+  // Each read of the list, held until the test answers it or the page ends it.
+  const held = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    const path = new URL(url).pathname;
+    if (path === "/api/news") {
+      if (!hearing) throw new TypeError("Failed to fetch");
+      return Response.json({ reading: "initial", pages });
+    }
+    if (path === "/api/pages") {
+      const read = { signal: init.signal, ...Promise.withResolvers() };
+      init.signal.addEventListener("abort", () => read.reject(init.signal.reason));
+      held.push(read);
+      return read.promise;
+    }
+    assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
+    return Response.json(state("initial"));
+  });
+  const titles = () =>
+    leavesRows(runtime.state)
+      .map((row) => row.title)
+      .slice(1);
+  const look = async () => {
+    looks.at(-1)();
+    await setImmediate();
+    await setImmediate();
+  };
+  createStateFeed({
+    stateApplying: () => false,
+    stateInHand: () => runtime.state,
+    invalidateDom: async () => {},
+    receiveState: async (answer) => applicationState.adopt(answer),
+    prepareActivation: async () => null,
+  }).startFeed(async () => {}, Promise.resolve({ state: state("initial") }));
+  await setImmediate();
+
+  // A read the server never answers holds no later reading back.
+  pages = "stalled";
+  await look();
+  assert.equal(held.length, 1);
+  pages = "next";
+  await look();
+  assert.equal(held.length, 2);
+  assert.ok(held[0].signal.aborted, "the stalled read stood beside the next one");
+  held[1].resolve(Response.json([neighbour("Next")]));
+  await setImmediate();
+  assert.deepEqual(titles(), ["Next"]);
+
+  // A look that hears nothing ends the read still out, and the list stands until a
+  // look names its reading again.
+  pages = "after";
+  await look();
+  hearing = false;
+  await look();
+  assert.ok(held[2].signal.aborted, "a failed look left the list's read standing");
+  assert.deepEqual(titles(), ["Next"]);
+  hearing = true;
+  await look();
+  assert.equal(held.length, 4);
+  held[3].resolve(Response.json([neighbour("After")]));
+  await setImmediate();
+  assert.deepEqual(titles(), ["After"]);
+
+  // None live while a read is out empties the list, and the read's late answer is
+  // dropped.
+  pages = "late";
+  await look();
+  pages = null;
+  await look();
+  assert.ok(held[4].signal.aborted);
+  assert.deepEqual(titles(), []);
+});
+
 test("a matching response completes from its held data after a newer admission", async (t) => {
   const held = {
     version: "initial",

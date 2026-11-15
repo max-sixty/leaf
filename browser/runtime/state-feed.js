@@ -1,7 +1,8 @@
 /* The page's ear: the state reads, finite freshness reads that say when to ask, the heartbeat
    that re-applies what the page holds, and the phase the answers leave it in. A
    freshness read also names the reading of the machine's other pages, which it hands to
-   their list (live-leaves.js, `hearPages`) and never compares with the page's own.
+   their list (live-leaves.js, `hearPages`) and never compares with the page's own; a
+   look that hears nothing tells the list so too.
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
    while waiting means the log has not been read; it does not mean there are no comments.
@@ -384,6 +385,8 @@ export function createStateFeed({
         } catch {
           if (listening !== interval) return;
           abandonReads();
+          // A look that heard nothing ends the list's read still out too.
+          hearPages(undefined);
           item();
           delay = TICK_MS;
         }

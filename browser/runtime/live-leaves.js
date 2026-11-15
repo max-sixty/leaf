@@ -23,40 +23,44 @@ const NONE = Object.freeze([]);
 // The live neighbours, in title order; a closed one is not among them (presence.py).
 const neighbours = signal(NONE);
 // The list's reading it was last asked for, null for none live, or undefined before
-// the first look and after a read that failed, so the next look asks again.
+// the first look, after a look that heard nothing and after a read that failed, so the
+// next look asks again.
 /** @type {string | null | undefined} */
 let asked;
-let reading = false;
+// The read of `/api/pages` still out, if one is.
+/** @type {AbortController | null} */
+let reading = null;
 
-/** Take in the list's reading a news look names: an empty list for null, and a read
-    of `/api/pages` for another reading than the one last asked for. One read is out
-    at a time; a reading heard while it is out is asked for once it lands.
- * @param {string | null} heard */
+/** Take in what a news look heard of the list: the reading it names, null for none
+    live, or undefined for a look that heard nothing. Another reading than the one last
+    asked for ends the read still out, whose answer could only be older, and none live
+    empties the list without a read; a new reading is read at once. A look that heard
+    nothing ends the read too, as the feed ends its state reads then (state-feed.js,
+    `abandonReads`), and leaves the list as it stands for the next look to name.
+ * @param {string | null | undefined} heard */
 export function hearPages(heard) {
   if (heard === asked) return;
   asked = heard;
+  reading?.abort();
+  reading = null;
   if (heard === null) neighbours.value = NONE;
-  else if (!reading) void readPages();
+  else if (heard !== undefined) void readPages();
 }
 
 async function readPages() {
-  reading = true;
+  const read = new AbortController();
+  reading = read;
   try {
-    /** @type {string | null | undefined} */
-    let wanted;
-    do {
-      wanted = asked;
-      const response = await fetch(pageUrl("api/pages"));
-      if (!response.ok) throw new Error(`pages returned HTTP ${response.status}`);
-      /** @type {import("../types/contract.js").ServedPagesAnswer} */
-      const pages = await response.json();
-      // A look that heard none live meanwhile has emptied the list already.
-      if (asked !== null) neighbours.value = Object.freeze(pages);
-    } while (asked !== wanted && asked !== null);
+    const response = await fetch(pageUrl("api/pages"), { signal: read.signal });
+    if (!response.ok) throw new Error(`pages returned HTTP ${response.status}`);
+    /** @type {import("../types/contract.js").ServedPagesAnswer} */
+    const pages = await response.json();
+    if (reading === read) neighbours.value = Object.freeze(pages);
   } catch {
-    asked = undefined;
+    // A read ended for a newer reading leaves `asked` naming that one.
+    if (reading === read) asked = undefined;
   } finally {
-    reading = false;
+    if (reading === read) reading = null;
   }
 }
 

@@ -13,6 +13,7 @@ import json
 import re
 import statistics
 from datetime import datetime
+from html import escape
 
 import click
 
@@ -218,8 +219,7 @@ def chart_markup(rows: list[dict]) -> str:
     Plot.dot({json.dumps(rows)}, {{x: "s", y: "row", fill: "sign", symbol: "sign", r: 6}}),
   ],
 }}"""
-    escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escaped}\n</pre></lf-chart>'
+    return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escape(body, quote=False)}\n</pre></lf-chart>'
 
 
 @click.command("chart")

@@ -1863,10 +1863,7 @@ def exponent(
     ]
     if len(pairs) < max(2, fitted - 1):
         return None
-    mean_x = sum(x for x, _ in pairs) / len(pairs)
-    mean_y = sum(y for _, y in pairs) / len(pairs)
-    spread = sum((x - mean_x) ** 2 for x, _ in pairs)
-    return sum((x - mean_x) * (y - mean_y) for x, y in pairs) / spread
+    return statistics.linear_regression(*zip(*pairs, strict=True)).slope
 
 
 def interleaved[K](rounds: int, keys: Sequence[K]) -> Iterator[tuple[int, K]]:

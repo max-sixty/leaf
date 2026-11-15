@@ -107,7 +107,14 @@ from leaf.state import session_live, session_record, turn_open
 from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
-from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
+from leaf_dev.arms import (
+    PAYLOAD,
+    PageClient,
+    arm_commit,
+    extract_payload,
+    run_directory,
+    run_leaf,
+)
 from leaf_dev.browser import PANEL, WINDOWS
 from leaf_dev.commands.site.verify import (
     await_presentation,
@@ -1478,19 +1485,9 @@ def fork_summary(record: dict) -> str:
 
 
 def checkout_version() -> str:
-    """The commit this working tree's plugin is, marked where the working tree
-    differs from it."""
-    head = subprocess.run(
-        ["git", "-C", ROOT, "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-    return working_version(head)
-
-
-def working_version(commit: str) -> str:
-    """`commit`, marked when the working tree's plugin differs from it."""
+    """The commit this working tree's plugin is (`arm_commit`), marked where the
+    working tree's plugin differs from it."""
+    commit = arm_commit(None)
     changed = subprocess.run(
         ["git", "-C", ROOT, "status", "--porcelain", "--", *PAYLOAD],
         capture_output=True,

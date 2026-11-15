@@ -78,6 +78,7 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
     arm_python,
+    blocks,
     build_source,
     claude_child,
     environment,
@@ -550,11 +551,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
     trace = read_trace(stream)
     result = trace_result(trace)
     calls = [
-        block["name"]
-        for record in trace
-        if record.get("type") == "assistant"
-        for block in record["message"].get("content", [])
-        if block.get("type") == "tool_use"
+        block["name"] for block in blocks(trace) if block.get("type") == "tool_use"
     ]
     text = result.get("result") if result.get("subtype") == "success" else None
     failed = (

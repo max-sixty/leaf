@@ -82,6 +82,7 @@ from leaf.server import running_server
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
+    blocks,
     codex_home,
     environment,
     install_codex_plugin,
@@ -305,12 +306,7 @@ def setup(
     )
     if sandbox:
         require(
-            any(
-                block.get("name") == "mcp__leaf__run"
-                for record in codex.trace
-                if record["type"] == "assistant"
-                for block in record["message"]["content"]
-            ),
+            any(block.get("name") == "mcp__leaf__run" for block in blocks(codex.trace)),
             "the sandboxed task ran no `leaf` command through the plugin's MCP server",
         )
 

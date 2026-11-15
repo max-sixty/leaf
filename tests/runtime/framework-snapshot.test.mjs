@@ -175,6 +175,26 @@ test("sharing a list keeps each item the prior list holds, wherever it moved", (
   assert.equal(first, items[0]);
 });
 
+// A reading's records arrive as new objects, and one a list loses, such as an
+// obligation leaving the user's, shifts each record after it to its neighbour's place.
+test("sharing a list keeps each record equal to the prior one of its id", () => {
+  const records = [
+    { id: "a", status: "open" },
+    { id: "b", status: "open" },
+    { id: "c", status: "open" },
+  ];
+  const next = [
+    { id: "b", status: "open" },
+    { id: "c", status: "answered" },
+  ];
+  const shared = share(records, next);
+  assert.equal(shared[0], records[1]);
+  assert.equal(shared[1], next[1], "a record that changed is the new one");
+  // A record without an id is still the one that stood at its place.
+  const [plain] = share([{ text: "x" }, { id: "b" }], [{ text: "x" }]);
+  assert.deepEqual(plain, { text: "x" });
+});
+
 // A fold hands back a subtree it made before where its inputs held still, and sharing
 // the fold's result (`shareFold`) answers it from the last time without reading it
 // again. That answer holds only against the value it was shared as.

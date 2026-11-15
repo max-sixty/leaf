@@ -553,3 +553,36 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
     assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="plain"')] == ["output-contract"]
     assert [finding.code for finding in errors('for="gone"')] == ["unknown-reference"]
+
+
+def test_a_reference_declaring_a_contract_names_a_widget_that_holds_one():
+    """A referrer that needs a kind of target, without reading its value through an
+    input, says so by contract, and any widget holding that contract answers."""
+    from leaf.validation.instances import reference_errors
+
+    registry = {
+        "lf-patch": {"x-output": {"files": {"contract": "file-list"}}},
+        "lf-tree": {"x-output": {"listing": {"contract": "file-list"}}},
+        "lf-notes": {"x-output": {"notes": {"contract": "notes"}}},
+        "lf-calls": {"x-refers": {"diff": {"contract": "file-list"}}},
+    }
+
+    def errors(target):
+        document = SourceDocument(
+            '<lf-patch id="patch"></lf-patch><lf-tree id="tree"></lf-tree>'
+            '<lf-notes id="notes"></lf-notes><p id="title">Words</p>'
+            f'<lf-calls id="calls" diff="{target}"></lf-calls>'
+        )
+        records = document.lf_elements
+        by_id = {rec["attrs"]["id"]: rec for rec in records}
+        return reference_errors(
+            records, registry, document.ids, by_id, thread_ids=set()
+        )
+
+    assert errors("patch") == []
+    assert errors("tree") == [], "any holder of the contract, whatever its tag"
+    wrong = errors("notes")
+    assert [finding.code for finding in wrong] == ["reference-contract"]
+    assert "names a <lf-notes> that holds no 'file-list' value" in str(wrong[0])
+    assert [finding.code for finding in errors("title")] == ["reference-contract"]
+    assert [finding.code for finding in errors("gone")] == ["unknown-reference"]

@@ -794,7 +794,18 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             "refers-unkeyed",
             {"attr": "for", "member": "lf-option", "key": "id"},
         ),
-        # A reference names any element or a keyed member, and nothing more.
+        (
+            {"contract": "no-such-contract"},
+            "unknown-reference-contract",
+            {"attr": "for", "contract": "no-such-contract"},
+        ),
+        (
+            {"tag": "lf-option", "key": "value", "contract": "file-list"},
+            "invalid-extensions",
+            {"keyword": "not"},
+        ),
+        # A reference names any element, a keyed member or a holder of a contract, and
+        # nothing more.
         (
             {"via": "$work.widgets", "where": {"role": "goal"}},
             "invalid-extensions",
@@ -803,7 +814,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
         ({"owns": True}, "invalid-extensions", {"keyword": "additionalProperties"}),
     ],
 )
-def test_a_reference_names_any_element_or_a_keyed_member(
+def test_a_reference_names_an_element_a_keyed_member_or_a_contract_holder(
     page_dir, reference, code, values
 ):
     """A bad relation fails at the registry door, not on every instance. A keyed

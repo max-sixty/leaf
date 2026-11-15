@@ -979,6 +979,11 @@ _TEXT = {
         f" with contract {v['contract']!r}, and it declares "
         + (", ".join(repr(name) for name in v["outputs"]) or "none")
     ),
+    "reference-contract": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names '
+        + (f"a <{v['target_tag']}>" if v["target_tag"] else "an element")
+        + f" that holds no {v['contract']!r} value; name a widget that holds one"
+    ),
     "unknown-command": lambda at, v: (
         f'{_line(at, v)}: command="{v["command"]}" is neither one of HTML\'s commands '
         "nor a custom command, which starts with --, so the button would do nothing"
@@ -1240,6 +1245,9 @@ _TEXT = {
         lambda v: (
             f"x-data input `{v['input']}` names unknown contract {v['contract']!r}"
         )
+    ),
+    "unknown-reference-contract": _declared(
+        lambda v: f"x-refers `{v['attr']}` names unknown contract {v['contract']!r}"
     ),
     "unknown-output-contract": _declared(
         lambda v: f"x-output `{v['output']}` names unknown contract {v['contract']!r}"

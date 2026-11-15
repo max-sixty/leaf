@@ -174,7 +174,7 @@
       }
     },
     "x-refers": {
-      "diff": {}
+      "diff": { "contract": "file-list" }
     },
     "x-upgrade": true,
     "x-height": true,

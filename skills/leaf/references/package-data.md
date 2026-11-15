@@ -9,11 +9,11 @@ whose authors never met work together on a Leaf page and on a page without Leaf.
 names the other by id in an attribute it declares under `x-refers`, `for` by
 convention ("References between widgets"), and then:
 
-| To                                               | Use                                                                                                                                                   | `page check` holds                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                          | that the named widget declares one output of that contract |
-| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                   |
-| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element                               |
+| To                                               | Use                                                                                                                                                   | `page check` holds                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| read what the other holds, such as a film's step | its output, a property its element holds and says `change` for, which an `x-data` input binds by contract ("Widget outputs")                          | that the named widget declares one output of that contract           |
+| ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                             |
+| take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the id names an element, of the contract the reference declares |
 
 A recorded answer stays its owner's, and only the owner's module records it
 ("User state"). Another widget shows that answer by reading an output the owner holds,
@@ -52,6 +52,17 @@ instead. The target's `description` says which commands it takes and what each
 value means, since nothing else tells a page's author. `page check` refuses an
 authored button whose `commandfor` names no element, or whose `command` is neither
 kind; a custom command the target doesn't handle does nothing, with no error.
+
+A request no button makes, such as a dragged handle or a typed number, is the same
+event, dispatched by the module with its own element as the source and the argument as
+that element's `value`, which may be an object:
+
+```js
+this.value = { category: "rent", amount: 40 };
+target.dispatchEvent(
+  new CommandEvent("command", { command: "--set-amount", source: this }),
+);
+```
 
 A module that draws the button writes the same attributes, taking the id from its own
 reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow
@@ -258,6 +269,12 @@ When an attribute names another element, declare it in `x-refers`, mapping the
 attribute to `{}`, which accepts any element id. `page check` refuses an id that names
 no element.
 
+A widget that needs a kind of target without reading its value through an input, as
+`lf-call-diff` links into the diff its `diff` names, declares the contract that target
+must hold: `"x-refers": {"diff": {"contract": "file-list"}}`. `page check` then refuses
+an id naming an element that holds no value of that contract, and any package's widget
+that holds one answers, so the referrer names no tag.
+
 Members of one owner can name each other by a word instead of an id. A playground's
 setting names its control by `name`:
 
@@ -432,7 +449,10 @@ Leaf reads the property when the consumer first draws, again each time the produ
 says `change`, and from the new element when a revision replaces the producer, so a
 consumer draws the current value whichever module loaded first. The consumer gets its
 own copy and redraws only when the value differs. Assign a new value rather than
-editing the held one, and say `change` after each assignment. Dispatch it on the
+editing the held one, and say `change` after each assignment: Leaf takes the object
+the widget already held as unchanged without reading into it, so a large value costs
+its readers nothing while another output changes. Hold what changes often, such as a
+selection, as a small output of its own beside the large one. Dispatch it on the
 element itself: a control inside the element says a bubbling `change` of its own,
 which Leaf doesn't count, and which a module listening on its own element tells apart
 by `event.target`.

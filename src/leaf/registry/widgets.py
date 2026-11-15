@@ -158,6 +158,15 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-source", path, tag, input=input_name, attr=source_attr
             )
+    for attr, reference in entry.get("x-refers", {}).items():
+        if "contract" in reference and reference["contract"] not in data["contracts"]:
+            raise registry_error(
+                "unknown-reference-contract",
+                path,
+                tag,
+                attr=attr,
+                contract=reference["contract"],
+            )
     for output_name, spec in entry.get("x-output", {}).items():
         if spec["contract"] not in data["contracts"]:
             raise registry_error(

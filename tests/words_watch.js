@@ -17,8 +17,11 @@
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
-// elsewhere, choosing another target, or an edit in another tab of the page that
-// reaches this one as storage news. A close watcher's close, such as Android's back
+// elsewhere, choosing another target, or an edit in another tab of the page. That edit
+// reaches this one as storage news, or, where this document reads the store before
+// that news is delivered, as its own reading of the store: words this document stored
+// that the store now holds no longer, under a key whose value another document changed,
+// are that edit's to have put away. A close watcher's close, such as Android's back
 // gesture makes, puts words away only where the page's storage still holds them, as Leaf's
 // draft store does for kept words and for saved ones until the log accepts them: back may close an editor but
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
@@ -237,15 +240,48 @@
   const painting = new Map();
   // Whether the page's storage still holds these words, bare or as a JSON string, as
   // Leaf's draft store keeps them.
+  const holds = (value, words) =>
+    value === words || Boolean(value?.includes(JSON.stringify(words)));
   const stored = (words) => {
-    const quoted = JSON.stringify(words);
     try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const value = localStorage.getItem(localStorage.key(i));
-        if (value === words || value?.includes(quoted)) return true;
-      }
+      for (let i = 0; i < localStorage.length; i++)
+        if (holds(localStorage.getItem(localStorage.key(i)), words)) return true;
     } catch {
       // An opaque origin, such as a data: URL, has no storage to keep words in.
+    }
+    return false;
+  };
+  // The value this document last wrote under each local storage key, null where it
+  // removed one. Only another document changes a key away from that value, so a store
+  // that now holds other words under a key whose last own write held these is another
+  // tab's edit having replaced them, whichever way this document came to read it.
+  const written = new Map();
+  let local = null;
+  try {
+    local = localStorage;
+  } catch {
+    // An opaque origin has no storage to keep words in.
+  }
+  if (local) {
+    const { setItem, removeItem, clear } = Storage.prototype;
+    Storage.prototype.setItem = function (key, value) {
+      setItem.call(this, key, value);
+      if (this === local) written.set(String(key), String(value));
+    };
+    Storage.prototype.removeItem = function (key) {
+      removeItem.call(this, key);
+      if (this === local) written.set(String(key), null);
+    };
+    Storage.prototype.clear = function () {
+      clear.call(this);
+      if (this === local) written.clear();
+    };
+  }
+  const replacedElsewhere = (words) => {
+    for (const [key, mine] of written) {
+      if (!holds(mine, words)) continue;
+      const now = local.getItem(key);
+      if (now !== mine && !holds(now, words)) return true;
     }
     return false;
   };
@@ -310,7 +346,7 @@
       watching();
       return;
     }
-    if (putAway(field, typedOrder, source, words)) return;
+    if (putAway(field, typedOrder, source, words) || replacedElsewhere(words)) return;
     const place = window.lfPlace?.(field) ?? [field.localName];
     window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };

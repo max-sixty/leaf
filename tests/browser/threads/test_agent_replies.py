@@ -27,6 +27,7 @@ from render_harness import (
     open_page,
     panel_settled,
     preview_parts,
+    preview_text,
     resized,
     sending,
     stamp_page,
@@ -845,7 +846,10 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open. A question
+    the agent ends there says how it ended instead, with the agent's words on where,
+    so the thread no longer reads as asking; pointing at them reads them whole where
+    the head cuts them."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -881,6 +885,19 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
+
+    where = (
+        "Answered in the session: the session store owns it, and the page store "
+        "keeps only what the session hands it when the page closes."
+    )
+    todos_model.cmd_end(serve.page_dir, f"message:{question['id']}", "done", where)
+    told(page)
+    open_margin_card(page, "h-how")
+    ended = page.locator(
+        f'.lf-margin-preview .lf-msg[data-lf-event="{question["id"]}"] .lf-msg-leaves'
+    )
+    expect(ended).to_have_text(f"Answered elsewhere · {where}")
+    assert preview_text(ended) == f"Answered elsewhere · {where}"
 
 
 def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(

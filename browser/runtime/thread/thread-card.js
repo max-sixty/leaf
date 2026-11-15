@@ -77,7 +77,7 @@
    (floating-panel.js, which records it); the margin card gained it on 4 November, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
-import { REOPEN_HINT, REPLY_HINT } from "../words.js";
+import { labelWords, REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -128,6 +128,7 @@ import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
+import { obligationEnding } from "../obligations/answer.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
@@ -135,7 +136,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { agentSays, leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
@@ -356,7 +357,21 @@ export function threadReading(thread, surface, commands) {
   const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
-  // thread.
+  // thread. Once the agent ends a question it asked (`task end`), because the user
+  // answered it elsewhere or it no longer applies, the head says how the question
+  // ended, in the words On Me's Done uses (`obligationEnding`), followed by the agent's
+  // note on where or why (`end.detail`). The thread then no longer reads as asking.
+  /** @type {Map<string | null, import("../voice.js").Words>} */
+  const ended = new Map();
+  for (const item of thread.obligations)
+    if (item.end && answeredInWords(item))
+      ended.set(
+        item.message,
+        [
+          obligationEnding(item),
+          ...(item.end.detail ? [" · ", agentSays(labelWords(item.end.detail))] : []),
+        ].flat(),
+      );
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -384,7 +399,7 @@ export function threadReading(thread, surface, commands) {
         // `authoredHolders`): the primary reader's, then a margin card, then a seat.
         authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
         workflows: message.workflows,
-        leaves: leaves(message),
+        leaves: leaves(message) ?? ended.get(message.id) ?? null,
       }),
     );
   const summary = threadSummary(thread);

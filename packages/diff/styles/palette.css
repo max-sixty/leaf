@@ -1,6 +1,33 @@
-/* Resolve fills at the widget root so its local semantic colors survive
- * inheritance into its shadow renderer. Both adapters consume these private fills. */
+/* The diff's change colours, resolved at the widget root so its local semantic colors
+ * survive inheritance into its shadow renderer. Both adapters fill changed rows with
+ * them, and lf-diff marks a changed word with the marks.
+ *
+ * Each is the theme's --ok or --danger hue at a lightness and chroma stated for each
+ * scheme, so an added row and a removed row differ in hue alone and stand about as far
+ * apart as GitHub's light rows: Oklab 0.058 here, 0.057 there. A mix of the token into
+ * --pre-bg can't get there, because the status colours are muted: a mix light enough
+ * for a row stays near grey (16% left the rows 0.032 apart), and one coloured enough
+ * makes a mid-tone row. The theme's --add-tint and --del-tint are 0.039 apart. The
+ * light fill's chroma is close to the most sRGB holds for a red that light. A mark
+ * keeps its row's hue at about twice the chroma, a step darker in light and lighter in
+ * dark, so it stands about 0.08 from its row in light and 0.1 in dark, and code on it
+ * keeps 4.5:1. `min(c, …)` keeps a grey token's rows grey, where its powerless hue
+ * would read as 0, a pink. */
 :where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
-  --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
-  --lf-code-del-fill: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
+  --lf-code-add-fill: light-dark(
+    oklch(from var(--ok) 0.93 min(c, 0.034) h),
+    oklch(from var(--ok) 0.29 min(c, 0.034) h)
+  );
+  --lf-code-del-fill: light-dark(
+    oklch(from var(--danger) 0.93 min(c, 0.034) h),
+    oklch(from var(--danger) 0.29 min(c, 0.034) h)
+  );
+  --lf-code-add-mark: light-dark(
+    oklch(from var(--ok) 0.86 min(c, 0.065) h),
+    oklch(from var(--ok) 0.38 min(c, 0.065) h)
+  );
+  --lf-code-del-mark: light-dark(
+    oklch(from var(--danger) 0.86 min(c, 0.065) h),
+    oklch(from var(--danger) 0.38 min(c, 0.065) h)
+  );
 }

@@ -469,10 +469,10 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   color: var(--ok-ink);
 }
 :where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {
-  background: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
+  background: var(--lf-code-del-mark);
 }
 :where(:host(lf-diff)) [data-line-type="change-addition"] [data-diff-span] {
-  background: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
+  background: var(--lf-code-add-mark);
 }
 :where(:host(lf-diff)) :is([data-separator], [data-no-newline]) {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;

@@ -1,6 +1,7 @@
 """Selection, passage, syntax, and version-travel tests."""
 
 import json
+import math
 import re
 from html import escape
 from pathlib import Path
@@ -2349,9 +2350,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ]
     assert changed_lines
     assert all(line["linePaint"] != line["prePaint"] for line in changed_lines)
-    assert before["linePaint"] != after["linePaint"], (
-        "additions and deletions need distinct semantic fills"
-    )
 
     inline_paint = [paint for line in changed_lines for paint in line["markPaint"]]
     assert inline_paint
@@ -2362,6 +2360,41 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         for line in changed_lines
         for background, _ in line["markPaint"]
     ), "inline changes need a stronger fill than their changed line"
+
+    # An added row and a removed row differ at a glance in either scheme: about as far
+    # apart in Oklab as GitHub's light rows (0.057), where 16% of the muted status
+    # colours mixed into the canvas left them 0.032 apart and near grey. A changed word's
+    # mark stands at least that far from its row, so it still picks out the word. The
+    # browser converts each paint to Oklab itself, whatever form the theme states it in.
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paints = page.evaluate("""() => {
+          const root = document.querySelector('#patch').shadowRoot;
+          const probe = document.body.appendChild(document.createElement('i'));
+          const oklab = paint => {
+            probe.style.color = `oklab(from ${paint} l a b)`;
+            return getComputedStyle(probe).color
+              .match(/-?\\d*\\.?\\d+(?:e-?\\d+)?/g).slice(0, 3).map(Number);
+          };
+          const read = kind => {
+            const line = root.querySelector(
+              `.lf-diff-line[data-line-type="${kind}"]:has([data-diff-span])`);
+            return {
+              row: oklab(getComputedStyle(line).backgroundColor),
+              mark: oklab(getComputedStyle(line.querySelector('[data-diff-span]'))
+                .backgroundColor),
+            };
+          };
+          const paints = {added: read('change-addition'), removed: read('change-deletion')};
+          probe.remove();
+          return paints;
+        }""")
+        added, removed = paints["added"], paints["removed"]
+        apart = math.dist(added["row"], removed["row"])
+        assert apart >= 0.05, f"{scheme}: added and removed rows {apart:.3f} apart"
+        for kind, paint in paints.items():
+            stands = math.dist(paint["mark"], paint["row"])
+            assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
 
     # Pierre's inline comparison is language-independent. Dockerfile is intentionally
     # plain in Leaf's registry, but the edited dependency is still called out.

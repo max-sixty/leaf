@@ -43,7 +43,7 @@ session had it.
 minutes on where it has none, its thread's events and everything the sessions did
 meanwhile. `--calls` adds every tool call and the agent's words in the terminal.
 
-The line per message comes from `response_times.page_timings`, so it times each step
+The line per message comes from `leaf_dev.page_timings`, so it times each step
 as `leaf-dev logs response-times` does: the fork and its outcome, the agent's first words
 on the page, the session's pickup and what it waited on (`reply_phases.pickup_wait`),
 its start and its answer, each in seconds after the message was admitted.
@@ -67,7 +67,7 @@ from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
 from leaf.thread_context import thread_names
-from leaf_dev.commands.logs.response_times import page_timings
+from leaf_dev.page_timings import page_timings
 from leaf_dev.reply_phases import (
     claude_code_debug_records,
     claude_code_records,

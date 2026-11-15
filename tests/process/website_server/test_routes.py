@@ -29,7 +29,7 @@ from leaf.runtime_selection import executing, serving_runtime
 from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.page_fixtures import example_media
 from process.website_server import (

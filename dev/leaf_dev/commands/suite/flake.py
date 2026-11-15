@@ -4,7 +4,7 @@
 
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the
-selection (`leaf_dev.suite`) as `COPIES` copies, `WORKERS` at a time, from the working
+selection (`_runs`) as `COPIES` copies, `WORKERS` at a time, from the working
 tree as it stands, uncommitted edits included, captured once before collection.
 Each copy runs in a private checkout of that snapshot, so fixed output paths and
 later edits to the source checkout cannot change another copy's result. Installed
@@ -30,7 +30,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.suite import checkout, collect, run, snapshot
+from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 COPIES = 18
 WORKERS = 6

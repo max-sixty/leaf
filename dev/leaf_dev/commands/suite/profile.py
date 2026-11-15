@@ -54,7 +54,7 @@ import click
 import pytest
 
 from leaf_dev import ROOT
-from leaf_dev.suite import junit_cases, outcome
+from leaf_dev.commands.suite._runs import junit_cases, outcome
 
 PLAYWRIGHT_DIR = f"{os.sep}playwright{os.sep}"
 # The seconds a test in each tier directory may take on CI's runner: a test that
@@ -233,7 +233,7 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
 
 
 def read_cases(report: Path) -> list[dict]:
-    """Each test's node id (`suite.junit_cases`), file, seconds, profile, and whether
+    """Each test's node id (`_runs.junit_cases`), file, seconds, profile, and whether
     it passed. A failed call whose teardown also failed carries its profile on its
     second case. A test without a profile, a collection error, has none. A profiled
     test's seconds are its phases': junit adds each subtest's duration to the test's

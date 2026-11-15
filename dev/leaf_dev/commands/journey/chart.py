@@ -1,7 +1,7 @@
 """Chart the latest journey samples kept on this machine, or tabulate their replies.
 
 The chart draws when each sign of the release ask came. The table (`--replies`)
-gives, for each target and case (`journey.CASES`, the harness waiting or working
+gives, for each target and case (`_journey.CASES`, the harness waiting or working
 when the release ask reaches it), the time of the whole reply and the parts it went
 to (`reply_phases.reply_breakdown`), over the kept samples of the latest version
 each target ran in each case, or with `--since` over every sample kept since then,
@@ -16,9 +16,9 @@ from datetime import datetime
 
 import click
 
-from leaf_dev.commands.journey.run import CASES, HARNESS_TARGETS, samples_path
+from leaf_dev.commands.journey._journey import CASES, HARNESS_TARGETS, samples_path
 
-# The milestones the chart draws (`response_times.page_timings`), on the page
+# The milestones the chart draws (`leaf_dev.page_timings`), on the page
 # server's clock from the comment's admission.
 SIGNS = (
     ("title", "titled", "var(--series-2)"),

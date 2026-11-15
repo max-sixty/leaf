@@ -1491,7 +1491,7 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
           const words = document.createRange();
           words.selectNodeContents(el.childNodes[0]);
           const tokens = document.createElement('span');
-          tokens.style.cssText = 'color: var(--accent)';
+          tokens.style.cssText = 'color: var(--lf-accent)';
           document.body.append(tokens);
           const tokenStyle = getComputedStyle(tokens);
           const accent = tokenStyle.color;

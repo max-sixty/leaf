@@ -141,7 +141,7 @@ or an obligation (it stays ordinary English for a list item or a row of a list),
 | **Content frame** | `body > main`, the box a page Layout arranges and its reading column when its scroll behavior is `flow` |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: a page Layout on the content frame only, `layout-tiles` on any block |
 | **Frame** | A box whose size comes from outside it, such as `main`, a root tab panel, a part, a pane or a cell of a Layout, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
-| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
+| **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--lf-wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | An `aside > .layout-track` beside a `.layout-column` body in `.layout-sidebar`: supporting material in the left margin where both fit, stacked otherwise |
@@ -235,7 +235,7 @@ its link's preview counts them.
 | **Unwind** | What one Escape closes: the innermost open step, decided by what is open now (`runtime/keyboard/AGENTS.md`, "Escape"). It lands the user on the parent of what it closed |
 | **Landing** | Where a step leaves the user. Closing a box lands on its container, leaving a destination lands on the layer's floor, and closing a surface lands on the document block the user was reading |
 | **Layer stack** | Leaf's ordered record of the popovers and modal dialogs open over the page (`keyboard/layer-stack.js`); an open view of Leaf's panel sits beneath it without being an entry |
-| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--focus-ring` in `base.css`) |
+| **Focus ring** | The one ring on whatever takes the user's next press: a focused control, a bounded decision, an obligation the user is at. It shows the current location as well as DOM focus (`--lf-focus-ring` in `base.css`) |
 | **Key badge** | A keycap-shaped label for a binding or a hint code |
 | **Binding badge** | A key badge showing a command's current binding |
 | **Preview** | What pointing at a mark, control or value reads, standing beside it over the page: its whole word, the keys that press it, and what pressing it opens or the fact it stands for, never words the face already shows. A resting pointer, Tab and a held finger read it, and `K` reads it wherever a command left focus (`preview.js`); the card a press opens beside a thread's words is its thread card, not a preview |

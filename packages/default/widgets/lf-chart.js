@@ -17,7 +17,7 @@
  * is stated (x-height, or the occurrence's data-height), and the theme holds the box at
  * it before the drawing arrives, so the drawing and any legend Plot sets beside it are
  * drawn to fill it and move nothing below it. Its type and ink are the theme's, and so
- * are its series colours, because Plot takes `var(--series-N)` wherever it takes a colour. A user
+ * are its series colours, because Plot takes `var(--lf-series-N)` wherever it takes a colour. A user
  * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
  * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
  *

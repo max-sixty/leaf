@@ -3207,10 +3207,10 @@ def root_overflow(page) -> float:
 
 
 def wide_width(page) -> float:
-    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    """The page's `--lf-wide` in pixels: the theme derives it from the code size, and a
     page may restate it, so a width check reads it rather than copying the number."""
     return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-wide'))"
     )
 
 

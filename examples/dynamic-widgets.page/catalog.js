@@ -146,7 +146,7 @@ export function compile(spec) {
         return element("lf-draft", `<pre>\n${escape(node.text)}</pre>`);
       case "chart": {
         const rows = JSON.stringify(node.rows);
-        const options = `{ariaLabel:${JSON.stringify(node.label)},x:{label:${JSON.stringify(node.xLabel)}},y:{grid:true,label:${JSON.stringify(node.yLabel)}},marks:[Plot.barY(${rows},{x:"category",y:"value",fill:"var(--series-1)"}),Plot.text(${rows},{x:"category",y:"value",text:"value",dy:-10})]}`;
+        const options = `{ariaLabel:${JSON.stringify(node.label)},x:{label:${JSON.stringify(node.xLabel)}},y:{grid:true,label:${JSON.stringify(node.yLabel)}},marks:[Plot.barY(${rows},{x:"category",y:"value",fill:"var(--lf-series-1)"}),Plot.text(${rows},{x:"category",y:"value",text:"value",dy:-10})]}`;
         return element("lf-chart", `<pre>\n${escape(options)}</pre>`);
       }
       default:

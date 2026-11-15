@@ -9,44 +9,44 @@
     <style>
       #lp-current-state > strong {
         display: block;
-        margin-bottom: var(--sp-1);
-        font: 650 var(--t-3) / 1.2 var(--sans);
+        margin-bottom: var(--lf-sp-1);
+        font: 650 var(--lf-t-3) / 1.2 var(--lf-sans);
       }
 
       #lp-release-facts {
-        margin-block: var(--sp-3);
+        margin-block: var(--lf-sp-3);
       }
 
       #lp-checks-table {
-        margin-top: var(--sp-2);
-        font-size: var(--t-5);
+        margin-top: var(--lf-sp-2);
+        font-size: var(--lf-t-5);
       }
 
       /* A check's verdict stands under its name, so the table is two columns and
          fits the rail at its narrowest. */
       .release-check-result {
         display: block;
-        font: 650 var(--t-6) / 1.2 var(--sans);
+        font: 650 var(--lf-t-6) / 1.2 var(--lf-sans);
       }
 
       .release-check-result[data-status="pass"] {
-        color: var(--ok-ink);
+        color: var(--lf-ok-ink);
       }
 
       .release-check-result[data-status="fail"] {
-        color: var(--danger-ink);
+        color: var(--lf-danger-ink);
       }
 
       #lp-log-note,
       #lp-checks-note {
         margin-top: 0;
-        color: var(--muted);
-        font-family: var(--sans);
-        font-size: var(--t-5);
+        color: var(--lf-muted);
+        font-family: var(--lf-sans);
+        font-size: var(--lf-t-5);
       }
 
       #lp-code-changes {
-        margin-top: var(--sp-3);
+        margin-top: var(--lf-sp-3);
       }
       /* The four numbers stand in one row where the body holds them and two by two
          where it doesn't, never three and one. */
@@ -147,7 +147,7 @@
         {second: 158, share: 25},
         {second: 163, share: 25},
       ],
-      {x: "second", y: "share", curve: "step-after", stroke: "var(--series-1)", strokeWidth: 2},
+      {x: "second", y: "share", curve: "step-after", stroke: "var(--lf-series-1)", strokeWidth: 2},
     ),
     Plot.ruleY([0]),
   ],

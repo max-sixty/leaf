@@ -132,7 +132,7 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
             INITIAL_DRAWING_PAGE,
             head='<link rel="stylesheet" href="/page/theme.css">'
             + (
-                "<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+                "<style>:root { --lf-sans: Georgia, serif; --lf-mono: Courier, monospace; }</style>"
                 if width == 390
                 else ""
             ),

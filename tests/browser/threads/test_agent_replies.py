@@ -845,7 +845,10 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open. Once the
+    agent ends the question, a line under it says how it ended and the agent's note on
+    where, whole in a margin card at 1440 px, so the thread no longer reads as
+    asking."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -881,6 +884,38 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
+
+    where = (
+        "Answered in the session: the session store owns it, and the page store "
+        "keeps only what the session hands it when the page closes."
+    )
+    todos_model.cmd_end(serve.page_dir, f"message:{question['id']}", "done", where)
+    told(page)
+    resized(page, 1440, 900)
+    open_margin_card(page, "h-how")
+    asking = page.locator(
+        f'.lf-margin-preview .lf-msg[data-lf-event="{question["id"]}"]'
+    )
+    expect(asking.locator(".lf-msg-leaves")).to_have_count(0)
+    ending = asking.locator(".lf-msg-ending")
+    expect(ending).to_have_text(f"Answered elsewhere · {where}")
+    # Every box that clips, up to the card, holds the line's words whole.
+    assert ending.evaluate(
+        """(line) => {
+          const words = document.createRange();
+          words.selectNodeContents(line);
+          const shown = words.getBoundingClientRect();
+          for (let at = line; at; at = at.parentElement) {
+            const box = at.getBoundingClientRect();
+            const clips = at === line || getComputedStyle(at).overflow !== 'visible';
+            if (clips && (shown.left < box.left - 0.5 || shown.right > box.right + 0.5
+                || shown.top < box.top - 0.5 || shown.bottom > box.bottom + 0.5))
+              return false;
+            if (at.matches('.lf-margin-preview')) return true;
+          }
+          return false;
+        }"""
+    ), "the margin card cuts the ended question's note"
 
 
 def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(

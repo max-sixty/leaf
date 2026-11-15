@@ -152,7 +152,7 @@ def test_the_covered_words_gate_reads_a_chart_s_labels_and_what_is_shown(
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
-    """A series takes the theme's token, `var(--series-N)`, which Plot writes into the
+    """A series takes the theme's token, `var(--lf-series-N)`, which Plot writes into the
     drawing as it was given. Resolved to a value in JavaScript it would freeze the scheme
     the browser was in when the chart was drawn: a copy exported from a light window
     opens as a light slab for a dark user, and a scheme flipped mid-read leaves the
@@ -208,7 +208,7 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
         return drew["tokens"], fills
 
     # Provider legend defaults yield to the page face without a JS inline repair.
-    page.add_style_tag(content=":root { --sans: Georgia; }")
+    page.add_style_tag(content=":root { --lf-sans: Georgia; }")
     legend = page.locator('#c-bars [class*="-swatches"]').first
     expect(legend).to_have_count(1)
     assert legend.evaluate("node => getComputedStyle(node).fontFamily") == "Georgia"
@@ -349,7 +349,7 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     paint. Drawn at the options' own height instead, the legend overhangs the box."""
     body = """{
   ariaLabel: "Merged by team: backend 12, frontend 19",
-  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  color: {legend: true, range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
                     {x: "team", y: "n", fill: "team"})],
 }"""
@@ -629,7 +629,7 @@ HOURS = chart_markup(
     """{
   ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
   y: {label: "hours"},
-  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  color: {range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   marks: [
     Plot.barY(
       [

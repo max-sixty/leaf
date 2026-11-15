@@ -7,10 +7,10 @@ A case is one configuration a reader meets: the subject the thread is on (words 
 in a block, or a whole block), the messages the thread holds, the route that opens its
 card (`m` from the page's top or with the subject in view, a press on its margin
 marker or its words, by a finger in a touch window, or a comment the reader sends),
-what follows the opening,
-such as the agent's answer arriving or a scroll, and the windows it opens in, the
-1728×999, 1440×900 and 1000×700 ones unless it names others, and the Layout its page uses, the reading column
-unless it names another. Every case opens on `fixture(layout)`, whose blocks span the
+what follows the opening, such as the agent's answer arriving or a scroll, the windows
+it opens in, the 1728×999, 1440×900 and 1000×700 ones unless it names others, and the
+Layout its page uses, the reading column unless it names another. Every case opens on
+`fixture(layout)`, whose blocks span the
 subjects pages hold: a one-line, a three-line and a sixteen-line paragraph, a heading, a
 list, a choice widget, and a section holding a table wider than the column. Add a case
 for a shape someone meets: a line in `CASES`, and a block in `fixture()` and `SUBJECTS`
@@ -19,8 +19,8 @@ text (`browser.QUOTE_RANGE`).
 
 A page matters to placement only through its Layout, which sets the room around the
 words, so the page's content is the same on every layout and `LAYOUTS` holds each
-wrapper. `bare` is a `main` with no Layout, which has no gutter or column, so a card
-stands beside words that run the window's width. `sidebar` and `workspace` are the
+wrapper. `bare` is a `main` with no Layout, whose words run the window's width and
+leave no room beside them. `sidebar` and `workspace` are the
 other two page Layouts (`skills/leaf/references/page-layout.md`): a body beside an
 `aside`, and a screen filling the window whose body is an `lf-pane` that scrolls on its
 own. `layout-tiles` arranges one block's children, not the page, and is left out. Each
@@ -163,8 +163,8 @@ class Case:
     messages before the page opens, the agent's question first and then the reader's
     and the agent's in turn, ending with the agent's; a thread the reader starts by
     `route` "comment" holds none, and opens with `typed`, which `arrives` answers once
-    the card is open. `scroll` is the pixels a wheel then scrolls the page; `layout` is the key
-    in `LAYOUTS` of the Layout its page uses."""
+    the card is open. `scroll` is the pixels a wheel then scrolls the page, and
+    `layout` the key in `LAYOUTS` of the Layout its page uses."""
 
     name: str
     title: str

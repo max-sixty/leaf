@@ -8,17 +8,20 @@ URLs grant machine-wide server access and have no place in an offline record.
 Most exports are read rather than operated, so by default the file is the page the
 package draws, not the package (`static_document`): the host's browser boots the
 package once, and the file keeps the page's markup with each widget in its current
-state, its images and fonts as data URLs, and no script. It shows the same with
-scripts off, and it leaves out the runtime, which is nearly all of a package's bytes.
-With `runtime` the file is the package, for a reader who should operate the widgets.
+state, what each fold draws once opened, its images and fonts as data URLs, and no
+script. It shows the same with scripts off, and it leaves out the runtime, which is
+nearly all of a package's bytes. With `runtime` the file is the package, for a reader
+who should operate the widgets.
 
 Widgets draw only in the browser, so a file without the runtime needs either a browser
 at export time or a second, script-free renderer for every widget. A browser keeps one
 renderer and asks nothing of a package; the host already supplies one for `page check
---render`. Its cost is that geometry a widget computes while drawing, such as a
-chart's width, keeps the window it was drawn in, where the file's CSS adapts the rest
-to its reader's window and color scheme. A renderer per widget would need no browser,
-but every package, a third party's too, would have to keep it matching the first.
+--render`. Its cost is that what a widget computes while drawing keeps the desktop
+window it was drawn in (`render_checks.RENDER_VIEWPORT`): on a phone a chart shrinks to
+fit rather than redrawing, and a contents list the runtime folds for a narrow window
+stays open. The file's CSS adapts the rest to its reader's window and color scheme. A
+renderer per widget would need no browser, but every package, a third party's too,
+would have to keep it matching the first.
 
 An export goes to people who shouldn't see what the user and the agent said to each
 other, so the file holds the page and none of the conversation. Its reading is folded
@@ -499,10 +502,12 @@ def static_document(package: str) -> str:
     """The page `package` (`export_document`) draws, as one file with no script.
 
     The host's browser opens the package at the fixed desktop window
-    (`render_checks.RENDER_VIEWPORT`), waits until the page is ready as any reader
-    outside it does, and serializes what it drew (`static-export.js`). Refused where
-    the host has no browser, or the page cannot start, since there is then no drawing
-    to keep."""
+    (`render_checks.RENDER_VIEWPORT`) and waits until the page is ready, as any reader
+    outside it does. It then opens the page's folds, waiting again after each round,
+    until a round finds none, closes them again, and once the page is ready once more
+    serializes what it drew (`static-export.js`).
+    Refused where the host has no browser, or the page cannot start, since there is
+    then no drawing to keep."""
     from leaf.render_checks import RENDER_VIEWPORT, PageNotReady, wait_until_ready
     from leaf.render_gate.command import NoBrowser, run_in_browser
 
@@ -515,7 +520,11 @@ def static_document(package: str) -> str:
         )
         page.goto(DRAWING_URL, wait_until="load")
         wait_until_ready(page, fixed_server=True)
-        return page.evaluate("globalThis.__leafStaticDocument()")
+        while page.evaluate("globalThis.__leafStaticExport.unfold()"):
+            wait_until_ready(page, fixed_server=True)
+        page.evaluate("globalThis.__leafStaticExport.refold()")
+        wait_until_ready(page, fixed_server=True)
+        return page.evaluate("globalThis.__leafStaticExport.document()")
 
     try:
         drawn, _ = run_in_browser(draw)

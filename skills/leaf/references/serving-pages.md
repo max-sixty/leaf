@@ -20,13 +20,14 @@ it checks and captures current source and reports `version: null`. `--draft` and
 `--version` cannot be combined.
 
 The file shows the page as it stands: the selected content, each widget drawn with the
-decisions recorded on it, and its images and fonts, with no script, so it reads the
-same with scripts off and is small enough to attach. Leaf draws it in the host's
-browser, which `page check --render` also needs. When the file's reader should operate
-the page, such as a playground's controls, add `--runtime`: the file then carries
-Leaf's runtime, about 11 MB, and opens with the reading controls and the page's own
-code working. Recording new Leaf choices or updates, and Undo, still require the served
-page and its server, though not an active agent.
+decisions recorded on it, what each fold holds for the reader to open, and its images
+and fonts. It holds no script, so a browser that blocks scripts shows all of it, its
+controls draw but don't respond, and it is small enough to attach. Leaf draws it in the
+host's browser, which `page check --render` also needs. When the file's reader should
+operate the page, such as a playground's controls, add `--runtime`: the file then
+carries Leaf's runtime, about 11 MB, and opens with the reading controls and the page's
+own code working. Recording new Leaf choices or updates, and Undo, still require the
+served page and its server, though not an active agent.
 
 Hand back the `file://` URL; don't start a server or wait. A page with a live sample
 can't be exported. Write the file where the project keeps files for the user.

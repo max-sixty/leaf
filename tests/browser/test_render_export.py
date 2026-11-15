@@ -285,8 +285,9 @@ def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
 ):
     """The default file is the page as the runtime draws it, with no script: a widget
     shows the decision recorded on it and not its stand-in for loading, a suggestion
-    its changed words, and an image its pixels. It holds nothing of the conversation,
-    nor where the page lives on this machine."""
+    its changed words, an image and a canvas their pixels, and each fold, still
+    closed, what it draws once opened. It holds nothing of the conversation, nor where
+    the page lives on this machine."""
     image = solid_png(64, 40, (40, 90, 160))
     shot = f"/media/{hashlib.sha256(image).hexdigest()[:16]}.png"
     serve(
@@ -297,12 +298,31 @@ def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
 <img id="shot" src="{shot}" width="64" height="40" alt="A captured screen">
 <lf-offline-test id="offline-widget" choice="idle"></lf-offline-test>
 <p id="rule"><lf-suggestion id="sug"><lf-old>Refill every feeder each morning</lf-old><lf-new>Refill each feeder when it runs empty</lf-new></lf-suggestion>.</p>
+<details id="fold"><summary>More</summary><p>Not drawn</p></details>
+<section id="panel" hidden="until-found"><p>Not drawn</p></section>
+<canvas id="plot" width="30" height="20">A red bar</canvas>
 """,
-            head="<style>lf-offline-test:not(:defined)::before {content: 'Loading'}</style>",
+            head=(
+                "<style>lf-offline-test:not(:defined)::before {content: 'Loading'}</style>"
+                '<script type="module" src="/page/draw.js"></script>'
+            ),
         ),
         page_files={
             "registry.json": json.dumps(OFFLINE_REGISTRY),
             "widgets/lf-offline-test.js": OFFLINE_WIDGET,
+            "draw.js": """
+const fold = document.querySelector("#fold");
+fold.addEventListener("toggle", () => {
+  fold.querySelector("p").textContent = "Drawn on opening";
+});
+const panel = document.querySelector("#panel");
+new ResizeObserver(() => {
+  if (panel.offsetWidth) panel.querySelector("p").textContent = "Drawn on showing";
+}).observe(panel);
+const plot = document.querySelector("#plot").getContext("2d");
+plot.fillStyle = "rgb(200, 40, 40)";
+plot.fillRect(0, 0, 30, 20);
+""",
         },
         media={shot: image},
     )
@@ -334,6 +354,11 @@ def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
     expect(widget.locator("#choice")).to_have_text("chosen")
     assert widget.evaluate("w => getComputedStyle(w, '::before').content") == "none"
     expect(page.locator("#shot")).to_have_js_property("naturalWidth", 64)
+    expect(page.locator("img#plot")).to_have_js_property("naturalWidth", 30)
+    expect(page.locator("#fold")).not_to_have_attribute("open", "")
+    assert page.locator("#fold p").text_content() == "Drawn on opening"
+    expect(page.locator("#panel")).to_have_attribute("hidden", "until-found")
+    assert page.locator("#panel p").text_content() == "Drawn on showing"
     changed = page.locator('#sug lf-old [data-lf-highlight~="lf-sug-del"]')
     expect(changed.first).to_be_visible()
     assert changed.first.evaluate(

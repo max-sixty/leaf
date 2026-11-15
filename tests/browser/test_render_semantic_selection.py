@@ -1505,9 +1505,12 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
 def test_page_search_skips_hidden_words_but_reaches_disclosures(engine, request, serve):
     """Search counts rendered words and words its travel can reveal, not hidden data.
     In a `content-visibility: auto` box the browser draws, each word is asked of its own
-    element. A box it skips, far below the window, answers for every word it holds until
-    it draws (passages.js, `searchableWords`): its word under `display: none` is
-    counted, and its word restoring `visibility` inside the hidden box is missed."""
+    element, inside a `display: contents` element too. A box it skips, far below the
+    window, answers for every word it holds until it draws (passages.js,
+    `searchableWords`): its word under `display: none` is counted, and its word
+    restoring `visibility` inside the hidden box is missed. A step or landing that
+    reaches the counted word asks it of its own element and passes it, so no step
+    stands on it or reads it out."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1521,6 +1524,9 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(engine, request,
 <p style="visibility: hidden">needle drawn invisible</p></section>
 <section style="content-visibility: auto; visibility: hidden">
 <p style="visibility: visible">needle drawn restored</p></section>
+<section style="content-visibility: auto"><div style="display: contents">
+<p>needle drawn contents</p><p style="display: none">needle contents source</p></div>
+</section>
 <section><lf-tabs id="views"><lf-tab id="shown" label="Shown"><p>Shown panel</p></lf-tab>
 <lf-tab id="fold" label="Folded"><p>needle folded</p></lf-tab></lf-tabs></section>
 <details id="details"><summary>Evidence</summary><p>needle disclosed</p></details>
@@ -1536,25 +1542,27 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(engine, request,
     search = page.get_by_role("searchbox", name="Search page text")
     search.fill("needle")
     status = page.locator(".lf-page-search-status")
-    expect(status).to_have_text("1 of 6")
-    search.press("Tab")
-    expect(status).to_have_text("2 of 6")
-    search.press("Tab")
-    expect(status).to_have_text("3 of 6")
-    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    search.press("Tab")
-    expect(status).to_have_text("4 of 6")
+    expect(status).to_have_text("1 of 7")
+    for position in range(2, 7):
+        search.press("Tab")
+        expect(status).to_have_text(f"{position} of 7")
+        expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator("#fold")).not_to_have_attribute("hidden")
-    expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    search.press("Tab")
-    expect(status).to_have_text("5 of 6")
     expect(page.locator("#details")).to_have_attribute("open", "")
-    # Landing on the far box's word draws the box, so it is asked last.
+    # The far box's hidden word leaves the matches as the step reaches it, and the
+    # step comes round to the first.
+    search.press("Tab")
+    expect(status).to_have_text("1 of 6")
+    expect(page.locator(".lf-live")).to_have_text(
+        re.compile(r"^Match 1 of 6: needle visible")
+    )
+    # Landing on a far box's word draws the box, so they are asked last.
     for words, count in (
         ("drawn source", "0 of 0"),
         ("drawn restored", "1 of 1"),
+        ("contents source", "0 of 0"),
         ("far restored", "0 of 0"),
-        ("far source", "1 of 1"),
+        ("far source", "0 of 0"),
         ("copper copper", "1 of 1"),
     ):
         search.fill(words)

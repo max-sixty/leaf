@@ -3436,19 +3436,26 @@ export function findQuote(text, quote, anchor, within) {
 // yet shows its children's words, and a descendant can restore `visibility`, so
 // neither decides for what it holds.
 //
-// A word the browser isn't drawing now, because a box over it skips what it holds (a
-// closed tab's panel, a closed disclosure, a `content-visibility: auto` box off
-// screen), is asked of the outermost `content-visibility: auto` box in what is skipped
-// instead, where there is one. A style read inside a skipped box makes Chromium style
-// the box's content to answer: 28 ms a run of a text document's rows
+// A word in an element the browser doesn't draw, because a box over it skips what it
+// holds (a closed tab's panel, a closed disclosure, a `content-visibility: auto` box
+// off screen), is asked of the outermost `content-visibility: auto` box in what is
+// skipped instead, where there is one. A style read inside a skipped box makes Chromium
+// style the box's content to answer: 28 ms a run of a text document's rows
 // (lf-text-document.js, `inRuns`), so a search for a word in every run of thirty 4 MB
-// documents had found 108,000 of its 524,000 matches after five minutes. Until such a
-// box draws, a word CSS hides inside it is found, and a word that restores
-// `visibility` inside a hidden one is missed; once it draws, as on screen or for a
-// landing, each word is asked of its own element. Whether a box is drawn is asked
-// without styling it (`drawn`), and a `content-visibility: auto` box skips what it
-// holds when none of its children is drawn.
-function searchableWords() {
+// documents had found 108,000 of its 524,000 matches after five minutes. Whether an
+// element is drawn is asked without styling it (`drawn`). A `content-visibility: auto`
+// box skips what it holds when no element it renders is drawn, looking through the
+// elements that draw no box of their own, such as a slot or a `display: contents`
+// element. So while such a box is skipped, a word CSS hides inside it is counted, and
+// a word restoring `visibility` inside a hidden one is missed. The test misreads a box
+// on screen in which no element draws a box, its words standing in its own text or in
+// `display: none` or `display: contents` elements that hold only text: the words in
+// those elements are asked of the box too, so one under `display: none` is counted,
+// and one in a `display: contents` element restoring `visibility` inside a hidden box
+// is missed. A hidden word counted costs only the count: a landing asks the match it
+// reaches of its own elements (`matchShows`), and passes one they hide.
+/** @param {boolean} [exact] ask every word of its own element */
+function searchableWords(exact = false) {
   const styles = new Map();
   const reachable = new Map();
   /** @param {Element} el */
@@ -3465,6 +3472,10 @@ function searchableWords() {
     if (value === undefined) drawnNow.set(el, (value = drawn(el)));
     return value;
   };
+  // Whether an element `el` renders is drawn, through those that draw no box.
+  /** @param {Element} el @returns {boolean} */
+  const rendersDrawn = (el) =>
+    renderedChildElements(el).some((child) => isDrawn(child) || rendersDrawn(child));
   /** @type {Map<Element, boolean>} */
   const offScreen = new Map();
   // Whether `box`, which the browser draws, skips drawing its child `child`.
@@ -3475,8 +3486,7 @@ function searchableWords() {
     const visibility = style(box).contentVisibility;
     if (visibility !== "auto") return visibility === "hidden";
     let off = offScreen.get(box);
-    if (off === undefined)
-      offScreen.set(box, (off = !renderedChildElements(box).some(isDrawn)));
+    if (off === undefined) offScreen.set(box, (off = !rendersDrawn(box)));
     return off;
   };
   /** @typedef {{skipped: boolean, auto: Element | null}} Skipped */
@@ -3510,7 +3520,7 @@ function searchableWords() {
   // The element whose style says whether `el`'s words show.
   /** @param {Element} el @returns {Element} */
   const askedOf = (el) => {
-    if (isDrawn(el)) return el;
+    if (exact || isDrawn(el)) return el;
     const { skipped, auto } = skippedAt(el);
     return (skipped && auto) || el;
   };
@@ -3534,6 +3544,12 @@ function searchableWords() {
     return shown && style(shown).visibility === "visible" && canReveal(shown);
   };
 }
+
+// Whether the page shows a match `pageMatches` found, asked of its words' own
+// elements, which a landing asks of the match it reaches (`searchableWords`). Its styles
+// cost what one box's do.
+/** @param {readonly Segment[]} segments */
+export const matchShows = (segments) => segments.every(searchableWords(true));
 
 // Every occurrence of a user's search, as passages in the page reading. This is not
 // anchor resolution: a search is allowed to find repeated words, while a stored anchor

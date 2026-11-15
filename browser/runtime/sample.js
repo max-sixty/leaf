@@ -66,6 +66,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
 import { exceptionRecord } from "./exception.js";
 import { aborted } from "./abort.js";
+import { deferredArrival, onAllNear } from "./presentation.js";
 
 /** @typedef {import("./sample-protocol.js").SampleReady} SampleReady
  * @typedef {import("./sample-protocol.js").SampleCommands} SampleCommands
@@ -443,6 +444,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
           pendingInterface = null;
           completion?.resolve(data.detail);
           visibility();
+          nearWork();
         } else if (data.type === "error") {
           failure(
             Object.assign(
@@ -630,6 +632,18 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       });
     });
   }
+  // A check that asks this page for all the work it holds until the reader comes near
+  // (presentation.js, `startNearWork`) asks each upgraded child document the same, once,
+  // and the page counts the child as arriving until it answers.
+  /** @type {string | null} */
+  let askedNear = null;
+  function nearWork() {
+    if (!near.asked() || !channel || pendingInterface || askedNear === connectedNonce)
+      return;
+    askedNear = connectedNonce;
+    deferredArrival(call("near-work", {}).catch(() => {}));
+  }
+  const near = onAllNear(nearWork);
   /** @type {SampleHost} */
   const host = {
     ready: replace(),
@@ -673,6 +687,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       lifetime.disconnect();
       unwatch();
       undress();
+      near.stop();
       closing = Promise.all([retire("destroyed"), operation?.catch(() => {})]);
       return closing;
     },

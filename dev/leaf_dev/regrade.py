@@ -1,6 +1,6 @@
 """Grade a retained run's saved outputs again, through Promptfoo.
 
-`leaf-dev eval --from RUN` writes a Promptfoo config whose tests replay saved results
+`leaf-dev eval run --from RUN` writes a Promptfoo config whose tests replay saved results
 instead of running an author. `replay` is the provider of every column: it returns
 the saved response a test names in `metadata.saved`, output, metadata and error, so
 an assertion reading either grades the sample as it graded the original, and a
@@ -11,7 +11,7 @@ judgment replaces them:
 - `pair` judges two columns' samples of one task on live copies of their saved
   pages, each served by its original runtime. A pair runs as two tests, one per
   presentation order, and a winner counts only where both completed orders name it
-  (`eval-report` reads them together). Exploration the judge could not finish is
+  (`eval report` reads them together). Exploration the judge could not finish is
   insufficient evidence rather than a tie, and a pair with a failed response is
   unscored.
 - `discovery` explores one sample's saved pages for observations, choosing its own

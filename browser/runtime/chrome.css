@@ -18,13 +18,15 @@
    each surface.
 
    Every rule that draws a focus ring draws it with `--focus-ring` or `--focus-shadow`
-   (base.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region a ringed box can land in
+   (base.css) and names nothing; the suite asks the browser which rule drew it. The ring is drawn outside its box, so every scroll region of the chrome that a ringed box can land in
    pads its edges by the room of the widest ring it holds: a control's
    (`--focus-ring-room`), or a region's (`--focus-region-room`) where it holds a block of
    the page or of a message, as a margin card's transcript does. A landing keeps that room
    too (`--focus-ring-landing`, surfaces.css), and a sticky row keeps it as its own
    padding; a box whose edge touches something that paints draws its ring inset.
-   A large composite region paints a quiet ground inside its box instead.
+   A large composite region paints a quiet ground inside its box instead. A page's
+   bounded block pads nothing at its sides, so it cuts a ring there (tokens.css, "Where
+   it stands").
 
    The response bar (`.lf-fab-bar`): its field (`.lf-response-control`) and every
    choice (the response face, controls.css) stand on one baseline with one type,

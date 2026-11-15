@@ -64,9 +64,9 @@ the continuing hill-climb report opened Cases & outputs → Overview. The report
 output table includes several `<small>` metadata lines in each Version cell.
 Changing only their `display: block` to `display: flow-root` preserved the layout
 and allowed repeated visits. The report stylesheet in
-`dev/leaf_dev/commands/eval_report.py` keeps that formatting context.
+`dev/leaf_dev/commands/eval/report.py` keeps that formatting context.
 
-Recheck the populated report produced by `leaf-dev eval-report`: override
+Recheck the populated report produced by `leaf-dev eval report`: override
 `.sample-table small { display: block !important; }`, visit another tab, then
 open the output index and capture the viewport. Compare the same source and
 browser with `display: flow-root`. Inline metadata without line breaks also
@@ -377,6 +377,23 @@ editor also revealed its frame without a JavaScript reveal call.
 Reproduce by focusing the parent, then invoking native focus or reveal from a
 child message handler; separately type into an offscreen focused child editor.
 
+### Percentage scroll margins in Chromium
+
+What Leaf calls near the window (`browser/runtime/geometry.js`, `nearObserver`), which
+decides where anchored controls stand in layout and when a live sample's page starts
+(`whenNear`), is an IntersectionObserver with `rootMargin: "100%"` and a
+`scrollMargin` in pixels. A percentage there misreads in Chromium: on 2026-11-11, on a
+Leaf column page with a sample frame about 3,800px down a 900px window, HeadlessChrome
+158.0.8127.18 (Playwright 1.65.0) read the frame as intersecting under
+`rootMargin: "100% 0px"` with `scrollMargin: "100% 0px"`, though under either alone it
+did not and the reported root ended at 1,800px. With `scrollMargin: "600px"` it read the
+frame correctly. Playwright Firefox 159.0 read every form correctly but grew the window
+by the scroll margin as well as the root margin, so the window reaches 1,500px further
+there than in Chromium. Plain test pages, even with the body as an inline-size
+container, read the percentage correctly in both. Recheck by observing `#far iframe`
+with each option in `uv run leaf-dev probe` of a page that places `<lf-sample id="far">`
+under a 400vh spacer, in both engines.
+
 ### A selection written during focus in WebKit
 
 Playwright WebKit 26.6 revealed an editor's selection written inside its
@@ -637,6 +654,23 @@ page scrolls. Playwright WebKit 26.6 applied the root scroll twice on
 `browser/runtime/css-anchors.js` accepts this gap; Leaf's page-of-parts column
 is an affected surface. Recheck a fixed anchored box against a target in a
 fixed scrolling panel while scrolling both the document and panel.
+
+### An anchor inside an SVG foreignObject in Chromium
+
+A fixed box anchored to an HTML element inside an SVG `<foreignObject>` takes
+its `anchor()` fallback, so a key chip, aim, mark or margin row there stood at
+-9999px, off the window. Playwright Chromium 158.0.8127.18 (build 1254) did so
+on 2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed
+the box on the element, and all three placed it on the drawing's `<svg>`.
+`anchorElement` in `browser/runtime/css-anchors.js` anchors such an element
+through the drawing in every engine, as it does the drawing's own shapes, with
+the box's insets measured from the drawing. A scroller inside the drawing's HTML
+doesn't move the drawing, so a mark or composer against a target in it stays
+where it was placed as that scroller scrolls, until it is placed again;
+accepted, since no shipped page scrolls inside a drawing. Recheck with
+`test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html` with the
+`foreignObject` step removed from `anchorElement`, or a fixed box whose `left`
+is `anchor(--a left, -9999px)` against a button in a `foreignObject`.
 
 ### An anchor's transforms in Firefox
 

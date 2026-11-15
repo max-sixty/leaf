@@ -55,7 +55,6 @@ SITE_NAV = (
     ("/", "leaf"),
     ("/examples/", "Examples"),
     ("/using/", "Using"),
-    ("/pages/", "Pages"),
     ("/how-it-works/", "How it works"),
     ("/extending/", "Extending"),
     ("https://github.com/max-sixty/leaf", "GitHub"),
@@ -82,7 +81,7 @@ def media_url(source: Path) -> str:
 
 def catalog_preview(assets: Path, name: str) -> Path:
     """Where an asset tree holds one example's catalog preview
-    (`leaf_dev.commands.refresh_previews`)."""
+    (`leaf_dev.commands.site.previews`)."""
     return assets / "examples" / f"example-{name}.jpg"
 
 

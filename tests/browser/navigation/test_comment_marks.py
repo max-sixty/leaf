@@ -48,6 +48,7 @@ from browser.navigation import (
     color_cue_markup,
 )
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -965,7 +966,10 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no
-    # passage at all is what proves a pass ran without touching the block's count.
+    # passage at all is what proves a pass ran without touching the block's count. The
+    # Enter's own repaint, which takes the margin's trace off the block the note stands
+    # for, lands first.
+    rendered(page)
     page.evaluate("""() => {
         window.__churn = 0;
         new MutationObserver(rs => (window.__churn += rs.length))
@@ -1064,8 +1068,11 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     assert not note.evaluate("note => note.matches(':focus-visible')")
     assert _ring_round(page, "#p1")
     # From the keys, the block also wears the trace of the note's margin entry, whose
-    # grey the ring's accent outranks.
+    # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
+    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # reading. Focus back on the note before it is no arrival, since the user never left.
     page.keyboard.press("Tab")
+    expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
     note.focus()
     expect(page.locator("#p1")).to_have_attribute("data-lf-traced", "")
     assert _ring_round(page, "#p1")

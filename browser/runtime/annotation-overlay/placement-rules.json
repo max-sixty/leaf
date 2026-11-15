@@ -77,7 +77,7 @@
         },
         {
           "id": "place-under-or-over",
-          "says": "Under or over: starting at the quoted words' first character."
+          "says": "Under or over: starting at the quoted words' first character, or, on a whole element, ending at its right edge; further left where the card would otherwise cross the room's right edge, so it keeps its width."
         },
         {
           "id": "place-carried",
@@ -87,8 +87,12 @@
     },
     {
       "id": "size",
-      "title": "How tall",
+      "title": "How big",
       "rules": [
+        {
+          "id": "size-width",
+          "says": "As wide as the measure (`--thread-card`), or the room's width where that is narrower, whatever its messages hold, so it neither narrows to its words nor widens as they arrive. The comment box opens as wide, and the card its Send opens keeps the box's width, as a carried card keeps the width it was carried at."
+        },
         {
           "id": "size-grows-away",
           "says": "It grows away from its text: down beside or under it, up over it. Opening, it may take the room's whole height, sliding inside the room rather than shrinking."

@@ -582,14 +582,17 @@ export function holdScroll(box) {
 // scroll ended. A move the page has yet to hear of is the input's or layout's; a clamp
 // keeps the box's end where the page last heard it, so its `scrollend` still ends
 // nothing of the reader's.
-/** @param {Element} box */
+// It returns where the input found the box.
+/** @param {Element} box @returns {{top: number, left: number, fromEnd: number}} */
 export function startReaderScroll(box) {
   placed.delete(box);
   const now = standing(box);
   const heard = heardAt.get(box);
-  sequenceIn(box).reader =
+  const found =
     heard && (heard.top !== now.top || heard.left !== now.left) ? heard : now;
+  sequenceIn(box).reader = found;
   inSequence(box);
+  return found;
 }
 /** @param {Element} box */
 const standing = (box) => ({
@@ -621,6 +624,11 @@ export const browserScrolls = (box) => {
   const at = placed.get(box);
   return !at || at.top !== box.scrollTop || at.left !== box.scrollLeft;
 };
+// Whether the reader's input has set `box` scrolling: a sequence it started
+// (`startReaderScroll`), from the input, before the browser moves the box, until the
+// sequence ends. A sequence layout starts, as a clamp does, is not the reader's.
+/** @param {Element} box */
+export const readerScrolls = (box) => Boolean(sequences.get(box)?.reader);
 /** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
   endListeners.add(listener);

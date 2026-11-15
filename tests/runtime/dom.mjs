@@ -90,10 +90,14 @@ window.getComputedStyle = (element, pseudo) => {
     get(target, key) {
       if (key === "overflowX" || key === "overflowY") return axis(key);
       const value = Reflect.get(target, key, target);
+      if (value === "" && Object.hasOwn(UNTRANSFORMED, key)) return UNTRANSFORMED[key];
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
 };
+// A box's transforms compute to their initial values where nothing declares them, which
+// a scroll's axes read (element-axes.js) to carry a glide's travel to the window.
+const UNTRANSFORMED = { rotate: "none", scale: "none", transform: "none", zoom: "1" };
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";

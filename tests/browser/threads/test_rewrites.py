@@ -990,12 +990,14 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     and opening it moves none of the head's words. The row is the rewrite's: the card's
     Resolve leaves it while the rewrite is open.
 
-    Under a finger each glyph takes the aim floor, so on a card at its least width the
-    pair reaches past the Edit's room into the head's labels, which it doesn't under a
-    fine pointer. A touch screen as wide as 1400 stands that card beside its words."""
+    Under a finger each glyph takes the aim floor, so on a card as narrow as the margin
+    beside its words the pair reaches past the Edit's room into the head's labels,
+    which it doesn't under a fine pointer. A touch screen 1440 wide stands the card in
+    that margin, 336 px wide; a narrower window puts it under its words at the full
+    measure, where the labels end clear of the pair."""
     context = browser.new_context(has_touch=True, is_mobile=True)
     page, card, message = _rewrite_surface(
-        browser, serve, "card", size=(1400, 844), context=context
+        browser, serve, "card", size=(1440, 844), context=context
     )
     # A saved rewrite marks the message edited, and the agent owes it an answer, so
     # the head carries its labels out to its end.

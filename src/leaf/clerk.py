@@ -75,9 +75,8 @@ hold by when it was written rather than by the turn it names. Restating lines ne
 that changed first.
 
 This module is the fork's one home, shared by every harness: what it is asked
-(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them)
-and how hard it thinks (`EFFORT`), the answer it must give (`ANSWER`), and what Leaf
-does with that answer
+(`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
+the answer it must give (`ANSWER`), and what Leaf does with that answer
 (`apply_answer`). A harness only makes the fork and carries the two halves
 (`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
 (`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
@@ -149,13 +148,18 @@ lines: the questions stay On Me and `leaf page state` lists them, but the agent 
 told. Confirming the lines from the transcript, as `delivery.confirm_entered` does
 for input, would close that gap.
 
+A line queued with `wake` tells the session of work it now owes, such as a to-do a
+fork opened (`forks.ended`). Until a hook has printed it, the watch between turns
+wakes the session for it once the turn has closed (`waking`,
+`session.watch_between_turns`). None of the clerk's own lines wakes the session.
+
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
 the fork named on that page, verbatim, what Leaf wrote, changed and told for it, or
-why it wrote no records, with the fork's tokens and time, the effort Claude Code
-reports it sent (`effort`), and the main thread's request it resent (`request` in
-`hooks/claude-code.ts`, which says where a replay cuts the conversation; a turn-end
-fork reads it to `row`), whose own `effort` is the session's. A fork that failed, or
+why it wrote no records, with the fork's tokens and time, and the main thread's
+request it resent (`request` in `hooks/claude-code.ts`, which says where a replay
+cuts the conversation; a turn-end fork reads it to `row`), whose `effort` the fork
+thinks at. A fork that failed, or
 gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no copy of a
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
@@ -182,16 +186,21 @@ Code's fork reuses the session's cached prefix while its system prompt and tools
 match the session's, which `$.model.fork` keeps by resending the main thread's own
 last request.
 
-The fork thinks at `EFFORT` whatever the session's own effort. Claude Code takes the
-effort since 2.1.318, and an older one ignores it and thinks at the session's. The
-effort leaves the cache whole where Claude Code's per-message effort reaches the
-model: in the claude-code journey on 2026-11-04, with the session at xhigh, a low
-fork read 98% of the conversation from the cache, as one at the session's effort
-did. Where it doesn't reach the model, a low fork writes the conversation to the
-cache again (#5891), so once a turn-end check does, the hooks module remembers it
-for that backend and makes its forks at the session's effort, in later sessions too
-(`runFork` in `hooks/claude-code.ts`).
-On turns planted in that journey, which leave an ask in the chat, answer it there,
+The fork thinks at the session's own effort, and the check's reference asks it to
+answer straight away without thinking it over, as Claude Code's `$.model.fork`
+documentation suggests for a quick side job. From 2026-11-04 to 2026-11-14 the fork
+asked for `low` effort instead, which kept the cache only where Claude Code's
+per-message effort reaches the model. Elsewhere, as on Vertex, a low fork wrote the
+whole conversation to the cache again (#5891, #5904), and the hooks module learned
+that per backend from each check's usage (#5892, #5907): a stored answer, a rewrite
+to learn it and another to check it again each week. On the 15 turn-end cases of
+`leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
+answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
+output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements
+below are of that low fork.
+
+On turns planted in the claude-code journey on 2026-11-04, with the session at
+xhigh, which leave an ask in the chat, answer it there,
 make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
 of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
 the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
@@ -208,7 +217,7 @@ wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
 fork runs off the turn's path, but the sooner it answers, the less often a turn
 opened meanwhile drops its asks (`basis`).
 
-`leaf-dev eval 'turn-end-check*' --harness claude-code --base` scores a change to
+`leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
 constructed
 conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).
@@ -234,8 +243,6 @@ from .state import (
     session_record,
 )
 
-# How hard the fork thinks, whatever the session's effort (the header says why).
-EFFORT = "low"
 REFERENCES = SKILL_FILE.parent / "references"
 # What the fork is asked, as the skill ships it.
 REFERENCE = REFERENCES / "turn-end-check.md"
@@ -343,11 +350,25 @@ QUEUED = Record(
     described(
         "The lines Leaf queued for a session's next step, in the state home's "
         "`sessions/<digest>.clerk` (`state.session_file`): one for each record the "
-        "clerk wrote and each finding it passes on (`clerk`), and one for each reply "
-        "a fork of the conversation posted (`forks`).",
-        object_schema({"lines": {"type": "array", "items": STRING}}),
+        "clerk wrote and each finding it passes on (`clerk`), and one as each fork "
+        "of the conversation takes a thread and as its run ends (`forks`). Each says "
+        "whether it wakes the session (`wake`): a line that tells it of work it now "
+        "owes wakes it while it is idle, until a hook has printed the line. A line "
+        "that tells of an agent's running turn names it (`turn`), and leaves the "
+        "queue unheard once that turn ends (`unqueue`).",
+        object_schema(
+            {
+                "lines": {
+                    "type": "array",
+                    "items": object_schema(
+                        {"line": STRING, "wake": {"type": "boolean"}},
+                        {"turn": STRING},
+                    ),
+                }
+            }
+        ),
     ),
-    since=36,
+    since=44,
 )
 
 # The words that open the fork's question, which the replay and the transcript carry.
@@ -492,9 +513,10 @@ def fork_prompt(pages: list[dict]) -> str:
     )
 
 
-def read_answer(text: str) -> dict:
-    """A fork's reply as an answer `ANSWER` takes, or `Refused` saying why not. A
-    fenced or prefaced object is read from its first `{` to its last `}`."""
+def read_answer(text: str, schema: dict = ANSWER) -> dict:
+    """A fork's reply as an answer `schema` takes, the clerk's `ANSWER` unless
+    another fork's, or `Refused` saying why not. A fenced or prefaced object is read
+    from its first `{` to its last `}`."""
     from .refusals import Refused
     from .registry.schema import json_validator
 
@@ -505,7 +527,7 @@ def read_answer(text: str) -> dict:
         answer = json.loads(text[start : end + 1])
     except json.JSONDecodeError as error:
         raise Refused(f"the fork's answer is not JSON ({error.msg})") from error
-    errors = sorted(json_validator(ANSWER).iter_errors(answer), key=str)
+    errors = sorted(json_validator(schema).iter_errors(answer), key=str)
     if errors:
         raise Refused(f"the fork's answer doesn't fit its schema: {errors[0].message}")
     return answer
@@ -520,7 +542,7 @@ def basis(session_id: str) -> dict | None:
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
     """One half of a fork for `session_id`, as `leaf hook --fork` hands it over:
     with neither `answer` nor `failed` in `payload`, the `question`; with either,
-    `take_answer`, and the fork's `usage`, `elapsed_ms`, `effort` and `request`
+    `take_answer`, and the fork's `usage`, `elapsed_ms` and `request`
     where the harness gives them."""
     if not session_id:
         return None
@@ -528,7 +550,6 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
         run = {
             "usage": payload.get("usage"),
             "elapsedMs": payload.get("elapsed_ms"),
-            "effort": payload.get("effort"),
             "request": payload.get("request"),
             "failed": payload.get("failed"),
         }
@@ -542,8 +563,8 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
 
 
 def question(session_id: str) -> dict | None:
-    """What to fork `session_id`'s conversation with, as `{"prompt", "basis",
-    "effort"}`, or None where it holds no page."""
+    """What to fork `session_id`'s conversation with, as `{"prompt", "basis"}`, or
+    None where it holds no page."""
     from .service import owned_pages
 
     facts = [
@@ -551,7 +572,7 @@ def question(session_id: str) -> dict | None:
     ]
     if not facts:
         return None
-    return {"prompt": fork_prompt(facts), "basis": basis(session_id), "effort": EFFORT}
+    return {"prompt": fork_prompt(facts), "basis": basis(session_id)}
 
 
 def take_answer(
@@ -1024,13 +1045,46 @@ def _changed(words: str, put: str) -> tuple[int, int, str]:
     return start, end, put[start : len(put) - (len(words) - end)].strip()
 
 
-def _append(session_id: str, lines: list[str]) -> None:
-    """Queue `lines` for the session's next step (`queued`), for a caller holding
-    the session's lock."""
+def queue(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
+    """Queue `lines` for the session's next step (`queued`), lines that wake an idle
+    session where they tell it of work it now owes (`wake`, `waking`); lines that
+    tell of the agent turn `turn` while it runs leave the queue unheard once it
+    ends (`unqueue`)."""
+    if lines:
+        with flocked(session_lock_path(session_id)):
+            _append(session_id, lines, wake=wake, turn=turn)
+
+
+def _append(
+    session_id: str, lines: list[str], *, wake: bool = False, turn: str | None = None
+) -> None:
+    """`queue`, for a caller already holding the session's lock."""
     if lines:
         path = session_file(session_id, QUEUED.kind)
         held = QUEUED.read(path) or {"lines": []}
-        QUEUED.write(path, {"lines": [*held["lines"], *lines]})
+        added = [
+            {"line": line, "wake": wake, **({"turn": turn} if turn else {})}
+            for line in lines
+        ]
+        QUEUED.write(path, {"lines": [*held["lines"], *added]})
+
+
+def unqueue(session_id: str, turns: set[str]) -> None:
+    """Take off the queue, unheard, the lines that tell of the agent turns `turns`,
+    which have ended: a fork's take, which tells the session to leave the thread to
+    the fork, no longer holds once the fork's end is the line it hears."""
+    path = session_file(session_id, QUEUED.kind)
+    with flocked(session_lock_path(session_id)):
+        held = QUEUED.read(path) or {"lines": []}
+        kept = [entry for entry in held["lines"] if entry.get("turn") not in turns]
+        if len(kept) == len(held["lines"]):
+            return
+        if kept:
+            QUEUED.write(path, {"lines": kept})
+        else:
+            path.unlink(missing_ok=True)
 
 
 def _put(page_dir, page, title, text, identity, passage) -> dict:
@@ -1078,25 +1132,39 @@ def _told(path: str, title: str, text: str, passage: str, record: dict) -> str:
     )
 
 
-def queued(session_id: str) -> list[str]:
-    """What the session's next step hears from the clerk."""
+def _held(session_id: str) -> list[dict]:
     held = QUEUED.read(session_file(session_id, QUEUED.kind))
     return held["lines"] if held else []
 
 
+def queued(session_id: str) -> list[str]:
+    """What the session's next step hears from the clerk and from forks that took a
+    thread's work."""
+    return [held["line"] for held in _held(session_id)]
+
+
+def waking(session_id: str) -> list[str]:
+    """The queued lines that tell the session of work it now owes, which wake it
+    while it is idle (`queue`'s `wake`)."""
+    return [held["line"] for held in _held(session_id) if held["wake"]]
+
+
 def heard(session_id: str, lines: list[str]) -> None:
-    """Take `lines`, which a hook handed the agent, off the queue; lines queued since
-    stay for the next step."""
+    """Take `lines`, which a hook handed the agent, off the queue, each once; lines
+    queued since stay for the next step, and a line taken off meanwhile
+    (`unqueue`) is no longer there to take."""
     if not lines:
         return
     path = session_file(session_id, QUEUED.kind)
     with flocked(session_lock_path(session_id)):
         held = QUEUED.read(path) or {"lines": []}
-        rest = (
-            held["lines"][len(lines) :]
-            if held["lines"][: len(lines)] == lines
-            else held["lines"]
-        )
+        rest = list(held["lines"])
+        for line in lines:
+            at = next(
+                (i for i, entry in enumerate(rest) if entry["line"] == line), None
+            )
+            if at is not None:
+                del rest[at]
         if rest:
             QUEUED.write(path, {"lines": rest})
         else:

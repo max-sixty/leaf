@@ -76,7 +76,7 @@ from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -1399,6 +1399,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
             expect(samples).to_have_count(3)
+            # A sample starts its page as it nears the window, and these stand in a
+            # shut tab.
+            render_checks_model.start_near_work(page)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:

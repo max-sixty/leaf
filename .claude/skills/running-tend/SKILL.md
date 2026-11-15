@@ -271,8 +271,9 @@ Each nightly run, scan the
 [Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
 [OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
-[Codex releases](https://github.com/openai/codex/releases), and
-[Codex product changelog](https://developers.openai.com/codex/changelog/).
+[Codex releases](https://github.com/openai/codex/releases),
+[Codex product changelog](https://developers.openai.com/codex/changelog/), and
+[Pi releases](https://github.com/earendil-works/pi/releases).
 Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. Report a source that cannot be read in the
 run summary rather than treating it as having no changes. Search open and closed
@@ -343,11 +344,12 @@ with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
 `dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
 at 64 sections.
 
-Judge from several runs whether a cost grows faster than the page, or rises across
-runs at the same size, by more than the runner's noise explains. The header of
-`dev/leaf_dev/commands/bench.py` says which readings a busy runner stretches; an
-exponent compares sizes within one run, so a slow runner moves it less than the
-readings themselves. Where a cost grows, open an issue that names the reading, its
+Judge from several runs whether a cost grows with the page faster than that rule
+allows, or rises across runs at the same size, by more than the runner's noise
+explains. The table marks `!` beside each exponent above its reading's `limit`.
+The header of `dev/leaf_dev/commands/bench.py` says which readings a busy runner
+stretches; an exponent compares sizes within one run, so a slow runner moves it less
+than the readings themselves. Where a cost grows, open an issue that names the reading, its
 values at each size, the runs compared, and the commits between the last run that read
 it at its earlier level and the first that read it higher. Where an open issue already
 tracks that cost, add only what it lacks, and leave one labelled `backlog` alone
@@ -358,7 +360,7 @@ compared, whether or not anything grew.
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
 `test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
 runs either moves to `tests/journeys/` or gets faster; a journey within the browser
 budget in both moves to `tests/browser/` when its boundary is one page. A single
 reading moves nothing, since one run's time includes contention. Open one pull

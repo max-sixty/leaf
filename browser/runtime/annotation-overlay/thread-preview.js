@@ -64,10 +64,14 @@
    floating panel does; that was done on 4 November 2026 to unify the two under the
    user's request for one thread view, and the user did not pick it.
 
-   A selection holds its placement side and its width. The width is the comment box's
-   where Send opened the card, else the one the card first stood at, or was carried at,
-   so a longer line arriving wraps inside it rather than carrying the controls at its
-   far edge; only a narrower room narrows it.
+   A selection holds its placement side and its width. A card is as wide as the
+   measure, or its room where that is narrower (`size-width`), so a longer line
+   arriving wraps inside it rather than carrying the controls at its far edge. Where
+   Send opened it, it keeps the comment box's width, and where the user carried it, the
+   width it was carried at; only a narrower room narrows it. The user chose the measure
+   (2026-11-14) over a card as wide as its first words, kept while it was open, which
+   left the card a short comment's Send opened 320px wide while a long answer wrapped
+   inside it.
    Another selection chooses afresh. Floating UI supplies room from the held edge; native
    grid tracks share it between transcript and reply, growing to their words before
    scrolling. Reply continuity retains removed turns as flexible space and lets the
@@ -154,7 +158,6 @@ import { coarsePointer } from "../pointer.js";
 import {
   attachedEdge,
   cardMeasure,
-  cardMinimum,
   commentAttachment,
   commentReference,
   commentBoundary,
@@ -638,7 +641,7 @@ export function createThreadPreview({
   // clipped contents receive newly available room without requiring a complete fit.
   /** @param {number} room @param {number} cap @param {Reading | null} reading @param {Session} session */
   function measureThreadCard(room, cap, reading, session) {
-    preview.style.setProperty("max-width", layoutPx(room));
+    preview.style.setProperty("width", layoutPx(room));
     const transcript = session.transcript;
     // Growing a top-held card may reveal new words below, but must not reveal lines
     // the reader had already scrolled past. Leave that scroll travel in its transcript.
@@ -818,16 +821,15 @@ export function createThreadPreview({
               transcript: session.transcript,
             };
             if (fresh) session.width = null;
-            // A card that has stood keeps its width (`session.width`): its floor and
-            // cap are that width, or the room where the room is narrower.
+            // A card is as wide as the measure, or its room where the room is
+            // narrower, whatever its messages hold, so no message that arrives or is
+            // typed changes its width and moves its controls. One that Send opened or
+            // the user carried keeps that box's width (`session.width`) until its side
+            // is chosen again, or the room where the room is narrower.
             const room = Math.min(
               cardMeasure(),
               width,
               (session.width ?? Infinity) / scale.x,
-            );
-            preview.style.setProperty(
-              "min-width",
-              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
@@ -891,7 +893,6 @@ export function createThreadPreview({
           keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
           return moved;
         }, anew);
-        session.width ??= preview.getBoundingClientRect().width;
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
         session.withheldFocus = null;
@@ -997,9 +998,8 @@ export function createThreadPreview({
       end: null,
       side: commentPlacement(),
       // The width the card stands at for this selection, in client pixels: the box's
-      // Send replaced, so the two are one rectangle, else the one it first stood at, or
-      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
-      // comment's card 13px wider than its box.
+      // Send replaced, so the two are one rectangle, or the one it was carried at
+      // (`placeThreadPreview`).
       itemView: null,
       width: origin?.box.width ?? null,
       scroller: pageScroller,
@@ -1058,7 +1058,7 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a card near its least width (`--thread-card-min`) already
+      // actions line, which on a card in a narrow room (`--thread-card-min`) already
       // leaves the message heads little room; " of " made it 12px wider, which on a
       // 311px card pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);

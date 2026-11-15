@@ -1,6 +1,6 @@
 {
   "status-column-run": {
-    "title": "Five console screens, main against the branch",
+    "title": "Six console screens, main against the branch",
     "base": {
       "revision": "3f9a0c1e"
     },
@@ -38,14 +38,43 @@
         "after": "/media/177ff887342a17b9.png"
       },
       {
+        "id": "run-list-dark",
+        "title": "Run list, dark scheme: badges on dark tints",
+        "path": "/runs",
+        "action": "In the dark scheme, read each badge's word against its fill.",
+        "result": "The badges take the dark palette's tints, and each word stays readable on its fill. The other columns keep their order, as in the light scheme.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:12-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "dark",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 256,
+          "y": 120,
+          "width": 1000,
+          "height": 540
+        },
+        "before": "/media/6d4bae3bc6c69859.png",
+        "after": "/media/c5a3984ae0b13965.png"
+      },
+      {
         "id": "run-page-status",
         "title": "Run page: a failed badge beside the title",
         "path": "/runs/4812",
         "action": "Compare the header of failed run #4812.",
-        "result": "A failed badge follows the run number on the title's line. The metadata line and the Re-run failed jobs button stay where they were.",
+        "result": "A failed badge follows the run number, centred on the title's line since the re-capture. The metadata line and the Re-run failed jobs button stay where they were.",
         "classification": "changed",
         "capture": {
-          "observedAt": "2026-11-13T15:42:11-08:00",
+          "observedAt": "2026-11-13T16:05:37-08:00",
           "browser": "Chromium",
           "browserVersion": "158.0.8127.18",
           "viewport": {

@@ -12,6 +12,9 @@
  * its edge. Ink still being drawn is cut by nothing, since the pen goes where the
  * user puts it. Equal complete descriptions retain the actual SVG node.
  *
+ * A target the page doesn't show, by `display`, `content-visibility` or `visibility`,
+ * takes no ink, and a repaint draws it again once the target shows.
+ *
  * A mark keeps its local offsets from the target's origin through affine transforms.
  * Intrinsic visuals carry ink as their contents resize. HTML layout growth does not
  * stretch ink; text that reflows moves under a mark and can leave its circle.
@@ -85,7 +88,10 @@ export function createDrawingInk({ drawings }) {
   function mark(drawing, target, className, id = "") {
     if (!drawing) return null;
     const geometry = drawingGeometry(drawing, target);
-    if (!geometry) return null;
+    // Ink stands only over a target the page shows. A widget can keep a hidden view
+    // laid out under the shown one, as a visual review stacks its cases in one cell,
+    // and ink on the hidden view's picture would stand over the shown one's.
+    if (!geometry?.target.checkVisibility({ visibilityProperty: true })) return null;
     const { box, strokes } = geometry;
     const frame = drawingFrame(strokes);
     const { width, height } = frame;

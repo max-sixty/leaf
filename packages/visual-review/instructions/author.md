@@ -4,6 +4,6 @@ A page that is only the review is a workspace, `<main class="layout-workspace de
 
 The widget compares stills, so describe motion that matters in prose. A case's `traceUrl` links to a trace when one helps diagnose it.
 
-Each case has a Looks right checkbox and its own On Me obligation. Checking it records approval and completes that obligation; clearing it or undoing approval reopens it. Feedback belongs in threads: Add feedback opens a comment on the case, and selecting a passage or image area names a more precise target. A comment hands that case to the agent without approving it, and approval does not resolve a thread.
+Each case has a Looks right checkbox and its own On Me obligation. Checking it records approval and completes that obligation; clearing it or undoing approval reopens it. Feedback belongs in threads: the case's comment control opens a comment on the case, selecting words in its result names them, and drawing on its capture in Draw mode marks an area of the image. A comment hands that case to the agent without approving it, and the queue marks it as the agent's; approval does not resolve a thread.
 
 Give a base or candidate URL only when its captured revision can actually be opened there. An archive-only run keeps its captures and shows no Open links.

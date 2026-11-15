@@ -6,7 +6,16 @@
  * A case's header names only the capture size and browser, with Capture details
  * holding the rest: on 2026-10-26 the user chose this over a line that also said the
  * images were captured screenshots whose links don't work, which they show
- * themselves. */
+ * themselves.
+ *
+ * Each queue row ends in its case's state, as an `lf-tabs` side list's row does: a
+ * check once it looks right, the comment symbol, worded "On Claude" (`agentName`),
+ * while the case's obligation is the agent's, as after the user comments on it, and
+ * nothing while it waits on the user. Whose turn it is comes from the server's
+ * obligation reading, the one On Me and a tally read, so the browser never guesses it
+ * from threads. Next unchecked passes over a case that is the agent's, which the user
+ * has already answered in words. Before, a case sent back looked like one nobody had
+ * opened. */
 import "/widgets/lf-shot.js";
 /** @typedef {import("/widgets/lf-shot.js").Shot} Shot */
 import {
@@ -43,6 +52,8 @@ import {
   preserveReadingRegions,
   commandsChanged,
   iconTemplate,
+  readObligations,
+  agentName,
 } from "/runtime/widget-api.js";
 
 /** @typedef {import("../../../browser/types/contract.js").DataVisualRun} VisualRun */
@@ -189,7 +200,7 @@ customElements.define(
           },
           {
             id: "visual.feedback",
-            title: "Add feedback",
+            title: "Comment on this case",
             keys: ["c"],
             control: selectedControl(".lf-vr-feedback"),
             when: () => Boolean(this.#selected && threadSurface(this).open),
@@ -316,13 +327,29 @@ customElements.define(
         return this.updateComplete;
       });
     }
+    // Whose turn each open case is, by the server's obligation reading: the case ids
+    // whose obligation is the agent's.
+    #withAgent() {
+      return new Set(
+        readObligations().all.flatMap(({ source, status, next_actor }) =>
+          source.kind === "widget" &&
+          source.id === this.id &&
+          source.unit &&
+          status === "open" &&
+          next_actor === "agent"
+            ? [source.unit]
+            : [],
+        ),
+      );
+    }
     #nextUnchecked() {
       const records = this.#run?.cases ?? [];
       const index = records.findIndex(
         (record) => record.id === this.#selected?.record.id,
       );
+      const withAgent = this.#withAgent();
       return [...records.slice(index + 1), ...records.slice(0, index)].find(
-        (record) => !this.#approved(record.id),
+        (record) => !this.#approved(record.id) && !withAgent.has(record.id),
       );
     }
 
@@ -336,6 +363,11 @@ customElements.define(
       const approvedCount = run.cases.filter((record) =>
         this.#approved(record.id),
       ).length;
+      const withAgent = this.#withAgent();
+      const agent = agentName();
+      const onAgent = run.cases.filter(
+        (record) => !this.#approved(record.id) && withAgent.has(record.id),
+      ).length;
 
       const available = Boolean(this.reading?.actions.review?.available);
       return html`<div class="lf-vr-dashboard">
@@ -343,7 +375,8 @@ customElements.define(
           <h2 ${generated({ says: true })}>${run.title}</h2>
           <div class="lf-vr-progress" role="status" aria-live="polite">
             <span ${generated({ says: true })}
-              ><strong>${approvedCount}</strong> of ${run.cases.length} look right</span
+              ><strong>${approvedCount}</strong> of ${run.cases.length} look
+              right${onAgent ? ` · ${onAgent} on ${agent}` : ""}</span
             >
           </div>
         </header>
@@ -359,7 +392,11 @@ customElements.define(
                 this.#cases,
                 ({ record }) => record.id,
                 ({ record }) => {
-                  const approved = this.#approved(record.id);
+                  const state = this.#approved(record.id)
+                    ? "approved"
+                    : withAgent.has(record.id)
+                      ? "agent"
+                      : "user";
                   return html`<button
                     type="button"
                     ${offeredAction("row", "lf-vr-case-button")}
@@ -373,12 +410,16 @@ customElements.define(
                       >${run.cases.indexOf(record) + 1}</span
                     >
                     <span class="lf-row-main">${record.title}</span>
-                    <span
-                      class="lf-vr-case-status lf-row-end"
-                      data-lf-approved=${String(approved)}
-                      >${iconTemplate("check")}<span class="lf-quiet"
-                        >Looks right</span
-                      ></span
+                    <span class="lf-vr-case-status lf-row-end" data-lf-state=${state}
+                      >${
+                        state === "agent"
+                          ? html`${iconTemplate("comment")}<span class="lf-quiet"
+                                >On ${agent}</span
+                              >`
+                          : html`${iconTemplate("check")}<span class="lf-quiet"
+                                >Looks right</span
+                              >`
+                      }</span
                     >
                   </button>`;
                 },
@@ -508,9 +549,16 @@ customElements.define(
               >
               ${
                 threadSurface(this).open
-                  ? html`<button ${offeredAction("word", "lf-vr-feedback")}>
-                      Add feedback
-                    </button>`
+                  ? html`<button
+                      ${offeredAction(
+                        "symbol",
+                        "lf-vr-feedback",
+                        "Comment on this case",
+                        {
+                          action: "comment",
+                        },
+                      )}
+                    ></button>`
                   : nothing
               }
               ${

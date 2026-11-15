@@ -176,6 +176,31 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
     expect(thread).not_to_be_focused()
 
 
+PLAYGROUND_SETTINGS = (
+    '<lf-playground id="pg"><lf-playground-control id="budget" name="budget"'
+    ' label="Page budget" kind="range" value="10" min="0" max="30">'
+    '</lf-playground-control><lf-playground-control id="finance" name="finance"'
+    ' label="Count finance pages" kind="toggle" value="false">'
+    "</lf-playground-control><lf-playground-preview><p>The budget.</p>"
+    "</lf-playground-preview><lf-playground-output>Budget"
+    ' <lf-playground-value for="budget"></lf-playground-value></lf-playground-output>'
+    "</lf-playground>"
+)
+
+
+def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
+    """A playground's range and switch are named by the words standing beside them,
+    so focus on either previews nothing: the preview would repeat a label the user
+    reads whole."""
+    page = open_page(browser, serve(leaf_page("Settings", PLAYGROUND_SETTINGS)))
+    preview = page.locator(PREVIEW)
+    for role, name in (("slider", "Page budget"), ("switch", "Count finance pages")):
+        control = page.get_by_role(role, name=name, exact=True)
+        tab_onto(control)
+        rendered(page)
+        assert not preview.is_visible(), preview.inner_text()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
     """The image viewer is a modal dialog, and its Close previews inside it. While the

@@ -31,6 +31,7 @@ import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
 import { readObligations } from "./model.js";
+import { readPart } from "../semantic-state.js";
 
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
 
@@ -73,6 +74,28 @@ function contextsOf(items) {
 /** @param {import("../../types/contract.js").ServedSubject} subject */
 export const subjectPlace = (subject) =>
   subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
+
+// Whether the page's markup declares, at or under the widget `region`, a widget that
+// asks the user something (`x-awaits`), quoted ones aside. It reads the widget
+// descriptors captured before the page's widgets upgrade, which a revision replaces,
+// so a row can keep room for what its region asks before the first reading admits
+// it, and the answer costs no look at the region's content.
+const descriptors = readPart((root) => root.document.descriptors);
+/** @type {WeakMap<ReturnType<typeof descriptors>, Set<string>>} */
+const askingOwners = new WeakMap();
+/** @param {Element} region */
+export function authorsObligation(region) {
+  const all = descriptors();
+  let owners = askingOwners.get(all);
+  if (!owners) {
+    owners = new Set();
+    for (const { id, declaration, ancestors, quoted } of all.values())
+      if (declaration["x-awaits"] !== undefined && !quoted)
+        for (const owner of [{ id }, ...ancestors]) owners.add(owner.id);
+    askingOwners.set(all, owners);
+  }
+  return Boolean(region.id) && owners.has(region.id);
+}
 
 // The obligations `region` holds, in the order `obligations` lists them.
 /** @param {Element} region

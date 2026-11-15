@@ -4,7 +4,7 @@
     "x-instructions": "Write the element empty, and bind its `binding` to a file with `leaf file bind PAGE BINDING PATH`.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "id": { "type": "string" },
       "binding": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
     },
     "required": ["id", "binding"],

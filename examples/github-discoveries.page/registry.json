@@ -141,10 +141,7 @@
       "id": {
         "type": "string"
       },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      }
+      "source": { "type": "string" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,

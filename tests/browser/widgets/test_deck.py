@@ -43,7 +43,7 @@ def answer(page, option):
 
 def forward(page, title):
     control = page.locator("lf-deck .lf-deck-forward")
-    expect(control).to_have_attribute("title", title)
+    expect(control).to_have_attribute("aria-label", title)
     control.click()
 
 
@@ -106,7 +106,7 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
     answering = open_page(browser, url)
     answer(answering, "store-yes")
     expect(watching.locator("lf-deck .lf-deck-forward")).to_have_attribute(
-        "title", "Next"
+        "aria-label", "Next"
     )
     open_card(watching, "store-ask")
 

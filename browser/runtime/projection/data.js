@@ -35,15 +35,20 @@
    This identity contract is experimental and open to change as more producers establish
    what persists through a replacement.
 
-   A selection wholly inside a derived datum captures `{section, datum, quote}`. A datum
+   A selection wholly inside a derived datum captures `{section, datum, quote}`, with a
+   `prefix` and `suffix` read from the datum's own words, never its neighbours', and
+   detaches where those can't tell the quote from another copy in the datum. A datum
    projected from a bound input also captures `{source, source_revision}`. A datum whose
    emitter supplies an identity follows that subject across value replacements, even if
    its rendering key changes. Other keys may name locations within one value, so their
    placements remain pinned to the captured revision. If the original words
    still stand, Leaf marks them. If their display changes, Leaf outlines the same datum
-   and keeps the old quote in the thread. A different source makes the placement
-   outdated; a duplicate key detaches rather than guessing. Selections crossing datum
-   boundaries remain ordinary quote anchors because they name a passage, not one fact.
+   and keeps the old quote in the thread, where the quote was all of the datum's words;
+   a passage within a datum, captured with words of it around the quote, stands nowhere
+   on the page once its words are gone. A different source makes the placement
+   outdated; a duplicate key detaches rather than guessing. A selection crossing a datum's
+   edge is kept as a detached quote (`{section, quote, detached: true}`): each datum is
+   fenced in the page's reading, so no search could find those words together.
 
    `data-lf-projection`, `data-lf-origin`, `data-lf-source`, `data-lf-source-revision`
    and `data-lf-gen` are written here alone, never authored in a version, and a datum is
@@ -64,6 +69,7 @@ import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { composedParentNode, shadowRootsIn } from "../shadow.js";
 import { keeps } from "../keeps.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 
 // The nodes a projection stamped under its root, in the trees that hold the page's
 // words: the ones anchor resolution can find (`pageQueryAll`), so what a replacement
@@ -168,6 +174,7 @@ export function createDataProjection({ invalidateDom }) {
       keeps(node, "data-lf-source-revision", snapshot?.revision ?? null);
     };
     stampBasis(root);
+    keeps(root, PAGE_PAINT_ATTRIBUTE.drawReported, "");
     const projected = projectedDescendants(root);
     const keys = new Set();
     const identities = new Set();

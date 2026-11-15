@@ -63,7 +63,19 @@ def test_init_allows_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             },
         },
     )
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    # A selection that changes the layer, since an unchanged one returns before reading.
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text("{}")
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*page_packages(), "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code == 0, result.output
 
     assert events_model.read_events(page_dir)
@@ -286,7 +298,11 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     )
 
     assert refusal is None
-    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
+    # The re-vendor's revision went live after the report it waited for.
+    assert [event["kind"] for event in events_model.read_events(page_dir)][-2:] == [
+        "report",
+        "activation",
+    ]
     assert "x-state" not in registry_storage.load_registry(page_dir)["lf-test-task"]
 
 

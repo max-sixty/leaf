@@ -7,6 +7,7 @@
  * its context identifies one occurrence.
  */
 
+import { labelWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -35,7 +36,9 @@ import {
   contextAround,
   neighbourhood,
   pageText,
+  readingPart,
   readingFrom,
+  readingHolding,
   rangeOf,
   segmentsIn,
   textNodesUnder,
@@ -52,6 +55,7 @@ import {
   settledAway,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
@@ -217,12 +221,13 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualSelector = () =>
-  [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+const declaredVisualTags = () => tagsDeclaring((entry) => entry["x-visual"]);
+const declaredVisualSelector = () => declaredVisualTags().join(",");
 
-const genericVisualSelector = "svg, img, figure";
-export const visualSelector = () =>
-  [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+const GENERIC_VISUALS = ["svg", "img", "figure"];
+const genericVisualSelector = GENERIC_VISUALS.join(", ");
+// The tags a picture's element has: a widget that declares `x-visual`, or a plain one.
+export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
 /** @param {Element} element @param {string} selector */
 const outermostAcross = (element, selector) => {
@@ -300,7 +305,7 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
-  const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
+  const visual = declaredVisualSelector();
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
@@ -388,9 +393,16 @@ export function datumAimTarget(datum) {
 /** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
-/** @param {import("./passages.js").Segment[]} segments @param {Node} node @returns {CapturedAnchor | null} */
-export function anchorForPassage(segments, node) {
+/** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
+export function anchorForPassage(selected, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+  // The passage is the selection's words: a drag from a paragraph's end into a
+  // document's first line holds the newline between them, which is neither's word.
+  /** @param {import("./passages.js").Segment} segment */
+  const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
+  const from = selected.findIndex(says);
+  const to = selected.findLastIndex(says);
+  const segments = from < 0 ? [] : selected.slice(from, to + 1);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
@@ -405,22 +417,28 @@ export function anchorForPassage(segments, node) {
     segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
       ? onlyDatum
       : null;
-  // Identity is the context for projected data. Neighbouring display values may reorder
-  // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the user selected.
-  if (datum) {
-    const anchor = anchorForDatum(datum, quote ? { quote } : {});
-    if (anchor) return anchor;
-  }
+  const projected = datum && anchorForDatum(datum);
+  if (projected && !quote) return projected;
   const section = closestAcross(holder, ADDRESSABLE)?.id ?? null;
   if (!quote) return section === null ? null : { section };
-  const reading = pageText();
+  // Words on both sides of a part's edge stand in no one reading, and no copy of them is
+  // found again, since every part is a passage cell of its own (passages.js, `pageText`).
+  if (!projected && segments.some((seg) => readingPart(seg.node)))
+    return { section, quote, detached: true };
+  // Identity is the context for projected data: the display values beside a datum may
+  // reorder or repeat, so their words would make incidental layout a second,
+  // conflicting answer to which datum the user selected. Its own words still tell
+  // repeats within it apart, as the lines around each copy tell apart a line a text
+  // document holds twice, so a datum's context is read from its words alone, the
+  // reading `resolveAnchor` searches.
+  const reading = pageText(projected ? datum : null);
+  const base = projected || { section };
   const [start, stop] = spanIn(reading, segments);
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
     const anchor = {
-      section,
+      ...base,
       quote,
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
@@ -462,9 +480,8 @@ const controlName = (control) =>
     ? accessibleName(control)
     : ownName(control) ||
       (control.matches(PRESSES)
-        ? (control instanceof HTMLElement ? control.innerText : "")
-            ?.trim()
-            .replace(/\s+/g, " ") || addressableWord(control)
+        ? labelWords(control instanceof HTMLElement ? control.innerText : "") ||
+          addressableWord(control)
         : "");
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels">>} control */
 const controlFaces = (control) => [control, ...(control.labels ?? [])];
@@ -656,7 +673,8 @@ function designTargetAt(
           ) {
             // A repeated control’s announcement and its durable anchor share the same
             // distinguishing context, including neighbouring table cells.
-            const context = contextAround(pageText(), resolved.segments, {
+            const at = resolved.segments[0]?.node ?? face;
+            const context = contextAround(readingHolding(at), resolved.segments, {
               before: [...(captured.prefix ?? "")].length,
               after: [...(captured.suffix ?? "")].length,
             });
@@ -766,6 +784,20 @@ export function resolveAnchor(anchor) {
           ? datums.length > 0 &&
             basis.getAttribute("data-lf-identity") === anchor.identity
           : basis.getAttribute("data-lf-source-revision") === anchor.source_revision));
+    // A widget that has yet to report a draw shows no revision at all, as a closed tab's
+    // document does until it draws after presentation (lf-text-document.js,
+    // `drawLater`), so an anchor on its data stands on the widget, not on earlier data.
+    if (
+      !basisMatches &&
+      source &&
+      !source.hasAttribute(PAGE_PAINT_ATTRIBUTE.drawReported)
+    )
+      return {
+        ...resolvedElement({ element: source }),
+        datumElement: null,
+        exact: false,
+        status: "fallback",
+      };
     if (!basisMatches) {
       const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
       const fallback =
@@ -781,7 +813,13 @@ export function resolveAnchor(anchor) {
       };
     }
     // A projection/key pair identifies exactly one current fact. Disappearance detaches
-    // and duplicates refuse to guess. Changed text falls back to the same datum element.
+    // and duplicates refuse to guess. Changed text falls back to the same datum element
+    // where the quote was all of the datum's words, so it named the datum, as a row's
+    // label does. A quote with datum words around it named a passage in the datum, such
+    // as a line of a text document, and once its words are gone it stands nowhere on the
+    // page, rather than at the top of the datum. The quote is searched for in the datum's
+    // words alone, the reading its context was captured from (`anchorForPassage`), so
+    // finding it costs what the datum holds rather than what the page does.
     if (datums.length > 1) return null;
     const [datum] = datums;
     if (!datum) {
@@ -801,8 +839,9 @@ export function resolveAnchor(anchor) {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(pageText(), anchor.quote, anchor, datum);
+    const segments = findQuote(pageText(datum), anchor.quote, anchor, datum);
     const [first] = segments;
+    if (!first && (anchor.prefix || anchor.suffix)) return null;
     return first
       ? {
           ...resolvedPassage({

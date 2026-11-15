@@ -35,7 +35,9 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     source = leaf_page(
         "Independent sample startup",
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
-        '<lf-sample id="practice" label="Practice" window>'
+        # The child's window holds a rail, so its page surface is a margin card; a
+        # narrower one opens every thread in its panel.
+        '<lf-sample id="practice" label="Practice" window style="width: 1100px">'
         '<template id="practice-source" data-sample data-sample-events="history">'
         '<h1>Practice</h1><p id="inner">Child passage.</p>'
         "</template></lf-sample>",
@@ -44,7 +46,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
             "text":"A saved child conversation."}]
         </script>""",
     )
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
     held = []
     route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
     page.route(route_pattern, lambda route: held.append(route))
@@ -55,7 +57,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
     expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    expect(child.locator("body")).not_to_have_attribute("inert")
+    expect(child.locator("html")).not_to_have_attribute("inert")
     expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(child.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", "Page menu · Loading comments and choices…"
@@ -110,7 +112,9 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
     if newer_input:
         expect(inner_box).to_be_focused()
     if not shown:
-        expect(child.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+        expect(child.locator(PANEL)).not_to_have_attribute(
+            "data-lf-open", re.compile(".")
+        )
         return
     expect(
         child.locator(".lf-page-thread").get_by_text(

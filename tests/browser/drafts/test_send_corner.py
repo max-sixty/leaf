@@ -1,6 +1,6 @@
 """Send's corner under a mouse: a composer's words run the whole line, and Send stands
 in the corner they leave free (response.css; text-field.js, `:state(corner-taken)`;
-input.js, `data-send-pointed` and `data-send-armed`)."""
+input.js, `data-lf-send-pointed` and `data-lf-send-armed`)."""
 
 import pytest
 from playwright.sync_api import expect

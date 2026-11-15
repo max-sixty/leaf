@@ -1,5 +1,5 @@
 # Complete agent-facing outputs through real hooks, wait and thread reply commands.
-# Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.
+# Only page paths, event/delivery/attempt, turn and claim identities, and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
 idle before pickup:
@@ -55,7 +55,7 @@ delivered at prompt:
             leaves, which delivering what was asked doesn't settle. `--obligation`
             when it is the user's: it leaves them a decision, or something to try
             or review before making one, or asks them for an answer or permission.
-            That puts your answer on their On me list until they reply or resolve
+            That puts your answer on their On Me list until they reply or resolve
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
@@ -129,6 +129,7 @@ answer:
   text: >-
     I will add the camera first.
   responds: event-3
+  turn: <turn>
   attempt: <attempt>
   revision: 1
   id: event-7

@@ -18,7 +18,7 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
-    PANEL_THREAD,
+    field_press,
     leaf_page,
     open_page,
     open_threads,
@@ -36,6 +36,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -70,7 +71,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     return stroke_over(page, locator, steps=steps, points=points)
 
 
@@ -227,7 +228,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     )
     page.reload(wait_until="load")
     wait_until_ready(page)
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     assert native_ink_start(
         page, "#visuals svg:nth-of-type(2)", posted
     ) == pytest.approx(start, abs=0.03)
@@ -686,7 +687,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
 
     page.mouse.move(point["x"], point["y"])
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     page.mouse.down()
     page.mouse.move(box["x"] + box["width"] * 0.75, point["y"] - 30, steps=8)
     page.mouse.move(box["x"] + box["width"] * 0.35, point["y"] + 20, steps=8)
@@ -701,7 +702,7 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
     assert event["anchor"] == {"section": "prose"}
     assert "text" not in event
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
 
 
@@ -848,7 +849,8 @@ def test_a_second_finger_takes_back_the_stroke_the_first_began(browser, serve, s
     expect(page.locator(".lf-live")).to_contain_text("Stroke canceled")
     if spread:
         page.wait_for_function("visualViewport.scale > 1.2")
-    page.wait_for_timeout(100)
+    # Every repaint the release queued has run, so a drawing it made would show.
+    rendered(page)
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(page.locator(".lf-live")).not_to_contain_text("Drawing captured")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
@@ -860,7 +862,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("w")
 
-    exit_mode = page.get_by_role("button", name="Exit Draw mode")
+    exit_mode = field_press(page).filter(has_text="Close")
     expect(exit_mode).to_be_visible()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1142,8 +1144,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
-    # Out of Draw mode, by its ✕ in the panel's row, to reach Threads.
-    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
+    # Out of Draw mode, by the Close at the panel field's end, to reach Threads.
+    field_press(page).filter(has_text="Close").click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
@@ -1176,9 +1178,7 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(f"{PANEL_THREAD} .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    expect(
-        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
-    ).to_have_count(0)
+    expect(page.locator(".lf-margin-cluster, .lf-margin-preview")).to_have_count(0)
     expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 
@@ -1487,7 +1487,7 @@ def test_drawing_strokes_keep_their_pixels_across_resize_addition_send_and_repla
     assert second[0] == pytest.approx(
         [narrow["width"] * 0.3, narrow["height"] * 0.3], abs=0.02
     )
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     expect(page.locator(posted)).to_have_count(1)
     relation = mark_relation(page, posted, "#prose")
     page.set_viewport_size(wide)
@@ -1540,7 +1540,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
 
     page.reload(wait_until="load")
     wait_until_ready(page)
@@ -1575,7 +1575,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     assert "text" not in event and "at" not in event["drawing"]
     assert len(event["drawing"]["strokes"]) == 2
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]')
     ).to_have_count(1)
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
 
@@ -1596,7 +1596,7 @@ def test_a_drawing_is_pictured_in_the_window_it_was_drawn_in(browser, serve):
         page.keyboard.press("ControlOrMeta+Enter")
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": "swatch"}
-    ink = page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+    ink = page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"] path')
     ink_color = ink.evaluate("path => getComputedStyle(path).stroke")
     page.set_viewport_size({"width": 1200, "height": 900})
     stamp_page(serve.page_dir, SWATCH_PAGE.replace("50vw", "25vw"), "Narrow the swatch")
@@ -1699,7 +1699,7 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert target in {"map-street", "map-trail"}
     page.mouse.move(*point)
     page.keyboard.press("w")
-    expect(page.locator(".lf-aim")).to_be_hidden()
+    expect(page.locator("[data-lf-aimed]")).to_have_count(0)
 
     page.mouse.down()
     page.mouse.move(point[0] + 80, point[1], steps=8)

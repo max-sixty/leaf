@@ -31,7 +31,7 @@ import {
   unclaimedVisualGesture,
   visualAt,
   visualParts,
-  visualSelector,
+  visualTags,
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
@@ -42,6 +42,7 @@ import {
   pageDocument,
   pageQueryAll,
   pageReadingVersion,
+  readingElements,
 } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readPart } from "./semantic-state.js";
@@ -115,10 +116,9 @@ export function createAnchorControls({
     // The remove action draws on the next render; a newer input the user gave meanwhile
     // keeps them where it put them.
     const mayFocus = retainUserIntent();
+    const remove = `reaction:${eventId}:remove`;
     nextRender(() =>
-      mayFocus.handoff(() =>
-        record.margin?.focus(`reaction:${eventId}:remove`, "move", surface),
-      ),
+      mayFocus.handoff(() => record.margin?.focus(remove, "move", surface)),
     );
   }
 
@@ -146,7 +146,7 @@ export function createAnchorControls({
     /** @type {Map<Element, VisualAction[]>} */
     const groups = new Map();
     const claimed = new Set();
-    for (const candidate of pageQueryAll(visualSelector())) {
+    for (const candidate of readingElements(visualTags())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
       const parts = visualParts(candidate);
@@ -249,7 +249,9 @@ export function createAnchorControls({
   // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
   // document changed (`presentDocument`), the shown document was replaced, or a visual
   // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
-  // the responses it published.
+  // the responses it published. The pictures are found in each piece of the page's
+  // reading, kept until that piece changes (passages.js, `readingElements`), so planning
+  // again after one part of the page changed searches that part alone.
   /** @type {[ReturnType<typeof pageReadingVersion>, ReturnType<typeof documentChanged>, ReturnType<typeof shownDocument>] | null} */
   let plannedFor = null;
   function prepareVisualActions() {
@@ -326,7 +328,6 @@ export function createAnchorControls({
               label: `${root.token} reaction actions`,
               behavior: "disclosure",
               rank: "secondary",
-              className: "lf-react-mark",
               scope: this.scope,
               relation: {
                 kind: "entries",
@@ -339,7 +340,6 @@ export function createAnchorControls({
               action: "undo",
               label: `Undo ${root.token} reaction`,
               rank: "secondary",
-              className: "lf-react-remove",
               scope: this.scope,
               visible: this.expanded === root.id,
             },
@@ -403,15 +403,15 @@ export function createAnchorControls({
 
   function paintMessageReferences() {
     // Missing targets share the quote's detached meaning, but retain the message
-    // link's own contour: muted ink and a dashed underline, its press refused.
+    // link's own contour: muted ink and a dashed underline, its press refused. A live
+    // one previews the place it names (place-preview.js), so it carries no title.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
       const href = anchor.getAttribute("href");
       if (href === null) throw new Error("A message fragment reference has no href");
-      const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
       anchor.toggleAttribute("data-lf-detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
-      keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
+      keeps(anchor, "title", alive ? null : missingReference(fragmentId(href)));
     }
   }
 

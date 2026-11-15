@@ -1,155 +1,43 @@
-/* Optional persistent element-target marks in Leaf's chrome layer.
+/* Optional persistent element-target marks.
  *
  * The selected annotation renderer constructs this painter and supplies resolved
- * targets; it neither resolves anchors nor changes semantic state. Each instance
- * owns its mark nodes, their paint stands, state classes and geometry cache. The
- * browser moves each stand with every scroll around its target (target-paint-geometry.js);
- * layout, resize, source replacement and target changes rebuild the mark. Importing this
- * module creates no layer, overlays or scheduled work. */
+ * targets; it neither resolves anchors nor changes semantic state. Each box a target's
+ * surface shows through (`shownParts`) draws its own mark, named by its states in
+ * `data-lf-mark` (surfaces.css), and each target wears `lf-projected-mark`, so the focus
+ * floor leaves the mark to say where focus is. Importing this module writes nothing. */
 
-import { cancelRender, nextRender } from "../rendering.js";
-import { el } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
-import { inChrome } from "../passages.js";
-import {
-  SVG_NS,
-  dropStand,
-  paintGeometry,
-  paintShape,
-  paintStand,
-  placement,
-  standOver,
-} from "../target-paint-geometry.js";
+import { shownParts } from "../geometry.js";
 
 const PROJECTED = "lf-projected-mark";
-const STATE_CLASSES = {
-  pending: "lf-visual-mark-pending",
-  action: "lf-visual-mark-action",
-  hover: "lf-visual-mark-hover",
-  focus: "lf-visual-mark-focus",
-  here: "lf-visual-mark-here",
-};
 /** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
-/** @typedef {{overlay: HTMLDivElement, shape: SVGSVGElement,
- * stand: import("../target-paint-geometry.js").PaintStand<import("../target-paint-geometry.js").PaintNode>, geometry: ReturnType<typeof paintGeometry>,
- * shapeKey: string}} Overlay */
 export function createVisualMarkPaint() {
-  const layer = el("div", "lf-ui lf-visual-marks");
-  layer.setAttribute("aria-hidden", "true");
-  /** @type {Map<Element, VisualTarget>} */
-  let targets = new Map();
-  /** @type {Map<Element, Overlay>} */
-  const overlays = new Map();
-  let placementFrame = 0;
-  let geometryFrame = 0;
-  let geometryDirty = false;
-
-  function syncStates() {
-    for (const [element, { overlay }] of overlays) {
-      const states = targets.get(element)?.states ?? new Set();
-      for (const [state, className] of Object.entries(STATE_CLASSES))
-        overlay.classList.toggle(className, states.has(state));
-    }
-  }
-
-  function paintTargets(rebuildGeometry = true) {
-    for (const [element, record] of overlays)
-      if (!targets.has(element)) {
-        element.classList.toggle(PROJECTED, false);
-        dropStand(record.stand);
-        overlays.delete(element);
-      }
-
-    for (const [element, target] of targets) {
-      let record = overlays.get(element);
-      const geometry =
-        rebuildGeometry || !record ? paintGeometry(target.surface) : record.geometry;
-      const placed = placement(target.surface, Boolean(geometry), inChrome(element));
-      if (!placed.shown) {
-        element.classList.toggle(PROJECTED, false);
-        if (record) {
-          record.geometry = geometry;
-          record.shapeKey = "";
-          record.overlay.style.display = "none";
-        }
-        continue;
-      }
-      if (!record) {
-        const overlay = el("div", "lf-ui lf-visual-mark");
-        const shape = document.createElementNS(SVG_NS, "svg");
-        shape.classList.add("lf-visual-mark-shape");
-        overlay.append(shape);
-        const stand = paintStand(overlay);
-        layer.append(stand.root);
-        record = { overlay, shape, stand, geometry: null, shapeKey: "" };
-        overlays.set(element, record);
-      }
-      const { overlay, shape, stand } = record;
-      const { rect, shapeKey } = placed;
-      element.classList.toggle(PROJECTED, true);
-      keeps(overlay, "data-for", element.id || null);
-      overlay.classList.toggle("lf-shaped", Boolean(geometry));
-      if (
-        rebuildGeometry ||
-        record.geometry !== geometry ||
-        record.shapeKey !== shapeKey
-      ) {
-        if (geometry) paintShape(shape, geometry, rect);
-        else shape.replaceChildren();
-        record.geometry = geometry;
-        record.shapeKey = shapeKey;
-      }
-      keeps(stand.root, "data-lf-paint-plane", inChrome(element) ? "chrome" : "page");
-      standOver(
-        stand,
-        placed,
-        geometry ? null : getComputedStyle(target.surface).borderRadius,
-      );
-    }
-    syncStates();
-  }
+  /** @type {Map<Element, Element[]>} */
+  const marked = new Map(); // target → the boxes wearing its mark
 
   /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
-    const nextTargets = new Map(
+    const targets = new Map(
       [...next]
         .filter((target) => target.states?.size)
-        .map((target) => [target.element, target]),
+        .map((target) => [
+          target.element,
+          { boxes: shownParts(target.surface), states: target.states },
+        ]),
     );
-    const identitiesChanged =
-      nextTargets.size !== targets.size ||
-      [...nextTargets].some(
-        ([element, target]) => targets.get(element)?.surface !== target.surface,
-      );
-    targets = nextTargets;
-    const rebuild = identitiesChanged || geometryDirty;
-    if (rebuild && geometryFrame) cancelRender(geometryFrame);
-    if (rebuild && placementFrame) cancelRender(placementFrame);
-    if (rebuild) geometryFrame = placementFrame = 0;
-    geometryDirty = false;
-    paintTargets(rebuild);
+    const wearing = new Set([...targets.values()].flatMap(({ boxes }) => boxes));
+    for (const [element, boxes] of marked) {
+      if (!targets.has(element)) element.classList.toggle(PROJECTED, false);
+      for (const box of boxes)
+        if (!wearing.has(box)) box.removeAttribute("data-lf-mark");
+    }
+    marked.clear();
+    for (const [element, { boxes, states }] of targets) {
+      element.classList.toggle(PROJECTED, true);
+      for (const box of boxes) keeps(box, "data-lf-mark", [...states].sort().join(" "));
+      marked.set(element, boxes);
+    }
   }
 
-  function shifted() {
-    if (placementFrame || geometryFrame || !targets.size) return;
-    placementFrame = nextRender(() => {
-      placementFrame = 0;
-      paintTargets(false);
-    });
-  }
-
-  function geometryChanged() {
-    geometryDirty = true;
-    if (placementFrame) cancelRender(placementFrame);
-    placementFrame = 0;
-    if (geometryFrame || !targets.size) return;
-    geometryFrame = nextRender(() => {
-      geometryFrame = 0;
-      if (!geometryDirty) return;
-      geometryDirty = false;
-      paintTargets(true);
-    });
-  }
-
-  return { layer, setTargets, shifted, geometryChanged };
+  return { setTargets };
 }

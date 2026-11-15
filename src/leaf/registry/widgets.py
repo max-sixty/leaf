@@ -2,11 +2,7 @@
 
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import (
-    ATTRIBUTE_KEYS,
-    DATA_SOURCE_NAME,
-    EXTENSION_SCHEMA,
-)
+from leaf.schema import ATTRIBUTE_KEYS, EXTENSION_SCHEMA
 
 from .contract import (
     deciding_outcomes,
@@ -160,12 +156,7 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
             )
-        source_schema = properties.get(source_attr, {})
-        if source_attr and (
-            not isinstance(source_schema, dict)
-            or source_schema.get("type") != "string"
-            or source_schema.get("pattern") != f"^{DATA_SOURCE_NAME}$"
-        ):
+        if source_attr and not _typed(properties, source_attr, "string"):
             raise registry_error(
                 "data-source", path, tag, input=input_name, attr=source_attr
             )
@@ -304,7 +295,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             schema = properties[attr]
             for value in values:
                 tested = {"key": declaration, "attr": attr, "value": value}
-                # Booleans test presence, just as `obligations.asking` reads them.
+                # Booleans test presence, just as `contract.matches_when` reads them.
                 if isinstance(value, bool):
                     continue
                 if errors := sorted(json_validator(schema).iter_errors(value), key=str):

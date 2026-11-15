@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { obligationsIn, obligationPlace } from "/runtime/obligations/place.js";
-import { obligationHolding } from "/runtime/current-target.js";
+import {
+  obligationsIn,
+  obligationPlace,
+  subjectPlace,
+} from "/runtime/obligations/place.js";
+import { obligationAt, obligationHolding } from "/runtime/current-target.js";
+import { applicationState } from "/runtime/semantic-state.js";
+import { servedState } from "../served.mjs";
 
 test("shared context keeps placement and containment specific to each obligation", () => {
   document.body.innerHTML =
@@ -61,6 +67,57 @@ test("the innermost obligation holding a node is where the user stands", () => {
   }
 });
 
+test("the obligation at a node costs as much on a page of 64 obligations as of 8", () => {
+  // A keystroke asks where the user stands many times over, so once the page's
+  // inventory is published, a lookup in it reads only the places named at the node's
+  // ancestors. Its work is counted in the map entries it writes.
+  applicationState.identify(1);
+  applicationState.captureDocument({
+    ...applicationState.read().document,
+    registry: { $states: {} },
+    authored: new Map(),
+    descriptors: new Map(),
+  });
+  /** @param {number} n */
+  const writes = (n) => {
+    const ids = Array.from({ length: n }, (_, k) => `w${k}`);
+    document.body.innerHTML = ids
+      .map((id) => `<section id="${id}"><button>${id}</button></section>`)
+      .join("");
+    const obligations = ids.map((id) => ({
+      id: `widget:${id}`,
+      source: { kind: "widget", id },
+      thread: null,
+      message: null,
+      prompt: { text: `Choose ${id}.`, target: id },
+      answer: null,
+      status: "open",
+      end: null,
+      next_actor: "user",
+    }));
+    applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));
+    const button = document.querySelector("#w3 button");
+    assert.equal(obligationAt(button)?.id, "widget:w3");
+    const set = Map.prototype.set;
+    let count = 0;
+    Map.prototype.set = function (...entry) {
+      count++;
+      return set.apply(this, entry);
+    };
+    try {
+      assert.equal(obligationAt(button)?.id, "widget:w3");
+    } finally {
+      Map.prototype.set = set;
+    }
+    return count;
+  };
+  try {
+    assert.equal(writes(64), writes(8));
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
 test("a region holds the live widget obligations whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';
@@ -92,53 +149,15 @@ test("a region holds the live widget obligations whose source is it or stands un
   }
 });
 
-test("a to-do on the user stands at its subject, holding it but no region", () => {
+test("a subject stands at the element it names, or nowhere", () => {
   document.body.innerHTML =
-    '<main><section id="notes"><h2>Notes</h2><div id="pick"><button>Beta</button></div></section></main>';
-  const todo = (id, subject) => ({
-    id,
-    thread: null,
-    message: null,
-    status: "open",
-    source: { kind: "todo", id, subject },
-    prompt: { text: id, target: subject.id ?? null },
-  });
-  const pick = {
-    id: "widget:pick",
-    thread: null,
-    message: null,
-    status: "open",
-    source: { kind: "widget", id: "pick" },
-    prompt: { target: "pick" },
-  };
-  const notes = todo("t-notes", { kind: "element", id: "notes" });
-  const onPick = todo("t-pick", { kind: "widget", id: "pick" });
-  const whole = todo("t-page", { kind: "page" });
-  const onThread = todo("t-thread", { kind: "thread", id: "th-1" });
-  // As the inventory lists them: widgets' obligations, then the user's tasks.
-  const items = [pick, notes, onPick, whole, onThread];
+    '<main><section id="notes"><h2>Notes</h2><p>Words.</p></section></main>';
   const at = (id) => document.getElementById(id);
   try {
-    assert.equal(obligationPlace(notes, items).node, at("notes"));
-    assert.equal(obligationPlace(notes, items).source, null);
-    assert.equal(obligationPlace(onThread, items).node, null);
-    // With no top-level heading, the page's head is its first heading.
-    assert.equal(obligationPlace(whole, items).node, document.querySelector("h2"));
-    assert.equal(obligationHolding(items, at("notes")), notes);
-    // On a widget a to-do is on, the widget's own question holds the user.
-    assert.equal(obligationHolding(items, at("pick").firstElementChild), pick);
-    assert.equal(obligationHolding([onPick], at("pick")), onPick);
-    // The section's heading is the page's head, inside the notes' to-do.
-    assert.equal(obligationHolding(items, document.querySelector("h2")), whole);
-    // A region counts what its widgets ask, which a to-do is not.
-    assert.deepEqual(
-      obligationsIn(at("notes"), items).map((held) => held.id),
-      ["widget:pick"],
-    );
-    document.querySelector("main").insertAdjacentHTML("afterbegin", "<h1>Release</h1>");
-    assert.equal(obligationPlace(whole, items).node, document.querySelector("h1"));
-    document.querySelector("main").innerHTML = '<p id="lead">Plain words.</p>';
-    assert.equal(obligationPlace(whole, items).node, at("lead"));
+    assert.equal(subjectPlace({ kind: "element", id: "notes" }), at("notes"));
+    assert.equal(subjectPlace({ kind: "thread", id: "th-1" }), null);
+    // The page as a whole names no element, so a subject on it stands nowhere.
+    assert.equal(subjectPlace({ kind: "page" }), null);
   } finally {
     document.body.replaceChildren();
   }

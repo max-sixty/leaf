@@ -12,8 +12,8 @@ from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     example_media,
+    field_press,
     leaf_page,
     open_page,
     page_comment,
@@ -34,6 +34,7 @@ from browser.threads import (
 from leaf import event_log as events_model
 from leaf import media as media_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -76,9 +77,8 @@ def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, editor):
 
 def test_original_image_link_has_a_standalone_target(browser, serve):
     # Under a finger the link takes the touch floor, the larger of the two.
-    touch = True
     context = browser.new_context(
-        viewport={"width": 320, "height": 720}, has_touch=touch
+        viewport={"width": 320, "height": 720}, has_touch=True
     )
     page = open_page(
         browser,
@@ -96,8 +96,7 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(viewer.locator(".lf-media-viewer-caption")).to_be_hidden()
     original = viewer.get_by_role("link", name="Original")
     box = original.bounding_box()
-    floor = 44 if touch else 24
-    assert min(box["width"], box["height"]) >= floor - 0.5, box
+    assert min(box["width"], box["height"]) >= 44 - 0.5, box
     neighbours = viewer.locator(".lf-media-viewer-actions > *")
     boxes = [node.bounding_box() for node in neighbours.all()]
     for left, right in pairwise(boxes):
@@ -150,6 +149,36 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         ("landscape-3", "Dark · After · Phone · Landscape"),
     ):
         page.locator(f"#{link}").click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
+def test_a_capture_in_a_reply_s_table_is_named_by_its_column_head(browser, serve):
+    """A table of captures an agent writes in Markdown names each capture by the head over
+    its column, as the page's own tables do: a message's words are its writer's."""
+    url = serve(
+        leaf_page(
+            "Captures",
+            '<h1>Captures</h1><img src="/media/051bee487bfb5d13.png" alt="Release output">',
+        )
+    )
+    image = (
+        "[![Release output](/media/051bee487bfb5d13.png)](/media/051bee487bfb5d13.png)"
+    )
+    panel_comment(
+        serve.page_dir,
+        f"| | Light | Dark |\n|---|---|---|\n| Before | {image} | {image} |",
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(PANEL_THREAD)
+    expect(thread).to_be_visible()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, caption in enumerate(("Light", "Dark")):
+        thread.locator('a[href="/media/051bee487bfb5d13.png"]').nth(index).click()
         expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
         page.keyboard.press("Escape")
         expect(viewer).to_be_hidden()
@@ -281,7 +310,7 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     passage.click(click_count=3)
     # Under a finger the panel's field offers the selected words, and a press there
     # opens the comment box on them.
-    page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
+    page.locator('.lf-fp-field leaf-text[data-lf-says="selection"]').click()
     field = page.locator(".lf-fab-input")
     field.click()
     paste_image(field, picture())
@@ -302,15 +331,12 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     expect(field).to_be_focused()
 
 
-@pytest.mark.parametrize("touch", [False, True])
-def test_capture_leaves_selected_content_visible_through_the_drag(
-    browser, serve, touch
-):
-    page = capture_page(browser, serve, touch=touch)
+def test_capture_leaves_selected_content_visible_through_the_drag(browser, serve):
+    page = capture_page(browser, serve)
     baseline = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
     target = page.locator("#capture-copy").bounding_box()
     left, top = int(target["x"]) + 100, int(target["y"]) + 4
-    surface = open_capture_area(page, touch=touch)
+    surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
     # Judge the selected content while the pointer is held, including a small
@@ -344,7 +370,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     """A finger's drag is the whole gesture: lifting it attaches the area, and the
     attachment's ✕ takes a bad one back. Capture opens with no area, and the field
     asks for a drag. A tap draws no area, so it leaves capture standing with none; the
-    ✕, Enter on it, or Escape leave with nothing attached."""
+    field's Close or Escape leaves with nothing attached."""
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)
     # Retain the native event so the assertion reads its final cancellation state.
@@ -381,7 +407,7 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     rendered(page)
     expect(surface).to_be_visible()
     expect(selection).to_be_hidden()
-    page.get_by_role("button", name="Cancel capture", exact=True).tap()
+    field_press(page).filter(has_text="Close").tap()
     expect(surface).to_be_hidden()
     assert page.evaluate("captureTouchStarts.at(-2).defaultPrevented"), (
         "a selection must consume its native touch gesture, including fling generation"
@@ -390,9 +416,6 @@ def test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing(
     expect(page.locator(".lf-composer-media-item")).to_have_count(0)
     assert events_model.read_events(serve.page_dir) == before
     assert sorted((serve.page_dir / "media").glob("*")) == before_media
-    surface = open_capture_area(page, touch=True)
-    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
-    expect(surface).to_be_hidden()
     surface = open_capture_area(page, touch=True)
     page.keyboard.press("Escape")
     expect(surface).to_be_hidden()

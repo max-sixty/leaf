@@ -122,7 +122,7 @@ customElements.define(
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
         ["on_user", "on_agent", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
+          const heading = offer("h4", "", ["On Me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -309,12 +309,7 @@ customElements.define(
             const node = offer("li");
             const open = offerAction("word", "");
             open.addEventListener("click", () => void queueActions.open(key));
-            const done = offerAction("word", "", "Done");
-            done.addEventListener("click", () => {
-              this.indexOrder.release();
-              void queueActions.done(key);
-            });
-            row = { node, open, done };
+            row = { node, open };
             this.queueRows.set(identity, row);
           }
           if (!item) {
@@ -322,7 +317,7 @@ customElements.define(
             return row.node;
           }
           keepsText(row.open, `Open ${queueTitle(item)}`);
-          setChildren(row.node, item.offers.done ? [row.open, row.done] : [row.open]);
+          setChildren(row.node, [row.open]);
           return row.node;
         });
         setChildren(list, rows);

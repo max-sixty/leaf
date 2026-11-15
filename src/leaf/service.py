@@ -31,6 +31,7 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
+    initialized,
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
@@ -43,6 +44,7 @@ from leaf.state import (
     TIME,
     Record,
     chat_exists,
+    claims_home,
     claims_lock,
     described,
     drop_locator,
@@ -60,7 +62,6 @@ from leaf.state import (
     session_lock_path,
     session_record,
     standing_claims,
-    state_home,
 )
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 
 def claim_path(page_dir: Path) -> Path:
     """The page's one canonical payload, also written by resident page servers."""
-    return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
+    return claims_home() / f"{page_key(page_dir)}.json"
 
 
 CLAIM = Record(
@@ -786,18 +787,27 @@ def claim_page(page_dir: Path) -> bool:
 def cmd_claim(page_dir: Path, *, manual_delivery: bool = False) -> dict:
     """Connect delivery before publishing ownership, without starting a server.
 
-    An explicit watcher claims with manual_delivery before its first wait. Hooks do
-    not prepare adapters, so this interval leaves delivery to that watcher; once its
-    wait is live, ordinary serving and reclaiming preserve the selected watch.
+    An explicit watcher claims with manual_delivery before its first wait, in the
+    same turn, and only a prompt hook serving a page again prepares an adapter
+    (`reconnect`), so this interval leaves delivery to that watcher; once its wait is
+    live, ordinary serving and reclaiming preserve the selected watch.
     """
     from leaf.harness import session_harness
+    from leaf.session_runtime import select_checkout
 
     harness = session_harness()
     if harness is None:
         raise Refused("only an agent harness session can claim a page")
+    claim = prepare_claim(harness, page_dir)
+    # Before delivery prepares (`session_runtime.select_checkout`).
+    select_checkout(harness.session)
     preparation = nullcontext() if manual_delivery else harness.preparing_delivery()
-    with preparation, PageTransaction(page_dir) as page:
-        page.take_claim(harness)
+    with (
+        preparation,
+        PageTransaction(page_dir) as page,
+        page.publishing_claim(claim),
+    ):
+        pass
     return {"session": harness.session}
 
 
@@ -914,7 +924,7 @@ def owned_pages(session_id: str | None) -> list:
     pages = {
         Path(claim["page"])
         for claim in claim_records(session_id)
-        if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
+        if claim_is_active(claim) and initialized(Path(claim["page"]))
     }
     return sorted(pages, key=str)
 

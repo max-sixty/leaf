@@ -95,7 +95,7 @@ test("a thread preview registers its keyboard routes before any conversation is 
       entryPoint: () => null,
       entryPlace: () => null,
     },
-    renderMarginThread: () => [],
+    renderMarginThread: () => ({ drawn: [], stop: () => {} }),
     placedAt: () => undefined,
     scrollThreadIntoView() {},
     scrollToElement() {},

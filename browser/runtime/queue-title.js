@@ -1,4 +1,4 @@
-/* An obligation's subject, shared by On me and package lists.
+/* An obligation's subject, shared by On Me and package lists.
    Membership remains with the publisher. A title reads the current conversation
    or the rendered obligation or widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";
@@ -6,12 +6,14 @@ import { elementById } from "./passages.js";
 import { obligationHolding } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
 import { readObligations } from "./obligations/model.js";
-import { readThreads } from "./thread/state.js";
+import { threadNamed } from "./thread/state.js";
+import { discussed } from "./thread/model.js";
 import { threadName } from "./thread/messages.js";
 
 /** @param {import("./framework/application.js").CurrentQueueItem} item */
 export function queueTitle(item) {
-  const thread = readThreads().threads.find((thread) => thread.id === item.thread);
+  const named = item.thread ? threadNamed(item.thread) : null;
+  const thread = named && discussed(named) ? named : null;
   const topic = thread ? threadName(thread) : "";
   // A to-do's own title, or an obligation's prompt.
   const title = item.todo?.title ?? item.obligation?.prompt.text;

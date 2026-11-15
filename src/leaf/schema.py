@@ -39,13 +39,17 @@ WIDGET_NAME_RULE = (
     "an element name is `lf-` followed by hyphen-separated words of lowercase "
     f"letters and digits, such as `lf-merge-film` ({WIDGET_NAME})"
 )
+# The grammars of the names Leaf looks up from a widget's attributes: an element id, a
+# data source and a data contract. Composition writes each into the attributes that
+# hold one (`registry.contract.stamp_grammars`), so no package declaration restates
+# one. The browser checks none of them.
 ELEMENT_ID = r"[a-z0-9][a-z0-9-]*"
+DATA_SOURCE_NAME = HTML_NAME
+DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # An id the log mints for an event. Page ids and event ids are one address space:
 # a command's ID is a widget or a message, whichever the page holds, so an authored
 # id may not take this shape (`validation.markup.id_errors`).
 EVENT_ID = r"[0-9a-f]{8}"
-DATA_SOURCE_NAME = HTML_NAME
-DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -387,6 +391,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
+        "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
         "x-patch": {"enum": ["members"]},
@@ -450,6 +455,8 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
+        "x-flow": {"const": True},
+        "x-spine": {"const": True},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
@@ -517,12 +524,12 @@ _CLAUSES = {
     },
 }
 # The shape of each shared layer fact a complete vocabulary carries, every one
-# required and each held to its schema on its own (`registry.layer.check_layer_facts`).
+# required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
 # check's membership test by substring, and a token without a `glyph` paints nothing.
 # What names another fact, or needs more than a shape (a clause's `when` and a
-# contract's `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer`
-# checks.
+# contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
+# `validate_layer_declarations` checks.
 LAYER_FACTS = {
     "$events": {
         "type": "object",
@@ -559,13 +566,12 @@ LAYER_FACTS = {
                         "description": _NONEMPTY,
                         "schema": {"type": "object"},
                         "instructions": INSTRUCTIONS_SCHEMA,
-                        # Null reads as absent (`data.deferred_records`).
+                        # Null reads as absent (`data_contracts.payload_error`).
                         "records": {
                             "type": ["object", "null"],
                             "properties": {
                                 "items": _NONEMPTY,
                                 "key": _NONEMPTY,
-                                "deferred": _NONEMPTY,
                             },
                             "required": ["items", "key"],
                             "additionalProperties": False,
@@ -617,6 +623,7 @@ LAYER_FACTS = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
+    "x-prepaint",
     "x-refers",
     "x-says",
     "x-tone",
@@ -740,7 +747,7 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # media it adds, the revisions it activates, the versions it stamps). The website
 # adapter routes exactly these and those files to a page, and so does the Worker in
 # front of it, which reads the layer and session kinds from the site manifest
-# `leaf-dev site` writes: a static miss under a session directory is a file the
+# `leaf-dev site build` writes: a static miss under a session directory is a file the
 # page's container has. `api` is the page server's protocol prefix, which the Worker
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)

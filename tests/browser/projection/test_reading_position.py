@@ -384,7 +384,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
     view = page.evaluate(
         """() => {
           for (const key of Object.keys(sessionStorage))
-            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]).page;
           return null;
         }"""
     )
@@ -480,7 +480,7 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     view = page.evaluate(
         """() => {
           for (const key of Object.keys(sessionStorage))
-            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]).page;
           return null;
         }"""
     )
@@ -676,7 +676,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
-    """Obligation repaint keeps the reading of the panel's On me view the user scrolled."""
+    """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -839,7 +839,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "description": "A test-owned reading scroller.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            "id": {"type": "string"},
         },
         "required": ["id"],
         "additionalProperties": False,
@@ -959,7 +959,7 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
     view = page.evaluate("""() => {
       for (const k of Object.keys(sessionStorage))
-        if (k.endsWith('lf-view')) return JSON.parse(sessionStorage[k]);
+        if (k.endsWith('lf-view')) return JSON.parse(sessionStorage[k]).page;
       return null; }""")
     assert view and view["section"] == "wrap", (
         f"the landmark was not the boxless wrapper: {view}"
@@ -1002,3 +1002,46 @@ def test_an_arrival_keeps_a_readable_native_fragment_where_the_browser_landed_it
         })"""
     )
     assert abs(position["top"] - position["clear"]) < 2, position
+
+
+def test_a_drawing_beside_a_document_out_of_view_stays_the_place(browser, serve):
+    """The window's top edge cuts a tall chart whose section also holds a text document
+    below the window. The section holds that document's words whether or not the
+    window shows them, so the chart, not the section, is the place, and restoring it
+    after the document grows below keeps the chart where it was."""
+    url = serve(
+        leaf_page(
+            "drawing beside a document",
+            """
+<h1>Drawing beside a document</h1>
+<p>A paragraph above the figure section, long enough to read as a place in the page.</p>
+<section id="fig">
+<svg id="chart" width="600" height="1200" viewBox="0 0 600 1200" role="img"
+  aria-label="Tall chart"><rect width="600" height="1200" fill="#9ab"></rect></svg>
+<lf-text-document id="notes" label="notes.txt"><pre>
+first line of the notes document, long enough to quote as a reading place
+second line of the notes document, also long enough to quote as a place
+</pre></lf-text-document>
+</section>
+<p>The outro paragraph closes the page with a sentence long enough to read as a place.</p>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    moved = page.evaluate(
+        """async () => {
+          const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
+          const R = await import(new URL("runtime/reading-place.js", entry).href);
+          const chart = document.getElementById("chart");
+          scrollTo(0, chart.getBoundingClientRect().top + scrollY + 100);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const before = chart.getBoundingClientRect().top;
+          const place = R.capturePlace(null);
+          document.getElementById("notes").style.paddingBottom = "2000px";
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          R.restorePlace(place, null, () => true);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          return Math.round(chart.getBoundingClientRect().top - before);
+        }"""
+    )
+    assert moved == 0, f"restoring the place moved the chart {moved}px"

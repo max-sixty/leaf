@@ -36,7 +36,7 @@ def test_sends_from_a_page_threads_box_hold_its_foot_at_the_bands(
     )
     page = open_page(browser, url)
     resized(page, 1200, 560)
-    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
     box = thread.locator("leaf-text")
     # The box's foot just past the landing band's, where the first keystroke lands it.

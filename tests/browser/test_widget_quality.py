@@ -227,12 +227,12 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
 INITIAL_DRAWING_PAGE = """
 <h1 id="title">First drawing</h1>
 <lf-playground id="drawing">
-  <lf-playground-control name="title" label="Title" kind="text" value="Field note"></lf-playground-control>
-  <lf-playground-control name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" unit="px"></lf-playground-control>
-  <lf-playground-control name="compact" label="Compact spacing" kind="toggle" value="false"></lf-playground-control>
-  <lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="field-note-title" name="title" label="Title" kind="text" value="Field note"></lf-playground-control>
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" unit="px"></lf-playground-control>
+  <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle" value="false"></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview><p>The actual preview, with its own words.</p></lf-playground-preview>
   <lf-playground-output>Build <lf-playground-value for="title"></lf-playground-value> with

@@ -23,34 +23,36 @@
  * heading or gist it ran under takes its place on the line, so the reader lands on
  * what summarizes what they were reading. The blocks still shown then glide from where
  * they stood and the ones arriving fade in, so the eye can follow the page closing up
- * around the reader or opening out from them. Leaf's place keeper holds the place,
- * given the block at the line as the reading and, as each block's identity, the kept
- * block its run follows, so a folded block hands its place to its gist.
+ * around the reader or opening out from them. Leaf's one hold keeps the place
+ * (`holdPlace`, given the line's words by `readingAt`), since the browser's scroll
+ * anchoring can't: Skim hides the block it anchors.
  *
- * The dial is three word toggles of one face, as an image pair's views are, reached by
- * Tab and the go-to key; inside the dial the arrow keys toward and away from the
- * text's start step one depth. It sticks at the window's top, at the column's end, so
- * the reader can turn it wherever they are reading rather than only at the top, which
- * is where keeping their place matters. */
+ * The dial is a radio group of the three depths, Web Awesome's, the control every
+ * choice among a few views takes, as a recording's scopes and an image pair's views
+ * do. Tab and the go-to key reach it, and inside it the arrow keys step one depth, as
+ * in any radio group. It sticks at the window's top, at the column's end, so the
+ * reader can turn it wherever they are reading rather than only at the top, which is
+ * where keeping their place matters. */
 import {
+  actionClass,
+  authoredScope,
   focusDestination,
   foldDuration,
-  keeps,
+  holdPlace,
   LeafElement,
   motion,
   move,
   offer,
   offerAction,
   PAGE_INTERFACE,
-  placeKeeper,
+  readingAt,
   registerRootHeader,
-  rowArrows,
-  scrollerFor,
   shownWindow,
   tabStore,
+  viewDocument,
   whileConnected,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import "/vendor/webawesome-views.js";
 
 const DEPTHS = [
   { name: "skim", label: "Skim", title: "Headings and each section's gist" },
@@ -62,24 +64,8 @@ const KEPT = `${HEADING}, .lede, .gist`;
 // Never folded: what the reader steers by or what isn't the page's flow.
 const STANDS = "script, style, template, [data-lf-gen], aside";
 const FOLDED = "data-lf-dial-folded";
-// Marks the blocks that can hold the reader's place while the dial turns.
-const BLOCK = "data-lf-dial-block";
-// How far down the window the reader is taken to be reading.
-const READING_LINE = 0.25;
 // Motion past this many blocks would cost more than the eye can follow.
 const MOVING = 120;
-
-// A stable key for each node, which the place keeper matches across a turn.
-/** @type {WeakMap<Element, string>} */
-const keys = new WeakMap();
-let nextKey = 0;
-const keyOf = (/** @type {Element} */ node) => {
-  const existing = keys.get(node);
-  if (existing !== undefined) return existing;
-  const key = `lf-dial-${nextKey++}`;
-  keys.set(node, key);
-  return key;
-};
 
 /** @param {Element} node */
 const isLeafElement = (node) => node.localName.startsWith("lf-");
@@ -91,8 +77,8 @@ const shown = (node) => node.isConnected && !node.closest(`[${FOLDED}]`);
 customElements.define(
   "lf-dial",
   class extends LeafElement {
-    /** @type {Map<string, HTMLElement>} */
-    #buttons = new Map();
+    /** @type {import("@awesome.me/webawesome/dist/components/radio-group/radio-group.js").default | null} */
+    #depths = null;
     #depth = "read";
     // Each fold this dial made: the run's marker, mapped to the blocks it folded and
     // the block they follow (or their container, where nothing kept precedes them).
@@ -108,39 +94,43 @@ customElements.define(
       return `lf-dial:${this.id}`;
     }
 
-    // The document the dial governs.
+    // The document the dial governs: the view or `main` holding it, the page's `main`
+    // for a dial standing beside it, and in an agent's message that message's markup.
     get #scope() {
-      return this.closest("[data-lf-views] > *, main") ?? this.ownerDocument.body;
+      const scope = authoredScope(this);
+      return (
+        viewDocument(this) ??
+        (scope === this.ownerDocument.body
+          ? scope.querySelector(":scope > main")
+          : scope)
+      );
     }
 
     setup() {
-      const group = offer("div", "lf-dial-depths");
-      group.setAttribute("role", "group");
-      group.setAttribute("aria-label", "How much to show");
+      const group = (this.#depths = offer(
+        "wa-radio-group",
+        "lf-dial-depths lf-label-hidden",
+      ));
+      group.label = "How much to show";
+      group.name = `${this.id}-depth`;
+      group.size = "s";
+      group.orientation = "horizontal";
       for (const { name, label, title } of DEPTHS) {
-        const button = offerAction("word", "lf-dial-depth", label, { title });
-        button.addEventListener("click", () => this.turn(name));
-        this.#buttons.set(name, button);
-        group.append(button);
+        const depth = offer(
+          "wa-radio",
+          actionClass("word", "lf-dial-depth"),
+          label,
+          undefined,
+          true,
+        );
+        depth.value = name;
+        // An attribute, so the theme seats it as a chooser from its first paint.
+        depth.setAttribute("appearance", "button");
+        depth.title = title;
+        group.append(depth);
       }
+      group.addEventListener("change", () => this.turn(String(group.value)));
       this.append(group);
-      const [back, ahead] = rowArrows(this);
-      const step = (/** @type {number} */ by) => {
-        const at = DEPTHS.findIndex((depth) => depth.name === this.#depth);
-        const next = DEPTHS[at + by];
-        if (!next) return;
-        this.turn(next.name);
-        const button = this.#buttons.get(next.name);
-        if (button) focusDestination(button, "move");
-      };
-      this.lfCommands = {
-        title: "In the detail dial",
-        rows: [
-          { id: "dial.less", keys: [back], title: "Less detail", run: () => step(-1) },
-          { id: "dial.more", keys: [ahead], title: "More detail", run: () => step(1) },
-        ],
-      };
-      commandsChanged(this);
       this.#draw();
       whileConnected(this, (signal) => {
         // A revision applied in place rebuilds the folds over its new structure.
@@ -170,13 +160,13 @@ customElements.define(
     }
 
     #draw() {
-      for (const [name, button] of this.#buttons)
-        keeps(button, "aria-pressed", String(name === this.#depth));
+      if (this.#depths) this.#depths.value = this.#depth;
     }
 
     /** @param {string} name @param {{moving: boolean}} options */
     #apply(name, { moving }) {
       const scope = this.#scope;
+      if (!scope) return;
       const before = moving ? this.#positions(scope) : null;
       const change = () => {
         this.#restore();
@@ -309,6 +299,7 @@ customElements.define(
       const run = this.#runs.get(marker);
       if (!run) return;
       const scope = this.#scope;
+      if (!scope) return;
       const before = pressed ? this.#positions(scope) : null;
       for (const block of run.blocks) this.#unfoldBlock(block);
       this.#runs.delete(marker);
@@ -321,32 +312,31 @@ customElements.define(
       }
     }
 
-    // Make `change` keep the reader's place: the block at the reading line, or, where
-    // Skim folds it, the heading or gist it runs under, lands where it stood. Leaf's
-    // place keeper hands a place across to the node drawn under the same identity, so
-    // each block's identity is the kept block its run follows.
+    // Make `change` keep the reader's place: what stands at the reading line, or, where
+    // Skim folds it, the heading or gist its run follows, lands where it stood
+    // (`holdPlace`). Each run's ⋯ stands for that heading or gist too, as leaving Skim
+    // takes it away.
     /** @param {Element} scope @param {() => void} change */
     #keepingPlace(scope, change) {
       /** @type {Map<Element, Element>} */
       const owner = new Map();
       for (const run of this.#runsIn(scope))
         for (const block of run.blocks) owner.set(block, run.after ?? run.container);
-      // The dial itself, stuck over the page and under the pointer that turned it,
-      // names no place in what scrolls beneath it. The mark stays, so a later turn
-      // writes it only on blocks a revision added.
-      const blocks = [...this.#blocks(scope)].filter((block) => block !== this);
-      for (const block of blocks) keeps(block, BLOCK, "");
-      const window = shownWindow();
-      const line = window.top + (window.bottom - window.top) * READING_LINE;
-      const reading = blocks.find(
-        (block) => shown(block) && block.getBoundingClientRect().bottom > line,
-      );
-      const keeper = placeKeeper(scrollerFor(scope), {
-        items: `[${BLOCK}]`,
-        identity: (node) => keyOf(owner.get(node) ?? node),
-        preferred: () => reading ?? null,
+      for (const [marker, { after }] of this.#runs) if (after) owner.set(marker, after);
+      // The block holding the words at the line, since a fold replaces whole blocks:
+      // its gist lands where the block's top stood, line for line. A block that began
+      // above the window would take its gist out of sight with its top, 978px up for a
+      // paragraph of 2,700px, so its gist lands where the words read stood.
+      const words = readingAt(scope);
+      const at = words instanceof Range ? words.startContainer : words;
+      const block = at && [...this.#blocks(scope)].find((each) => each.contains(at));
+      const begun = block && block.getBoundingClientRect().top < shownWindow().top;
+      const hold = holdPlace(block && !begun ? block : words, (node) => {
+        const folded = node.closest(`[${FOLDED}], .lf-dial-more`);
+        return folded && owner.get(folded);
       });
-      keeper.around(change);
+      change();
+      hold();
     }
 
     // Where each block shown near the window stands in it now.
@@ -366,7 +356,10 @@ customElements.define(
       return at;
     }
 
-    // Glide the blocks still shown from where they stood; fade in the ones arriving.
+    // Glide the blocks still shown from where they stood; fade in the ones arriving. A
+    // gliding block is no scroll anchor while it glides: Firefox anchors on where a box
+    // is drawn, so anchoring on one the glide carries scrolled the page by its glide,
+    // frame by frame, and took the reader 360px off the line the hold had kept.
     /** @param {Map<Element, number>} before @param {Element} scope */
     #move(before, scope) {
       const duration = foldDuration();
@@ -382,7 +375,14 @@ customElements.define(
         }
         const by = was - top;
         if (Math.abs(by) >= 1)
-          motion(node, [{ translate: `0 ${by}px` }, { translate: "0 0" }], duration);
+          motion(
+            node,
+            [
+              { translate: `0 ${by}px`, overflowAnchor: "none" },
+              { translate: "0 0", overflowAnchor: "none" },
+            ],
+            duration,
+          );
       }
     }
   },

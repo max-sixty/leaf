@@ -13,10 +13,10 @@
    moves on every trip is not a page movement. The root carries no authored share that
    activation would replace.
 
-   `sends` and `acked` are posts to /api/event, counted as issued and as ended whichever
-   way — answered, refused, or failed — so a retry is a second send. `asked` and `heard`
-   are the same pair for reads of /api/state, `heard` once the body has been read or the
-   read has failed. `pending` names the attempts the published semantic state still
+   `sends` and `acked` are posts to /api/event and /api/media, counted as issued and as
+   ended whichever way — answered, refused, or failed — so a retry is a second send.
+   `asked` and `heard` are the same pair for reads of /api/state, `heard` once the body
+   has been read or the read has failed. `pending` names the attempts the published semantic state still
    holds as sending, in ledger order, and changes with the publication that accepts or
    refuses one: an entry behind a head that is retrying stays pending until its turn,
    even where a read has already shown its attempt landed, because an applied reading

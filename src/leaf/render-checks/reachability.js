@@ -2,13 +2,6 @@ import { TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, shownParts, userScrollport } from "/runtime/check-api.js";
 import { at, place, unique } from "./locate.js";
 
-// An overlay that takes no presses at rest, such as the contents map's spine, stands
-// over the page by design and reveals over it when the user reaches for it, so the box
-// it has at rest is not the room it shows in.
-/** @param {CSSStyleDeclaration} style */
-export const restsOverPage = (style) =>
-  style.position === "fixed" && style.pointerEvents === "none";
-
 // The axes on which a box clips what it holds and offers the user no way in, asked of
 // the overflow value per axis rather than of the scroll extent. A box that clips
 // always has something to scroll, which is what clipping means, so
@@ -16,7 +9,7 @@ export const restsOverPage = (style) =>
 // every one of them through. What separates a board, whose columns run past it and are
 // reached by dragging, from a group that swallowed its own pick marks is whether the
 // box offers the user a way in: auto and scroll do, hidden and clip do not. Paint
-// containment clips both axes while `overflow` computes `visible` (MISPLACED_BOXES
+// containment clips both axes while `overflow` computes `visible` (`misplacedBoxes`
 // reads the same fact for its ancestors), and it denies the way in exactly where the
 // axis has no scroller of its own.
 /** @param {CSSStyleDeclaration} style */
@@ -29,7 +22,7 @@ export function sealedAxes(style) {
   return { across: sealed(style.overflowX), down: sealed(style.overflowY) };
 }
 
-// A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
+// A control drawn where no user can reach it. `tinyBoxes` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
 // difference is which failure each catches: a widget with no box is a widget that didn't
 // render, and a control with a box its own container clips away is a widget that rendered
@@ -72,14 +65,19 @@ export function clippedControls() {
     if (b.width < 1 && b.height < 1) continue;
     // Where the clip is escaped rather than suffered. An absolutely-positioned
     // control whose containing block is above the clipping ancestor is painted
-    // outside it on purpose, exactly as MISPLACED_BOXES' own margin content is.
+    // outside it on purpose, exactly as `misplacedBoxes`' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
     // Up to the body and no further: the document's own scrolling arrangement is
     // the page's, not a widget's. The runtime scrolls body rather than the
     // viewport so the panel has room beside it, which leaves <html> clipping and
     // with nothing of its own to scroll — so a walk that ran to the root reported
     // every control below the fold as hidden by the page it is on.
-    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+    // Leaf's chrome stands after the body (base.css), so its controls stop at the root.
+    for (
+      let a = el.parentElement;
+      a && a !== document.body && a !== document.documentElement;
+      a = a.parentElement
+    ) {
       const s = getComputedStyle(a);
       const { across, down } = sealedAxes(s);
       if (across || down) {
@@ -134,12 +132,6 @@ export function clippedControls() {
 // resolves to content-visibility, which checkVisibility reports as visible while the
 // box measures zero. That collapse is the point of a closed tab; the collapse being
 // hunted here is the one nothing asked for.
-//
-// An overlay at rest (`restsOverPage`) is held to the height floor alone, as the
-// contents map is: in the margin its box is a 24px spine, and its labels reveal over
-// the page from it. Its scroll behavior says so in its computed style, which a widget that
-// lost its rules doesn't take on, so a map dropped into the flow at that width is
-// still caught.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
@@ -160,13 +152,13 @@ export function tinyBoxes(declarations) {
       const tag = el.tagName.toLowerCase();
       const w = Math.round(el.getBoundingClientRect().width);
       const h = Math.round(el.getBoundingClientRect().height);
-      const narrow = !inline.has(tag) && !restsOverPage(getComputedStyle(el)) && w < 40;
+      const narrow = !inline.has(tag) && w < 40;
       return h < 10 || narrow ? [{ tag, id: el.id, w, h }] : [];
     });
 }
 
 // An element the user can see and no mark can be shown on. The gate presses no keys, so
-// it never watches the On me walk paint a ring or a comment paint an outline. It can still
+// it never watches the On Me walk paint a ring or a comment paint an outline. It can still
 // read whether either would have had anywhere to land, which is the same fault one step
 // earlier, before it turns into a mark nobody can see.
 //
@@ -180,7 +172,7 @@ export function tinyBoxes(declarations) {
 // through (shownParts) — which leaves one case that answer cannot reach, an element whose
 // words are in no child element at all, where there is nothing to hang anything on.
 //
-// TINY_BOXES is next door and cannot see this: `checkVisibility()` is false for an element
+// `tinyBoxes` is next door and cannot see this: `checkVisibility()` is false for an element
 // with no box, so the very elements at issue are the ones it filters out. Both readings are
 // imported rather than restated, so what the gate refuses a handover for and what the page
 // actually paints cannot come apart — the whole point of the pair being that there is one
@@ -225,8 +217,8 @@ export function unmarkableElements() {
 export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
-  // chrome by standing in one of these, and the runtime's layer is appended to
-  // body and stands in none — but a widget riding a message stands in the
+  // chrome by standing in one of these, and the runtime's layer stands after
+  // body in none — but a widget riding a message stands in the
   // layer, so which of the two a .lf-ui is has to be asked of the .lf-ui and
   // never of the words beneath it, which are inside a widget either way.
   /** @param {Element | null} el */
@@ -246,7 +238,12 @@ export function unreachableWords() {
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
-  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  // The whole document, since a widget riding a message stands in the chrome after
+  // body; text outside any .lf-ui, the head's included, is passed over below.
+  const walk = document.createTreeWalker(
+    document.documentElement,
+    NodeFilter.SHOW_TEXT,
+  );
   // A text walk visits text nodes.
   for (
     let n = /** @type {Text} */ (walk.nextNode());

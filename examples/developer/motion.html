@@ -256,12 +256,11 @@
           id="motion-script"
         ><code class="language-javascript">import { PAGE_INTERFACE, keeps } from '/runtime/widget-api.js';
 
-const mounted = new WeakSet();
 await customElements.whenDefined('lf-motion');
+// A revision edits inside the study in place, so draw the nodes it holds now.
 function mount() {
   const study = document.getElementById('travel');
-  if (!study || mounted.has(study)) return;
-  mounted.add(study);
+  if (!study) return;
   const dot = study.querySelector('circle');
   study.renderFrame = (time) =&gt; {
     keeps(dot, 'cx', 20 + 260 * time / 600);

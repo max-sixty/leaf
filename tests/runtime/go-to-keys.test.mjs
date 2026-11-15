@@ -36,9 +36,7 @@ const goTo = createGoToSequence({
   directDestinations: () => [],
   scrollToElement: () => {},
   leavesOffered: () => false,
-  glideTo: () => {},
   placeThreadEdge: () => {},
-  stopGlide: () => {},
 });
 
 const press = (key) =>

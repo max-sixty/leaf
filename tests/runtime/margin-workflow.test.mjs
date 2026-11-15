@@ -14,6 +14,8 @@ const workflow = (stage, condition = null) =>
   servedWorkflow({
     id: `${stage}-workflow`,
     stage,
+    // As the server stamps a workflow its session works on (`served_workflows`).
+    at_work: ["working", "replying"].includes(stage),
     condition,
     detail: "Preparing an update",
   });

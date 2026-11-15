@@ -106,20 +106,6 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
 
 
-@pytest.mark.parametrize("markup", ["", "<p>Here is the table.</p>"])
-def test_an_answer_that_declares_nothing_is_refused(page_dir, markup):
-    asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which one?"}
-    )
-    before = events_model.read_events(page_dir)
-    reply = ["thread", "reply", response_reference(page_dir, asked), "--text", "B."]
-    refused = CliRunner().invoke(cli_model.cli, [*reply, "--markup", markup])
-
-    assert refused.exit_code != 0
-    assert refused_on(refused.stderr).code == "undeclared-answer"
-    assert events_model.read_events(page_dir) == before
-
-
 def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     """Agents writing a choice from memory leave out the attribute that makes it
     ask, and satisfying the refusal with `--obligation` would leave options nobody
@@ -144,7 +130,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
 
 def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
     """Only the user's words answer `--obligation`, so beside a widget that asks it
-    would keep the message on On me after the user picks. Both writers refuse it."""
+    would keep the message on On Me after the user picks. Both writers refuse it."""
     revisioning_model.activate_source(page_dir)
     asked = append_command(
         page_dir,

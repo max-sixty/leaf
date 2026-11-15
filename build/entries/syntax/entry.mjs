@@ -112,11 +112,18 @@ export async function registerLanguage(lang, grammar) {
   await instance.loadLanguage(grammar);
 }
 
-/** Offsets preserve original line endings even when Shiki normalizes its lines. */
-/** @param {string} source @param {string} lang */
-export async function tokenize(source, lang) {
+/** Offsets preserve original line endings even when Shiki normalizes its lines. Returns
+ * the tokens and the grammar state their last line ends in, which a later call takes as
+ * `state` to continue from it: a text tokenized a part at a time, each part from the
+ * state the one before it ended in, is coloured as the whole text would be. */
+/** @param {string} source @param {string} lang @param {import("@shikijs/core").GrammarState} [state] */
+export async function tokenize(source, lang, state) {
   const instance = await createHighlighter({ langs: [lang] });
-  const lines = instance.codeToTokensBase(source, { lang, theme: themeName });
+  const lines = instance.codeToTokensBase(source, {
+    lang,
+    theme: themeName,
+    ...(state && { grammarState: state }),
+  });
   /** @type {{text: string, style: import("@shikijs/core").TokenStyles}[]} */
   const tokens = [];
   /** @param {string} text @param {import("@shikijs/core").TokenStyles} style */
@@ -137,7 +144,7 @@ export async function tokenize(source, lang) {
       cursor = token.offset + token.content.length;
     }
   if (cursor < source.length) append(source.slice(cursor), {});
-  return tokens;
+  return { tokens, state: instance.getLastGrammarState(lines) };
 }
 
 /** @param {string} source @param {import("@shikijs/core").CodeToHastOptions<string, string>} options */

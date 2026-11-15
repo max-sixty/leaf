@@ -64,7 +64,9 @@ function drawingFor(host) {
     },
     /** @param {string} id @returns {HTMLElement | null} */
     eventElement(id) {
-      return host.querySelector(`.lf-timeline-event[data-event="${CSS.escape(id)}"]`);
+      return host.querySelector(
+        `.lf-timeline-event[data-lf-event="${CSS.escape(id)}"]`,
+      );
     },
   };
 }
@@ -216,9 +218,9 @@ class Timeline extends HTMLElement {
     whileConnected(this, (signal) => {
       const pick = (/** @type {Event} */ event) => {
         if (!(event.target instanceof Element)) return;
-        const target = event.target.closest("[data-step]");
+        const target = event.target.closest("[data-lf-step]");
         if (target && this.contains(target))
-          this.#go(Number(target.getAttribute("data-step")), false);
+          this.#go(Number(target.getAttribute("data-lf-step")), false);
       };
       // The step list's rows are its buttons, which Enter and Space press as they do a
       // native button's (`selectableOffered`); a press on a mark is the pointer's

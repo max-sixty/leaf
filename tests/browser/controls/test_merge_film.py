@@ -3,7 +3,9 @@ terminal seek, and its outcomes on a phone."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import EXAMPLES, open_page, resized, scroll_settled
+from render_harness import open_page, resized, scroll_settled
+
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -12,7 +14,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
     browser, serve, width
 ):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, width, 900)
     page.clock.install(time=0)
@@ -39,7 +41,7 @@ def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
 def test_merge_film_inspection_and_step_availability_follow_the_run(
     browser, serve, width
 ):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, width, 900)
     inspect = page.get_by_role("button", name="Inspect next element")
@@ -68,7 +70,7 @@ def test_merge_film_inspection_and_step_availability_follow_the_run(
 # The phone's terminal; the journey then reflows to the desk and back.
 @pytest.mark.parametrize("width", [390])
 def test_merge_film_terminal_seeks_to_the_result_it_reports(browser, serve, width):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, width, 900)
     page.locator("#step-end button").click()
@@ -118,7 +120,7 @@ def test_merge_film_terminal_seeks_to_the_result_it_reports(browser, serve, widt
 
 
 def test_merge_film_steps_have_a_keyboard_route(browser, serve):
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     page.locator("#merge-film").evaluate("film => film.seek(1e9)")
 
@@ -155,7 +157,7 @@ def test_merge_film_phone_holds_readable_outcomes_and_preserves_them_on_reflow(
     browser, serve
 ):
     """The same merge story fits a phone without shrinking its labels or losing refs."""
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -216,7 +218,7 @@ def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser,
     still fills an 800x720 window, the stage keeps its content's height and the pane
     scrolls to its end: the terminal below the drawing stays reachable and clear of
     Leaf's panel rather than clipped inside a squeezed stage."""
-    source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
+    source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, 800, 720)
     film = page.locator("#merge-film")

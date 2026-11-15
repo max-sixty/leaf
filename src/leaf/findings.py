@@ -158,6 +158,31 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
+def _fork_holds_thread(holder: dict, answers: bool) -> str:
+    """What a command acting as the main session hears where a fork or the line fork
+    holds its thread (`holding.authorize`): the holder, and, for a fork, whether the
+    command's answer took the thread from it, how to stop it and how the fork's own
+    commands act as the fork. No command answers a message a line fork holds, which
+    page state gives no answer reference."""
+    if holder["kind"] == "line":
+        return (
+            "a line fork holds this thread while writing the agent's working message;"
+            " this command acted as the main session beside it"
+        )
+    fork = holder["name"]
+    return (
+        f"fork {fork} held this thread; this command acted as the main session and"
+        " took the thread from it, so the fork's own writes there are refused from"
+        f" now on; to stop the fork, SendMessage {fork}"
+        if answers
+        else f"fork {fork} holds this thread; this command acted as the main session"
+        " beside it"
+    ) + (
+        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
+        " that begins with `leaf`)"
+    )
+
+
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -212,6 +237,47 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _squeezed_code(at: str, v: dict) -> str:
+    # The reading knows the block is too narrow, not what narrowed it, so the words
+    # offer both remedies. In a table cell the table's own advice holds: a column sizes
+    # to what its cells can't break, so the fix is what the cell holds.
+    shown = (
+        f"{at} has {v['inside']}px for its lines and scrolls {v['scrolls']}px of them"
+        " sideways"
+    )
+    if v["cell"]:
+        return (
+            f"{shown}, since a code block asks its table cell for no width; move a long"
+            " command out of the table, or write a short one as inline <code>, which"
+            " breaks inside the cell"
+        )
+    return (
+        f"{shown}, so it shows a few characters at most; give the block or what holds"
+        " it more room (a box that takes its width from its content gives a code"
+        " block none), or let what stands beside it wrap or stack where the window is"
+        " that narrow, with layout-tiles or a grid that stacks below a width"
+        ' (page-layout.md, "Layouts" and "A workspace")'
+    )
+
+
+def _drawn_height(at: str, v: dict) -> str:
+    # `box` is the height the element holds now: past `before`, what follows it moved
+    # as it drew; past `drawn`, a stated height larger than the drawing left room.
+    text = (
+        f"{at} was {v['before']}px tall before drawing and its drawing is"
+        f" {v['drawn']}px tall"
+    )
+    if moved := v["box"] - v["before"]:
+        direction = "down" if moved > 0 else "up"
+        text += f", so what follows it moved {direction} {abs(moved)}px as it drew"
+    if (blank := v["box"] - v["drawn"]) > 0:
+        text += f", leaving {blank}px blank under the drawing"
+    return (
+        f'{text}; data-height="{v["drawn"]}" holds the drawing\'s height from'
+        " first paint"
+    )
+
+
 def _clipped_content(at: str, v: dict) -> str:
     cuts = []
     if v["down"]:
@@ -222,7 +288,7 @@ def _clipped_content(at: str, v: dict) -> str:
     if v["across"]:
         cuts.append(
             f"{v['across']}px of it past its width — let it wrap, or scroll it"
-            ' sideways with overflow-x: auto and class="scroll"'
+            ' sideways with overflow-x: auto and class="lf-scroll"'
         )
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
@@ -311,15 +377,6 @@ def _empty_question(at: str, v: dict) -> str:
         else "since it holds no widget that asks (one declaring x-awaits); add one,"
         " or ask a question answered in words in a thread message with --obligation"
     )
-
-
-def _outside_main(content: list[dict]) -> list[str]:
-    return [
-        f"text in <{c['tag']}> at line {c['line']}"
-        if c["text"]
-        else f"<{c['tag']}> at line {c['line']}"
-        for c in content
-    ]
 
 
 def _unservable_layer(v: dict, why: str, action: str) -> str:
@@ -531,6 +588,9 @@ _TEXT = {
         if v["what"] == "children"
         else f"unchanged write: {v['what']} on {placed(v['node'])}"
     ),
+    "unmoved-scroll": lambda at, v: (
+        f"unmoved scroll: {v['how']} on {placed(v['node'])}, from {' < '.join(v['by'])}"
+    ),
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
@@ -633,10 +693,17 @@ _TEXT = {
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
     ),
     "past-column": lambda at, v: (
-        f"{at} is set {v['past']}px past the column, out in the margin; to give it"
-        ' more room, mark it data-width="wide" or "available" rather than sizing it'
-        " past the column, or scroll it sideways in a box of its own with"
-        ' overflow-x: auto and class="scroll"'
+        f"{at} is set {v['past']}px past the column, out in the margin; "
+        + (
+            f"as a {v['item']} item it is by default no narrower than its content, so"
+            " first give it min-width: 0, which keeps a wide table or scrolling box in"
+            " it scrolling inside the column; or, "
+            if v.get("item")
+            else ""
+        )
+        + 'to give it more room, mark it data-width="wide" or "available" rather than'
+        " sizing it past the column, or scroll it sideways in a box of its own with"
+        ' overflow-x: auto and class="lf-scroll"'
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -686,19 +753,37 @@ _TEXT = {
         f"{at} draws {_json(v['words'])} in the same place as {v['under']}'s"
         f" {_json(v['covered'])}"
     ),
+    "under-panel": lambda at, v: (
+        f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
+        " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
+        " between the last words and the window's foot (page-authoring.md, \"Style"
+        ' the page")'
+    ),
     # Advice: what the author decides.
     "unreduced-motion": lambda at, v: (
         f"{at} keeps moving for a reader who asked for less motion; stop or shorten it"
         " under @media (prefers-reduced-motion: reduce)"
     ),
+    "uncoloured-code": lambda at, v: (
+        f"{at} declares {v['language']}, but no reading face reaches it, so Leaf"
+        " leaves its tokens uncoloured; to colour it, set --lf-reading-face: 1 on a"
+        " box around the <pre>, or take the reading theme"
+    ),
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
-        + "; to widen the enclosing box, put data-width on that holder; to share"
-        " the document's space through unframed section wrappers, give them"
-        ' class="layout-flow"'
+        + "; to let it break out with the words around it staying on the column, give"
+        ' the unframed wrappers class="layout-flow"; to widen a frame around it, put'
+        " data-width on the frame"
+    ),
+    "words-off-column": lambda at, v: (
+        f"{at} reaches past the column's start edge and takes its words with it, so"
+        " they no longer line up with the page's; put data-width on the block inside"
+        ' that needs the room, and give this wrapper class="layout-flow"'
     ),
     "squeezed-table": _squeezed,
+    "squeezed-code": _squeezed_code,
+    "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"
         f" {v['width']}px, the smallest ({v['words']!r}) at {v['drawn']:g}px from"
@@ -765,11 +850,6 @@ _TEXT = {
         f"the page must have one <main> directly under <body>; found {v['bodies']}"
         f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
     ),
-    "outside-main": lambda at, v: (
-        "the page's content goes inside the one <main> directly under <body>, which"
-        " Leaf reads as the page; move these inside it (a grid or header of the"
-        f" page's own goes on or in <main>): {_json(_outside_main(v['content']))}"
-    ),
     "unclosed": lambda at, v: (
         "unclosed tags: "
         + ", ".join(f"<{e['tag']}> (line {e['line']})" for e in v["elements"])
@@ -796,6 +876,17 @@ _TEXT = {
             if v["allowed"] is None
             else f"one of {', '.join(v['allowed'])}"
         )
+    ),
+    "inert-allocation": lambda at, v: (
+        f"{_bearing(at, v, _json(v['value']))} has no effect: "
+        + {
+            "flow": "the element takes no width of its own, so put it on the block"
+            " inside that needs the room",
+            "content": "only a block inside body, other than main, takes it, so put"
+            " it on the block that needs it",
+            "declared": "only a widget that draws into a box of a stated height"
+            " takes it",
+        }[v["holds"]]
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
@@ -828,7 +919,7 @@ _TEXT = {
     "reserved-markers": lambda at, v: (
         f"{at} at line {v['line']} wears the runtime's own markers"
         f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
-        " runtime's to write"
+        " runtime's to write, but for the classes Leaf's idioms name"
     ),
     "ids-taken-by-messages": lambda at, v: (
         f"ids already taken by message markup: {_json(v['ids'])}"
@@ -1007,7 +1098,7 @@ _TEXT = {
     ),
     "unpointable": lambda at, v: (
         "unpointable — these blocks have no id, nor does anything enclosing them, so"
-        f" element selection has no target: {_blocks(v)}; give main's sections ids,"
+        f" element selection has no target: {_blocks(v)}; give the page's sections ids,"
         " or each block a reader may point at alone"
     ),
     "unpointable-wide": lambda at, v: (
@@ -1100,12 +1191,6 @@ _TEXT = {
             f" {v['expression']!r} is invalid: {v['error']}"
         )
     ),
-    "contract-records": _declared(
-        lambda v: (
-            f"$data contract {v['contract']!r} records must name distinct"
-            " items, key, and deferred fields"
-        )
-    ),
     "contract-schema": _declared(
         lambda v: (
             f"$data contract {v['contract']!r} has an invalid JSON Schema:"
@@ -1192,7 +1277,7 @@ _TEXT = {
     "data-source": _declared(
         lambda v: (
             f"x-data input `{v['input']}` source attribute `{v['attr']}` must"
-            " be a canonical data source string"
+            " be declared a string"
         )
     ),
     "measured-input": _declared(
@@ -1374,7 +1459,7 @@ _TEXT = {
     "creates-detail": _declared(
         lambda v: (
             f"x-state verb `{v['verb']}` creates a child, so its detail must be"
-            f" exactly the required element id `{v['unit']}` and the required non-empty"
+            f" exactly the required id string `{v['unit']}` and the required non-empty"
             f" words `{v['words']}`"
         )
     ),
@@ -1391,9 +1476,7 @@ _TEXT = {
         lambda v: _created(v, "which must require id and no other authored attributes")
     ),
     "creates-id": _declared(
-        lambda v: _created(
-            v, "whose required id must use the canonical element-id schema"
-        )
+        lambda v: _created(v, "whose required id must be declared a string")
     ),
     "creates-semantic-owner": _declared(
         lambda v: _created(
@@ -1479,7 +1562,7 @@ _TEXT = {
         lambda v: (
             f"x-state verb `{v['verb']}` binds detail field `{v['field']}` to"
             f" attribute `{v['attribute']}`: the field must be declared and the"
-            " attribute must be a string matching the data contract name pattern"
+            " attribute declared a string"
         )
     ),
     "instance-contract": lambda at, v: (
@@ -1763,6 +1846,7 @@ _TEXT = {
     "wordless-message": lambda at, v: (
         f"message {v['message']!r} has no words to revise"
     ),
+    "withdrawn-message": lambda at, v: f"message {v['message']!r} has been taken back",
     "stale-edit": lambda at, v: (
         f"edit of {v['message']!r} was written over {v['base']!r}, and"
         f" {v['latest']!r} has since revised it"
@@ -1790,19 +1874,9 @@ _TEXT = {
         f"{v['target']} {v['undoes']} is not the user's own gesture"
     ),
     "withdrawn-gesture": lambda at, v: f"{v['undoes']} has already been taken back",
-    "said-message": lambda at, v: (
-        f"{v['target']} {v['undoes']} is not a reaction; a message with words in it"
-        " is said rather than unsaid"
-    ),
-    "answered-reaction": lambda at, v: (
-        f"reaction {v['undoes']} has a reply or task attached; continue in its thread"
-    ),
-    "resolved-reaction": lambda at, v: (
-        f"reaction {v['undoes']} stands on a resolved thread"
-    ),
     "unundoable": lambda at, v: (
         f"{v['target']} events cannot be taken back (the kinds that can are"
-        f" {', '.join(v['undoable'])} and a reaction)"
+        f" {', '.join(v['undoable'])})"
     ),
     "absorbed-move": lambda at, v: (
         f"move {v['undoes']} was made on r{v['revision']}, and a later revision's"
@@ -1826,10 +1900,6 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-obligation": lambda at, v: (
-        f"{v['widget']!r} already has obligation {v['obligation']!r}; use that obligation instead of"
-        " opening duplicate work"
-    ),
     "plan-depth": lambda at, v: (
         f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
         " step before it; the first step is at depth 0 and each step is at most one"
@@ -1847,11 +1917,13 @@ _TEXT = {
     "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
-    "users-question": lambda at, v: (
-        "the user's message or settling reaction answers a question asked in words"
-    ),
     "ended-obligation": lambda at, v: (
         f"obligation {v['todo']!r} is already {v['status']}"
+    ),
+    "unasked-obligation": lambda at, v: (
+        f"no message in this thread asks the question {v['question']!r}; --obligation"
+        " takes an id from the delivery's `settled` or `leaf page state`, and without"
+        " an id it asks a new question"
     ),
     "failed-question": lambda at, v: (
         "a question asked in words ends `done` when the user answered it elsewhere,"
@@ -1869,9 +1941,6 @@ _TEXT = {
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
-    "agents-todo": lambda at, v: (
-        f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
-    ),
     # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
     "page-open-owes": lambda at, v: (
@@ -1924,12 +1993,13 @@ _TEXT = {
         " later"
     ),
     # A `leaf wait` (`session.Watch`, `session.read_watch_pass`): a server it brought
-    # back or could not, and why it ended.
+    # back or could not, and why it ended. A prompt hook that could not serve a
+    # session's page again says so too (`reconnect.serve_again`).
     "server-restarted": lambda at, v: (
         f"{v['page']}: server had died; restarted at {v['url']}"
     ),
     "revive-refused": lambda at, v: (
-        f"{v['page']}: server had died and did not start again: {v['error']}"
+        f"{v['page']}: server was down and did not start again: {v['error']}"
     ),
     "server-down": lambda at, v: (
         f"{v['page']}: server is not running; restart it with"
@@ -1957,6 +2027,9 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
+    # A command that acted as the main session on a thread a running fork or the line
+    # fork holds (`holding.authorize`), which goes through all the same.
+    "fork-holds-thread": lambda at, v: _fork_holds_thread(v["holder"], v["answers"]),
     # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
     # (`validation.admission.logged_id`), and `answer` the command that answers an
@@ -2040,7 +2113,7 @@ _TEXT = {
     ),
     "obligation-beside-widget": lambda at, v: (
         f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
-        " answer; drop --obligation, which would keep the message on their On me list"
+        " answer; drop --obligation, which would keep the message on their On Me list"
         " after they answer it, and ask anything the widget doesn't answer in a message"
         " of its own"
     ),

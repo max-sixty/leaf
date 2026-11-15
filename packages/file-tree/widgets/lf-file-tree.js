@@ -5,7 +5,8 @@
  *
  * One upstream model survives updates and departures. Identical paths leave the
  * model untouched; changed paths retain surviving focus, selection, active search, and the
- * folders the reader expanded, including expanded descendants of a closed folder.
+ * folders the reader closed, including closed folders inside another closed one; every
+ * other folder, a new one included, opens.
  * Search clears on blur or activation. Enter in search chooses a row; Enter on
  * that row opens its file through Leaf's ordinary datum route.
  * Trees draws into the widget's one declared shadow stage, sharing it with Leaf's
@@ -36,6 +37,27 @@ import {
 
 let library;
 const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
+
+// Every folder the paths stand in, in Trees' canonical form, ending in a slash.
+/** @param {string[]} paths */
+const folders = (paths) => {
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (const path of paths) {
+    const parts = path.split("/");
+    for (let depth = 1; depth < parts.length; depth++)
+      found.add(`${parts.slice(0, depth).join("/")}/`);
+  }
+  return [...found];
+};
+/** @param {import("@pierre/trees").FileTree} tree @param {string} path
+ * @returns {import("@pierre/trees").FileTreeDirectoryHandle | null} */
+const directory = (tree, path) => {
+  const item = tree.getItem(path);
+  return item?.isDirectory()
+    ? /** @type {import("@pierre/trees").FileTreeDirectoryHandle} */ (item)
+    : null;
+};
 
 class FileTreeWidget extends LeafElement {
   // The file list, set by whoever hosts the widget: Leaf from the bound source or
@@ -89,8 +111,6 @@ class FileTreeWidget extends LeafElement {
     /** @type {(() => void) | null} */
     let stopModel = null;
     let generation = 0;
-    /** @type {Set<string>} */
-    const expanded = new Set();
     const paintEmpty = () => {
       const noMatches = files.length > 0 && tree?.getVisibleCount() === 0;
       this.#empty = noMatches
@@ -101,13 +121,9 @@ class FileTreeWidget extends LeafElement {
       keeps(empty, "hidden", files.length > 0 && !noMatches ? "" : null);
       render(this.#empty, empty, this.renderOptions);
     };
-    const rememberExpansion = () => {
-      if (!tree) return;
-      for (const row of tree.getVisibleRows(0, tree.getVisibleCount() - 1)) {
-        if (row.kind !== "directory") continue;
-        if (row.isExpanded) expanded.add(row.path);
-        else expanded.delete(row.path);
-      }
+    // A change to the model, such as a key that moves focus or a letter typed in search,
+    // reads no rows: what it costs doesn't grow with the tree.
+    const modelChanged = () => {
       paintEmpty();
       commandsChanged(this);
     };
@@ -126,7 +142,7 @@ class FileTreeWidget extends LeafElement {
       const search = root.querySelector("input");
       keeps(search, "aria-label", `Search ${label}`);
       keeps(search, "name", "files");
-      stopModel = tree.subscribe(rememberExpansion);
+      stopModel = tree.subscribe(modelChanged);
       mounted = true;
     };
     const focusedRow = () => {
@@ -220,7 +236,6 @@ class FileTreeWidget extends LeafElement {
         this.#shown = undefined;
         stopModel?.();
         stopModel = null;
-        rememberExpansion();
         tree?.unmount();
         mounted = false;
       };
@@ -250,11 +265,15 @@ class FileTreeWidget extends LeafElement {
         paths.length !== nextPaths.length ||
         paths.some((path, index) => path !== nextPaths[index])
       ) {
-        rememberExpansion();
-        tree.resetPaths(nextPaths, { initialExpandedPaths: [...expanded] });
+        // A new model opens every folder (`initialExpansion`), so the folders the
+        // reader closed are read from the old one and closed again.
+        const model = tree;
+        const closed = folders(paths).filter(
+          (folder) => !directory(model, folder)?.isExpanded(),
+        );
+        model.resetPaths(nextPaths);
         paths = nextPaths;
-        for (const path of expanded)
-          if (!tree.getItem(path)?.isDirectory()) expanded.delete(path);
+        for (const folder of closed) directory(model, folder)?.collapse();
       }
       tree.setGitStatus(
         files.flatMap(({ path, status }) => (status ? [{ path, status }] : [])),

@@ -1,14 +1,9 @@
 """Registry composition and current declaration validation."""
 
 from leaf.data_contracts import declared_data_bindings, payload_error
-from leaf.registry.contract import (
-    gathering,
-    read_registry_declarations,
-    registry_error,
-)
-from leaf.registry.layer import merge_layer_declarations, stamp_composition
+from leaf.registry.contract import gathering, registry_error
+from leaf.registry.layer import merged_registry, stamp_composition
 from leaf.registry.validation import validate_registry
-from leaf.state import KERNEL_REGISTRY
 from leaf.structure import SourceDocument
 
 from .instances import fragment_errors
@@ -47,23 +42,9 @@ def _validate_example(tag: str, entry: dict, example: str, registry: dict, sourc
 
 
 def incoming_registry(packages: list) -> dict:
-    """The merged registry `page init` will vendor: the kernel registry's facts, then
-    each layer's declarations over them.
-
-    Packages are additive at the top level; merge_layer_declarations holds the grain.
-    """
-    merged = {}
-    merge_layer_declarations(merged, read_registry_declarations(KERNEL_REGISTRY))
-    paths = []
-    for package in packages:
-        path = package / "registry.json"
-        if not path.is_file():
-            continue
-        paths.append(path)
-        merge_layer_declarations(merged, read_registry_declarations(path))
-    if not paths:
-        raise registry_error("no-incoming-registry")
-    source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"
+    """The merged registry (`registry.layer.merged_registry`) `page init` will vendor,
+    validated, stamped, and with each catalog example validated over it."""
+    merged, source = merged_registry(packages)
     # Examples validate against the vocabulary as pages read it, stamped.
     stamped = stamp_composition(validate_registry(merged, source))
     return validate_registry_examples(stamped, source)

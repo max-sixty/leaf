@@ -6,7 +6,7 @@
 # Cold trials on ac65bf8e3 passed the delegation and unavailable-worker cases in
 # both arms (1/1 each). Reading the initial known-answer output caught a page edit
 # before the answer despite a passing grade; after clarifying the source and rubric,
-# the candidate answered first (1/1), while the base read page state first (0/1).
+# the head answered first (1/1), while the base read page state first (0/1).
 # `delegated-work-visible` was added on 2026-10-20 for the backlog item on keeping
 # delegated work visible (issue #4018). On e5113c687's instructions it passed 3/3
 # on Claude Code and 2/2 on Codex, each run leaving a progress reply and then

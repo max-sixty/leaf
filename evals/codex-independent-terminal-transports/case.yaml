@@ -1,7 +1,7 @@
 # Added during the concurrency survey: the separate App Server recipe must let
 # two terminal tasks coexist without manually assigning fixed ports.
 # On 2026-10-02, the fixed-port baseline passed 0/1 and the private-socket
-# candidate passed 1/1; this is one measured contrast, not an error-rate estimate.
+# head passed 1/1; this is one measured contrast, not an error-rate estimate.
 description: codex-independent-terminal-transports
 metadata:
   purpose:

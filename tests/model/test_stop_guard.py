@@ -1325,29 +1325,48 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     leases_model.release_lease(lease)
 
 
-QUEUE_PAGE = PAGE.replace(
-    "</section>",
-    """<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>
-  <lf-board id="triage">
-    <lf-column id="queue" label="Queued">
-      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
-      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
-      <lf-card id="card-c"><strong>Retry budget</strong></lf-card>
-    </lf-column>
-    <lf-column id="keep" label="Kept"></lf-column>
-    <lf-column id="pass" label="Passed"></lf-column>
-  </lf-board>
-</lf-ask></section>""",
-)
-
-
-def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
-    """Completing a queue owes every moved card, not just the final one."""
+@pytest.mark.parametrize("where", ["page", "thread"])
+def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
+    page_dir, where
+):
+    """A move leaving cards queued keeps the obligation on the user, and completing the
+    queue owes every moved card, not just the final one."""
     declare_on_page(
         page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
-    (page_dir / "index.html").write_text(QUEUE_PAGE)
-    publish(page_dir)
+    board = (
+        '<lf-board id="triage">'
+        '<lf-column id="queue" label="Queued">'
+        '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
+        '<lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>'
+        '<lf-card id="card-c"><strong>Retry budget</strong></lf-card>'
+        "</lf-column>"
+        '<lf-column id="keep" label="Kept"></lf-column>'
+        '<lf-column id="pass" label="Passed"></lf-column>'
+        "</lf-board>"
+    )
+    if where == "page":
+        (page_dir / "index.html").write_text(
+            PAGE.replace(
+                "</section>",
+                '<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>'
+                f"{board}</lf-ask></section>",
+            )
+        )
+        publish(page_dir)
+    else:
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None and activated.revision == 1
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "revision": 1,
+                "text": "Sort these follow-ups.",
+                "markup": board,
+            },
+        )
 
     def sort(card, rank):
         return append_command(
@@ -1364,60 +1383,15 @@ def test_a_finished_queue_owes_every_card_the_user_moved(page_dir):
 
     sort("card-a", "i")
     sort("card-b", "r")
-    assert state_json(page_dir)["workflows"] == []
-
-    sort("card-c", "w")
-    owed_cards = sorted(item["coordinate"][1] for item in owed(state_json(page_dir)))
-    assert owed_cards == ["card-a", "card-b", "card-c"]
-
-
-def test_a_queue_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
-    """A move leaving cards queued keeps the thread's obligation on the user."""
-    declare_on_page(
-        page_dir, lambda registry: registry.update(queue_board_registry(registry))
-    )
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None and activated.revision == 1
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "revision": 1,
-            "text": "Sort these follow-ups.",
-            "markup": '<lf-board id="triage">'
-            '<lf-column id="queue" label="Queued">'
-            '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
-            '<lf-card id="card-b"><strong>Retry budget</strong></lf-card>'
-            "</lf-column>"
-            '<lf-column id="keep" label="Kept"></lf-column>'
-            '<lf-column id="pass" label="Passed"></lf-column>'
-            "</lf-board>",
-        },
-    )
-
-    def sort(card, rank):
-        return append_command(
-            page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "triage",
-                "action": "move",
-                "detail": {"unit": card, "value": "keep", "rank": rank},
-            },
-        )
-
-    sort("card-a", "i")
     sorting = state_json(page_dir)
     assert sorting["workflows"] == []
     assert [item["widget"] for item in obligations_on_user(sorting)] == ["triage"]
 
-    sort("card-b", "r")
+    sort("card-c", "w")
     finished = state_json(page_dir)
     assert obligations_on_user(finished) == []
     assert sorted(item["coordinate"][1] for item in owed(finished)) == [
         "card-a",
         "card-b",
+        "card-c",
     ]

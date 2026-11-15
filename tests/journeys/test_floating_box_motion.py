@@ -27,7 +27,7 @@ from hypothesis import HealthCheck, Phase, example, given, settings
 from hypothesis import strategies as st
 from render_harness import open_page, resized, scroll_settled, write
 
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -65,15 +65,8 @@ EDITS = st.one_of(
 def at_rest(page, composer):
     """Wait until what the last input set moving in the box has stopped."""
     rendered(page)
-    page.wait_for_function(
-        """({box, ring}) => [box, ring].every(selector => {
-          const node = document.querySelector(selector);
-          return !node || !(node.closest('.lf-box-ground') ?? node)
-            .getAnimations({subtree: true})
-            .some(motion => Number.isFinite(motion.effect?.getComputedTiming().endTime));
-        })""",
-        arg=COMPOSERS[composer],
-    )
+    box, ring = COMPOSERS[composer]["box"], COMPOSERS[composer]["ring"]
+    wait_for_probe(page, "restingIn", box, ring.removesuffix(" > .lf-box-ring"))
 
 
 def open_composer(page, composer):
@@ -178,46 +171,43 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
     )
     def moves_one_way(composer, gap, draft, edits, quick):
         page = open_page(browser, url, init_script=MOTION_FRAMES)
-        try:
-            page.emulate_media(reduced_motion="no-preference")
-            resized(page, 1440, 900)
-            field = open_composer(page, composer)
-            if draft:
-                write(field, draft)
-            at_rest(page, composer)
-            stand_foot(page, composer, gap)
-            field.focus()
-            page.evaluate("parts => lfMotionFrames.begin(parts)", COMPOSERS[composer])
-            page.wait_for_function("() => lfMotionFrames.count() >= 2")
-            marks = []
-            for edit in edits:
-                for press in [edit[0]] * (edit[1] if edit[0] == "Backspace" else 1):
-                    marks.append(page.evaluate("() => lfMotionFrames.inputs()"))
-                    if press == "type":
-                        page.keyboard.type(" " + edit[1])
-                    elif press == "paste":
-                        page.keyboard.insert_text("\n".join([edit[1]] * edit[2]))
-                    else:
-                        page.keyboard.press(press)
-                    # Quick, the next key lands once this one's rendering is done,
-                    # while the motion it set going runs.
-                    if quick:
-                        rendered(page)
-                    else:
-                        at_rest(page, composer)
-            at_rest(page, composer)
-            # A few frames at rest, where a part still moving vibrates.
-            page.wait_for_function(
-                "count => lfMotionFrames.count() >= count",
-                arg=page.evaluate("() => lfMotionFrames.count()") + 5,
-            )
-            frames = page.evaluate("() => lfMotionFrames.end()")
-            assert sum("outline top" in frame["parts"] for frame in frames) > 3, (
-                "no frame read the box"
-            )
-            found = jerks(frames, marks)
-            assert not found, "\n".join(found[:8])
-        finally:
-            page.close()
+        page.emulate_media(reduced_motion="no-preference")
+        resized(page, 1440, 900)
+        field = open_composer(page, composer)
+        if draft:
+            write(field, draft)
+        at_rest(page, composer)
+        stand_foot(page, composer, gap)
+        field.focus()
+        page.evaluate("parts => lfMotionFrames.begin(parts)", COMPOSERS[composer])
+        page.wait_for_function("() => lfMotionFrames.count() >= 2")
+        marks = []
+        for edit in edits:
+            for press in [edit[0]] * (edit[1] if edit[0] == "Backspace" else 1):
+                marks.append(page.evaluate("() => lfMotionFrames.inputs()"))
+                if press == "type":
+                    page.keyboard.type(" " + edit[1])
+                elif press == "paste":
+                    page.keyboard.insert_text("\n".join([edit[1]] * edit[2]))
+                else:
+                    page.keyboard.press(press)
+                # Quick, the next key lands once this one's rendering is done,
+                # while the motion it set going runs.
+                if quick:
+                    rendered(page)
+                else:
+                    at_rest(page, composer)
+        at_rest(page, composer)
+        # A few frames at rest, where a part still moving vibrates.
+        page.wait_for_function(
+            "count => lfMotionFrames.count() >= count",
+            arg=page.evaluate("() => lfMotionFrames.count()") + 5,
+        )
+        frames = page.evaluate("() => lfMotionFrames.end()")
+        assert sum("outline top" in frame["parts"] for frame in frames) > 3, (
+            "no frame read the box"
+        )
+        found = jerks(frames, marks)
+        assert not found, "\n".join(found[:8])
 
     moves_one_way()

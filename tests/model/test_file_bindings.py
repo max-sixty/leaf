@@ -1,8 +1,6 @@
 """Explicit local-file grants, lossless saves, and the authenticated HTTP door."""
 
-import hashlib
 import json
-import os
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
@@ -27,8 +25,8 @@ from leaf.file_bindings import (
     read_file,
     save_file,
 )
+from leaf.locations import PATH_LOCKS, path_lock_key
 from leaf.served_state.reading import page_reading
-from leaf.state import state_home
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -197,8 +195,7 @@ def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
     read_file_result = read_file(pages[0], "notes")
     assert read_file_result is not None
     revision = read_file_result["revision"]
-    key = hashlib.sha256(os.fsencode(target)).hexdigest()
-    waiting = lock_contention(monkeypatch, state_home() / "files" / f"{key}.lock")
+    waiting = lock_contention(monkeypatch, PATH_LOCKS / f"{path_lock_key(target)}.lock")
     replacing = Event()
     replace = file_bindings.replace_bytes
 

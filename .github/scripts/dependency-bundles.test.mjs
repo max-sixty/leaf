@@ -73,18 +73,11 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     rmSync(path);
     writeFileSync(theme, "new theme");
     writeFileSync("browser/vendor/chunk.js", "chunk");
-    // The kernel compiles from the bundles, so a bump rebuilds it too.
-    mkdirSync("dist/kernel/runtime", { recursive: true });
-    writeFileSync("dist/kernel/kernel.json", "{}");
-    writeFileSync("dist/kernel/runtime/bundle-state.js", "state");
     assert.deepEqual(capture().files, [
       { path: theme, content: "new theme" },
       { path, content: null },
       { path: "browser/vendor/chunk.js", content: "chunk" },
-      { path: "dist/kernel/kernel.json", content: "{}" },
-      { path: "dist/kernel/runtime/bundle-state.js", content: "state" },
     ]);
-    rmSync("dist/kernel", { recursive: true });
     symlinkSync("missing.js", path);
     assert.throws(capture, /not a regular file/);
     rmSync(path);

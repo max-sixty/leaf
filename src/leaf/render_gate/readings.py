@@ -16,11 +16,10 @@ from leaf.findings import Finding, element_at
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
-    generated_children,
+    logged_words,
     page_reading,
     retirement_holders,
     retirement_outcomes,
-    rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.render_checks import (
@@ -144,12 +143,7 @@ class _SchemeContext:
 def _projected_verbatim(document, registry, projection, authored_ids, source):
     """Read preserving owners after applying exactly the projection's text changes."""
     return page_passages(
-        document,
-        registry,
-        decided=retirement_outcomes(projection.actions),
-        rewrites=rewritten_bodies(projection.actions),
-        additions=generated_children(projection.desired, authored_ids),
-        source=source,
+        document, registry, **logged_words(projection, authored_ids), source=source
     ).verbatim
 
 
@@ -272,6 +266,10 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += map(Finding.read, retired)
     found += context.unsettled
     if context.light:
+        found += (
+            Finding.read(block, severity="advice")
+            for block in evaluate_probe(page, "uncolouredCode")
+        )
         found += _unreduced_motion(page)
     return found
 
@@ -406,14 +404,21 @@ def settle_at(page, width: int, height: int) -> None:
     360px, and rust-sort over 1000px down at 680px, with their sticky header over the
     words beneath it. So once the resize has settled the page jumps back to its top,
     without the smooth scrolling a page can ask for, which would still be on its way
-    when the reading is taken."""
+    when the reading is taken.
+
+    The motion the resize started is finished first (`finishMoving`, runtime.js), so
+    the reading is the page it ends on."""
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.
     rendered(page)
-    if page.evaluate(
-        "() => { const down = scrollY;"
-        " scrollTo({ top: 0, left: 0, behavior: 'instant' }); return down; }"
+    finished = evaluate_probe(page, "finishMoving")
+    if (
+        page.evaluate(
+            "() => { const down = scrollY;"
+            " scrollTo({ top: 0, left: 0, behavior: 'instant' }); return down; }"
+        )
+        or finished
     ):
         rendered(page)
 
@@ -539,17 +544,21 @@ def swept_faults(samples) -> list[Finding]:
 # the author's call, so none of it refuses a version.
 
 
-def squeezed_table_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped.
+def squeezed_advice(readings) -> list[Finding]:
+    """Advice naming each table that scrolls sideways with a cell wrapped, and each code
+    block that scrolls its lines in too little width to read them.
 
     The sweep is the reading's only home, and it takes in the fixed viewports' widths.
-    Advice rather than a failure because the table still scrolls and every word in it
-    stays in reach: what costs the reader is prose wrapped a word a line beside a
-    scroller, and the remedy (a column fewer, shorter words, an identifier in `<code>`)
-    is a choice of composition only the author can make. Its words say what the reader
-    keeps and what hiding a column at the narrow width would take: authors told only
-    the remedies chased the advice for up to eight render checks, hiding columns at
-    phone widths, which a phone reader then missed."""
+    Advice rather than a failure because the box still scrolls and every word in it
+    stays in reach. For a table, what costs the reader is prose wrapped a word a line
+    beside a scroller, and the remedy (a column fewer, shorter words, an identifier in
+    `<code>`) is a choice of composition only the author can make. Its words say what
+    the reader keeps and what hiding a column at the narrow width would take: authors
+    told only the remedies chased the advice for up to eight render checks, hiding
+    columns at phone widths, which a phone reader then missed. For a code block, the
+    cost is a line read a few letters at a time, and the remedy (a width for the block
+    or its holder, or for a block in a table cell, inline code or a place outside the
+    table) is the author's choice."""
     return _swept(
         readings,
         lambda reading: {
@@ -599,6 +608,19 @@ def shrunk_label_advice(readings) -> list[Finding]:
 # sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
 # slowing plain page check or message admission. It promises only this observation.
 PASSIVE_OBSERVATION_MS = 3000
+
+
+def drawn_height_advice(page, viewport: str) -> list[Finding]:
+    """Each drawing whose height differs from the box it showed before drawing
+    (`drawnHeights`), as advice read at one viewport, the user's window
+    (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
+    is, has another height at another width, and the one `data-height` that holds it
+    still holds it at one width, so a reading at a second viewport would advise a
+    second height for the same element. The height is scheme-blind."""
+    return [
+        Finding.read(height, severity="advice").but(viewports=(viewport,))
+        for height in evaluate_probe(page, "drawnHeights")
+    ]
 
 
 def passive_layout_shift_advice(page) -> list[Finding]:

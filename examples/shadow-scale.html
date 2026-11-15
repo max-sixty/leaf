@@ -689,7 +689,7 @@
             const layers = s[this.#level];
             this.#layer = Math.min(this.#layer, layers.length - 1);
             keepsText(this.#parts.count, `${layers.length} of ${MAX_LAYERS}`);
-            this.#parts.add.disabled = layers.length >= MAX_LAYERS;
+            this.#parts.add.toggleAttribute("disabled", layers.length >= MAX_LAYERS);
 
             const list = this.#parts.layers;
             while (list.children.length > layers.length) list.lastChild.remove();

@@ -211,24 +211,14 @@ class _OwnedWords:
 
     def __init__(self, owner: tuple[str, str | None, int]):
         self.owner = owner
-        self.chars = []  # appended to, since `str +=` on an attribute copies it whole
-        self.block = None
-        self.space = False
+        self.runs = []  # appended to, since `str +=` on an attribute copies it whole
         self.boundaries = 0
         self.parts = []
 
-    def write(self, data: str, block: int) -> None:
-        if self.chars and block != self.block:
-            self.space = True
-        self.block = block
-        for ch in data:
-            if ch in COLLAPSE_CHARS:
-                self.space = bool(self.chars)
-                continue
-            if self.space:
-                self.chars.append(" ")
-                self.space = False
-            self.chars.append(ch)
+    def write(self, run: str) -> None:
+        """Words as the page's reading wrote them (`_PassageParser._write`), each space
+        where that reading put one, so the two read every gap alike."""
+        self.runs.append(run)
 
     def boundary(self, tag: str, element_id: str | None) -> None:
         self.flush()
@@ -245,19 +235,26 @@ class _OwnedWords:
         self.boundaries += 1
 
     def flush(self) -> None:
-        if words := "".join(self.chars).strip(" "):
+        if words := "".join(self.runs).strip(" "):
             self.parts.append({"text": words})
-        self.chars = []
-        self.block = None
-        self.space = False
+        self.runs = []
 
     def reading(self) -> list:
         self.flush()
         return self.parts
 
 
-# The tags whose text is one block: one space goes between two runs of text in
-# different blocks and none between runs that share one.
+# The elements a line of words runs through (`$passages.phrasing`), as the runtime's
+# `enter` reads it. Every other element, a text block among them, and a widget unless
+# it is declared `x-inline`, reads its words apart from those around it: one space goes
+# between two runs of words read in different elements. Between two runs read in one
+# goes an edge (`edges`), a place a word may end, since only the page's CSS says whether
+# `<strong>Status</strong><span>Ready</span>` shows one word or two.
+JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"])
+# The tags whose words are prose: inside one, an edge between two runs of words shows as
+# nothing, as `set<em>up</em>` reads "setup"; outside any, where two elements meet it
+# shows as a space, as a chip beside its title does (`_write`, the runtime's
+# `shownApart`). A quote of either spelling resolves the same.
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
@@ -301,7 +298,13 @@ class _PassageParser:
         # attribute copies the whole string and makes a large page's reading quadratic.
         self.chars = []
         self.owner = []  # per character: the tuple of enclosing ids
+        self.spans = {}  # id → [first, end): the characters it holds
         self.fences = set()  # indices a quote may not span
+        self.edges = (
+            set()
+        )  # indices where one run of words meets the next with no space
+        self.soft = set()  # indices of the spaces an edge shows as (`_write`)
+        self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
         # id → the ids enclosing it, outermost first, itself last. Structure, not
@@ -316,38 +319,69 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "key", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
+        self._break = False  # whether that separator ends a block
+        self._holder = None  # the key of the node holding the last text written
 
     def _fresh(self) -> int:
         self._uid += 1
         return self._uid
 
-    def _write(self, data: str, block: int, ids: tuple) -> None:
-        """Text into the collapsed run, one space per whitespace run and none leading."""
+    def _write(
+        self,
+        data: str,
+        block: int,
+        ids: tuple,
+        holder: int | None = None,
+        prose: bool = False,
+    ) -> None:
+        """Text into the collapsed run, one space per whitespace run and none leading,
+        and an edge where it runs on from the last text in its block with none. The edge
+        shows as a space, a soft one, where `holder`, the key of the element or said
+        value's span holding the text, is not the one that held the last text and neither
+        stands in prose (a text block): the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
+        edge = bool(self.chars) and block == self._block
+        first = True
         if self.chars and block != self._block:
-            self._space = True
+            self._space = self._break = True
         self._block = block
+        start = len(self.chars)
         for ch in data:
             if ch in COLLAPSE_CHARS:
                 self._space = bool(self.chars)
                 continue
             if self._space:
+                if self._break:
+                    self.breaks.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)
-                self._space = False
+                self._space = self._break = False
+            elif edge and not prose and holder is not None and holder != self._holder:
+                self.soft.add(len(self.chars))
+                self.chars.append(" ")
+                self.owner.append(ids)
+            elif edge:
+                self.edges.add(len(self.chars))
+            if first:
+                self._holder = holder
+                first = False
+            edge = False
             self.chars.append(ch)
             self.owner.append(ids)
-        for frame in reversed(self.stack):
-            if frame["verbatim"]:
-                self.verbatim[frame["verbatim"]].write(data, block)
-                break
-            if frame["upgrade"]:
-                break
+        if (end := len(self.chars)) > start:
+            for wid in ids:
+                self.spans.setdefault(wid, [start, end])[1] = end
+            for frame in reversed(self.stack):
+                if frame["verbatim"]:
+                    self.verbatim[frame["verbatim"]].write("".join(self.chars[start:]))
+                    break
+                if frame["upgrade"]:
+                    break
 
     def _fence(self) -> None:
         """Words may stand here that this reading knows nothing about. Recorded as a
@@ -356,12 +390,10 @@ class _PassageParser:
         self.fences.add(len(self.chars))
 
     def _said(self, frame: dict, values: list) -> None:
-        # renderSaid puts each value in its own <span>, so each is its own block wherever
-        # the widget sits outside a text block — the same rule, applied to the span.
+        # renderSaid puts each value in a <span> of its own, among its element's words,
+        # so each holds its text under a key of its own.
         for value in values:
-            self._write(
-                value, frame["tb"] if frame["tb"] else self._fresh(), frame["ids"]
-            )
+            self._write(value, frame["block"], frame["ids"], self._fresh(), frame["tb"])
 
     def _close(self, frame: dict) -> None:
         """Everything an element's end does, whether it was written or inferred — an
@@ -410,13 +442,8 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        # The innermost open text block, if any: the runtime's `closest(TEXT_BLOCK)`.
-        tb = (
-            self._fresh()
-            if tag in TEXT_BLOCK_TAGS
-            else (parent["tb"] if parent else None)
-        )
-        block = tb if tb else self._fresh()
+        joins = tag in JOINS_WORDS_TAGS or bool(entry.get("x-inline"))
+        block = parent["block"] if parent and joins else self._fresh()
         if entry.get("x-upgrade"):
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
@@ -493,6 +520,10 @@ class _PassageParser:
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
         frame = {
             "tag": tag,
+            # The element's identity for this whole reading, which `_write` compares
+            # long after the element closed: a parser frame dies with its element,
+            # and Python reuses a dead object's `id()`.
+            "key": self._fresh(),
             "id": attrs_d.get("id"),
             "added": "data-lf-added" in attrs_d,
             "ids": ids,
@@ -506,10 +537,14 @@ class _PassageParser:
             "upgrade": bool(entry.get("x-upgrade")),
             "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
-            "tb": tb,
-            # …and where there is none, the element is its own text node's parent, which
-            # is what the runtime falls back to. Fresh per element, so `a<em>b</em>c`
-            # under a <div> reads as three blocks and under a <p> as one.
+            # Whether its words are prose: it or an element around it is a text block.
+            "tb": tag in TEXT_BLOCK_TAGS or bool(parent and parent["tb"]),
+            # The element its words are read in, as the runtime's walk carries it
+            # (`enter`, `words`): fresh for every element whose words stand apart, a
+            # text block among them, its parent's for one that joins them
+            # (`JOINS_WORDS_TAGS`), so `a<em>b</em>c` reads as one run under a <div> as
+            # under a <p>, `<div>a</div><div>b</div>` as two, and a <button>'s label
+            # apart from the words beside it.
             "block": block,
             "tail": [],
         }
@@ -539,7 +574,9 @@ class _PassageParser:
                 feed_markdown(self, their_text)
                 frame["skip"] = True
             else:
-                self._write(their_text, frame["block"], frame["ids"])
+                self._write(
+                    their_text, frame["block"], frame["ids"], frame["key"], frame["tb"]
+                )
 
     def handle_data(self, data):
         frame = self.stack[-1] if self.stack else None
@@ -549,7 +586,7 @@ class _PassageParser:
             data, self.registry.get(frame["tag"], {}), added=frame["added"]
         )
         if not frame["skip"]:
-            self._write(data, frame["block"], frame["ids"])
+            self._write(data, frame["block"], frame["ids"], frame["key"], frame["tb"])
 
     def handle_endtag(self, tag):
         # Every caller walks a parsed tree or replays a declared child, so ends arrive
@@ -569,6 +606,17 @@ class Passages(NamedTuple):
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
+    breaks: set  # indices of the spaces that end one block's words and start the next's
+    # Indices where one run of words meets the next with no space between: where two
+    # inline elements meet, a place a word may end (`anchor_capture.occurrences`).
+    edges: frozenset
+    # Indices of the spaces such a meeting shows as, outside prose (`_write`), which a
+    # quote reads as the edge they stand for.
+    soft: frozenset
+    # id → the half-open range of characters inside it, for each id with text in it.
+    # An element is contiguous in document order, so its characters are too, which
+    # is what lets a search be scoped by slicing.
+    spans: dict
 
 
 def _walk(parser: "_PassageParser", node) -> None:
@@ -615,15 +663,11 @@ def page_passages(
         parser.gone,
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
+        parser.breaks,
+        frozenset(parser.edges),
+        frozenset(parser.soft),
+        {wid: (lo, hi) for wid, (lo, hi) in parser.spans.items()},
     )
-
-
-def section_span(owner: list, section: str):
-    """The half-open range of characters inside `section`, or None when the version has
-    no such element with text in it. An element is contiguous in document order, so its
-    characters are too — which is what lets a search be scoped by slicing."""
-    inside = [i for i, ids in enumerate(owner) if section in ids]
-    return (inside[0], inside[-1] + 1) if inside else None
 
 
 class Spoken(NamedTuple):
@@ -642,15 +686,10 @@ EMPTY = Spoken("", ())
 def _spoken(p: Passages) -> dict:
     """id → Spoken, for every element the reading `p` carries: the passage reading
     sliced by id rather than a second walk (see `SourceReading.spoken`)."""
-    first, last = {}, {}
-    for i, ids in enumerate(p.owner):
-        for wid in ids:
-            first.setdefault(wid, i)
-            last[wid] = i
     # Stripped: the separator `_write` puts between blocks lands inside whichever
     # element the next block opens, so a slice can start or end on one. It marks a
     # boundary rather than saying anything.
-    said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
+    said = {wid: p.text[lo:hi].strip() for wid, (lo, hi) in p.spans.items()}
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
@@ -723,8 +762,8 @@ class SourceReading:
         to mean the same text a user could have selected, or the question is about
         something else.
 
-        `section_span` answers this for one id by scanning the page; every id at
-        once is that same scan, done once.
+        Each id's words are its `Passages.spans` slice of the text, the range a
+        quote scoped to that id searches.
 
         The two halves come from different readings because they are different
         facts, and taking both off the character scan cost the second one. Words

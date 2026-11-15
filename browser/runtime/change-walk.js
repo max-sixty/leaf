@@ -1,48 +1,64 @@
 // @ts-check
 /* The change walk: `h` and Shift+`h` step through the changes the version comparison
-   marks (version.js, `comparisonChanges`), each a run of changed blocks, in the page's
-   order, coming round at either end, while a Compare in Versions stands. A diff
-   reader's next and previous hunk, which is what the letter stands for.
+   marks (version.js, `comparisonChanges`), each a hunk of the block diff, in the page's
+   order, coming round at either end, while a comparison stands (`v`, or a Compare in
+   Versions). A diff reader's next and previous hunk, which is what the letter stands
+   for.
 
    A step starts from the user's place by the rule every page walk shares
-   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the block the change
-   starts with, brought into view where it is not, with the walk's position said as
-   every walk says it (walk-position.js). A current location anywhere in a change is
-   at that change, so the next step goes on to the following one; from any other
-   origin a step compares only where each change starts, as an editor's next-hunk key
-   does. The change's margin entry opens what its blocks said before (version.js,
-   `toggleInlineComparison`).
+   (current-target.js, `walkOrigin` and `stepFrom`), and lands on the change: on the
+   block it starts with, or, where it only took blocks out, on its gap's stand-in
+   (margin-bars.js, `removalProxy`), which rings the gap, since the block beside the gap
+   didn't change. It brings the change into view where it is not, and says the walk's
+   position as every walk says it (walk-position.js), a listener hearing after it what
+   the version was saved after (change-provenance.js). A current location anywhere in a
+   change's blocks, or on its gap's stand-in, is on that change, so the next step goes
+   on to the following one, even from one of two gaps beside one block to the other;
+   from any other origin a step compares only where each change stands, as an editor's
+   next-hunk key does. The change's margin entry, and a gap's stand-in, open what it
+   replaced over it (version.js, `toggleChangeCard`).
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
-   them: a comparison ends with its Compare in Versions. The user decided
+   them: a comparison ends with `v` or its Compare in Versions. The user decided
    on 31 October against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
-   row reach it with a tap. */
-import { comparisonBase, comparisonChanges } from "./version.js";
-import { effect, untracked } from "/runtime/framework.js";
+   row reach it with a tap.
+
+   With no comparison standing, or one that marks nothing, a press says "No changes
+   marked" in the panel (notifications.js, `notice`), as every page walk with nothing to
+   step through says so (keyboard/AGENTS.md, "Page grammar"), so the key is live on
+   every page. While a comparison `v` started is still loading, its marks aren't known
+   yet, so the key isn't taken rather than saying none are marked. */
+import { comparisonBase, comparisonChanges, selectedBase } from "./version.js";
+import { versionProvenance } from "./change-provenance.js";
+import { wordsText } from "./voice.js";
+import { removalProxy } from "./margin-bars.js";
 import { pageCommand } from "./keyboard/register.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { cycledRow } from "./keyboard/bindings.js";
 import { currentLocationOrigin, stepFrom, walkOrigin } from "./current-target.js";
 import { focusDestination } from "./focus.js";
 import { alreadyShown, scrollIntoView } from "./landing-scroll.js";
 import { scrollBehavior } from "./motion.js";
 import { renderedUnder } from "./shadow-tree.js";
-import { announce } from "./notifications.js";
-import { repaint } from "./repaint.js";
+import { announce, notice } from "./notifications.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 /** @typedef {import("./version.js").Change} Change */
-// Where a change starts, which is where a step lands.
-const start = (/** @type {Change} */ change) => change[0];
+// Where a change stands in the page's order.
+const start = (/** @type {Change} */ change) => change.at;
+// Where a step puts the user: the change's first block, or its gap's stand-in.
+/** @param {Change} change */
+const landing = (change) => change.blocks[0] ?? removalProxy(change) ?? change.at;
 
-// The change the user's current location is in, if any.
+// The change the user's current location is on, if any.
 /** @param {readonly Change[]} list */
 const currentChange = (list, origin = currentLocationOrigin()) =>
   origin?.kind === "current-location"
     ? (list.find((change) =>
-        change.some((block) => renderedUnder(origin.node, block)),
+        change.blocks.length
+          ? change.blocks.some((block) => renderedUnder(origin.node, block))
+          : origin.node === removalProxy(change),
       ) ?? null)
     : null;
 
@@ -50,7 +66,7 @@ const position = () => {
   const list = comparisonChanges();
   const base = comparisonBase();
   return listWalkPosition(list, currentChange(list), {
-    identity: start,
+    identity: landing,
     qualifier: base ? `since ${base.name}` : "",
   });
 };
@@ -64,20 +80,21 @@ function step(dir) {
     ? cycledRow(list, current, dir)
     : stepFrom(list, origin, dir, start);
   if (!change) return;
-  const next = start(change);
-  if (!alreadyShown(next))
-    scrollIntoView(next, { behavior: scrollBehavior(), block: "start" });
-  focusDestination(next, "move");
+  // A gap's stand-in brings the gap into view as it takes focus (margin-bars.js).
+  if (change.blocks.length && !alreadyShown(change.at, { block: "start" }))
+    scrollIntoView(change.at, { behavior: scrollBehavior(), block: "start" });
+  focusDestination(landing(change), "move");
   const said = beginWalk("change", "Change", position);
-  if (said) announce(said);
+  // A listener hears what the version was saved after, as the ⇄ entry's label says it
+  // under what the change did (change-provenance.js).
+  const savedAfter = (versionProvenance()?.lines ?? []).map(wordsText).join(" ");
+  if (said) announce(savedAfter ? `${said}. ${savedAfter}` : said);
 }
 
 export function createChangeWalk() {
-  const offered = () => comparisonChanges().length > 0;
-  let wasOffered = false;
-  let watching = null;
   pageCommand({
     id: "change.walk",
+    ready: () => selectedBase() === comparisonBase(),
     touch: false,
     keys: ["h", "Shift+h"],
     routes: [
@@ -85,23 +102,11 @@ export function createChangeWalk() {
       { id: "change.previous", binding: "Shift+h", title: "Previous change" },
     ],
     title: "changes",
-    when: offered,
     repeat: true,
     travels: true,
-    runKey: (binding) => step(binding === "h" ? 1 : -1),
+    runKey: (binding) =>
+      comparisonChanges().length
+        ? step(binding === "h" ? 1 : -1)
+        : notice("No changes marked"),
   });
-  // The row stands while a comparison marks anything, so the surfaces reading the keys
-  // are repainted where the marks come or go.
-  return {
-    mount() {
-      watching ??= effect(() => {
-        if (offered() === wasOffered) return;
-        wasOffered = offered();
-        untracked(() => {
-          paintKeys();
-          repaint();
-        });
-      });
-    },
-  };
 }

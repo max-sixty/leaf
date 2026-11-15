@@ -1,7 +1,7 @@
 # Issue #1455: a partial `parts` list made adjacent diagram boxes respond differently
 # to Comment. This case checks the author's choice at page creation.
 # The 2026-10-07 Claude Code comparison kept all five parts on both arms;
-# accessible metadata was absent on HEAD and meaningful on the candidate.
+# accessible metadata was absent on the base and meaningful on the head.
 # Guidance survey #18 now checks that the renderer owns the node inventory rather
 # than making the author duplicate it in a synchronized roster.
 description: diagram-parts-complete

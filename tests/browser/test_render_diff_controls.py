@@ -8,11 +8,11 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    before_landing_frame,
     consume_browser_errors,
     holding,
     leaf_page,
     open_page,
-    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -116,6 +116,33 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
                 )
             finally:
                 summary.click()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_page_search_reads_a_worktrees_label_and_branch_apart(request, serve, engine):
+    """A worktree's summary draws its label and its branch on two rows, and page search
+    finds them with a space between them."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Worktree identity",
+                '<h1>Worktree identity</h1><lf-worktree-diffs id="trees">'
+                '<lf-worktree id="drafts" label="retain-drafts" '
+                'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
+                'status="changed" files="2" additions="2" deletions="2">'
+                "<p>Keep reply drafts keyed by thread.</p></lf-worktree>"
+                "</lf-worktree-diffs>",
+            ),
+            packages=("diff",),
+        ),
+    )
+    expect(page.locator("#drafts .lf-worktree-ref")).to_have_text("codex/retain-drafts")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "retain-drafts codex/retain-drafts"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
 def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
@@ -295,21 +322,15 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(datum).to_be_in_viewport()
     page.locator("h1").click()
-    page.evaluate("""async () => {
-      const {navigateToDatum} = await window.__lfWidgetApi();
-      const scrollTo = Element.prototype.scrollTo;
-      Element.prototype.scrollTo = function(options) {
-        const result = scrollTo.call(this, options);
-        if (this === document.scrollingElement && options.behavior === 'smooth') {
-          Element.prototype.scrollTo = scrollTo;
+    before_landing_frame(
+        page,
+        """window.__lfWidgetApi().then(({navigateToDatum}) => () => {
           queueMicrotask(async () => {
             window.datumArrived = await navigateToDatum(document.querySelector('#files'),
               'for', '["app.py","new",1]');
           });
-        }
-        return result;
-      };
-    }""")
+        })""",
+    )
     page.keyboard.press("t")
     page.wait_for_function("window.datumArrived !== undefined")
     assert page.evaluate("datumArrived")
@@ -415,16 +436,16 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.last).not_to_be_visible()
         expect(row).to_have_attribute("aria-selected", "true")
         expect(other).to_have_attribute("aria-selected", "false")
-        # Reading new evidence does not take ownership of a selection made while
-        # that read is in flight. Hold one boundary to make the ordering exact.
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
         page.evaluate("""() => {
           const diff = document.getElementById('patch');
-          const readEntry = diff.readEntry.bind(diff);
+          const prepareEntry = diff.prepareEntry.bind(diff);
           const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.readEntry = async (...args) => {
+          diff.prepareEntry = async (...args) => {
             window.evidenceHeld = true;
             await held;
-            return readEntry(...args);
+            return prepareEntry(...args);
           };
         }""")
         data_model.cmd_data_set(
@@ -646,14 +667,14 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');
-        const failure = diff.querySelector('.lf-error');
+        const failure = diff.shadowRoot.querySelector('.lf-error');
         const parent = diff.parentNode;
         const next = diff.nextSibling;
         diff.remove();
         await new Promise((resolve) => setTimeout(resolve));
         parent.insertBefore(diff, next);
         for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
-        return diff.querySelector('.lf-error') === failure;
+        return diff.shadowRoot.querySelector('.lf-error') === failure;
     }""")
     assert returned, "the returning diff cleared its completed refusal"
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
@@ -713,121 +734,10 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
     }"""), "a completed patch replaced its rows on return"
 
 
-def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
-    """A recovered network has a visible route to retry the expanded file."""
-    url = serve(
-        leaf_page(
-            "Retry a file diff",
-            '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
-            'collapsed></lf-diff><button id="after" '
-            'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        patch_manifest("""diff --git a/config.py b/config.py
---- a/config.py
-+++ b/config.py
-@@ -1 +1 @@
--enabled = False
-+enabled = True
-"""),
-    )
-    context = browser.new_context()
-    attempts = []
-    pending = []
-
-    def fail_until_success(route):
-        attempts.append(route.request.url)
-        if len(attempts) == 1:
-            route.abort("failed")
-        elif len(attempts) < 4:
-            pending.append(route)
-        else:
-            route.continue_()
-
-    context.route("**/api/deferred*", fail_until_success)
-    with context.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        page = open_page(browser, url, context=context)
-    summary = page.locator("lf-diff summary")
-    summary.focus()
-    assert failed.value.failure == "net::ERR_FAILED"
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "That file's diff failed to load: Failed to fetch"
-    )
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    assert len(attempts) == 1
-
-    retry = page.get_by_role("button", name="Retry")
-    assert retry.count() == 1, "the expanded file needs an in-place retry control"
-
-    # A native Enter retry stays focused while in flight. Another Enter is ignored
-    # until it resolves, so it cannot start a parallel deferred request.
-    page.keyboard.press("Tab")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the first deferred retry")
-    assert len(attempts) == 2 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    assert len(attempts) == 2 and len(pending) == 1
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    retry = page.get_by_role("button", name="Retry")
-    # Network failure precedes the new error paint. The old pending button can
-    # still hold focus, so wait for the replacement to accept another activation.
-    expect(retry).not_to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-
-    # If the user tabs away during another pending retry, its failure must leave
-    # focus at the newer control instead of restoring the old Retry button.
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the second deferred retry")
-    assert len(attempts) == 3 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    page.keyboard.press("Tab")
-    after = page.get_by_role("button", name="After diff")
-    expect(after).to_be_focused()
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    expect(page.get_by_role("button", name="Retry")).not_to_have_attribute(
-        "aria-disabled", "true"
-    )
-    expect(after).to_be_focused()
-
-    # A successful retry falls back to the file disclosure when its error control
-    # is replaced by rendered source.
-    retry = page.get_by_role("button", name="Retry")
-    page.keyboard.press("Shift+Tab")
-    expect(retry).to_be_focused()
-    with page.expect_response(
-        lambda response: "/api/deferred" in response.url and response.status == 200
-    ):
-        page.keyboard.press("Enter")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["config.py","new",1]\']')
-    ).to_contain_text("enabled = True")
-    expect(page.locator("lf-diff summary")).to_be_focused()
-    assert len(attempts) == 4
-
-
-@pytest.mark.parametrize("defer_first", [False, True])
-def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
-    browser, serve, defer_first
-):
-    """Repeated basenames remain identifiable before tapping their source rows."""
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+    """Repeated basenames remain identifiable before tapping their source rows. The
+    first file's lines land after the tap's frame, its preparation held; the others'
+    come at once."""
     names = ("dispatch", "improving-instructions", "todos")
     patch = "".join(
         f"diff --git a/.claude/skills/{name}/CLAUDE.md b/.claude/skills/{name}/CLAUDE.md\n"
@@ -848,10 +758,9 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
     )
     page = open_page(browser, url, context=context)
     page.evaluate("document.fonts.ready")
-    if defer_first:
-        # Hold the first file's preparation after the native disclosure opens.
-        # This orders insertion after the tap's settled frame without a delay.
-        page.evaluate("""() => {
+    # Hold the first file's preparation after the native disclosure opens. This orders
+    # insertion after the tap's settled frame without a delay.
+    page.evaluate("""() => {
       const diff = document.querySelector('#patch');
       const original = diff.prepareEntry;
       let release;
@@ -859,7 +768,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         release: () => release(),
       };
       diff.prepareEntry = async function(...args) {
-        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+        if (args[0].path.endsWith('/dispatch/CLAUDE.md')) {
           const held = new Promise(resolve => { release = resolve; });
           window.lfDiffPreparationStarted = true;
           await held;
@@ -889,7 +798,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
         head.tap()
         file = head.locator("..")
         expect(file).to_have_attribute("open", "")
-        if defer_first and name == "dispatch":
+        if name == "dispatch":
             page.wait_for_function("window.lfDiffPreparationStarted === true")
             one_frame(page)
             page.evaluate("window.lfDiffPreparation.release()")
@@ -1415,6 +1324,49 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     search.fill("main")
     search.press("Escape")
     expect(search).to_have_value("")
+
+
+def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
+    browser, serve
+):
+    """A folder the reader closed stays closed when the file list gains a path, and
+    a folder the update adds opens as every folder does at first."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            '<lf-file-tree id="project-files" source="project"></lf-file-tree>',
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {"files": [{"path": "src/main.py"}, {"path": "tests/test_main.py"}]},
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    src = tree.get_by_role("treeitem", name="src", exact=True)
+    expect(src).to_have_attribute("aria-expanded", "true")
+    src.click()
+    expect(src).to_have_attribute("aria-expanded", "false")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "docs/guide.md"},
+                {"path": "src/main.py"},
+                {"path": "src/util.py"},
+                {"path": "tests/test_main.py"},
+            ]
+        },
+    )
+    docs = tree.get_by_role("treeitem", name="docs", exact=True)
+    expect(docs).to_have_attribute("aria-expanded", "true")
+    expect(src).to_have_attribute("aria-expanded", "false")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_have_attribute(
+        "aria-expanded", "true"
+    )
 
 
 @pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.

@@ -17,14 +17,18 @@
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
-// elsewhere, choosing another target, or an edit in another tab of the page that
-// reaches this one as storage news. A close watcher's close, such as Android's back
+// elsewhere, choosing another target, or an edit in another tab of the page. That edit
+// reaches this one as storage news, or, where this document reads the store before
+// that news is delivered, as its own reading of the store: words this document stored
+// that the store no longer holds when they leave the screen, under a key whose value
+// another document changed, are that edit's to have put away. A write arriving after
+// they left is later input, which redeems nothing. A close watcher's close, such as Android's back
 // gesture makes, puts words away only where the page's storage still holds them, as Leaf's
 // draft store does for kept words and for saved ones until the log accepts them: back may close an editor but
 // never throw its words away (keyboard/close-requests.js), whether a gesture or a
 // script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
-// a modifier, the caret keys, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
+// a modifier, the caret keys unless the field edits with one, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
 // with no such key or press are reported as a `words-left-screen` record through the
 // fixture's `__leafWatchFinding` binding, a browser problem which
@@ -110,6 +114,17 @@
   const MOVES =
     /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
   const editingKeys = new WeakSet();
+  // A key the field takes for an edit of its own, as Down leaving a fence, moves no one.
+  const commandKeys = new WeakSet();
+  listen(
+    window,
+    "lf-before-edit",
+    () => {
+      const press = window.lfInputWork.current()?.event;
+      if (press?.type === "keydown") commandKeys.add(press);
+    },
+    true,
+  );
   let key = null;
   listen(
     window,
@@ -194,8 +209,21 @@
       endHostEdit(field);
     }
     // leaf-text's native input precedes its host value update; its own input
-    // announces the updated host. Read that announcement before page handlers.
-    if (edit && (event.isTrusted || field.localName === "leaf-text")) {
+    // announces the updated host. Read that announcement before page handlers. Where
+    // the host announced an edit of its own first, as taking a selection away before a
+    // composition over it, the native input that follows reopens the edit.
+    if (
+      !edit &&
+      event.isTrusted &&
+      field.localName === "leaf-text" &&
+      holding.has(field)
+    )
+      edited.set(field, {
+        typedOrder: holding.get(field).typedOrder,
+        words: text(field),
+        ready: false,
+      });
+    else if (edit && (event.isTrusted || field.localName === "leaf-text")) {
       if (edit.key) editingKeys.add(edit.key);
       edit.words = text(field);
       edit.ready = field.localName !== "leaf-text" || !event.isTrusted;
@@ -213,15 +241,48 @@
   const painting = new Map();
   // Whether the page's storage still holds these words, bare or as a JSON string, as
   // Leaf's draft store keeps them.
+  const holds = (value, words) =>
+    value === words || Boolean(value?.includes(JSON.stringify(words)));
   const stored = (words) => {
-    const quoted = JSON.stringify(words);
     try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const value = localStorage.getItem(localStorage.key(i));
-        if (value === words || value?.includes(quoted)) return true;
-      }
+      for (let i = 0; i < localStorage.length; i++)
+        if (holds(localStorage.getItem(localStorage.key(i)), words)) return true;
     } catch {
       // An opaque origin, such as a data: URL, has no storage to keep words in.
+    }
+    return false;
+  };
+  // The value this document last wrote under each local storage key, null where it
+  // removed one. Only another document changes a key away from that value, so a store
+  // that now holds other words under a key whose last own write held these is another
+  // tab's edit having replaced them, whichever way this document came to read it.
+  const written = new Map();
+  let local = null;
+  try {
+    local = localStorage;
+  } catch {
+    // An opaque origin has no storage to keep words in.
+  }
+  if (local) {
+    const { setItem, removeItem, clear } = Storage.prototype;
+    Storage.prototype.setItem = function (key, value) {
+      setItem.call(this, key, value);
+      if (this === local) written.set(String(key), String(value));
+    };
+    Storage.prototype.removeItem = function (key) {
+      removeItem.call(this, key);
+      if (this === local) written.set(String(key), null);
+    };
+    Storage.prototype.clear = function () {
+      clear.call(this);
+      if (this === local) written.clear();
+    };
+  }
+  const replacedElsewhere = (words) => {
+    for (const [key, mine] of written) {
+      if (!holds(mine, words)) continue;
+      const now = local.getItem(key);
+      if (now !== mine && !holds(now, words)) return true;
     }
     return false;
   };
@@ -240,7 +301,9 @@
     // moves no one.
     if (event.type === "keydown")
       return (
-        (!MOVES.test(event.key) || (event.key === "Tab" && event.defaultPrevented)) &&
+        (!MOVES.test(event.key) ||
+          commandKeys.has(event) ||
+          (event.key === "Tab" && event.defaultPrevented)) &&
         !editingKeys.has(event)
       );
     if (event.type === "storage") return true;
@@ -275,7 +338,9 @@
     if (pending.get(field)?.held === held) pending.delete(field);
     painting.delete(field);
   };
-  const judge = (field, held, source) => {
+  // `replaced` is whether another tab's edit had replaced the words when the loss was
+  // observed, read then: a foreign write arriving after the loss cannot redeem it.
+  const judge = (field, held, source, replaced) => {
     const { words, typedOrder } = held;
     // Back by the time of judging: a re-render that put them straight back.
     const heir = shownIn(words);
@@ -284,7 +349,7 @@
       watching();
       return;
     }
-    if (putAway(field, typedOrder, source, words)) return;
+    if (replaced || putAway(field, typedOrder, source, words)) return;
     const place = window.lfPlace?.(field) ?? [field.localName];
     window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };
@@ -374,14 +439,15 @@
         pending.set(field, {
           held,
           source: effectSource,
+          replaced: replacedElsewhere(held.words),
         });
     }
   };
   const judgePending = () => {
-    for (const [field, { held, source }] of pending) {
+    for (const [field, { held, source, replaced }] of pending) {
       if (held.close?.pending) continue;
       pending.delete(field);
-      judge(field, held, source);
+      judge(field, held, source, replaced);
     }
   };
   // One frame at a time while there is anything to watch, and none on a page nobody has

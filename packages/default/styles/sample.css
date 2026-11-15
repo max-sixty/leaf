@@ -245,11 +245,14 @@ lf-sample:has(> template[data-sample]) {
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
  * both read the runtime's marks (focus.js, `inputInFrame`). */
-.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+.lf-sample-exhibit > .lf-sample-frame {
+  --lf-focus-box: .lf-sample-exhibit;
+}
+.lf-sample-exhibit[data-lf-control-focus] {
   border-left-color: var(--accent);
 }
 @media (forced-colors: active) {
-  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  .lf-sample-exhibit[data-lf-control-focus] {
     border-left-color: Highlight;
   }
 }
@@ -306,13 +309,3 @@ lf-sample[window] .lf-sample-frame {
     display: none;
   }
 }
-/* A quoted choose group renders as one that never declared `choose`. That promise is
- * kept where each pressable look is granted, not undone here: every affordance rule in
- * the lf-options section — the hand, the joined shape, the reserved strip and
- * binding-badge column, the hover wash — excludes exhibits in its own selector
- * (`:not(:where([data-lf-exhibit]) *)`, the marker the runtime paints from this entry's
- * x-exhibit), because an unkeying block here lost every contest against a plainly-spelled
- * guard and missed every affordance written after it. The upgrade holds the half no
- * stylesheet can: the click handler (quoted(), lf-options.js). What stays
- * quoted is the document's state — a chosen card's mark and ring — because a mention
- * shows the decision without offering it. */

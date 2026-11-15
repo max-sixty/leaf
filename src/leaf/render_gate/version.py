@@ -8,11 +8,12 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
+    drawn_height_advice,
     open_widgets,
     passive_layout_shift_advice,
     settle_at,
     shrunk_label_advice,
-    squeezed_table_advice,
+    squeezed_advice,
     sweep,
     swept_faults,
 )
@@ -78,7 +79,7 @@ def _render_version_attempt(
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the On me walk would travel to the top of the page,
+    there would outline nothing and the On Me walk would travel to the top of the page,
     words the user can read and can't select — each in both color schemes at the
     `desktop` viewport and a phone's, because the dark theme and responsive layout are
     real CSS nobody otherwise renders — plus, in one scheme at
@@ -89,7 +90,8 @@ def _render_version_attempt(
     render() is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or
     still-showing slot words disagree with the log's decision (read once: the palettes carry no
-    geometry between them), and an SVG paint token that does not resolve to valid paint
+    geometry between them), as advice a drawing whose height differs from the box it
+    showed before drawing, and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads native layout shifts as advice during a three-second passive observation
     after presentation; and then, resizing that loaded page through every width from
@@ -97,9 +99,11 @@ def _render_version_attempt(
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
     reach, a box cutting off its own content where no scroll reaches it, words drawn on
-    top of other words. There it also reads, as advice naming
+    top of other words, words left under Leaf's panel with every scroller at its end.
+    There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
-    reading, and whether a table scrolls sideways with a cell in it wrapped. That pass
+    reading, whether a table scrolls sideways with a cell in it wrapped, and whether a
+    code block scrolls its lines in too little width to read them. That pass
     reports each native flex/grid arrangement change. Console warnings and the issues Chrome's DevTools raises
     are advice wherever they are read. No failures is a pass.
 
@@ -142,12 +146,13 @@ def _render_version_attempt(
 
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
+        advice.extend(drawn_height_advice(page, _viewport_label(desktop)))
         advice.extend(passive_layout_shift_advice(page))
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
         advice.extend(shrunk_label_advice(widths))
-        advice.extend(squeezed_table_advice(widths))
+        advice.extend(squeezed_advice(widths))
         arrangement.extend(arrangement_changes(widths))
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])

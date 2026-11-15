@@ -1,12 +1,11 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { isElement } from "./shadow-tree.js";
+import { isElement, skipped, under } from "./shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, userScrollport } from "./geometry.js";
-import { skipped } from "./shown-box.js";
 import { afterScript, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
@@ -15,13 +14,15 @@ import { LAYOUT } from "./widget-upgrade.js";
 import { eventSource } from "./pointer.js";
 import { keeps } from "./keeps.js";
 
-// Scroll owners opt into reach with `scroll`. Their CSS owns overflow, including
-// changes at breakpoints; the shared rule contains positioned descendants.
-// Style discovery measures only these surfaces. Stop eligibility still checks the
-// rendered controls inside them. Reading-region registration opts its body in.
+// Scroll owners opt into reach: the page's markup with the `lf-scroll` class, and code,
+// Leaf's or a package's, with `data-lf-scroll`, a name a page's own CSS can't reach by
+// accident. Their CSS owns overflow, including changes at breakpoints; the shared rule
+// contains positioned descendants. Style discovery measures only these surfaces. Stop
+// eligibility still checks the rendered controls inside them. Reading-region
+// registration opts its body in.
 /** @typedef {Document | Element | ShadowRoot} Scope
  * @typedef {Pick<CSSStyleDeclaration, "overflowX" | "overflowY" | "position" | "direction">} ScrollStyle */
-const SCROLL_SURFACE = ".scroll";
+const SCROLL_SURFACE = ".lf-scroll, [data-lf-scroll]";
 /** @type {WeakMap<Element, {classes: string | null, style: string | null}>} */
 const seenDeclarations = new WeakMap();
 /** @type {WeakSet<Node>} */
@@ -143,7 +144,7 @@ watchScrolls((box) => {
 });
 /** @param {Element} el @param {((before: boolean) => void) | undefined} paintContinuation */
 export function reachReadingScroller(el, paintContinuation) {
-  el.classList.toggle("scroll", true);
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
   downwards.set(el, paintContinuation);
   sweep(el);
   paintReach();
@@ -164,6 +165,21 @@ export function reachReadingScroller(el, paintContinuation) {
   };
 }
 
+// A composition change, such as a tab set switching, puts each reading region's place
+// back only when the change ends (reading-regions.js, `preserveReadingRegions`), so a
+// cue painted while it runs reads a scroll the restore is about to move, and paints
+// again after it. A body under an owner whose change is open waits for that end.
+/** @type {Set<Element>} */
+const changing = new Set();
+/** @param {Element} owner */
+export function holdReach(owner) {
+  changing.add(owner);
+  return () => {
+    changing.delete(owner);
+    for (const el of downwards.keys()) if (under(el, owner)) paintReadingReach(el);
+  };
+}
+
 /** @type {Set<Element>} */
 const readingPaints = new Set();
 /** @param {Element} el */
@@ -179,6 +195,7 @@ function paintReadingReachNow() {
   readingPaints.clear();
   for (const el of pending) {
     if (!downwards.has(el) || unpainted(el)) continue;
+    if ([...changing].some((owner) => under(el, owner))) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
     // A region with covering chrome paints its upper continuation at the chrome's
@@ -203,7 +220,7 @@ export function reachScrollers(root) {
   paintReach();
   if (watchingSurfaces) return;
   watchingSurfaces = true;
-  watchArrivals(SCROLL_SURFACE, ["class", "style"], {
+  watchArrivals(SCROLL_SURFACE, ["class", "data-lf-scroll", "style"], {
     arriveBatch(surfaces) {
       for (const el of surfaces) {
         const classes = el.getAttribute("class");
@@ -555,7 +572,7 @@ const queries = sizeObserver(
   },
   { counted: false },
 );
-addEventListener("resize", () => reread(document.body));
+addEventListener("resize", () => reread(document.documentElement));
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can. One repaint updates
 // every candidate and registered reading region after the new layout is stated, and

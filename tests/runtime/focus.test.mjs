@@ -14,6 +14,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { Window } from "happy-dom";
 
+// Focus the page took before the runtime loaded: a frame the user pressed into while
+// the modules loaded. A choice's ring is drawn from these marks alone (controls.css),
+// and a frame's ring from the input that put the user there.
+const before = document.createElement("iframe");
+// A browser never matches `:focus-visible` on a frame's host; happy-dom does.
+before.matches = (selector) =>
+  selector !== ":focus-visible" && Element.prototype.matches.call(before, selector);
+document.body.append(before);
+before.focus();
 const {
   closeLayer,
   focusDestination,
@@ -22,6 +31,7 @@ const {
   holdFocus,
   layerLanding,
   onCurrentLocation,
+  onFocusVisibility,
   onPress,
   openLayer,
   openerOf,
@@ -69,6 +79,14 @@ const click = (target) =>
     new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }),
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
+
+test("focus held before the runtime loaded wears its marks, and a pressed frame no ring", async () => {
+  await settled();
+  assert.equal(document.activeElement, before);
+  assert.equal(before.hasAttribute("data-lf-focus"), true);
+  assert.equal(before.hasAttribute("data-lf-focus-visible"), false);
+  assert.equal(document.body.hasAttribute("data-lf-focus-within"), false);
+});
 
 test("a departing package releases its current location reader", () => {
   const { first, second } = scene();
@@ -141,6 +159,50 @@ test("focus paint follows the settled destination without painting same-script r
   assert.equal(first.hasAttribute("data-lf-focus"), false);
   assert.equal(second.hasAttribute("data-lf-focus"), true);
   assert.equal(box.hasAttribute("data-lf-focus-within"), true);
+});
+
+test("the box a control names shows its focus while the control holds it", async () => {
+  const { box, first, second } = scene();
+  first.style.setProperty("--lf-focus-box", "section");
+  focusDestination(first, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), true);
+  assert.equal(box.hasAttribute("data-lf-control-focus-visible"), true);
+  focusDestination(second, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  assert.equal(box.hasAttribute("data-lf-control-focus-visible"), false);
+});
+
+test("a control that stops naming its box while it holds focus takes the box's marks off", async () => {
+  const { box, first } = scene();
+  const style = document.createElement("style");
+  style.textContent = "section > input:not([data-off]) { --lf-focus-box: section; }";
+  document.head.append(style);
+  focusDestination(first, "move");
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), true);
+  first.toggleAttribute("data-off", true);
+  await settled();
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  style.remove();
+});
+
+test("a box named by something that isn't a selector is reported, and the paint goes on", async () => {
+  const { box, first } = scene();
+  const reported = [];
+  const report = globalThis.reportError;
+  globalThis.reportError = (error) => reported.push(error);
+  const visibility = [];
+  const stop = onFocusVisibility(() => visibility.push(focused()));
+  first.style.setProperty("--lf-focus-box", '"section"');
+  focusDestination(first, "move");
+  await settled();
+  stop();
+  globalThis.reportError = report;
+  assert.equal(reported.length, 1);
+  assert.equal(box.hasAttribute("data-lf-control-focus"), false);
+  assert.deepEqual(visibility, [first]);
 });
 
 test("a hold gives way to a placement, not to typing where it holds", () => {

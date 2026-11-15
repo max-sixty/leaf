@@ -12,17 +12,15 @@ from render_cases_layout import (
     PANEL_DIFF_MARKUP,
     WIDE_DIFF_PAGE,
     current_location_ring,
-    ring_faults,
     rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import DIFF_PAGE
-from render_cases_widgets import SCROLLED, WIDE_DIAGRAM_PAGE
+from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
-    ROOT,
     expect_comment_notes,
     held_frames,
     holding,
@@ -30,6 +28,7 @@ from render_harness import (
     open_page,
     panel_settled,
     panel_view,
+    put_preview_away,
     resized,
     round_trip,
     scroll_settled,
@@ -41,6 +40,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -60,12 +60,23 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     )
     stops = reference.locator("input, button, [tabindex]:not([tabindex='-1'])")
     assert stops.count() >= 2, "the reference had no meaningful native Tab loop"
-    for _ in range(stops.count() + 2):
+    close = reference.locator(".lf-command-reference-close")
+    # Walk until Tab has come round to Close twice, so the walk wraps and ends at a
+    # known stop whatever the number of command rows.
+    arrivals = 0
+    for _ in range(2 * (stops.count() + 2)):
         page.keyboard.press("Tab")
         assert reference.evaluate(
             "el => el.contains(document.activeElement)"
             "   || document.activeElement === document.body"
         ), "Tab escaped the command reference onto the suspended page"
+        arrivals += close.evaluate("el => el === document.activeElement")
+        if arrivals == 2:
+            break
+    assert arrivals == 2, "Tab never came back round to the reference's first stop"
+    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # "Escape"); the next closes the reference.
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
@@ -89,13 +100,10 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
-def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
-    browser, serve
-):
-    """`g T` from the page stands Threads on its first row, and Escape from a thread's
-    reply in the panel stands the user on the thread's view; each wears a ring. Both
-    once left focus on a view, which drew none, so where Enter or `r` would act was a
-    guess."""
+def test_the_keys_into_and_out_of_a_panel_thread_land_where_keys_act(browser, serve):
+    """`g T` from the page stands Threads on its first row, which wears a ring, and
+    Escape from a thread's reply in the panel stands the user on the thread's view,
+    which wears none (floating-panel.css, `.lf-fp-view:focus`)."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir, "Where should this explanation go?", {"section": "lede"}
@@ -112,22 +120,35 @@ def test_the_keys_into_and_out_of_a_panel_thread_land_where_a_ring_shows(
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(panel_view("thread"))).to_be_focused()
-    # The view's own top edge fades out, so the stage it fills wears its ring. The box
-    # follows the Escape's layout on the next rendering, and while it moves the ring
-    # is drawn by its moving layer, so wait for that motion to start, then finish it.
+    # The box follows the Escape's layout on the next rendering, so wait for that
+    # motion to start, then finish it.
     rendered(page)
     panel_settled(page, view="thread")
     drawn = rings_drawn(page)
+    assert not [seen for seen in drawn if seen["here"]], drawn
+
+
+def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, serve):
+    """`g T` on a page with no threads stands the user on Threads' view itself, which
+    wears its ring on the stage it fills, as every view but a thread's does
+    (floating-panel.css, `.lf-fp-stage`)."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(panel_view("threads"))).to_be_focused()
+    rendered(page)
+    panel_settled(page, view="threads")
+    drawn = rings_drawn(page)
     worn = [seen["who"].split(" ")[0] for seen in drawn if seen["here"]]
     assert worn == ["div.lf-fp-stage"], drawn
-    assert not (faults := ring_faults(drawn, "on the thread's view")), "\n".join(faults)
 
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
-    """On me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On me drew,
-    and On me closing then dropped them on the page."""
-    page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
+    """On Me's Show on a question asked in a thread's words opens the thread's card on
+    the page with the user in it. The arrival stood them on the message On Me drew,
+    and On Me closing then dropped them on the page."""
+    page = open_page(browser, serve(named_source("ship-review")))
     page.locator(".lf-fp-on-user").click()
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
         has_text="The vendor release is the only schedule"
@@ -222,7 +243,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
 
 def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, serve):
-    """Putting On me away hands the user back the page, however they opened it.
+    """Putting On Me away hands the user back the page, however they opened it.
 
     Opened with the pointer, the view takes focus; opened from the keyboard, its first
     row does. Either way Escape lands on the page rather than on the mark that opened
@@ -329,36 +350,11 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
-def test_scroll_surfaces_added_after_upgrade_gain_keyboard_reach(browser, serve):
-    page = open_page(browser, serve(leaf_page("Late scroll", "<h1>Late scroll</h1>")))
-    page.evaluate(
-        """() => {
-          const authored = document.createElement('div');
-          authored.id = 'late-authored';
-          authored.className = 'scroll';
-          authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
-          authored.textContent = 'a'.repeat(500);
-          const native = document.createElement('pre');
-          native.id = 'late-native';
-          native.style.width = '220px';
-          native.textContent = 'b'.repeat(500);
-          document.querySelector('main').append(authored, native);
-        }"""
-    )
-    for selector in ("#late-authored", "#late-native"):
-        surface = page.locator(selector)
-        expect(surface).to_have_attribute("data-lf-more-after", "")
-        measured = surface.evaluate(
-            "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
-        )
-        assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
-
-
 def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
     markup = leaf_page(
         "Hidden control in scroll box",
         '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
-        '<div id="scroll" class="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<div id="scroll" class="lf-scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
         '<button style="visibility:hidden">Unavailable</button>'
         "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
         "</div>",
@@ -381,7 +377,7 @@ def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
 
     Read with the comment on and off the same box, because the assertion says nothing
     unless the box would otherwise have the stop."""
-    url = serve(WIDE_DIAGRAM_PAGE)
+    url = serve(SCROLLING_DIAGRAM_PAGE)
     page = open_page(browser, url)
     resized(page, 760, 900)
     diagram = page.locator("#flow")
@@ -535,50 +531,75 @@ DISCLOSURE_TABLE_PAGE = leaf_page(
 )
 
 
-def test_a_disclosure_is_a_scrolling_box_s_own_stop(browser, serve):
-    """A box holding a control of its own is reached through that control, and a
-    disclosure's `summary` is one: Tab stands on it, and moving along the box from
-    there scrolls it. Counted as nothing, it gave the table a second stop of the
-    sweep's in front of the one it already had."""
+def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
+    browser, serve, subtests
+):
+    """Which boxes the sweep lends a Tab stop; each case's box stands apart on one page."""
     page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
     resized(page, 420, 900)
-    table = page.locator("#sessions")
-    assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
-        "this table fits, so it proves nothing"
-    )
-    expect(table).not_to_have_attribute("tabindex", "0")
-    assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
+    with subtests.test("a disclosure is a scrolling box's own stop"):
+        # A box holding a control of its own is reached through that control, and a
+        # disclosure's `summary` is one: Tab stands on it, and moving along the box from
+        # there scrolls it. Counted as nothing, it gave the table a second stop of the
+        # sweep's in front of the one it already had.
+        table = page.locator("#sessions")
+        assert table.evaluate("t => t.scrollWidth > t.clientWidth"), (
+            "this table fits, so it proves nothing"
+        )
+        expect(table).not_to_have_attribute("tabindex", "0")
+        assert page.locator("#more > summary").evaluate("s => s.tabIndex") == 0
 
-def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve):
-    """A control inside a shadow tree whose host is out of the order is one Tab never
-    reaches, so a scrolling box holding only that is still the sweep's to give a stop;
-    with the host in the order, its control is the box's own."""
-    page = open_page(browser, serve(DISCLOSURE_TABLE_PAGE))
-    resized(page, 420, 900)
-    # A box a script builds is swept when its builder asks, as a module's would be.
-    boxes = page.evaluate(
-        """async () => {
-          const {reachScrollers} = await window.__lfCheckApi();
-          const ids = ["out", "in"].map((order) => {
-          const box = document.createElement("div");
-          box.id = `box-${order}`;
-          box.classList.add("scroll");
-          box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
-          const host = document.createElement("span");
-          if (order === "out") host.setAttribute("tabindex", "-1");
-          host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
-          box.append(host, "x".repeat(400));
-          document.querySelector("main").append(box);
-          return box.id;
-          });
-          reachScrollers(document.querySelector("main"));
-          return ids;
-        }"""
-    )
-    out, inside = (page.locator(f"#{box}") for box in boxes)
-    expect(out).to_have_attribute("tabindex", "0")
-    expect(inside).not_to_have_attribute("tabindex", "0")
+    with subtests.test("a control Tab skips leaves a scrolling box its own stop"):
+        # A control inside a shadow tree whose host is out of the order is one Tab never
+        # reaches, so a scrolling box holding only that is still the sweep's to give a
+        # stop; with the host in the order, its control is the box's own.
+        # A box a script builds is swept when its builder asks, as a module's would be.
+        boxes = page.evaluate(
+            """async () => {
+              const {reachScrollers} = await window.__lfCheckApi();
+              const ids = ["out", "in"].map((order) => {
+              const box = document.createElement("div");
+              box.id = `box-${order}`;
+              box.classList.add("lf-scroll");
+              box.style.cssText = "width:200px;overflow-x:auto;white-space:nowrap";
+              const host = document.createElement("span");
+              if (order === "out") host.setAttribute("tabindex", "-1");
+              host.attachShadow({mode: "open"}).innerHTML = "<button>Inside</button>";
+              box.append(host, "x".repeat(400));
+              document.querySelector("main").append(box);
+              return box.id;
+              });
+              reachScrollers(document.querySelector("main"));
+              return ids;
+            }"""
+        )
+        out, inside = (page.locator(f"#{box}") for box in boxes)
+        expect(out).to_have_attribute("tabindex", "0")
+        expect(inside).not_to_have_attribute("tabindex", "0")
+
+    with subtests.test("scroll surfaces added after upgrade gain keyboard reach"):
+        page.evaluate(
+            """() => {
+              const authored = document.createElement('div');
+              authored.id = 'late-authored';
+              authored.className = 'lf-scroll';
+              authored.style.cssText = 'width:220px;overflow-x:auto;white-space:nowrap';
+              authored.textContent = 'a'.repeat(500);
+              const native = document.createElement('pre');
+              native.id = 'late-native';
+              native.style.width = '220px';
+              native.textContent = 'b'.repeat(500);
+              document.querySelector('main').append(authored, native);
+            }"""
+        )
+        for selector in ("#late-authored", "#late-native"):
+            surface = page.locator(selector)
+            expect(surface).to_have_attribute("data-lf-more-after", "")
+            measured = surface.evaluate(
+                "el => ({scrolls: el.scrollWidth > el.clientWidth, tab: el.tabIndex})"
+            )
+            assert measured == {"scrolls": True, "tab": 0}, (selector, measured)
 
 
 # Controls to Tab onto at a scroller's edge. Each wears its ring on a different box:
@@ -587,9 +608,9 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice value="bold" label="Bold">'
+        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
+        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
+        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
         "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
         "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
         ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
@@ -599,11 +620,21 @@ EDGE_CONTROLS = {
         '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
+    "filter": (
+        '<lf-diff id="patch"><pre>'
+        + "".join(
+            f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
+            "@@ -1,1 +1,1 @@\n-old\n+new\n"
+            for name in ("one.py", "two.py")
+        )
+        + "</pre></lf-diff>"
+    ),
 }
 EDGE_TARGETS = {
     "radio": "#at",
     "playground": "#pg input:checked",
     "options": "#op-b .lf-pick",
+    "filter": "#patch .lf-diff-search input",
     "table": "#wide td:nth-child(11) a",
 }
 
@@ -637,6 +668,7 @@ def edges_page(control):
                 ("radio", -2, "inside", "Tab"),
                 ("options", 6, "past", "Tab"),
                 ("options", 6, "past", "End"),
+                ("filter", 3, "past", "Tab"),
                 ("table", 6, "past", "Tab"),
             ]
             for engine in ["browser", "firefox_browser"]
@@ -657,20 +689,24 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     it kept its ring cut; a link 6px past a wide table's end stayed cut in both
     engines; and a joined option group's row and a playground choice's face, each
     wearing its control's ring, stayed cut in both, the face once its radio stood 7px
-    inside, the row whether Tab or End reached it. `past` is how far beyond the edge
-    the box wearing the ring stood before the key; each now shows its ring."""
+    inside, the row whether Tab or End reached it; and a diff's file filter, holding
+    focus in its own shadow tree, stayed cut in both and under the log's fade. `past` is
+    how far beyond the edge the box wearing the ring stood before the key; each now
+    shows its ring, unfaded."""
     page = open_page(request.getfixturevalue(engine), serve(edges_page(control)))
-    resized(page, 1280, 560)
+    # Tall enough that the log's foot stands clear of the floating panel, so the stop the
+    # key leaves is where the user is, rather than a stop the key would let go of.
+    resized(page, 1280, 720)
     side = "right" if control == "table" else "bottom"
     target = page.locator(EDGE_TARGETS[control])
     # Which box wears the ring is the paint's answer: the nearest box out from the
     # control whose outline is the ring.
-    target.evaluate("el => el.focus({preventScroll: true})")
+    target.focus()
     rendered(page)
     target.evaluate(
         """(el) => {
           const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
-          for (let n = el; n; n = n.parentElement) {
+          for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
             const cs = getComputedStyle(n);
             if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)
               return void (window.ringed = n);
@@ -680,10 +716,10 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     if key == "Tab":
         page.keyboard.press("Shift+Tab")
     else:
-        page.locator("#op-a .lf-pick").evaluate("el => el.focus({preventScroll: true})")
+        page.locator("#op-a .lf-pick").focus()
     page.evaluate(
         """([side, past]) => {
-          const box = window.ringed.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = window.ringed.getBoundingClientRect();
           if (side === 'bottom')
@@ -702,7 +738,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     read = page.evaluate(
         """(side) => {
           const el = window.ringed;
-          const box = el.closest(side === 'bottom' ? '#log' : '#wide');
+          const box = document.querySelector(side === 'bottom' ? '#log' : '#wide');
           const port = box.getBoundingClientRect();
           const at = el.getBoundingClientRect();
           const style = getComputedStyle(el);
@@ -711,11 +747,13 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
               ? port.top + box.clientTop + box.clientHeight - at.bottom
               : port.left + box.clientLeft + box.clientWidth - at.right,
             ring: parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+            fade: getComputedStyle(box).maskImage,
           };
         }""",
         side,
     )
     assert read["room"] >= read["ring"], read
+    assert read["fade"] == "none", read
 
 
 GROUPED_SIDE_LIST = leaf_page(
@@ -984,7 +1022,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")
-    command = page.get_by_role("button", name="Comment on the control", exact=True)
+    command = page.get_by_role("option", name="Comment on the control", exact=True)
     expect(command).to_be_visible()
     expect(command).to_have_attribute("data-lf-available", "true")
     with held_frames(page):

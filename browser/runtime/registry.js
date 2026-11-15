@@ -19,14 +19,31 @@ export const registry = runtime.registry;
 /** @param {string} name */
 export const tokenEntry = (name) => registry.$reactions?.tokens[name];
 
+// A reading of the vocabulary, kept until its generation says the vocabulary changed,
+// since a reader that asks for each command a page declares redoes it many times for
+// one input.
+/** @template T @param {() => T} read @returns {() => T} */
+export function perVocabulary(read) {
+  /** @type {{generation: string, value: T} | undefined} */
+  let kept;
+  return () => {
+    const generation = registry.$layer?.generation;
+    if (kept && kept.generation === generation) return kept.value;
+    const value = read();
+    if (generation) kept = { generation, value };
+    return value;
+  };
+}
+
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
 // an idiom selector, by the `$names.widget` grammar Python reads too. Every widget
 // traversal goes through this owner rather than treating all vocabulary as widgets.
 /** @typedef {import("../types/contract.js").WidgetDeclaration} WidgetDeclaration */
-/** @returns {[string, WidgetDeclaration][]} */
-export const elementDeclarations = () =>
-  Object.entries(registry).filter(([tag]) => isElementName(tag));
+/** @type {() => readonly [string, WidgetDeclaration][]} */
+export const elementDeclarations = perVocabulary(() =>
+  Object.entries(registry).filter(([tag]) => isElementName(tag)),
+);
 
 // Take in the fetched vocabulary. A verb's writer is read from `$states`
 // (`registry-contract.js`), where composition stamped it.
@@ -102,11 +119,29 @@ export const declarationFor = (el, key) =>
 /** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 
-/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
-export const elementsDeclaring = (root, key, { direct = false } = {}) => {
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  return candidates.filter((el) => declarationFor(el, key) !== undefined);
+// The widgets at or under `root` whose declaration `holds` answers for, in document
+// order. The browser matches their tags, so a root holding a long document of plain
+// rows, as a tab set's panel can, costs a native match of each row rather than a
+// script's look at it. The match costs more for each tag it names: on #4781's page,
+// every declared tag took 0.4 s over the 30 panels where the few declaring `x-awaits`
+// took 0.05 s, so a question about some widgets names only theirs.
+/** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} [holds] */
+export const declaredElements = (root, holds = () => true) => {
+  const tags = tagsDeclaring(holds);
+  if (!tags.length) return [];
+  const selector = tags.join(",");
+  const found = [...root.querySelectorAll(selector)];
+  if (root instanceof Element && root.matches(selector)) found.unshift(root);
+  return found;
 };
+
+/** @param {Document | DocumentFragment | Element} root @param {keyof WidgetDeclaration} key @param {{direct?: boolean}} [options] */
+export const elementsDeclaring = (root, key, { direct = false } = {}) =>
+  direct
+    ? [...root.children].filter((el) => declarationFor(el, key) !== undefined)
+    : declaredElements(root, (entry) => entry[key] !== undefined).filter(
+        (el) => el !== root,
+      );
 
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key

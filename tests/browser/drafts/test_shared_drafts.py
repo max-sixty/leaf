@@ -19,7 +19,6 @@ from render_harness import (
     open_page,
     page_comment,
     refuse,
-    reported_browser_errors,
     resized,
     round_trip,
     stored_draft_settled,
@@ -317,7 +316,9 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    selector = f'#jobs > .lf-thread-seat > .lf-page-thread[data-thread="{root["id"]}"]'
+    selector = (
+        f'#jobs > .lf-thread-seat > .lf-page-thread[data-lf-thread="{root["id"]}"]'
+    )
     first_thread = first.locator(selector)
     second_thread = second.locator(selector)
     raw = "  The camera, then the mounting work.  "
@@ -730,19 +731,11 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it in place. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
-    accepted_words = {
-        "code": "words-left-screen",
-        "words": old,
-        "place": stale_say.locator("leaf-text").evaluate(
-            "field => window.lfPlace(field)"
-        ),
-    }
     stale_held.restore()
     told(stale)
-    # The fixture blocked the real storage gesture, then explicitly accepted its
-    # old generation. Polling must retire those old words in favour of the newer one.
-    stale.evaluate("lfWordsJudged()")
-    reported_browser_errors(stale, accepted_words)
+    # The fixture blocked the storage news, so the poll's own reading of the store is
+    # what retires the old words in favour of the newer one. The words watch counts
+    # that as the other tab's edit, as it would the news.
     assert stored_draft_text(current, "say:jobs") == newer
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
@@ -819,7 +812,7 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
         },
     )
     page = open_page(browser, url)
-    thread = page.locator(f'#jobs .lf-page-thread[data-thread="{root["id"]}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"]')
     text = "Still true."
     for _ in range(2):
         write(thread.locator("leaf-text"), text)

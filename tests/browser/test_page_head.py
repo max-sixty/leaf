@@ -1,0 +1,238 @@
+"""The page's own heads: a header the page fixes at the window's top, or makes sticky
+ahead of the page's content, which Leaf finds and starts its sticky-header slot below
+(root-headers.js, `pageHeads`). A landing arrives below it, a block's Copy
+scrolled under it passes under it, a box sticking at `var(--lf-top)` sticks below it,
+and a pin on its own words keeps one seat on screen wherever the document is
+scrolled."""
+
+import re
+
+import pytest
+from playwright.sync_api import expect
+from render_harness import leaf_page, margins_laid_out, open_page, resized
+
+from browser.margin import _comment_on
+from leaf_dev.browser import scroll_settled
+
+
+def _filler(start, count):
+    return "".join(
+        f"<p>Filler paragraph {i} keeps the page long enough to scroll through several"
+        " screens of prose.</p>"
+        for i in range(start, start + count)
+    )
+
+
+HEAD = (
+    '<header id="site-head"><p id="head-words">Quarterly operations brief from the'
+    ' platform team</p><nav><a id="to-risks" href="#risks">Risks</a></nav></header>'
+)
+LOOK = (
+    "#site-head { top: 0; z-index: 5; padding: 8px 16px; background: var(--paper);"
+    " border-block-end: 1px solid var(--rule); }"
+    " #site-head > p { margin: 0; }"
+)
+BODY = (
+    '<h1 id="title">Operations brief</h1>'
+    + _filler(0, 8)
+    + '<pre id="deploy"><code>./build --release\n./deploy --to production --wait\n'
+    "./verify --all\necho done</code></pre>"
+    + _filler(8, 4)
+    + '<p id="tool" style="position: sticky; top: var(--lf-top); z-index: 1;'
+    ' background: var(--paper)">A row a package sticks at the slot.</p>'
+    + _filler(12, 8)
+    + '<section id="risks"><h2>Risks</h2><p>Disk pressure remains the risk.</p></section>'
+    + _filler(20, 30)
+)
+
+
+def _fixed_beside_main():
+    """A site header fixed at the window's top, in a box of its own in `body` beside
+    `main`, which only the hit test finds, on a page that states its own landing room
+    for it as its target's `scroll-margin-top`, 100px."""
+    style = (
+        f"<style>{LOOK} #site-head {{ position: fixed; inset-inline: 0; }}"
+        " main { padding-block-start: 120px; } #risks { scroll-margin-top: 100px; }"
+        "</style>"
+    )
+    source = leaf_page("A fixed site header", BODY, head=style).replace(
+        "<body>", f'<body><div class="site">{HEAD}</div>'
+    )
+    return source, 100
+
+
+def _sticky_in_main():
+    """A header sticking a gap below the window's top in `main`, after a skip link moved
+    off screen and an empty anchor, below a banner in `body`, under a reading-progress
+    bar fixed across the window's top, on a page that states its own landing room for
+    it as the root's `scroll-padding-top`, 80px."""
+    style = (
+        f"<style>{LOOK} #site-head {{ position: sticky; top: 8px; }}"
+        " .skip { position: absolute; left: -9999px; }"
+        " #bar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 9;"
+        " background: var(--accent); } html { scroll-padding-top: 80px; }</style>"
+    )
+    leading = '<a class="skip" href="#title">Skip to the brief</a><div id="top"></div>'
+    source = leaf_page("A sticky site header", leading + HEAD + BODY, head=style)
+    banner = '<p id="banner">Maintenance window Saturday night.</p>'
+    source = source.replace("<body>", f"<body>{banner}")
+    return source.replace("</main>", '</main><div id="bar"></div>'), 80
+
+
+READ = """async () => {
+  const geometry = await window.__lfCheckApi();
+  const box = (id) => document.getElementById(id).getBoundingClientRect();
+  const deploy = document.getElementById('deploy');
+  const words = document.getElementById('head-words');
+  return {
+    head: box('site-head').bottom,
+    tool: box('tool').top,
+    deploy: box('deploy').top,
+    deployShown: geometry.shownRect(deploy, new Map())?.top,
+    words: box('head-words').top,
+    wordsShown: geometry.shownRect(words, new Map())?.top,
+  };
+}"""
+
+PIN = """() => {
+  const pin = document.querySelector('[data-lf-margin-for="head-words"]')
+    .getBoundingClientRect();
+  const words = document.getElementById('head-words').getBoundingClientRect();
+  return {dx: Math.round(pin.left - words.left), dy: Math.round(pin.top - words.top),
+          top: Math.round(pin.top)};
+}"""
+
+
+def _scroll_to(page, y):
+    page.evaluate("(y) => scrollTo({top: y, behavior: 'instant'})", y)
+    scroll_settled(page)
+
+
+@pytest.mark.parametrize("source", [_fixed_beside_main, _sticky_in_main])
+def test_the_pages_own_head_stands_over_what_leaf_draws_and_lands(
+    browser, serve, subtests, source
+):
+    """Leaf's chrome stands above every page box, so a Copy or a pin scrolled under the
+    page's header was drawn over it, and a landing, Leaf's sticky boxes and a pin
+    seated while the page was scrolled all counted the window's top as clear. On a
+    header nobody declares, each read the page as though the header weren't there. A
+    thin bar fixed over the header, or a skip link before it, leaves it the head, a
+    banner above a sticky one is under nothing, and the landing room a page states for
+    its header replaces Leaf's rather than adding to it."""
+    html, room = source()
+    page = open_page(
+        browser,
+        serve(
+            html,
+            events=[
+                _comment_on("head-words", quote="operations brief from the platform")
+            ],
+        ),
+    )
+    resized(page, 1280, 800)
+
+    if page.locator("#banner").count():
+        with subtests.test("a banner above a sticky head is under nothing"):
+            _scroll_to(page, 0)
+            shown = page.evaluate("""async () => {
+              const geometry = await window.__lfCheckApi();
+              const banner = document.getElementById('banner');
+              return {top: banner.getBoundingClientRect().top,
+                      shown: geometry.shownRect(banner, new Map())?.top};
+            }""")
+            assert shown["shown"] == pytest.approx(shown["top"], abs=0.5), shown
+
+    with subtests.test("a pin on the head's words keeps its seat on screen"):
+        # A pass made while the document is scrolled reads the same room: the head's
+        # own, in the window, where a seat above the window's top never shows.
+        _scroll_to(page, 0)
+        margins_laid_out(page)
+        rest = page.evaluate(PIN)
+        _scroll_to(page, 1500)
+        margins_laid_out(page)
+        scrolled = page.evaluate(PIN)
+        assert (scrolled["dx"], scrolled["dy"]) == (rest["dx"], rest["dy"]), (
+            rest,
+            scrolled,
+        )
+        assert scrolled["top"] >= 0, scrolled
+
+    with subtests.test("what passes under the head is not on screen"):
+        page.evaluate(
+            "() => scrollBy({top: document.getElementById('deploy')"
+            ".getBoundingClientRect().top - 30, behavior: 'instant'})"
+        )
+        scroll_settled(page)
+        read = page.evaluate(READ)
+        assert read["deploy"] < read["head"] - 20, read
+        assert read["deployShown"] == pytest.approx(read["head"], abs=0.5), read
+        # The head's own words stand over the slot, not under it.
+        assert read["wordsShown"] == pytest.approx(read["words"], abs=0.5), read
+
+    with subtests.test("a block's Copy passes under the head"):
+        deploy = page.locator("#deploy").bounding_box()
+        page.mouse.move(
+            deploy["x"] + deploy["width"] / 2, deploy["y"] + deploy["height"] - 8
+        )
+        copy = page.locator(".lf-code-copy")
+        expect(copy).to_have_class(re.compile(r"lf-code-copy-hover"))
+        on_top = page.evaluate("""() => {
+          const {left, top, right, bottom} = document.querySelector('.lf-code-copy')
+            .getBoundingClientRect();
+          const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+          return hit?.closest('#site-head, .lf-code-copy')?.id || hit?.className;
+        }""")
+        assert on_top == "site-head", on_top
+
+    with subtests.test("a box sticking at the slot sticks below the head"):
+        page.evaluate(
+            "() => scrollBy({top: document.getElementById('tool')"
+            ".getBoundingClientRect().top + 400, behavior: 'instant'})"
+        )
+        scroll_settled(page)
+        read = page.evaluate(READ)
+        assert read["tool"] == pytest.approx(read["head"], abs=1), read
+
+    with subtests.test("a link in the head lands below it, once"):
+        page.mouse.move(5, 400)
+        _scroll_to(page, 0)
+        page.locator("#to-risks").click()
+        page.wait_for_function("() => location.hash === '#risks'")
+        scroll_settled(page)
+        landed = page.evaluate(
+            "() => ({head: document.getElementById('site-head').getBoundingClientRect()"
+            ".bottom, risks: document.getElementById('risks').getBoundingClientRect().top,"
+            " scrolled: scrollY})"
+        )
+        assert landed["scrolled"] > 0, landed
+        assert landed["risks"] >= landed["head"], landed
+        assert landed["risks"] < landed["head"] + room, landed
+
+    if page.locator(".site").count():
+        with subtests.test("a header fixed after main, floating below the top, is one"):
+            # A framework renders its header at the end of `body`, here in place of the
+            # page's own, and lets it float a gap below the window's top, where a test
+            # of the top edge finds nothing. The next scroll's end reads it.
+            page.evaluate("""() => {
+              document.querySelector('.site').hidden = true;
+              const pill = document.createElement('header');
+              pill.id = 'pill';
+              pill.textContent = 'Quarterly brief';
+              pill.style.cssText = 'position: fixed; top: 12px; left: 20%; right: 20%;'
+                + ' height: 40px; z-index: 5; background: var(--paper)';
+              document.body.append(pill);
+            }""")
+            page.evaluate(
+                "() => scrollBy({top: document.getElementById('deploy')"
+                ".getBoundingClientRect().top - 30, behavior: 'instant'})"
+            )
+            scroll_settled(page)
+            read = page.evaluate("""async () => {
+              const geometry = await window.__lfCheckApi();
+              const deploy = document.getElementById('deploy');
+              return {pill: document.getElementById('pill').getBoundingClientRect().bottom,
+                      deploy: deploy.getBoundingClientRect().top,
+                      shown: geometry.shownRect(deploy, new Map())?.top};
+            }""")
+            assert read["deploy"] < read["pill"] - 10, read
+            assert read["shown"] == pytest.approx(read["pill"], abs=0.5), read

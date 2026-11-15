@@ -34,6 +34,7 @@ from browser.margin import leave_card
 from browser.threads import open_panel_thread, seed_panel_threads
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -107,18 +108,19 @@ def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
     [root] = seed_panel_threads(serve.page_dir, 1, long_index=0, messages=24)
     page = open_page(browser, url)
     view = open_panel_thread(page, root)
+    scroller = f'{PANEL_THREAD}[data-lf-thread="{root}"]'
     reply = panel_field(page)
     words = "Words the reader left to read on."
     write(reply, words)
     view.evaluate("list => { list.scrollTop = 0; }")
-    scroll_settled(page, view)
+    scroll_settled(page, scroller)
     expect(reply).to_be_focused()
     held = view.evaluate("list => list.scrollTop")
     assert view.evaluate("list => list.scrollHeight > list.clientHeight + 100")
     replace_editing_document(page, serve)
     expect(reply).to_be_focused()
     expect(reply).to_have_js_property("value", words)
-    scroll_settled(page, view)
+    scroll_settled(page, scroller)
     assert view.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
 
 

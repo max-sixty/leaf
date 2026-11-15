@@ -15,7 +15,7 @@ So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its 
 outside the plan. A plain step is no promise: work that must stay owed past the turn
 is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
-`--completes`, undoing the user's Done) and left obligations out of the tree, over grouping
+`--completes`, `leaf task end`) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the
 plan into the page's markup, which makes every reshape a revision.
 
@@ -27,7 +27,7 @@ the start `running` on a named to-do, `since`, when a working step began, its
 A step naming an obligation a later version removed reads as dropped.
 
 The floating panel's On <agent> discloses the plan from its progress at the view's
-foot, and On me can group its items under the goals whose steps name them
+foot, and On Me can group its items under the goals whose steps name them
 (`floating-panel.js`, `queue-walk.js`). `conversation-loop.md`,
 "When to write", asks an agent for a plan when its work runs to several steps, some of
 which may wait on the user.
@@ -62,7 +62,7 @@ def latest_plan(events: list, withdrawn: set) -> dict | None:
 
 def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | None:
     """Why the append door refuses a `plan` event, or None. `todos` are every to-do
-    on the page and `obligations` every obligation, open or not."""
+    on the page and `items` every obligation, open or not."""
     if event["kind"] != "plan":
         return None
     depth = -1
@@ -86,7 +86,7 @@ def _label(step: dict) -> str:
 def plan_reading(
     events: list, withdrawn: set, todos: list[dict], items: list[dict]
 ) -> dict | None:
-    """The plan in force as a tree, its items read from `todos` and `obligations`, or None
+    """The plan in force as a tree, its items read from `todos` and `items`, or None
     when the agent has written none or cleared it."""
     event = latest_plan(events, withdrawn)
     if event is None or not event["steps"]:
@@ -112,7 +112,7 @@ def plan_reading(
             return {
                 "title": todo["title"],
                 "state": "working" if running else todo["state"],
-                "owner": todo["owner"],
+                "owner": "agent",
                 "item": {"kind": "todo", "id": todo["id"]},
                 "running": running,
                 "since": running["ts"] if running else None,

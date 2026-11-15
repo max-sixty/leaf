@@ -44,7 +44,7 @@ lf-code .lf-code-line {
   overflow-wrap: anywhere;
 }
 lf-code :is(.lf-code-line, .lf-code-elided)::before {
-  content: attr(data-line);
+  content: attr(data-lf-line);
   display: inline-block;
   width: var(--lf-code-gutter);
   margin-right: var(--lf-code-gap);
@@ -80,7 +80,7 @@ lf-code .lf-code-elided::before {
   order: -2;
 }
 lf-code .lf-code-elided::after {
-  content: attr(data-elided);
+  content: attr(data-lf-elided);
   order: -1;
   flex: none;
 }
@@ -123,9 +123,7 @@ lf-code > pre > lf-note {
   background: var(--pre-bg);
   border-block: 1px solid var(--code-border);
   color: var(--code-ink);
-  font-family: var(--sans);
-  font-size: var(--t-5);
-  line-height: 1.5;
+  font: var(--font-widget);
   white-space: normal;
   --lf-block-frame: 1;
 }

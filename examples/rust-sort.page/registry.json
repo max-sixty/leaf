@@ -3,10 +3,7 @@
     "description": "An animated, scrubbable trace of the merge sort Rust shipped in 1.15, drawn as one SVG in the page's palette: the slice, the scratch buffer, and the run stack with its collapse() checks. The current step, each slot of the slice, the scratch lane, the run stack and each collapse() clause are commentable visual parts.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,

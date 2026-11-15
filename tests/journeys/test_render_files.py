@@ -6,6 +6,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    expect_preview_words,
     http_error_console,
     leaf_page,
     open_page,
@@ -155,7 +156,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     retry = widget.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
     expect(status).to_have_text("Not saved", use_inner_text=True)
-    expect(status).to_have_attribute("title", "The page's server did not answer.")
+    expect_preview_words(status, "The page's server did not answer.")
     expect(retry).to_have_accessible_description("The page's server did not answer.")
     assert editor_room() == resting_room
     expect(editor).to_have_attribute("aria-readonly", "false")
@@ -173,7 +174,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
 
     page.route("**/api/files/notes", bad_gateway)
     retry.click()
-    expect(status).to_have_attribute("title", "The page's server answered HTTP 502.")
+    expect_preview_words(status, "The page's server answered HTTP 502.")
     page.unroute("**/api/files/notes", bad_gateway)
     held.clear()
     page.evaluate("window.heldFileWrites = 0")

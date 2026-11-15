@@ -77,11 +77,13 @@ export function createPendingLedger({ newAttempt, enqueue }) {
     accept(entry, event) {
       applicationState.accept(entry.event.attempt, event);
     },
-    /** @param {readonly Event[]} receipts */
-    present(receipts) {
-      applicationState.present(receipts);
-      for (const receipt of receipts)
-        if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
+    // A document pass drawing these logged events has run; each that carries an
+    // attempt is that gesture's receipt.
+    /** @param {readonly Event[]} events */
+    present(events) {
+      applicationState.present(events);
+      for (const event of events)
+        if (event.attempt) handles.get(event.attempt)?.resolveRead(event);
     },
     /** @param {DeliveryHandle} entry */
     nameEvents(entry) {

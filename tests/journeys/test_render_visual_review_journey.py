@@ -344,7 +344,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("Escape")
     user.keyboard.press("Escape")
     assert user.evaluate("() => document.activeElement === document.body")
-    compare = second.get_by_role("button", name="Pair", exact=True)
+    compare = second.get_by_role("radio", name="Pair", exact=True)
     go_to(user, compare)
     assert_keyboard_focus(user, compare)
     corrected = shifted | {
@@ -424,7 +424,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
     shot = case.locator("lf-shot")
-    control = case.get_by_role("button", name="Slider", exact=True)
+    control = case.get_by_role("radio", name="Slider", exact=True)
     control.click()
     case.get_by_role("button", name="Image options").click()
     case.get_by_role("button", name="100%", exact=True).click()
@@ -451,7 +451,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     told(page)
     expect(control).to_be_focused()
     assert shot.evaluate("(node, original) => node === original", original)
-    expect(control).to_have_attribute("aria-pressed", "true")
+    expect(control).to_have_attribute("aria-checked", "true")
     expect(shot.locator("wa-comparison")).to_have_attribute("position", "1")
     expect(
         case.get_by_role("button", name="100%", exact=True, include_hidden=True)
@@ -490,7 +490,7 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     ) == [[1200, 1000, 600], [1200, 1000, 600]]
 
     # Refreshing captures also replaces the cached pixel mask and its background.
-    pixels = case.get_by_role("button", name="Pixels", exact=True)
+    pixels = case.get_by_role("radio", name="Pixels", exact=True)
     pixels.click()
     page.wait_for_function(
         """() => document.querySelector(
@@ -552,8 +552,8 @@ def test_visual_review_refresh_retains_inspection_and_hands_focus_off_removed_ca
     told(page)
     expect(shot.locator(".lf-error")).to_have_count(0)
     expect(pixels).to_be_focused()
-    expect(pixels).to_have_attribute("aria-pressed", "true")
-    expect(shot.locator(".lf-shot-outline")).to_have_attribute(
+    expect(pixels).to_have_attribute("aria-checked", "true")
+    expect(shot.locator(".lf-shotstage")).to_have_attribute(
         "aria-description", "identical"
     )
     corrected_pixels = shot.evaluate(painted_pixels)

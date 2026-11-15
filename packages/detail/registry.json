@@ -4,10 +4,7 @@
     "x-instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only its conclusions. It governs the nearest tab or part containing it, or the whole main. Skim is only as good as the gists: mark each section's conclusion `.gist` (the detail package's author instructions).",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,

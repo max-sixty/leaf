@@ -48,13 +48,13 @@ lf-deck[data-lf-deck-flying] {
   border-radius: 2px;
   background: var(--rule);
 }
-.lf-deck-pip[data-state="done"] {
+.lf-deck-pip[data-lf-state="done"] {
   background: var(--ok);
 }
-.lf-deck-pip[data-state="agent"] {
+.lf-deck-pip[data-lf-state="agent"] {
   background: var(--muted);
 }
-.lf-deck-pip[data-state="open"] {
+.lf-deck-pip[data-lf-state="open"] {
   background: var(--ink-2);
 }
 /* Where the cards stood once the pass is over: a quiet frame saying what is left, with

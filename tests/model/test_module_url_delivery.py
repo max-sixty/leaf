@@ -167,30 +167,36 @@ def test_javascript_absolute_imports_resolve_without_the_documents_base(
     )
 
 
+SPELLED_MODULES = [
+    ("État+v1.mjs", "État+v1.mjs"),
+    ("💧state.mjs", "💧state.mjs"),
+    ('"state.mjs', "%22state.mjs"),
+    ("my 100%20state.mjs", "my%20100%2520state.mjs"),
+    ("#state.mjs", "%23state.mjs"),
+    ("?state.mjs", "%3Fstate.mjs"),
+]
+STATIC_IMPORT = 'import { once } from "HELPER";'
+
+
+# A filename's spelling and the form that imports it are read apart, so each spelling
+# goes through one form and each form through one spelling, in each kind of directory.
 @pytest.mark.parametrize(
-    ("directory", "name", "specifier"),
+    ("directory", "name", "specifier", "module"),
     [
-        (directory, name, specifier)
-        for directory in ("runtime/helpers", "vendor", "page")
-        for name, specifier in [
-            ("État+v1.mjs", "État+v1.mjs"),
-            ("💧state.mjs", "💧state.mjs"),
-            ('"state.mjs', "%22state.mjs"),
-            ("my 100%20state.mjs", "my%20100%2520state.mjs"),
-            ("#state.mjs", "%23state.mjs"),
-            ("?state.mjs", "%3Fstate.mjs"),
-        ]
-    ]
-    + [
-        ("page", "my state.mjs", "my state.mjs"),
-    ],
-)
-@pytest.mark.parametrize(
-    "module",
-    [
-        'import { once } from "HELPER";',
-        'export { once } from "HELPER";',
-        'const loaded = import("HELPER");',
+        *(
+            (directory, name, specifier, STATIC_IMPORT)
+            for directory in ("runtime/helpers", "vendor", "page")
+            for name, specifier in SPELLED_MODULES
+        ),
+        ("page", "my state.mjs", "my state.mjs", STATIC_IMPORT),
+        *(
+            (directory, *SPELLED_MODULES[3], module)
+            for directory in ("vendor", "page")
+            for module in (
+                'export { once } from "HELPER";',
+                'const loaded = import("HELPER");',
+            )
+        ),
     ],
 )
 def test_native_package_import_urls_survive_delivery_and_export(
@@ -242,7 +248,7 @@ def test_native_package_import_urls_survive_delivery_and_export(
     )
     assert artifact.resources[helper].mime == "application/javascript"
     inliner = AssetInliner(artifact.resources.__getitem__)
-    embedded = _module_urls(artifact, [document], inliner)
+    embedded = _module_urls(artifact, document, inliner)
     assert set(embedded) == {"/leaf.js", alias, widget, helper, public}
     assert embedded[alias] == embedded[widget]
     source = inliner.embedded[embedded[widget]].data.decode()
@@ -331,14 +337,13 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
         vocabulary=vocabulary,
     )
     inliner = AssetInliner(artifact.resources.__getitem__)
-    modules = _module_urls(artifact, [document], inliner)
+    modules = _module_urls(artifact, document, inliner)
     logical = "/page/" + name
     assert logical in modules
     exported = export_document(
         artifact,
         document,
         served_reading(document.html),
-        {"sources": {}},
         1,
         1,
         {},
@@ -362,7 +367,7 @@ def test_authored_module_entry_exports_through_its_one_import_map_url(tmp_path, 
 
 
 def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
-    """Widgets introduced by a later message use the page's one ordinary Lit module."""
+    """A widget's import and the runtime's reach the page's one ordinary Lit module."""
     from leaf.exporting import AssetInliner, _module_urls
     from leaf.revision_artifact import capture_artifact
     from leaf.structure import SourceDocument
@@ -372,15 +377,13 @@ def test_exported_widgets_share_the_runtime_lit_module(tmp_path):
         "/vendor/lit.js": 'export const render = "module implementation";',
     }
     layer = {"/widgets/lf-later.js": 'import { render } from "/vendor/lit.js";'}
-    document = SourceDocument("<main>Plain</main>")
+    document = SourceDocument("<main><lf-later></lf-later></main>")
     vocabulary = {"lf-later": {"x-upgrade": True}}
     artifact = running(
         capture_artifact(tmp_path, document, vocabulary), runtime, layer, vocabulary
     )
     inliner = AssetInliner(artifact.resources.__getitem__)
-    modules = _module_urls(
-        artifact, [document, SourceDocument("<lf-later></lf-later>")], inliner
-    )
+    modules = _module_urls(artifact, document, inliner)
     implementation = inliner.embedded[modules["/vendor/lit.js"]].data.decode()
     assert implementation == runtime["/vendor/lit.js"]
     widget = inliner.embedded[modules["/widgets/lf-later.js"]].data.decode()

@@ -39,6 +39,7 @@
    door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
    opens it from where the user was before pressing it, and Escape returns to the row's
    door. */
+import { labelWords } from "../words.js";
 import { setScroll } from "../arrivals.js";
 import {
   showNativeLayer,
@@ -58,7 +59,6 @@ import {
   hasRows,
   commandPresentations,
   commandBinding,
-  commandRun,
   contextBindings,
   allBindings,
   descriptionOf,
@@ -115,7 +115,7 @@ let stopReferenceReading = null;
 const commandReferenceSearch = searchField("lf-command-reference-search", {
   name: "shortcut-search",
   label: "Search commands",
-  placeholder: "Find a key or action",
+  placeholder: "Find a key or action…",
 });
 commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
 // Page-key presentation owns this retained native control's changing name and shortcut
@@ -125,8 +125,6 @@ const commandReferenceClose = closeControl({
   className: "lf-command-reference-close",
 });
 
-commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
-commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 // Retained controls connect with their closed dialog at boot, so their native editor
 // and command wiring are ready before the first opening. Local renders only seat them.
 commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
@@ -290,11 +288,7 @@ let commandReferenceView = {
 };
 
 /** @param {string | null | undefined} value */
-const commandReferenceWords = (value) =>
-  String(value ?? "")
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+const commandReferenceWords = (value) => labelWords(value).toLocaleLowerCase();
 
 // A binding query retains a trailing separator: `g ` means the routes below the `g`
 // prefix. Case is retained for the first rank so `g t` and `g T` remain distinct.
@@ -399,10 +393,17 @@ function captureCommandReferenceCatalog() {
       ? routes.has(undefined)
       : alternatives.some((binding) => routes.has(binding));
   };
+  // Whether the reference can run a row is a fact of its declaration, and whether it
+  // can run it now is `available`'s. It runs what the row's key runs (dispatch.js,
+  // `invocationFor`): its action, the command it routes to, or the press of the control
+  // it names, as `r` presses a thread's Resolve (bindings.js, `commandRun`).
   /** @param {Command} row @param {CommandRoute | null} route */
   const actionable = (row, route) =>
     Boolean(
-      (commandRun(row, commandBinding(row, route), null) || routedCommand(route)) &&
+      (row.run ||
+        (commandBinding(row, route) != null && row.runKey) ||
+        routedCommand(route) ||
+        (route?.control ?? row.control) !== undefined) &&
       (routedCommand(route)?.row ?? row).runFromCommandReference !== false,
     );
 
@@ -763,11 +764,13 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     aria-selected=${String(selected)}
     aria-labelledby=${titleId}
     aria-describedby=${describedBy}
-    title=${
-      [entry.description, entry.available ? "" : entry.unavailableMessage]
-        .filter(Boolean)
-        .join("\n") || nothing
-    }
+    .lfPreview=${() => {
+      const detail = [
+        entry.description,
+        entry.available ? "" : entry.unavailableMessage,
+      ].filter(Boolean);
+      return detail.length ? { detail } : null;
+    }}
     ?hidden=${!shown}
     @click=${() => activateCommandEntry(entry)}
   >
@@ -775,15 +778,21 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
   </button>`;
 }
 
-// A section's heading names the group of each command under it (`aria-labelledby`), as
+// A section's band names the group of each command under it (`aria-labelledby`), as
 // a listbox holds only options and their groups, so it stands out of the
-// accessibility tree itself.
+// accessibility tree itself. Its box holds only the band, since every row stays under
+// one parent (`commandReferenceItems`), and takes no layout box (chrome.css).
+// The band's words stand in a part of their own, which cuts them where the band
+// ends, with no space around them, so the heading reads as its title alone.
 /** @param {string} id @param {string} title @param {boolean} [hidden] */
-const headingRow = (id, title, hidden = false) => html`
-  <div role="none" ?hidden=${hidden}>
-    <h3 class="lf-rows-head" id=${id} aria-hidden="true">${title}</h3>
-  </div>
-`;
+const headingRow = (id, title, hidden = false) => {
+  const name = html`<span class="lf-row-main">${title}</span>`;
+  return html`
+    <div class="lf-rows-group" role="none" ?hidden=${hidden}>
+      <h3 class="lf-rows-head" id=${id} aria-hidden="true">${name}</h3>
+    </div>
+  `;
+};
 
 const commandReferenceItems = () => {
   /** @type {(ReferenceItem & {order: number})[]} */
@@ -873,7 +882,7 @@ function commandReferenceTemplate() {
       <div class="lf-dialog-title">Command reference</div>
       ${commandReferenceClose}
     </div>
-    <label class="lf-command-reference-preference">
+    <label class="lf-choice lf-command-reference-preference">
       <input
         type="checkbox"
         name="quick-keyboard-shortcuts"

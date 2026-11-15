@@ -47,7 +47,7 @@
  * another.
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
- * window, built from the On me list. Catch up is a widget the agent puts on the page
+ * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
@@ -570,7 +570,8 @@ customElements.define(
       return html`
         <span class="lf-deck-pips" aria-hidden="true"
           >${this.#cards.map(
-            (each) => html`<span class="lf-deck-pip" data-state=${mark(each)}></span>`,
+            (each) =>
+              html`<span class="lf-deck-pip" data-lf-state=${mark(each)}></span>`,
           )}</span
         >
         <span class="lf-deck-count" role="status">${count}</span>

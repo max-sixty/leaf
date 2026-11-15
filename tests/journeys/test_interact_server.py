@@ -1,8 +1,6 @@
 """HTTP event and service-address tests."""
 
 import http.client
-import http.cookiejar
-import http.cookies
 import json
 import shutil
 import subprocess

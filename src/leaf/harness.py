@@ -141,7 +141,8 @@ class Harness:
     def escape_sandbox(self) -> None:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
-        before a command naming `leaf` calls it, outside the sandbox. A harness
+        before a command naming `leaf` calls it, outside the sandbox, in the Leaf
+        the harness ran and in any it hands itself to (`hooks.main`). A harness
         whose sandbox leaves no road out, as Codex's does, opens none; Codex's
         agent runs a confined command through Leaf's MCP server instead
         (`codex_tool.py`)."""
@@ -236,6 +237,13 @@ class Harness:
         over the input a `nudge` could still deliver."""
         return True
 
+    def unloaded_module(self) -> dict | None:
+        """The hook output telling the user that the harness didn't load Leaf's own
+        module into the process this hook runs under, which a Stop ending the turn
+        of a session holding a page prints (`hooks.cmd_hook`); None where the
+        harness has no such module, loaded it, or the user has been told."""
+        return None
+
     @classmethod
     def run_ack(cls, command: str) -> str:
         """How the reader of this session's printed delivery runs `command`, which
@@ -280,6 +288,12 @@ class Harness:
         Only a harness whose hooks don't commit their context
         (`commits_hook_context`) is asked (`delivery.confirm_entered`)."""
         return set()
+
+    def prompt_dropped(self, payload: dict, turn: str) -> bool:
+        """Whether the harness's own record, named in hook `payload`, shows that the
+        prompt of `turn` never reached the conversation: an interrupt dropped it
+        while its prompt hooks ran. False where the record can't tell."""
+        return False
 
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
@@ -372,7 +386,14 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     `job` is the background job directory a claim rests on (`lifetime`), which
     `nudge` resumes when no worker hosts the job; None for a session the user sits
-    at, and for the harness the environment implies."""
+    at, and for the harness the environment implies.
+
+    A subagent the session spawns runs its shell commands in the session's own
+    environment, with nothing that names the subagent (measured at 2.1.317), so a
+    command it runs acts for the session; only a hook's payload names it
+    (`agent_id`, `state.worker_tool_batch`). Leaf's PreToolUse hook marks the `leaf`
+    commands of a fork Leaf gave a thread's work with its agent id, so they act in
+    that fork's own turn (`hooks.agent_command`)."""
 
     job: str | None = None
 
@@ -453,12 +474,14 @@ class ClaudeCodeHarness(EnvironmentHarness):
     @classmethod
     def hook_payload(cls, payload: dict) -> dict:
         """Claude Code names the turn by its prompt, `prompt_id`, in every hook but
-        SessionStart, and a prompt Escape dropped is submitted again under a new one
-        (measured at 2.1.310), so a handover into a dropped prompt belongs to a turn
-        that never ran. Releases before 2.1.196 send no `prompt_id` (found in each
-        npm release's hook input), so their turns are Leaf's, and a resubmitted
-        prompt renews the dropped one's; receipt then stops short of its handover
-        (`delivery.confirm_entered`), which is input again once the turn ends."""
+        SessionStart, and a queued prompt Escape dropped, such as a watch's wake, is
+        submitted again under a new one (measured at 2.1.310), so a handover into a
+        dropped prompt belongs to a turn that never ran. A typed prompt Escape drops
+        goes back to the composer instead (2.1.316). Releases before 2.1.196 send no
+        `prompt_id` (found in each npm release's hook input), so their turns are
+        Leaf's, and a resubmitted prompt renews the dropped one's; receipt then stops
+        short of its handover (`delivery.confirm_entered`), which is input again once
+        the turn ends."""
         prompt = payload.get("prompt_id")
         return {**payload, "turn_id": prompt} if prompt else payload
 
@@ -498,6 +521,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
         path = payload.get("transcript_path")
         return claude_code_entered(Path(path)) if path else set()
 
+    def prompt_dropped(self, payload: dict, turn: str) -> bool:
+        """Whether the transcript the payload names holds no record of the prompt
+        `turn` names (`claude_code_prompt_dropped`)."""
+        path = payload.get("transcript_path")
+        return bool(path) and claude_code_prompt_dropped(Path(path), turn)
+
     def escape_sandbox(self) -> None:
         """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
         from .bridge import ensure
@@ -530,6 +559,33 @@ class ClaudeCodeHarness(EnvironmentHarness):
         minutes, the hook still running)."""
         return pid_alive(int(os.environ["CLAUDE_PID"]))
 
+    def unloaded_module(self) -> dict | None:
+        """Claude Code refuses to load a hooks module it can't validate and says so
+        only in its debug log (measured at 2.1.325, for a `$.env.get` of a variable
+        name), so the user sees no more than Leaf's line above the prompt gone.
+        `hooks/claude-code.ts` starts its pages follower once the session holds a
+        page, after the `leaf` command that claims one and as each turn starts, and
+        the follower records the process it runs in (`leases.mark_module`). At a
+        Stop in a session holding a page, a record naming another process means the
+        module isn't running in this one; only a turn ending within the second the
+        follower of its own first claim takes to start would read wrong. The notice
+        records this process, so the user hears it once per process, and a module
+        loaded later, as `/reload-plugins` loads one, records it again."""
+        from .leases import mark_module, module_process
+        from .state import PLUGIN_ROOT
+
+        pid = self.process_pid()
+        if pid is None or module_process(self.session) == pid:
+            return None
+        mark_module(self.session, pid)
+        return {
+            "systemMessage": "Leaf: Claude Code didn't load Leaf's hooks module in "
+            "this session, so Leaf's line above the prompt is gone, and so is the "
+            "work Leaf does from this conversation, such as the working line on "
+            f"thread messages. `claude plugin validate {PLUGIN_ROOT}` says why; once "
+            "a Leaf update fixes it, /reload-plugins loads it."
+        }
+
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
 
@@ -548,9 +604,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         return name if isinstance(name, str) and name else None
 
     def inference_generator(self) -> Callable[..., dict]:
-        from leaf.inference import claude_code_generate
+        from leaf.inference import claude_code_generator
 
-        return claude_code_generate
+        return claude_code_generator(self.session)
 
     def nudge(self, page_dir: Path) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
@@ -893,6 +949,10 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
 # The harnesses whose hooks Leaf registers, by the name a registration passes
 # (`hook_harness`).
 HOOK_HARNESSES = {harness.name: harness for harness in _ENVIRONMENT_HARNESSES}
+# The time every harness gives the prompt and Stop hooks: each registration's
+# `timeout` (`hooks/hooks.json`, `hooks/codex.json`) and Pi extension's bound
+# (`hooks/pi.ts`), which `test_hook_registration` holds to this.
+HOOK_TIMEOUT_S = 20
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
@@ -900,7 +960,7 @@ HARNESSES: dict[str, type[Harness]] = {
 AGENT_VARIABLE = "LEAF_AGENT"
 # Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
-# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# scrubs the set: a build that publishes pages (`leaf-dev site build`), an eval's child
 # (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(
@@ -1077,6 +1137,39 @@ def claude_code_entered(transcript: Path) -> set[str]:
     return entered
 
 
+def claude_code_prompt_dropped(transcript: Path, prompt: str) -> bool:
+    """Whether the Claude Code transcript at `transcript` holds no record of the
+    prompt whose `promptId` is `prompt`.
+
+    Claude Code writes a prompt's record, which names its `promptId`, once the
+    prompt's hooks let it through, and nothing of a prompt Escape dropped while they
+    ran (measured at 2.1.316). A missing or unreadable transcript shows nothing, so
+    the prompt reads as not dropped. Like `claude_code_entered`, this maps the file
+    and parses only the lines holding the id, reading back from the end, since the
+    prompt asked about is a recent one."""
+    marker = prompt.encode()
+    try:
+        with (
+            transcript.open("rb") as file,
+            mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mapped,
+        ):
+            before = len(mapped)
+            while (hit := mapped.rfind(marker, 0, before)) != -1:
+                start = mapped.rfind(b"\n", 0, hit) + 1
+                end = mapped.find(b"\n", hit)
+                line = mapped[start : len(mapped) if end == -1 else end]
+                try:
+                    if json.loads(line).get("promptId") == prompt:
+                        return False
+                except ValueError:
+                    pass
+                before = start
+    except (OSError, ValueError):
+        # mmap refuses an empty file with ValueError.
+        return False
+    return True
+
+
 def claude_code_config() -> Path:
     """Claude Code's configuration directory."""
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
@@ -1237,6 +1330,11 @@ def claude_code_registry() -> list[dict]:
     return records
 
 
+def codex_home() -> Path:
+    """The directory Codex keeps this user's configuration, history and sockets in."""
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+
 def codex_thread_names() -> dict[str, str]:
     """Each thread's latest name in Codex's session index,
     `$CODEX_HOME/session_index.jsonl`, by thread id.
@@ -1245,8 +1343,7 @@ def codex_thread_names() -> dict[str, str]:
     or renames a thread, so the last line for an id holds its current name. The
     index is the machine's and every state read of a Codex page asks it, so the
     process keeps the last reading until the file's stamp moves."""
-    home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    index = home / "session_index.jsonl"
+    index = codex_home() / "session_index.jsonl"
     try:
         stat = index.stat()
     except OSError:

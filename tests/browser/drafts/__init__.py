@@ -40,13 +40,14 @@ window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
 // Native prototype activation route: activate the panel's offered Latest, its row
 // notice's press, without transferring the editor's focus to the panel before the
-// carry is captured.
+// carry is captured. It listens in capture, since a key typed into a Leaf field never
+// bubbles to the page (field-keys.js).
 addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
     document.querySelector('.lf-floating-panel .lf-fp-row-notice-press')?.click();
   }
-});
+},true);
 </script>""".replace("MODE", mode)
     return leaf_page("Editor continuity", body).replace("</head>", module + "</head>")
 

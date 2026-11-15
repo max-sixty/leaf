@@ -32,3 +32,21 @@ lf-chart .lf-chart-drawing svg[role="img"] {
 lf-chart .lf-chart-drawing [class*="-swatches"] {
   font-family: inherit;
 }
+/* The point the reader is on (lf-chart.js): a ring in the page's ink over the paper,
+ * and a dotted rule from it to the axis it stands at. A finger slides along the drawing
+ * to read it and scrolls the page up and down it. */
+lf-chart .lf-chart-drawing svg[role="img"] {
+  touch-action: pan-y pinch-zoom;
+}
+lf-chart .lf-chart-at {
+  pointer-events: none;
+}
+lf-chart .lf-chart-at circle {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.5px;
+}
+lf-chart .lf-chart-at line {
+  stroke: var(--muted);
+  stroke-dasharray: 2 3;
+}

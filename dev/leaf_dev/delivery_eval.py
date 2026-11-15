@@ -18,7 +18,7 @@ from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
 from leaf_dev import ROOT
 from leaf_dev.arms import LiveChild, LiveSession, PageClient, run_leaf, scratch
-from leaf_dev.commands.response_times import distribution, page_timings
+from leaf_dev.commands.logs.response_times import distribution, page_timings
 from leaf_dev.eval_cases import definition
 from leaf_dev.review_scenario import prepare
 
@@ -176,15 +176,12 @@ def execute_scenario(
                         )
                         if not ready:
                             continue
-                        client = PageClient(live.url)
                         # The log admits a retry key of 16 to 128 characters, and a
                         # comment's name may be a single character.
-                        attempt = f"delivery-eval-comment-{move['name']}"
-                        current = client.post(
+                        event = PageClient(live.url).post(
                             {
                                 "kind": "comment",
-                                "revision": client.state()["active"]["revision"],
-                                "attempt": attempt,
+                                "attempt": f"delivery-eval-comment-{move['name']}",
                                 "text": move["text"],
                                 **(
                                     {"anchor": move["anchor"]}
@@ -192,9 +189,6 @@ def execute_scenario(
                                     else {}
                                 ),
                             }
-                        )
-                        event = next(
-                            e for e in current["events"] if e.get("attempt") == attempt
                         )
                         injection = {
                             "name": move["name"],

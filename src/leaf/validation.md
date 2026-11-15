@@ -9,7 +9,9 @@ directly:
 check`, activation, `page stamp` and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment;
-- a layer `page init` would vendor at `composition.incoming_registry`;
+- a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
+  `page init`, `page check`, serving and export, but not reading the page
+  ([layer-registry.md](layer-registry.md));
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
@@ -30,7 +32,9 @@ them:
   them at the start of `<head>`, so source may not author them. Message markup may not
   author the last three either, since it renders in every revision.
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
-  and later. No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
+  and later, but for the classes the kernel's idioms name (`lf-btn`, `lf-choice` and
+  the others `structure.AUTHORED_CLASSES` reads), which a page writes to take Leaf's
+  face. No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
   command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
@@ -121,6 +125,9 @@ or a fixed laptop window (`render_gate.command.desktop_viewport`), and the sweep
 screens use that window's height.
 The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
 launches the command uses.
+
+The page's server runs the same check on a version the agent hands over, and tells the
+agent what is new in a `render` event (`render_gate/handover_pass.py`).
 
 Every widget output published during the check, including one subsequently withdrawn
 or published by a disposed sample, is validated against its data contract. A failure

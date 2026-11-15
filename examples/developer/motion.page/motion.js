@@ -70,7 +70,9 @@ function arrival(nodes, alternative, time) {
   keeps(nodes.ring, "opacity", alpha);
 }
 
-const mounted = new WeakSet();
+// A revision edits inside a study in place, so the drawing reads the parts the study
+// holds as it draws, and each PAGE_INTERFACE fits and draws them again.
+const fits = new WeakMap();
 await customElements.whenDefined("lf-motion");
 function mount() {
   for (const [id, draw] of [
@@ -78,28 +80,32 @@ function mount() {
     ["arrival-motion", arrival],
   ]) {
     const host = document.getElementById(id);
-    if (!host || mounted.has(host)) continue;
-    mounted.add(host);
-    const scenes = [...host.querySelectorAll("figure")].map((figure) =>
-      Object.fromEntries(
-        [...figure.querySelectorAll("[data-part]")].map((node) => [
-          node.dataset.part,
-          node,
-        ]),
-      ),
-    );
-    const drawings = [...host.querySelectorAll("figure svg")];
+    if (!host) continue;
+    if (fits.has(host)) {
+      fits.get(host)();
+      continue;
+    }
     let width = 560;
     host.renderFrame = (time) => {
-      scenes.forEach((nodes, index) => draw(nodes, index === 1, time - 250, width));
+      [...host.querySelectorAll("figure")].forEach((figure, index) => {
+        const nodes = Object.fromEntries(
+          [...figure.querySelectorAll("[data-part]")].map((node) => [
+            node.dataset.part,
+            node,
+          ]),
+        );
+        draw(nodes, index === 1, time - 250, width);
+      });
     };
     const fit = frameFor(host, () => {
-      const measured = drawings[0].clientWidth;
+      const drawings = [...host.querySelectorAll("figure svg")];
+      const measured = drawings[0]?.clientWidth;
       if (!measured) return;
       width = measured;
       drawings.forEach((svg) => keeps(svg, "viewBox", `0 0 ${width} 110`));
       host.renderFrame(host.currentTime);
     });
+    fits.set(host, fit);
     whileConnected(host, () => {
       const sizes = sizeObserver(fit);
       sizes.observe(host);

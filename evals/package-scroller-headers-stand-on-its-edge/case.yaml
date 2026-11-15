@@ -3,7 +3,7 @@
 # the rows scroll past visibly in the band above the stuck header. The scroller states
 # its own start at minus that padding, as a workspace pane's body does. Three Claude
 # Code trials told the wordings apart: base 0/3 (its module-authoring.md names no
-# start), candidate 3/3, every candidate stating `--lf-top-start`.
+# start), head 3/3, every head run stating `--lf-top-start`.
 description: package-scroller-headers-stand-on-its-edge
 metadata:
   purpose: A padded package scroller states --lf-top-start so its sticky headers stand on its top edge.

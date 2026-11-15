@@ -2,12 +2,12 @@
 # playground copied demonstration history into the review page and duplicated
 # fixture anchors there. Measures independent authored sample histories against
 # that tempting parent-log import; static sketch cases remain guardrails.
-# Baseline passed 0/3 and candidate 3/3; both static sketch guardrails passed
+# Baseline passed 0/3 and head 3/3; both static sketch guardrails passed
 # before and after. An earlier path-confused run
 # could not read the package guidance in either arm and measured nothing.
 # View selection was added from Codex chat 01a0fb64-3cdf-75c3-8166-64cc3b60273a:
 # outer case controls automated private thread chrome. Native Promptfoo runs on
-# Claude Code and Codex each passed 0/1 on c9b8dd33c and 1/1 on the candidate.
+# Claude Code and Codex each passed 0/1 on c9b8dd33c and 1/1 on the head.
 # All four runs preserved fixture isolation; the view-selection assertion alone
 # separated them. The earlier CC-only run hit
 # the old harness's turn limit on both baseline samples and measured no baseline.

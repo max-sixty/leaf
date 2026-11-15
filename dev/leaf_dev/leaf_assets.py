@@ -4,25 +4,23 @@ Every tracked byte ships in every install, so Leaf's tree is text and its images
 in a separate Git repository instead, each at the path its reader would look for it in
 the tree (`pinned_copy`):
 
-- `examples/` holds the catalog previews (`leaf_dev.commands.refresh_previews`),
-  `examples/media/` the images the example pages show (`leaf_dev.commands.publish_media`),
+- `examples/` holds the catalog previews (`leaf_dev.commands.site.previews`),
+  `examples/media/` the images the example pages show (`leaf_dev.commands.site.media`),
   and `examples/traces/` the Playwright archives the examples link and the manifests
   imported from them, which an example names as an `asset` capture
   (`leaf_dev.example_data`);
 - `demo/` holds the README's recording and stills and the site's card
-  (`leaf_dev.commands.record_demo`);
+  (`leaf_dev.commands.site.demo`);
 - `evals/<case>/` holds what an instruction case hands its child
-  (`leaf_dev.commands.eval`).
+  (`leaf_dev.commands.eval.run`).
 
 `leaf-assets.json` pins media and reviewed thread expectations independently. Media
 publication follows the asset head; only snapshot acceptance advances the expectations
 that belong to this runtime. README image URLs name the media commit. Downloads land
 under .tmp, which both local builds and CI may discard and reconstruct.
 
-    uv run leaf-dev fetch-assets
-
-Every reader calls `pinned_assets()`, which fetches on a miss; the command only warms
-the cache, as `wt setup` does. A writer stages its files in a clone of the revision its
+Every reader calls `pinned_assets()`, which fetches on a miss; `leaf-dev setup` warms
+the cache for both pins. A writer stages its files in a clone of the revision its
 checkout pins, so what it adds, replaces or removes is measured against the set its own
 branch reads. `publish` replays that change onto the repository's head, which keeps
 files other branches published since, then moves the pin. A writer that owns a whole

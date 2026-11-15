@@ -4,8 +4,9 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The journey's harness steps
-(`journey_claude_code`, `journey_codex`, `journey_pi`) also share the comments a
-step sends and the reading of what holds between steps.
+(`journey.Terminal` and each harness's own) also share the comments a step sends,
+and the readings of the page they check: its claim, the turns that picked up a
+comment, its status, and what holds between steps.
 """
 
 import shutil
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import click
 
+from leaf.agent_state import cmd_page_state
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.service import page_claim
@@ -45,13 +47,28 @@ COMMENTS = {
     "first": ("triage-lede", "Who owns the migration fix?"),
     "ending": ("triage-why", "When could that fix land?"),
     "compacting": ("triage-lede", "Which risk worries you most for this release?"),
-    # Questions the conversation already answers, which a fork of it can, and a
-    # request for work, which only the session can do.
+    # A question the conversation already answers and a request for work, on each of
+    # which a fork posts the agent's working line before the session answers.
     "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    "fork-busy": ("triage-why", "Which release did I say passed its checks?"),
     "fork-work": (
         "triage-why",
         "Rename this heading to ‘Why the migration alone blocks the release’.",
+    ),
+    # A question a fork takes and looks up in the page's source, which the user
+    # follows up in its thread as the fork starts (`FOLLOW_UP`).
+    "fork-lookup": (
+        "triage-lede",
+        "How many cards does this page's source hold? Count them in the file.",
+    ),
+    # A question a fork takes, whose rest the user leaves as work for later, which
+    # the fork answers with a to-do on the thread for the session. Asking for the
+    # change itself, even after the session's current work, the line fork judged
+    # the session's on 11 Nov, as a change to the page is.
+    "fork-todo": (
+        "triage-lede",
+        "Which cards on this page mention customers or partners? List them here. "
+        "Tagging those cards on the page is a bigger job for later: don't do it now, "
+        "keep it as a to-do.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
@@ -104,21 +121,14 @@ def post(url: str, step: str, text: str | None = None) -> str:
     tab posts one, and return its admitted id: the scenario's (`COMMENTS`) on its
     section, or `text` on the page as a whole."""
     section, text = COMMENTS[step] if text is None else (None, text)
-    client = PageClient(url)
-    state = client.post(
+    return PageClient(url).post(
         {
             "kind": "comment",
-            "revision": client.state()["active"]["revision"],
             "attempt": attempt(step),
             "text": text,
             **({"anchor": {"section": section}} if section else {}),
         }
-    )
-    return next(
-        event["id"]
-        for event in state["events"]
-        if event.get("attempt") == attempt(step)
-    )
+    )["id"]
 
 
 def require[T](condition: T | None, message: str) -> T:
@@ -132,11 +142,31 @@ def answers(page: Path, comment: str) -> list[dict]:
     return successful_replies(read_events(page), comment)
 
 
+def picked_up(page: Path, comment: str) -> list[str]:
+    """The turns whose opened pickups took one sent comment into the harness's
+    context."""
+    return [
+        event["turn"]
+        for event in pickup_receipts(
+            read_events(page), phase="opened", input_id=comment
+        )
+    ]
+
+
+def claimed(page: Path) -> dict:
+    """The page's claim, which a session has held since setup."""
+    return require(page_claim(page), "the page has no claim")
+
+
+def activity(page: Path) -> str:
+    """What the page's status reads: its activity's kind (`leaf.activity`)."""
+    return cmd_page_state(page)["activity"]["kind"]
+
+
 def settled(page: Path, session: str, sent: dict[str, str]) -> dict:
     """What holds while a task is idle between steps: each comment sent so far
     (`sent`, each step's name and its comment's id) answered once and picked up, and
     the page claimed by the task's session with its turn closed. Returns the claim."""
-    events = read_events(page)
     for step, comment in sent.items():
         replies = answers(page, comment)
         require(
@@ -144,11 +174,10 @@ def settled(page: Path, session: str, sent: dict[str, str]) -> dict:
             f"comment `{step}` has {len(replies)} replies, not one",
         )
         require(
-            bool(pickup_receipts(events, phase="opened", input_id=comment)),
+            bool(picked_up(page, comment)),
             f"comment `{step}` has a reply but never entered the harness context",
         )
-    claim = page_claim(page)
-    claim = require(claim, "the page has no claim")
+    claim = claimed(page)
     require(
         claim["id"] == session,
         f"the page is claimed by {claim['id']}, not the task {session}",

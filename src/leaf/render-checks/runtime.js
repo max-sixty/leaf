@@ -8,39 +8,77 @@ import { readThreads, threadActions } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
+// Work the page holds back until the reader nears its node, such as each live
+// sample's page, started at once (`start_near_work`).
+export { startNearWork } from "/runtime/check-api.js";
+
 // The runtime has started once its chrome, the floating panel, is in the page.
 export const runtimeStarted = () =>
   document.querySelector(".lf-floating-panel") !== null;
 export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 
 // Finite animations delay final geometry reads. Infinite ambient animation, such as the
-// status indicator, does not. `moving` is the render gate's shared reading of that
+// status indicator, does not. `finiteMotion` is the render gate's shared reading of that
 // boundary. A component that animates forever must not appear in it; a state transition
 // that can still change boxes must. One on an element the page doesn't render changes
 // no box, and Firefox never starts it: a colour transition the scheme starts on a
-// control inside a closed `<details>` stays pending until the details open.
-export function moving() {
-  return openRoots(document)
+// control inside a closed `<details>` stays pending until the details open. A
+// scroll-driven animation, such as the contents map's lens or a margin card's message
+// heads, moves only while something scrolls, which `scrolling` reads, and a paused one
+// isn't running, so neither is in it. Only an animation on a document timeline runs
+// on the clock: Firefox 159 gave a message head's view-timeline animation a finite end
+// (30769 ms on 2026-11-11), where Chromium gives a percentage.
+const finiteMotion = () =>
+  openRoots(document)
     .flatMap((root) => root.getAnimations())
-    .flatMap((animation) => {
+    .filter((animation) => {
       const effect = animation.effect;
       if (
         animation.playState !== "running" ||
+        !(animation.timeline instanceof DocumentTimeline) ||
         !Number.isFinite(effect?.getComputedTiming().endTime)
       )
-        return [];
+        return false;
       const target = effect instanceof KeyframeEffect ? effect.target : null;
-      if (target?.checkVisibility() === false) return [];
-      const name = animation instanceof CSSAnimation ? animation.animationName : "";
-      return [name ? `${at(target)} ${name}` : at(target)];
+      return target?.checkVisibility() !== false;
     });
+
+export const moving = () =>
+  finiteMotion().map((animation) => {
+    const effect = animation.effect;
+    const target = effect instanceof KeyframeEffect ? effect.target : null;
+    const name = animation instanceof CSSAnimation ? animation.animationName : "";
+    return name ? `${at(target)} ${name}` : at(target);
+  });
+
+// A resize can set the page moving where a load at that size would not: a value the
+// new width's rules change eases from the value the old width set. A load's reading
+// waits its motion out (`pageSettled`); the gate's sweep finishes what a resize started
+// instead, which ends on the same page, and says how many it finished.
+export function finishMoving() {
+  const motion = finiteMotion();
+  for (const animation of motion) animation.finish();
+  return motion.length;
 }
 
+// Whether the motion `finiteMotion` reads has ended within each element a selector
+// names, shadow trees included; a selector naming nothing reads as at rest. A test reads
+// one surface's geometry once that surface rests, while motion elsewhere runs on.
+export const restingIn = (/** @type {string[]} */ ...selectors) => {
+  const roots = selectors.flatMap((selector) => document.querySelector(selector) ?? []);
+  return !finiteMotion().some((animation) => {
+    const effect = animation.effect;
+    /** @type {Node | null} */
+    let node = effect instanceof KeyframeEffect ? effect.target : null;
+    while (node && !roots.some((root) => root === node))
+      node = node.parentNode ?? (node instanceof ShadowRoot ? node.host : null);
+    return node !== null;
+  });
+};
+
 // The page is settled once nothing is moving: no finite animation, and no scroll in
-// flight, such as a landing's smooth glide, which is no animation and moves every box
-// it scrolls. The runtime's reading of scrolls starts with its first call, so the
-// probes take one as they load, before any input they wait out.
-scrolling();
+// flight, such as a landing's glide, which is no animation and moves every box it
+// scrolls.
 export const pageSettled = () => moving().length === 0 && !scrolling();
 export const userViewRestoreCases = () => USER_VIEW_RESTORE_CASES;
 

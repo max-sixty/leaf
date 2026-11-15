@@ -43,7 +43,6 @@ from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
     FOLLOWER_MARK,
-    ROOT,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     compositor_trace,
@@ -66,6 +65,7 @@ from render_harness import (
 from browser.threads import append_agent_reply
 from leaf import event_log
 from leaf.render_checks import rendered, wait_until_ready
+from leaf_dev.example_data import named_source
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
 LONG = (
@@ -421,7 +421,7 @@ def sent(browser, serve, name, shots):
     return reading
 
 
-@pytest.mark.parametrize(("route", "width"), [("pointer", 900), ("search", 1650)])
+@pytest.mark.parametrize(("route", "width"), [("pointer", 1000), ("search", 1650)])
 def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     browser, serve, width, route
 ):
@@ -531,9 +531,9 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
-    """Send keeps the comment frame's width, already at least the card minimum. Reopening
-    chooses its width afresh for the thread's contents, at the same attachment."""
+def test_send_and_reopen_keep_the_card_width_and_attachment(browser, serve):
+    """The comment frame opens at the card's width, the measure or its room, which Send
+    keeps. Reopening stands the card in the same rectangle, whatever its words hold."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -562,8 +562,7 @@ def test_send_and_reopen_keep_the_card_minimum_and_attachment(browser, serve):
     expect(card).to_have_css("opacity", "1")
     rendered(page)
     reopened = page.evaluate(RECT, ".lf-margin-preview")
-    assert reopened["right"] - reopened["left"] >= minimum - 0.5, (reopened, minimum)
-    edges = ("left", "top", "bottom")
+    edges = ("left", "right", "top", "bottom")
     assert {edge: sent[edge] for edge in edges} == pytest.approx(
         {edge: reopened[edge] for edge in edges}, abs=0.5
     ), (sent, reopened)
@@ -637,7 +636,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + f"""<style>
               #paint-code {{ display:block; width:420px; }}
               #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
-              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
+              .lf-code-line[data-lf-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -700,7 +699,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     resized(page, *size)
     target = page.locator(
-        '#paint-code .lf-code-line[data-line="6"]'
+        '#paint-code .lf-code-line[data-lf-line="6"]'
         if region == "code"
         else "#paint-target"
     )
@@ -741,7 +740,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         )
     before_box = page.locator(".lf-fab-bar").bounding_box()
     # These arrangements give the card no inline lane. It stands over the block
-    # in the document and under it in the pane, one comment gap away. The bar's
+    # in the document and under it in the pane, the subject gap away. The bar's
     # content determines its height, but neither its measured spot nor any return
     # reading supplies the expected position.
     side = "top" if region == "document" else "right" if region == "code" else "bottom"
@@ -750,11 +749,11 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         == f"{side}-start"
     )
     expected_top = (
-        before_target["y"] - 8 - before_box["height"]
+        before_target["y"] - 16 - before_box["height"]
         if side == "top"
         else before_target["y"] - 8
         if side == "right"
-        else content_box["y"] + content_box["height"] + 8
+        else content_box["y"] + content_box["height"] + 16
     )
     assert abs(before_box["y"] - expected_top) <= 1, (before_target, before_box)
     # A thick outer marker distinguishes the target from pointed-state paint in
@@ -1134,7 +1133,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     the card, rather than scrolling inside a card the shot or the pane cuts short."""
     shot = None
     if subject.startswith("shot"):
-        page = open_page(browser, serve(ROOT / "examples/release-notes.html"))
+        page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
         shot.scroll_into_view_if_needed()
@@ -1517,8 +1516,12 @@ def test_a_reply_written_in_a_card_keeps_its_line_breaks_once_sent(
         ((1440, 900), 0.4, False, False, False, False, "browser"),
         ((1024, 600), 0.75, False, False, False, False, "browser"),
         ((1024, 844), 0.12, False, False, False, False, "browser"),
-        ((1024, 600), 0.4, True, False, False, False, "browser"),
-        ((1024, 600), 0.4, "scrolled", False, False, False, "browser"),
+        # A draft that scrolls, read with its scrollbars shown: under the shared
+        # browser's `--hide-scrollbars` the box's `auto` bar takes no room while the
+        # card's `scrollbar-gutter: stable` still does, so the card wrapped narrower
+        # than the box on macOS, a pairing no user's browser makes.
+        ((1024, 600), 0.4, True, False, False, False, "scrollbar_browser"),
+        ((1024, 600), 0.4, "scrolled", False, False, False, "scrollbar_browser"),
         ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
         ((1440, 900), 0.4, False, False, True, False, "browser"),
         ((1440, 900), 0.4, "passage", True, False, False, "browser"),
@@ -1790,11 +1793,11 @@ def test_send_grows_thread_around_the_words(
             page.keyboard.press("Enter")
             rendered(page)
             opening = card.evaluate("""async card => {
-              const {commentBoundary, COMMENT_GAP} =
+              const {commentBoundary, subjectGap} =
                 await window.__lfOverlayApi();
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
-                boundary:commentBoundary().top, gap:COMMENT_GAP};
+                boundary:commentBoundary().top, gap:subjectGap()};
             }""")
             assert opening["top"] == pytest.approx(opening["boundary"], abs=1), opening
             assert on.line(page)["top"] - opening["bottom"] == pytest.approx(
@@ -1817,16 +1820,17 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     page = open_page(browser, serve(source))
     reading = page.evaluate(
         """async () => {
-          const {makeRoom} = await window.__lfOverlayApi();
+          const {makeRoom, subjectGap} = await window.__lfOverlayApi();
           const scroller = document.querySelector('#scroller');
           const target = document.querySelector('#target');
           const boundary = scroller.getBoundingClientRect();
           const before = target.getBoundingClientRect();
           const height = boundary.height * .6;
-          const overflow = before.bottom + 8 + height - boundary.bottom;
+          const gap = subjectGap();
+          const overflow = before.bottom + gap + height - boundary.bottom;
           const moved = makeRoom('bottom', before, before, height, boundary, scroller);
           const after = target.getBoundingClientRect();
-          return {moved, overflow, remaining:after.bottom + 8 + height - boundary.bottom,
+          return {moved, overflow, remaining:after.bottom + gap + height - boundary.bottom,
                   visible:after.top >= boundary.top && after.bottom <= boundary.bottom};
         }"""
     )

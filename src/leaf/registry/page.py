@@ -15,7 +15,6 @@ from typing import NamedTuple
 
 from .contract import gathering, is_element_name, registry_error
 from .layer import merge_layer_declarations, stamp_composition
-from .validation import validate_registry
 
 
 class PageRegistry(NamedTuple):
@@ -30,14 +29,15 @@ def compose_page_registry(
     widget_paths: Collection[str],
     *,
     source="page/registry.json",
-    validated: dict | None = None,
+    validated: tuple[dict, dict] | None = None,
 ) -> PageRegistry:
     """Validate a page vocabulary and resolve its upgraded widgets.
 
-    ``validated`` is a vocabulary already validated, such as the active revision's:
-    a composition equal to it is not validated again. A composition that is
-    validated is stamped (`registry.layer.stamp_composition`) before its examples
-    are; one equal to ``validated`` already is.
+    ``validated`` is the layer and page declarations of a composition already
+    validated, such as the active revision's: a composition of the same two is not
+    validated again. The layer arrives stamped, so a composition is stamped
+    (`registry.layer.stamp_composition`) where it is validated or declares anything
+    over the layer, before its examples are validated.
 
     ``widget_paths`` contains available page-root-relative file names, including
     ``widgets/<tag>.js`` from the layer and ``page/widgets/<tag>.js`` from the
@@ -50,9 +50,14 @@ def compose_page_registry(
         raise registry_error("page-layer", source)
     registry = deepcopy(layer_registry)
     merge_layer_declarations(registry, deepcopy(page_declarations))
-    fresh = registry != validated
+    # Compared by input, since the stamps make a composition unequal to the
+    # unstamped merge of the same inputs.
+    fresh = (layer_registry, page_declarations) != validated
     if fresh:
+        from .validation import validate_registry
+
         validate_registry(registry, source)
+    if fresh or page_declarations:
         # Examples validate against the vocabulary as pages read it, stamped.
         stamp_composition(registry)
     declaration_sources = {

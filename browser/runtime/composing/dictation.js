@@ -5,6 +5,8 @@
  * cannot refill a sent box or overwrite a user's edit. Only one box captures at a time.
  * This module is loaded on the first microphone press, outside page startup. */
 
+import { labelWords } from "../words.js";
+
 /** The browser recognition capability supplied by the composer, including prefixed implementations.
  * @typedef {{transcript: string}} RecognitionAlternative
  * @typedef {readonly [RecognitionAlternative, ...RecognitionAlternative[]]} RecognitionResult
@@ -120,10 +122,9 @@ export function createDictation({
           if (session !== recognizer) return;
           // Results contains the session's final and interim words together. Replacing
           // that reading, rather than appending each event, never duplicates a final.
-          const heard = Array.from(event.results, (result) => result[0].transcript)
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
+          const heard = labelWords(
+            Array.from(event.results, (result) => result[0].transcript).join(" "),
+          );
           const words = [base, heard].filter(Boolean).join(" ");
           if (read() !== words) {
             writing = true;

@@ -12,7 +12,7 @@ vars:
     Read the repository's developing-leaf skill at
     `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill's
     base directory. You recorded a thread interaction for Max. The native archive
-    is `.tmp/recordings/thread/worktree/trace.zip`, and the Leaf review page already
+    is `.tmp/recordings/thread/head/trace.zip`, and the Leaf review page already
     contains its imported timeline. It needs a running viewer URL for inspecting
     the same archive's DOM, console and network. Write the command you would run
     and describe the handoff. The page is unavailable here; answer in text.

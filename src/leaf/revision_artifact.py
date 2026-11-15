@@ -14,9 +14,9 @@ types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
 the captured inputs an already-open document cannot re-evaluate in place; the
 runtime it runs with is named beside it by the delivering Leaf. Scripts include
-their patch region: head and body scripts stay installed while main is patched.
-Moving a script across those regions reloads, so a retained script cannot duplicate
-an arriving main script. Moving among containers within main without changing
+their patch region: head scripts stay installed while authored body content is patched.
+Moving a script between head and body reloads, so a retained script cannot duplicate
+an arriving body script. Moving among containers within body without changing
 script order, or editing prose, does not reload. The HTML revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
 including after a process crash. A publication that also changes the log stages
@@ -50,14 +50,20 @@ from types import MappingProxyType
 
 from pywhatwgurl import URL
 
-from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.files import (
+    file_stamp,
+    latest_revision,
+    list_revisions,
+    revision_names,
+    revision_path,
+)
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
-from leaf.registry.storage import revision_vocabulary, selected
+from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, kernel_registry
+from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -695,10 +701,14 @@ def _path_stamp(path: Path) -> tuple:
     return (link, file_stamp(path))
 
 
+# The page's trees a capture may read a dependency from (`capture_local_resource`).
+CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
     paths = []
-    for name in ("page", "media"):
+    for name in CAPTURED_TREES:
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():
@@ -993,26 +1003,23 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, whose selection the vocabulary
-    # already reflects. Its generation is the one part a document runs under, since
-    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
-    # gives every later revision a new executable and the tab a new document. The
-    # runtime's and the layer's modules are not captured; a change to either reaches
-    # an open document as a server that refuses it (`runtime_selection`).
+    # Only what the page owns goes in, so every Leaf that captures the same source
+    # captures the same revision. A page is often read by two Leaf versions at
+    # once, as a server keeps the Leaf it started with while the agent's commands
+    # run a newer one, and each composes its own vocabulary: digesting that
+    # vocabulary had each publish the other's capture again and reload the tab
+    # every time. What an open document runs under comes from the serving Leaf
+    # instead: a change to its runtime or a bundled package reaches the tab as a
+    # server that refuses it (`runtime_selection`), and a new selection or a
+    # changed package copy as a new generation (`vendoring`), which a tab speaks
+    # to the server (`runtime/layer-client.js`).
+    declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(
             {
                 "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
-                "vocabulary": _digest(
-                    _canonical_json(
-                        {
-                            tag: entry
-                            for tag, entry in registry.items()
-                            if tag != "$layer"
-                        }
-                    )
-                ),
+                "page_declarations": declarations.digest if declarations else None,
                 "modules": {
                     path: resource.digest
                     for path, resource in resources.items()
@@ -1045,7 +1052,6 @@ def _capture_artifact(
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
@@ -1280,6 +1286,14 @@ class RevisionReading(SourceReading):
         return _bundle_vocabulary(self.bundle)
 
     @cached_property
+    def inputs(self) -> tuple[dict, dict]:
+        """The layer vocabulary and page declarations `registry` composes
+        (`registry.storage.revision_inputs`)."""
+        return revision_inputs(
+            self.manifest, _bundle_declarations(self.bundle), self.bundle.parent.parent
+        )
+
+    @cached_property
     def inventory(self):
         """Historical consumers outlive eviction of the expensive parse.
 
@@ -1351,8 +1365,8 @@ class _Readings:
     whether or not their document has been parsed yet, so 8 MB of source keeps one
     page's readings under about 160 MB. A normal history fits whole: some 180
     revisions of the largest shipped example page (44 KB), about 700 of the median
-    one. A longer one re-parses what a whole-history scan
-    (`validation.admission.version_ids`) reaches after the budget is spent.
+    one. A longer one re-parses an evicted revision a reader asks for again; a scan
+    of the whole history reads each revision once (`revision_history`).
 
     Endpoints read from a thread pool, so every change is under the lock."""
 
@@ -1447,6 +1461,56 @@ class _CompactReadings:
             return value
 
 
+@dataclass(frozen=True)
+class RevisionHistory:
+    """What a scan across every stored revision reads: each id any revision
+    authored, and each revision's data consumers (`SourceInventory`), oldest
+    first. Callers read these and change neither."""
+
+    ids: frozenset[str] = frozenset()
+    data_documents: tuple[tuple[int, list], ...] = ()
+
+
+class _History:
+    """A page's `RevisionHistory` and the revision markers it has read.
+
+    Markers are named by their content and only ever added, so a newer listing
+    extends the one read, and only the revisions it adds are read. A scan that read
+    each revision on every call re-parsed each one the compact budget had evicted:
+    on 1,600 versions of a page of 16 questions, `leaf page state` took a second."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.markers: tuple = ()
+        self.history = RevisionHistory()
+
+
+def revision_history(page_dir: Path) -> RevisionHistory:
+    """The page's `RevisionHistory` through its newest revision."""
+    markers = tuple(revision_names(page_dir).items())
+    held = memo(page_dir, _History)
+    with held.lock:
+        if markers[: len(held.markers)] != held.markers:
+            held.markers, held.history = (), RevisionHistory()
+        if added := markers[len(held.markers) :]:
+            inventories = [
+                (revision, read_revision(page_dir, revision).inventory)
+                for revision, _name in added
+            ]
+            held.history = RevisionHistory(
+                held.history.ids.union(
+                    *(inventory.ids for _, inventory in inventories)
+                ),
+                held.history.data_documents
+                + tuple(
+                    (revision, inventory.data_documents)
+                    for revision, inventory in inventories
+                ),
+            )
+            held.markers = markers
+        return held.history
+
+
 def active_enclosing(page_dir: Path) -> dict:
     """Where every id sits on the page the user is looking at.
 
@@ -1460,12 +1524,17 @@ def active_enclosing(page_dir: Path) -> dict:
 
 def _bundle_vocabulary(bundle: Path) -> dict:
     """The vocabulary of a stored bundle, as `RevisionArtifact.registry` reads it."""
-    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
     return revision_vocabulary(
         json.loads((bundle / "manifest.json").read_bytes()),
-        declarations.read_bytes() if declarations.is_file() else None,
+        _bundle_declarations(bundle),
         bundle.parent.parent,
     )
+
+
+def _bundle_declarations(bundle: Path) -> bytes | None:
+    """The page declarations a stored bundle captured, if it captured any."""
+    declarations = bundle / ("resources" + PAGE_DECLARATIONS)
+    return declarations.read_bytes() if declarations.is_file() else None
 
 
 def _materialize(path: Path, bundle: Path) -> RevisionArtifact:

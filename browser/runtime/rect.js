@@ -24,6 +24,14 @@ export const intersect = (a, b, axes = BOTH) => ({
   right: axes.x ? Math.min(a.right, b.right) : a.right,
   bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom,
 });
+// `box` moved by `dx` across and `dy` down.
+/** @param {Box} box @param {number} dx @param {number} dy */
+export const shifted = (box, dx, dy) => ({
+  left: box.left + dx,
+  top: box.top + dy,
+  right: box.right + dx,
+  bottom: box.bottom + dy,
+});
 /** @param {Box} box */
 export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
 

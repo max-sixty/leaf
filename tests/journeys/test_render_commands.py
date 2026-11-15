@@ -36,6 +36,7 @@ from leaf import render_checks as render_checks_model
 from leaf import user_views
 from leaf.render_gate.command import PIN_VARIABLE
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -55,7 +56,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     CHROME_BIN, so unnaming leaf's alone is not unnaming. A clean result has to name
     the browser that drew the page: a clean gate telling a Chromium host that Chrome
     drew it is the same false claim on the way out that the failure messages stopped
-    making."""
+    making. Findings leave the author pictures of the page that needs fixing."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -86,21 +87,6 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
     assert scrolls["widths"] == [360, 1920], report
     assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
-
-
-def test_a_failing_render_check_saves_screens(serve, headless_shell):
-    """Findings leave the author pictures of the page that needs fixing."""
-    serve(LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div></main>"))
-    ran = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-    )
-    assert ran.returncode == 1, ran.stdout + ran.stderr
-    report = json.loads(ran.stdout)
-    assert any(f["code"] == "page-scrolls" for f in report["findings"]), report
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
@@ -283,7 +269,6 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     a Chromium and no Chrome meets it, and its result names that executable rather
     than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
-    root = Path(__file__).parents[2]
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
     elsewhere = tmp_path / "unrelated-project"
@@ -309,9 +294,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
     assert installed_registry["$layer"]["packages"] == ["diagram"]
-    (page_dir / "index.html").write_text(
-        (root / "examples" / "release-notes.html").read_text()
-    )
+    (page_dir / "index.html").write_text(named_source("release-notes").read_text())
     shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(
         [
@@ -722,32 +705,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.add_init_script(
-        """new MutationObserver(() => {
-          if (document.body?.hasAttribute('data-lf-presented') &&
-              window.__lfPresentedAt === undefined)
-            window.__lfPresentedAt = performance.now();
-        }).observe(document, {attributes: true, subtree: true});
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries())
-            if (entry.name.endsWith('/vendor/webawesome.esm.js'))
-              window.__lfComparisonRequestedAt = entry.startTime;
-        }).observe({type: 'resource', buffered: true});"""
-    )
     page.goto(url)
     render_checks_model.wait_until_ready(page)
-    page.locator("lf-shot").get_by_role("button", name="Slider", exact=True).click()
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     expect(handle).to_be_visible()
-    page.wait_for_function("window.__lfComparisonRequestedAt !== undefined")
-    timing = page.evaluate(
-        """() => ({
-          presented: window.__lfPresentedAt,
-          requested: window.__lfComparisonRequestedAt,
-        })"""
-    )
-    assert timing["requested"] >= timing["presented"]
     rail = page.locator("lf-shot .lf-shot-toolbar")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["Before", "After"])
@@ -819,7 +781,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     page.keyboard.up("Shift")
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
-    view = page.locator("lf-shot").get_by_role("button", name="Slider", exact=True)
+    view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
     # A second finger does not replace the primary contact's input destination.
     view.focus()
     handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {

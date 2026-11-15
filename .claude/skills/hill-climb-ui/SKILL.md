@@ -26,8 +26,9 @@ holds previous runs and findings.
   the starting version for comparison. A saved-page redesign can prove a useful
   behavior; carry that behavior into the maintained runtime, package or authoring
   instructions so another author can produce it.
-- **Test.** Compare base and candidate on the affected task: saved Leaf sources against
-  both runtimes for a runtime change, fresh Leaf authors for authoring guidance. Compare
+- **Test.** Compare base and head on the affected task: saved Leaf sources against
+  both runtimes for a runtime change, fresh Leaf authors for authoring guidance, and
+  the saved outputs graded again (`leaf-dev eval run --from`) for a grading change. Compare
   with the HTML control too, and vary inputs or tasks to test the repair's reach.
   Measure the phase the repair changes: authoring effort shows mostly in the first
   authoring turn, which several interleaved authors per arm can run without the user
@@ -48,14 +49,15 @@ its scope to leave time for a change and its confirmation: saved-page probes and
 focused fresh-author tasks give faster feedback on a local hypothesis, while full
 multi-turn workflows test the whole exchange.
 
-For longer runs, keep the standard eval report current. Lead with what changed in
-Leaf and the matched before/after outputs supporting each retained change. Include
-revised and rejected candidates, and distinguish supporting tooling and experiments
-from improvements authors now receive. A current-state pass without a baseline
-doesn't establish improvement. Keep earlier experiments as supporting history and
-exploration distinct from scored comparisons; `evals/README.md`, "Render a report",
-owns the format and commands. At handoff, review each page the user can open, including
-linked demonstrations, through `/developing-leaf`, "Author or revise a page".
+For longer runs, keep the standard eval report current, with its review written in
+Leaf markup. Lead with what changed in Leaf and the matched before/after outputs
+supporting each retained change. Include revised and rejected candidates, and
+distinguish supporting tooling and experiments from improvements authors now receive.
+A current-state pass without a baseline doesn't establish improvement. Keep earlier
+experiments as supporting history and exploration distinct from scored comparisons;
+`evals/README.md`, "Render a report", owns the review's sections and commands. At
+handoff, review each page the user can open, including linked demonstrations, through
+`/developing-leaf`, "Author or revise a page".
 
 ## What the comparisons should reveal
 
@@ -72,11 +74,11 @@ model pins. Use only Astra or Opus for judging, including independent visual rev
 Sol can author pages. Vary author models to test guidance transfer, and cross-check
 judgments with the other allowed judge. A failure specific to one harness makes
 that harness the focus. Validate a repair on both
-harnesses, since their authors hit different refusals and read different references. `evals/workflows/eval.yaml` owns
-the viewport presets and dimensions. Use `desktop` for routine authoring and primary
+harnesses, since their authors hit different refusals and read different references. `WINDOWS` in `dev/leaf_dev/browser.py` owns
+the named windows and their dimensions. Use `desktop` for routine authoring and primary
 judging; occasionally add `large`, `short` or `phone` to answer a concrete layout or
-access question. Extra sizes on saved pages can be explored with `eval-discover`
-without expanding the original authoring task.
+access question. Extra sizes on saved pages can be explored with
+`eval run --from RUN --judge discovery` without expanding the original authoring task.
 
 ## Depth and breadth
 
@@ -97,5 +99,5 @@ which weakness to repair.
 Pair judgments compare content and exclude Leaf's panel and threads, which need their
 own observation. The pair judge carries most of the layout signal; the live judge
 mostly finds content defects. The two presentation orders judge the same authored pages, so they
-are not independent samples. `leaf-dev eval-discover` explores saved pages for further
-weaknesses without another authoring run.
+are not independent samples. `leaf-dev eval run --from RUN --judge discovery` explores
+saved pages for further weaknesses without another authoring run.

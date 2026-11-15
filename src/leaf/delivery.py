@@ -62,14 +62,13 @@ import time
 from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
 from .event_log import jsonl_line
 from .harness import session_harness
 from .interaction_log import acting_on
 from .refusals import Refused
-from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -79,9 +78,11 @@ from .service import (
 from .state import (
     STRING,
     Record,
+    acting_agent_turn,
     described,
     flocked,
     object_schema,
+    open_agent_turns,
     open_session_turn,
     retire_if_gone,
     session_lock_path,
@@ -89,6 +90,9 @@ from .state import (
     state_home,
     turn_closed,
 )
+
+if TYPE_CHECKING:
+    from .served_state.work import WorkState
 
 _INTEGER = {"type": "integer"}
 _STRINGS = {"type": "array", "items": STRING}
@@ -177,6 +181,12 @@ _THREAD_DIGEST = object_schema(
                                     "was": STRING,
                                 }
                             ),
+                        ),
+                        "withdrawn": described(
+                            "The user's undo of a message something still stood on, "
+                            "and what the message said; it keeps its place with "
+                            "nothing in it.",
+                            object_schema({"id": STRING, "ts": STRING, "was": STRING}),
                         ),
                     },
                 ),
@@ -325,6 +335,16 @@ _DELIVERED_EVENT = {
                     "items": object_schema(
                         {"id": STRING, "text": {"type": ["string", "null"]}}
                     ),
+                },
+            ),
+            "settled": described(
+                "On the user's message in a thread, the agent's questions in words it "
+                "answered by rule, whatever it says, so they have left On Me "
+                "(`obligations.settled_by_message`). Each is the obligation's `id` and "
+                "the `text` that asked it.",
+                {
+                    "type": "array",
+                    "items": object_schema({"id": STRING, "text": STRING}),
                 },
             ),
             "answer": described(
@@ -496,19 +516,6 @@ def _registry(page_dir: Path):
         return None
 
 
-def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
-    """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in verb_writers():
-        return {"kind": "widget", "id": event["widget"]}
-    if event["kind"] == "undo":
-        original = by_id.get(event["undoes"])
-        if original is not None:
-            return _subject(original, threads, by_id)
-    if threads:
-        return {"kind": "thread", "id": threads[0]}
-    return {"kind": "page"}
-
-
 def current_responses(
     page_dir: Path, events: list[dict], reading=None
 ) -> dict[str, dict]:
@@ -540,38 +547,27 @@ def batch_data(
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
-    from .events import build_threads
-    from .gesture_words import GestureWords, revisions_on_disk
-    from .obligations import waiting_about, waiting_in_thread
-    from .registry.contract import event_spec
-    from .revision_artifact import active_enclosing
+    from .event_facts import EventFacts
+    from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import (
-        batch_threads,
-        thread_memberships,
-        thread_names,
-        thread_structure,
-        thread_widgets,
-        unsent_at_messages,
-    )
+    from .thread_context import batch_threads, thread_names
 
-    registry = _registry(page_dir)
     events = transaction.events
-    within = active_enclosing(page_dir)
-    names = thread_names(events)
-    memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
-        within,
-    )
-    # The obligations are read only where an event can carry `waiting`: an action,
-    # or the user's reply on a page whose agent messages carry markup that may ask.
-    reads_obligations = any(event["kind"] == "action" for event in batch) or (
-        any(map(_users_words_in_a_thread, batch))
-        and any(
-            event.get("markup") and event.get("author") == "agent" for event in events
-        )
+    reader = EventFacts(page_dir, events, _registry(page_dir))
+    facts = reader(batch)
+    # The obligations are read only where an event can carry `waiting` or `settled`:
+    # an action, or the user's words in a thread where the agent's messages may ask.
+    replies = [event for event in batch if _users_words_in_a_thread(event)]
+    names = thread_names(events) if replies else {}
+    asking = {
+        names[event["id"]]
+        for event in events
+        if replies
+        and event.get("author") == "agent"
+        and (event.get("markup") or event.get("obligation"))
+    }
+    reads_obligations = any(event["kind"] == "action" for event in batch) or any(
+        asking.intersection(facts[event["id"]]["threads"]) for event in replies
     )
     reading = (
         read_page(page_dir, events) if responses is None or reads_obligations else None
@@ -583,83 +579,51 @@ def batch_data(
     durable = (
         reading.work.durable if reading is not None and reads_obligations else None
     )
-    revisions = {
-        revision["id"]: revision
-        for thread in build_threads(events, within).values()
-        for revision in thread["revisions"]
-    }
-    by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
-
-    def records_unsent(action: dict) -> bool:
-        # Which verbs record unsent work is the vocabulary's word, as `says` is, and
-        # the word of the document the user acted in.
-        spec = event_spec(words.declaration(action), action)
-        return bool(spec and spec.get("unsent"))
-
-    unsent = (
-        {}
-        if registry is None
-        else unsent_at_messages(events, batch, within, records_unsent)
+    settled = (
+        settled_by_message(durable.all_obligations["all"])
+        if durable is not None
+        else {}
+    )
+    about = (
+        waiting_about(durable.all_obligations["all"], durable.threads, durable.within)
+        if durable is not None and any(event["kind"] == "action" for event in batch)
+        else None
+    )
+    in_thread = (
+        waiting_in_thread(durable.all_obligations["all"], durable.threads)
+        if durable is not None and replies
+        else None
     )
 
     captured = []
     for event in batch:
-        threads = memberships.get(event["id"], [])
-        entry = {
-            **event,
-            "subject": _subject(event, threads, by_id),
-            "threads": threads,
-        }
+        known = facts[event["id"]]
+        entry = {**event, **known}
         # The browser's retry key: the log keeps it to recognise a resent post, and
         # the agent has no use for it.
         entry.pop("attempt", None)
-        # What an element says is a registry's word, and a page whose active layer
-        # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
-            entry["says"] = says
-            entry["names"] = {
-                identity: words.name(event, identity) for identity in says
-            }
-        if revision := revisions.get(event["id"]):
-            # The thread's digest already reads the new wording; the agent answering
-            # a revision needs to see what it replaced, and whether those words are a
-            # suggestion's exact replacement text.
-            entry["was"] = revision["was"]
-            if by_id[revision["message"]].get("suggestion"):
-                entry["suggestion"] = True
-        if work := unsent.get(event["id"]):
-            entry["unsent"] = work
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
-        if durable is not None and (
-            waiting := waiting_about(
-                event["widget"],
-                durable.all_obligations["all"],
-                durable.threads,
-                durable.within,
-            )
-            if event["kind"] == "action"
+        if (
+            waiting := about(event["widget"])
+            if about is not None and event["kind"] == "action"
             else [
                 question
-                for thread in threads
-                for question in waiting_in_thread(
-                    thread,
-                    event["seq"],
-                    durable.all_obligations["all"],
-                    durable.threads,
-                )
+                for thread in known["threads"]
+                for question in in_thread(thread, event["seq"])
             ]
-            if _users_words_in_a_thread(event)
+            if in_thread is not None and _users_words_in_a_thread(event)
             else None
         ):
             entry["waiting"] = waiting
+        if _users_words_in_a_thread(event) and event["id"] in settled:
+            entry["settled"] = settled[event["id"]]
         captured.append(entry)
     return {
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(events, batch, reader.within),
         "events": captured,
     }
 
@@ -976,7 +940,7 @@ def earlier_pickup(payload: dict, session_id: str):
 
     record = session_record(session_id)
     assert record is not None
-    turn = record["turn"]
+    turn = acting_agent_turn(session_id) or record["turn"]
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -1089,6 +1053,11 @@ def record_pickup(
     owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
+
+    An opened pickup says which turn holds a thread (`holding.Holding`), so this
+    records one only where that turn may take the message (`holding.pickable`): an
+    agent's turn, only what it holds or nobody does, refusing the rest; another
+    turn, nothing an agent's running turn holds.
     """
     claim = page.claim
     if session is None and claim:
@@ -1127,6 +1096,11 @@ def record_pickup(
             or (event_id in refs and not usable(event_id))
         )
     )
+    if phase == "opened" and session is not None:
+        from .forks import page_holding
+        from .holding import pickable
+
+        fresh = pickable(page_holding(page), fresh, session, turn)
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
@@ -1150,7 +1124,7 @@ def record_pickup(
 
 def deliverable(
     page: PageTransaction,
-    obligations: list[dict] | None = None,
+    work: "WorkState | None" = None,
     *,
     received: bool = True,
 ) -> list[dict]:
@@ -1159,8 +1133,8 @@ def deliverable(
     still open, pending the receipt its harness's record confirms
     (`awaiting_receipt`), and
     each update the cursor has passed that still owes an answer the owner holds no
-    usable `answer.ref` for (`unreferenced`, which reads `obligations` where the
-    caller has already folded the page).
+    usable `answer.ref` for (`unreferenced`), by the page's fold, `work`, where the
+    caller has already folded the page.
 
     A handover the harness's record never showed in the model's context is input
     again once its turn reads ended: Escape while Claude Code still ran a prompt hook
@@ -1180,9 +1154,17 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
-    Less, too, each waiting message of a thread a fork of the owner's conversation
-    is deciding on (`forks.held`), until the fork answers or hands it over, which
-    keeps the watch from waking the session for it as it arrives.
+    Both kinds are filtered by who holds each thread (`holding.Holding`, the fold's
+    or `forks.page_holding`). More, too, while the owner's session lives, the waiting
+    messages of each thread a fork whose turn has ended holds by its pickup of them,
+    which it left owed, giving the thread back or ending without answering, and which
+    the main thread now owes (`holding.owed_by`). Less, the waiting messages of each
+    thread the main thread
+    doesn't owe: one Leaf keeps back while a line fork of the owner's conversation
+    writes its line (`forks.kept_back`), until the line fork hands it over or its
+    bound runs out, which keeps the watch from waking the session for it as it
+    arrives; and one a fork's running turn holds, whose further messages go to it at
+    its tool boundary.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1191,22 +1173,73 @@ def deliverable(
     Stop hook where no adapter runs, hands over the rest
     (`harness.CodexHarness.offer_at_step`). Claude Code's tool-boundary hook asks
     the same before it folds its pages (`hook_transport.new_input`)."""
-    pending = unacknowledged(page.events, page.cursor)
-    if pending and (held := awaiting_receipt(page)):
+    cursor = page.cursor
+    pending = unacknowledged(page.events, cursor)
+    held = awaiting_receipt(page) if pending else ()
+    if held:
         pending = [event for event in pending if event["id"] not in held]
-    if pending:
-        from .forks import held_inputs
+    from .forks import page_holding
+    from .holding import owed_by
 
-        if forked := held_inputs(page):
-            pending = [event for event in pending if event["id"] not in forked]
-    owed = unreferenced(page, obligations) if received else []
+    owed = []
+    if received:
+        if work is None:
+            from .served_state.context import read_page
+
+            work = read_page(page.page_dir, page.events).work
+        owed = unreferenced(page, work.obligations)
+        holding = work.holding
+    else:
+        holding = page_holding(page) if pending else None
+    if holding is not None:
+        if (
+            received
+            and holding.live
+            and (
+                left := {
+                    event["id"]
+                    for event in holding.waiting(
+                        lambda held: (
+                            held.picked
+                            and held.holder["kind"] == "fork"
+                            and held.holder["state"] != "running"
+                        )
+                    )
+                }
+            )
+        ):
+            # What a fork's turn picked up and then left owed, giving its thread back
+            # or ending without answering, is the main thread's input now; a message
+            # already pending or owed goes once.
+            left -= {event["id"] for event in [*owed, *pending]}
+            owed += [event for event in page.events if event["id"] in left]
+        # A message a fork's running turn holds is owed and unreferenced once the
+        # cursor has passed it, and stays the fork's all the same; a kept-back one is
+        # still pending, and stays kept back.
+        if elsewhere := {
+            event["id"]
+            for event in holding.waiting(
+                lambda held: owed_by(held.holder)["kind"] != "main"
+            )
+        }:
+            pending = [event for event in pending if event["id"] not in elsewhere]
+            owed = [event for event in owed if event["id"] not in elsewhere]
     if not pending and not owed:
         return []
     from .event_contracts import write_refusal
 
     if write_refusal(page.page_dir):
         return []
-    return sorted([*owed, *pending], key=lambda event: event["seq"])
+    # Advice wakes nobody, so it goes with what does (`render_gate.handover_pass`).
+    advice = [
+        event
+        for event in page.events
+        if event["seq"] > cursor
+        and event["kind"] == "render"
+        and not event["attention"]
+        and event["id"] not in held
+    ]
+    return sorted([*owed, *pending, *advice], key=lambda event: event["seq"])
 
 
 def handed_into_turn(events: list[dict], session: str, turn: str) -> list[str]:
@@ -1232,10 +1265,11 @@ def awaiting_receipt(page: PageTransaction) -> set[str]:
     if claim is None or turn_closed(claim):
         return set()
     seqs = {event["id"]: event["seq"] for event in page.events}
+    cursor = page.cursor
     handed = {
         event_id
         for event_id in handed_into_turn(page.events, claim["id"], claim["turn"])
-        if seqs[event_id] > page.cursor
+        if seqs[event_id] > cursor
     }
     if not handed:
         return set()
@@ -1257,6 +1291,8 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
+    from .forks import page_holding
+    from .holding import taken_by_agent_turns
     from .service import owned_pages
 
     entered = harness.entered_context(payload)
@@ -1277,28 +1313,35 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                through = page.cursor
-                for event in unacknowledged(page.events, page.cursor):
-                    if event["id"] not in shown:
-                        break
-                    through = event["seq"]
-                record_receipt(page, through)
+                receive_passed(page, shown | taken_by_agent_turns(page_holding(page)))
         except FileNotFoundError:
             continue
 
 
-def unreferenced(
-    page: PageTransaction, obligations: list[dict] | None = None
-) -> list[dict]:
-    """The updates the page's cursor has passed that still owe an answer its owner
-    holds no usable `answer.ref` for: received under another session's claim before
-    the page changed hands, received while they owed nothing, or referenced by a
-    delivery this Leaf cannot read (`reads_reference`). `obligations` is the
-    page's fold where the caller has one; otherwise this folds the page."""
-    if obligations is None:
-        from .served_state.context import read_page
+def receive_passed(page: PageTransaction, passed: set[str]) -> None:
+    """Record the receipt of the page's pending input through the last of the
+    unbroken run, from the cursor, of inputs in `passed`, under the caller's page
+    transaction (`record_receipt`): the cursor passes every input before the
+    position it moves to, so it stops at the first input nobody has taken.
 
-        obligations = read_page(page.page_dir, page.events).work.obligations
+    Whoever takes input passes what an agent of the session took or holds
+    (`holding.taken_by_agent_turns`): an agent's turn receives what it picked up as it picks it
+    up, and the further messages of a thread it took go to it at its tool boundary,
+    whatever the cursor says, so neither is input the main thread awaits."""
+    through = page.cursor
+    for event in unacknowledged(page.events, page.cursor):
+        if event["id"] not in passed:
+            break
+        through = event["seq"]
+    record_receipt(page, through)
+
+
+def unreferenced(page: PageTransaction, obligations: list[dict]) -> list[dict]:
+    """The updates the page's cursor has passed that still owe an answer its owner
+    holds no usable `answer.ref` for, of the page's fold's `obligations`: received
+    under another session's claim before the page changed hands, received while they
+    owed nothing, or referenced by a delivery this Leaf cannot read
+    (`reads_reference`)."""
     by_id = {event["id"]: event for event in page.events}
     cursor = page.cursor
     return [
@@ -1385,11 +1428,18 @@ def receive_delivery(delivery_id: str) -> list[Path]:
     consumer is running even if its prompt hook failed. The canonical opener preserves known provider
     lifecycle authority. Pointer receipt also retains its origin's reservation,
     including the exact turn a Codex hook offered it to. Automatic hook and
-    provider receipts observe an already-open turn through `receive` instead.
+    provider receipts observe an already-open turn through `receive` instead. An
+    agent of the session acknowledges a pointer its tool boundary handed it into its
+    own turn (`state.acting_agent_turn`, `hook_transport.carry_agent_turn`).
     """
     payload = read_delivery(delivery_id)
     acting_on_delivery(payload)
     harness = session_harness()
+    if harness and (turn := acting_agent_turn(harness.session)):
+        return [
+            receive_one(batch, harness.session, agent_turn=turn)
+            for batch in payload["batches"]
+        ]
     if harness:
         open_session_turn(harness.session)
         if payload["acknowledge"] is None:
@@ -1412,15 +1462,18 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
 def receive_held(
     payload: dict,
     session_id: str,
-    expected: dict,
+    expected: dict | None,
     *,
     deadline: float | None = None,
     confirm: bool = True,
+    agent_turn: str | None = None,
 ) -> list[dict]:
     """Record each batch of a delivery its hook is handing to `session_id`'s open
     turn, the lifecycle `expected` it planned under, as opened in it, and return
     the batches it recorded. `confirm` also records the receipt, where the harness
     has the context once the hook returns (`Harness.commits_hook_context`).
+    `agent_turn` names a turn of an agent the session runs beside its main thread
+    instead (`receive_one`).
 
     A refusal is the batch's own: a page that changed hands or went, a turn that
     ended or was replaced, a log this Leaf may not write
@@ -1436,6 +1489,7 @@ def receive_held(
                 deadline=deadline,
                 expected=expected,
                 confirm=confirm,
+                agent_turn=agent_turn,
             )
         except (FileNotFoundError, Refused, TimeoutError):
             continue
@@ -1450,15 +1504,43 @@ def receive_one(
     deadline: float | None = None,
     expected: dict | None = None,
     confirm: bool = True,
+    agent_turn: str | None = None,
 ) -> Path:
     """Confirm one consumer-read batch under its current page ownership, into the
     session lifecycle `expected` where the caller names one; `confirm` as
-    `receive_batch` takes it."""
+    `receive_batch` takes it.
+
+    With `agent_turn`, an open turn of an agent the session runs beside its main
+    thread (`state.AGENT_TURNS`) takes the batch: its pickup names that turn, and the
+    receipt follows at once, since the agent's context has it once its hook returns,
+    through what the session's agents took (`receive_passed`), which never passes
+    input the main thread still awaits."""
     page_dir = Path(batch["page"])
     with (
         PageTransaction(page_dir, deadline=deadline) as page,
-        receive_batch(page, batch, session_id=session_id, confirm=confirm) as events,
+        receive_batch(
+            page,
+            batch,
+            session_id=session_id,
+            confirm=confirm and agent_turn is None,
+        ) as events,
     ):
+        if agent_turn is not None:
+            from .forks import page_holding
+            from .holding import taken_by_agent_turns
+
+            assert session_id is not None
+            if agent_turn not in open_agent_turns(session_id):
+                raise ReceiptRefused("the receiving agent's turn has ended")
+            record_pickup(
+                page,
+                events,
+                session=session_id,
+                turn=agent_turn,
+                refs=batch_refs(batch),
+            )
+            receive_passed(page, taken_by_agent_turns(page_holding(page)))
+            return page_dir
         turn = None
         if session_id:
             observed = session_record(session_id)

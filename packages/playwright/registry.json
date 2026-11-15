@@ -403,14 +403,8 @@
     "x-instructions": "Bind `source` to an imported playwright-trace source. The viewer opens at the earliest authored moment it can resolve.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "source": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9-]*$"
-      },
+      "id": { "type": "string" },
+      "source": { "type": "string" },
       "label": {
         "type": "string",
         "minLength": 1
@@ -464,10 +458,7 @@
     "x-instructions": "Each direct child is one recording view: a labeled `lf-trace`, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",
     "type": "object",
     "properties": {
-      "id": {
-        "type": "string",
-        "pattern": "^[a-z0-9][a-z0-9-]*$"
-      }
+      "id": { "type": "string" }
     },
     "required": ["id"],
     "additionalProperties": false,

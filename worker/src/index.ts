@@ -47,8 +47,13 @@ import {
   readPublicationCommit,
 } from "./storage";
 
-import { agentLog, dispatchAgentTask } from "./agent";
-import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
+import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import {
+  projectInteractionBatch,
+  sampleInteractionReference,
+  startsTyping,
+  type InteractionProjection,
+} from "./interactions";
 import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
@@ -179,28 +184,31 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 
   private async forward(request: Request): Promise<Response> {
+    // A connection lost while the container starts or restarts says nothing about
+    // the request, so a request Python answers the same way twice gets one more
+    // attempt rather than showing the visitor a 500: a read, or a view report,
+    // which replaces only an older report of its session (`leaf.user_views`).
+    // Any other write may already have reached Python, so its loss reaches the
+    // caller instead.
+    const replay =
+      request.method === "GET" || request.method === "HEAD"
+        ? request
+        : request.method === "POST" &&
+            new URL(request.url).pathname.endsWith("/api/user-view")
+          ? request.clone()
+          : null;
     const response = await super.fetch(request);
-    if (response.status >= 500) {
-      // The Containers SDK converts connection loss into an ordinary 500 without
-      // logging an exception. Python stamps its own answers and logs page_fault;
-      // retain the missing proxy evidence, never the body or private request URL.
-      const adapter = response.headers.has("Leaf-Release");
-      const body = adapter
-        ? null
-        : await readBoundedText(response.clone(), 1024).catch(() => null);
-      console.error({
-        component: "leaf-container",
-        event: "http_error",
-        method: request.method,
-        status: response.status,
-        source: adapter
-          ? "adapter"
-          : body === "Container suddenly disconnected, try again"
-            ? "disconnected"
-            : "unclassified",
-      });
+    if (response.status < 500) return response;
+    const source = await errorSource(response);
+    const retry = source === "disconnected" && replay !== null;
+    logHttpError(request, response, source, retry);
+    if (!retry) return response;
+    await response.body?.cancel();
+    const second = await super.fetch(replay);
+    if (second.status >= 500) {
+      logHttpError(request, second, await errorSource(second), false);
     }
-    return response;
+    return second;
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -223,12 +231,6 @@ export class LeafWebsiteSession extends Container<Env> {
             url.searchParams.get("revision") ||
             request.headers.get("Leaf-View-Revision");
           if (revision) path += `?revision=${revision}`;
-        } else if (path === "api/deferred") {
-          path += `?${new URLSearchParams({
-            source: url.searchParams.get("source") ?? "",
-            source_revision: url.searchParams.get("source_revision") ?? "",
-            key: url.searchParams.get("key") ?? "",
-          })}`;
         }
         const response = await this.pages.response(route.root, path, request);
         if (response !== null) return response;
@@ -236,6 +238,34 @@ export class LeafWebsiteSession extends Container<Env> {
     }
     return this.forward(request);
   }
+}
+
+// The Containers SDK converts connection loss into an ordinary 500 without
+// logging an exception. Python stamps its own answers and logs page_fault;
+// retain the missing proxy evidence, never the body or private request URL.
+async function errorSource(response: Response): Promise<string> {
+  if (response.headers.has("Leaf-Release")) return "adapter";
+  const body = await readBoundedText(response.clone(), 1024).catch(() => null);
+  return body === "Container suddenly disconnected, try again" ||
+    body?.startsWith("Error proxying request to container:")
+    ? "disconnected"
+    : "unclassified";
+}
+
+function logHttpError(
+  request: Request,
+  response: Response,
+  source: string,
+  retried: boolean,
+): void {
+  console.error({
+    component: "leaf-container",
+    event: "http_error",
+    method: request.method,
+    status: response.status,
+    source,
+    retried,
+  });
 }
 
 // Assignment invokes Container's inherited setter, which registers the handler for
@@ -246,41 +276,58 @@ LeafWebsiteSession.outboundByHost = {
     env: Env,
     ctx: OutboundHandlerContext,
   ) => {
-    // The proxy supplies the owning DO identity. The container cannot select a
-    // different user's session by changing a URL, cookie, or request header.
-    const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
-    const path = new URL(request.url).pathname;
-    if (request.method === "GET" && path === "/records") {
-      return session.savedRecords();
+    try {
+      return await answerPageStore(request, env, ctx);
+    } catch (error) {
+      // An outbound handler that throws reaches the container as a connection closed
+      // without a response, so answer with the store's reason for the container to
+      // log. A container still on the previous image after a deploy meets the new
+      // release's refusal here (`PageStore.checkRelease`).
+      return new Response(error instanceof Error ? error.message : String(error), {
+        status: 500,
+      });
     }
-    if (request.method === "PUT" && path === "/prepare") {
-      return Response.json(await session.preparePublication(await request.json()));
-    }
-    const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
-    if (blob !== null && request.method === "PUT") {
-      // Bound the body before it crosses the RPC boundary or enters SQLite.
-      let length = 0;
-      const body = request.body?.pipeThrough(
-        new TransformStream<Uint8Array, Uint8Array>({
-          transform(chunk, controller) {
-            length += chunk.byteLength;
-            if (length > CHUNK_BYTES)
-              throw new Error("page storage chunk exceeds 1 MiB");
-            controller.enqueue(chunk);
-          },
-        }),
-      );
-      await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
-      return new Response(null, { status: 204 });
-    }
-    if (request.method === "PUT" && path === "/publication") {
-      await session.savePublication(await request.json());
-      return new Response(null, { status: 204 });
-    }
-    return new Response("unknown page storage operation", { status: 404 });
   },
   "api.openai.com": proxyModelRequest,
 };
+
+async function answerPageStore(
+  request: Request,
+  env: Env,
+  ctx: OutboundHandlerContext,
+): Promise<Response> {
+  // The proxy supplies the owning DO identity. The container cannot select a
+  // different user's session by changing a URL, cookie, or request header.
+  const session = env.PAGES.get(env.PAGES.idFromString(ctx.containerId));
+  const path = new URL(request.url).pathname;
+  if (request.method === "GET" && path === "/records") {
+    return session.savedRecords();
+  }
+  if (request.method === "PUT" && path === "/prepare") {
+    return Response.json(await session.preparePublication(await request.json()));
+  }
+  const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
+  if (blob !== null && request.method === "PUT") {
+    // Bound the body before it crosses the RPC boundary or enters SQLite.
+    let length = 0;
+    const body = request.body?.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          length += chunk.byteLength;
+          if (length > CHUNK_BYTES) throw new Error("page storage chunk exceeds 1 MiB");
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    await session.saveBlob(blob[1], await new Response(body).arrayBuffer());
+    return new Response(null, { status: 204 });
+  }
+  if (request.method === "PUT" && path === "/publication") {
+    await session.savePublication(await request.json());
+    return new Response(null, { status: 204 });
+  }
+  return new Response("unknown page storage operation", { status: 404 });
+}
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
@@ -347,10 +394,7 @@ async function recordStartup(
     currentRelease: manifest.release,
     ...parsed.data,
   });
-  return new Response(null, {
-    status: 204,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return new Response(null, { status: 204 });
 }
 
 // The events a passive session's runtime sends on its own, which the edge answers
@@ -395,9 +439,7 @@ function unrecordedRead(
     findings: [],
     ...(read.attempt !== undefined && { attempt: read.attempt }),
   };
-  const answer = Response.json(refusal, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
-  });
+  const answer = Response.json(refusal, { headers: { "Leaf-Session": "passive" } });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
 }
@@ -423,7 +465,7 @@ function recordPageFault(
   });
   const answer = new Response(null, {
     status: 204,
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: { "Leaf-Session": "passive" },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -438,6 +480,7 @@ async function recordInteractions(
   route: PageRoute,
   identity: InteractionIdentity,
   release: string,
+  admitted: (batch: InteractionProjection) => void = () => undefined,
 ): Promise<Response> {
   const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
   if (raw === null)
@@ -458,31 +501,18 @@ async function recordInteractions(
     release,
     ...batch,
   });
-  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  admitted(batch);
+  return new Response(null, { status: 204 });
 }
 
-async function acceptedEvent(
-  postedRequest: Request,
-  response: Response,
-): Promise<AcceptedEvent | null> {
+// The event an accepted POST's answer names, and whether it owes the agent an
+// answer, as the event door says (`event_endpoint.with_state`).
+async function acceptedEvent(response: Response): Promise<AcceptedEvent | null> {
   if (!response.ok) return null;
   try {
-    const posted = (await postedRequest.json()) as { attempt?: unknown };
-    if (typeof posted.attempt !== "string") return null;
-    // An accepted event's answer carries the page's state (`event_endpoint.accept_event`).
     const answer = (await response.clone().json()) as ServedEventAnswer;
     if (answer.ok !== true) return null;
-    const { state } = answer;
-    const event = state.events.find(
-      (candidate) => candidate.attempt === posted.attempt,
-    );
-    if (!event) return null;
-    // An update the agent owes an answer publishes its own obligation, on the agent
-    // until it answers (`obligations.update_obligation`).
-    return {
-      event,
-      needsReply: state.activity.obligations.includes(`update:${event.id}`),
-    };
+    return { event: answer.event, needsReply: answer.needs_reply };
   } catch {
     return null;
   }
@@ -578,8 +608,15 @@ async function staticState(
   if (!response.ok) return new Response("state unavailable", { status: 503 });
   const state = (await response.json()) as ServedState;
   prepareStateDelivery(state, request);
+  // Stored and asked for again before each reuse, as every Leaf server's state answer
+  // is (`CACHE_CONTROL`, `src/leaf/http.py`), so it names the request headers its body
+  // turns on.
   const answer = Response.json(state, {
-    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+    headers: {
+      "Cache-Control": "no-cache",
+      Vary: "Leaf-Data-Version, Leaf-View-Revision",
+      "Leaf-Session": "passive",
+    },
   });
   stampDelivery(answer.headers, route, manifest, reference);
   return answer;
@@ -606,6 +643,8 @@ async function rollingOut(
   if (request.method === "GET" && route.inside === "api/state") {
     answer = await staticState(request, env, manifest, route, reference);
   } else {
+    // A history load reuses a stored answer without asking, so a stored refusal would
+    // stand in for the document or API answer after the rollout ends.
     answer = new Response("this release is still starting", {
       status: 503,
       headers: { "Retry-After": "5", "Cache-Control": "no-store" },
@@ -712,7 +751,19 @@ export default {
       if (existing === null) {
         return new Response("interaction batch has no page session", { status: 400 });
       }
-      return recordInteractions(request, route, { reference }, manifest.release);
+      const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
+      return recordInteractions(
+        request,
+        route,
+        { reference },
+        manifest.release,
+        (batch) => {
+          if (startsTyping(batch))
+            ctx.waitUntil(
+              prewarmContainer(env, privateContainer, reference, route.root, sourceId),
+            );
+        },
+      );
     }
     // Geometry is disposable observation, not a gesture that opens private state.
     if (!active && request.method === "POST" && route.inside === "api/user-view") {
@@ -766,10 +817,7 @@ export default {
         return response;
       }
     }
-    const postedRequest =
-      request.method === "POST" && route.inside === "api/event"
-        ? request.clone()
-        : null;
+    const posted = request.method === "POST" && route.inside === "api/event";
     const response = await getContainer(env.PAGES, privateContainer).fetch(request);
     const containerRelease = response.headers.get("Leaf-Release");
     if (containerRelease !== null && containerRelease !== manifest.release) {
@@ -777,8 +825,8 @@ export default {
       if (existing === null) cookies.push(sessionCookie(sessionId, secure));
       return rollingOut(request, env, manifest, route, reference, cookies);
     }
-    if (postedRequest) {
-      const accepted = await acceptedEvent(postedRequest, response);
+    if (posted) {
+      const accepted = await acceptedEvent(response);
       if (accepted) {
         recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }

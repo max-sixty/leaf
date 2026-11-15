@@ -363,9 +363,8 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
 
 
-@pytest.mark.parametrize("acknowledge", ["receive_delivery", "cmd_delivery_ack"])
 def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
-    claimed, capsys, acknowledge
+    claimed, capsys
 ):
     """The explicit consumer route preserves provider lifecycle authority."""
     cleanup_model.prompt_turn("s1", "provider-turn")
@@ -378,7 +377,7 @@ def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
     assert session_model.cmd_wait(claimed) == 0
     payload, _, _ = printed(capsys.readouterr().out)
     with pytest.raises(delivery_model.ReceiptRefused, match="turn has ended"):
-        getattr(delivery_model, acknowledge)(payload["id"])
+        delivery_model.cmd_delivery_ack(payload["id"])
     assert cleanup_model.session_record("s1") == ended
     assert page_state(claimed)["pending"] == 1
 
@@ -472,7 +471,7 @@ def test_a_standalone_wait_names_a_page_path_with_spaces_as_one_argument(tmp_pat
     assert f"leaf delivery ack d1 && leaf wait '{page_dir}'" in acknowledge
 
 
-@pytest.mark.parametrize("harness_name", ["claude-code", "pi", "codex"])
+@pytest.mark.parametrize("harness_name", ["claude-code", "codex"])
 def test_explicit_pointer_confirmation_refuses_a_transferred_page(
     page_dir, monkeypatch, harness_name
 ):
@@ -501,7 +500,6 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
         monkeypatch.delenv(name, raising=False)
     variable = {
         "claude-code": "CLAUDE_CODE_SESSION_ID",
-        "pi": "PI_SESSION_ID",
         "codex": "LEAF_SESSION_ID",
     }[harness_name]
     monkeypatch.setenv(variable, "reader")

@@ -4,6 +4,7 @@ import json
 import re
 import shlex
 from pathlib import Path
+from typing import get_args
 
 import click
 from click.testing import CliRunner
@@ -12,6 +13,7 @@ from unidiff import PatchSet
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import forks as forks_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
@@ -19,14 +21,14 @@ from leaf.registry.storage import load_registry
 from leaf.state import kernel_registry
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
+from leaf_dev import declared_records, docs
+from leaf_dev.docs import EXAMPLES, product_sources
+from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
 ASSETS = ROOT / "browser"
 DEFAULT_PACKAGE = ROOT / "packages" / "default"
-DOCS = ROOT / "docs"
-EXAMPLES = ROOT / "examples"
-DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -48,9 +50,7 @@ def test_kernel_event_contracts_declare_closed_records():
 
 
 def test_docs_pages_leave_delivery_markup_to_leaf():
-    pages = sorted(DOCS.glob("*.html"))
-    assert pages
-    for page in pages:
+    for page in product_sources():
         text = page.read_text()
         assert 'href="/theme.css"' not in text, page.name
         assert 'src="/leaf.js"' not in text, page.name
@@ -64,11 +64,7 @@ def test_every_published_source_says_what_its_page_is():
     The build composes the rest of a page's card from these two and refuses a page
     without them, so the failure this catches is one that would stop a deploy.
     """
-    sources = [
-        *DOCS.glob("*.html"),
-        *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
-        *DEVELOPER_PAGES,
-    ]
+    sources = [*product_sources(), *published_sources()]
     descriptions = {}
     for page in sorted(sources):
         parsed = SourceDocument(page.read_text())
@@ -88,7 +84,7 @@ def test_every_published_source_says_what_its_page_is():
 
 def links(name: str) -> set[tuple[str, str]]:
     """Each link one product source authors, as its target and its text."""
-    tree = SourceDocument((DOCS / name).read_text()).tree
+    tree = SourceDocument(named_source(name).read_text()).tree
     found = set()
     for link in tree.select("a[href]"):
         href = link.attrs["href"]
@@ -98,16 +94,20 @@ def links(name: str) -> set[tuple[str, str]]:
 
 
 def test_extension_references_follow_the_concepts_they_explain():
-    extending = {href for href, _ in links("extending.html")}
-    assert {"/registry/", "/event-log/"} <= extending
-    assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
-        "how-it-works.html"
+    extending = {href for href, _ in links("extending")}
+    assert {"#keys", "/how-it-works/#event-log"} <= extending
+    # The developer galleries are listed beside the bundled packages they show.
+    assert {
+        "/examples/feature-gallery/",
+        "/examples/thread-panel-gallery/",
+    } <= extending
+    assert {("/extending/#keys", "registry"), ("#event-log", "event log")} <= links(
+        "how-it-works"
     )
-    assert "/extending/" in {href for href, _ in links("registry.html")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    tree = SourceDocument(named_source("extending").read_text()).tree
     cards = tree.select("a.package-card")
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
@@ -125,7 +125,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
-    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    tree = SourceDocument(named_source("extending").read_text()).tree
     select_one_result = tree.select_one("#callout-registry")
     assert select_one_result is not None
     entry = json.loads(select_one_result.text)
@@ -135,7 +135,8 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     validation_model.validate_registry_examples(registry, "package tutorial")
 
 
-EVENT_LOG = DOCS / "event-log.html"
+# The event log is How it works' "Event log" tab.
+EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
@@ -151,7 +152,7 @@ def test_pr_walkthrough_excerpts_match_the_captured_patch():
     Source excerpts and the inline orchestration hunk must agree with the same
     capture the complete patch widget presents, including their source locations.
     """
-    source = (EXAMPLES / "pr-walkthrough.html").read_text()
+    source = named_source("pr-walkthrough").read_text()
     page = SourceDocument(source)
     manifest = json.loads((EXAMPLES / "pr-walkthrough.data.json").read_text())
     select_one_result_3 = page.tree.select_one("#pr-exact-patch")
@@ -356,6 +357,19 @@ def test_the_event_log_page_quotes_the_registry():
     }
 
 
+def test_the_forks_guide_lists_the_judgments_and_endings_forks_keeps():
+    """The guide's sorting table names each judgment the line fork can answer
+    (`forks.ANSWER`), and its endings table each outcome `forks.ended` gives a
+    thread, so a judgment or outcome added to the code fails here until the guide,
+    the design's reference, says what it means."""
+    tree = SourceDocument(named_source("forks").read_text()).tree
+    answer: dict = forks_model.ANSWER
+    judgments = {code.text for code in tree.select("table#sorting-table td code")}
+    assert judgments == set(answer["properties"]["work"]["enum"])
+    endings = [code.text for code in tree.select("table#endings tbody th code")]
+    assert sorted(endings) == sorted(get_args(forks_model.Ending))
+
+
 def test_every_command_the_docs_show_is_one_leaf_has():
     """A shown command is a promise the user will type it.
 
@@ -377,7 +391,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     shown = [
         (source.name, line)
-        for source in sorted(DOCS.glob("*.html"))
+        for source in product_sources()
         for line in shown_in(SourceDocument(authored_markup(source)).tree)
     ]
     assert len(shown) > 10, (
@@ -406,3 +420,28 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
         unknown
     )
+
+
+def test_data_structures_page_lists_every_declared_schema():
+    """Each served definition, event kind and record gets an entry, and every link
+    between entries lands on one."""
+    source = named_source("data-structures")
+    tree = SourceDocument(docs.compose(source, source.read_text())).tree
+    entries = {entry.attrs["id"] for entry in tree.select("section.schema-entry")}
+    registry = docs.read_json(docs.KERNEL_REGISTRY)["$events"]
+    expected = {
+        "served-state",
+        "event-envelope",
+        "interaction-batch",
+        "record-draft",
+        *(f"served-{name}" for name in docs.read_json(docs.SERVED_SCHEMA)["$defs"]),
+        *(f"event-{kind}" for kind in registry["kinds"]),
+        *(f"record-{kind}" for kind in declared_records()),
+    }
+    assert entries == expected
+    targets = set()
+    for link in tree.select('a[href^="#"]'):
+        href = link.attrs["href"]
+        assert isinstance(href, str)
+        targets.add(href[1:])
+    assert targets - entries <= {"events"}

@@ -38,14 +38,18 @@ function wireSample({ sample, key, control, disclosure }) {
             id: key,
             subject: { kind: "widget", id: key },
             stage: sample.workflowStage,
+            // The server stamps whether the agent is at work on it (served_state/work.py).
+            at_work: sample.workflowStage === "working",
             detail: "",
           }
         : null,
       sample.awaitsUser ?? false,
     );
+    // The words beside each fixed sample say what its preview would, over the next
+    // cell, so only the live discovery samples keep the preview the factory gives them.
+    if (!sample.showLabel) control.lfPreview = () => false;
   };
   paint();
-  if (sample.showLabel) control.dataset.marginEntryLabelLive = "";
   if (disclosure) {
     control.addEventListener("click", () => {
       expanded = !expanded;

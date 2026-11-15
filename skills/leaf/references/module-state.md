@@ -112,7 +112,7 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that puts an obligation on On me can give its class
+A widget that puts an obligation on On Me can give its class
 `static answerWords(value, element)`, returning short words for the answer in the On
 lists, which otherwise show none. `value` is the obligation's `answer.value`, and
 `element` gives the authored markup, such as option labels; read only that, not what
@@ -152,10 +152,6 @@ with `publishOutput(element, name, value)` (package-data.md, "Widget outputs"). 
 producer publishes in the turn that commits the matching rendering, and publishes
 `null` rather than keep stale records after a failed replacement. Leaf doesn't check a
 published value against its contract, so publish only values that fit it.
-
-Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
-with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came
-from; it throws if the source changed in the meantime.
 
 ### Marking drawn data
 
@@ -198,8 +194,10 @@ widget. On a page without Leaf, nothing listens and the marks mean nothing.
 ### Time readings
 
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
-ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
-`quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
+ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h"). Draw an age
+in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
+(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone,
+as Leaf's own ages do: "Sat 15 Aug 2026, 14:02 PT". `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
 server's grace period. For any other reading, use `clockValue((now) => reading)`, with
 `now` the server's time in milliseconds. Read them synchronously in `render()`, which
 then redraws as the time's reading changes.
@@ -301,10 +299,12 @@ To render generated Leaf source as an isolated working preview, use
 `mountSample(frame, {source})` from the same module. The [generated sample
 workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
 
-The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
-existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
-the user configured for Pi. Pi has no structured-output mode, so it is given the schema
-and its answer is validated against it; an answer that doesn't match rejects the promise.
+The page must have an active Codex, Claude Code or Pi claim, and a Claude Code claimant's
+session must be running, since Leaf's plugin in it makes the call. The host reuses that
+harness's existing login and selects its model: Luna for Codex, Haiku for Claude, and the
+model the user configured for Pi. Neither Claude Code's call nor Pi has a
+structured-output mode, so each is given the schema and its answer is validated against
+it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
 per call, not retained as a billing ledger. Independent generation calls run

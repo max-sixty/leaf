@@ -9,21 +9,21 @@ test("words draw in their speakers' faces, and a run wears one voice only when a
   const run = [
     "Draw mode · ",
     agentSays("checking the roof"),
-    leafSays(" · New on me"),
+    leafSays(" · New On Me"),
   ];
   const host = document.createElement("div");
   render(voiced(run), host);
   assert.deepEqual(
     [...host.childNodes]
       .filter((node) => node.nodeType !== Node.COMMENT_NODE)
-      .map((node) => [node.textContent, node.dataset?.voice ?? null]),
+      .map((node) => [node.textContent, node.dataset?.lfVoice ?? null]),
     [
       ["Draw mode · ", null],
       ["checking the roof", "agent"],
-      [" · New on me", "leaf"],
+      [" · New On Me", "leaf"],
     ],
   );
-  assert.equal(wordsText(run), "Draw mode · checking the roof · New on me");
+  assert.equal(wordsText(run), "Draw mode · checking the roof · New On Me");
   assert.equal(voiceOf(run), null);
   assert.equal(voiceOf([leafSays("Stopped"), leafSays(" 3m ago")]), "leaf");
   assert.equal(voiceOf(agentSays("On it")), "agent");

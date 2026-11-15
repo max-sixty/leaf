@@ -39,10 +39,11 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   box, so the page's listeners never hear it bubble. Give the interface keys of its
   own by declaring them as an element's `lfCommands` (`module-input.md`, "Commands
   and keyboard routes"), or handle arrows, Enter and Escape on the page's own
-  elements, which hear them first.
+  elements, which hear them first. Preventing a key's default there keeps Leaf from
+  acting on it too.
 - A revision that changes only content patches the page in place without running
   scripts again, so an element it adds or replaces has none of the listeners the script
-  attached. Listen on `main` or another stable ancestor, or set up again when
+  attached. Listen on `body`, which survives revisions, or set up again when
   `PAGE_INTERFACE` fires (`module-authoring.md`, "Startup and presentation").
 - Animate from JavaScript through `motion()`, which skips the animation for a user who
   asked for less motion. Leaf stops only its own CSS motion for that user, so stop or

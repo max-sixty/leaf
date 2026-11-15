@@ -88,8 +88,10 @@ PORTABLE = [
         "flowchart TD\n"
         "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
         "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",
-        # Its named boxes.
-        'svg:has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
+        # Its named boxes, and its `accTitle` as its name with no `<title>`, which the
+        # browser would show as a tooltip over the whole drawing.
+        'svg[aria-label="Checkout"]:not(:has(> title))'
+        ':has(g.pele-node[data-id="Cart"]):has(g.pele-node[data-id="Pay"])',
         sized="natural",
     ),
     Portable(
@@ -126,8 +128,9 @@ GRID = (
 )
 # The host's own markup beside the widgets, a row of its own above them so their drawing
 # moves none of it, which portable.css leaves as the host drew it: none of its rules
-# reaches past the widgets, so a host's `.button`, `.choice`, `.field` or `data-room`,
-# names a Leaf page gives its own controls, keeps the host's look.
+# reaches past the widgets, so a host's `data-room`, a Leaf page's attribute idiom, and
+# its own `.button`, `.choice` and `.field`, names Leaf styles nowhere, keep the host's
+# look.
 HOST = (
     '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
     '<button class="button">Go</button><a class="button" href="#host">Link</a>'

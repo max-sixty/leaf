@@ -104,7 +104,7 @@ function toggle(video) {
 // and retains the controls, including the range the reader may be scrubbing.
 /** @param {HTMLVideoElement} video @param {HTMLElement} bar @param {(() => void | Promise<void>) | null} enterFullScreen */
 export function paintRecordingControls(video, bar, enterFullScreen) {
-  keeps(bar, "data-playing", video.paused ? null : "");
+  keeps(bar, "data-lf-playing", video.paused ? null : "");
   keeps(bar, "role", "group");
   keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
   render(
@@ -206,7 +206,7 @@ function prepare(video) {
   // picture leaves a playing recording whole.
   const show = (/** @type {string} */ flag, /** @type {boolean} */ force) => {
     if (force) revealControl(bar, video);
-    keeps(bar, `data-${flag}`, force ? "" : null);
+    keeps(bar, `data-lf-${flag}`, force ? "" : null);
   };
   on("pointerenter", () => show("hovered", true));
   on("pointerleave", () => show("hovered", false));

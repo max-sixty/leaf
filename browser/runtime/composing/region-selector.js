@@ -191,9 +191,10 @@ export function createRegionSelector({
     keepsText(status, "Capturing…");
     paintKeys();
     try {
-      const { blob, warnings } = await pageImage(clip, {
-        exclude: [".lf-region-capture", ".lf-floating-panel", ".lf-fp-ground"],
-      });
+      // Leaf's chrome, the capture's own overlay and the panel included, stands after
+      // the body the capture draws from, so the photo holds what the region shows of
+      // the page, threads drawn inline in it included.
+      const { blob, warnings } = await pageImage(clip);
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)
         throw new Error("The page changed. Select the area again.");

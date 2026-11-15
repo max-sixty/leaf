@@ -2,46 +2,64 @@
 
    A settlement's landing is the surface's own: `prepareLanding` returns the step that
    carries the user where the gesture leaves them, which may be away from the thread.
-   The thread is the place they return to: the log refusing the gesture returns them
-   to it here, while they have not acted since, and the gesture arms `z` to take it
-   back in one press that returns them too (undo.js, `landedAway` and
-   `returnToThread`, which own where a withdrawn gesture leaves the user).
+   The thread's container also names the reader the user had the thread in (`reader`,
+   thread-card.js, `ViewOutlets`): the page, for a margin card, or the primary reader,
+   for a whole thread there that lands the user elsewhere, as the floating panel's view
+   does. The way back reopens the thread there (undo.js, `returnToThread`), since a
+   route left to choose would choose for the thread as it stands: it put a thread
+   resolved in its card in the panel, where resolved threads open, and one resolved in
+   the panel's view in a card beside its passage. A seat names none, since a route to
+   the thread finds it in the seat it stands in. A primary reader's part that leaves the
+   user where they pressed draws the same card as a seat and names none either; a route
+   to the thread asks the primary first. The log
+   refusing the gesture takes the way back
+   here, while the user has not acted since; undo.js keeps the reader for `z` and the
+   notice's Undo (`retainGesture`), and the landing arms `z` to take the gesture in
+   one press (`landedAway`).
 
    A sent settlement says what it did in the notice seat, since its landing may carry the
    user away from the thread and leave nothing on screen to say it was resolved, and
-   offers the press that takes that settlement back, as `z` would (undo.js,
-   `offerUndo`), which says the reverse; the notice goes when the log refuses the
-   settlement or it is taken back, so its press never takes back another. It names
-   the thread by the words it is about, as the thread's head quotes them, else by its
-   name: "Resolved the thread" stood under the next thread a panel's Resolve moved the
-   user on to, and read as that thread's (the user's choice, 31 October). */
+   offers the press that matters most next (`nextStep`). After a Resolve that is the
+   next open thread, `t`'s press, while one stands open; after a Reopen, or a Resolve
+   that left none open, it is the press that takes the settlement back, as `z` would
+   (undo.js, `offerUndo`). The user chose Next thread on 6 November 2026, from three
+   weeks of their keys: `t` came next after 130 of 406 Resolves and `z` after 7, so
+   Undo, offered there since 31 October, gave way; `z` and the menu's Undo still take
+   the Resolve back. The notice goes when the log refuses the settlement or it is taken
+   back, so its press never acts for a settlement that no longer stands. It names the
+   thread by its name, as `z` does and every surface that names a thread
+   (`threadName`): "Resolved the thread" stood under the next thread a panel's Resolve
+   moved the user on to, and read as that thread's (the user's choice, 31 October).
+   Rejected: the words the thread is about, which `z` then named by its name. */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
-import { paintKeys } from "../keyboard/scopes.js";
+import { pressCommand } from "../keyboard/dispatch.js";
 import { notice } from "../notifications.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
-import { excerptWords, quotedWords } from "../words.js";
-import { anchorLabel, threadName, threadPassage } from "./messages.js";
-import { threadNamed } from "./state.js";
+import { quotedWords } from "../words.js";
+import { threadName } from "./messages.js";
+import { anyOpenThread, threadNamed } from "./state.js";
 
 // What the notice calls the thread, cut as undo.js cuts the names its notices quote,
-// so a long passage leaves the press beside it in view.
+// so a long name leaves the press beside it in view.
 const NAMED = 48;
-/** @param {string} key */
-function settledName(key) {
-  const thread = threadNamed(key);
-  if (!thread) return "the thread";
-  const passage = threadPassage(thread);
-  const label = anchorLabel(
-    passage?.quote
-      ? { ...passage, quote: excerptWords(passage.quote, NAMED) }
-      : passage,
-    thread.root.about,
-  );
-  return label || quotedWords(threadName(thread), NAMED);
-}
+
+// The press a settlement's notice offers (the header's second paragraph): `t`'s next
+// open thread after a Resolve while one stands open, standing no longer than the
+// Resolve does, else the settlement's undo.
+/** @param {boolean} resolving @param {import("../notifications.js").NoticePress} undo
+ * @returns {import("../notifications.js").NoticePress} */
+const nextStep = (resolving, undo) =>
+  resolving && anyOpenThread()
+    ? {
+        action: "next-thread",
+        command: "thread.next",
+        run: () => pressCommand("thread.next"),
+        stands: () => undo.stands() && anyOpenThread(),
+      }
+    : undo;
 
 /** @typedef {() => boolean | void | Promise<boolean | void>} Landing */
 /** @param {{
@@ -49,35 +67,35 @@ function settledName(key) {
  * key: string,
  * resolved: boolean,
  * prepareLanding?: (() => Landing | null) | null,
+ * reader?: import("../undo.js").Reader,
  * pendingEntries: ReturnType<typeof import("../pending/state.js").createPendingLedger>["snapshot"],
  * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "reopen" | "resolve">,
- * landedAway: (attempt: string) => void,
- * offerUndo: ReturnType<typeof import("../undo.js").createUndo>["offerUndo"],
- * returnToThread: ReturnType<typeof import("../undo.js").createUndo>["returnToThread"],
+ * undo: Pick<ReturnType<typeof import("../undo.js").createUndo>, "landedAway" | "offerUndo" | "retainGesture" | "returnToThread">,
  * }} dependencies */
 export async function settleThread({
   parent,
   key,
   resolved,
   prepareLanding,
+  reader = null,
   pendingEntries,
   actions,
-  landedAway,
-  offerUndo,
-  returnToThread,
+  undo,
 }) {
   const land = prepareLanding?.();
   const since = inputCount();
   const attempt = randomId();
-  const named = settledName(key);
+  const thread = threadNamed(key);
+  const named = thread ? quotedWords(threadName(thread), NAMED) : "the thread";
   const answer = resolved
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });
   if (!answer) return;
+  undo.retainGesture(attempt, { settled: { reader } });
   notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, {
-    press: offerUndo(attempt),
+    press: nextStep(!resolved, undo.offerUndo(attempt)),
   });
-  if (land) landedAway(attempt);
+  if (land) undo.landedAway(attempt);
   await landGesture({
     land,
     answer,
@@ -87,7 +105,7 @@ export async function settleThread({
     refused: async () => {
       const mayReturn = retainUserIntent({ since });
       await whenDocumentPresented();
-      return returnToThread(parent(), mayReturn);
+      return undo.returnToThread(parent(), mayReturn, reader);
     },
   });
 }
@@ -121,14 +139,8 @@ async function landGesture({ land, answer, pending, refused }) {
       if (!landed) return step(land);
     },
   );
-  const presentation = whenDocumentPresented();
-  paintKeys();
-  try {
-    await presentation;
-    const landed = await startLanding();
-    const accepted = await answer;
-    await finishLanding(accepted, landed);
-  } finally {
-    paintKeys();
-  }
+  await whenDocumentPresented();
+  const landed = await startLanding();
+  const accepted = await answer;
+  await finishLanding(accepted, landed);
 }

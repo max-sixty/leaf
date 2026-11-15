@@ -64,8 +64,10 @@ Use `lf-gloss` for unfamiliar terms the reader can open locally.
 
 Link each pull request, issue, commit, URL, and file or source line with a known
 destination in every section, decision and reply that names it. The user reaches each
-of those on its own, from the contents or On me, and opens what it names from there to
-check it.
+of those on its own, from the contents or On Me, and opens what it names from there to
+check it. A fragment link to an id on the page, such as `<a href="#decision">`, shows
+the reader where it points while they point at or focus it: the place's name and first
+lines, a question's answer, and the threads about it.
 
 ## Composing a page
 
@@ -116,9 +118,11 @@ page composes the route and its document as siblings:
 ```
 
 The browser places that route before JavaScript runs and wraps it with the document
-when narrow. Keep contents and a short verdict or status in the track, and put detailed
-evidence and history in the body or behind a disclosure. See `page-layout.md`,
-"A sidebar page", for the shared composition and width contract.
+when narrow. Under a mouse a sidebar holding the contents map alone narrows to the
+map's spine, whose labels show over the page when the reader points at it, so put a verdict or
+status the reader should see at once at the top of the body, and detailed evidence and
+history in the body or behind a disclosure. See `page-layout.md`, "A sidebar page", for the
+shared composition and width contract.
 
 Workspaces and root page tabs have their own navigation, and so does a
 page of parts, whose column parts each take their own outline.
@@ -156,14 +160,20 @@ also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take th
 scheme's values. `--col` sets the reading column's width, and the spacing steps
 `--sp-1` to `--sp-5` tighten under `density-working`.
 
-`body` is Leaf's: it holds the one `main`, which is the page, and Leaf's own interface,
-and pads its foot by `--lf-foot-room` so the page's end scrolls clear of the panel. Put
-the page's grid and header on or inside `main`, and its ground in `--paper`; a page that
-takes no theme paints its ground on `html` and names it in `--lf-ground`, since `body`
-is a container, which keeps its own background off the window below a short page. A
-reset that zeroes
-`body`'s padding, or an app shell whose own box scrolls, puts
-`padding-bottom: var(--lf-foot-room)` on whatever scrolls. A box page CSS makes opaque,
+The page is `body`. One `main` directly inside it holds the page's content, its title
+included, and carries its Layout. Site furniture around that content, such as a
+site-wide header, navigation or footer, can stand beside `main`, where comments,
+revisions and checks cover it as they cover `main`. Only `main` takes the Layout, so
+the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
+
+Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
+panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
+in `--paper`; a page that takes no theme paints its ground on `html` and sets
+`--lf-ground` there (`package-themes.md`, "A theme change"), since `body` is a
+container, which keeps its own background off the window below a short page. A reset
+that zeroes `body`'s padding, or an app shell whose own box scrolls, puts
+`padding-top: var(--lf-head-room)` and `padding-bottom: var(--lf-foot-room)` on
+whatever scrolls. A box page CSS makes opaque,
 such as a sticky bar, uses `background: var(--lf-ground)` to match its containing
 surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
@@ -238,15 +248,25 @@ a pasted link, so write a description that makes sense on its own.
 ## Markup
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
-widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
-escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
+widget starts with a `<strong>`. A leading `<strong>` heads a part when the next thing
+after it is a `<br>`, a block element or the end of the block holding it; the end of an
+inline element around it, such as a `<span>`, doesn't count. Followed first by
+text, hidden text included, it is a run-in label: it names its own line, and what
+follows belongs to the enclosing part, which On Me groups by and a link's preview
+names. A block element is any outside HTML's phrasing content, including every widget
+whose registry entry doesn't declare `x-inline`. The markup decides, not CSS: a span
+styled `display: block` or a newline `white-space` keeps doesn't end the line. A widget whose body is data, such
+as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
 `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
 language from `$languages.names`. Native `code` classes also accept the bundled
-grammar's aliases, such as `language-js` and `language-sh`. Format example code with
+grammar's aliases, such as `language-js` and `language-sh`. Leaf colours a native
+block only where the reading face reaches it: the `reading` theme turns it on, and a
+page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
+(`package-themes.md`, "Personal themes"). Format example code with
 the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
@@ -258,18 +278,25 @@ Leaf renders it, and its Source tab shows the exact Markdown. Where Markdown syn
 itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
-`class="scroll"` to that same box. Leaf contains its positioned descendants and
+`class="lf-scroll"` to that same box. Leaf contains its positioned descendants and
 adds keyboard access and continuation cues when content exceeds the box. Its CSS may
 change overflow at a breakpoint; Leaf measures the declared surface, never all of its
-descendants. For a box that scrolls vertically, see `page-layout.md`, "Bounds and widths".
+descendants. Leaf fits media to its container (below), so an image or SVG meant to
+scroll in the box needs `max-width: none`. For a box that scrolls vertically, see
+`page-layout.md`, "Bounds and widths".
 
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
-also scrolls a `<pre>` or table wider than its container, so neither needs a width,
-and a table's columns size to their content, so leave its cells' widths and wrapping
-to Leaf too. A page without the face keeps the browser's tables and code blocks, so
-it puts one that can outgrow a narrow window in a box of its own that scrolls
-sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
+also scrolls a `<pre>` wider than its container, and a table's columns size to their
+content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+container for no width, so a box that takes its width from its content can leave it
+too narrow to read, which `page check --render` reports. A table scrolls inside a box
+that sets its own width, such as the column, a panel or any
+other block. A box that takes its width from its content, such as a flex item or a
+grid `auto` track, widens to the table's columns instead, past a phone's window if
+they need it, so give that box `min-width: 0` to keep the table scrolling inside it.
+A page without the face keeps the browser's tables and code blocks, so it puts one
+that can outgrow a narrow window in a box of its own that scrolls sideways, as above. Text that can't break, such as a bare identifier or a cell kept on
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,

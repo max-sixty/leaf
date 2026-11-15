@@ -17,7 +17,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
     expect_obligations_answered,
@@ -43,6 +42,7 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.page_code import run_page_code
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -175,7 +175,9 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     expect(choice).to_be_visible()
     choice.dispatch_event("click")
     expect(page.locator("#startup-a")).not_to_have_attribute("chosen", "")
-    suggestion_accept = page.locator("[data-lf-margin-for='sug'] .lf-sug-accept")
+    suggestion_accept = page.locator(
+        "[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]"
+    )
     expect(suggestion_accept).to_be_disabled()
     assert suggestion_accept.evaluate(
         """button => lfUnwatched(() => {
@@ -248,7 +250,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
     """An optional package paints locally while its durable action still waits."""
-    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    source = named_source("notification-playground")
     url = serve(source)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -307,7 +309,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     """Chrome may not publish stale obligations before the log has answered.
 
     The log has accepted the page's one suggestion. Holding the first replay makes the
-    dangerous interval deterministic: discussion stays available, but the On me mark
+    dangerous interval deterministic: discussion stays available, but the On Me mark
     claims no count, and the stale bulk action stays withheld. Replay then paints the
     accepted state, counts nothing on the user and offers no Accept all."""
     url = serve(SHORT_SUGGESTION)
@@ -332,7 +334,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     # The mark stands on every page, and claims no count before the log has answered:
     # not the authored suggestion's 1, which the log has already decided.
     on_me = page.locator(".lf-fp-on-user")
-    expect(on_me).to_have_attribute("title", "On me")
+    expect(on_me).to_have_attribute("aria-label", "On Me")
     # The blanket answer claims no action before the first state answer.
     expect_panel_offers(page, "blanket:accept", offered=False)
 
@@ -348,7 +350,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     # Nothing waits on the user, which the mark says by counting nothing.
-    expect(on_me).to_have_attribute("title", "On me")
+    expect(on_me).to_have_attribute("aria-label", "On Me")
     expect_obligations_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 
@@ -526,7 +528,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("#sug lf-old")).to_be_visible()
         # Versions is out of reach until state applies.
         expect(
-            panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+            panel_menu(page).locator('.lf-fp-item[data-lf-row="versions"]')
         ).to_be_disabled()
         # No producer below the feed saw the body, so the feed's report is the one
         # that reaches the agent.
@@ -719,7 +721,9 @@ def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, ser
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)
     with sending(page, "the suggestion decision"):
-        page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
+        page.locator(
+            "[data-lf-margin-for='sug-refill'] [data-lf-margin-entry-key=accept]"
+        ).click()
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     assert not [
         event

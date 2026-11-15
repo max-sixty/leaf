@@ -7,11 +7,10 @@ import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_cases_navigation import go_to_address
-from render_harness import leaf_page, open_page
+from render_harness import leaf_page, open_page, put_preview_away
 
 from browser.navigation import offered_routes
 from leaf.render_checks import rendered
-from leaf.schema import ELEMENT_ID
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -113,7 +112,7 @@ KEYBOARD_HINT_REGISTRY = {
         "description": "Exercises declared keyboard commands and their controls.",
         "type": "object",
         "properties": {
-            "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+            "id": {"type": "string"},
             "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
@@ -725,6 +724,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     ).to_be_focused()
     page.keyboard.press("x")
     expect(result).to_have_text("Applied 3")
+    # The Tab showed the control's preview, Escape's first step (WCAG 1.4.13).
+    put_preview_away(page)
     page.keyboard.press("Escape")
     expect(result).to_have_text("Applied 4")
 
@@ -869,7 +870,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
         id: 'probe.inspect-proposal', binding: 'x', contextKeys: ['1'], decision: true,
         control, bindingBadge: null, title: 'Inspect the proposal',
       }],
-      run: binding => keepsText(result, `${binding}:${++count}`),
+      runKey: binding => keepsText(result, `${binding}:${++count}`),
     }] };
     commandsChanged(this);
   }

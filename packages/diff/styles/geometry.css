@@ -2,9 +2,10 @@
  * its overlaid presses aligned as the aim floor changes.
  *
  * The bar of presses on a file's name line: how tall it stands, and how far down the
- * name it starts. The pull in shadow.css is the same distance in the other direction:
- * the bar is laid out above the file's body and the body is drawn back over it, so a
- * number restated there would put the presses off the name the moment either changed.
+ * name it starts. The pull in widget-shadow.css is the same distance in the other
+ * direction: the bar is laid out above the file's body and the body is drawn back over
+ * it, so a number restated there would put the presses off the name the moment either
+ * changed.
  * A finger's floor is each press's reach, which the bar starts low enough to hold
  * inside the row.
  *

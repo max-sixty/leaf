@@ -129,7 +129,7 @@ test("dictation and send trade the same field seat as its draft changes", async 
   assert.equal(microphone.hidden, false);
   assert.equal(button.hidden, true);
   assert.equal(
-    field.querySelector(".lf-compose-field").hasAttribute("data-words"),
+    field.querySelector(".lf-compose-field").hasAttribute("data-lf-words"),
     false,
   );
   input.value = "A new thought";
@@ -138,7 +138,7 @@ test("dictation and send trade the same field seat as its draft changes", async 
   assert.equal(microphone.hidden, true);
   assert.equal(button.hidden, false);
   assert.equal(
-    field.querySelector(".lf-compose-field").hasAttribute("data-words"),
+    field.querySelector(".lf-compose-field").hasAttribute("data-lf-words"),
     true,
   );
 });

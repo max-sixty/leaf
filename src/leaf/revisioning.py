@@ -6,15 +6,18 @@ the active revision stays live. A source whose artifact matches the active revis
 is not a candidate, and `check_source` checks no transition for it (see its gate on
 `PredecessorReading.unchanged`).
 
-Every state read calls `activate_source` first, so `page_memory` keeps its last
-answer, keyed on the two readings `served_state.reading.source_readings` returns:
-the source, and the history (the log and the revisions). That is how a saved
-`index.html` reaches an open tab: the next read sees the source change and makes
-the revision. A cached "no new revision" stays valid while only the log grows,
-because admission checked each event against the revision it names. A refusal is
-checked again when the source or the history changes. A stamp leaves the answer for
-the source it published (`hold_published`), so the next read in that process doesn't
-check the same source again.
+Every read of a live page activates the source first. A state read calls
+`activate_source`, and the news a visible tab asks for calls it only when
+`held_activation` doesn't cover the page as it stands. So `page_memory` keeps the
+last answer, keyed on the two readings `served_state.reading.source_readings`
+returns: the source, and the history (the log and the revisions). That is how a
+saved `index.html` reaches an open tab: the next read sees the source change and
+makes the revision. A cached "no
+new revision" stays valid while only the log grows, because admission checked each
+event against the revision it names. A refusal is checked again when the source or
+the history changes. A stamp leaves the answer for the source it published
+(`hold_published`), so the next read in that process doesn't check the same source
+again.
 
 When a revision drops the passage an open thread is anchored to, activation appends
 a `reanchor` event in the same log transaction, which moves the thread to the
@@ -29,6 +32,18 @@ stages the revision's files, appends the event naming the staged bundle in
 `publication`, and writes the revision marker last. If that is interrupted, the next
 `PageTransaction` finishes it (`finish_publications`) before anyone else reads or
 writes the page.
+
+A revision a read activates has no reply or note to name it, so its activation
+appends an `activation` event naming the bundle, before the reanchors it causes,
+where the revision can be compared against an earlier one. The event gives the
+revision its place in the log, and a comparison reads only the places of the
+revisions after its base (`provenance.saved_after`), so a revision with none live
+before it appends nothing: a fresh page, a sample and a published page's first read
+write nothing to the log. An event naming the bundle is the first of its
+publication: the publication's prerequisite, which `finish_publications` completes,
+and its seq is the revision's place. A first revision has no prerequisite, so one
+interrupted before its marker stays absent until a read activates the source again.
+A refused reply or note appends nothing, its revision included.
 """
 
 from contextlib import nullcontext
@@ -88,22 +103,31 @@ def activate_source(page_dir: Path, *, transaction=None) -> Activation:
         return _activate_source(page_dir, page)
 
 
-def _activate_source(page_dir: Path, page) -> Activation:
-    source, history = source_readings(page_dir)
-    held = memo(page_dir, _Held)
-    answer = held.answer
+def held_activation(page_dir: Path, source: str, history: str) -> Activation | None:
+    """The answer `activate_source` would give without checking anything, while the
+    one it holds still covers these `source_readings`, else None. A reader that
+    asks often, such as the news a tab polls, asks this first and takes the page's
+    transaction only to activate (`LivePage._activated`)."""
+    answer = memo(page_dir, _Held).answer
     if (
         answer
         and answer.source == source
         and (answer.activation.error is None or answer.history == history)
     ):
         return answer.activation
+    return None
+
+
+def _activate_source(page_dir: Path, page) -> Activation:
+    source, history = source_readings(page_dir)
+    if (held := held_activation(page_dir, source, history)) is not None:
+        return held
     activation = activate_checked_source(
         page,
         check_source(page_dir, page.events),
     )
     settled = activation._replace(created=False) if activation.created else activation
-    held.answer = _Answer(source, history, settled)
+    memo(page_dir, _Held).answer = _Answer(source, history, settled)
     return activation
 
 
@@ -129,7 +153,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 
-def _append_reanchors(page, revision, moves, *, view=None, publication=None):
+def _append_reanchors(page, revision, moves, *, view=None):
     for thread, anchor in moves.items():
         append_admitted(
             page,
@@ -139,11 +163,9 @@ def _append_reanchors(page, revision, moves, *, view=None, publication=None):
                 "revision": revision,
                 "thread": thread,
                 "anchor": anchor,
-                **({"publication": publication} if publication else {}),
             },
             view=view,
         )
-        publication = None
 
 
 def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
@@ -164,7 +186,6 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
         predecessor = PredecessorReading(
             previous,
             revision,
-            False,
             False,
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
@@ -216,7 +237,6 @@ def _publish_checked_source(page, checked, event=None):
             previous,
             revision,
             False,
-            False,
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
         )
@@ -226,13 +246,18 @@ def _publish_checked_source(page, checked, event=None):
             predecessor,
             candidate_revision=revision,
         )
-    _append_reanchors(
-        page,
-        revision,
-        moves,
-        view=view,
-        publication=publication if event is None else None,
-    )
+    elif publication and checked.revision.active:
+        append_admitted(
+            page,
+            {
+                "kind": "activation",
+                "author": "page",
+                "revision": revision,
+                "publication": publication,
+            },
+            view=view,
+        )
+    _append_reanchors(page, revision, moves, view=view)
     if publication:
         publish_artifact(page.page_dir, publication, checked.reading)
     return activation, accepted

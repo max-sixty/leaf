@@ -34,7 +34,6 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
-    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
@@ -68,14 +67,16 @@ from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
+from leaf.render_gate import scheme as scheme_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.threads import open_panel_thread
 
-from journeys import first_thread_quote
+from journeys import first_thread_head
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -186,7 +187,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert origin["path"] == ["cases", 0]
     expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
-        first.locator(f'.lf-page-thread[data-thread="{case_thread["id"]}"]')
+        first.locator(f'.lf-page-thread[data-lf-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
     first.get_by_role("button", name="Capture details").click()
     for label, href in (
@@ -212,7 +213,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.locator(".lf-vr-case-button").nth(1).click()
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    second.get_by_role("button", name="Slider").click()
+    second.get_by_role("radio", name="Slider").click()
 
     inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
     changed: dict = record | {
@@ -237,8 +238,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
-    expect(second.get_by_role("button", name="Slider")).to_have_attribute(
-        "aria-pressed", "true"
+    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
+        "aria-checked", "true"
     )
     expect(
         first.get_by_role("checkbox", name="Looks right", include_hidden=True)
@@ -311,11 +312,21 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 
     Stall the gate's second read of this version, after its first read delivered the
     page. Stalling that first read would wedge navigation instead and report the
-    banner the gate never saw. The deadline is shortened here because the number is
-    not the subject, the bound is.
+    banner the gate never saw. Only the stalled read's deadline is shortened, since
+    its answer never comes: the number is not the subject, the bound is. Every other
+    read and probe keeps the suite's deadline, so a slow machine still renders.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
+    bounded = scheme_model.served
+    shortened = []
+
+    def served(page, url, path, timeout_ms=None):
+        if path == "/versions/v2.html" and not shortened:
+            shortened.append(path)
+            timeout_ms = 1500
+        return bounded(page, url, path, timeout_ms)
+
+    monkeypatch.setattr(scheme_model, "served", served)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for _ in (1, 2):
@@ -776,7 +787,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(first_thread_quote(page, serve.page_dir)).to_have_attribute(
+    expect(first_thread_head(page, serve.page_dir)).to_have_attribute(
         "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") == "", (
@@ -809,7 +820,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(first_thread_quote(page, serve.page_dir)).not_to_have_attribute(
+    expect(first_thread_head(page, serve.page_dir)).not_to_have_attribute(
         "data-lf-detached", ""
     )
     assert painted(page, "lf-mark") != "", (
@@ -967,7 +978,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect_obligations_answered(page, "0/2")
 
     page.keyboard.press("m")
-    one = page.locator(f'{PANEL_THREAD}[data-thread="c-which"]')
+    one = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-which"]')
     expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()

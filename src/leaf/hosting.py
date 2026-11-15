@@ -61,17 +61,23 @@ from .service import (
     prepare_claim,
     same_claim,
 )
+from .session_runtime import select_checkout
 
 if TYPE_CHECKING:
     from .record_types import ServiceRecord
     from .server import PageAddress
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
-# 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
-# connections it closes or exits with, so its fixed address can stay in use after
-# it stops. Wait out what address reuse cannot pass, without waiting forever for an
-# address another live process holds.
+# 30 s on macOS. A server is that side for the keep-alive connections it closes or
+# exits with, so a wildcard address there, which address reuse cannot rebind, stays
+# in use for that long after it stops (`listening_socket`).
 PORT_WAIT_SECONDS = 90
+
+# How long a stopping server lets its clients finish before it drops their
+# connections (`_page_uvicorn`). A page's answers take milliseconds, so a client
+# still unfinished after this has stopped sending or reading. It is generous, so a
+# route slowed by a loaded machine still delivers its answer.
+STOP_GRACE_SECONDS = 30
 
 # Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
 # (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
@@ -83,9 +89,14 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     """Open an exclusive listener, rebinding a fixed address over its own TIME_WAIT.
 
     A new service asks the OS for a port with zero; a recorded address binds its
-    port again, retrying EADDRINUSE for up to PORT_WAIT_SECONDS. Other failures keep
-    their original error. The kernel's bind checks keep two Leaf listeners, in any
-    processes, off overlapping addresses; no port lease or record stands beside them.
+    port again. The kernel's bind checks keep two Leaf listeners, in any processes,
+    off overlapping addresses; no port lease or record stands beside them. A bind
+    that sets SO_REUSEADDR passes TIME_WAIT, so EADDRINUSE there means a live
+    listener holds the port, and it raises at once: a previous Leaf server closes
+    its listener before it releases the lease a restart waits on (`cmd_stop`), so
+    the holder is a process waiting would not move. Only a bind without the option
+    retries EADDRINUSE, for up to PORT_WAIT_SECONDS. Other failures keep their
+    original error.
 
     SO_REUSEADDR lets a restart pass the TIME_WAIT connections the previous server
     left on its port, and it is set wherever it keeps the exclusion. On Linux every
@@ -107,10 +118,13 @@ def listening_socket(bind: str, port: int) -> socket.socket:
     is unavailable; a literal IPv6 address never widens to every interface.
     """
 
-    def bound(family: int, host: str) -> socket.socket:
-        reuse = REUSE_EXCLUDES_LISTENERS or (
+    def reuses(host: str) -> bool:
+        return REUSE_EXCLUDES_LISTENERS or (
             bool(port) and not ipaddress.ip_address(host).is_unspecified
         )
+
+    def bound(family: int, host: str) -> socket.socket:
+        reuse = reuses(host)
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
             if reuse:
@@ -126,6 +140,8 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             raise
         return sock
 
+    # `::` falls back to `0.0.0.0`, which reuses exactly when `::` does.
+    waits = bool(port) and not reuses(bind)
     deadline = time.monotonic() + PORT_WAIT_SECONDS
     while True:
         try:
@@ -139,7 +155,7 @@ def listening_socket(bind: str, port: int) -> socket.socket:
                 return bound(socket.AF_INET, "0.0.0.0")
         except OSError as error:
             if (
-                not port
+                not waits
                 or error.errno != errno.EADDRINUSE
                 or time.monotonic() >= deadline
             ):
@@ -254,17 +270,30 @@ class LeafHTTPServer:
 
 @functools.cache
 def _page_uvicorn():
-    """Uvicorn's server, stopping when asked rather than on its next poll.
+    """Uvicorn's server, stopping when asked rather than on its next poll, and
+    never waiting on a client for longer than `STOP_GRACE_SECONDS`.
 
     Uvicorn notices `should_exit` on a 0.1 s tick, then sleeps a fixed 0.1 s after
     asking each connection to finish and polls every 0.1 s until they have. A page
     server that has nothing in flight therefore took ~0.18 s to stop, and the browser
-    suite stops one per test. Here the tick also wakes on `wake()`, and the stop waits
-    exactly as long as its connections and tasks take, polling at 5 ms. The order is
-    uvicorn's: close the listeners, ask each connection to finish, wait for them
-    unless a second signal forces the exit, then for the servers. Its graceful-shutdown timeout and lifespan shutdown are absent
-    because a page server sets neither. Built on first use, since uvicorn loads only
-    when a server is constructed.
+    suite stops one per test. Here the tick also wakes on `wake()`, and the stop polls
+    at 5 ms. The order is uvicorn's: close the listeners, ask each connection to
+    finish, and wait for the connections and their requests, unless a second signal
+    forces the exit.
+
+    Two departures keep a client from holding the stop open. Uvicorn asks only the
+    connections it has made when the stop begins, but the listener may already have
+    accepted one, such as a browser's preconnect, that asyncio makes a moment later;
+    an idle one of those stayed open for as long as its client kept it. So each poll
+    asks every connection it has not asked yet, and the wait lasts until the servers
+    report every connection gone. And a client that stops sending its request or
+    reading its answer keeps that request in flight forever, so after
+    `STOP_GRACE_SECONDS` the stop drops every connection still open. Uvicorn's own
+    graceful-shutdown timeout cancels the requests instead; cancelling cannot stop a
+    route running on a worker thread, so the stop goes on waiting for them, and no
+    route is left writing into a page its owner has removed. Lifespan shutdown is
+    absent because a page server sets no lifespan. Built on first use, since uvicorn
+    loads only when a server is constructed.
     """
     import asyncio
 
@@ -295,13 +324,21 @@ def _page_uvicorn():
                 server.close()
             for sock in sockets or []:
                 sock.close()
-            for connection in list(self.server_state.connections):
-                connection.shutdown()
+            loop = asyncio.get_running_loop()
+            drop_at = loop.time() + STOP_GRACE_SECONDS
+            closed = asyncio.gather(*(server.wait_closed() for server in self.servers))
             state = self.server_state
-            while (state.connections or state.tasks) and not self.force_exit:  # noqa: ASYNC110 - Uvicorn owns this state and exposes no completion event.
+            asked = set()
+            while (
+                state.connections or state.tasks or not closed.done()
+            ) and not self.force_exit:
+                for connection in state.connections - asked:
+                    connection.shutdown()
+                asked |= state.connections
+                if loop.time() >= drop_at:
+                    for connection in state.connections:
+                        connection.transport.abort()
                 await asyncio.sleep(0.005)
-            for server in self.servers:
-                await server.wait_closed()
 
     return PageUvicorn
 
@@ -563,19 +600,21 @@ def cmd_serve(
     """
     from .http import page_endpoint
     from .layer import payload_provenance
+    from .render_gate.handover_pass import HandoverPass
     from .server_rows import RowPublisher
 
     lease = None
     httpd = None
-    delivery = (
-        harness.preparing_delivery()
-        if acquire and not persistent and harness is not None and handshake is None
-        else contextlib.nullcontext()
-    )
+    delivery = contextlib.nullcontext()
+    if acquire and not persistent and harness is not None:
+        prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
+        if handshake is None:
+            # The serve takes the page in this process, so it selects its Leaf
+            # before it prepares delivery (`session_runtime.select_checkout`).
+            select_checkout(harness.session)
+            delivery = harness.preparing_delivery()
     try:
         with delivery, page_locked(page_dir):
-            if acquire and not persistent and harness is not None:
-                prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
             previous_service = service = read_service(page_dir)
             with PageTransaction(page_dir) as page:
                 claimed = (
@@ -655,6 +694,7 @@ def cmd_serve(
         if httpd is None or not announced:
             return
         threading.Thread(target=rows.run, daemon=True).start()
+        threading.Thread(target=HandoverPass(page_dir).run, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),
@@ -696,8 +736,10 @@ def _starting_server(
     harness: Harness | None,
     acquire: bool = False,
     claim: dict | None = None,
+    deadline: float | None = None,
 ):
-    """Prepare a private serving resource and expose its owner before accepting."""
+    """Prepare a private serving resource and expose its owner before accepting,
+    refusing a start that is not ready by `deadline`, a `time.monotonic()` reading."""
     with starting_detached(
         [
             "server",
@@ -714,6 +756,7 @@ def _starting_server(
         ],
         harness=harness,
         what=f"the server for {page_dir}",
+        deadline=deadline,
     ) as ready:
         yield PageStart(ready["url"], ready["claim"], page_dir)
 
@@ -747,6 +790,7 @@ def claim_and_start(
     persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
+    deadline: float | None = None,
 ):
     """Prepare delivery and serving, expose their acquisition, then commit.
 
@@ -755,23 +799,33 @@ def claim_and_start(
     URL only after exit confirms publication. Once accepted, cancellation cannot
     restore a superseded owner; the captured acquisition governs owner cleanup.
 
-    A detached preview receives a claim prepared by its launcher, which holds
-    delivery preparation through this commit. That child uses the captured
-    lifetime and cwd rather than discovering its detached process's ancestry.
+    A caller whose environment does not imply the harness it acts for passes a
+    claim it prepared, and holds delivery preparation through this commit: a
+    detached preview's launcher, whose child uses the captured lifetime and cwd
+    rather than discovering its own ancestry, and a prompt hook, whose payload names
+    the session (`reconnect`). Neither selects a checkout here. The hook also passes
+    its own `deadline`; a start not ready and confirmed by then is refused.
     """
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
-    delivery = (
-        harness.preparing_delivery()
-        if not persistent and harness is not None and prepared_claim is None
-        else contextlib.nullcontext()
-    )
+    claim = prepared_claim
+    delivery = contextlib.nullcontext()
+    if claim is None and not persistent and harness is not None:
+        claim = prepare_claim(harness, page_dir)
+        # The start takes the page in this process, so it selects its Leaf before
+        # it prepares delivery (`session_runtime.select_checkout`), as a detached
+        # preview's launcher did before preparing the claim it hands over.
+        select_checkout(harness.session)
+        delivery = harness.preparing_delivery()
     with delivery:
-        claim = prepared_claim or (
-            prepare_claim(harness, page_dir) if not persistent and harness else None
-        )
         try:
             with _starting_server(
-                page_dir, host, persistent, harness=harness, acquire=True, claim=claim
+                page_dir,
+                host,
+                persistent,
+                harness=harness,
+                acquire=True,
+                claim=claim,
+                deadline=deadline,
             ) as ready:
                 yield ready
         except BaseException:

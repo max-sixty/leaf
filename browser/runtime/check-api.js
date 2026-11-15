@@ -3,6 +3,7 @@
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
 export { exceptionText } from "./exception.js";
+export { startNearWork } from "./presentation.js";
 export { validationWidgetStates } from "./validation.js";
 export { visualPartProblems } from "./visual-parts.js";
 export {
@@ -35,8 +36,9 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
+  coverBoxes,
 } from "./geometry.js";
-export { skipped } from "./shown-box.js";
+export { drawnElements, skipped } from "./shadow-tree.js";
 export { windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
@@ -53,6 +55,7 @@ export {
 export {
   layoutBox,
   pageDocument,
+  inPage,
   quoteFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
@@ -66,7 +69,7 @@ export {
   textNodesUnder,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
-export { commandDeclarationsWithin } from "./keyboard/scopes.js";
+export { commandDeclarationsWithin, paintKeys } from "./keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,
@@ -76,8 +79,16 @@ export {
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
 export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
-export { onCurrentLocation, releaseFocus, takesLetters, tabStops } from "./focus.js";
+export {
+  onCurrentLocation,
+  releaseFocus,
+  ringBox,
+  takesLetters,
+  tabStops,
+} from "./focus.js";
 export { selectionAnchor } from "./composing/capture.js";
+// A range's owner's word of where the pointer rests, as a passage mark's is.
+export { pointRange } from "./preview.js";
 export { TEXT_BLOCK } from "./kernel-facts.js";
 export { renderingState } from "./rendering.js";
 export {
@@ -92,7 +103,7 @@ export { threadCounts } from "./thread/model.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";
 export { fitsWhole, alreadyShown } from "./landing-scroll.js";
-export { scrollGlides, scrolling, watchScrollEnds } from "./arrivals.js";
+export { holdScroll, scrolling, watchScrollEnds } from "./arrivals.js";
 export { pageScopes } from "./keyboard/register.js";
 export {
   chromeSheet,
@@ -125,5 +136,6 @@ export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
 
 export { observeOutputs } from "./data.js";
 export { servedElements } from "./version.js";
+export { colourableAs, colouredAs } from "./syntax.js";
 
 export { pageRange } from "./native-selection.js";

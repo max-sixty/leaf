@@ -205,7 +205,9 @@ sequenceDiagram
           session's Durable Object. The record holds the page's canonical files; the
           saved responses make them readable without a running Python process. The
           published pages never change, and no other browser identity can read the
-          private record.
+          private record. The browser keeps the pages it has shown in its own cache, so
+          Back shows a page at once, and whoever later uses that browser profile can see
+          them there.
         </p>
         <ul id="state-lifetime">
           <li>

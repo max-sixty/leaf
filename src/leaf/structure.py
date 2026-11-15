@@ -1,6 +1,7 @@
 """One parsed source document and its structural readings."""
 
 import hashlib
+import json
 import re
 from collections.abc import Mapping
 from functools import cached_property, lru_cache
@@ -11,7 +12,7 @@ import turbohtml
 from .findings import Finding
 from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
-from .schema import EVENT_ID, MEDIA_DIR
+from .schema import ASSETS, EVENT_ID, MEDIA_DIR
 
 UTF8_BOM = "\ufeff"
 
@@ -75,6 +76,14 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The page-wide allocations the runtime reads from `body`, which a sample template
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
+# The `lf-` classes an author writes: those the kernel's selector idioms name, such as
+# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
+# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+AUTHORED_CLASSES = frozenset(
+    name
+    for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
+    for name in re.findall(r"\.(lf-[\w-]+)", key)
+)
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
 # CSS pixels of a widget that draws into a box of a stated height (x-height), and the
@@ -139,10 +148,6 @@ def script_kind(attrs: dict) -> str:
 # (`http.PageEndpoint._frame_ancestors`); the site manifest carries this policy to
 # the Worker as it stands.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'self'"
-# Non-painting document structure that may stand outside the authored main. Head
-# metadata is allowed only while the parser is actually inside head.
-DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
-HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 
 
 def _srcset_urls(value: str):
@@ -269,7 +274,10 @@ def attribute_references(tag: str, attrs: dict, name: str, value: str):
             )
         )
         or (
-            (reference := _local_resource(value)) is not None
+            # A path under `/media/` takes a separator, written or escaped, that an
+            # id or a word lacks, so only a value holding one is parsed as a URL.
+            any(separator in value for separator in "/\\%")
+            and (reference := _local_resource(value)) is not None
             and reference[0].startswith(f"/{MEDIA_DIR}/")
         )
     ):
@@ -573,18 +581,13 @@ class Authoring:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        # The authored page lives under one direct body > main because that is the
-        # element the first-replay presentation boundary withholds. Both assets that
-        # establish that boundary belong in head; anything paintable outside main would
-        # stand outside it. Scripts carry no paint; executable identity owns their
-        # lifetime, including moves between head, main, and retained body.
-        # Body lines come from source tokens because recovery erases a
-        # duplicate <body>; main placement comes from the recovered tree.
+        # Body lines come from source tokens because recovery erases a duplicate
+        # <body>; main placement comes from the recovered tree. The authored body
+        # is the revision boundary; main remains the page's semantic Layout box.
         self.body_lines = []
         self.head_lines = []
         self.head_elements = []  # (line, direct child of authored html)
         self.main_elements = []  # (line, direct child of authored body)
-        self.outside_main = []  # paintable content with no main ancestor
         # /media/ paths any attribute points at, so the check reads references and not
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
@@ -592,14 +595,16 @@ class Authoring:
         self.resource_refs = set()
         self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
-        # {tag, line, attr, value} per authored allocation: a data-width or data-bound.
+        # {tag, id, line, attr, value, in_template, content} per authored allocation
+        # (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
-        # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class.
-        # The prefix reserves names the runtime may coin later, without another list.
+        # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class
+        # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
+        # runtime may coin later, without another list.
         self.reserved_markers = []
         # The same parse retains ordinary HTML, exact text, and construction locations
         # for inspection. Widget validation keeps its specialized index; content is one
@@ -695,12 +700,11 @@ class Authoring:
             < self._first_body_position
         )
         in_head = "head" in ancestors
-        in_main = "main" in ancestors
         if tag == "script":
             script = {
                 "attrs": attrs,
                 "parent": parent_tag,
-                "patch_region": "head" if in_head else "main" if in_main else "body",
+                "patch_region": "head" if in_head else "body",
                 "position": (line, column),
                 "early_head": in_head and before_body,
                 "line": line,
@@ -739,13 +743,25 @@ class Authoring:
                 and attr in PAGE_ALLOCATIONS
             ):
                 self.authored_allocations.append(
-                    {"tag": tag, "line": line, "attr": attr, "value": attrs[attr]}
+                    {
+                        "tag": tag,
+                        "id": attrs.get("id") or "",
+                        "line": line,
+                        "attr": attr,
+                        "value": attrs[attr],
+                        # Where delivery reads it: it skips a template and what it
+                        # holds, which is inert until cloned, and only a block in the
+                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        "in_template": "template" in (tag, *ancestors),
+                        "content": tag not in {"html", "body", "main"}
+                        and "body" in ancestors,
+                    }
                 )
         markers = sorted(name for name in attrs if name.startswith("data-lf-"))
         markers += sorted(
             name
             for name in (attrs.get("class") or "").split()
-            if name.startswith("lf-")
+            if name.startswith("lf-") and name not in AUTHORED_CLASSES
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
@@ -766,15 +782,6 @@ class Authoring:
 
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
-        # Only the outermost: an element inside one already named moves with it.
-        if (
-            not in_main
-            and tag not in DOCUMENT_WRAPPERS
-            and tag != "script"
-            and not (in_head and tag in HEAD_METADATA_TAGS)
-            and (parent_tag is None or parent_tag in DOCUMENT_WRAPPERS)
-        ):
-            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
     def _visit(
         self,
@@ -875,14 +882,6 @@ class Authoring:
                 self._visit(child, child_output, ancestors=next_ancestors)
             elif isinstance(child, turbohtml.Text):
                 child_output.append(child.data)
-                if (
-                    child.data.strip()
-                    and "main" not in next_ancestors
-                    and element.tag in DOCUMENT_WRAPPERS
-                ):
-                    self.outside_main.append(
-                        {"tag": element.tag, "line": line, "text": True}
-                    )
 
         if element.tag == "template" and "data-sample" in attrs and not attrs.get("id"):
             self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))

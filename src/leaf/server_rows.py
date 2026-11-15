@@ -2,7 +2,7 @@
 
 The document and log remain the authority. A server publishes their canonical
 activity fold to state-home rows/<page-key>.json, together with its title, its
-working directory and the user's counts its Leaf panel marks (On me, open threads,
+working directory and the user's counts its Leaf panel marks (On Me, open threads,
 threads with unread words), which neighbors and Leaf's Claude Code band show. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
@@ -99,7 +99,7 @@ ROW = Record(
                                     "required": sorted(ACTIVITY_FIELDS),
                                 },
                             ),
-                            "on_user": described("How many rows On me holds.", COUNT),
+                            "on_user": described("How many rows On Me holds.", COUNT),
                             "threads": described(
                                 "What the Leaf panel counts of the threads (`thread_counts`): "
                                 "the open threads, and of those the ones the user hasn't read.",

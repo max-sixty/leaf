@@ -128,7 +128,7 @@ def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
 
 
 def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
-    """Authored content lies under the page's one main content boundary."""
+    """Delivery needs explicit head/body wrappers and one direct main Layout box."""
     errors = []
     direct_heads = [
         line for line, is_direct in parser.authoring.head_elements if is_direct
@@ -163,10 +163,6 @@ def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
                     "direct": len(direct),
                 },
             )
-        )
-    if parser.authoring.outside_main:
-        errors.append(
-            Finding("outside-main", values={"content": parser.authoring.outside_main})
         )
     return errors
 

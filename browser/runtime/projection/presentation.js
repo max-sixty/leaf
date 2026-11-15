@@ -114,7 +114,7 @@ export function createProjectionPresentation() {
     )
       return;
     const projection = root.effective.projection;
-    const records = root.effective.view?.coverage ?? [];
+    const records = root.effective.coverage;
     const ready = records.every((record) => {
       if (record.coordinate === null) return true;
       const e = record.event;

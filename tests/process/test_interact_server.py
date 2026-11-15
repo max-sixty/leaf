@@ -1,5 +1,6 @@
 """HTTP event and service-address tests."""
 
+import asyncio
 import base64
 import builtins
 import errno
@@ -318,7 +319,6 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     (page_dir / "page/pixel.png").write_bytes(pixel)
     (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
     publish(page_dir)
-    parent_before = event_model.read_events(page_dir)
     _, raw_state = fetch(f"{server}/api/state")
     parent_state = json.loads(raw_state)
     generation = parent_state["layer"]["generation"]
@@ -351,7 +351,8 @@ def test_samples_use_captured_resources_and_independent_event_logs(
     assert b"data-lf-share-url" not in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
-    find_result = served.find("body")
+    # The root, so Leaf's chrome after the body is inert too until the sample presents.
+    find_result = served.find("html")
     assert find_result is not None
     assert "inert" in find_result.attrs
     find_result_2 = served.find("script", attrs={"data-lf-entry": True})
@@ -379,6 +380,10 @@ def test_samples_use_captured_resources_and_independent_event_logs(
             {"session": "c" * 32, "entries": [browser_observation("click")]}
         ).encode(),
     ) == (204, b"")
+    # The parent's log as the child's comment finds it: recording the interaction in the
+    # parent's trace took its changed module live as its second revision, which the
+    # parent's own log records.
+    parent_before = event_model.read_events(page_dir)
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -1231,7 +1236,7 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
     status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, raw
     viewed = json.loads(raw)
-    assert set(viewed["browser"]["views"]) == {"1"}
+    assert viewed["document"]["revision"] == 1
     assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
         viewed, "ViewAnswer"
     )
@@ -1325,115 +1330,43 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, page_dir):
-    schema = {
-        "type": "object",
-        "properties": {
-            "files": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "key": {"type": "string"},
-                        "path": {"type": "string"},
-                        "patch": {"type": "string"},
-                    },
-                    "required": ["key", "path", "patch"],
-                    "additionalProperties": False,
-                },
-            }
-        },
-        "required": ["files"],
-        "additionalProperties": False,
-    }
-    declare_data_input(
-        page_dir, "review-patch", schema, contract="diff-files", activate=False
-    )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["diff-files"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
-        ),
-    )
-    index = page_dir / "index.html"
-    index.write_text(
-        index.read_text().replace(
+def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
+    server, page_dir
+):
+    """A tab naming the reading it holds, and the data version it holds, is sent after
+    one of the page's sources is rewritten that source alone, though the answer it
+    holds left its sources out (`http.sent`, `served_state.tail`)."""
+    declare_data_input(page_dir, "builds", {"type": "string"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
             "</main>",
-            '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
+            '<lf-test-data id="notes-data" source="notes"></lf-test-data>\n</main>',
         )
     )
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None
-    with pytest.raises(
-        data_model.DataError, match="record keys must be unique"
-    ) as repeated:
-        data_model.cmd_data_set(
-            page_dir,
-            "review-patch",
-            {
-                "files": [
-                    {"key": key, "path": "file", "patch": "diff"}
-                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
-                ]
-            },
-        )
-    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "key": "src/a.py",
-                    "path": "src/a.py",
-                    "patch": "diff --git a/src/a.py b/src/a.py\n",
-                },
-                {
-                    "key": "src/b.py",
-                    "path": "src/b.py",
-                    "patch": "diff --git a/src/b.py b/src/b.py\n",
-                },
-            ]
-        },
-    )
+    assert revisioning_model.activate_source(page_dir).error is None
+    data_model.cmd_data_set(page_dir, "builds", "green")
+    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
+    holding = {"Leaf-Data-Version": version}
+    held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+    assert held["data"] == {"version": version}
 
-    status, body = fetch(f"{server}/api/state")
-    assert status == 200
-    data = json.loads(body)["data"]
-    assert data["sources"]["review-patch"]["value"] == {
-        "files": [
-            {"key": "src/a.py", "path": "src/a.py"},
-            {"key": "src/b.py", "path": "src/b.py"},
-        ]
+    data_model.cmd_data_set(page_dir, "builds", "red")
+    holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
+    tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+
+    assert tail["since"] == {"key": holding["Leaf-Held-Basis"]}
+    assert "data" not in tail
+    data = {tuple(change["at"]): change for change in tail["patch"]}
+    assert {at[:3] for at in data if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "builds"),
     }
-
-    held = data["sources"]["review-patch"]["revision"]
-    deferred_url = f"{server}/api/deferred?source_revision={held}&source=review-patch&key=src%2Fa.py"
-    status, body = fetch(deferred_url)
-    assert status == 200
-    assert json.loads(body) == {
-        "revision": held,
-        "source": "review-patch",
-        "contract": "diff-files",
-        "key": "src/a.py",
-        "value": "diff --git a/src/a.py b/src/a.py\n",
-    }
-
-    # Each source keeps its own revision, so replacing another leaves this one read.
-    data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
-    assert fetch(deferred_url)[0] == 200
-
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
-    )
-    status, body = fetch(deferred_url)
-    assert status == 409
-    assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
+    assert data[("data", "sources", "builds", "value")]["value"] == "red"
 
 
-def test_historical_deferred_reads_keep_the_document_revision_and_layer(
+def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1481,27 +1414,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     historical = json.loads(body)
     assert status == 200
     assert historical["layer"]["generation"] == first_layer
-    assert (
-        "patch"
-        not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
+    assert historical["data"]["sources"]["review-patch"]["value"] == patch_manifest(
+        patch
     )
-
-    address = urllib.parse.urlsplit(server)
-    connection = http.client.HTTPConnection(address.hostname, address.port)
-    held = historical["data"]["sources"]["review-patch"]["revision"]
-    connection.request(
-        "GET",
-        f"/api/deferred?source_revision={held}&source=review-patch&key=app.py&t="
-        + TOKEN,
-        headers={"Leaf-View-Revision": str(first.revision)},
-    )
-    response = connection.getresponse()
-    deferred = json.loads(response.read())
-    connection.close()
-
-    assert response.status == 200
-    assert response.getheader("Leaf-Layer") == first_layer
-    assert deferred["value"] == patch
 
 
 def _select_another_layer(page_dir):
@@ -1593,6 +1508,7 @@ def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
         ["page", "stamp", str(page_dir), "--text", "must not fall back"],
     )
     assert stamp.exit_code != 0
+    assert "refusing to stamp" in stamp.output
     assert files_model.list_revisions(page_dir) == [1]
     assert live_versions(page_dir) == []
     assert event_model.read_events(page_dir) == []
@@ -1865,12 +1781,13 @@ def test_a_revision_serves_reaction_tokens_in_their_declared_order(page_dir):
 def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     server, page_dir
 ):
-    """A revision's resources are named by its digest and the runtime's identity, so
-    the browser keeps them for every document that imports them, a gallery's live
-    samples included. The document and the page's state may be stored, which lets the
-    back/forward cache keep the page, but each reuse asks what the page is now, and so
-    does a path under the namespace that names nothing, or names a runtime this server
-    does not run."""
+    """A revision's resources are named by its digest and the runtime's identity, and
+    page media by a digest of its bytes, so the browser keeps them for every document
+    that names them, a gallery's live samples and later revisions included. The
+    document and the page's state may be stored, which lets the back/forward cache
+    keep the page, but each reuse asks what the page is now, and so does a path under
+    either namespace that names nothing, or names a runtime this server does not run."""
+    media = media_model.cmd_media(page_dir, [example_media() / "051bee487bfb5d13.png"])
     publish(page_dir)
     revision = "/revisions/" + files_model.revision_path(page_dir, 1).stem
     root = revision_root(page_dir, 1)
@@ -1885,6 +1802,8 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_asked_again(
     immutable = "private, max-age=31536000, immutable"
     assert cache_control(f"{root}/leaf.js") == (200, immutable)
     assert cache_control(f"{root}/theme.css") == (200, immutable)
+    assert cache_control(media[0]["path"]) == (200, immutable)
+    assert cache_control("/media/0123456789abcdef.png") == (404, "no-cache")
     assert cache_control("/") == (200, "no-cache")
     assert cache_control("/api/state") == (200, "no-cache")
     assert cache_control(f"{root}/no-such-module.js") == (404, "no-cache")
@@ -2041,25 +1960,6 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     assert [event["id"] for event in comments] == [accepted["id"]]
 
 
-def test_an_accepted_event_response_is_state_through_that_event(server, page_dir):
-    """The POST answer is the sender's authoritative read, not half of a
-    transaction completed by a second request. A response cannot acknowledge an
-    event while handing the page history from before it."""
-    publish(page_dir)
-    sent = {
-        "kind": "comment",
-        "revision": 1,
-        "text": "The response carries the state that includes this message.",
-        "attempt": "attempt-state-0001",
-    }
-
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-
-    assert status == 200, body
-    answer = json.loads(body)
-    assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
-
-
 def test_action_door_owns_created_child_meaning(server, page_dir):
     version = page_dir / "index.html"
     version.write_text(
@@ -2110,8 +2010,9 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
     """The browser receives a reading, not a log it must interpret again.
 
-    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
-    name the event accepted by this same POST response and the same sequence boundary.
+    Its receipt, semantic coordinate, winner and undo offer all name the event
+    accepted by this same POST response and the same sequence boundary, and a tab
+    that names the reading it held is sent only what followed it.
     """
     version = page_dir / "index.html"
     version.write_text(
@@ -2134,25 +2035,34 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "attempt": "attempt-browser-view-1",
     }
 
-    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+    held = json.loads(fetch(f"{server}/api/state")[1])["browser"]["basis"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(sent).encode(),
+        headers={"Leaf-Held-Basis": held["key"]},
+    )
 
     assert status == 200, body
-    state = json.loads(body)["state"]
-    accepted = state["events"][-1]
+    tail = json.loads(body)["state"]
+    assert tail["since"] == {"key": held["key"]}
+    [accepted] = tail["events"]
+    assert accepted["attempt"] == sent["attempt"]
+    assert ["browser", "views", "1", "undo"] in [
+        change["at"] for change in tail["patch"]
+    ]
+    # The whole reading at the same position, as the tab completes it.
+    state = json.loads(fetch(f"{server}/api/state")[1])
     browser = state["browser"]
     view = browser["views"]["1"]
     [entry] = view["document"]["projection"]["entries"]
-    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert browser["basis"]["through_seq"] == accepted["seq"]
     assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
-    assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
     assert entry["coordinate"] == ["delivery", "delivery", "choose"]
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
-    assert view["coverage"] == [
-        {"event": accepted, "coordinate": ["delivery", "delivery", "choose"]}
-    ]
 
 
 def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
@@ -2199,97 +2109,6 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     assert "gesture" not in prior
 
 
-def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
-    """A pinned view paints its own projection but admits undo against live threads.
-
-    The option belonged to the answering widget only in the pinned revision.
-    Restating it under another owner cannot retract the live thread's answer.
-    Using pinned containment would reopen the reaction and incorrectly offer Undo.
-    """
-    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">')
-    old_page = old_page.replace(
-        "</section>",
-        '<lf-ask id="other-decision"><h3>Another choice</h3>'
-        '<lf-options id="other-picks" choose><lf-option id="other-option">'
-        "Another option</lf-option></lf-options></lf-ask></section>",
-    )
-    new_page = (
-        old_page.replace('id="flag-first"', 'id="moved-option"')
-        .replace('id="other-option"', 'id="flag-first"')
-        .replace('id="moved-option"', 'id="other-option"')
-    )
-    documents = {
-        1: structure_model.SourceDocument(old_page),
-        2: structure_model.SourceDocument(new_page),
-    }
-    (page_dir / "index.html").write_text(old_page)
-    publish(page_dir)
-    reaction = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "keep"},
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "picks",
-            "action": "choose",
-            "detail": {"value": ["flag-first"]},
-            "meaning": {
-                "scope": "page",
-                "unit": "picks",
-                "depends": ["flag-first", "picks"],
-                "answer": reaction["id"],
-            },
-        },
-    )
-    (page_dir / "index.html").write_text(new_page)
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": 2,
-            "text": "Restated the option under its new owner.",
-            "restated": ["flag-first"],
-        },
-    )
-
-    events = event_model.read_events(page_dir)
-    registry = registry_storage.require_registry(page_dir)
-
-    def reading(active_revision):
-        state, _reading = served_browser.browser_state(
-            {
-                revision: passages_model.SourceReading(document, registry)
-                for revision, document in documents.items()
-            },
-            events,
-            active_revision,
-            presence_model.presence(page_dir, events),
-            {},
-            {1, 2},
-            cleanup_model.now_iso(),
-        )
-        return state
-
-    # The same log really does admit the reaction if read against the old page.
-    # This control makes the containment difference observable rather than nominal.
-    pinned_undo = reading(1)["views"]["1"]["undo"]
-    assert reaction["id"] in {item["event"]["id"] for item in pinned_undo}
-
-    browser = reading(2)
-    assert set(browser["views"]) == {"1", "2"}
-    for view in browser["views"].values():
-        assert reaction["id"] not in {
-            candidate["event"]["id"] for candidate in view["undo"]
-        }
-
-
 def test_undo_candidates_keep_only_user_gestures_in_force():
     """The browser undo list follows the event fold for speech, marks, and closures."""
     events = [
@@ -2330,9 +2149,7 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
     document = document_reading_model.DocumentReading(
         source, empty, {}, passages, {}, {}, {}
     )
-    undo_reading = event_folds_model.UndoReading(
-        events, within={}, absorbed=frozenset()
-    )
+    undo_reading = event_folds_model.UndoReading(events, absorbed=frozenset())
 
     candidates = served_document.browser_undo_candidates(
         events,
@@ -2342,15 +2159,26 @@ def test_undo_candidates_keep_only_user_gestures_in_force():
         words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
     )
 
-    assert [candidate["event"]["id"] for candidate in candidates] == ["rx1", "r2"]
-    # The user's newest gesture, rx2, is answered and cannot be taken back, so `z`
-    # takes nothing; the entries stay for the exact controls that name them.
-    assert not any(candidate.get("newest") for candidate in candidates)
+    # An answered reaction is the user's to take back as an unanswered one is, so the
+    # newest, rx2, heads the list for `z`. The comment is no longer the newest gesture,
+    # and no exact control names a message with words, so it isn't listed.
+    assert [candidate["event"]["id"] for candidate in candidates] == [
+        "rx2",
+        "rx1",
+        "r2",
+    ]
+    assert [candidate.get("newest", False) for candidate in candidates] == [
+        True,
+        False,
+        False,
+    ]
 
 
 def test_undo_walk_ends_at_the_users_newest_gesture():
     """`z` takes the head only while it is the user's newest gesture. Bookkeeping
-    and gestures already withdrawn do not end the walk; a sent reply does."""
+    and gestures already withdrawn do not end the walk, and a comment the user sent
+    is taken as any gesture is, while it is the newest; an action this document does
+    not paint ends the walk."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
         {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
@@ -2358,6 +2186,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
         {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
         {"id": "u2", "kind": "undo", "author": "user", "undoes": "r2"},
+        {"id": "a1", "kind": "action", "author": "user", "widget": "gone"},
     ]
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
@@ -2373,66 +2202,17 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
             log,
             document,
             empty,
-            undo_reading=event_folds_model.UndoReading(
-                log, within={}, absorbed=frozenset()
-            ),
+            undo_reading=event_folds_model.UndoReading(log, absorbed=frozenset()),
             words=gesture_words_model.GestureWords(log, {}, {}.__getitem__),
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
-    # c2 was said after r1 and r2 is withdrawn: the newest gesture in force is c2.
+    # a1 is the newest gesture, and this document paints nothing of it.
     assert walk(events) == [("r1", False)]
-    # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
-    assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
-
-
-def test_undo_candidates_say_which_gestures_the_agent_picked_up():
-    """An entry a delivery handed into an agent's turn says so, which is what makes
-    `z` show it before taking it back. A queued delivery has reached no turn yet."""
-    events = [
-        {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
-        {"id": "c2", "kind": "comment", "author": "user", "text": "another"},
-        {"id": "r1", "kind": "resolve", "author": "user", "parent": "c1"},
-        {"id": "r2", "kind": "resolve", "author": "user", "parent": "c2"},
-        {
-            "id": "p1",
-            "kind": "pickup",
-            "author": "page",
-            "events": ["r1"],
-            "phase": "opened",
-            "session": "s",
-            "turn": "t",
-        },
-        {
-            "id": "p2",
-            "kind": "pickup",
-            "author": "page",
-            "events": ["r2"],
-            "phase": "queued",
-            "session": "s",
-            "turn": None,
-        },
-    ]
-    empty = projection_model.StateProjection(
-        {}, {}, {}, {}, {}, frozenset(), frozenset()
-    )
-    source = structure_model.SourceDocument("")
-    passages = passages_model.page_passages(source, {})
-    document = document_reading_model.DocumentReading(
-        source, empty, {}, passages, {}, {}, {}
-    )
-    candidates = served_document.browser_undo_candidates(
-        events,
-        document,
-        empty,
-        undo_reading=event_folds_model.UndoReading(
-            events, within={}, absorbed=frozenset()
-        ),
-        words=gesture_words_model.GestureWords(events, {}, {}.__getitem__),
-    )
-    assert [
-        (item["event"]["id"], item.get("picked_up", False)) for item in candidates
-    ] == [("r2", False), ("r1", True)]
+    # Without it, the withdrawn r2 leaves c2 the newest gesture in force.
+    assert walk(events[:-1]) == [("c2", True), ("r1", False)]
+    # Without c2, the read leaves r1 the newest gesture.
+    assert walk([e for e in events[:-1] if e["id"] != "c2"]) == [("r1", True)]
 
 
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):
@@ -2607,12 +2387,9 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={first['seq']}")
 
     assert status == 200, body
-    browser = json.loads(body)["browser"]
-    assert set(browser["views"]) == {"1"}
-    view = browser["views"]["1"]
-    assert browser["basis"] == {"through_seq": first["seq"]}
-    assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
-    assert view["document"]["projection"]["desired"] == [first["id"]]
+    document = json.loads(body)["document"]
+    assert document["revision"] == 1
+    assert document["projection"]["desired"] == [first["id"]]
 
 
 def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
@@ -3095,7 +2872,10 @@ def _news(server):
 
 
 def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
-    """A finite cheap token names the same view as state without carrying its log."""
+    """A finite cheap token names the same view as state without carrying its log.
+
+    After a source save, the token a tab sees already names the revision the state
+    read it prompts will answer with, so the tab reads once."""
     publish(page_dir)
     first = _news(server)
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
@@ -3105,6 +2885,12 @@ def test_freshness_names_the_state_reading_and_changes_with_the_page(server, pag
     )
     assert _news(server) != first
     assert _news(server) == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+
+    (page_dir / "index.html").write_text(PAGE.replace("<p>", "<p>Revised. ", 1))
+    saved = _news(server)
+    revised = json.loads(fetch(f"{server}/api/state")[1])
+    assert revised["active"]["revision"] == 2
+    assert revised["reading"] == saved
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
@@ -3116,6 +2902,9 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     file invalidates it immediately, while a repeated quiet observation does not
     call the neighboring-page scan again.
     """
+    # The cache's two-second age would expire it on a slow machine; age isn't the
+    # subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     real_other_leaves = presence_model.other_leaves
     calls = 0
 
@@ -3206,6 +2995,9 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     neighbour_page(neighbor, title="Neighbor")
     own = server_rows_model.RowPublisher(page_dir, "own-server")
     own.refresh()
+    # Twenty rounds can outlast the cache's two-second age on a slow machine; age
+    # isn't the subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     calls = []
     read = presence_model.other_leaves
 
@@ -3239,12 +3031,12 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    import watchfiles.main
+    from leaf import file_changes
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
 
-    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
+    monkeypatch.setattr(file_changes._Native, "schedule", no_watcher)
     rows = cleanup_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
@@ -3573,6 +3365,101 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
         else:
             server.close()
     assert not closer.is_alive()
+
+
+def test_temporary_server_close_drops_a_client_that_stops_sending(
+    page_dir, monkeypatch
+):
+    """A client that stops partway through its request cannot hold a close open.
+
+    Its route waits for bytes that never come. Once the grace a stop gives its
+    clients has passed, the server drops the connection, the route ends as
+    disconnected, and close returns having waited for it. The grace is zero here, so
+    the drop is due on the stop's first poll.
+    """
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 0)
+    reading = threading.Event()
+    read_body = http_model.PageEndpoint.read_body
+
+    def reading_body(endpoint, limit):
+        reading.set()
+        return read_body(endpoint, limit)
+
+    monkeypatch.setattr(http_model.PageEndpoint, "read_body", reading_body)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        client.sendall(
+            (
+                f"POST /api/event?t={TOKEN} HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{server.port}\r\nOrigin: {server.origin}\r\n"
+                "Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{"
+            ).encode()
+        )
+        assert reading.wait(STATED_TIMEOUT), "the route never began reading the body"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "close waited on a client that stopped sending"
+        client.settimeout(STATED_TIMEOUT)
+        try:
+            ended = client.recv(1) == b""
+        except ConnectionResetError:
+            ended = True
+        assert ended, "the server kept the stalled client's connection"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
+
+
+def test_temporary_server_close_asks_a_connection_made_as_it_stops(
+    page_dir, monkeypatch
+):
+    """A connection the listener accepted before the stop, which asyncio makes only
+    after the stop has asked the others to finish, is asked too.
+
+    A browser's preconnect is such a connection: it says nothing, so nothing else
+    would end it before the grace a stop gives its clients. Here its making is held
+    until the stop has closed the listener, and the grace outlasts the test's wait,
+    so close returns only if the stop asks it.
+    """
+    from uvicorn.protocols.http.h11_impl import H11Protocol
+
+    monkeypatch.setattr(hosting_model, "STOP_GRACE_SECONDS", 2 * STATED_TIMEOUT)
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    connection_made = H11Protocol.connection_made
+    made = threading.Event()
+
+    def made_once_stopping(protocol, transport):
+        loop = asyncio.get_running_loop()
+
+        def make():
+            if any(listener.is_serving() for listener in server.httpd._uvicorn.servers):
+                loop.call_soon(make)
+                return
+            connection_made(protocol, transport)
+            made.set()
+
+        server.httpd.shutdown()
+        make()
+
+    monkeypatch.setattr(H11Protocol, "connection_made", made_once_stopping)
+    closer = threading.Thread(target=server.close, daemon=True)
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        assert made.wait(STATED_TIMEOUT), "the server never made the connection"
+        closer.start()
+        closer.join(timeout=STATED_TIMEOUT)
+        assert not closer.is_alive(), "a connection made during the stop held it open"
+        client.settimeout(STATED_TIMEOUT)
+        assert client.recv(1) == b"", "the server left the connection open"
+    finally:
+        client.close()
+        if closer.is_alive():
+            closer.join(timeout=STATED_TIMEOUT)
+        server.close()
 
 
 def test_temporary_server_answers_a_connection_opened_before_its_request(page_dir):
@@ -3996,12 +3883,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     declare_data_input(
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["patch-list"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
-        ),
-    )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     data_model.cmd_data_set(
@@ -4058,7 +3939,11 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     ) as server:
         status, state = fetch(f"{server.origin}/api/state")
         assert status == 200
-        assert json.loads(state)["reading"] == snapshot.reading
+        served = json.loads(state)
+        assert served["reading"] == snapshot.reading
+        assert served["data"]["sources"]["patches"]["value"] == {
+            "files": [{"key": "a.py", "patch": "old"}]
+        }
         assert fetch(f"{server.origin}/")[0] == 200
         assert fetch(f"{server.origin}{snapshot.context.versions[0]['url']}")[0] == 200
         assert active is not None
@@ -4068,13 +3953,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        held = projection["data"]["sources"]["patches"]["revision"]
-        status, deferred = fetch(
-            f"{server.origin}/api/deferred?source_revision={held}&source=patches&key=a.py"
-        )
-        assert status == 200
-        assert json.loads(deferred)["value"] == "old"
-
         assert _news(server.origin) == snapshot.reading
 
 
@@ -4118,14 +3996,17 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
     ]
     assert gesture["gesture"] == {"form": "choice", "chosen": ["Flag first"]}
-    comparison = service.page_browser_view(2, picked["seq"])
-    assert comparison["basis"] == {"through_seq": picked["seq"]}
-    assert comparison["history"][0]["gesture"] == gesture["gesture"]
+    comparison = service.page_comparison(2, picked["seq"])
+    assert comparison["document"]["revision"] == 2
+    assert [
+        entry["event"]["id"]
+        for entry in comparison["document"]["projection"]["entries"]
+    ] == [picked["id"]]
 
     shutil.rmtree(page_dir)
 
     assert service.page_state() == before
-    assert service.page_browser_view(2, picked["seq"]) == comparison
+    assert service.page_comparison(2, picked["seq"]) == comparison
     # The page as it stood at the gesture, as `leaf page picture` serves one: the log
     # and the versions stamped by then.
     then = snapshot.through(picked["seq"]).context
@@ -4163,14 +4044,12 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
         assert leases_model.lock_is_held(page_dir / "events.jsonl")
         return original_data(*args)
 
-    def unrelated_read(*_args):
-        raise AssertionError("a document comparison needs no news token")
-
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", held_data)
-    monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
-    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}&shown=2")
     assert status == 200, body
+    # The base is read, and the revision shown for its containment
+    # (`provenance.saved_after`).
     assert set(observed) == {1, 2}
 
 
@@ -4706,16 +4585,27 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
 
 
 def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypatch):
-    """An occupied address refuses after the wait budget, retaining EADDRINUSE."""
-    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0.01)
+    """An address another listener holds refuses at its first bind, retaining
+    EADDRINUSE: the bind passes TIME_WAIT, so only a live listener refuses it, and
+    waiting would not move that listener."""
+    attempts = []
+    native_bind = socket.socket.bind
+
+    def counted_bind(sock, address):
+        attempts.append(address)
+        return native_bind(sock, address)
+
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
+        address = occupied.getsockname()
+        monkeypatch.setattr(socket.socket, "bind", counted_bind)
         with pytest.raises(OSError) as refused:
             hosting_model.LeafHTTPServer(
-                occupied.getsockname(), http_model.page_endpoint(page_dir, TOKEN)
+                address, http_model.page_endpoint(page_dir, TOKEN)
             )
     assert refused.value.errno == errno.EADDRINUSE
+    assert attempts == [address]
 
 
 @pytest.mark.parametrize(
@@ -4767,11 +4657,15 @@ else:
         first.server_close()
 
 
-def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
-    """Both preview lifetimes use native port availability, without changing URLs.
+def test_a_wildcard_restart_waits_for_its_port_on_a_bsd_kernel(page_dir, monkeypatch):
+    """A BSD kernel refuses a wildcard bind over the TIME_WAIT its previous server
+    left, since address reuse there would also admit it beside a specific listener,
+    so a `--host` restart waits for its port rather than changing its URL.
 
-    A held listener arranges EADDRINUSE, which address reuse never passes.
+    A held wildcard listener arranges the same EADDRINUSE without the cooldown.
     """
+    if hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("Linux rebinds every address over TIME_WAIT, so nothing waits")
     refused = threading.Event()
     native_bind = socket.socket.bind
 
@@ -4784,13 +4678,16 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             raise
 
     monkeypatch.setattr(socket.socket, "bind", observed_bind)
-    occupied = socket.socket()
-    occupied.bind(("127.0.0.1", 0))
+    occupied = socket.socket(socket.AF_INET6)
+    occupied.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    occupied.bind(("::", 0))
     occupied.listen()
     port = occupied.getsockname()[1]
     with ThreadPoolExecutor(max_workers=1) as workers:
         restarting = workers.submit(
-            hosting_model.TemporaryPageServer, page_dir, token=TOKEN, port=port
+            hosting_model.LeafHTTPServer,
+            ("::", port),
+            http_model.page_endpoint(page_dir, TOKEN),
         )
         try:
             assert refused.wait(STATED_TIMEOUT), (
@@ -4799,9 +4696,10 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             assert not restarting.done()
         finally:
             occupied.close()
-        with restarting.result(timeout=STATED_TIMEOUT) as server:
-            assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert fetch(f"{server.origin}/api/state")[0] == 200
+        httpd = restarting.result(timeout=STATED_TIMEOUT)
+    with running_http_server(httpd):
+        assert httpd.server_address[1] == port
+        assert fetch(f"http://127.0.0.1:{port}/api/state?t={TOKEN}")[0] == 200
 
 
 @pytest.mark.parametrize("bind", ["127.0.0.1", "::"])

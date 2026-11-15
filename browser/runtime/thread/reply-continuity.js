@@ -19,9 +19,6 @@
    mirrored draft stayed in the box of the last native edit, clipped mid-glyph. */
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
-import { placeKeeper } from "../user-place.js";
-import { scrollerFor } from "../reading-regions.js";
-import { offFlowSurfaceOf } from "../off-flow.js";
 
 // The room a box takes in its flow, its margins included; none once it has gone.
 /** @param {Element} node */
@@ -70,19 +67,7 @@ export class ReplyContinuity {
     this.#presenting = own
       .filter((node) => node.isConnected)
       .map((node) => ({ node, height: room(node) }));
-    const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
-    // Natural measurement can briefly clamp a surrounding scroller before the gap
-    // settles. Use the shared synchronous place keeper to pay for that reflow only.
-    // A floating surface owns its position; correcting the page scroller for growth
-    // inside it moves the authored page under the reader instead.
-    const place = offFlowSurfaceOf(this.#owner)
-      ? null
-      : placeKeeper(scrollerFor(this.#owner), {
-          items: ".lf-reply-continuity",
-          identity: (node) => node.getAttribute("data-thread"),
-          preferred: () => this.#owner,
-        });
-    return { extent, place, held: place?.take({ spans: false }) };
+    return { extent: parseFloat(getComputedStyle(this.#owner).blockSize) };
   }
   /** @param {ReturnType<ReplyContinuity["before"]>} reading */
   after(reading) {
@@ -90,19 +75,15 @@ export class ReplyContinuity {
     const presenting = this.#presenting;
     this.#presenting = [];
     if (!this.#row?.isConnected) return this.release();
-    if (!this.#visible()) {
-      reading?.place?.finish(reading.held);
-      return this.release();
-    }
+    if (!this.#visible()) return this.release();
     if (reading != null) {
-      const { extent, place, held } = reading;
+      const { extent } = reading;
       const own = presenting.reduce(
         (sum, { node, height }) => sum + room(node) - height,
         0,
       );
       const now = parseFloat(getComputedStyle(this.#owner).blockSize);
       this.#keep(Math.max(0, this.#space + extent - now + own));
-      place?.finish(held);
     }
     if (!this.#visible()) return this.release();
     this.#departure?.();
@@ -112,15 +93,12 @@ export class ReplyContinuity {
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;
-    const value = layoutPx(space);
-    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
-      this.gap.style.setProperty("--lf-reply-space", value);
+    this.gap.style.setProperty("--lf-reply-space", layoutPx(space));
   }
   release() {
     this.#departure?.();
     this.#departure = null;
     this.#space = 0;
-    if (this.gap.style.getPropertyValue("--lf-reply-space"))
-      this.gap.style.removeProperty("--lf-reply-space");
+    this.gap.style.removeProperty("--lf-reply-space");
   }
 }

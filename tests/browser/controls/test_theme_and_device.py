@@ -17,7 +17,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -36,7 +36,7 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
                 '<section class="density-working"><p id="dense">Working words.</p>'
                 '<pre id="dense-code">const answer = 42;</pre>'
                 '<span id="dense-badge" style="display:inline-block;inline-size:var(--lf-key-badge-size)">B</span>'
-                '<label class="choice"><input type="checkbox">Include notes</label></section>',
+                '<label class="lf-choice"><input type="checkbox">Include notes</label></section>',
             )
         ),
     )
@@ -74,11 +74,11 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     source = leaf_page(
         "Preview settings",
         '<h1>Preview settings</h1><div role="group" aria-label="Detail">'
-        '<label class="choice"><input type="radio" name="detail" value="summary" checked>'
+        '<label class="lf-choice"><input type="radio" name="detail" value="summary" checked>'
         "<span>Summary</span></label>"
-        '<label class="choice"><input type="radio" name="detail" value="full">'
+        '<label class="lf-choice"><input type="radio" name="detail" value="full">'
         "<span>Full detail</span></label></div>"
-        '<label class="choice"><input type="checkbox" name="notes">'
+        '<label class="lf-choice"><input type="checkbox" name="notes">'
         "<span>Include notes</span></label>",
     )
     context = browser.new_context(has_touch=touch)
@@ -103,7 +103,7 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     words = page.get_by_text("Include notes", exact=True)
     words.tap() if touch else words.click()
     expect(page.get_by_role("checkbox", name="Include notes")).to_be_checked()
-    readings = page.locator("label.choice").evaluate_all("""labels => labels.map(label => {
+    readings = page.locator("label.lf-choice").evaluate_all("""labels => labels.map(label => {
       const style = getComputedStyle(label), box = label.getBoundingClientRect();
       const mark = label.querySelector('input').getBoundingClientRect();
       return {height: box.height, floor: parseFloat(style.getPropertyValue('--aim-floor')),
@@ -135,7 +135,7 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
       const arrival = document.createElement('button');
-      arrival.className = 'lf-margin-entry';
+      arrival.className = 'lf-margin-face';
       arrival.dataset.lfAgentArrival = '1';
       chrome.append(arrival);
       const cssArrival = getComputedStyle(arrival).animationDuration;
@@ -182,6 +182,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
+    # A glide shares a frame the page already asked for (rendering.js), so with none
+    # asked for, its frames are the ones held here.
+    rendered(page)
     page.evaluate(
         """() => {
           window.__lfFrames = [];
@@ -399,7 +402,7 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (base.css, beside
+    the next one from writing a fifteenth. The `--raise-*` tokens (tokens.css, beside
     --shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.
@@ -451,7 +454,7 @@ def test_authored_label_room_keeps_toolbar_still_before_runtime(
         "Playback",
         """<h1>Playback</h1>
 <div id="toolbar">
-  <button id="playback" class="button" data-room="Play&#10;Pause&#10;Resume&#10;Replay">
+  <button id="playback" class="lf-btn" data-room="Play&#10;Pause&#10;Resume&#10;Replay">
     <span>Play</span>
   </button>
   <label id="speed">Speed <select><option>1×</option><option>0.5×</option></select></label>

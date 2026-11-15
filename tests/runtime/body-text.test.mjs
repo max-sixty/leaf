@@ -290,6 +290,31 @@ test("editor tokens retain native constructs and exact source syntax after parse
   assert.equal(task.slice(box.from, box.to), "[x]");
 });
 
+test("a message's fence shows the words on its opening line, and a file's reads them as its info", async () => {
+  const { loadMarkdown, renderMarkdown } = await import("/runtime/markdown.js");
+  await loadMarkdown();
+  const code = (source, message) => {
+    const body = document.createElement("div");
+    body.innerHTML = renderMarkdown(source, message);
+    const block = body.querySelector("pre code");
+    return [block.className, block.textContent];
+  };
+  for (const [source, message, expected] of [
+    ["```py\nx\n```", true, ["language-py", "x\n"]],
+    ["```  py  \nx\n```", true, ["language-py", "x\n"]],
+    ["```read this\nx\n```", true, ["", "read this\nx\n"]],
+    ["```read this\nx", true, ["", "read this\nx"]],
+    ["> ```read this\n> x", true, ["", "read this\nx"]],
+    ["```read this", true, ["", "read this\n"]],
+    ["```word", true, ["", "word\n"]],
+    ["```word\n```", true, ["", "word\n"]],
+    ["```\nx\n```", true, ["", "x\n"]],
+    ["```read this\nx\n```", false, ["language-read", "x\n"]],
+    ["```word", false, ["language-word", ""]],
+  ])
+    assert.deepEqual(code(source, message), expected, source);
+});
+
 test("block markers retain native source spans inside containers and fences", async () => {
   const { loadMarkdown, placedMarkdownTokens } = await import("/runtime/markdown.js");
   await loadMarkdown();
@@ -311,6 +336,8 @@ test("block markers retain native source spans inside containers and fences", as
     ],
     ["````\n```\nbody\n````", [["fence", ["````", "````"]]]],
     ["~~~\n```\nbody\n~~~", [["fence", ["~~~", "~~~"]]]],
+    ["```py\nbody\n```", [["fence", ["```py", "```"]]]],
+    ["``` two words\nbody\n```", [["fence", ["```", "```"]]]],
     [
       "> 1. ~~~\n>    ```\n>    body",
       [
@@ -387,6 +414,39 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
     );
   } finally {
     delete registry["lf-source-contract"];
+  }
+});
+
+test("an arriving written Markdown file first paints its rendering beside its exact source", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { importWidgets } = await import("/runtime/widget-loader.js");
+  const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
+  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  try {
+    const scope = new DOMParser()
+      .parseFromString(
+        '<main><lf-file-contract notation="markdown"><pre>**Fixed** words\nwrap on.</pre></lf-file-contract>' +
+          '<lf-file-contract notation="html"><pre>&lt;b&gt;bold&lt;/b&gt;</pre></lf-file-contract></main>',
+        "text/html",
+      )
+      .querySelector("main");
+    // A message's markup takes this path; a revision's arrivals call the prepaint alone.
+    await importWidgets(scope);
+    const [file, frame] = scope.children;
+    const rendering = ":scope > .lf-markdown-body[data-lf-prepaint]";
+    assert.equal(file.querySelectorAll(rendering).length, 1);
+    prepaintDeclaredFiles(scope);
+    const bodies = file.querySelectorAll(rendering);
+    assert.equal(bodies.length, 1, "one rendering, however often arrival paints");
+    assert.equal(bodies[0].querySelector("strong")?.textContent, "Fixed");
+    assert.equal(bodies[0].querySelector("br"), null, "a file's soft break is a space");
+    assert.equal(
+      file.querySelector(":scope > pre")?.textContent,
+      "**Fixed** words\nwrap on.",
+    );
+    assert.equal(frame.querySelector("[data-lf-prepaint]"), null);
+  } finally {
+    delete registry["lf-file-contract"];
   }
 });
 

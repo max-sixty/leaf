@@ -247,7 +247,7 @@
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <lf-ask id="code-comparison-ask" data-width="available">
+          <lf-ask id="code-comparison-ask">
             <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
               id="code-comparison-playground"
@@ -257,6 +257,7 @@
               <lf-playground-preview id="code-comparison-preview">
                 <code-reader-comparison id="code-reader-comparison">
                   <lf-playground-control
+                    id="width"
                     name="width"
                     label="Comparison viewport"
                     kind="range"
@@ -274,7 +275,7 @@
                     kind="choice"
                     value="A"
                   >
-                    <lf-playground-choice value="A" label="A">
+                    <lf-playground-choice id="treatment-a" value="A" label="A">
                       <section
                         class="code-candidate"
                         data-candidate="A"
@@ -298,7 +299,7 @@ export function releaseLabels(releases) {
                         </lf-code>
                       </section>
                     </lf-playground-choice>
-                    <lf-playground-choice value="B" label="B">
+                    <lf-playground-choice id="treatment-b" value="B" label="B">
                       <section
                         class="code-candidate"
                         data-candidate="B"

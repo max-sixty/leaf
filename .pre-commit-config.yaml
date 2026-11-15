@@ -6,7 +6,7 @@ repos:
     hooks:
       - id: trailing-whitespace
         # Generated output, source patches and captured evidence keep their bytes.
-        exclude: &verbatim ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)|\.patch$
+        exclude: &verbatim ^((browser/vendor|packages/.*/vendor)/|examples/pr-walkthrough\.patch$|evals/ui-review-detection/fixtures/)|\.patch$
       - id: end-of-file-fixer
         exclude: *verbatim
       - id: check-yaml
@@ -15,7 +15,7 @@ repos:
       - id: mixed-line-ending
         exclude: *verbatim
       - id: check-added-large-files
-        exclude: ^((browser/vendor|dist/kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
+        exclude: ^((browser/vendor|packages/.*/vendor)/|examples/pr-walkthrough\.patch$|evals/ui-review-detection/fixtures/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.3
     hooks:
@@ -41,9 +41,21 @@ repos:
       - id: record-types
         name: generated Python record types
         language: system
-        entry: uv run leaf-dev record-types --check
+        entry: uv run leaf-dev generate record-types --check
         pass_filenames: false
-        files: '^(src/leaf/|dev/leaf_dev/commands/record_types\.py$|pyproject\.toml$|uv\.lock$)'
+        files: '^(src/leaf/|dev/leaf_dev/commands/generate/record_types\.py$|pyproject\.toml$|uv\.lock$)'
+      # Claude Code re-attaches only a skill's first 20,000 characters after a
+      # compaction, so past that a session loses the skill's tail without knowing.
+      # These are the skills long interactive sessions load.
+      - id: skill-size
+        name: skills a compaction keeps whole
+        language: system
+        entry: >-
+          sh -c 'status=0; for f; do n=$(wc -c < "$f" | tr -d " ");
+          if [ "$n" -gt 19500 ]; then echo "$f: $n bytes, past what a compaction keeps;
+          move an occasion'"'"'s procedure into references/"; status=1; fi; done;
+          exit $status' --
+        files: ^(\.claude/skills/developing-leaf|skills/leaf)/SKILL\.md$
       - id: ty
         name: ty
         language: system
@@ -58,8 +70,8 @@ repos:
         entry: depcruise --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
-      # JavaScript's vulture: the modules, exports and types nothing reads
-      # (`knip.config.js`). Whole-tree; files only wakes it.
+      # JavaScript's vulture: the modules, exports and types nothing reads, and
+      # import cycles (`knip.config.js`). Whole-tree; files only wakes it.
       - id: knip
         name: knip
         language: node

@@ -22,14 +22,15 @@ function strip(inForce) {
     latest: true,
     choices: tokenChoices({ ok: { glyph: "👍" }, no: { glyph: "👎" } }, inForce),
   });
-  const press = (token) => view.node.querySelector(`[data-token="${token}"]`).click();
+  const press = (token) =>
+    view.node.querySelector(`[data-lf-token="${token}"]`).click();
   return { asked, press, view };
 }
 
 test("pressing a reaction the user has takes it back", () => {
   const { asked, press, view } = strip([{ id: "r1", token: "ok" }]);
   assert.equal(
-    view.node.querySelector('[data-token="ok"]').getAttribute("aria-pressed"),
+    view.node.querySelector('[data-lf-token="ok"]').getAttribute("aria-pressed"),
     "true",
   );
   press("ok");
@@ -78,6 +79,6 @@ test("a mounted reaction sends before closing the picker and revealing held news
   });
   document.body.replaceChildren(head, view.node);
   render(html`${view.trigger}`, head);
-  view.node.querySelector('[data-token="ok"]').click();
+  view.node.querySelector('[data-lf-token="ok"]').click();
   assert.deepEqual(order, ["send", "close", "news"]);
 });

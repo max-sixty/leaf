@@ -17,24 +17,26 @@ import os
 import shutil
 import ssl
 import tarfile
+import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
+from functools import partial
 from http.client import HTTPResponse
 from pathlib import Path
 from tempfile import TemporaryFile
 from types import SimpleNamespace
 from typing import BinaryIO
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
@@ -50,6 +52,15 @@ from leaf.service import PageTransaction
 from leaf.state import STRING, Record, described, object_schema, page_key, state_home
 
 CHUNK_BYTES = 1024 * 1024
+# Chunk uploads in flight at once.
+UPLOADS = 8
+
+
+class PageStoreRefused(OSError):
+    """A call the page store answered with an error, carrying the store's reason
+    (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
+    records as its detail. An `OSError`, as urllib's own errors are, so callers
+    handle it as they handle the store being unreachable."""
 
 
 @contextmanager
@@ -72,7 +83,12 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
     )
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate) if certificate else None
-    with urllib.request.urlopen(request, context=context, timeout=60) as response:
+    try:
+        response = urllib.request.urlopen(request, context=context, timeout=60)
+    except urllib.error.HTTPError as error:
+        reason = error.read().decode(errors="replace").strip()
+        raise PageStoreRefused(f"{path} answered {error.code}: {reason}") from error
+    with response:
         yield response
 
 
@@ -82,6 +98,9 @@ class _BlobSet:
 
     buffer: BinaryIO
     offsets: dict[str, tuple[int, int]] = field(default_factory=dict)
+    # The uploads read their bodies from several threads, and a read is a seek then
+    # a read of the one shared buffer.
+    reading: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, digest: str, chunk: bytes) -> None:
         self.buffer.seek(0, os.SEEK_END)
@@ -100,8 +119,9 @@ class _BlobSet:
 
     def body(self, digest: str) -> bytes:
         offset, length = self.offsets[digest]
-        self.buffer.seek(offset)
-        return self.buffer.read(length)
+        with self.reading:
+            self.buffer.seek(offset)
+            return self.buffer.read(length)
 
 
 def restore(site_root: Path) -> None:
@@ -174,6 +194,11 @@ def restore(site_root: Path) -> None:
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
 
 
+def _upload(blobs: _BlobSet, digest: str) -> None:
+    with _request(f"/blobs/{digest}", blobs.body(digest)):
+        pass
+
+
 def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
     files = [
         page_dir / name for name in PAGE_OWNED_FILES if name not in PAGE_PROCESS_FILES
@@ -235,26 +260,8 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    registry = snapshot.context.registry
-    assert registry is not None
     paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
-    for source_name, reading in snapshot.context.data["sources"].items():
-        value = reading.get("value")
-        spec = deferred_records(value, reading["contract"], registry)
-        if spec is not None:
-            paths.update(
-                "api/deferred?"
-                + urlencode(
-                    {
-                        "source": source_name,
-                        "source_revision": reading["revision"],
-                        "key": record[spec["key"]],
-                    }
-                )
-                for record in value[spec["items"]]
-                if spec["deferred"] in record
-            )
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:
@@ -390,8 +397,10 @@ def publish(page: PageTransaction) -> None:
         }
         with _request("/prepare", publication) as response:
             prepared = json.load(response)
-        for digest in prepared["missing"]:
-            with _request(f"/blobs/{digest}", blobs.body(digest)):
+        # Each upload is a round trip to the Durable Object, and a session's first
+        # write uploads its whole record, so they overlap rather than queue.
+        with ThreadPoolExecutor(max_workers=UPLOADS) as uploads:
+            for _ in uploads.map(partial(_upload, blobs), prepared["missing"]):
                 pass
         with _request("/publication", {"root": root, "identity": prepared["identity"]}):
             pass

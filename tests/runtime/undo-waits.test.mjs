@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applicationState } from "/runtime/semantic-state.js";
 import { createUndo } from "/runtime/undo.js";
+import { servedState } from "../served.mjs";
 
 const spec = { unit: "widget" };
 const action = (attempt, extra = {}) => ({
@@ -20,54 +21,38 @@ const action = (attempt, extra = {}) => ({
   ...extra,
 });
 const earlier = action("earlier", { id: "e0", seq: 1 });
-const noObligations = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose log holds `events`, each in force and each the user's to take back.
-const reading = (events) => ({
-  taken: ++taken,
-  layer: { generation: "test" },
-  active: { revision: 1 },
-  events,
-  workflows: [],
-  activity: null,
-  browser: {
-    basis: { through_seq: events.length },
-    receipts: events,
-    thread_memberships: {},
-    todos: [],
-    views: {
-      1: {
-        basis: { revision: 1, through_seq: events.length },
-        thread: {
-          threads: [],
-          projection: { entries: [], actions: [], reports: [], desired: [] },
-          obligations: noObligations(),
-        },
-        coverage: [],
-        undo: events.map((event) => ({ event })).reverse(),
-        queues: { on_user: [], on_agent: [], done: [] },
-        document: {
-          obligations: noObligations(),
-          projection: {
-            entries: events.map((event) => ({
-              event,
-              coordinate: ["choice", "choice", "decide"],
-              spec,
-              scope: "page",
-              value: "decide",
-              restated: [],
-              absorbed: false,
-              stands: true,
-            })),
-            actions: events.map((event) => event.id),
-            reports: [],
-            desired: events.slice(-1).map((event) => event.id),
+const reading = (events) =>
+  servedState({
+    taken: ++taken,
+    events,
+    browser: {
+      basis: { through_seq: events.length },
+      views: {
+        1: {
+          basis: { through_seq: events.length },
+          undo: events.map((event) => ({ event })).reverse(),
+          document: {
+            projection: {
+              entries: events.map((event) => ({
+                event,
+                coordinate: ["choice", "choice", "decide"],
+                spec,
+                scope: "page",
+                value: "decide",
+                restated: [],
+                absorbed: false,
+                stands: true,
+              })),
+              actions: events.map((event) => event.id),
+              desired: events.slice(-1).map((event) => event.id),
+            },
           },
         },
       },
     },
-  },
-});
+  });
 
 test("Undo waits for a newer action through its send, answer and presentation", () => {
   applicationState.identify(1);

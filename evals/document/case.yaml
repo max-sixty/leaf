@@ -74,6 +74,20 @@ variants:
       purpose: Act on render findings delivered after a quick handover, unprompted to inspect.
       conditions:
         - leaf
+  render-hidden-failure:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-hidden-failure
+      purpose: Fix a render failure the source doesn't show, delivered after a handover the user is waiting on.
+      conditions:
+        - leaf
+  render-advice-with-comment:
+    metadata:
+      executor: leaf_dev.usability_eval
+      scenario: render-advice-with-comment
+      purpose: Weigh render advice that arrives with the user's next message.
+      conditions:
+        - leaf
   elided:
     metadata:
       executor: leaf_dev.usability_eval
@@ -97,8 +111,8 @@ variants:
         - leaf
   # Added when every harness's hook began handing an over-limit delivery over as the
   # same `leaf-delivery` element. On Claude Code at 637d54d03, the base (a prose
-  # pointer naming `leaf delivery read`) and the candidate (the element) each passed
-  # 3/3; 2 of 3 candidate runs read event-batches.md before the delivery, so it
+  # pointer naming `leaf delivery read`) and the head (the element) each passed
+  # 3/3; 2 of 3 head runs read event-batches.md before the delivery, so it
   # guards rather than separates.
   oversized:
     metadata:

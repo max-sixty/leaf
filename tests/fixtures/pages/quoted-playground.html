@@ -65,6 +65,7 @@
       <lf-sample id="quoted-alerts-sample" label="alert settings playground">
         <lf-playground id="quoted-alerts" submit-label="Apply these settings">
           <lf-playground-control
+            id="budget"
             name="budget"
             label="On-call page budget, per 30 days"
             kind="range"
@@ -88,16 +89,19 @@
               >
                 Pages payments on-call.
                 <lf-playground-control
+                  id="quoted-rate-threshold"
                   name="rate-threshold"
                   label="Threshold"
                   kind="choice"
                   value="1%"
                 >
                   <lf-playground-choice
+                    id="quoted-rate-threshold-1"
                     value="1%"
                     label="over 1%"
                   ></lf-playground-choice>
                   <lf-playground-choice
+                    id="quoted-rate-threshold-2"
                     value="2%"
                     label="over 2%"
                   ></lf-playground-choice>
@@ -119,16 +123,19 @@
               >
                 <div class="quoted-field">
                   <lf-playground-control
+                    id="quoted-latency-threshold"
                     name="latency-threshold"
                     label="Threshold"
                     kind="choice"
                     value="800ms"
                   >
                     <lf-playground-choice
+                      id="quoted-latency-threshold-800ms"
                       value="800ms"
                       label="over 800 ms"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="quoted-latency-threshold-1200ms"
                       value="1200ms"
                       label="over 1,200 ms"
                     ></lf-playground-choice>
@@ -136,16 +143,19 @@
                 </div>
                 <div class="quoted-field">
                   <lf-playground-control
+                    id="quoted-latency-route"
                     name="latency-route"
                     label="Route"
                     kind="choice"
                     value="page"
                   >
                     <lf-playground-choice
+                      id="quoted-latency-route-page"
                       value="page"
                       label="Page"
                     ></lf-playground-choice>
                     <lf-playground-choice
+                      id="quoted-latency-route-ticket"
                       value="ticket"
                       label="Ticket"
                     ></lf-playground-choice>

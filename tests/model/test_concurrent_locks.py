@@ -57,7 +57,7 @@ def test_a_lease_follows_a_path_replaced_before_acquisition(tmp_path, monkeypatc
         nonlocal replaced
         if not replaced and operation == fcntl.LOCK_EX | fcntl.LOCK_NB:
             replaced = True
-            path.unlink()
+            path.rename(tmp_path / "former")
             path.touch()
         return lock(stream, operation)
 

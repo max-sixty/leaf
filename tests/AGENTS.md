@@ -21,7 +21,7 @@ is not a regression requirement.
 The suite's cost is CPU time, which every run pays and CI bills. Extra workers fill a
 test's waiting only while CPU is spare, so remove a fixed delay rather than relying on
 parallelism. Each CI `test` job's summary says where its CPU and time went, and
-`leaf-dev suite-profile` reads the same from the job's `pytest-results-*`
+`leaf-dev suite profile` reads the same from the job's `pytest-results-*`
 artifact. When a browser test is slow, or fails on timing or geometry outside its
 contract, repair its setup or move its contract to a lower boundary.
 
@@ -68,7 +68,7 @@ runs it (`TIERS` in `conftest.py`):
   sweeps, multi-page journeys and the site build. The daily run and manual dispatch.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite/profile.py`). Put a new test in
 the directory of the boundary it crosses, or in `journeys/` when it is over budget or
 needs the external network, which it also marks `network`. To move a test to an earlier
 tier, make it cheaper.
@@ -113,11 +113,11 @@ does not establish that unchanged consumers still work.
 
 A change lands through a gate that runs the broad selection: a pull request's `test`
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
-its job; fix it and push. A failure the change doesn't cause, such as one main's latest
-run also shows (confirm by running it on main by node id), blocks nothing and calls
-for no rerun: name it in the pull request as inherited, check that it has an owner
-(below), and land. For now, by the user's choice, `test` is not a required check on
-`main`.
+its job; fix it and push. A failure the change doesn't cause, such as one main's
+latest finished run also shows (confirm by running it on main by node id), blocks
+nothing and calls for no rerun: name it in the pull request as inherited, check that
+someone is fixing it (below), and land. For now, by the user's choice, `test` is not a
+required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
@@ -126,15 +126,17 @@ A failed run opens or updates a `tend-ci-failure` report issue, and triage files
 `tend-ci-cause` issue for each cause and fixes it there.
 The user accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
-waiting run, as intended. To learn what main fails, read that job's run and reproduce a
-failure by node id.
+waiting run, as intended, so to learn what main fails, read the latest run that
+finished and reproduce a failure by node id.
 
-A failure on main, in that run or only in a local one, needs an owner. Tend owns one
-that main's latest run shows, through the open report for that run and the cause issue
-or pull request that names it. A failure only a local run shows is beyond it. For a
-failure Tend doesn't own, check that no session, worktree
-(Codex's under `~/.codex/worktrees` included) or open pull request covers it, then start
-a local session for it (for example with `/dispatch`).
+A failure on main, in that run or only in a local one, needs someone fixing it. Tend's
+cause issue names each failing test, which a search for one test's full name finds.
+Tend's triage marks the issue with an eyes reaction while it works, then fixes the
+cause in a pull request that links the issue; a cause issue with neither is still
+waiting, and a failure only a local run shows never reaches Tend. If no pull request,
+Tend run, session or worktree (Codex's under `~/.codex/worktrees` included) is fixing
+a failure and the user you work for maintains Leaf, start a local session for it (for
+example with `/dispatch`).
 
 CLI output and agent-facing text are regtest recordings in each tier's
 `_regtest_outputs/`, normalized for temporary paths and generated ids but never for
@@ -209,9 +211,11 @@ move `HOME`. Declare other process conditions through fixtures (`sessionless`,
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and
-a log handed straight to admission or `browser_state`. Build markup with `leaf_page`.
-`initialized_page` lends one prepared page per composition shape; a test of
-initialization runs `page init` itself.
+a log handed straight to admission or `browser_state`. Build markup with `leaf_page`,
+or open an authored page or product document by its name with `named_source`. A sweep
+over authored pages reads `authored_sources()`, and one over the public site's pages
+`published_sources()`. `initialized_page` lends one prepared page per composition
+shape; a test of initialization runs `page init` itself.
 
 Use the `browser` and `serve` fixtures for browser tests. Each pytest worker shares one
 Playwright driver and Chromium, and contexts and page directories keep tests apart.
@@ -268,6 +272,8 @@ one user share `one_user`.
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
 effect on scroll is the subject, scroll first and read the baseline after.
+Each Playwright tap waits out the page's previous one, so two taps never make a
+double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 
 Inject nothing to make observation easier: read traffic from the runtime's own ledger,
 set network conditions with `page.route`, and collect errors with the browser fixture.
@@ -289,10 +295,13 @@ The watches below report problems. Fix what they report rather than consuming it
 is no per-test
 allowance list.
 
-- `write_watch.js` reports a DOM write that changes nothing. Fix the writer with
-  `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
-  `EXPECTED` in `write_watch.js` with its reason; a test that reads the page by changing
-  it and putting it back does so inside `lfUnwatched`.
+- `write_watch.js` reports a DOM write that changes nothing, and a scroll write that
+  moves nothing. Fix a DOM writer with `runtime/keeps.js`; the runtime's scroll writes
+  go through `setScroll` (`runtime/arrivals.js`), which never writes one that moves
+  nothing, and a stop goes through `stopWhereItStands`. A write
+  that must restate, as a vendored component's does, joins `EXPECTED` or
+  `EXPECTED_SCROLLS` in `write_watch.js` with its reason; a test that reads the page by
+  changing it and putting it back does so inside `lfUnwatched`.
 - `shift_watch.js` reports a box that moves on screen without input, typing that
   moves its field, and a scroll a gesture makes that carries the control it was made
   on, unless the gesture takes the user somewhere (`browser/AGENTS.md`, "The page holds still under the user's aim").
@@ -302,7 +311,10 @@ allowance list.
   not. It ignores first
   presentation, whose remaining defects `known_widget_findings.py` records. Chrome
   hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that.
+  delivers the news after that. An input also owns the first frame that reads its
+  rendering settled, which can paint after `rendered` returns, so a test that moves
+  the page itself after an input, to see the move reported, first waits for
+  `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box
   does it the way a user
@@ -334,19 +346,25 @@ widget by name. To measure a page before its runtime starts, call `displayed` fi
 
 ## Waits
 
-### Functional results do not depend on execution speed
+### Results do not depend on execution speed
 
-A functional test, fixtures and watches included, gives the same result and still
-exercises its situation when the system runs ten times slower. Test performance
-separately, under controlled conditions.
+Every test, fixtures and watches included, gives the same result and still exercises
+its situation on a machine ten times slower than the one it was written on, since CI's
+runner and a host running other sessions' suites are both slower than an idle
+development machine. So no test asserts a duration, and no test passes or fails on a
+benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
+daily), and a reader judges them. Check a test against the rule with
+`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
+or the driver, and doesn't reach a page from `browser.unwatched`.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
-`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound a
-hang with a real deadline that leaves room for slow execution, and on expiry report
-which completion is still missing. A time limit must never turn unfinished work into a
-pass. To test a race, hold and release the request, callback, frame or lock explicitly,
-check that the outcome holds with completion delayed tenfold, and keep a control that
-still fails.
+`Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
+each operation that could hang with a real deadline at least ten times the longest that
+operation takes on CI's runner, where a `test` job's junit results record each test's
+time (`leaf-dev suite profile`), and on expiry report which completion is still missing.
+A time limit must never turn unfinished work into a pass. To test a race,
+hold and release the request, callback, frame or lock explicitly, check that the
+outcome holds with completion delayed tenfold, and keep a control that still fails.
 
 Wait for the operation's own completion signal. Elapsed time, matching samples, a fixed
 number of frames and network quiet look the same for an effect that hasn't started as
@@ -362,7 +380,12 @@ Waits take the suite's deadlines: `STATED_TIMEOUT` on the Python side, with
 `interact_support.wait_for` for pure-Python polls, and `SERVED_TIMEOUT_MS`, which
 `render_harness` makes every Playwright wait's default, so a wait
 names a deadline only when it spans a page handover (`HANDOVER_DEADLINE_MS`).
-`test_a_wait_takes_the_suites_deadline` checks both.
+`test_a_wait_takes_the_suites_deadline` checks both. It can't see a deadline or cache
+age the product applies inside the code a test calls, such as the prompt hook's bound
+on a server start, so a test that runs work under one gives it `STATED_TIMEOUT`, and
+shortens it only to 0 or where the work it bounds can never finish, as behind a held
+port. `_hook_bounds_take_the_suites_deadline` (`interact_support.py`) does this for
+the prompt hook's bounds in every in-process test.
 
 ### Transient states
 
@@ -395,7 +418,7 @@ scroll started.
 ## Races
 
 If a race appears only under load, order it with `page.route` rather than repeating the
-test. `leaf-dev flake` reproduces it, prints each failing copy's message, and then
+test. `leaf-dev suite flake` reproduces it, prints each failing copy's message, and then
 confirms the route holds. Register the
 route before the gesture it catches, or through `primed` or `held_events` for the first
 navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
@@ -405,11 +428,13 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the browser fixtures open. Past findings
+`leaf-dev suite flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
-so try more than one. Run the merge base under the same rate to learn whether the
-change caused it. A test whose subject is a slow CPU slows its own page
-with `leaf_dev.browser.slow_cpu`.
+so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
+server and every engine on the efficiency cores: it reproduced ten of the nightly macOS
+job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
+base under the same condition to learn whether the change caused it. A test whose subject
+is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a
@@ -468,7 +493,12 @@ or typed box joins its journey by its keys or route.
 
 An absence asserted before the runtime's deferred step passes on the frame before the
 decision. Read it once, after the step that would have caused the forbidden behavior,
-and keep a control that first produces it.
+and keep a control that first produces it. A fixed wait isn't that step, since a slower
+machine takes longer to reach it: wait for a later event ordered after the moment the
+forbidden behavior would have happened, then check that it is absent. The page's sends
+coming back (`round_trip`), the page taking in what the server holds (`told`) and the
+shared clock's next tick (`ticked`) are such events, and so is a later gesture of the
+same kind, whose result arrives behind anything the earlier one caused.
 
 ### Sweeps over controls
 
@@ -476,9 +506,18 @@ Pin the ids or count a sweep walks, before and after any reload, and assert that
 is non-empty and every expected kind was reached, rather than an assertion whose
 condition can vanish with the behavior.
 
+### Removing a test another covers
+
+One surviving test has to reach the same fixture state by the same route and make the
+same assertion. Several survivors that each hold one of those leave the combination
+unheld, and two routes into one command can differ in what happens around it, as a menu
+row closing over the thread it just opened. Read the survivor itself, since a name or
+docstring can claim a state its fixture never reaches.
+
 ## Failure messages
 
 Pair `capture_output=True` with `check=True` only when the exception is unpacked; a test
 that needs the streams asserts the return code and puts stdout and stderr in the
 message. Assert output by meaning: use `spoken` for the registry-backed reading, and
-match the attribute that carries a claim.
+match the attribute that carries a claim. A refusal test reads the refusal's words,
+since a nonzero exit also passes on a crash.

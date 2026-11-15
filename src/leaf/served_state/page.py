@@ -1,4 +1,5 @@
-"""The complete state response for one served page.
+"""The state response for one served page, whole; the page server sends a tab that
+holds an earlier reading only what changed since (`tail.py`).
 
 `state.schema.json` beside this module declares its shape and is each field's home: a
 field's meaning is its description there. The tests hold real readings to it
@@ -10,8 +11,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import WORKING_GRACE
-from ..data import browser_data_from
-from ..files import revision_label
+from ..files import revision_labels
 from ..read_state import seen_revision
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
@@ -51,17 +51,11 @@ def read_served_page(
     source_error: str | None = None,
     view_revision: int | None = None,
 ) -> ServedPage:
+    """The whole answer."""
     active = context.active
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
     work = context.work
-    selected_registry = (
-        context.revision(view_revision or active["revision"]).registry
-        if active is not None
-        else context.registry
-    )
-    if active is not None:
-        assert selected_registry is not None
     state = {
         "now": context.now,
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
@@ -69,11 +63,18 @@ def read_served_page(
         "active": active,
         "versions": list(context.versions),
         "revision_labels": {
-            str(revision): revision_label(context.events, revision)
-            for revision in sorted(
-                context.revisions
-                | {event["revision"] for event in context.events if "revision" in event}
-            )
+            str(revision): label
+            for revision, label in revision_labels(
+                context.events,
+                sorted(
+                    context.revisions
+                    | {
+                        event["revision"]
+                        for event in context.events
+                        if "revision" in event
+                    }
+                ),
+            ).items()
         },
         # What the page's own user last saw; a hosted copy's reader is someone else.
         "seen": (
@@ -82,13 +83,15 @@ def read_served_page(
             else None
         ),
         "source_error": source_error,
-        "data": browser_data_from(context.data, selected_registry),
+        "data": context.data,
         "files": context.bound_files(),
         **context.presence,
         "activity": {
             **{
                 key: value
                 for key, value in work.activity.items()
+                # TODO(2026-11-14): serve who holds each thread (`work.holding`)
+                # once the panel says which fork is working a thread.
                 if key not in {"workflows", "todos", "obligations"}
             },
             # The records of the updates the agent owes an answer, by id; their

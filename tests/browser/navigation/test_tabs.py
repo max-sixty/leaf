@@ -17,8 +17,8 @@ from render_harness import (
 from leaf.render_checks import rendered
 
 
-# A live revision that puts a tab set above this one moves it 430px down the window
-# (issue #4036, "Keep what a live revision adds above the reader from moving it").
+# A live revision that puts a tab set above this one moves it 430px down the window,
+# since a page read from its top keeps its top (`reading-place.js`).
 @pytest.mark.shifts_unsurveyed
 @pytest.mark.parametrize(
     "placement",
@@ -130,7 +130,7 @@ def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve)
     expect(choices.first).to_have_attribute("aria-selected", "true")
     assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
 
-    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     page.wait_for_function(
         "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
     )

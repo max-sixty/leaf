@@ -7,7 +7,6 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
-    PANEL_THREAD,
     holding,
     nudge,
     open_page,
@@ -29,6 +28,7 @@ from browser.threads import (
 )
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -51,7 +51,7 @@ def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(browser, s
     page.emulate_media(reduced_motion=motion)
     # A passage's thread, in its margin card, holds news while the user writes there.
     page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     field = card.locator(":scope > .lf-thread-reply leaf-text")
     words = "A thought to continue when I return."
     write(field, words)
@@ -61,7 +61,7 @@ def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(browser, s
     first = append_agent_reply(serve.page_dir, root, "An answer held during reading.")
     told(page)
     expect(card.locator(".lf-thread-news")).to_be_visible()
-    first_message = card.locator(f'.lf-msg[data-event="{first["id"]}"]')
+    first_message = card.locator(f'.lf-msg[data-lf-event="{first["id"]}"]')
     expect(first_message).to_have_count(0)
 
     page.evaluate("window.dispatchEvent(new Event('blur'))")
@@ -87,12 +87,12 @@ def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(browser, s
     holding(page, held, 1, "the first refresh after returning")
     expect(first_message).to_be_visible()
     second = append_agent_reply(serve.page_dir, root, "Another answer while away.")
-    expect(card.locator(f'.lf-msg[data-event="{second["id"]}"]')).to_have_count(0)
+    expect(card.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')).to_have_count(0)
     held.pop().continue_()
     page.unroute("**/api/state*")
     told(page)
     rendered(page)
-    expect(card.locator(f'.lf-msg[data-event="{second["id"]}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-lf-event="{second["id"]}"]')).to_be_visible()
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(field).to_have_js_property("value", words)
     expect(field).to_be_focused()
@@ -103,7 +103,7 @@ def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(browser, s
     told(page)
     rendered(page)
     expect(card.locator(".lf-thread-news")).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{third["id"]}"]')).to_have_count(0)
+    expect(card.locator(f'.lf-msg[data-lf-event="{third["id"]}"]')).to_have_count(0)
 
 
 def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
@@ -137,7 +137,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     )
     told(page)
     news = page.locator(f"{PANEL_NEWS}:not([hidden])")
-    arrived = page.locator(f'.lf-fp-view .lf-msg[data-event="{reply["id"]}"]')
+    arrived = page.locator(f'.lf-fp-view .lf-msg[data-lf-event="{reply["id"]}"]')
     expect(arrived.or_(news).first).to_be_visible()
     rendered(page)
     after = ta.bounding_box()
@@ -182,7 +182,7 @@ def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
     )
     told(page)
     expect(
-        view.locator(f'.lf-msg[data-event="{arrived["id"]}"]')
+        view.locator(f'.lf-msg[data-lf-event="{arrived["id"]}"]')
         .or_(page.locator(f"{PANEL_NEWS}:not([hidden])"))
         .first
     ).to_be_visible()
@@ -225,7 +225,7 @@ def test_appended_replies_keep_the_panel_reading(browser, serve):
             serve.page_dir, root, "New material here.\n\nAnother paragraph follows."
         )
         told(page)
-        arrived = view.locator(f'.lf-msg[data-event="{reply["id"]}"]')
+        arrived = view.locator(f'.lf-msg[data-lf-event="{reply["id"]}"]')
         expect(
             arrived.or_(page.locator(f"{PANEL_NEWS}:not([hidden])")).first
         ).to_be_visible()

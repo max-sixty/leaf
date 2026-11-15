@@ -35,12 +35,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
-from .data import (
-    DataError,
-    StaleDataError,
-    deferred_value,
-)
-from .event_endpoint import accept_event, event_fault, event_rejection
+from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     missing_revision,
@@ -72,17 +67,24 @@ from .revision_delivery import (
     rebase_document,
     runtime_settings,
 )
-from .runtime_selection import executing, execution_identity, serving_runtime
+from .runtime_selection import (
+    executing,
+    execution_identity,
+    named_execution,
+    serving_runtime,
+)
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE_MAX_AGE,
+    MEDIA_DIR,
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
 )
 from .served_state.service import LivePage, PageSource, PageStateService
+from .served_state.tail import answer as tail_answer
 from .server import page_origin, preview_metadata, running_server
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
@@ -248,6 +250,33 @@ class PostRoute:
     events: bool = False
 
 
+# Every answer a Leaf server gives, on this machine or on leaf.page, may be stored but
+# is asked for again before each reuse, unless its address names its bytes
+# (`IMMUTABLE_CACHE_CONTROL`). Document and state answers carry no validator, so a load
+# asks again and shows the page as it is now. A document Chrome loads from its history,
+# as on Back without the back/forward cache or on restoring tabs, reuses stored answers
+# without asking, so a state answer names by `Vary` the request headers its body turns
+# on: else that document, which holds no reading, would be handed a tail of a reading an
+# earlier document held. Storing is what lets the browser keep the whole page in its
+# back/forward cache, so Back restores it at once, focus, selection and open
+# disclosures included, and the runtime catches up from there. Firefox keeps no page
+# whose document said `no-store`, and Chrome drops one once a fetch also says so or an
+# HttpOnly cookie changes, as acting on a leaf.page page does.
+#
+# The stored copy outlives the visit in the browser's disk cache. Locally it holds what
+# the page directory already holds in plain files, for the same user. On leaf.page it
+# holds a visitor's comments, replies and images, and Back shows them to whoever next
+# uses that browser profile. leaf.page answered `no-store` to keep them out until
+# 2026-11-08, when the maintainer reversed that choice for an instant Back (issue
+# #4024).
+CACHE_CONTROL = "no-cache"
+# A revision's resources and page media (`media.media_name`) are named by digests of
+# their bytes, so a name never changes what it answers and the browser keeps one copy
+# for every document that names it. Starlette's file answer ignores a validator, so
+# `no-cache` here would fetch each whole on every load.
+IMMUTABLE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+
+
 class PageEndpoint:
     """One request against one page, from its arrival to the response it becomes.
 
@@ -258,16 +287,6 @@ class PageEndpoint:
     is the page's own boundary — selection, the key, the layer gate, and the faults the
     page's status has to be able to show.
     """
-
-    # Every answer that isn't an immutable revision resource may be stored but is asked
-    # for again before each reuse. Document and state answers carry no validator, so
-    # every load, Back included, shows the page as it is now. Storing is what lets
-    # the browser keep the whole page in its back/forward cache, so Back restores it at
-    # once and the runtime catches up from there. Chrome keeps no page whose document or
-    # fetches said `no-store`, nor Firefox one whose document did. The disk copy holds
-    # what the page directory already holds in plain files, for the same user. leaf.page
-    # overrides it (`WebsitePageEndpoint`).
-    cache_control = "no-cache"
 
     def __init__(
         self,
@@ -392,7 +411,7 @@ class PageEndpoint:
         async def deliver(message):
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
-                headers.setdefault("Cache-Control", self.cache_control)
+                headers.setdefault("Cache-Control", CACHE_CONTROL)
                 # An opaque parent is not expressible as a frame-ancestors source,
                 # so a child capability's documents carry no policy and admit
                 # nested samples.
@@ -500,20 +519,54 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data version it holds in `Leaf-Data-Version`, and an answer
-        whose data is still that version leaves out its sources, which the tab
-        restores from the reading it named (`completeData` in `layer-client.js`).
-        Data moves only when an agent sets it, so without this every gesture's
-        answer would carry back each source value the tab already holds.
+        What a tab is sent of it is `sent`'s to say.
         """
-        state = self._state_service().page_state(view_revision)
-        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
-            state["data"] = {"version": state["data"]["version"]}
-        return state
+        return self._state_service().page_state(view_revision)
 
-    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        """One revision projected at an exact already-observed log boundary."""
-        return self._state_service().page_browser_view(view_revision, through_seq)
+    def sent(self, state: dict) -> dict:
+        """What a tab is sent of `state`, addressed at this page's root
+        (`scope_page_urls`), so the readings this names and compares are the ones the
+        tab holds: only what changed since the reading it names by `Leaf-Held-Basis`,
+        where this process still remembers that reading, else the whole of it
+        (`served_state.tail`). Without this every gesture's answer would carry back
+        every record and past event the tab already holds. The answer goes out as
+        it stands (`_json_body`), since addressing it again would address its
+        markup twice. The log travels apart from the reading, as only the events
+        after the held reading's, so only the events sent are addressed, rather than
+        every message's markup the session has logged.
+
+        A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
+        it still holds leaves out its sources for the tab to restore (`completeState`
+        in `layer-client.js`), as leaf.page's edge does for the answers it stores
+        (`prepareStateDelivery` in `worker/src/storage.ts`). Only a whole answer is
+        cut, and only once its reading is remembered whole, since a patch carries just
+        the sources that changed since the held reading.
+
+        A capture's readings are whole and unnamed: a render check reads them, or
+        leaf.page saves them as a published page's responses, one for each revision,
+        and none is a reading a tab goes on to extend from this process, so
+        remembering them would only push out the readings the tabs hold."""
+        reading = {key: value for key, value in state.items() if key != "events"}
+        scoped = {**scope_page_urls(reading, self.page_root), "events": state["events"]}
+        answer = (
+            scoped
+            if self.page_snapshot is not None
+            else tail_answer(
+                scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
+            )
+        )
+        if "since" not in answer and (
+            self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
+        ):
+            answer = {**answer, "data": {"version": answer["data"]["version"]}}
+        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
+
+    def page_comparison(
+        self, revision: int, through_seq: int, shown: int | None
+    ) -> dict:
+        """What a comparison with one revision folds, at an exact already-observed log
+        boundary, and what the version `shown` was saved after."""
+        return self._state_service().page_comparison(revision, through_seq, shown)
 
     def requested_view_revision(self) -> int | None:
         raw = self.query.get("revision", [None])[-1] or self.headers.get(
@@ -540,37 +593,18 @@ class PageEndpoint:
             raise ValueError("view sequence is required")
         return _query_int(raw, "view sequence", 0)
 
-    def deferred_value(self) -> dict:
-        """One contract-declared payload from the source revision the tab holds."""
-
-        def required(name: str) -> str:
-            value = self.query.get(name, [None])[-1]
-            if not isinstance(value, str) or not value:
-                raise ValueError(f"{name} is required")
-            return value
-
-        source = required("source")
-        revision = required("source_revision")
-        key = required("key")
-        view_revision = self.named_revision()
-        registry = (
-            self._registry(view_revision)
-            if view_revision is not None
-            else self.source.active_registry()
-        )
-        reading = self.source.data_source(source, registry)
-        return deferred_value(
-            reading, registry, source=source, revision=revision, key=key
-        )
-
     def _news(self) -> Response:
         """A finite reading of the files and presence a visible page is watching.
 
-        The browser compares this cheap token with the state it has applied, then
+        The browser compares this cheap token with the reading it has in hand, then
         asks for state only when they differ. Each request releases its HTTP slot,
         so live child pages cannot hold the origin's connections away from modules,
         gestures or revisions. Presence caches its process and lease observations;
         page files are read anew, including external data and authored dependencies.
+        A look that finds a saved source activates it first, holding the page's
+        transaction through the source check, so its token names the revision the
+        state read it prompts will answer with (`LivePage._activated`), in the order
+        `page_state` explains.
         """
         self.housekeeping = True
         return self._content(
@@ -681,12 +715,12 @@ class PageEndpoint:
         return self._content(200, ctype, resource.content)
 
     def _json(self, obj, status: int = 200) -> Response:
+        return self._json_body(scope_page_urls(obj, self.page_root), status)
+
+    def _json_body(self, obj, status: int = 200) -> Response:
+        """`obj`, already addressed at this page's root, as a JSON answer."""
         return self._content(
-            status,
-            "application/json",
-            json.dumps(
-                scope_page_urls(obj, self.page_root), ensure_ascii=False
-            ).encode(),
+            status, "application/json", json.dumps(obj, ensure_ascii=False).encode()
         )
 
     def _select_page(self) -> Response | None:
@@ -1013,11 +1047,11 @@ class PageEndpoint:
         revision, name = int(match.group("revision")), match.group("name")
         if self.source.revision_names.get(revision) != name + ".html":
             return None
-        artifact = self._artifact(revision)
-        if match.group("runtime") != execution_identity(artifact):
+        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        if artifact is None:
             return None
         response = self._revision_resource(
-            revision, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
         )
         if response is not None:
             # The revision name carries its manifest digest, the execution identity
@@ -1026,15 +1060,15 @@ class PageEndpoint:
             # live samples are each a whole runtime importing the same modules, and
             # refetching each one per document queued them behind one another on the
             # origin's few connections for seconds.
-            response.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+            response.headers["Cache-Control"] = IMMUTABLE_CACHE_CONTROL
         return response
 
     def _revision_resource(
-        self, revision: int, logical: str, root: str
+        self, artifact: RevisionArtifact, logical: str, root: str
     ) -> Response | None:
         """One resource of a revision as its documents run it, addressed at `root`
         (`runtime_selection.executing`), or None for a path the revision lacks."""
-        artifact = executing(self._artifact(revision))
+        artifact = executing(artifact)
         self.response_layer = artifact.registry["$layer"]["generation"]
         resource = delivered_resource(
             artifact, logical, DeliveryAddress(self.page_root, root)
@@ -1088,7 +1122,10 @@ class PageEndpoint:
                 path,
                 DeliveryAddress(self.page_root, self.page_root),
             )
-            return self._resource_content(resource)
+            response = self._resource_content(resource)
+            if path.startswith(f"/{MEDIA_DIR}/"):
+                response.headers["Cache-Control"] = IMMUTABLE_CACHE_CONTROL
+            return response
         return None
 
     def _get(self) -> Response:
@@ -1119,25 +1156,28 @@ class PageEndpoint:
             if revision is None and state["active"] is not None:
                 revision = state["active"]["revision"]
             self.response_layer = self._revision_layer(revision)
-            return self._json(state)
-        if path == "/api/deferred":
-            try:
-                deferred = self.deferred_value()
-            except StaleDataError as error:
-                return self._json({"error": str(error)}, 409)
-            except (DataError, ValueError) as error:
-                return self._json({"error": str(error)}, 400)
-            return self._json(deferred)
+            answer = self._json_body(self.sent(state))
+            # What the answer holds turns on the reading, data and revision the tab
+            # names (`CACHE_CONTROL`).
+            answer.headers["Vary"] = (
+                "Leaf-Held-Basis, Leaf-Data-Version, Leaf-View-Revision"
+            )
+            return answer
         if path == "/api/view":
             try:
                 revision = self.requested_view_revision()
                 if revision is None:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
-                browser = self.page_browser_view(revision, sequence)
+                shown = self.query.get("shown", [None])[-1]
+                answer = self.page_comparison(
+                    revision,
+                    sequence,
+                    None if shown in (None, "") else _query_int(shown, "shown", 1),
+                )
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
-            return self._json({"browser": browser})
+            return self._json(answer)
         if path == "/api/inspect":
             from .page_inspection import inspect_artifact, inspection_views
 
@@ -1388,10 +1428,10 @@ class PageEndpoint:
 
     def _accept_event(self) -> Response:
         view_revision = self.requested_view_revision()
-        status, answer = accept_event(
-            self.page_dir, self.posted, lambda: self.page_state(view_revision)
-        )
-        return self._json(answer, status)
+        status, answer = accept_event(self.page_dir, self.posted)
+        state = self.page_state(view_revision)
+        envelope = scope_page_urls(answer, self.page_root)
+        return self._json_body(with_state(envelope, state, self.sent(state)), status)
 
     # Every POST a page answers, by path pattern. A route lists its gates in the
     # order they refuse; its body is already read when the first one runs. File
@@ -1447,8 +1487,6 @@ class SampleEndpoint(PageEndpoint):
         self.parent = parent
         self.sample = sample
         self.retained_samples = parent.retained_samples
-        # A child is stored on its parent's terms, which on leaf.page are the site's.
-        self.cache_control = parent.cache_control
         # The address inside the child, below the capability its parent matched.
         self.path = path
         self.asset_root = asset_root
@@ -1477,16 +1515,17 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases it once it presents. Whether the child lays out as a
-        # block or a window is its frame's to say (sample.js), which its bootstrap
-        # asks before it paints.
+        # the host releases it once it presents. The root carries it, since Leaf's
+        # chrome stands after the body. Whether the child lays out as a block or a
+        # window is its frame's to say (sample.js), which its bootstrap asks before it
+        # paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
+                "inert": "",
             },
-            body_attributes={"inert": ""},
         )
 
 

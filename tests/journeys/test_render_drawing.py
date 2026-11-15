@@ -82,7 +82,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stroke[-1][0] / target_box["width"] == pytest.approx(1.7, abs=0.02)
     assert stroke[-1][1] / target_box["height"] == pytest.approx(1.8, abs=0.02)
 
-    posted = f'.lf-drawing-posted[data-thread="{event["id"]}"]'
+    posted = f'.lf-drawing-posted[data-lf-thread="{event["id"]}"]'
     mark = page.locator(posted)
     expect(mark).to_have_count(1)
     drawn = mark_box(page, posted)
@@ -369,7 +369,7 @@ def test_strokes_join_one_drawing_until_it_is_sent_and_escape_leaves(browser, se
         [start[0] - origin["x"], start[1] - origin["y"]], abs=0.5
     )
     expect(
-        page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"] path')
+        page.locator(f'.lf-drawing-posted[data-lf-thread="{event["id"]}"] path')
     ).to_have_attribute("d", re.compile(r"^M[^M]*M[^M]*M[^M]*$"))
 
     # The sent draft holds no drawing any more, so the next stroke starts one.

@@ -41,7 +41,7 @@ export function surfaceGrip({ surface, bounds, dropped }) {
   let offset = { x: 0, y: 0 };
   const placed = () => {
     if (held) return;
-    if (surface.style.translate) surface.style.removeProperty("translate");
+    surface.style.removeProperty("translate");
     surface.removeAttribute("data-lf-carried");
     offset = { x: 0, y: 0 };
   };

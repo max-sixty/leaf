@@ -1,6 +1,6 @@
 # Reconstructs the recording handoff in Codex task 01a118c2: passing disclosure
 # and focus checks, plus a successful reader route, were accepted as navigation proof.
-# Final paired detection plans: manually reviewed candidate 4/4, HEAD 0/4
+# Final paired detection plans: manually reviewed head 4/4, base 0/4
 # (two trials per context). Automated judging overstated one baseline pass.
 # The intentional-disclosure guard passed 2/2 in both arms.
 # These short contexts measure planned proof, not live detection or a long replay.

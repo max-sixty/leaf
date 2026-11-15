@@ -1,5 +1,5 @@
 # Added for issue #1083: a reusable recording should remain native media instead of
-# being reconstructed as a live page module. Base/candidate scoring also guards
+# being reconstructed as a live page module. Base/head scoring also guards
 # the existing evidence route; it is not a measure of general authoring quality.
 description: authored-recording
 metadata:

@@ -27,7 +27,7 @@ import { nextRender } from "./rendering.js";
 
 /** @typedef {Partial<Record<"reflectFirstScopes" | "markHere" | "paintCurrentLocation" | "paintSelectedMarginEntries"
  * | "paintTouchControls" | "paintCloseRequests" | "paintStatusContext" | "syncLayout" | "pageShifted"
- * | "publishInputHint" | "paintGoToHints" | "paintTargetPickerHints" | "paintCommandHints" | "paintCoreControls"
+ * | "publishInputHint" | "restFab" | "paintGoToHints" | "paintTargetPickerHints" | "paintCommandHints" | "paintCoreControls"
  * | "paintVersionShortcuts" | "reflectKeys", () => unknown>>} Painters */
 /** @type {Painters | null} */
 let painters = null;
@@ -70,7 +70,9 @@ function requestFrame() {
     if (shiftPage) p.pageShifted?.();
     // Contextual entry hints read the destination after chrome layout. Lit fields
     // follow this reading; their committed controls invalidate the key projection.
+    // The resting box shows the comment key this hint has just read.
     p.publishInputHint?.();
+    p.restFab?.();
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does: one paint, because a chip repainted by its
     // own door alone went stale on the door it did not have, as when a poll that retires

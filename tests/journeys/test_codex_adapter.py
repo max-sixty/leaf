@@ -56,8 +56,8 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     codex_claimed_page, app_server, under_codex, codex_env, tmp_path, reclaimed
 ):
     """The App Server twin of the queue case,
-    `test_codex_restart_finishes_an_accepted_batch_without_queueing_again` in
-    `tests/model/test_codex_adapter.py`. The restarted adapter reads back the turn
+    `test_codex_restart_finishes_an_accepted_batch_without_queueing_again`. The
+    restarted adapter reads back the turn
     that took the delivery while the page's claim still names the task's
     previous generation, before the restart claims it again, or when the restart
     claims another page first. The batch's receipt and the turn's final answer both
@@ -196,14 +196,11 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
     )
 
 
-@pytest.mark.parametrize(
-    "delivery_fault",
-    [None, "retry"],
-    ids=["steady", "uncertain-queue-retry"],
-)
 def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
-    codex_claimed_page, under_codex, codex_env, tmp_path, delivery_fault, capsys
+    codex_claimed_page, under_codex, codex_env, tmp_path, capsys
 ):
+    """Its first queue call fails after Codex may have taken the message, so the
+    adapter offers the same delivery again before going on to the later ones."""
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_waiting(page)
@@ -211,11 +208,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
         "FAKE_CODEX_EXPECT_CWD": str(cleanup_model.state_home()),
+        "FAKE_CODEX_QUEUE_FAILURE_ONCE": str(tmp_path / "uncertain-queue-response"),
     }
-    if delivery_fault == "retry":
-        environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
-            tmp_path / "uncertain-queue-response"
-        )
     finished = tmp_path / "codex-start-finished"
     started = under_codex(
         shlex.join(claim_command(page, program)),
@@ -327,7 +321,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         calls = [json.loads(line) for line in log.read_text().splitlines()]
         assert calls[0] == ["queue", "--help"]
         queued = [call for call in calls if "--thread" in call]
-        assert len(queued) == (4 if delivery_fault == "retry" else 3)
+        assert len(queued) == 4
         prompts = [call[call.index("--message") + 1] for call in queued]
         assert len(set(prompts)) == 3
         unique_prompts = list(dict.fromkeys(prompts))
@@ -556,7 +550,7 @@ def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
     the fake external Codex endpoint records the delivery instead of opening a turn.
     """
     foreign = tmp_path / "installed"
-    for name in ("src", "browser", "packages", "dist", "skills"):
+    for name in ("src", "browser", "packages", "skills"):
         shutil.copytree(PLUGIN_ROOT / name, foreign / name)
     launcher = foreign / "bin/leaf"
     launcher.parent.mkdir()
@@ -879,77 +873,6 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     assert [pickup["events"] for pickup in pickups] == [["first"], ["second"]]
 
 
-def test_one_thread_delivery_starts_and_receipts_its_app_server_turn(
-    codex_claimed_page, monkeypatch
-):
-    page = codex_claimed_page
-    comment = append_carried_log_record(
-        page,
-        {"kind": "comment", "id": "user-message", "author": "user", "text": "hi"},
-    )
-    with service_model.PageTransaction(page) as transaction:
-        reading = session_model.PageTick(
-            page,
-            transaction.status,
-            [events_model.read_events(page)[-1]],
-            True,
-            "watching",
-            False,
-            None,
-            transaction,
-        )
-        assert codex_adapter_model.capture_batch("codex-thread", reading)
-
-    started = []
-    connection = _observer()
-
-    def start_delivery(payload):
-        started.append(payload)
-        assert connection._observe_lifecycle("app-server-turn")
-        fold = connection._fold("app-server-turn", payload["id"], follow=True)
-        assert fold is not None
-        return True
-
-    monkeypatch.setattr(connection, "start_delivery", start_delivery)
-    monkeypatch.setattr(
-        codex_adapter_model,
-        "queue_delivery",
-        lambda *_: pytest.fail("the addressed delivery used the Codex queue fallback"),
-    )
-
-    assert codex_adapter_model._offer_queued_delivery(
-        "codex",
-        "codex-thread",
-        connection,
-    )
-    [payload] = started
-    assert payload["batches"][0]["events"][0]["id"] == comment["id"]
-    assert "reply" not in payload
-
-    # The follower's first step, which the adapter runs on its own thread: the
-    # delivery is recorded against the turn that is now carrying it.
-
-    # Accepting the delivery is the page receipt as well, so the record is complete
-    # and archived by the time the turn is under way.
-    assert codex_records("codex-thread") == []
-    [history] = sorted(
-        (codex_state_model.delivery_dir("codex-thread") / "history").glob("*.json")
-    )
-    recorded = files_model.read_json(history)
-    assert (recorded["state"], recorded["turn"]) == ("opened", "app-server-turn")
-    assert recorded["pending"] == []
-
-    pickup = next(
-        event for event in events_model.read_events(page) if event["kind"] == "pickup"
-    )
-    assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
-        "opened",
-        "app-server-turn",
-        [comment["id"]],
-    )
-    assert codex_model.delivery_records("codex-thread") == []
-
-
 def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     codex_claimed_page,
     monkeypatch,
@@ -1134,8 +1057,28 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     [payload] = started
     assert [event["id"] for event in payload["batches"][0]["events"]] == ["first"]
     assert [thread["id"] for thread in payload["batches"][0]["threads"]] == ["first"]
+    assert "reply" not in payload
     # Frozen for App Server, the comment's reply is the turn's to write.
     assert payload["batches"][0]["events"][0]["answer"]["writer"] == "turn"
+
+    # Accepting the delivery is the page receipt as well, so the record is complete
+    # and archived by the time the turn is under way.
+    assert codex_records("codex-thread") == []
+    [history] = sorted(
+        (codex_state_model.delivery_dir("codex-thread") / "history").glob("*.json")
+    )
+    recorded = files_model.read_json(history)
+    assert (recorded["state"], recorded["turn"]) == ("opened", "app-server-turn")
+    assert recorded["pending"] == []
+    pickup = next(
+        event for event in events_model.read_events(page) if event["kind"] == "pickup"
+    )
+    assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+        "opened",
+        "app-server-turn",
+        ["first"],
+    )
+    assert codex_model.delivery_records("codex-thread") == []
 
     # Accepting the first delivery receipts it, so the second comment is collected
     # into a record of its own rather than joining the one already in a turn.
@@ -1600,55 +1543,6 @@ def test_a_codex_adapter_whose_start_was_never_committed_exits(
     assert adapter.wait(timeout=STATED_TIMEOUT) == 1
     assert not codex_adapter_model.adapter_is_live("codex-thread")
     cleanup_model.end_session("codex-thread")
-
-
-def test_codex_adapter_keeps_transferred_input_unreceived(
-    codex_claimed_page, spawn, codex_env, tmp_path
-):
-    page = codex_claimed_page
-    program, log = fake_codex_cli(tmp_path)
-    session_model.cmd_waiting(page)
-    queue_wait = tmp_path / "held-queue"
-    adapter = spawn_codex_adapter(
-        spawn,
-        program,
-        env=codex_env
-        | {
-            "CODEX_THREAD_ID": "codex-thread",
-            "FAKE_CODEX_LOG": str(log),
-            "FAKE_CODEX_QUEUE_WAIT": str(queue_wait),
-        },
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    wait_for(
-        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
-        bool,
-        failure="the Codex adapter never became live for the accepted receipt",
-    )
-
-    append_carried_log_record(
-        page, {"kind": "comment", "author": "user", "text": "hello adapter"}
-    )
-    started = queue_wait.with_name(f"{queue_wait.name}.started")
-    wait_for(
-        started.exists,
-        bool,
-        failure="the accepted receipt never entered the fake Codex queue",
-    )
-
-    successor = record_claim(page, id="successor", harness="codex", agent="Codex")
-    queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
-    assert adapter.wait(timeout=STATED_TIMEOUT) == 0
-
-    assert acknowledged_through(page) == 0
-    assert page_state(page)["pending"] == 1
-    assert service_model.page_claim(page) == successor
-    pickups = [
-        event for event in events_model.read_events(page) if event["kind"] == "pickup"
-    ]
-    assert pickups == []
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(

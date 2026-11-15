@@ -116,6 +116,8 @@ interface Window {
     setRest(value: string): void;
   };
   lfRootState: LeafRootState;
+  /** Whether a highlight style on the root reaches the elements below it (prepaint.js). */
+  lfHighlightsInherit: boolean;
 }
 
 interface HTMLElement {
@@ -150,6 +152,9 @@ interface Element {
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
   lfCopy?: () => string;
+  /** What pointing at this element adds, asked once as its preview shows on a route
+   * (`preview.js`): null adds nothing, false shows nothing here or around it. */
+  lfPreview?: import("../runtime/preview.js").Read;
 }
 
 interface HTMLScriptElement {
@@ -209,7 +214,10 @@ interface DocumentEventMap {
     travels: boolean;
   }>;
   /** The reading column's box, once the margin has laid out against it. */
-  "lf-margin-layout": CustomEvent<{ column: DOMRect; height: number }>;
+  "lf-margin-layout": CustomEvent<{
+    column: import("../runtime/content-layout.js").ProseBox;
+    height: number;
+  }>;
   /** The keyboard owner's call for the keys the bootstrap held while the page loaded;
    * the bootstrap answers in the detail, where it held any (`bootstrap.js`). */
   "lf-held-keys": CustomEvent<

@@ -73,15 +73,25 @@ import {
   userScrollport,
   stuckBox,
   drawsText,
+  inWindow,
+  scrollsBy,
 } from "./geometry.js";
-import { drawn, skipped, skipper } from "./shadow-tree.js";
+import { scrollAxes } from "./element-axes.js";
+import { LAYOUT } from "./widget-upgrade.js";
+import {
+  composedParentNode,
+  drawn,
+  isElement,
+  skipped,
+  skipper,
+} from "./shadow-tree.js";
 import {
   blockAt,
   closestAcross,
   HEADING,
   inChrome,
-  pageBlocks,
   pageDocument,
+  pageReadingVersion,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -125,6 +135,7 @@ import { shifted, union } from "./rect.js";
 import { pointerAt } from "./pointer.js";
 
 /** @typedef {import("./passages.js").Segment} Segment
+ * @typedef {import("./passages.js").BlockRun} BlockRun
  * @typedef {import("./reading-regions.js").ReadingRegion} ReadingRegion
  * @typedef {import("./rect.js").Box} Box
  * @typedef {import("./user-intent.js").UserIntent} UserIntent
@@ -185,21 +196,6 @@ const LANDMARK_CAP = 160;
 // The shortest run of words that names a reading place (`capturePlace`).
 const QUOTABLE = 24;
 
-// The page's own text blocks the user can see, in document order, with the rect of each
-// one's first line — one reading of what is in front of them, for the two questions that
-// ask it: which passage the user returns to (below), and where a walk over what is
-// on the user starts when they have pointed at nothing.
-// A block's landmark is the top of its first line (a range), not its border box; restore
-// measures the matched text the same way, so the line box's leading cancels out.
-// The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a
-// declared shadow root renders authored words at its host's place in reading order, and
-// those words are pointable and resolvable through the same reading, so version
-// continuity must be able to choose the same blocks as landmarks. Each is a block the
-// user may see, so a part of the reading that can't show any (`mayShow`) is not read for
-// them: a place costs the documents in view, not those in closed tabs or further down.
-/** @param {Element | null} [root] */
-export const textBlocks = (root = pageDocument()) =>
-  pageBlocks(mayShow).filter((block) => under(block, root));
 // Whether a part of the page's reading (passages.js, `pageRuns`) may show words in the
 // window: drawn (`drawn`), or with a drawn child, as an element whose display is
 // `contents` has no box and shows through its children; and with a box that reaches the
@@ -231,30 +227,354 @@ const textEnvelope = (block, segments, range) => {
   range.selectNodeContents(block);
   return range.getBoundingClientRect();
 };
-// Each block's drawn words, with the union of their boxes. Outside the reading band,
-// the native text envelope can rule a block out before individual tokens are measured.
-/** @param {Element[]} blocks @param {Pick<Box, "top" | "bottom"> | null} [within] @returns {Generator<[Element, DOMRect, DrawnRun[]]>} */
-function* renderedBlocks(blocks, within = null) {
+// Where each run's words stood the last time a reading of the screen laid the page out,
+// so a later reading measures only the runs that stood in its band rather than every
+// block of the page on each scroll, key and focus. An observer of every block would read
+// them all itself on each frame of a scroll: on 2026-11-14, 8,000 observed paragraphs
+// cost Chromium 4 ms of main thread a wheel step.
+//
+// The page is laid out in frames: boxes whose runs keep their places relative to the box
+// as anything scrolls, each laid out in its own coordinates (`originOf`). The box a
+// reading reads is one, and so is every box inside it that moves what it holds against
+// that box's scroll, or may hold it unlaid: one that scrolls, one sticky or fixed in the
+// window, and one whose contents the browser may skip (`content-visibility`), laid out
+// once it draws them. A run stands where its own box and its words reach (`envelope`). A
+// frame stands in the layout around it as one entry, which a reading descends into where
+// its band reaches it: at its own box, or for a sticky box at the block it moves within.
+// A box fixed in the window moves with no box around it, so it stands in the layout of
+// the box the reading reads, and every reading descends into it.
+//
+// A frame's layout stands while the page's words, the parts that may show, the window,
+// and the frame's size, scroll axes and skipping are as they were, until a widget says
+// its layout changed (widget-upgrade.js, `layoutChanged`), and while every entry a
+// reading finds in its band, and the first past it, stands where the layout has it: a
+// change in flow at or above the band's foot moves one of those. A box moved out of flow
+// with none of these, such as a transform a script writes on a paragraph, stays where the
+// layout has it until a change lays the page out again.
+/** @typedef {{run: BlockRun, order: number}} Member
+ * @typedef {{top: number, bottom: number, left: number, right: number}} Span
+ * @typedef {Span & ({member: Member} | {frame: Element, at: Element})} Entry
+ * @typedef {{key: string, laid: Entry[], reach: number[], held: Element[]}} Layout
+ * @typedef {{source: string, members: Member[], layout: Layout | null}} Frame */
+/** @type {WeakMap<Element, Frame>} */
+const frames = new WeakMap();
+let layouts = 0;
+document.addEventListener(LAYOUT, () => {
+  layouts += 1;
+});
+/** @type {WeakMap<object, number>} */
+const ids = new WeakMap();
+let lastId = 0;
+/** @param {object} thing */
+const idOf = (thing) => {
+  let id = ids.get(thing);
+  if (id === undefined) ids.set(thing, (id = ++lastId));
+  return id;
+};
+// How a box frames what it holds: `fixed` in the window, `sticky` in the box that scrolls
+// it, `flow` where it scrolls what it holds or may skip it; null where it frames nothing.
+/** @param {Element} element @returns {"fixed" | "sticky" | "flow" | null} */
+function framing(element) {
+  const style = getComputedStyle(element);
+  if (inWindow(element, style)) return "fixed";
+  if (style.position === "sticky") return "sticky";
+  return scrollsBy(style) || style.contentVisibility !== "visible" ? "flow" : null;
+}
+// Where a frame puts the origin of what it holds, in the window's coordinates: where its
+// box stands, less what it has scrolled, as far as one scrolled pixel moves its contents
+// in the window (`scrollAxes`).
+/** @param {Element} box @param {ReturnType<typeof scrollAxes>} axes @returns {{x: number, y: number}} */
+function originOf(box, axes) {
+  if (box === pageScroller) return { x: -scrollX, y: -scrollY };
+  const { left, top } = box.getBoundingClientRect();
+  return {
+    x: left - box.scrollLeft * axes.x.x - box.scrollTop * axes.y.x,
+    y: top - box.scrollLeft * axes.x.y - box.scrollTop * axes.y.y,
+  };
+}
+// The band a run's words may be drawn in: its block's own box, and the box a Range of
+// its words reads, or failing that each word's.
+/** @param {BlockRun} run @param {Range} range @returns {Span | null} */
+function envelope({ block, segments }, range) {
+  if (!block) return null;
+  const own = block.getBoundingClientRect();
+  const words = textEnvelope(block, segments, range) ?? wordsBox(segments, range);
+  /** @type {Box[]} */
+  const drawn = [];
+  for (const rect of [own, words])
+    if (rect && (rect.width || rect.height)) drawn.push(rect);
+  const reached = union(drawn);
+  return (
+    reached && {
+      top: reached.top,
+      bottom: reached.bottom,
+      left: reached.left,
+      right: reached.right,
+    }
+  );
+}
+/** @param {Segment[]} segments @param {Range} range */
+function wordsBox(segments, range) {
+  const rects = segments.flatMap(({ node, start, end }) => {
+    range.setStart(node, start);
+    range.setEnd(node, end);
+    return [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+  });
+  return union(rects);
+}
+// The page's runs the user may see, in reading order, with what names that reading of
+// the page: its words and the parts shown, read again only when either changes. A reading
+// place reads them to find which passage the user returns to and where a walk starts;
+// its landmark is the top of a block's first line (a range), not its border box, and a
+// restore measures the matched text the same way, so the line box's leading cancels out.
+// The blocks are the page reading's (passages.js, `pageRuns`) rather than a query of the
+// light DOM: a declared shadow root renders authored words at its host's place in reading
+// order, and those words are pointable and resolvable through the same reading, so
+// version continuity must be able to choose the same blocks as landmarks. A part of the
+// reading that can't show any (`mayShow`) is not read: a place costs the documents in
+// view, not those in closed tabs or further down.
+/** @type {{key: string, runs: BlockRun[]} | null} */
+let shown = null;
+function shownRuns() {
+  const parts = readingParts().filter(mayShow);
+  const key = [idOf(pageReadingVersion()), ...parts.map(idOf)].join(" ");
+  if (shown?.key !== key) {
+    const showing = new Set(parts);
+    shown = { key, runs: pageRuns((part) => showing.has(part)) };
+  }
+  return shown;
+}
+// The blocks of those runs, every element holding one (`holdsBlocks`), and every element
+// holding one or a part of the page's reading (`holding`), read once for each reading of
+// the page and parts shown, so a question about one node asks no list of the page.
+/** @type {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>} | null} */
+let shownBlocks = null;
+function blockIndex() {
+  const { runs, key } = shownRuns();
+  if (shownBlocks?.key === key) return shownBlocks;
+  /** @type {Set<Element>} */
+  const blocks = new Set();
+  /** @type {WeakSet<Element>} */
+  const holdsBlocks = new WeakSet();
+  /** @type {WeakSet<Element>} */
+  const holding = new WeakSet();
+  /** @param {Element} element @param {WeakSet<Element>[]} sets */
+  const hold = (element, ...sets) => {
+    for (
+      let at = /** @type {Node | null} */ (element);
+      at;
+      at = composedParentNode(at)
+    ) {
+      if (!isElement(at)) continue;
+      const held = at;
+      if (sets.every((set) => set.has(held))) return;
+      for (const set of sets) set.add(held);
+    }
+  };
+  for (const { block } of runs)
+    if (block && !blocks.has(block)) {
+      blocks.add(block);
+      hold(block, holdsBlocks, holding);
+    }
+  for (const part of readingParts()) hold(part, holding);
+  return (shownBlocks = { key, blocks, holdsBlocks, holding });
+}
+// The runs whose words stood in `band` where the page was last laid out for `box`, in
+// reading order, laying out again each frame that no longer stands. A box scrolling in
+// the page shows only what stands across its band; the page's reading takes in what
+// stands beside the window too, as `blocksOnScreen` asks only how far down it is.
+/** @param {Element} box @param {Pick<Box, "top" | "bottom"> & Partial<Pick<Box, "left" | "right">>} band @param {Range} range */
+function runsIn(box, band, range) {
+  const { key, runs } = shownRuns();
+  let frame = frames.get(box);
+  if (frame?.source !== key) {
+    /** @type {Member[]} */
+    const members = [];
+    runs.forEach((run, order) => {
+      if (run.block && under(run.block, box)) members.push({ run, order });
+    });
+    frames.set(box, (frame = { source: key, members, layout: null }));
+  }
+  /** @type {Member[]} */
+  const found = [];
+  const page = [key, layouts, innerWidth, innerHeight].join(" ");
+  const across = {
+    top: band.top,
+    bottom: band.bottom,
+    left: box === pageScroller ? -Infinity : (band.left ?? -Infinity),
+    right: box === pageScroller ? Infinity : (band.right ?? Infinity),
+  };
+  readFrame(box, frame, page, across, range, found);
+  return found.sort((a, b) => a.order - b.order).map(({ run }) => run);
+}
+/** @param {Element} box @param {Frame} frame @param {string} page @param {Span} band @param {Range} range @param {Member[]} found */
+function readFrame(box, frame, page, band, range, found) {
+  const axes = scrollAxes(box);
+  const first = frame.members[0]?.run.block;
+  const key = [
+    page,
+    box.clientWidth,
+    box.scrollWidth,
+    box.scrollHeight,
+    axes.x.x,
+    axes.x.y,
+    axes.y.x,
+    axes.y.y,
+    Boolean(first && skipped(first)),
+  ].join(" ");
+  for (let fresh = frame.layout?.key !== key; ; fresh = true) {
+    const origin = originOf(box, axes);
+    if (fresh || !frame.layout) frame.layout = layOut(box, frame, key, origin, range);
+    const { laid, reach, held } = frame.layout;
+    const top = band.top - origin.y;
+    const bottom = band.bottom - origin.y;
+    const left = band.left - origin.x;
+    const right = band.right - origin.x;
+    let low = 0;
+    let high = laid.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((reach[middle] ?? -Infinity) > top) high = middle;
+      else low = middle + 1;
+    }
+    /** @type {Entry[]} */
+    const inBand = [];
+    let at = low;
+    for (let one = laid[at]; one && one.top < bottom; one = laid[++at])
+      if (one.bottom > top && one.right > left && one.left < right) inBand.push(one);
+    const past = laid[at];
+    /** @param {Entry} one */
+    const stands = (one) => {
+      const now =
+        "frame" in one
+          ? one.at.getBoundingClientRect()
+          : one.member.run.block && !skipped(one.member.run.block)
+            ? envelope(one.member.run, range)
+            : null;
+      return (
+        now !== null &&
+        Math.abs(now.top - origin.y - one.top) <= 1 &&
+        Math.abs(now.bottom - origin.y - one.bottom) <= 1 &&
+        Math.abs(now.left - origin.x - one.left) <= 1 &&
+        Math.abs(now.right - origin.x - one.right) <= 1
+      );
+    };
+    if (!fresh && !(inBand.every(stands) && (!past || stands(past)))) continue;
+    for (const one of inBand) {
+      if ("member" in one) found.push(one.member);
+      else readInner(one.frame, page, band, range, found);
+    }
+    for (const inner of held) readInner(inner, page, band, range, found);
+    return;
+  }
+}
+// A frame inside the box a reading reads that scrolls what it holds shows only what
+// stands in its own box, so its band is cut to that box, which a glide of the box around
+// it carries with what it holds. The box a reading reads scrolls what it holds against its
+// own box, so its band is the reading's.
+/** @param {Element} box @param {string} page @param {Span} band @param {Range} range @param {Member[]} found */
+function readInner(box, page, band, range, found) {
+  const frame = frames.get(box);
+  if (!frame) return;
+  if (scrollsBy(getComputedStyle(box))) {
+    const { top, bottom, left, right } = box.getBoundingClientRect();
+    band = {
+      top: Math.max(band.top, top),
+      bottom: Math.min(band.bottom, bottom),
+      left: Math.max(band.left, left),
+      right: Math.min(band.right, right),
+    };
+    if (band.bottom <= band.top || band.right <= band.left) return;
+  }
+  readFrame(box, frame, page, band, range, found);
+}
+// Lays out the runs a frame holds, each run outside the frames inside it as an entry of
+// its own, and each such frame as one entry, or among those fixed in the window, with
+// the runs it holds left for it to lay out where a reading reaches it.
+/** @param {Element} box @param {Frame} frame @param {string} key @param {{x: number, y: number}} origin @param {Range} range @returns {Layout} */
+function layOut(box, frame, key, origin, range) {
+  /** @type {Map<Element, ReturnType<typeof framing>>} */
+  const kinds = new Map();
+  /** @type {Map<Node, Element | null>} */
+  const holders = new Map();
+  // The frame `node` stands in inside `box`: the outermost, or one fixed in the window,
+  // which no box around it moves; null where it stands in none.
+  /** @param {Node | null} node @returns {Element | null} */
+  const frameOf = (node) => {
+    if (!node || node === box || !isElement(node)) return null;
+    let holder = holders.get(node);
+    if (holder === undefined) {
+      const kind = framing(node);
+      kinds.set(node, kind);
+      holder =
+        kind === "fixed"
+          ? node
+          : (frameOf(renderedParent(node)) ?? (kind ? node : null));
+      holders.set(node, holder);
+    }
+    return holder;
+  };
+  /** @param {{top: number, bottom: number, left: number, right: number}} rect @returns {Span} */
+  const span = ({ top, bottom, left, right }) => ({
+    top: top - origin.y,
+    bottom: bottom - origin.y,
+    left: left - origin.x,
+    right: right - origin.x,
+  });
+  /** @type {Entry[]} */
+  const laid = [];
+  /** @type {Map<Element, Member[]>} */
+  const inner = new Map();
+  for (const member of frame.members) {
+    const { block } = member.run;
+    if (!block || inChrome(block)) continue;
+    const holder = frameOf(block);
+    if (holder) {
+      const members = inner.get(holder);
+      if (members) members.push(member);
+      else inner.set(holder, [member]);
+      continue;
+    }
+    if (skipped(block)) continue;
+    const at = envelope(member.run, range);
+    if (at) laid.push({ member, ...span(at) });
+  }
+  /** @type {Element[]} */
+  const held = [];
+  for (const [holder, members] of inner) {
+    frames.set(holder, { source: frame.source, members, layout: null });
+    const kind = kinds.get(holder);
+    if (kind === "fixed") {
+      held.push(holder);
+      continue;
+    }
+    // A sticky box moves only within the block that holds it.
+    const at = kind === "sticky" ? renderedParent(holder) : holder;
+    if (!isElement(at) || skipped(at)) continue;
+    const rect = at.getBoundingClientRect();
+    if (rect.bottom > rect.top) laid.push({ frame: holder, at, ...span(rect) });
+    else if (kind === "sticky") held.push(holder);
+  }
+  laid.sort((a, b) => a.top - b.top);
+  /** @type {number[]} */
+  const reach = [];
+  for (const { bottom } of laid)
+    reach.push(Math.max(reach.at(-1) ?? -Infinity, bottom));
+  return { key, laid, reach, held };
+}
+// Each block's drawn words, with the union of their boxes, of the blocks under `inside`
+// where one is given, from the runs `box` showed in `band` (`runsIn`).
+/** @param {Element} box @param {Element | null} inside @param {Pick<Box, "top" | "bottom"> & Partial<Pick<Box, "left" | "right">>} band @returns {Generator<[Element, DOMRect, DrawnRun[]]>} */
+function* renderedBlocks(box, inside, band) {
   // A datum can split its parent's words. Keep the parent's later continuation after
   // that datum, rather than collecting both sides under the parent's first occurrence.
-  const allowed = new Set(blocks);
   const drawn = new Map();
   const range = document.createRange();
-  for (const { block, segments } of pageRuns(mayShow)) {
-    if (!block || !allowed.has(block)) continue;
+  for (const blockRun of runsIn(box, band, range)) {
+    const { block, segments } = blockRun;
+    if (!block || (inside && !under(block, inside))) continue;
     // Skipped content stays unmeasured: asking for a box inside it lays it out.
     if (inChrome(block) || skipped(block)) continue;
-    if (within) {
-      const own = block.getBoundingClientRect();
-      if (own.height && (own.bottom <= within.top || own.top >= within.bottom)) {
-        const envelope = textEnvelope(block, segments, range);
-        if (
-          envelope &&
-          (envelope.bottom <= within.top || envelope.top >= within.bottom)
-        )
-          continue;
-      }
-    }
     /** @type {DOMRect[]} */
     const boxes = [];
     /** @type {DrawnRun[]} */
@@ -300,13 +620,13 @@ function* renderedBlocks(blocks, within = null) {
 // The page block a node stands in, among those the user may see.
 /** @param {Node} node */
 function passageBlock(node) {
-  const blocks = pageBlocks(mayShow);
+  const { blocks } = blockIndex();
   for (
     let at = node instanceof Element ? node : node.parentElement;
     at;
     at = upFrom(at)
   )
-    if (blocks.includes(at)) return at;
+    if (blocks.has(at)) return at;
   return null;
 }
 
@@ -322,15 +642,16 @@ function readingBounds(region) {
     : shown;
 }
 
-// With `band`, only blocks whose own box reaches that band are measured. With `ahead`,
+// With `inside`, only the blocks under it are read. With `band`, only blocks whose words
+// reach that band are measured. With `ahead`,
 // they are read where the glides under way leave them (scroll-containers.js,
 // `heldTravel`, `seenGlided`), since a key pressed while one runs acts as though it had
 // landed (user-place.js, `focusPlace`). A region a glide around it carries is read
 // where its bounds stand now.
-/** @param {ReadingRegion | null} [region] @param {Element[]} [blocks] @param {Pick<Box, "top" | "bottom"> | null} [band] @param {boolean} [ahead] @returns {Generator<[Element, DOMRect, Segment[][]]>} */
+/** @param {ReadingRegion | null} [region] @param {Element | null} [inside] @param {Pick<Box, "top" | "bottom"> | null} [band] @param {boolean} [ahead] @returns {Generator<[Element, DOMRect, Segment[][]]>} */
 export function* blocksOnScreen(
   region = null,
-  blocks = textBlocks(),
+  inside = null,
   band = null,
   ahead = false,
 ) {
@@ -340,7 +661,8 @@ export function* blocksOnScreen(
     ? heldTravel(region ? effectiveScroller(region) : pageScroller)
     : null;
   const near = travel ? shifted(bounds, -travel.x, -travel.y) : bounds;
-  for (const [block, rect, runs] of renderedBlocks(blocks, band ?? near)) {
+  const box = region ? effectiveScroller(region) : pageScroller;
+  for (const [block, rect, runs] of renderedBlocks(box, inside, band ?? near)) {
     if (region ? !under(block, region.body) : effectiveScroller(block) !== pageScroller)
       continue;
     const clips = new Map();
@@ -373,7 +695,7 @@ export function readingBlock(region = null, within = region?.body) {
   let first = null;
   /** @type {Element | null} */
   let unstuck = null;
-  for (const [block, rect] of blocksOnScreen(region, textBlocks(within), null, true)) {
+  for (const [block, rect] of blocksOnScreen(region, within ?? null, null, true)) {
     first ??= block;
     if (stuckBox(block, region?.body ?? null)) continue;
     if (column === null || spans(block, rect, column)) return block;
@@ -429,7 +751,7 @@ export function sectionsInView() {
     if (section) sections.add(section);
   };
   for (const region of [null, ...unconcealedReadingRegions()]) {
-    for (const [block] of blocksOnScreen(region, textBlocks(region?.body))) add(block);
+    for (const [block] of blocksOnScreen(region)) add(block);
     const bounds = readingBounds(region);
     const body = region?.body ?? pageDocument();
     if (!bounds || !body) continue;
@@ -450,15 +772,12 @@ export function sectionsInView() {
 /** @param {Element | null} [from] */
 export function landingPlace(from = null) {
   if (from && from !== document.body && !inChrome(from)) {
-    const blocks = textBlocks(from);
-    const own = blocks.length
-      ? blocks
-      : [blockAt(from)].filter((block) => block !== null);
+    const own = blockIndex().holdsBlocks.has(from) ? from : blockAt(from);
     const region = readingRegionFor(from) ?? null;
-    const shown = blocksOnScreen(region, own, null, true).next().value?.[0];
+    const shown = own && blocksOnScreen(region, own, null, true).next().value?.[0];
     if (shown) return shown;
     // A widget holding no text block, such as an ask's options, is its own landing.
-    if (!own.length && seenAhead(from)) return from;
+    if (!own && seenAhead(from)) return from;
   }
   return pageReading({ bodies: true });
 }
@@ -581,12 +900,10 @@ function scrollsAlone(node, box) {
 // block, so a chart is its host rather than a mark it drew, and a picture whose caption
 // is a block of its own is the picture. A part of the page's reading holds words wherever
 // it stands, shown or not, so a box holding one holds text.
-/** @param {Element} body @param {Element} box @param {number} x @param {number} edge @param {Element[]} blocks */
-function drawnAt(body, box, x, edge, blocks) {
-  const parts = readingParts();
-  const holdsText = (/** @type {Element} */ element) =>
-    blocks.some((block) => under(block, element)) ||
-    parts.some((part) => under(part, element));
+/** @param {Element} body @param {Element} box @param {number} x @param {number} edge */
+function drawnAt(body, box, x, edge) {
+  const { holding } = blockIndex();
+  const holdsText = (/** @type {Element} */ element) => holding.has(element);
   for (const hit of document.elementsFromPoint(x, edge + 1)) {
     if (inChrome(hit) || inUi(hit)) continue;
     if (hit === body || !under(hit, body) || effectiveScroller(hit) !== box)
@@ -612,8 +929,8 @@ function drawnAt(body, box, x, edge, blocks) {
   }
   return null;
 }
-/** @param {ReadingRegion | null} [region] @param {Element[]} [blocks] @returns {ReadingPlace | null} */
-export function capturePlace(region = null, blocks = textBlocks()) {
+/** @param {ReadingRegion | null} [region] @returns {ReadingPlace | null} */
+export function capturePlace(region = null) {
   const box = region ? effectiveScroller(region) : pageScroller;
   // Places are measured from the top of the box's landing band, below whatever covers
   // its top edge (the window's head room), so a region handed from the page to its own body
@@ -692,7 +1009,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   let sectioned = null;
   /** @type {ReturnType<typeof lineOf>} */
   let line = null;
-  for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
+  for (const [block, rect, runs] of blocksOnScreen(region)) {
     if (stuckBox(block, box) || scrollsAlone(block, box)) continue;
     const section = closestAcross(block, ADDRESSABLE);
     sectioned ??= section && { block, rect, section };
@@ -701,7 +1018,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   }
   if (line && column !== null && !spans(line.block, line.rect, column)) {
     const row = { top: boxTop, bottom: line.bottom };
-    for (const [block, rect, runs] of blocksOnScreen(region, blocks, row)) {
+    for (const [block, rect, runs] of blocksOnScreen(region, null, row)) {
       if (
         block === line.block ||
         stuckBox(block, box) ||
@@ -760,7 +1077,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
       column !== null && column >= left && column <= right
         ? column
         : (left + right) / 2;
-    const drawn = drawnAt(body, box, x, boxTop, blocks);
+    const drawn = drawnAt(body, box, x, boxTop);
     if (drawn) {
       named = drawn.box;
       view[DRAWN_PLACE] = { node: new WeakRef(drawn.box), through: drawn.through };

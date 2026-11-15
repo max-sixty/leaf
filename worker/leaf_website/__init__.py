@@ -1660,9 +1660,10 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
-    restore(site_root)
+    if restore(site_root):
+        os.environ["LEAF_PAGE_COMMIT"] = PUBLISHER
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])

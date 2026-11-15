@@ -176,7 +176,7 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap, admits) {
 function spreadHints(seats, hints, { barriers }) {
   const band =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"),
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-focus-ring-w"),
     ) || 0;
   const faces = hints.map((hint) => {
     const { chip, box: start } = seats.measure(hint.seat, hint.at);
@@ -286,7 +286,7 @@ export function seatHints(
 ) {
   const gap = 2;
   const targets = faces.map(({ target }) => target);
-  // The browsed hint wears the layer's band (--focus-shadow, styles/tokens.css), which a face's
+  // The browsed hint wears the layer's band (--lf-focus-shadow, styles/tokens.css), which a face's
   // own rectangle does not report. Any chip can become the browsed one as the user
   // types, so the pass seats every face as though it were, keeping the one layout. A
   // window edge takes the whole band, because a band drawn past it is clipped away. A

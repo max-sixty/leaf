@@ -36,8 +36,8 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   running or stuck.
 
 A pickup, start or reply in the turn of a fork that took a thread's work, and a
-command that fork ran, name the fork, so a message's story shows which agent of the
-session had it.
+command that fork ran, name the fork by its agent id, so a message's story shows
+which agent of the session had it.
 
 `--message ID` keeps one message's story: from its admission to its answer, or ten
 minutes on where it has none, its thread's events and everything the sessions did
@@ -129,10 +129,14 @@ def page_entries(
         row["line"] for row in rows if row["type"] == "fork_outcome" and "line" in row
     }
     forks = [row for row in rows if row["type"] == "fork_outcome"]
-    # Each turn Leaf opened for a fork that took a thread's work, and each agent id
-    # its harness gave one, by the fork's name (`leaf.forks.started`).
-    agents = {row["turn"]: row["agent"] for row in forks if "turn" in row}
-    agent_ids = {row["agentId"]: row["agent"] for row in forks if "agentId" in row}
+    # The agent id that runs each turn Leaf opened for a fork that took a thread's
+    # work: a spawned fork's from its start (`leaf.forks.started`), a resumed one's
+    # from the take that resumed it.
+    agents = {
+        row["turn"]: row["agent"] if row.get("step") == "start" else row["resume"]
+        for row in forks
+        if row.get("step") == "start" or "resume" in row
+    }
     sessions: set[str] = set()
     out = []
     for row in rows:
@@ -201,11 +205,7 @@ def page_entries(
                     row["started"],
                     "leaf",
                     f"leaf {row['command']} ({row['durationMs']:.0f} ms)"
-                    + (
-                        f" by {agent_ids.get(row['agent'], row['agent'])}"
-                        if "agent" in row
-                        else ""
-                    )
+                    + (f" by agent {row['agent']}" if "agent" in row else "")
                     + (
                         f" refused: {clip(row['refused'], 80)}"
                         if "refused" in row
@@ -219,7 +219,7 @@ def page_entries(
                 entry(
                     at,
                     "leaf",
-                    f"denied {agent_ids.get(row['agent'], row['agent'])}'s "
+                    f"denied agent {row['agent']}'s "
                     f"`{clip(row['command'], 50)}`: {clip(row['reason'], 70)}",
                     session=row["session"],
                 )
@@ -347,12 +347,12 @@ def event_entry(
 
 
 def in_turn(turn: str | None, agents: dict[str, str]) -> str:
-    """Which turn a pickup, start or reply names: a fork's, by the fork's name, or
-    the session's main thread's."""
+    """Which turn a pickup, start or reply names: a fork's, by the fork's agent id,
+    or the session's main thread's."""
     if not turn:
         return ""
     if turn in agents:
-        return f" in {agents[turn]}'s turn {turn[:8]}"
+        return f" in agent {agents[turn]}'s turn {turn[:8]}"
     return f" in turn {turn[:8]}"
 
 
@@ -429,12 +429,12 @@ def fork_entries(row: dict) -> list[dict]:
     step = row.get("step")
     if step == "end":
         took = f" after {elapsed / 1000:.1f} s" if elapsed is not None else ""
+        who = f"agent {row['agent']}" if row.get("agent") else "a working fork"
         return [
             entry(
                 at,
                 "fork",
-                f"{row.get('agent') or 'working fork'}'s turn ended{took}: "
-                f"{row['outcome']}"
+                f"{who}'s turn ended{took}: {row['outcome']}"
                 + (f" ({row['why']})" if row.get("why") else "")
                 + (f", opening {', '.join(row['todos'])}" if row.get("todos") else ""),
                 thread=thread,
@@ -445,8 +445,7 @@ def fork_entries(row: dict) -> list[dict]:
             entry(
                 at,
                 "fork",
-                f"{row['agent']} runs turn {row['turn'][:8]} as agent "
-                f"{row['agentId']}"
+                f"agent {row['agent']} runs turn {row['turn'][:8]}"
                 + ("" if row["outcome"] == "start" else " (closed)"),
                 thread=thread,
             )
@@ -462,9 +461,7 @@ def fork_entries(row: dict) -> list[dict]:
     )
     work = f", work {row['work']}" if "work" in row else ""
     took = f" in {elapsed / 1000:.1f} s" if elapsed is not None else ""
-    agent = f" to {row['agent']}" if row.get("agent") else ""
-    if "resume" in row:
-        agent += f", resuming agent {row['resume']}"
+    agent = f", resuming agent {row['resume']}" if "resume" in row else ""
     if "turn" in row:
         agent += f" in turn {row['turn'][:8]}"
     out.append(

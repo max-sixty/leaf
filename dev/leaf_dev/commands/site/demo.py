@@ -150,7 +150,7 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <html lang="en">
 <head>
 <title>Migration plan</title>
-<style>#demo-metrics dl {{ margin: 0; padding: var(--sp-3); border: 1px solid var(--rule); }} #demo-metrics dt {{ color: var(--muted); font: 500 var(--t-6)/1.3 var(--sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--t-2)/1.3 var(--sans); }} #demo-metrics dd small {{ font-size: var(--t-6); }}</style>
+<style>#demo-metrics dl {{ margin: 0; padding: var(--lf-sp-3); border: 1px solid var(--lf-rule); }} #demo-metrics dt {{ color: var(--lf-muted); font: 500 var(--lf-t-6)/1.3 var(--lf-sans); }} #demo-metrics dd {{ margin: 0; font: 600 var(--lf-t-2)/1.3 var(--lf-sans); }} #demo-metrics dd small {{ font-size: var(--lf-t-6); }}</style>
 </head>
 <body>
 <main class="layout-column">

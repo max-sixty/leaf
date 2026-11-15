@@ -114,7 +114,7 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
                   preferred: parseFloat(getComputedStyle(card)
-                    .getPropertyValue('--thread-card'))};
+                    .getPropertyValue('--lf-thread-card'))};
         }"""
     )
     past = (
@@ -552,7 +552,7 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
         # while it stands where it did.
         measure = page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--thread-card'))"
+            ".getPropertyValue('--lf-thread-card'))"
         )
         before = {**before, "width": measure * 0.25}
     assert after == pytest.approx(before, abs=0.5), (before, after)

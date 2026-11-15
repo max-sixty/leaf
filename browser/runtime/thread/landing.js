@@ -132,8 +132,11 @@ pageScope("text entry", {
 // would carry it, by the room the thread's focus ring asks at its foot or by bringing
 // back a head they scrolled above the window. A box the send gave up, as a seat's does
 // to the thread it starts, leaves nothing there to carry.
+// A send whose box goes, a first message's or a rewrite's, lands here too: it ends text
+// entry while keeping the user in the conversation, on its thread's focus stop; leaving
+// the card belongs to navigation, not Send.
 /** @param {Element} thread */
-function returnToThread(thread) {
+export function returnToThread(thread) {
   focusThread(thread, "return");
   if (!fitsWhole(thread) && seenRect(thread, new Map())) return;
   const box = threadReplyInput(thread);
@@ -168,48 +171,29 @@ function messageCopy(thread) {
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
 /** @param {ThreadLanding} destination */
-function prepareLanding({ held = null, box, route = null }) {
+export function landIn({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= closestAcross(box, SAYS_IN);
   if (route && held && !held.hasAttribute("tabindex")) {
     threadReturns.set(box, route);
     whenLeft(box, () => threadReturns.delete(box));
   }
-  return { held, box };
+  // Entering a reply is a focus move, not a navigation step to its thread or passage.
+  // Reveal only the writing area: a nearest landing leaves a box already shown where
+  // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
+  // margin card included.
+  bringBackSurfaceOf(box);
+  focusDestination(box, "move");
+  beginReplyAt(box);
+  scrollIntoView(box, { block: "nearest", behavior: "instant" });
+  return true;
 }
 
-export function createThreadLanding() {
-  /** @param {ThreadLanding} destination */
-  const landIn = (destination) => {
-    const prepared = prepareLanding(destination);
-    if (!prepared) return false;
-    const { box } = prepared;
-    // Entering a reply is a focus move, not a navigation step to its thread or passage.
-    // Reveal only the writing area: a nearest landing leaves a box already shown where
-    // the reader put it (landing-scroll.js, `alreadyShown`), the transcript inside a
-    // margin card included.
-    bringBackSurfaceOf(box);
-    focusDestination(box, "move");
-    beginReplyAt(box);
-    scrollIntoView(box, { block: "nearest", behavior: "instant" });
-    return true;
-  };
-  /** @param {Element} box @param {ReturnRoute | null} route */
-  const landInThread = (box, route = null) => landIn({ box, route });
-  // A send whose box goes, a first message's or a rewrite's, ends text entry while
-  // keeping the user in the conversation, on its thread's focus stop; leaving the card
-  // belongs to navigation, not Send.
-  const landSent = returnToThread;
-  return { landIn, landInThread, landSent };
-}
+/** @param {Element} box @param {ReturnRoute | null} route */
+export const landInThread = (box, route = null) => landIn({ box, route });
 
-/** Declare a thread's own keys against the landing the page is using, and the reading
- * of the thread the user is at (destination.js, `threadHere`).
- *
- * Separate from constructing that landing, because they are separate acts: a second
- * landing owner — one a test builds to hold a reveal open — is another way of landing,
- * not another set of keys, and declaring from the constructor would let it quietly take
- * the page's.
+/** Declare a thread's own keys, given the reading of the thread the user is at
+ * (destination.js, `threadHere`).
  *
  * The keys are live wherever the user is at a thread: in it, on the card, the message a
  * click on its words focuses, the quote, a link in a reply; and on the element whose
@@ -222,9 +206,8 @@ export function createThreadLanding() {
  * else on the thread's latest, the keyboard's route to what Copy gives a pointer; with
  * words selected it keeps the browser's copy. Absent a thread, the reference describes
  * the open state users first meet. */
-/** @param {ReturnType<typeof createThreadLanding>["landIn"]} landIn
- * @param {() => Element | null} threadHere */
-export function declareThreadKeys(landIn, threadHere) {
+/** @param {() => Element | null} threadHere */
+export function declareThreadKeys(threadHere) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,

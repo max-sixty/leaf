@@ -13,9 +13,11 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
+    active_summaries,
     build_threads,
     note_settlements,
     spoken_turns,
+    summary_range,
     taken_back,
     undo_error,
     unshown,
@@ -694,6 +696,15 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start >= end:
         return Finding("summary-order", values=named)
+    # The summaries in force once this one stands: those it overlaps it replaces whole.
+    candidate = {**event, "seq": events[-1]["seq"] + 1}
+    after = active_summaries([*events, candidate], {thread["id"]: thread})
+    asked = (event["from"], event["through"])
+    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
+        return Finding(
+            "summary-gap",
+            values={**named, "take_from": taken[0], "take_through": taken[1]},
+        )
     return None
 
 
@@ -903,7 +914,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
-        before = AdmissionReadings(view, events, active_registry)
+        # An event made against the newest revision was admitted in the active
+        # vocabulary, so `readings` already reads the log before it in that one.
+        before = (
+            readings
+            if active_registry is registry
+            else AdmissionReadings(view, events, active_registry)
+        )
         after = AdmissionReadings(view, [*events, candidate], active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}

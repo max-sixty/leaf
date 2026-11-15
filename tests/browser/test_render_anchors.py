@@ -1320,10 +1320,10 @@ def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     )
     page = open_page(browser, url)
     mark = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-mark-size'))"
     )
     floor = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     for index, block in enumerate(("#compact", "#tall")):
         page.locator(block).hover()
@@ -1690,8 +1690,8 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         # The string token crosses the mark's end, so both pieces keep its colour.
         assert marked.evaluate("""code => {
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
-            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
+          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--lf-syn-string)')
+            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--lf-syn-string)');
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
@@ -1758,15 +1758,15 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
-    assert ["var(--syn-keyword)", "def", "normal"] in colors["widget"]
-    assert ["var(--syn-name)", "bucket_key", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-keyword)", "def", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-name)", "bucket_key", "normal"] in colors["widget"]
     assert {color for color, _, _ in colors["widget"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }, colors["widget"]
     assert [
-        "var(--syn-comment)",
+        "var(--lf-syn-comment)",
         "# apply the migration, then run the marked suite",
         "italic",
     ] in colors["plain"]
@@ -1824,7 +1824,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
+          .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -1938,18 +1938,18 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             ("type", "$OUTPUT"),
         ):
             assert any(
-                token["style"] == f"var(--syn-{color})" and text in token["text"]
+                token["style"] == f"var(--lf-syn-{color})" and text in token["text"]
                 for token in tokens
             ), (surface, color, text, tokens)
         assert any(
-            token["style"] == "var(--syn-string)" and "page" in token["text"]
+            token["style"] == "var(--lf-syn-string)" and "page" in token["text"]
             for token in tokens
         )
         assert (
             "".join(
                 token["text"]
                 for token in tokens
-                if token["style"] == "var(--syn-comment)"
+                if token["style"] == "var(--lf-syn-comment)"
                 and token["fontStyle"] == "italic"
             ).strip()
             == "# inspect"
@@ -1967,7 +1967,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       const tokens = roots.map(root => [...root.querySelectorAll('[data-lf-syn]')]
         .find(token => token.textContent === 'leaf'));
       const before = tokens.map(token => getComputedStyle(token).color);
-      document.documentElement.style.setProperty('--syn-name', '#a12345');
+      document.documentElement.style.setProperty('--lf-syn-name', '#a12345');
       return {before, after: tokens.map(token => getComputedStyle(token).color),
         connected: tokens.every(token => token.isConnected)};
     })""")
@@ -2048,12 +2048,12 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
-        token["style"].get("color") == "var(--syn-string)"
+        token["style"].get("color") == "var(--lf-syn-string)"
         and "leaf is literal text" in token["text"]
         for token in heredoc
     )
     assert not any(
-        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        token["style"].get("color") == "var(--lf-syn-name)" and "leaf" in token["text"]
         for token in heredoc
     )
 
@@ -2212,19 +2212,21 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     py = by_path["gateway/limits.py"]
     assert any(
-        ["var(--syn-keyword)", "if", "normal"] in line["colors"] for line in py
+        ["var(--lf-syn-keyword)", "if", "normal"] in line["colors"] for line in py
     ), py
     assert {color for line in py for color, _, _ in line["colors"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }
 
     # Docstrings keep the theme's comment color and italic style on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        assert {color for color, _, _ in line["colors"]} == {"var(--syn-comment)"}, line
+        assert {color for color, _, _ in line["colors"]} == {"var(--lf-syn-comment)"}, (
+            line
+        )
         assert {style for _, _, style in line["colors"]} == {"italic"}, line
         assert "".join(text for _, text, _ in line["colors"]) == line["text"], line
 
@@ -2238,7 +2240,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert len(yml) == 2
     for line in yml:
         assert any(
-            color == "var(--syn-type)" and "burst" in text
+            color == "var(--lf-syn-type)" and "burst" in text
             for color, text, _ in line["colors"]
         ), line
     assert {
@@ -2338,8 +2340,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     after = changed("gateway/config.yaml", "change-addition", "burst: 40")
     assert before["marks"] and any("20" in mark for mark in before["marks"])
     assert after["marks"] and any("40" in mark for mark in after["marks"])
-    assert ["var(--syn-number)", "20"] in before["inked"]
-    assert ["var(--syn-number)", "40"] in after["inked"]
+    assert ["var(--lf-syn-number)", "20"] in before["inked"]
+    assert ["var(--lf-syn-number)", "40"] in after["inked"]
 
     changed_lines = [
         line
@@ -2814,7 +2816,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     look = figure.evaluate(MARK)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
     assert look and look["style"] == "solid" and look["width"] > 0, look
     assert look["offset"] == region, (look, region)
@@ -5087,7 +5089,9 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    page.wait_for_timeout(300)
+    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # the hand where it found a mark.
+    rendered(page)
     expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
     now = page.evaluate(words, stands)
     page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
@@ -5153,13 +5157,16 @@ def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    page.wait_for_timeout(300)
-    # Read once: a later presentation would find the marks again and hide the fault.
+    # Read once, after the hover frame the move queued (`refreshHover`) has run: a
+    # later presentation would find the marks again and hide the fault.
+    rendered(page)
     assert not page.evaluate(
         "() => document.querySelector('[data-lf-over-mark]') !== null"
     )
+    # A press on a mark opens its card in the press's own task, and the card draws
+    # in the passes that task queued.
     page.mouse.click(old["left"] + 4, old["top"] + old["height"] / 2)
-    page.wait_for_timeout(300)
+    rendered(page)
     expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
     now = page.evaluate(words, stands)
     page.mouse.move(now["left"] + 4, now["top"] + now["height"] / 2, steps=2)
@@ -5170,8 +5177,15 @@ def test_words_a_script_writes_ahead_of_a_mark_move_where_it_is_found(
     page.mouse.click(now["left"] + 4, now["top"] + now["height"] / 2)
     card = page.locator(".lf-margin-preview:not([hidden])")
     expect(card).to_be_visible()
-    page.wait_for_timeout(500)
-    expect(card).to_be_visible()
+    # Read once, after every pass the opening queued has read the passage, so a reader
+    # of where it stood would have closed the card; a closed card can open again later.
+    # It fades out still visible, but gives up its placement at once (thread-preview.js,
+    # `close`).
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview')"
+        "?.hasAttribute('data-lf-thread-placement')"
+    )
     expect(card.locator(".lf-page-thread")).to_contain_text("About the phrase?")
 
 
@@ -5220,13 +5234,14 @@ def test_words_a_split_carries_into_a_new_text_node_keep_their_mark(
             word,
         )
         page.mouse.move(2, 2)
-        page.wait_for_timeout(300)
+        rendered(page)
         assert not page.evaluate(
             "() => document.querySelector('[data-lf-over-mark]') !== null"
         )
         page.mouse.move(box["left"] + 2, box["top"] + box["height"] / 2, steps=2)
-        page.wait_for_timeout(300)
-        # Read once: a later presentation would find the marks again and hide the fault.
+        # Read once, after the hover frame the move queued (`refreshHover`) has run: a
+        # later presentation would find the marks again and hide the fault.
+        rendered(page)
         assert page.evaluate(
             "() => document.querySelector('[data-lf-over-mark]') !== null"
         ), word
@@ -5265,7 +5280,8 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
         "match starts here and ends inside"
     )
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-    page.wait_for_timeout(300)
+    # The landing the match set off, and every pass it queued, has drawn.
+    rendered(page)
     start = page.evaluate(
         """() => {
           const text = document.getElementById('first').firstChild;
@@ -5324,7 +5340,8 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
           api.bringBackSurfaceOf(document.querySelector('.lf-fab-bar'), 'instant');
         }"""
     )
-    page.wait_for_timeout(300)
+    # The landing, and every pass it queued, has drawn.
+    rendered(page)
     start = page.evaluate(
         """() => {
           const text = document.getElementById('first').firstChild;
@@ -5378,13 +5395,14 @@ def _changed_page(request, engine, serve):
 
 
 def _rest_on(page, box):
-    """Rest the pointer on a box, from away, and read the hand once: a later
+    """Rest the pointer on a box, from away, and read the hand once the hover frame
+    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
     presentation would find the marks again and hide a fault."""
     page.mouse.move(2, 2)
-    page.wait_for_timeout(200)
+    rendered(page)
     page.mouse.move(box["left"] - 20, box["top"] - 20)
     page.mouse.move(box["left"] + 4, box["top"] + box["height"] / 2, steps=2)
-    page.wait_for_timeout(300)
+    rendered(page)
     return page.evaluate("() => document.querySelector('[data-lf-over-mark]') !== null")
 
 
@@ -5457,8 +5475,10 @@ def test_a_mark_whose_words_a_script_broke_up_is_marked_no_more(engine, request,
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 0")
     box = page.evaluate(PHRASE_AT, "marked")
     assert not _rest_on(page, box)
+    # A press on a mark opens its card in the press's own task, and the card draws in
+    # the passes that task queued.
     page.mouse.click(box["left"] + 4, box["top"] + box["height"] / 2)
-    page.wait_for_timeout(300)
+    rendered(page)
     expect(page.locator(".lf-margin-preview:not([hidden])")).to_have_count(0)
 
 
@@ -5636,11 +5656,13 @@ def test_the_thread_walk_reads_threads_where_a_script_left_them(engine, request,
     page.wait_for_function(f"() => ({MARKED})().split('|').length === 2")
     page.mouse.move(1, 1)
     alpha = "() => document.querySelector('#alpha').firstChild"
+    # Placement takes in a change to the words a placed passage stands in after its
+    # script, and the marks repaint in the passes that queues.
     page.evaluate(f"() => {{ ({alpha})().data = 'Other words.'; }}")
-    page.wait_for_timeout(150)
+    rendered(page)
     assert page.evaluate(MARKED) == "Beta marked words"
     page.evaluate(f"() => {{ ({alpha})().data = 'Alpha marked words.'; }}")
-    page.wait_for_timeout(150)
+    rendered(page)
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview:not([hidden])")).to_contain_text(
         "Beta discussion"
@@ -5675,8 +5697,9 @@ def test_a_press_in_the_task_a_script_repeats_a_marked_phrase_opens_nothing(
     box = page.evaluate(PHRASE_AT, "marked")
     assert _rest_on(page, box)
     page.evaluate(press, True)
-    page.wait_for_timeout(400)
-    # Read once: a later presentation reads the page again and would hide the fault.
+    # Read once, after the passes the press queued have drawn whatever it opened: a
+    # later presentation reads the page again and would hide the fault.
+    rendered(page)
     assert card.count() == 0
     page.evaluate("() => document.querySelector('#changed em:last-child').remove()")
     _rest_on(page, box)
@@ -5760,8 +5783,9 @@ def test_a_draft_s_passage_keeps_its_mark_when_a_script_rewrites_around_it(
             'Prefix A marked phrase belongs here.';
         }"""
     )
-    page.wait_for_timeout(300)
-    # Read once: a later presentation reads the draft again and would hide the fault.
+    # Read once, after the passes the script's change queued have painted: a later
+    # presentation reads the draft again and would hide the fault.
+    rendered(page)
     assert page.evaluate(PENDING) == before
 
 
@@ -6089,8 +6113,9 @@ def test_a_mark_in_a_widget_staged_again_moves_to_the_new_stage(engine, request,
     page.evaluate("() => document.getElementById('late').stage()")
     page.wait_for_function(f"() => ({MARKED})() === 'inside the stage hold'")
     page.evaluate(STAGE_AGAIN)
-    page.wait_for_timeout(300)
-    # Read once: a reader asking would settle placement and hide the fault.
+    # Read once, after the passes the swap queued have painted: a reader asking would
+    # settle placement and hide the fault.
+    rendered(page)
     assert page.evaluate(PAINTED, "lf-mark") == [["inside the stage hold", True]]
 
 
@@ -6121,7 +6146,7 @@ def test_a_draft_in_a_widget_staged_again_moves_to_the_new_stage(
     page.mouse.move(1, 1)
     words = page.evaluate(PAINTED, "lf-pending")
     page.evaluate(STAGE_AGAIN)
-    page.wait_for_timeout(300)
+    rendered(page)
     assert page.evaluate(PAINTED, "lf-pending") == words
 
 
@@ -6157,7 +6182,8 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
         "match starts here and ends inside"
     )
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-    page.wait_for_timeout(300)
+    # The landing the match set off, and every pass it queued, has drawn.
+    rendered(page)
     start = page.evaluate(
         """() => {
           const text = document.getElementById('first').firstChild;
@@ -6410,7 +6436,8 @@ def test_travel_to_a_thread_on_a_tall_passage_shows_where_it_starts(
         }"""
     )
     page.keyboard.press("t")
-    page.wait_for_timeout(600)
+    # The walk's landing glides through the page's frames, which `rendered` waits out.
+    rendered(page)
     start = page.evaluate(
         """() => {
           const text = document.getElementById('tall').firstChild;
@@ -6481,7 +6508,8 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
     page.set_viewport_size({"width": 1200, "height": 900})
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 1")
     page.keyboard.press("t")
-    page.wait_for_timeout(600)
+    # The walk's landing glides through the page's frames, which `rendered` waits out.
+    rendered(page)
     box = page.locator("#target p").bounding_box()
     assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
 

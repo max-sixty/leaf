@@ -1747,15 +1747,14 @@ def _hook_bounds_take_the_suites_deadline(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _each_test_composes_its_own_layers():
+def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
     A process holds each selection's composition and vocabulary for its life
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held."""
-    yield
-    layer_model._compositions.clear()
-    layer_model._vocabularies.clear()
+    a package at a path an earlier test's package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_compositions", {})
+    monkeypatch.setattr(layer_model, "_vocabularies", {})
 
 
 def retire_bridge(lock):
@@ -2505,11 +2504,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )

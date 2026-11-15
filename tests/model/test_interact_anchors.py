@@ -21,6 +21,7 @@ from interact_support import (
     edit,
     found,
     obligations_on_user,
+    owed_answers,
     page_state,
     publish,
     published,
@@ -405,8 +406,40 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     assert "--for" not in mistaken.output
 
 
-def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
-    """An agent should know why its delivered reply became unnecessary."""
+def test_a_request_the_user_resolved_is_answered_at_its_reference(page_dir):
+    """The user's resolve takes the thread off their list and leaves the request
+    owed, so the reply the delivery addressed still answers it and reopens the
+    thread."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+    assert [item["input"] for item in owed_answers(page_dir)] == [root["id"]]
+    misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "answers it" in misplaced.output
+    assert "resolved the thread" not in misplaced.output
+
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", "--done", reference, "--text", "I checked it."],
+    )
+
+    assert answered.exit_code == 0, answered.output
+    events = events_model.read_events(page_dir)
+    assert events[-1]["responds"] == root["id"]
+    assert owed_answers(page_dir) == []
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] is None
+
+
+def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
+    """The agent's own resolve answers for its thread, and an agent whose delivered
+    reply became unnecessary should know why."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -414,7 +447,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     reference = response_reference(page_dir, root["id"])
     resolution = append_carried_log_record(
         page_dir,
-        {"kind": "resolve", "author": "user", "parent": root["id"]},
+        {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
 
     refused = CliRunner().invoke(
@@ -423,11 +456,11 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
     )
 
     assert refused.exit_code != 0
-    assert "the user resolved the thread" in refused.output
+    assert "the agent resolved the thread" in refused.output
     assert resolution["ts"] in refused.output
     assert "leaf thread reply" not in refused.output
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
-    assert "the user resolved the thread" in misplaced.output
+    assert "the agent resolved the thread" in misplaced.output
     assert "leaf thread reply" not in misplaced.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
 

@@ -345,13 +345,9 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
         page_dir,
         {"kind": "comment", "author": "user", "text": "second"},
     )
-    withdrawn = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "never mind"},
-    )
     resolved = append_carried_log_record(
         page_dir,
-        {"kind": "resolve", "author": "user", "parent": withdrawn["id"]},
+        {"kind": "resolve", "author": "user", "parent": settled["id"]},
     )
 
     codex_model.prepare_codex_delivery(
@@ -367,7 +363,6 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
         action["id"],
         settled["id"],
         fresh["id"],
-        withdrawn["id"],
         resolved["id"],
     ]
     assert batch["through_seq"] == resolved["seq"]
@@ -1764,6 +1759,9 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
     )
     settled = append_carried_log_record(
         sibling, {"kind": "comment", "author": "user", "text": "Already settled"}
+    )
+    thread_model.post_reply(
+        sibling, {"parent": settled["id"], "responds": settled["id"]}, "Settled."
     )
     resolved = append_carried_log_record(
         sibling, {"kind": "resolve", "author": "user", "parent": settled["id"]}

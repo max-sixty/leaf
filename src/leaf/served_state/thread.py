@@ -2,13 +2,12 @@
 
 from ..events import (
     active_summaries,
-    awaits_agent,
     bare_reaction,
     is_answer,
+    owed_turns,
     progress_completions,
     seat_root,
     turn_message,
-    unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading
 from ..read_state import content_version, unread_content
@@ -96,10 +95,8 @@ def browser_thread(
             first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
         protected = set()
-        if awaits_agent(thread):
-            turn = unanswered_agent_turn(thread)
-            assert turn is not None
-            protected.add(turn_message(turn))
+        if owed := owed_turns(thread):
+            protected.add(turn_message(owed[-1]))
         protected.update(
             item["message"]
             for item in thread_obligations["unanswered"]
@@ -133,7 +130,7 @@ def browser_thread(
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures")
+                    if key not in ("turns", "closures", "answered_by")
                 },
                 "msgs": messages,
                 "root": next(

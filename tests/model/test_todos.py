@@ -753,14 +753,14 @@ def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
         append_admitted(
-            page, {"kind": "resolve", "author": "user", "parent": comment["id"]}
+            page, {"kind": "undo", "author": "user", "undoes": comment["id"]}
         )
     claiming.join(STATED_TIMEOUT)
     assert not claiming.is_alive()
 
     [refused] = refusals
     assert refused.findings[0].code == refusal
-    assert events_model.read_events(page_dir)[-1]["kind"] == "resolve"
+    assert events_model.read_events(page_dir)[-1]["kind"] == "undo"
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["state"] != "running"

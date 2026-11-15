@@ -328,8 +328,8 @@ def s2(stage: Stage) -> Iterator[Checkpoint]:
 
 
 def s3(stage: Stage) -> Iterator[Checkpoint]:
-    """Leaves out the answer's way back: no command re-attaches a resolved request to an
-    answer, so the agent keeps the work as a to-do it opens on the thread by hand."""
+    """The user's resolve leaves the request owed, so the agent answers it where it
+    was asked, and the answer reopens the thread."""
     stage.publish()
     stage.page_open()
     stage.watch()
@@ -341,14 +341,13 @@ def s3(stage: Stage) -> Iterator[Checkpoint]:
         "Nine seconds later they resolved the thread to take it off their list.",
     )
     stage.deliver()
-    yield Checkpoint("delivered", "The request and its resolve reached the agent.")
-    kept = stage.todo(request["id"], "Say so in CLAUDE.md")
-    stage.start(kept, "editing CLAUDE.md")
-    yield Checkpoint("kept", "The agent kept the work as a to-do on the thread.")
-    stage.end(kept, "done", "CLAUDE.md, “Review” section")
+    yield Checkpoint("delivered", "The request reached the agent.")
+    stage.start(request, "editing CLAUDE.md")
+    yield Checkpoint("kept", "The agent took the request in hand.")
+    stage.reply(request, "CLAUDE.md says so now, under “Review”.", "--done")
     stage.page_open()
     stage.turn_ends()
-    yield Checkpoint("result", "The work is done; the thread stays resolved.")
+    yield Checkpoint("result", "The answer reopened the thread.")
 
 
 def s4(stage: Stage) -> Iterator[Checkpoint]:

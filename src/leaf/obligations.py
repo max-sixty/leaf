@@ -63,8 +63,8 @@ from urllib.parse import quote
 
 from leaf import standing
 from leaf.events import (
-    awaits_agent,
     is_reaction,
+    owed_turns,
     report_settled_at,
     taken_back,
     unanswered_agent_turn,
@@ -396,18 +396,20 @@ def obligation_answered(
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
-    """The anchors of threads the agent owes: an open one whose next word is
-    the agent's, or one holding an open to-do, the work a reply there promised
-    (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
+    """The anchors of threads the agent owes: one holding a turn the agent has
+    not answered (`events.owed_turns`), or an open to-do, the work a reply there
+    promised (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
 
     An open obligation such a thread is about is the agent's turn rather than the user's:
     the user has said something about it and waits on the answer, so it leaves
     their list until the agent answers. A reply that promises work settles the
-    message but leaves the obligation the agent's until the agent ends the to-do,
-    through a resolution too, so a decision the user put off until other work lands
-    stays off their list. Neither is an answer, since the widget's state is untouched,
-    and the obligation stays open, its controls live. The browser receives the lists this leaves rather than deciding
-    again, so On Me's count and `page state` cannot disagree about whose turn it is.
+    message but leaves the obligation the agent's until the agent ends the to-do.
+    Both hold through the user's resolve, which takes the thread off their list and
+    settles nothing the agent owes, so a decision the user put off until an answer
+    or other work lands stays off their list. Neither is an answer, since the
+    widget's state is untouched, and the obligation stays open, its controls live.
+    The browser receives the lists this leaves rather than deciding again, so On
+    Me's count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the obligation's
     words, a design note, or one the agent opened that the user has answered. A to-do
@@ -421,7 +423,7 @@ def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
     return [
         anchor
         for identity, thread in threads.items()
-        if (awaits_agent(thread) or identity in promised)
+        if (owed_turns(thread) or identity in promised)
         and (anchor := thread["anchor"])
         and anchor.get("section")
     ]

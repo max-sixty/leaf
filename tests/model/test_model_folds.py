@@ -843,6 +843,38 @@ def test_summary_protects_the_unanswered_obligation_after_later_agent_messages()
     assert summary["protected"] == ["e1"]
 
 
+def test_summary_protects_a_request_the_user_resolved_unanswered():
+    """A summary cannot hide the request the agent still owes an answer, in a thread
+    the user resolved as in an open one."""
+    state = model.reading(
+        HUB,
+        (
+            {"kind": "comment", "author": "user", "text": "Check the east route."},
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": "e1",
+                "text": "And the fare.",
+            },
+            {
+                "kind": "summary",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "summary-session",
+                "thread": "e1",
+                "from": "e1",
+                "through": "e2",
+                "text": "Asked for the east route and its fare.",
+            },
+            {"kind": "resolve", "author": "user", "parent": "e1"},
+        ),
+    )
+    thread = model.threads(state)["e1"]
+    assert thread["resolved"]
+    [summary] = thread["summaries"]
+    assert summary["protected"] == ["e2"]
+
+
 def test_an_answer_sends_a_held_reading_only_what_changed():
     """A browser that names the reading it holds is sent what changed since, however
     many threads the page holds: a pick changes its widget's record and history, and

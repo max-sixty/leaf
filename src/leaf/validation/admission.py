@@ -108,11 +108,15 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
         owed = thread_obligation(events, responses, value)
         if owed is None:
             thread = build_threads(events, {}).get(thread_names(events)[value])
+            # The agent's resolve answers for its thread; the user's settles nothing
+            # the agent owes (`events.owed_turns`).
             resolution = thread["resolved"] if thread else None
-            if resolution is not None and resolution["kind"] == "resolve":
-                actor = "the user" if resolution["author"] == "user" else "the agent"
+            if resolution is not None and (
+                resolution["kind"],
+                resolution["author"],
+            ) == ("resolve", "agent"):
                 return (
-                    f"{held}; {actor} resolved the thread at {resolution['ts']}, "
+                    f"{held}; the agent resolved the thread at {resolution['ts']}, "
                     "so no reply is owed"
                 )
             return (

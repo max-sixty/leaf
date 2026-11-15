@@ -659,9 +659,9 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
 ):
     """The user's comment about an open obligation hands it to the agent without answering
     it: the obligation leaves On Me while the comment's answer stands on On <agent>, and comes
-    back once the agent replies, or once the agent ends the work its reply promised, which
-    a resolution leaves standing: that is how a decision the user put off until other
-    work lands stays off their list. A comment on one obligation, or on the part of the
+    back once the agent replies, or once the agent ends the work its reply promised. The
+    user's resolve leaves both standing: that is how a decision the user put off until an
+    answer or other work lands stays off their list. A comment on one obligation, or on the part of the
     frame holding it, leaves its framed sibling with the user; one on the frame's
     heading, on a widget there that asks nothing or on the section holding the frame is
     about both, and one elsewhere about none."""
@@ -675,6 +675,12 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     items = ["widget:choice", "widget:y-choice"]
     owed = sorted(set(items) - set(held))
     assert lists(model.reading(FRAMED, [comment])) == (owed, ["update:c1"], held)
+    resolve = {"kind": "resolve", "author": "user", "parent": "c1"}
+    assert lists(model.reading(FRAMED, [comment, resolve])) == (
+        owed,
+        ["update:c1"],
+        held,
+    )
     reply = {
         "kind": "reply",
         "author": "agent",
@@ -684,7 +690,6 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     }
     assert lists(model.reading(FRAMED, [comment, reply])) == (items, [], [])
     promise = {**reply, "id": "p1", "todo": "Ask again once the other work lands"}
-    resolve = {"kind": "resolve", "author": "user", "parent": "c1"}
     end = {"kind": "todo_end", "author": "agent", "todo": "p1", "outcome": "done"}
     assert lists(model.reading(FRAMED, [comment, promise, resolve])) == (
         owed,

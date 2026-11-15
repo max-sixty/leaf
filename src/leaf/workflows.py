@@ -32,20 +32,22 @@ settled, and emits two readings of them, each the one home of its facts:
   (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
   onto the owed answer. An update no delivery has carried has no ref.
 
-A record exists only for an update an operation names: the newest unanswered turn in an
-open thread, the newest unsettled owed action on a widget's unit, an update a harness
-handed back, and every input a reply answered. When the user sends two messages in a row
-in a thread, the reply to the newer one answers both, so the older one publishes no
-record and its workflow names the newer one's. A widget action that answers no
-obligation, such as an edit to a user-owned draft or a moved card, owes nothing and
-publishes none. The log goes on applying it to later readings of the document, and
-`page check` makes the next version write any part of it the markup must record. Its
-receipt shows until the document takes it in: on the page, until the markup records it
-or a later version's note takes it in (`page_action_unsettled`); in a thread's frozen
-markup, which no version rewrites, until the agent's next message in that thread or a
-resolution after it. A settled page action leaves the inventory: its widget's own record
-carries its ending. An unanswered turn in a thread the user resolved first publishes
-none.
+A record exists only for an update an operation names: the newest turn the agent owes in
+a thread (`events.owed_turns`), the newest unsettled owed action on a widget's unit, an
+update a harness handed back, and every input a reply answered. When the user sends two
+messages in a row in a thread, the reply to the newer one answers both, so the older one
+publishes no record and its workflow names the newer one's. A widget action that answers
+no obligation, such as an edit to a user-owned draft or a moved card, owes nothing and
+publishes none. The log goes on applying it to later readings of the document, and `page
+check` makes the next version write any part of it the markup must record. Its receipt
+shows until the document takes it in: on the page, until the markup records it or a
+later version's note takes it in (`page_action_unsettled`); in a thread's frozen markup,
+which no version rewrites, until the agent's next message in that thread or a resolution
+after it. A settled page action leaves the inventory: its widget's own record carries
+its ending. A turn or an owed action the user's resolve closed over keeps its record and
+its workflow, since that resolve settles nothing the agent owes; a closing that answers
+for the thread, such as the agent's own resolve, leaves none (`events.owed_turns`). An
+update handed back waits on the user, so closing the thread over it retires it.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
@@ -73,9 +75,9 @@ from .events import (
     conversation_turns,
     exchange,
     is_answer,
+    owed_turns,
     settled_through,
     turn_message,
-    unanswered_turns,
 )
 from .obligations import collection, update_obligation
 from .projection import (
@@ -447,15 +449,17 @@ def handed_over(
     workflows = []
     for thread_id, thread in threads.items():
         turns = exchange(thread)
-        if thread["resolved"]:
-            continue
         target = {"kind": "thread", "id": thread_id}
         coordinate = ["thread", thread_id]
         # A failed answer stands until the user says something since that still
-        # stands, or the agent settles a turn said since, whatever became of it.
+        # stands, or the agent settles a turn said since, whatever became of it. It
+        # waits on the user, so closing the thread over it retires it. One that
+        # fails in a thread already closed still stands: the user's resolve left the
+        # request owed, and nothing else would tell them no answer is coming.
         superseded = max(
             [settled_through(thread)]
             + [message["seq"] for message in turns if message["author"] != "agent"]
+            + ([thread["resolved"]["seq"]] if thread["resolved"] else [])
         )
         for source in turns:
             response = failed_responses.get(source["id"])
@@ -471,7 +475,7 @@ def handed_over(
                 )
             )
             workflows.append(failed(source, target, coordinate, response, handed_back))
-        unanswered_inputs = unanswered_turns(thread)
+        unanswered_inputs = owed_turns(thread)
         if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response
@@ -530,14 +534,17 @@ def handed_over(
         # owed action, and for an action that owes nothing any agent turn after it, which
         # has taken the action in as a later version takes in a page action. A reaction
         # is no turn, and a harness's failure reply says no answer is coming rather
-        # than answering. The resolution in force on the thread settles the actions
-        # made before it, and the answer that resolved it; an action made after it is
-        # delivered like any other and keeps its receipt.
+        # than answering. The closing in force on the thread takes in the actions
+        # made before it that owe nothing. An owed one it settles only where it
+        # answers for the thread (`events.owed_turns`): the user's own resolve
+        # leaves it owed, as it leaves a message. An action made after the closing
+        # is delivered like any other and keeps its receipt.
         thread_id = thread_reading.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
-        if not thread or (
-            thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
-        ):
+        if not thread:
+            return False
+        closing = thread["answered_by"] if owed else thread["resolved"]
+        if closing and closing["seq"] >= source["seq"]:
             return False
         if thread_id not in settling:
             turns = [
@@ -627,6 +634,12 @@ def handed_over(
             deliveries.get(source["id"], {}).get("failed")
             or failed_responses.get(source["id"])
         )
+        # Closing the thread over a frozen action handed back retires it, as it
+        # retires a message handed back.
+        if gave_up and not on_page:
+            closing = threads[thread_reading.thread_by_widget[target["id"]]]["resolved"]
+            if closing and closing["seq"] > gave_up["seq"]:
+                continue
         obligation = (
             publish(
                 update_obligation(

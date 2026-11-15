@@ -154,6 +154,40 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     assert thread["attention"] == record["id"]
 
 
+@pytest.mark.parametrize("resolved_first", [True, False])
+def test_a_failure_in_a_resolved_thread_is_still_handed_back(page_dir, resolved_first):
+    """The user's resolve leaves a request owed, so a harness that then gives up on
+    it hands it back to the user as in an open thread: nothing else would say that no
+    answer is coming. Resolving over a failure the user already has retires it."""
+    publish(page_dir)
+    source = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "A"}
+    )
+    resolve = {"kind": "resolve", "author": "user", "parent": source["id"]}
+    if resolved_first:
+        append_carried_log_record(page_dir, resolve)
+    thread_model.post_reply(
+        page_dir,
+        {"parent": source["id"], "responds": source["id"]},
+        "The agent's turn ended without an answer. Send it again to retry.",
+        failure="turn_failed",
+    )
+    if not resolved_first:
+        append_carried_log_record(page_dir, resolve)
+
+    state = page_state(page_dir)
+    [thread] = served_thread(state["browser"])["threads"]
+    assert thread["resolved"]
+    assert owed_answers(page_dir) == []
+    handed_back = [
+        (record["id"], record["next_actor"], record["reason"])
+        for record in served_updates(state["browser"])
+    ]
+    assert handed_back == (
+        [(f"update:{source['id']}", "user", "failed")] if resolved_first else []
+    )
+
+
 def test_user_resend_clears_terminal_failure_recovery(page_dir):
     publish(page_dir)
     first = append_carried_log_record(
@@ -305,6 +339,63 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
     assert thread["attention"] == owed["id"]
 
 
+def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
+    """The user's resolve takes a thread off their list and leaves the request in it
+    owed: its record stays the agent's, on the agent's list, and the answer reopens
+    the thread. The agent's own resolve answers for the thread, whatever the user
+    closes after it, until the user reopens it."""
+    publish(page_dir)
+    asked = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Say so in CLAUDE.md."},
+    )
+
+    def reading():
+        state = state_json(page_dir)
+        [thread] = state["threads"]
+        return (
+            thread["resolved"],
+            [(item["input"], item["obligation"]) for item in owed(state)],
+            [row["id"] for row in state["queues"]["on_agent"]],
+        )
+
+    request = f"update:{asked['id']}"
+    stands = [(asked["id"], request)]
+    assert reading() == (None, stands, [request])
+    closing = append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == ("user", stands, [request])
+    browser = page_state(page_dir)["browser"]
+    [thread] = served_thread(browser)["threads"]
+    [update] = served_updates(browser)
+    assert (thread["attention"], update["thread"], update["next_actor"]) == (
+        None,
+        asked["id"],
+        "agent",
+    )
+
+    thread_model.cmd_resolve(page_dir, asked["id"])
+    assert reading() == ("agent", [], [])
+    # The user closing a thread the agent already closed revives nothing.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == ("user", [], [])
+    append_carried_log_record(
+        page_dir, {"kind": "unresolve", "author": "user", "parent": asked["id"]}
+    )
+    assert reading() == (None, stands, [request])
+
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": closing["parent"]}
+    )
+    thread_model.post_reply(
+        page_dir, {"parent": asked["id"], "responds": asked["id"]}, "It says so now."
+    )
+    assert reading() == (None, [], [])
+
+
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
@@ -419,6 +510,52 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     assert owed_answers(page_dir) == []
     [thread] = served_thread(state["browser"])["threads"]
     assert thread["attention"] == record["id"]
+
+    # Closing the thread over the move handed back retires it.
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    state = page_state(page_dir)
+    assert state["workflows"] == []
+    assert served_updates(state["browser"]) == []
+
+
+def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
+    """A pick the agent owes a reply, made on a widget in a thread message, stays
+    owed when the user resolves the thread, as a message does. The agent's own
+    resolve answers for it."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    asked = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "Which region?",
+            "markup": '<lf-options id="thread-region" choose>'
+            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    answered = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-region",
+            "action": "choose",
+            "detail": {"value": ["thread-east"]},
+        },
+    )
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    [owed] = owed_answers(page_dir)
+    assert (owed["input"], owed["answer"]["parent"]) == (answered["id"], asked["id"])
+    thread_model.cmd_resolve(page_dir, asked["id"])
+    assert owed_answers(page_dir) == []
 
 
 def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(

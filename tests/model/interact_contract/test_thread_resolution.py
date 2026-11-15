@@ -63,7 +63,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert answer["responds"] == "question"
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"] is None
-    assert not event_folds_model.awaits_agent(threads["question"])
+    assert not event_folds_model.owed_turns(threads["question"])
     assert (
         delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
         == {}

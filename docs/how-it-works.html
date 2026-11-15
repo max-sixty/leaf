@@ -548,10 +548,11 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   widget requires a stamped revision. If the obligation's widget
                   declares a record form, the revised HTML uses it to show the decision,
                   such as the chosen option. An obligation embedded in a thread message
-                  receives a thread reply, because that message's HTML is fixed.
-                  Resolving a thread or moving a card can require no answer; the agent
-                  still receives the event. A multi-select obligation submits the choice
-                  when the user presses Done.
+                  receives a thread reply, because that message's HTML is fixed. Moving
+                  a card can require no answer; the agent still receives the event.
+                  Resolving a thread takes it off the user's list and leaves a comment
+                  the agent has not answered owed its reply, which reopens the thread. A
+                  multi-select obligation submits the choice when the user presses Done.
                 </p>
                 <p id="delivery-envelope">
                   A delivery is one JSON document, whose <code>format</code> field names
@@ -2541,12 +2542,13 @@ flowchart TD
             </table>
             <p id="stages-owed">
               A comment needs a thread reply; a page-widget obligation needs a version
-              recording its answer. Resolving a thread, editing a draft, or moving a
-              card requires no answer, but the agent still receives the event. A draft
-              edit or card move’s label clears when a version records or replaces it;
-              inside a thread message, it clears when the agent next writes there or the
-              thread resolves. A choice with a Done button gets no label until Done
-              submits it.
+              recording its answer. Editing a draft or moving a card requires no answer,
+              but the agent still receives the event. Resolving a thread requires none
+              either, and a comment the agent has not answered in it stays owed its
+              reply. A draft edit or card move’s label clears when a version records or
+              replaces it; inside a thread message, it clears when the agent next writes
+              there or the thread resolves. A choice with a Done button gets no label
+              until Done submits it.
             </p>
           </section>
           <section id="updates-silence" class="layout-flow">

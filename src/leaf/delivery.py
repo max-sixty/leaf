@@ -62,7 +62,7 @@ import time
 from collections.abc import Callable, Generator, Iterable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from xml.etree import ElementTree
 
 from .event_log import jsonl_line
@@ -90,6 +90,9 @@ from .state import (
     state_home,
     turn_closed,
 )
+
+if TYPE_CHECKING:
+    from .served_state.work import WorkState
 
 _INTEGER = {"type": "integer"}
 _STRINGS = {"type": "array", "items": STRING}
@@ -1051,7 +1054,7 @@ def record_pickup(
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
 
-    An opened pickup says which turn holds a thread (`holding.holding_turns`), so this
+    An opened pickup says which turn holds a thread (`holding.Holding`), so this
     records one only where that turn may take the message (`holding.pickable`): an
     agent's turn, only what it holds or nobody does, refusing the rest; another
     turn, nothing an agent's running turn holds.
@@ -1094,9 +1097,10 @@ def record_pickup(
         )
     )
     if phase == "opened" and session is not None:
+        from .forks import page_reading
         from .holding import pickable
 
-        fresh = pickable(page, fresh, session, turn)
+        fresh = pickable(page_reading(page), fresh, session, turn)
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
@@ -1120,7 +1124,7 @@ def record_pickup(
 
 def deliverable(
     page: PageTransaction,
-    obligations: list[dict] | None = None,
+    work: "WorkState | None" = None,
     *,
     received: bool = True,
 ) -> list[dict]:
@@ -1129,8 +1133,8 @@ def deliverable(
     still open, pending the receipt its harness's record confirms
     (`awaiting_receipt`), and
     each update the cursor has passed that still owes an answer the owner holds no
-    usable `answer.ref` for (`unreferenced`, which reads `obligations` where the
-    caller has already folded the page).
+    usable `answer.ref` for (`unreferenced`), by the page's fold, `work`, where the
+    caller has already folded the page.
 
     A handover the harness's record never showed in the model's context is input
     again once its turn reads ended: Escape while Claude Code still ran a prompt hook
@@ -1150,16 +1154,16 @@ def deliverable(
     so input waits here only on a page whose renewal was refused, and the hooks name
     why (`hook_transport.remedies`).
 
-    Both kinds are filtered by who holds each of the user's waiting messages
-    (`forks.page_holders`). More, too, each waiting message whose holder is a fork
-    whose turn has ended, which picked it up and left it owed, giving its thread back
-    or ending without answering, and which the main thread now owes
-    (`holding.owed_by`). Less, each waiting message the main thread doesn't owe:
-    one Leaf keeps back while a line fork of the owner's conversation writes its line
-    (`forks.kept_back`), until the line fork hands it over or its bound runs out,
-    which keeps the watch from waking the session for it as it arrives; and one a
-    fork's running turn took or holds, as the further messages of a thread it took
-    are, which go to it at its tool boundary.
+    Both kinds are filtered by who holds each thread (`holding.Holding`, the fold's
+    or `forks.page_reading`). More, too, the waiting messages of each thread a fork
+    whose turn has ended holds by its pickup of them, which it left owed, giving the
+    thread back or ending without answering, and which the main thread now owes
+    (`holding.owed_by`). Less, the waiting messages of each thread the main thread
+    doesn't owe: one Leaf keeps back while a line fork of the owner's conversation
+    writes its line (`forks.kept_back`), until the line fork hands it over or its
+    bound runs out, which keeps the watch from waking the session for it as it
+    arrives; and one a fork's running turn holds, whose further messages go to it at
+    its tool boundary.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. Codex's tool hook runs after every tool call, so it passes
@@ -1173,33 +1177,48 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .forks import page_holders
+    from .forks import page_reading
     from .holding import owed_by
 
-    owed = unreferenced(page, obligations) if received else []
-    holders = page_holders(page) if received or pending else {}
-    if received and (
-        left := {
-            input_id
-            for input_id, held in holders.items()
-            if held["kind"] == "fork" and held["state"] != "running"
-        }
-    ):
-        # What a fork's turn picked up and then left owed, giving its thread back or
-        # ending without answering, is the main thread's input now; a message
-        # already pending or owed goes once.
-        left -= {event["id"] for event in [*owed, *pending]}
-        owed += [event for event in page.events if event["id"] in left]
-    # A message a fork's running turn holds is owed and unreferenced once the cursor
-    # has passed it, and stays the fork's all the same; a kept-back one is still
-    # pending, and stays kept back.
-    if elsewhere := {
-        input_id
-        for input_id, held in holders.items()
-        if owed_by(held)["kind"] != "main"
-    }:
-        pending = [event for event in pending if event["id"] not in elsewhere]
-        owed = [event for event in owed if event["id"] not in elsewhere]
+    owed = []
+    if received:
+        if work is None:
+            from .served_state.context import read_page
+
+            work = read_page(page.page_dir, page.events).work
+        owed = unreferenced(page, work.obligations)
+        holding = work.holding
+    else:
+        holding = page_reading(page) if pending else None
+    if holding is not None:
+        if received and (
+            left := {
+                event["id"]
+                for event in holding.waiting(
+                    lambda held: (
+                        held.picked
+                        and held.holder["kind"] == "fork"
+                        and held.holder["state"] != "running"
+                    )
+                )
+            }
+        ):
+            # What a fork's turn picked up and then left owed, giving its thread back
+            # or ending without answering, is the main thread's input now; a message
+            # already pending or owed goes once.
+            left -= {event["id"] for event in [*owed, *pending]}
+            owed += [event for event in page.events if event["id"] in left]
+        # A message a fork's running turn holds is owed and unreferenced once the
+        # cursor has passed it, and stays the fork's all the same; a kept-back one is
+        # still pending, and stays kept back.
+        if elsewhere := {
+            event["id"]
+            for event in holding.waiting(
+                lambda held: owed_by(held.holder)["kind"] != "main"
+            )
+        }:
+            pending = [event for event in pending if event["id"] not in elsewhere]
+            owed = [event for event in owed if event["id"] not in elsewhere]
     if not pending and not owed:
         return []
     from .event_contracts import write_refusal
@@ -1267,6 +1286,7 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
+    from .forks import page_reading
     from .holding import taken_by_agent_turns
     from .service import owned_pages
 
@@ -1288,7 +1308,7 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                receive_passed(page, shown | taken_by_agent_turns(page))
+                receive_passed(page, shown | taken_by_agent_turns(page_reading(page)))
         except FileNotFoundError:
             continue
 
@@ -1311,18 +1331,12 @@ def receive_passed(page: PageTransaction, passed: set[str]) -> None:
     record_receipt(page, through)
 
 
-def unreferenced(
-    page: PageTransaction, obligations: list[dict] | None = None
-) -> list[dict]:
+def unreferenced(page: PageTransaction, obligations: list[dict]) -> list[dict]:
     """The updates the page's cursor has passed that still owe an answer its owner
-    holds no usable `answer.ref` for: received under another session's claim before
-    the page changed hands, received while they owed nothing, or referenced by a
-    delivery this Leaf cannot read (`reads_reference`). `obligations` is the
-    page's fold where the caller has one; otherwise this folds the page."""
-    if obligations is None:
-        from .served_state.context import read_page
-
-        obligations = read_page(page.page_dir, page.events).work.obligations
+    holds no usable `answer.ref` for, of the page's fold's `obligations`: received
+    under another session's claim before the page changed hands, received while they
+    owed nothing, or referenced by a delivery this Leaf cannot read
+    (`reads_reference`)."""
     by_id = {event["id"]: event for event in page.events}
     cursor = page.cursor
     return [
@@ -1507,6 +1521,7 @@ def receive_one(
         ) as events,
     ):
         if agent_turn is not None:
+            from .forks import page_reading
             from .holding import taken_by_agent_turns
 
             assert session_id is not None
@@ -1519,7 +1534,7 @@ def receive_one(
                 turn=agent_turn,
                 refs=batch_refs(batch),
             )
-            receive_passed(page, taken_by_agent_turns(page))
+            receive_passed(page, taken_by_agent_turns(page_reading(page)))
             return page_dir
         turn = None
         if session_id:

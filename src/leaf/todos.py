@@ -385,16 +385,28 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     `leaf task start` writes this explicit event. Addressed ephemeral replies
     carry their start on the message itself (`thread.post_reply`), and every
     start consumer reads either form through `start_reading`. A start on a page
-    declared `idle` reopens it (`activity.declaration`). A start the main thread
-    writes on a thread a running fork holds says so beside the record
+    declared `idle` reopens it (`activity.declaration`). A start any other writer
+    makes on a message, or a to-do, in a thread a fork holds says so beside the record
     (`holding.authorize`)."""
     from .event_contracts import append_admitted
     from .findings import note
+    from .forks import page_reading
     from .holding import authorize
     from .state import acting_turn
 
-    # A fork shows itself at work only on what its turn holds.
-    beside = authorize(page, identity.get("session"), [item])
+    # A fork shows itself at work only on what its turn holds; the thread a to-do
+    # stands on is the to-do's subject.
+    on = next(
+        (
+            todo["subject"]["id"]
+            for todo in TodoReading(page.events).todos
+            if todo["id"] == item and todo["subject"]["kind"] == "thread"
+        ),
+        None,
+    )
+    beside = authorize(
+        page, page_reading(page), identity.get("session"), [item], thread=on
+    )
     turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(
         page,

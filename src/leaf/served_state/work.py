@@ -9,6 +9,7 @@ A serving context holds this result once; its browser selects the same objects.
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
+from ..holding import Holding
 from ..projection import FrozenThreadReading, page_reading
 from ..service import no_stream
 from ..todos import TodoReading
@@ -25,6 +26,11 @@ class WorkState(NamedTuple):
     @property
     def obligations(self) -> list[dict]:
         return self.activity["obligations"]
+
+    @property
+    def holding(self) -> Holding:
+        """Who holds each thread, as the fold read it (`holding.Holding`)."""
+        return self.activity["holding"]
 
 
 # Delivery progress, furthest last. `answered` is only ever the retained failed
@@ -73,7 +79,7 @@ def served_workflows(
     `at_work` is whether the agent is at work on it whatever its condition, which
     every surface reads rather than restating stages: at `working` or `replying`, or
     `forked`, its input taken on by a fork of the agent's conversation
-    (`forks.forked`), which the page words On it while its delivery stands. Every
+    (`holding.Holding.forked`), which the page words On it while its delivery stands. Every
     reader that ages, nudges or holds a turn reads the stage alone.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. Whose turn the thread
@@ -141,7 +147,10 @@ def work_state(
             activity["workflows"],
             durable.thread,
             durable.updates,
-            frozenset(present["forked"]),
+            # With no active claim, no fork speaks for the page.
+            frozenset(activity["holding"].forked())
+            if present["session_alive"] is True
+            else frozenset(),
         )
         if source
         else activity["workflows"]

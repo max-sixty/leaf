@@ -216,11 +216,6 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "forked": {
-          "description": "The user's waiting messages a fork of the claimant's conversation has taken on (`forks.forked`).",
-          "type": "array",
-          "items": { "type": "string" }
-        },
         "pending": {
           "description": "How many of the user's events past the cursor the agent hasn't taken in.",
           "type": "integer"
@@ -362,7 +357,6 @@
         "live_turn",
         "cursor",
         "kept_back",
-        "forked",
         "pending",
         "agent",
         "claim_session",
@@ -664,7 +658,7 @@
           }
         },
         "at_work": {
-          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`forks.forked`).",
+          "description": "Whether the agent is at work on it, whatever its condition: at `working` or `replying`, or a fork of its conversation has taken its input on (`holding.Holding.forked`).",
           "type": "boolean"
         },
         "thread": {

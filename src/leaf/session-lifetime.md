@@ -80,7 +80,7 @@ unsettled update's workflow, whose `stage` reports its delivery, and each owed u
 obligation record, which says who owes it a move. Its header says when each settles.
 The served list names each workflow's `thread` and whether the agent is `at_work` on
 it, which a fork of its conversation taking the update on sets before the stage moves
-(`forks.forked`), strongest first (`served_state.work.served_workflows`).
+(`holding.Holding.forked`), strongest first (`served_state.work.served_workflows`).
 
 `activity` adds a `condition` where evidence shows a stage has stopped, and keeps the
 durable stage:
@@ -133,14 +133,14 @@ names it as it names the main thread's turn: the page's served reading carries t
 claimant's agent turns (`agent_turns`), and the fold believes one running while it is
 open and renewed within the working grace (`activity.running_agent_turns`).
 
-Which turn holds each thread message, the main thread's or an agent's, is one reading
-every reader asks (`holding.py`, whose header states the rule), and `leaf page
-state`'s `holder` names the turn: the main thread, or the fork by name with whether its
-turn runs (`holding.holder`). The newest pickup of a
-thread's waiting messages holds them, an answer takes its thread as a pickup does, and
-a running agent turn that last took a thread holds the messages the user writes in it
-until another turn picks them up. A message Leaf keeps back while a line fork judges it
-is the line fork's (`holding.message_holders`). The main thread doesn't owe a message a
+Which turn holds each thread, the main thread's or an agent's, with its waiting
+messages, is one reading every reader asks (`holding.py`, whose header states the
+rule; `forks.page_reading`), and `leaf page state`'s `holder` names it: the main
+thread, the fork by name with whether its turn runs, or the line fork. The newest
+pickup of a thread's waiting messages holds them, an answer takes its thread as a
+pickup does, and a running agent turn that last took a thread holds the messages the
+user writes in it until another turn picks them up. A thread Leaf keeps back while a
+line fork judges it is the line fork's. The main thread doesn't owe a message a
 running agent turn holds or a line fork judges (`holding.owed_by`): its hooks neither
 hold its turn over it, remind it of it, nor take it in again (`activity.agent_holds`),
 and its deliveries leave it out (`delivery.deliverable`). Once the agent's turn ends or

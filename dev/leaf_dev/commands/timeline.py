@@ -62,7 +62,7 @@ import click
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
 from leaf.events import is_answer
-from leaf.holding import turn_threads
+from leaf.holding import reading
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
@@ -148,7 +148,7 @@ def page_entries(
                     "fork",
                     f"{row['event']} kept back for a line fork"
                     if row["kept_back"]
-                    else f"{row['event']} held by {row['held_by']}"
+                    else f"{row['event']} held by turn {row['held_by'][:8]}"
                     if row["held_by"]
                     else f"{row['event']} not kept back: "
                     + (
@@ -395,9 +395,10 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
+    holding = reading(events, session, turns, running)
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
-        took = sorted(turn_threads(events, session, {turn}))
+        took = sorted(holding.took.get(turn, ()))
         if thread is not None and thread not in took:
             continue
         state = agent_turn_state(turn, turns, running)
@@ -714,7 +715,7 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         if note is None
         else "kept back · "
         if note["kept_back"]
-        else f"held by {note['held_by']} · "
+        else f"held by turn {note['held_by'][:8]} · "
         if note["held_by"]
         else f"not kept back ({without_lane(note, followers)}) · "
         if note["lane"] is None

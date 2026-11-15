@@ -663,17 +663,16 @@ def canonical_activity(
     (`_receipt_bindings`). `reservations` reserve automatic replies from the
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it. Each owed answer's
-    `holder` names who owes it now, a running fork, the line fork judging a message
-    `present` says Leaf keeps back, or the main thread (`holding.owed_by`), and each
-    thread's in `thread_holders` the turn that last took it (`holding.holder`).
+    answer may commit first; the automatic final then yields to it. `holding` is who
+    holds each thread (`holding.reading`), the line fork for each thread whose
+    messages `present` says Leaf keeps back, and each owed answer's `holder` who owes
+    it now (`holding.owed_by`): a running fork, the line fork, or the main thread.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import MAIN, holder, last_taken, message_holders, owed_by, rounds
-    from .thread_context import thread_names
+    from .holding import owed_by, reading
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -706,22 +705,27 @@ def canonical_activity(
     )
     held = not unheld
     # The turns the agents the claimant's session runs beside its main thread are
-    # running now, who holds each waiting message, and the turn that last took each
-    # thread (`holding.py`).
-    stamps = present["agent_turns"]
-    agents = running_agent_turns(stamps, present["session_alive"] is True, now)
-    session = present.get("claim_session")
-    found = rounds(events)
-    holders = message_holders(
-        events, session, stamps, agents, set(present["kept_back"]), found
+    # running now, and who holds each thread (`holding.py`), with the threads whose
+    # waiting messages Leaf keeps back held by the line fork.
+    agents = running_agent_turns(
+        present["agent_turns"], present["session_alive"] is True, now
     )
-    took = last_taken(events, session, found)
-    threads = thread_names(events)
+    holding = reading(
+        events, present.get("claim_session"), present["agent_turns"], agents
+    )
+    holding = holding.keeping(
+        {
+            thread
+            for input_id in present["kept_back"]
+            if (thread := holding.found.names.get(input_id)) is not None
+        }
+    )
 
     def owes(item: dict) -> dict:
         """Who owes the answer to `item` now (`holding.owed_by`, `agent_holds`): a
-        running fork that holds it, the line fork judging it, or the main thread."""
-        return owed_by(holders.get(item["input"], MAIN))
+        running fork that holds its thread, the line fork judging it, or the main
+        thread."""
+        return owed_by(holding.of(item["input"]).holder)
 
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn, agents=agents
@@ -939,10 +943,8 @@ def canonical_activity(
             }
             for item in obligations
         ],
-        # Who has each thread: the turn that last took it (`holding.last_taken`),
-        # named.
-        "thread_holders": {
-            thread: holder(took.get(thread), thread, stamps, agents)
-            for thread in set(threads.values())
-        },
+        # Who holds each thread, which `leaf page state` names on each thread and,
+        # through `owes`, on each answer owed, and which delivery filters
+        # (`served_state.work.WorkState.holding`).
+        "holding": holding,
     }

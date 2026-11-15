@@ -158,6 +158,34 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
+def _fork_holds_thread(holder: dict, answers: bool) -> str:
+    """What a command acting as the main session hears where a fork or the line fork
+    holds its thread (`holding.authorize`): the holder, whether the command's answer
+    took the thread from it, and, for a fork, how to stop it and how the fork's own
+    commands act as the fork."""
+    if holder["kind"] == "line":
+        held = "a line fork {} this thread while writing the agent's working line"
+        return (
+            held.format("held")
+            + "; this command acted as the main session and took the thread from it"
+            if answers
+            else held.format("holds")
+            + "; this command acted as the main session beside it"
+        )
+    fork = holder["name"]
+    return (
+        f"fork {fork} held this thread; this command acted as the main session and"
+        " took the thread from it, so the fork's own writes there are refused from"
+        f" now on; to stop the fork, SendMessage {fork}"
+        if answers
+        else f"fork {fork} holds this thread; this command acted as the main session"
+        " beside it"
+    ) + (
+        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
+        " that begins with `leaf`)"
+    )
+
+
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -2004,17 +2032,7 @@ _TEXT = {
     ),
     # A command that acted as the main thread on a thread a running fork holds
     # (`holding.authorize`), which goes through all the same.
-    "fork-holds-thread": lambda at, v: (
-        (
-            f"fork {v['fork']} was answering this thread; this command acted as the main"
-            " thread and took the thread from it, so the fork's own writes there are"
-            " refused from now on"
-            if v["answers"]
-            else f"fork {v['fork']} is answering this thread; this command acted as the"
-            " main thread beside it"
-        )
-        + " (a `leaf` command the fork runs on its own acts as the fork)"
-    ),
+    "fork-holds-thread": lambda at, v: _fork_holds_thread(v["holder"], v["answers"]),
     # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
     # (`validation.admission.logged_id`), and `answer` the command that answers an

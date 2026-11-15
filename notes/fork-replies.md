@@ -321,7 +321,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
    turn runs, the activity fold reads the pickup and the fork's starts as work in
    hand; the main thread's Stop hook, watch and prompt neither hold its turn over the
    message, remind it nor take it in again (`activity.agent_holds`); and its
-   deliveries leave out what the fork holds (`forks.kept_from_main`). The fork's
+   deliveries leave out what the fork holds (`delivery.deliverable`). The fork's
    pickups, replies and starts are each checked as they are written against which
    turn holds the thread (`holding.refuse_unheld`), so a fork that lost its thread to
    the main thread can neither take it back with a late acknowledgement, nor answer

@@ -531,21 +531,25 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import page_reading
         from .holding import authorize
 
         # A fork may answer only what its turn holds, and write in no thread
         # another turn took, and an ended one nothing; it asks first, so a refused
         # fork is never handed another turn's answer as the repeat of its own. The
-        # main thread writes anywhere, and hears of a running fork it writes beside.
+        # main thread writes anywhere, and hears of a fork it writes beside. Only an
+        # answer, which responds to a message, takes the thread.
+        holding = page_reading(page)
         responds = address.get("responds")
         beside = authorize(
             page,
+            holding,
             posting_identity.get("session"),
             [responds] if responds else [],
             thread=None
             if responds or not address.get("parent")
-            else thread_names(page.events).get(address["parent"]),
-            answers=not ephemeral,
+            else holding.found.names.get(address["parent"]),
+            answers=responds is not None and not ephemeral,
         )
         if attempt is not None and (
             repeated := _repeated_reply(

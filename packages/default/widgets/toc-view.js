@@ -1,15 +1,16 @@
 import { generatedElement, keeps, viewDocument } from "/runtime/widget-api.js";
 /* The contents view draws its frame and outline from the complete document.
  * The live widget supplies the canonical heading and chrome readings, and each
- * section's marks (toc-marks.js): a mark for its open threads and one for its On me
- * items, and, while the changes view is on, `data-lf-toc-changed` on its row, which
- * toc.css draws in the gutter the outline's rule or the contents spine stands in; the
- * start row's go on the outline's head too, its toggle or its label, which stands where
- * that row would where the row is left out. A row's marks stand beside its link rather
- * than in it, so they still show while the map rests with its labels faded out. The
- * marks are aria-hidden and take no room; what they count, the row's link previews
- * (`lfPreview`) in place of its name, which its face already says, and that preview
- * describes the link to a screen reader where focus lands on it. */
+ * section's marks (toc-marks.js). A row wears one mark, `data-lf-toc-mark`: `on-me`
+ * where its section holds an On me item, else `thread` where it holds an open thread.
+ * While the changes view is on, `data-lf-toc-changed` marks a changed section. toc.css
+ * draws both on the outline's rule or the contents spine; the start row's go on the
+ * outline's head too, its toggle or its label, which stands where that row would where
+ * the row is left out. A row's mark stands beside its link rather than in it, so it
+ * still shows while the map rests with its labels faded out. The marks are aria-hidden
+ * and take no room; what they count, threads and On me items alike, the row's link
+ * previews (`lfPreview`) in place of its name, which its face already says, and that
+ * preview describes the link to a screen reader where focus lands on it. */
 import { html, nothing, ref, repeat } from "/vendor/lit.js";
 import { marksWords } from "./toc-marks.js";
 
@@ -19,15 +20,16 @@ import { marksWords } from "./toc-marks.js";
 /** @typedef {import("./toc-marks.js").SectionMarks} SectionMarks */
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
+// The one mark a row wears, an On me item outranking a thread, and the dot the outline
+// draws it with on its rule (toc.css), where the map draws it round the row's marker.
+/** @param {SectionMarks | undefined} marks */
+const markKind = (marks) =>
+  marks?.onMe ? "on-me" : marks?.threads ? "thread" : nothing;
 /** @param {SectionMarks | undefined} marks */
 const markView = (marks) =>
-  marks
-    ? html`<span class="lf-toc-marks" aria-hidden="true"
-        >${marks.threads ? html`<i data-lf-toc-mark="thread"></i>` : nothing}${
-          marks.onMe ? html`<i data-lf-toc-mark="on-me"></i>` : nothing
-        }</span
-      >`
-    : nothing;
+  markKind(marks) === nothing
+    ? nothing
+    : html`<span class="lf-toc-mark" aria-hidden="true"></span>`;
 
 // The outline belongs to the document holding it (`viewDocument`), or for contents
 // standing beside the page's main, that main. Scope follows document ownership, not
@@ -78,7 +80,7 @@ export function drawToc(host, headingReading) {
   /** @this {Element} */
   function beforeFirst() {
     const words = marksWords(marks.get(outline.start?.heading ?? null));
-    return words && this.querySelector(":scope > .lf-toc-marks")?.checkVisibility()
+    return words && this.querySelector(":scope > .lf-toc-mark")?.checkVisibility()
       ? { name: "Before the first section", detail: [words] }
       : null;
   }
@@ -141,6 +143,7 @@ export function drawToc(host, headingReading) {
             class="lf-toc-heading lf-label"
             ${generated(true)}
             ?data-lf-toc-changed=${Boolean(first?.changes)}
+            data-lf-toc-mark=${markKind(first)}
             .lfPreview=${beforeFirst}
           >
             On this page${markView(first)}
@@ -150,6 +153,7 @@ export function drawToc(host, headingReading) {
               class="lf-toc-toggle lf-label"
               ${generated(true)}
               ?data-lf-toc-changed=${Boolean(first?.changes)}
+              data-lf-toc-mark=${markKind(first)}
               .lfPreview=${beforeFirst}
             >
               On this page${markView(first)}
@@ -160,6 +164,7 @@ export function drawToc(host, headingReading) {
                 class="lf-toc-start"
                 data-lf-depth="0"
                 ?data-lf-toc-changed=${Boolean(first?.changes)}
+                data-lf-toc-mark=${markKind(first)}
               >
                 <a
                   href=${href(start?.destination)}
@@ -175,6 +180,7 @@ export function drawToc(host, headingReading) {
                     <li
                       data-lf-depth=${item.depth}
                       ?data-lf-toc-changed=${Boolean(marks.get(item.heading)?.changes)}
+                      data-lf-toc-mark=${markKind(marks.get(item.heading))}
                     >
                       <a
                         href=${href(item.destination)}

@@ -2038,7 +2038,8 @@ def held(reading: str, readings: Container[str]) -> bool:
     `whole` input's result is made of the page, so any of its readings may grow. A
     reading names its input first, as `click event KB` does, the size of the answer
     to the click's POST."""
-    name, *_, measure = reading.split()
+    words = reading.split()
+    name, measure = words[0], words[-1]
     each = INPUTS.get(name)
     if each is None or each.whole:
         return False

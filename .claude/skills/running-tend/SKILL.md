@@ -339,8 +339,8 @@ separates a regression from a slow runner. So this review weighs the readings in
 of a cutoff.
 
 Read the report of the latest scheduled run (`gh run list -w ci -e schedule`). Its
-`bench-report-*` artifact holds the browser and server tables, each reading by size
-with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
+`bench-report-*` artifact holds the browser, documents and server tables, each reading
+by size with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
 `dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
 at 64 sections.
 

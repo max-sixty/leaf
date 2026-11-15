@@ -57,12 +57,12 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   // The cursor's paint, which the margin likewise does not hear: the hand over a
   // thread's mark, on the element under the pointer (annotation-overlay/anchor-paint.js,
   // annotation-chrome.css), the armed aim on `body` (composing/aim.js), and on the
-  // element under the pointer the aim's hand where it has an item and Draw mode's
-  // crosshair (page-geometry.js).
+  // element under the pointer the aim's hand where it has an item and the crosshair of
+  // Draw mode and Capture area (page-geometry.js).
   overMark: "data-lf-over-mark",
   aiming: "data-lf-aiming",
   overItem: "data-lf-over-item",
-  drawAt: "data-lf-draw-at",
+  crosshair: "data-lf-crosshair",
   // The anchor name a heading holds while its link shows (heading-links.js, marks.css),
   // which the margin likewise does not hear.
   headingLink: "data-lf-heading-link",

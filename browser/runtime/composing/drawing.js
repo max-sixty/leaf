@@ -453,8 +453,11 @@ export function createDrawingController({
       );
       return;
     }
-    if (event.target instanceof Element)
-      event.target.setPointerCapture(event.pointerId);
+    // The browser shows the cursor of the element holding the pointer, so the stroke's
+    // moves go to the one wearing the crosshair (page-geometry.js), inside a widget's
+    // tree where the press landed in one.
+    const holder = elementFromPointAcross(event.clientX, event.clientY) ?? event.target;
+    if (holder instanceof Element) holder.setPointerCapture(event.pointerId);
     stroke = {
       anchor: target.anchor,
       frameReference: reference,

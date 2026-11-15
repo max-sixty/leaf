@@ -27,7 +27,7 @@ import { WORKS } from "./control-selectors.js";
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
- * drawModeActive: () => boolean,
+ * pointerModeActive: () => boolean,
  * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
  * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],
@@ -38,7 +38,7 @@ export function createPageGeometry({
   aim,
   pointer,
   designMode,
-  drawModeActive,
+  pointerModeActive,
   targetPaint,
   shiftDrawings,
   queueLegend,
@@ -64,23 +64,27 @@ export function createPageGeometry({
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
   // The hand where an armed press takes an item stands on the element under the pointer
   // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
-  // element holds rather than all `body` does; a control keeps its own cursor. Draw
-  // mode's crosshair stands there too (integration.css), on the element inside a
-  // widget's tree where the pointer is over one, so a widget's control shows it, and
-  // never on Leaf's own surfaces, which keep their gestures and their cursors.
+  // element holds rather than all `body` does; a control keeps its own cursor.
   const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
-  const paintCrosshair = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.drawAt);
+  // The crosshair of a mode that takes presses on the whole plane, Draw mode or Capture
+  // area, stands there too (integration.css), on the element inside a widget's tree
+  // where the pointer is over one, so a widget's control shows it, and never on Leaf's
+  // own surfaces, which keep their gestures and their cursors. Capture area claims the
+  // pointer's moves before the aim hears them, so it asks for this one itself.
+  const paintCrosshair = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.crosshair);
+  function refreshCrosshair() {
+    const at = pointer();
+    const under =
+      pointerModeActive() && at.x >= 0 ? elementFromPointAcross(at.x, at.y) : null;
+    paintCrosshair(under && !leafSurface(under) ? under : null);
+  }
   function refreshAim() {
+    refreshCrosshair();
     const target = aimTarget();
     const aimed = target?.element ?? null;
     const at = pointer();
-    const under =
-      (aimed || drawModeActive()) && at.x >= 0
-        ? elementFromPointAcross(at.x, at.y)
-        : null;
-    const takes = aimed && !closestAcross(under, WORKS);
+    const takes = aimed && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
     paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
-    paintCrosshair(drawModeActive() && under && !leafSurface(under) ? under : null);
     const shown = target && targetPaint.paintAim(target.element, target.surface);
     if (!shown) {
       targetPaint.clearAim();
@@ -165,6 +169,7 @@ export function createPageGeometry({
     mount,
     destroy,
     refreshAim,
+    refreshCrosshair,
     invalidate,
     pageShifted,
   };

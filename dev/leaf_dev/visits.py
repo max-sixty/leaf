@@ -32,8 +32,7 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from leaf.event_log import read_events
-from leaf.findings import Finding
-from leaf.render_gate.scheme import collect_page_exceptions, console_finding
+from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ios_safari
 from leaf_dev.arms import Arm, own_source, served_page, serving_source
 from leaf_dev.browser import Window, load, settle, slow_cpu, tab
@@ -143,7 +142,10 @@ def visits(
                 tab(browser, window, scheme, motion=motion, scale=scale)
             )
             with record(page, arm) if record else nullcontext():
-                reading["console"] = console_findings(page)
+                # Warnings carry the browser's own diagnostics, such as Firefox's
+                # note that a `document.write` forced a reparse.
+                reading["console"] = []
+                collect_page_errors(page, reading["console"], warnings=True)
                 page.add_init_script(path=MAIN_THREAD_SCRIPT)
                 observe_startup(page)
                 if throttle:
@@ -214,18 +216,3 @@ def logged_errors(directory: Path) -> list[str]:
     return [
         event["text"] for event in read_events(directory) if event["kind"] == "error"
     ]
-
-
-def console_findings(page) -> list[Finding]:
-    """The console errors and warnings and the uncaught exceptions of every document
-    in the page, collected from here on. Warnings carry the browser's own diagnostics,
-    such as Firefox's note that a `document.write` forced a reparse."""
-    found = []
-
-    def heard(message):
-        if (finding := console_finding(message)) is not None:
-            found.append(finding)
-
-    page.on("console", heard)
-    collect_page_exceptions(page, found)
-    return found

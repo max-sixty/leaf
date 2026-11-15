@@ -504,7 +504,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     content = """<div id="split">
       <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
         <h2 id="question">Which plan should lead?</h2>
-        <lf-options id="plans" required>
+        <lf-options id="plans">
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>

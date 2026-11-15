@@ -580,7 +580,10 @@ def declare_on_page(page_dir: Path, mutate) -> None:
     path.write_text(json.dumps(declarations))
 
 
-PAGE = """<!doctype html>
+# PAGE's decision is settled, so the page asks the user nothing. A test that needs a
+# question replaces this tag with a group that asks.
+PAGE_GROUP = '<lf-options id="plan-choice" settled>'
+PAGE = f"""<!doctype html>
 <html lang="en">
 <head>
 <title>t</title>
@@ -592,7 +595,7 @@ PAGE = """<!doctype html>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
   <div id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
-    <lf-options>
+    {PAGE_GROUP}
       <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
         <strong>Flag first</strong> Ship dark.
       </lf-option>
@@ -795,10 +798,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
-        .replace(
-            '<lf-options id="picks">',
-            f'<lf-options id="picks" required resolves="{thread}">',
-        )
+        .replace(PICKS_GROUP, f'<lf-options id="picks" resolves="{thread}">')
         .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" selected>')
     )
 
@@ -1198,7 +1198,7 @@ X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<lf-ask id="g1-decision">
   <h3>Which migration should lead?</h3>
-  <lf-options id="g1" required>
+  <lf-options id="g1">
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
@@ -1478,7 +1478,7 @@ def deciding_verb(outcomes):
 
 
 def trial_version(*markup):
-    return PAGE.replace("<lf-options>", "\n".join([*markup, "<lf-options>"]))
+    return PAGE.replace(PAGE_GROUP, "\n".join([*markup, PAGE_GROUP]))
 
 
 def trial_family(root: Path) -> None:
@@ -3023,9 +3023,10 @@ def _settling_page(page_dir):
     serving(page_dir, 1)
 
 
-# One authored id for the group, so an action can name it. Its options already
-# carry ids, which is what lets a floor land inside the widget rather than on it.
-PICKS_PAGE = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+# The group under the id the pick tests name. Its options already carry ids, which
+# is what lets a floor land inside the widget rather than on it.
+PICKS_GROUP = '<lf-options id="picks" settled>'
+PICKS_PAGE = PAGE.replace(PAGE_GROUP, PICKS_GROUP)
 
 
 def _interaction_prompt_evidence(page, value):

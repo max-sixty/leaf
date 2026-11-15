@@ -234,14 +234,14 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
 
 
-def test_required_options_require_an_id(page_dir):
-    # Actions name their widget by id, so an interactive group can't go without one.
+def test_options_require_an_id(page_dir):
+    # Actions name their widget by id, and every group takes them.
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
-        '<lf-options required><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+        '<lf-options><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert [finding.code for finding in errs] == ["needs-id"]
+    assert found(errs, "attribute-schema", "<lf-options>", keyword="required")
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -251,7 +251,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-sample id="sp" label="a decision">'
-        '<lf-options id="g" required><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
+        '<lf-options id="g"><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
         '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
         "</lf-sample>",
@@ -265,12 +265,12 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
-        '<lf-options id="g-one" required>'
+        '<lf-options id="g-one">'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
         "</lf-options>"
     )
     second = (
-        '<lf-options id="g-two" required>'
+        '<lf-options id="g-two">'
         '<lf-option id="o-two"><strong>Two</strong></lf-option>'
         "</lf-options>"
     )
@@ -338,19 +338,20 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     ):
         assert found(fragment_errors(empty, registry), "empty-question", widgets=[])
 
-    def lacking(lacks):
-        return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
+    def lacking(at, lacks):
+        return [{"at": at, "line": 1, "lacks": lacks}]
 
-    unasked = first.replace(" required", "")
+    # A draft asks only where its author marks it, so unmarked it fills no question.
+    unasked = '<lf-draft id="g-draft"><pre>\nThe wording.</pre></lf-draft>'
     assert found(
         fragment_errors(
             f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
             registry,
         ),
         "empty-question",
-        widgets=lacking({"required": [True]}),
+        widgets=lacking("<lf-draft id=g-draft>", {"required": [True]}),
     )
-    settled = first.replace(" required", " required settled")
+    settled = first.replace('id="g-one"', 'id="g-one" settled')
     settled_obligation = (
         f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
     )
@@ -362,7 +363,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     assert found(
         fragment_errors(settled_obligation, unretired),
         "empty-question",
-        widgets=lacking({"settled": [False]}),
+        widgets=lacking("<lf-options id=g-one>", {"settled": [False]}),
     )
     assert (
         fragment_errors(
@@ -959,7 +960,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     clash = reply(
         question(
             "o-decision",
-            '<lf-options id="o" required><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="o"><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -967,7 +968,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     fresh = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1" required><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -976,14 +977,14 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     again = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1" required><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
         question(
             "q2-decision",
-            '<lf-options id="q2" required><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q2"><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
@@ -1002,7 +1003,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     ok = reply(
         question(
             "quoted-decision",
-            '<lf-options id="quoted" required><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="quoted"><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event=follow_up["id"],
         to=follow_up["id"],
@@ -1047,7 +1048,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--markup",
             (
                 '<lf-ask id="pick-decision"><h2>Pick?</h2>'
-                '<lf-options id="lf-pick" required>'
+                '<lf-options id="lf-pick">'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),

@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     PICKS_PAGE,
     STATED_TIMEOUT,
     Prose,
@@ -902,7 +903,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "author": "agent",
             "revision": 1,
             "text": "Which region?",
-            "markup": '<lf-options id="thread-region" required>'
+            "markup": '<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -1105,7 +1106,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     to a draft that asks nothing is carried by the log and owes nothing: it keeps a
     receipt that reports its delivery, which no count, Stop or `idle` reads, and the
     next version retires it without writing the edit in."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>').replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
         "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
     )
     (claimed / "index.html").write_text(source)
@@ -1186,7 +1187,7 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     it, so no version has to place it in the markup. A pick of it is owed a stamped
     version all the same, and a version that leaves the option out settles it; a
     version still marking an authored option `selected` does not."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>').replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
         '<lf-option id="flag-first">', '<lf-option id="flag-first" selected>'
     )
     (claimed / "index.html").write_text(source)
@@ -1229,7 +1230,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     """Done finishes a multiple-choice answer without replacing it: the version that
     takes the answer in still marks the authored picks `selected`, beside an added option
     that stays the log's, and a version without them leaves the answer owed."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     for action, detail in [
@@ -1281,7 +1282,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
                 answered={"answer": {}}
             ),
         )
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     lease = _watched(claimed)

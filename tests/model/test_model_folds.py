@@ -785,7 +785,7 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
             "kind": "comment",
             "author": "agent",
             "text": "Choose a route.",
-            "markup": '<lf-options id="routes" required><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
+            "markup": '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
         {"kind": "reply", "parent": "e1", "token": "keep"},
@@ -865,7 +865,7 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     page = model.leaf_page(
         "Tail",
         '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
-        '<lf-options id="pick" required><lf-option id="one">One</lf-option>'
+        '<lf-options id="pick"><lf-option id="one">One</lf-option>'
         '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
     )
     pick = {

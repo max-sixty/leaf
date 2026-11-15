@@ -471,7 +471,7 @@ leaf server start ./review</code></pre>
                 </p>
                 <lf-ask id="queue-question">
                   <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" required>
+                  <lf-options id="queue-policy">
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
                       wait for space before accepting more.</lf-option
@@ -516,14 +516,14 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 <summary>Example: answer a page choice</summary>
                 <p id="decision-example-reading">
                   The page asks which queue policy to use with
-                  <code>lf-options id="queue-policy" required</code>. When the user
-                  chooses Drop the oldest record, Leaf delivers that choice to the
-                  agent. The agent starts the choice event, reads the current choice,
-                  and revises the HTML to show the selected option:
+                  <code>lf-options id="queue-policy"</code>. When the user chooses Drop
+                  the oldest record, Leaf delivers that choice to the agent. The agent
+                  starts the choice event, reads the current choice, and revises the
+                  HTML to show the selected option:
                 </p>
                 <pre
                   id="decision-markup"
-                ><code class="language-html">&lt;lf-options id="queue-policy" required&gt;
+                ><code class="language-html">&lt;lf-options id="queue-policy"&gt;
   &lt;lf-option id="drop-oldest" selected&gt;Drop the oldest record&lt;/lf-option&gt;
   &lt;lf-option id="block-producer"&gt;Pause the producer&lt;/lf-option&gt;
 &lt;/lf-options&gt;</code></pre>
@@ -1851,7 +1851,7 @@ flowchart TD
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
-                <lf-options id="ship" required>
+                <lf-options id="ship">
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
                   >
@@ -2268,7 +2268,7 @@ flowchart TD
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
-                <lf-options id="sample-publish-report" required>
+                <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep"
                     ><strong>Keep it private</strong></lf-option
                   >

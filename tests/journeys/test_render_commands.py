@@ -112,7 +112,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
             "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
-            "<lf-options id='ship' required><lf-option id='ship-now'>Now</lf-option>"
+            "<lf-options id='ship'><lf-option id='ship-now'>Now</lf-option>"
             "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
@@ -120,7 +120,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             )
             + "".join(
                 f"<lf-ask id='ask-{i}'><h2>Ship part {i}?</h2>"
-                f"<lf-options id='o-{i}' required><lf-option id='o-{i}-y'>Yes</lf-option>"
+                f"<lf-options id='o-{i}'><lf-option id='o-{i}-y'>Yes</lf-option>"
                 f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-ask>"
                 for i in range(2)
             )
@@ -482,7 +482,7 @@ from render_cases_layout import (
     BADGE_CHROME,
 )
 from render_harness import (
-    CARRIED_PAGE,
+    CARRIED_DECISION,
     EXAMPLE_PACKAGES,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
@@ -553,9 +553,7 @@ def test_render_reads_widget_chrome_where_it_stands(
         f'<lf-shot id="shot-nav" alt="the navigation rail" before="{SHOT_SRC["before"]}"'
         f' after="{SHOT_SRC["after"]}"></lf-shot>'
     )
-    start = CARRIED_PAGE.index('<lf-options id="carried">')
-    carried = CARRIED_PAGE[start : CARRIED_PAGE.index("</lf-options>") + 13]
-    source = REPLY_HOST_PAGE.replace("</main>", carried + pair + "</main>")
+    source = REPLY_HOST_PAGE.replace("</main>", CARRIED_DECISION + pair + "</main>")
     url = serve(
         source,
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),

@@ -147,7 +147,7 @@
                   I recommend restarting, which keeps the durable work and replaces the
                   stalled process.
                 </p>
-                <lf-options id="decision-dedupe" required>
+                <lf-options id="decision-dedupe">
                   <lf-option id="dedupe-restart">
                     <small class="tag ok">recommended</small>
                     <strong>Restart with a fresh worker</strong> Preserve tree-w-5
@@ -178,7 +178,7 @@
                   I recommend failing and paging, since zero rows is a failure until
                   proved otherwise.
                 </p>
-                <lf-options id="decision-zero" required>
+                <lf-options id="decision-zero">
                   <lf-option id="zero-alert" for="parser-zero">
                     <small class="tag ok">recommended</small>
                     <strong>Fail and page</strong> Preserve the export and stop the
@@ -221,7 +221,7 @@
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
                 <p>I recommend landing it now, while the evidence is current.</p>
-                <lf-options id="decision-schema" required>
+                <lf-options id="decision-schema">
                   <lf-option id="schema-land">
                     <small class="tag ok">recommended</small>
                     <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
@@ -297,7 +297,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
                 <p>I recommend landing it, since the public contract is ready.</p>
-                <lf-options id="decision-api" required>
+                <lf-options id="decision-api">
                   <lf-option id="api-land">
                     <small class="tag ok">recommended</small>
                     <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.

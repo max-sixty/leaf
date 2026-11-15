@@ -32,7 +32,7 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
 
     def item(fast, restated=""):
         return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
-  <lf-options id="route" required>
+  <lf-options id="route">
     <lf-option id="route-fast"{restated}>{fast}</lf-option>
     <lf-option id="route-slow">Slow path</lf-option>
   </lf-options>

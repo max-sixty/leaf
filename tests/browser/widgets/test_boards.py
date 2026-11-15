@@ -805,7 +805,7 @@ ANSWERS_BOARD_PAGE = leaf_page(
 <h1 id="t">Proposals</h1>
 <section id="rail-section">
   <h2>Keep the rail beside the text</h2>
-  <lf-options id="rail" required>
+  <lf-options id="rail">
     <lf-option id="rail-next" value="next">Next</lf-option>
     <lf-option id="rail-later" value="later" selected>Later</lf-option>
   </lf-options>
@@ -865,8 +865,8 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
-            '<lf-options id="rail" required>',
-            '<lf-options id="rail" required restated>',
+            '<lf-options id="rail">',
+            '<lf-options id="rail" restated>',
         )
     )
     assert stamp(serve.page_dir, "Ask again").exit_code == 0

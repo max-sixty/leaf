@@ -25,6 +25,7 @@ from interact_support import (
     FLOW_PAGE,
     OPTIONS,
     PAGE,
+    PAGE_GROUP,
     SHIPPED_PACKAGES,
     STATED_TIMEOUT,
     X,
@@ -98,6 +99,10 @@ from leaf.validation.admission import message_markup_errors
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
+
+# PAGE's group asking, and the same group once the author settles it.
+ASKING = '<lf-options id="choice">'
+SETTLED = '<lf-options id="choice" settled>'
 
 
 def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
@@ -1374,7 +1379,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Choose a route.",
-            "markup": 'Before <lf-options id="frozen" required><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
+            "markup": 'Before <lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
         },
     )
     append_command(
@@ -1736,7 +1741,7 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
+        PAGE.replace(PAGE_GROUP, PAGE_GROUP + "\nloose text\n<p>stray</p>\n<br/>")
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -1759,8 +1764,8 @@ def test_tabs_reject_structural_violations(page_dir):
   <lf-tab id="ws-a"><p>x</p></lf-tab>
 </lf-tabs>
 <lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
-<lf-options>"""
-    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
+"""
+    (page_dir / "index.html").write_text(PAGE.replace(PAGE_GROUP, bad + PAGE_GROUP))
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
@@ -1771,13 +1776,13 @@ def test_tabs_reject_structural_violations(page_dir):
 def test_suggestion_rejects_malformed_shapes(page_dir):
     for markup, expected in [
         (
-            '<lf-suggestion id="sug-a"></lf-suggestion><lf-options>',
+            '<lf-suggestion id="sug-a"></lf-suggestion>' + PAGE_GROUP,
             ("empty-suggestion", "<lf-suggestion id=sug-a>"),
         ),
         (
             (
                 '<lf-suggestion id="sug-a"><lf-new><p>x</p></lf-new>'
-                "<lf-new><p>y</p></lf-new></lf-suggestion><lf-options>"
+                "<lf-new><p>y</p></lf-new></lf-suggestion>" + PAGE_GROUP
             ),
             ("repeated-slot", "<lf-suggestion id=sug-a>"),
         ),
@@ -1785,16 +1790,16 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
             (
                 '<lf-suggestion id="sug-a"><lf-new>'
                 '<lf-suggestion id="sug-b"><lf-new>x</lf-new></lf-suggestion>'
-                "</lf-new></lf-suggestion><lf-options>"
+                "</lf-new></lf-suggestion>" + PAGE_GROUP
             ),
             ("nested-suggestion", "<lf-suggestion id=sug-b>"),
         ),
         (
-            "<lf-old><p>orphan</p></lf-old><lf-options>",
+            "<lf-old><p>orphan</p></lf-old>" + PAGE_GROUP,
             ("not-member", "<lf-old>"),
         ),
     ]:
-        (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
+        (page_dir / "index.html").write_text(PAGE.replace(PAGE_GROUP, markup))
         status, findings = check_findings(page_dir)
         assert status == 1, markup
         assert expected in [(f.code, f.at) for f in findings], markup
@@ -1810,14 +1815,12 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
     )
     source = (
         PAGE.replace(
-            "<lf-options>",
+            PAGE_GROUP,
             '<lf-suggestion id="answer" resolves="plan"><lf-new><p>Proposed</p>'
-            "</lf-new></lf-suggestion><lf-options>",
+            "</lf-new></lf-suggestion>" + PAGE_GROUP,
         )
         if widget == "lf-suggestion"
-        else PAGE.replace(
-            "<lf-options>", '<lf-options id="answer" required resolves="plan">'
-        )
+        else PAGE.replace(PAGE_GROUP, '<lf-options id="answer" resolves="plan">')
     )
     (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
@@ -1839,7 +1842,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry = copy.deepcopy(load_registry(page_dir))
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     markup = (
-        '<lf-options id="answer" required resolves="plan">'
+        '<lf-options id="answer" resolves="plan">'
         '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
     )
     page = structure_model.SourceDocument(PAGE)
@@ -2119,7 +2122,8 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
         "</main>",
         '</main><footer id="footer">Footer words</footer>Authored tail'
         '<aside id="aside">Aside words</aside>'
-        '<lf-options><lf-option id="tail">A sibling option</lf-option></lf-options>',
+        '<lf-options id="tail-choice"><lf-option id="tail">A sibling option</lf-option>'
+        "</lf-options>",
     )
     (page_dir / "index.html").write_text(source)
 
@@ -2247,7 +2251,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "--text",
             "Which store?",
             "--markup",
-            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" required>'
+            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store">'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-ask>",
         ).output.splitlines()
@@ -2311,9 +2315,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
     version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("<lf-options>", '<lf-options id="choice">')
-    )
+    version.write_text(version.read_text().replace(PAGE_GROUP, SETTLED))
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "value=review")
@@ -2435,7 +2437,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
     it, and a user's action can land meanwhile (`publishing` header). The stamp
     then checks again against the log and revisions it publishes onto: it names
     the revision the read activated rather than publishing the source twice."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2538,7 +2540,7 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
 def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
     """A page written faster than the stamp checks it outside the transaction
     still gets its stamp: the last check runs under the transaction."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2597,8 +2599,8 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }.items() <= state["source"].items()
     assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `required`. The obligation
-    # names the region the user is sent to and the group that answers it.
+    # The one asking group: PAGE's own is settled. The obligation names the region the
+    # user is sent to and the group that answers it.
     assert obligations_on_user(state) == [
         {
             "id": "widget:g1",
@@ -3076,7 +3078,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 ):
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
-    opts = """<lf-options id="g1" required>
+    opts = """<lf-options id="g1">
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
@@ -3377,7 +3379,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
-            '<lf-options id="gm" required multiple>'
+            '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options></lf-ask>",
@@ -3432,14 +3434,14 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-ask id="future-decision"><h3>Review it now?</h3>
-          <lf-options id="future-review" required>
+          <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
-          <lf-options id="decision-options" required>
+          <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
         </lf-ask>
@@ -3614,11 +3616,11 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
     markup = (
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
-        '<lf-sample id="sample"><lf-options id="example" required>'
+        '<lf-sample id="sample"><lf-options id="example">'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
-        '<lf-options id="real" required><lf-option id="real-a">A</lf-option>'
+        '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
         "</lf-test-task></lf-test-plan>"
     )
@@ -3644,7 +3646,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     markup = (
         '<lf-sample id="practice" interactive>'
         '<lf-ask id="practice-ask"><h3>Which queue policy?</h3>'
-        '<lf-options id="practice-policy" required>'
+        '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
         '<lf-option id="practice-b">B</lf-option></lf-options></lf-ask>'
         "</lf-sample>"
@@ -4037,10 +4039,10 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     builds its element index as it is read and the rest on first use, so here only
     the candidate and the active revision are read whole. The withdrawn obligation is the
     control: it is known only from the revision that asked."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" required", "")).replace(
+            (source if edit == 0 else source.replace(ASKING, SETTLED)).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4072,10 +4074,10 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
     """
     from leaf.work_reading import WorkReading
 
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" required", "")).replace(
+            (source if edit == 0 else source.replace(ASKING, SETTLED)).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4115,7 +4117,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         assert read() == initial
         assert len(parsed) <= 1  # the active revision may have been evicted
         (page_dir / "index.html").write_text(
-            source.replace(" required", "").replace("</main>", "<p>new</p></main>")
+            source.replace(ASKING, SETTLED).replace("</main>", "<p>new</p></main>")
         )
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error

@@ -21,7 +21,7 @@ def section(group: str, chosen: str | None = None, extra: str = "") -> str:
         f"{' selected' if value == chosen else ''}>{value.title()}</lf-option>"
         for value in ("next", "later", "drop")
     )
-    return f'<lf-options id="{group}" required>{options}{extra}</lf-options>'
+    return f'<lf-options id="{group}">{options}{extra}</lf-options>'
 
 
 def board(columns: dict[str, list[str]], open_column: bool = True) -> str:

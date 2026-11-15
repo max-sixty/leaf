@@ -11,6 +11,7 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
@@ -129,13 +130,11 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
 ):
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-options"]["properties"].update(
-            required=subschema
-        ),
+        lambda registry: registry["lf-options"]["properties"].update(pinned=subschema),
     )
     version = page_dir / "index.html"
     version.write_text(
-        version.read_text().replace("<lf-options>", '<lf-options id="opts" required>')
+        version.read_text().replace(PAGE_GROUP, '<lf-options id="opts" pinned>')
     )
 
     result = check(page_dir)
@@ -522,7 +521,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "kind": "comment",
             "author": "agent",
             "text": "A widget example",
-            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" required><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+            "markup": '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget"><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
         },
         {
             "kind": "comment",

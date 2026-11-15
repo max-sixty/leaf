@@ -11,6 +11,7 @@ import urllib.request
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_command,
     publish,
     running_http_server,
@@ -39,7 +40,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     )
     publish(page_dir)
     site = tmp_path / "site"

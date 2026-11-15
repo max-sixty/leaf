@@ -679,7 +679,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
-        f'<lf-options id="options-{index}" required>'
+        f'<lf-options id="options-{index}">'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
         "</lf-options></lf-ask>"

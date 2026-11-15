@@ -89,7 +89,7 @@ MAP_CHOICE_PAGE = leaf_page(
     + """
 <lf-ask id="map-ask">
   <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" required>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
@@ -924,7 +924,7 @@ def test_draw_mode_captures_widget_controls(browser, serve):
         serve(
             leaf_page(
                 "Drawing over a choice",
-                '<h1>Choose a route</h1><lf-options id="route" required>'
+                '<h1>Choose a route</h1><lf-options id="route">'
                 '<lf-option id="trail">Trail</lf-option>'
                 '<lf-option id="street">Street</lf-option></lf-options>',
             )

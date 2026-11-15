@@ -83,7 +83,7 @@ QUICK_KEYS_PAGE = leaf_page(
 <h1 id="title">Field day</h1>
 <lf-ask id="map-ask">
   <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" required>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>

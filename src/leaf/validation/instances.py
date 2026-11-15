@@ -524,8 +524,9 @@ def reference_errors(
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Conditional obligations and thread seats need an id when they are live.
 
-    Requiring every instance globally would outlaw inert option groups; checking the
-    declared predicate here gives the runtime exactly the addressability it consumes.
+    A widget whose schema leaves `id` optional may stand without one while its
+    predicate fails; checking the declared predicate here gives the runtime exactly
+    the addressability it consumes.
     """
     errors = []
     for rec in lf_elements:

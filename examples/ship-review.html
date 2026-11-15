@@ -41,7 +41,7 @@
                 resends the queued batch; 500 forced stalls all recovered.
                 <lf-ask id="off-workaround-decision">
                   <h3>Patch decision: ship with the resend</h3>
-                  <lf-options id="off-workaround-review" required>
+                  <lf-options id="off-workaround-review">
                     <lf-option id="off-workaround-approve" for="off-t-resync" selected>
                       Ship with the resend and keep chasing the upstream fix.
                     </lf-option>
@@ -88,7 +88,7 @@
           telemetry and the support playbook described above. The upstream fix and
           additional reconnect work remain follow-ups.
         </p>
-        <lf-options id="off-release" required>
+        <lf-options id="off-release">
           <lf-option id="off-release-hold"
             ><strong>Hold the patch</strong> Offline editing waits for the upstream
             fix.</lf-option

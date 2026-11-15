@@ -8,7 +8,7 @@ vars:
   prompt: |
     You are revising a Leaf page for the user. It has a triage board
     (`<lf-board id="triage">` with three columns of cards) and, below it, an `lf-ask` whose
-    answer is an `<lf-options id="next-step" required>` with three options. The page's own
+    answer is an `<lf-options id="next-step">` with three options. The page's own
     `<style>` is empty.
 
     The user commented on the board: "The buttons on the board and the pick buttons in

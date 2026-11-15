@@ -5,6 +5,7 @@ by its next actor."""
 import model_folds as model
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     append_command,
     declare_on_page,
@@ -84,7 +85,7 @@ def test_two_messages_in_a_row_publish_one_record_both_workflows_name(page_dir):
 
 
 OPTIONS = (
-    '<lf-options id="choice" required><lf-option id="a">A</lf-option>'
+    '<lf-options id="choice"><lf-option id="a">A</lf-option>'
     '<lf-option id="b">B</lf-option></lf-options>'
 )
 
@@ -169,7 +170,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
         claimed, lambda registry: registry.update(queue_board_registry(registry))
     )
     (claimed / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" required>').replace(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
             "</section>",
             '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>',
         )

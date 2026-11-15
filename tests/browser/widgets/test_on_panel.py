@@ -155,11 +155,11 @@ def test_an_answered_obligations_words_are_its_widgets_semantic_state(browser, s
 Adds --dry-run to every mutating command.
 </pre></lf-draft></lf-ask>
 <lf-ask id="cache-ask"><h2>Which cache?</h2>
-<lf-options id="cache" required>
+<lf-options id="cache">
   <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="tags-ask"><h2>Which tags?</h2>
-<lf-options id="tags" required multiple>
+<lf-options id="tags" multiple>
   <lf-option id="tag-alpha" selected><strong>Alpha</strong></lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
 </lf-options></lf-ask>
@@ -440,7 +440,7 @@ WALKED_PAGE = leaf_page(
     '<h1 id="title">Kit list</h1>'
     + "".join(
         f'<lf-ask id="ask-{n}"><h2>Bring item {n}?</h2>'
-        f'<lf-options id="pick-{n}" required><lf-option id="yes-{n}">Yes</lf-option>'
+        f'<lf-options id="pick-{n}"><lf-option id="yes-{n}">Yes</lf-option>'
         f'<lf-option id="no-{n}">No</lf-option></lf-options></lf-ask>'
         for n in range(1, 9)
     ),
@@ -489,7 +489,7 @@ ORDERED_PAGE = leaf_page(
     "walk order",
     '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
     '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" required><lf-option id="beta">Beta first</lf-option>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
     '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
@@ -551,12 +551,12 @@ GROUPED_PAGE = leaf_page(
     '<h1 id="title">Release</h1>'
     '<section><h2 id="impl">Implementation</h2>'
     '<lf-ask id="exit-ask"><h3>Which exit code?</h3>'
-    '<lf-options id="exit" required><lf-option id="e75">75</lf-option>'
+    '<lf-options id="exit"><lf-option id="e75">75</lf-option>'
     '<lf-option id="e124">124</lf-option></lf-options></lf-ask>'
     '<p id="reap">Reap every process under the sandbox user.</p></section>'
     '<section><h2 id="rollout">Rollout</h2>'
     '<lf-ask id="runner-ask"><h3>Include self-hosted runners?</h3>'
-    '<lf-options id="runners" required><lf-option id="r-yes">Yes</lf-option>'
+    '<lf-options id="runners"><lf-option id="r-yes">Yes</lf-option>'
     '<lf-option id="r-no">No</lf-option></lf-options></lf-ask></section>',
 )
 
@@ -645,11 +645,11 @@ TABBED_PAGE = leaf_page(
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
     '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
-    '<lf-options id="first-q" required><lf-option id="first-yes">Yes</lf-option>'
+    '<lf-options id="first-q"><lf-option id="first-yes">Yes</lf-option>'
     '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
     '<lf-tab id="tab-second" label="Second plan">'
     '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
-    '<lf-options id="second-q" required><lf-option id="second-yes">Yes</lf-option>'
+    '<lf-options id="second-q"><lf-option id="second-yes">Yes</lf-option>'
     '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'
     "</lf-tabs>",
 )
@@ -740,7 +740,7 @@ CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
 <lf-ask id="stick-ask"><h2>How should a long sidebar stick?</h2>
-<lf-options id="stick" required>
+<lf-options id="stick">
   <lf-option id="stick-box"><small class="tag">two days</small>
     <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
@@ -809,7 +809,7 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
                 "done on its card",
                 """<h1 id="title">Tags</h1>
 <lf-ask id="tags-ask"><h2>Which tags?</h2>
-<lf-options id="tags" required multiple>
+<lf-options id="tags" multiple>
   <lf-option id="tag-alpha" selected><strong>Alpha</strong> The first tag.</lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
 </lf-options></lf-ask>""",
@@ -835,12 +835,12 @@ TWO_DECISIONS_PAGE = leaf_page(
     "two decisions",
     """<h1 id="title">Review</h1>
 <section id="timeline-ask"><h2>Land the timeline prototype?</h2>
-<lf-options id="timeline" required>
+<lf-options id="timeline">
   <lf-option id="tl-land">Land it</lf-option>
   <lf-option id="tl-keep">Keep it on its branch</lf-option>
 </lf-options></section>
 <lf-ask id="ship-ask"><h2>Ship on Friday?</h2>
-<lf-options id="ship" required>
+<lf-options id="ship">
   <lf-option id="ship-friday">Ship Friday</lf-option>
   <lf-option id="ship-wait">Wait a week</lf-option>
 </lf-options></lf-ask>""",

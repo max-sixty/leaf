@@ -58,9 +58,9 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" required{across}{width}>
+    <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
-        <lf-options id="{id}-nested" required>
+        <lf-options id="{id}-nested">
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
           <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
         </lf-options>
@@ -93,7 +93,7 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 PICTURED_OBLIGATION = """
   <lf-ask id="{id}">
     <h3>Should each item say where it sits in the plan?</h3>
-    <lf-options id="{id}-choice" required{width}>
+    <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
@@ -149,19 +149,19 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" required>'
+    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice">'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" required>'
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice">'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" required>'
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice">'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" required>'
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice">'
     + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
     + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
@@ -287,7 +287,7 @@ def chipped_obligation(id, cards):
         f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" required across>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-ask>'
     )
 
 
@@ -423,7 +423,7 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
         "obligation after a cleared pick",
         """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
-  <lf-options id="release-options" required>
+  <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>

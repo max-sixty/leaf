@@ -324,7 +324,7 @@ def test_next_on_me_rings_the_options_a_card_message_asks_with_whole(browser, se
         "responds": LONG_THREAD_ROOT["id"],
         "revision": 1,
         "text": "Shall I merge it?",
-        "markup": '<lf-options id="merge" required>'
+        "markup": '<lf-options id="merge">'
         '<lf-option id="merge-go"><strong>Merge it once CI passes</strong></lf-option>'
         '<lf-option id="merge-read"><strong>I will read the diff first</strong>'
         "</lf-option></lf-options>",

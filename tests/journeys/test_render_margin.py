@@ -89,7 +89,7 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
     """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
-<lf-options id="route" required>
+<lf-options id="route">
   <lf-option id="route-garden">Through the garden</lf-option>
   <lf-option id="route-river">Along the river</lf-option>
 </lf-options></lf-ask>

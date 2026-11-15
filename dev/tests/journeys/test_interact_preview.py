@@ -753,7 +753,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     source.write_text(
         "<!doctype html><html><head><title>Reading</title></head><body><main>"
         '<h1>Initial reading</h1><lf-text-document id="receipt" source="receipt"></lf-text-document>'
-        '<lf-options id="route" required><lf-option id="first">First</lf-option>'
+        '<lf-options id="route"><lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options></main></body></html>'
     )
     source.with_suffix(".data.json").write_text('{"receipt":"Original value"}')

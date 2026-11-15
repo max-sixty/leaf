@@ -13,13 +13,17 @@
  * reader already has. It points and never speaks: the label stays written in the
  * markup, so the file's reading of the page holds every word the page shows.
  *
- * `required` takes the user's pick. Every option carries one injected mark that is both
+ * A group takes the user's pick, with no attribute to say so; only an exhibit shows
+ * one that takes none (below). An attribute that made a group take picks (`required`,
+ * before it `choose`) was rejected: nearly every group carried it, and one written
+ * without it drew cards nobody could press while `page check` passed. Every option
+ * carries one injected mark that is both
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
  * the option's cell takes a quiet tint. Cards and rows mark a pick alike, tint plus
  * check: on 2026-10-26 the user chose this over a "✓ selected" chip in a live titled
  * card's corner, a word only cards wore, crowding the author's own chips. The checkbox state carries the same fact for a user
- * listening. Outside a `required` group
+ * listening. In an exhibit
  * the mark renders as an image-like span, so authored state keeps the check and an
  * accessible name without pretending it can be pressed.
  *
@@ -32,7 +36,7 @@
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
  * to follow — belongs to what it landed on (`worksInside`).
  *
- * The last cell of a page `required` group is the option the user writes. Submitting it
+ * The last cell of a page's group is the option the user writes. Submitting it
  * sends an `add` naming the new option and its words, then selects it through the same
  * `choose` action as every other pick. The option stands on the `add`'s own coordinate,
  * so a later pick leaves it in the group and only undoing the `add` takes it away. It is
@@ -93,11 +97,10 @@
  * once opened — settling is a sweep, not a lock, and the summary line follows whatever is
  * chosen, including back to a bare "Settled" when the user clears it.
  *
- * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
- * same path as a group that never declared `required`: the mark is a span, the click
- * handler is never wired, there is no cell for an option of the user's own, and an
- * example decision can't be answered. `settled` still collapses there, because quoting
- * gates the action channel and not presentation.
+ * Inside an exhibit the group is quoted — exhibited, not offered: the mark is a span,
+ * the click handler is never wired, there is no cell for an option of the user's own,
+ * and an example decision can't be answered. `settled` still collapses there, because
+ * quoting gates the action channel and not presentation.
  *
  * Authored element children stay in place. The layer formats declared Markdown
  * before this module upgrades the options; generated children use that parser too. */
@@ -275,9 +278,9 @@ customElements.define(
       }));
     }
 
-    // An exhibited or purely structural group has no semantic identity: it renders the
-    // authored alternatives, but owns no selection and therefore has no captured widget
-    // descriptor, so it has no reading. Only a live or settled decision has one.
+    // An exhibited group has no semantic identity: it renders the authored
+    // alternatives, but owns no selection, so it has no reading. Only a live or
+    // settled decision has one.
     setup() {
       this.#wire(quoted(this));
     }
@@ -296,10 +299,9 @@ customElements.define(
 
     /** @param {boolean} exhibited */
     #wire(exhibited) {
-      // Quoted material is exhibited, not offered, so a sample renders exactly like a
-      // group that was never choosable: it shows what a decision looks like without
-      // taking one.
-      this.#choosable = this.hasAttribute("required") && !exhibited;
+      // Quoted material is exhibited, not offered: a sample shows what a decision
+      // looks like without taking one. Every other group takes the user's pick.
+      this.#choosable = !exhibited;
       // Bindings name identities, not the current visible order. Reserve the authored
       // choices and auxiliary actions before user-added options arrive, and retain a
       // removed option's number so undo never changes another action's binding.
@@ -312,8 +314,8 @@ customElements.define(
         [...this.#options()].map((option) => option.getAttribute("for")),
       );
       if (named.size > 1) for (const option of this.#options()) this.#reference(option);
-      // Without `required` there is nothing to press: the mark still reports the
-      // document's state, as a span.
+      // An exhibit has nothing to press: the mark still reports the document's state,
+      // as a span.
       for (const option of this.#options())
         if (this.#choosable || option.hasAttribute("selected"))
           this.#control(option, this.#choosable);

@@ -62,7 +62,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
 
     def question(name):
         options = (
-            f'<lf-options id="choice-{name}" required>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
         )
@@ -229,7 +229,7 @@ def test_an_obligation_walk_reveals_the_owning_regions_horizontal_destination(
         'style="width:220px; height:280px; overflow:auto">'
         '<div style="width:1600px; padding-left:900px; box-sizing:border-box">'
         '<lf-ask id="wide-ask"><h2>Choose the wider plan?</h2>'
-        '<lf-options id="wide-choice" required>'
+        '<lf-options id="wide-choice">'
         '<lf-option id="wide-yes">Yes</lf-option>'
         '<lf-option id="wide-no">No</lf-option></lf-options></lf-ask>'
         "</div></div>",
@@ -458,7 +458,7 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
                 "Second</button></div>"
                 + "".join(
                     f'<lf-ask id="{key}-decision"><h2>Pick {key}</h2>'
-                    f'<lf-options id="{key}" required><lf-option id="{key}-a">'
+                    f'<lf-options id="{key}"><lf-option id="{key}-a">'
                     "Alpha</lf-option></lf-options></lf-ask>"
                     for key in ("first", "second")
                 ),
@@ -625,11 +625,11 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
                 "Shared Question context",
                 '<h1>Shared Question context</h1><lf-ask id="shared">'
                 "<h2>Choose both releases</h2>"
-                '<lf-options id="first" required>'
+                '<lf-options id="first">'
                 '<lf-option id="first-a">Alpha</lf-option>'
                 '<lf-option id="first-b">Beta</lf-option></lf-options>'
                 '<div style="height:1200px">Evidence between decisions</div>'
-                '<lf-options id="second" required>'
+                '<lf-options id="second">'
                 '<lf-option id="second-a">Gamma</lf-option>'
                 '<lf-option id="second-b">Delta</lf-option></lf-options></lf-ask>',
             )
@@ -709,7 +709,7 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
             leaf_page(
                 "An ask scrolled away",
                 '<h1>An ask scrolled away</h1><lf-ask id="route"><h2>Which route?</h2>'
-                '<lf-options id="routes" required>'
+                '<lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
                 '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
@@ -769,7 +769,7 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><lf-ask id="ask-{index}">'
-        f'<h2>Which route?</h2><lf-options id="routes-{index}" required>'
+        f'<h2>Which route?</h2><lf-options id="routes-{index}">'
         f'<lf-option id="left-{index}">Take the left route</lf-option>'
         f'<lf-option id="right-{index}">Take the right route</lf-option>'
         "</lf-options></lf-ask>"
@@ -886,7 +886,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     items = "".join(
         f"""
 <lf-ask id="question-{index}"><h2>Question {index}: which route should we take?</h2>
-<lf-options id="routes-{index}" required>
+<lf-options id="routes-{index}">
   <lf-option id="route-{index}-left">Take the left route</lf-option>
   <lf-option id="route-{index}-right">Take the right route</lf-option>
 </lf-options></lf-ask>
@@ -947,7 +947,7 @@ def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     it."""
     asks = "".join(
         f"""<lf-ask id="ask-{index}"><h2>Question {index}</h2>
-<lf-options id="pick-{index}" required>
+<lf-options id="pick-{index}">
   <lf-option id="pick-{index}-yes">Yes</lf-option>
   <lf-option id="pick-{index}-no">No</lf-option>
 </lf-options></lf-ask>"""
@@ -989,12 +989,12 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             """
 <h1 id="h">Open questions</h1>
 <lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
-<lf-options id="first" required>
+<lf-options id="first">
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="second-decision"><h2>Who fills them?</h2>
-<lf-options id="second" required>
+<lf-options id="second">
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
 </lf-options></lf-ask>
@@ -1010,7 +1010,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "revision": 1,
             "text": "And one for you in here.",
             "markup": '<lf-ask id="reply-decision"><h3>Which baffle?</h3>'
-            '<lf-options id="reply-ask" required>'
+            '<lf-options id="reply-ask">'
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
             "</lf-options></lf-ask>",
@@ -1053,14 +1053,14 @@ OBLIGATION_THREAD_PAGE = leaf_page(
 <p id="lead">The budget note covers latency budgets for the cache.</p>
 <lf-ask id="cache-ask">
   <h2>Which cache should we keep?</h2>
-  <lf-options id="cache" required>
+  <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
 </lf-ask>
 <lf-ask id="ship-ask">
   <h2>Ship on Friday?</h2>
-  <lf-options id="ship" required>
+  <lf-options id="ship">
     <lf-option id="ship-friday">Ship Friday</lf-option>
     <lf-option id="ship-wait">Wait a week</lf-option>
   </lf-options>
@@ -1070,7 +1070,7 @@ OBLIGATION_THREAD_PAGE = leaf_page(
     <strong>Retry budget</strong> The retry budget doubles under load.
     <lf-ask id="retry-ask">
       <h3>Raise the retry budget?</h3>
-      <lf-options id="retry-pick" required>
+      <lf-options id="retry-pick">
         <lf-option id="retry-raise">Raise it</lf-option>
         <lf-option id="retry-keep">Keep it</lf-option>
       </lf-options>
@@ -1152,7 +1152,7 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
     stands at, taking over from the passage's card. Working the obligation's controls keeps it
     there, and `c` continues it."""
     if family == "decision":
-        item = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" required><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
+        item = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision"><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
     else:
         item = '<lf-suggestion id="work"><lf-old>Old plan</lf-old><lf-new>New plan</lf-new></lf-suggestion>'
     source = leaf_page(
@@ -1269,7 +1269,7 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
             """<h1>Review</h1>
 <section id="calls"><h2>Judgment calls</h2>
 <lf-ask id="mark-ask"><h3>Cut the mark?</h3>
-<lf-options id="mark" required>
+<lf-options id="mark">
   <lf-option id="mark-keep">Keep it</lf-option>
   <lf-option id="mark-cut">Remove it</lf-option>
 </lf-options></lf-ask></section>""",
@@ -1307,7 +1307,7 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
 <section id="calls"><h2>Judgment calls</h2>
 <lf-ask id="count-ask"><h3>Show the card count?</h3>
 <lf-shot id="count-shot" {shot}
-<lf-options id="count" required>
+<lf-options id="count">
   <lf-option id="count-keep">Keep it</lf-option>
   <lf-option id="count-cut">Remove it</lf-option>
 </lf-options></lf-ask></section>
@@ -1377,7 +1377,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "responds": about_obligation,
             "text": "One question first.",
             "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
-            '<lf-options id="follow" required>'
+            '<lf-options id="follow">'
             '<lf-option id="follow-yes">Measure first</lf-option>'
             '<lf-option id="follow-no">Decide now</lf-option>'
             "</lf-options></lf-ask>"
@@ -1453,7 +1453,7 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
         <div style="height: 700px"></div>
         <lf-ask id="pane-decision">
           <h3>How should the probe page?</h3>
-          <lf-options id="pane-choice" required>
+          <lf-options id="pane-choice">
             <lf-option id="pane-a"><strong>Require three failures</strong> Quieter.</lf-option>
             <lf-option id="pane-b"><strong>Keep one failure</strong> Louder.</lf-option>
           </lf-options>
@@ -1510,7 +1510,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
-        '<lf-options id="rollout-options" required>'
+        '<lf-options id="rollout-options">'
         '<lf-option id="include">Include them</lf-option>'
         '<lf-option id="later">Later</lf-option></lf-options></lf-ask>'
     )

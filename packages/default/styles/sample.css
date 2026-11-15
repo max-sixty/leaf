@@ -8,9 +8,8 @@
  * attention. The content itself renders at full fidelity
  * (an exhibit must show the real thing), so the gutter alone says "mention, not
  * use". Input never leaves one: the interactive widgets check quoted() before
- * wiring (lf-options.js, lf-board.js), so a quoted `required` group renders as though
- * it never declared `required` and a quoted board stays the static board the theme
- * already renders.
+ * wiring (lf-options.js, lf-board.js), so a quoted group shows its options and takes
+ * no pick, and a quoted board stays the static board the theme already renders.
  *
  * The gutter runs beside the exhibit and nothing else. The note naming it — this
  * theme's "quoted ·" over the author's label — is a word *about* the quoted

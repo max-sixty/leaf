@@ -560,7 +560,7 @@ def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
     pick in force instead of failing on the old record."""
     source = PAGE.replace(
         "</section>",
-        '<lf-options id="picks" required><lf-option id="first">First</lf-option>'
+        '<lf-options id="picks"><lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options></section>',
     )
     (page_dir / "index.html").write_text(source)

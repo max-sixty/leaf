@@ -31,7 +31,7 @@
  * lists that ask whether a suggestion slot holds block content invert
  * HTML's phrasing content,
  * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
- * rather than the tags that declare `x-inline`. The affordance rules that draw a `required`
+ * rather than the tags that declare `x-inline`. The affordance rules that draw an option
  * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,
  * asking in CSS the question `quoted()` asks in JavaScript. A tag name in a shared list
  * is a closed vocabulary wherever it appears, and one layer's tag written into another
@@ -1023,7 +1023,7 @@ lf-suggestion:has(
  * by the padding as part of the gesture, and the pin takes its final seat once.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
- * transitioned background is the thing the `required` group's own comment above warns
+ * transitioned background is the thing the option group's own comment above warns
  * about: the tokens themselves move when the user's system flips to dark, so every
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */

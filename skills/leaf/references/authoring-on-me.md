@@ -126,7 +126,7 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
 <lf-ask id="publish-report-question">
   <h2>Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
-  <lf-options id="publish-report" required>
+  <lf-options id="publish-report">
     <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
     <lf-option id="publish-report-publish"
       ><strong>Publish it to the team workspace</strong></lf-option

@@ -61,7 +61,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
     registry = vocabulary(page_dir)
     options = (
         '<lf-ask id="route-decision"><h2>Which route?</h2>'
-        '<lf-options id="route" required>'
+        '<lf-options id="route">'
         '<lf-option id="route-authored">Authored route</lf-option>'
         "</lf-options></lf-ask>"
     )

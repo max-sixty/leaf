@@ -9,6 +9,7 @@ from interact_support import (
     DRAFTED,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     SUGGESTED,
     append_carried_log_record,
     append_command,
@@ -445,7 +446,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     )
     frozen = (
         '<lf-ask id="thread-ask"><h2>Choose one</h2>'
-        '<lf-options id="thread-picks" required><lf-option id="thread-option">'
+        '<lf-options id="thread-picks"><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></lf-ask>"
     )
     answered = CliRunner().invoke(
@@ -1253,7 +1254,7 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
 
 
 def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
-    html = PAGE.replace("<lf-options>", '<lf-options id="routes" required>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="routes">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     identity = "routes-option-user"
@@ -1710,7 +1711,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
-            '<lf-options id="gm" required>'
+            '<lf-options id="gm">'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options></lf-ask>",
         },
@@ -1745,7 +1746,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "text": f"Choose {suffix}",
                     "markup": (
                         f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
-                        f'<lf-options id="group-{suffix}" required>'
+                        f'<lf-options id="group-{suffix}">'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
                         "</lf-options></lf-ask>"
                     ),
@@ -1864,7 +1865,7 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" required>'
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1">'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
     if native:
@@ -1910,7 +1911,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "Pick one:",
             "--markup",
             '<lf-ask id="ps-decision"><h3>Which store?</h3>'
-            '<lf-options id="ps-q" required>'
+            '<lf-options id="ps-q">'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
             "</lf-options></lf-ask>",
@@ -1944,7 +1945,7 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" required>'
+        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1">'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
     if native:

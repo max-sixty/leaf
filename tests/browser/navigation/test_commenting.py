@@ -403,7 +403,7 @@ ROOM_IN_THE_MARGIN = (1440, 900)
 AN_ASK_THEN_READING = leaf_page(
     "An ask, then reading",
     '<h1>An ask, then reading</h1><lf-ask id="route"><h2>Which route?</h2>'
-    '<lf-options id="routes" required>'
+    '<lf-options id="routes">'
     '<lf-option id="left">Take the left route</lf-option>'
     '<lf-option id="right">Take the right route</lf-option>'
     '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
@@ -486,7 +486,7 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
                 "A sample",
                 '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
-                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" required>'
+                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
                 "</lf-options></lf-ask></template></lf-sample>",
@@ -575,7 +575,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-ask id="shape-decision"><h2>Galvanised steel for the frame?</h2>
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-ask>
 <lf-ask id="picked-decision"><h2>Should we keep it?</h2>
-<lf-options id="picked" required>
+<lf-options id="picked">
   <lf-option id="pk-keep" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>
@@ -810,7 +810,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
             """
 <h1 id="t">Seated</h1>
 <lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" required>
+<lf-options id="shape">
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>

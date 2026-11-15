@@ -124,7 +124,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         ).replace(
             "</main>",
             """<lf-ask id="startup-decision"><h2>Startup choice</h2>
-<lf-options id="startup-choice" required>
+<lf-options id="startup-choice">
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
 </lf-options></lf-ask>
@@ -750,7 +750,7 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
             serve(
                 leaf_page(
                     "Departing",
-                    '<lf-options id="ship" required><lf-option id="now">Now</lf-option>'
+                    '<lf-options id="ship"><lf-option id="now">Now</lf-option>'
                     '<lf-option id="later">Later</lf-option></lf-options>',
                 )
             ),

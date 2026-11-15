@@ -230,7 +230,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         "</main>",
         """
 <lf-ask id="delivery"><h2>Which delivery?</h2>
-  <lf-options id="delivery-choice" required>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>

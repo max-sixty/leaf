@@ -1018,7 +1018,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "Carried decision",
         """<h1>Plan</h1>
 <lf-ask id="cz-ask"><h2>Which comes first?</h2>
-  <lf-options id="cz-options" required>
+  <lf-options id="cz-options">
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>

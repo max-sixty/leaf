@@ -750,12 +750,12 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-ask id="decision"><h3>Patch decision</h3>
-<lf-options id="decision-options" required>
+<lf-options id="decision-options">
   <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="meeting"><h3>Where should the group meet?</h3>
-<lf-options id="meeting-options" required settled>
+<lf-options id="meeting-options" settled>
   <lf-option id="meeting-door">At the door</lf-option>
   <lf-option id="meeting-desk" selected>At reception</lf-option>
 </lf-options></lf-ask>
@@ -1951,7 +1951,7 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
-    '<lf-options id="opts" required><lf-option id="o1"><small class="tag">small cohort'
+    '<lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options>'

@@ -318,7 +318,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
             leaf_page(
                 "standalone options",
                 '<h1>Which apply?</h1><button id="outside">Outside</button>'
-                '<lf-options id="choices" required multiple>'
+                '<lf-options id="choices" multiple>'
                 f'<lf-option id="one">{one}</lf-option>'
                 f'<lf-option id="two">{two}</lf-option>'
                 "</lf-options>",
@@ -367,7 +367,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
             leaf_page(
                 "stable option numbers",
                 '<h1>Stable numbers</h1><lf-ask id="question"><h2>Which apply?</h2>'
-                '<lf-options id="choices" required multiple>'
+                '<lf-options id="choices" multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
                 "</lf-options></lf-ask>",
             )
@@ -440,7 +440,7 @@ def test_option_markdown_visible_words_match_file_reading(browser, serve):
             leaf_page(
                 "markdown options",
                 '<h1 id="h">Cases</h1><lf-ask id="cases-ask"><h2>Which reads?</h2>'
-                f'<lf-options id="cases" required multiple>{options}</lf-options></lf-ask>',
+                f'<lf-options id="cases" multiple>{options}</lf-options></lf-ask>',
             )
         ),
     )
@@ -620,7 +620,7 @@ HAIRLINED = r"""el => {
 def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     """The offer is the group's, made once, rather than a word written on every member.
 
-    A card group under `required` draws the border and its options become cells inside it,
+    A card group draws the border and its options become cells inside it,
     sharing hairlines: a set of alternatives at one size is what says a decision is
     waiting. Each card's generated mark stands in the state slot at its opening edge
     as an empty ring — the same slot the pick turns it into a compact header state
@@ -734,7 +734,7 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
     """Every untaken option keeps a visible boundary before the user aims at it."""
     page = open_page(browser, serve(OBLIGATION_PAGE), color_scheme=color_scheme)
     readings = page.locator(
-        'lf-options[required] > lf-option:not([selected]) > .lf-pick[role="checkbox"]'
+        'lf-options > lf-option:not([selected]) > .lf-pick[role="checkbox"]'
     ).evaluate_all(
         """marks => {
           const canvas = document.createElement('canvas');
@@ -799,7 +799,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
     with subtests.test("joined option cells share edges and text column"):
         # Read over the joined option cells and the full-width Done control.
         #
-        # A group under `required` is one control: cells divided by a hairline and nothing
+        # A live group is one control: cells divided by a hairline and nothing
         # else. Two things follow for every option cell, and the question was simply the
         # child that had neither. The line is the whole of what separates a cell from
         # the next, so a margin beside it is a second way to say what the line already
@@ -980,21 +980,21 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
             leaf_page(
                 "First Ask",
                 """<lf-ask id="page-ask"><h2>Choose the route</h2>
-<lf-options id="page-options" required><lf-option id="page-route">Route A</lf-option></lf-options>
+<lf-options id="page-options"><lf-option id="page-route">Route A</lf-option></lf-options>
 </lf-ask>
 <p id="between-asks">Context before another question.</p>
 <lf-ask id="later-ask"><h2>Choose the backup</h2>
-  <lf-options id="later-options" required><lf-option id="later-route">Route B</lf-option></lf-options>
+  <lf-options id="later-options"><lf-option id="later-route">Route B</lf-option></lf-options>
 </lf-ask>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
   <lf-ask id="framed-ask"><h2>Choose the route</h2>
-    <lf-options id="framed-options" required><lf-option id="framed-route">Route A</lf-option></lf-options>
+    <lf-options id="framed-options"><lf-option id="framed-route">Route A</lf-option></lf-options>
   </lf-ask>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
     <lf-ask id="sample-ask"><h2>Choose the route</h2>
-      <lf-options id="sample-options" required><lf-option id="sample-route">Route A</lf-option></lf-options>
+      <lf-options id="sample-options"><lf-option id="sample-route">Route A</lf-option></lf-options>
     </lf-ask>
   </template>
 </lf-sample>""",
@@ -1047,13 +1047,13 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <section id="body">
 <lf-ask id="cell-decision"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-cards" required data-width="available">
+<lf-options id="cell-cards" data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="cell-rows" required multiple data-width="available">
+<lf-options id="cell-rows" multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
 </lf-options></lf-ask>
@@ -1062,7 +1062,7 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 </div>
 <lf-ask id="page-decision"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
-<lf-options id="page-cards" required data-width="available">
+<lf-options id="page-cards" data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
 </lf-options></lf-ask></div>
@@ -1072,9 +1072,7 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 )
 
 
-def test_a_required_group_on_a_wide_page_draws_its_cells_to_its_own_frame(
-    browser, serve
-):
+def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
     """A joined group's frame, dividers and marks belong to its options, so on a page
     wider than the column every cell reaches the frame, however wide the box the page
     stands the group in. Declared a group of members instead, it passed the measure
@@ -1177,9 +1175,9 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
 
     # …but takes nothing back. Nothing selectable: no grips, and no mark wearing
-    # the checkbox role — an unpicked quoted card carries no mark at all, exactly as
-    # a group that never declared `required`. A click chooses nothing either (the
-    # choose path sets `selected` before it sends, so a pick would show here).
+    # the checkbox role — an unpicked quoted card carries no mark at all. A click
+    # chooses nothing either (the choose path sets `selected` before it sends, so a
+    # pick would show here).
     assert page.locator('#quoted-group .lf-pick[role="checkbox"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
     # Nor a cell to write another option in: an exhibited question takes no answer of
@@ -1248,6 +1246,16 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     )
     assert quoted_box == "0px", (
         f"the exhibit is drawn as a control to answer: {quoted_box} border"
+    )
+    # A list of bare labels is the other form, and the shape is the offer there too:
+    # the live rows share hairlines inside one edge, and the quoted rows wear neither.
+    assert page.locator("#live-rows").evaluate(frame) != "0px"
+    assert page.locator("#l-row-drop").evaluate(HAIRLINED)
+    assert page.locator("#quoted-rows").evaluate(frame) == "0px", (
+        "a quoted list with no pick to take was drawn as a control anyway"
+    )
+    assert not page.locator("#q-row-drop").evaluate(HAIRLINED), (
+        "a quoted row nobody can press draws cell edges anyway"
     )
     # The live card's mark is the float that reserves one header slot for either its
     # chosen state or keyboard binding badge. An exhibit can grow neither, so its title
@@ -1396,7 +1404,7 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     assert page.locator("#jobs").evaluate(one_per_row)
     assert page.locator("#bracket").evaluate(one_per_row)
 
-    # Under `required` the group is one control in every form, and the list was the form
+    # A live group is one control in every form, and the list was the form
     # that went without: rows draw no border, no fill and no rule between them, so at
     # rest the only thing that ever drew a row's own box was the hover wash — which
     # arrives after the user has already had to guess where to aim. The group's edge
@@ -1409,13 +1417,6 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     )
     assert page.locator("#job-heater").evaluate(HAIRLINED), (
         "a row draws no box of its own, so its bounds show only under the pointer"
-    )
-    # And the shape is the offer, so a list that asks nothing wears none of it.
-    assert page.locator("#ordered").evaluate(edge) == 0, (
-        "a list with no pick to take was drawn as a control anyway"
-    )
-    assert not page.locator("#ord-mounts").evaluate(HAIRLINED), (
-        "a row nobody can press draws cell edges anyway"
     )
 
     # The block a row is about, reachable as a link and named by the block's own words
@@ -1696,7 +1697,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
                 '<lf-ask id="routes-decision"><h2>Which routes survive?</h2>'
-                f'<lf-options id="routes" required multiple>{options}</lf-options>'
+                f'<lf-options id="routes" multiple>{options}</lf-options>'
                 "</lf-ask>",
             )
         ),
@@ -1886,12 +1887,12 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, sub
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
-<lf-options id="follow" required>
+<lf-options id="follow">
   <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
 </lf-options>
-<lf-options id="same" required>
+<lf-options id="same">
   <lf-option id="same-ship" for="stall">Ship it.</lf-option>
   <lf-option id="same-hold" for="stall">Hold it.</lf-option>
 </lf-options>
@@ -2581,7 +2582,7 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
     """
     page = open_page(browser, serve(named_source("ship-review")))
     # The example's one thread whose reply asks with options.
-    question = open_panel_thread(page, "7b3e0a41").locator("lf-options[required]").first
+    question = open_panel_thread(page, "7b3e0a41").locator("lf-options").first
     question.locator("lf-option:not([selected]) > .lf-pick").first.click()
     round_trip(page)
     done = question.locator(".lf-done")
@@ -2757,7 +2758,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         serve(
             leaf_page(
                 "option shapes",
-                '<lf-options id="shapes" required>'
+                '<lf-options id="shapes">'
                 '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
                 '<lf-option id="element"><strong>Stage it</strong> The cohort gets '

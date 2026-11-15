@@ -18,6 +18,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     owed_answers,
     page_state,
@@ -1631,7 +1632,7 @@ def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
 ):
     """Run the exact container fixture through its real admission API."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="heat-first" required>').replace(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="heat-first">').replace(
             'id="backfill-first"', 'id="heat-opt-window"'
         )
     )

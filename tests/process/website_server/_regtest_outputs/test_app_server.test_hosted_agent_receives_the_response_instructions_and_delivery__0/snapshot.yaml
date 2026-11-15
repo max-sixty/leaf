@@ -43,8 +43,8 @@ turn/start:
       is already there. Where your answer asks a question of its own whose answers
       you can list, such as which of two ways to proceed or whether to take an action,
       reply with them in `--markup` in place of `--obligation`, as `<lf-options
-      id=\"\u2026\" required>` holding an `<lf-option id=\"\u2026\">` for each answer,
-      so the user answers with a press (`references/threads.md`, \"Ask for a pick\").
+      id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer, so
+      the user answers with a press (`references/threads.md`, \"Ask for a pick\").
       Reply explicitly too for other widgets, work promised beyond this turn (`--todo`),
       a title or moving the thread (`references/threads.md`); an explicit reply
       posts at once, and your final message is then not posted.","h2":"Your reply

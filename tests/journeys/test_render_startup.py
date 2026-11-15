@@ -182,7 +182,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     source = leaf_page(
         "Slow decision",
         '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
-        '<lf-options id="pick" required><lf-option id="yes">Proceed</lf-option>'
+        '<lf-options id="pick"><lf-option id="yes">Proceed</lf-option>'
         '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})

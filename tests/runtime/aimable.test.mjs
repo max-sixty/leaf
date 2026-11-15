@@ -81,7 +81,7 @@ test("a tab stop, a scrolling box, a frame's title or the author's words in a wi
     <div id="stop" tabindex="0">Words a tab stop holds.</div>
     <div id="scroller" style="overflow: auto; height: 1em">Words that scroll.<br>More.</div>
     <lf-tabs id="tabs"><lf-tab id="tab"><lf-pane id="pane">Pane words.</lf-pane></lf-tab></lf-tabs>
-    <lf-options id="options" required><lf-option id="option"><span id="mark"
+    <lf-options id="options"><lf-option id="option"><span id="mark"
       role="checkbox">Open</span><span id="chip">An option.</span></lf-option></lf-options>
     <lf-suggestion id="suggestion"><lf-old><p id="old">Old words.</p></lf-old><lf-new><p
       id="new">New words.</p></lf-new></lf-suggestion>`;

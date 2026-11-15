@@ -114,7 +114,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         None,
         "Choose an option.",
         '<lf-ask id="thread-ask"><h2>Choose one</h2>'
-        '<lf-options id="thread-picks" required><lf-option id="thread-option">'
+        '<lf-options id="thread-picks"><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></lf-ask>",
     )
     status, body = fetch(

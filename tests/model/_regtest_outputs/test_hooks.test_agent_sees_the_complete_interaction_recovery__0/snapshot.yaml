@@ -59,10 +59,10 @@ delivered at prompt:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` in place of `--obligation`, as `<lf-options id="…" required>`
-            holding an `<lf-option id="…">` for each answer: the user answers with
-            a press, and the choice waits on them by itself (`references/threads.md`,
-            "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
+            in `--markup` in place of `--obligation`, as `<lf-options id="…">` holding
+            an `<lf-option id="…">` for each answer: the user answers with a press,
+            and the choice waits on them by itself (`references/threads.md`, "Ask
+            for a pick"). `--todo "<what you owe>"` when it is yours, promising
             work beyond this turn. `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its

@@ -15,7 +15,7 @@ vars:
     ```html
     <lf-ask id="rollout">
       <h2>Which region should take the first rollout of the new billing service?</h2>
-      <lf-options id="region" required>...</lf-options>
+      <lf-options id="region">...</lf-options>
     </lf-ask>
     ```
 

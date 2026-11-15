@@ -1355,7 +1355,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
-  <lf-options id="options" required><lf-option id="option">One</lf-option></lf-options>
+  <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
 </section>
 """,
     )
@@ -1459,8 +1459,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
-        'required><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o">'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
     )
     body = (
         '<p id="prose">Prose.</p>'
@@ -1474,7 +1474,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<aside class="callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
-        + '<lf-options id="list" required><lf-option id="list-a">Leave it</lf-option>'
+        + '<lf-options id="list"><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
         + "</lf-options>"
     )
@@ -2053,7 +2053,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         "<h1>Tables of prose</h1>"
         '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
         + table.format(id="in-ask")
-        + '<lf-options id="asked-choice" required>'
+        + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-ask>"
@@ -2867,7 +2867,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
     by the page. A quoted board that took the window stood outside the gutter marking it
     as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
-    was worse for being invisible: a `required` group clips to its own cells, so the widest
+    was worse for being invisible: a live option group clips to its own cells, so the widest
     part of the evidence an option argued on was cut off at the card's edge rather than
     drawn past it, and nothing on the page said a word.
 

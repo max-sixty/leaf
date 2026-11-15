@@ -6,6 +6,7 @@ import json
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     check,
     check_findings,
@@ -143,7 +144,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             '<div id="plan-choice-decision">',
             '<lf-ask id="plan-choice-decision" data-width="available">',
         )
-        .replace("<lf-options>", '<lf-options id="plan-choice" required>')
+        .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
         .replace(
             "</lf-options>\n  </div>",
             "</lf-options>\n"
@@ -230,7 +231,7 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     html = (
         '<main><p id="visible">Visible words.</p>'
         '<template id="practice" data-sample><lf-ask id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options" required>'
+        '<h2>Hidden question</h2><lf-options id="nested-options">'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
     )

@@ -14,7 +14,7 @@
  * as many as the decision needs, so the band wraps rather than reserving room. Cards that
  * share a row float their chips instead, so their titles align (below).
  *
- * Joined is a second axis: under `required` on screen, a group of words becomes one
+ * Joined is a second axis: on screen, a group of words becomes one
  * control whose cells share hairlines; under `settled`, in an exhibit, or on paper it
  * comes apart, and so does a live group whose options hold pictures (below). The group
  * declares it (`--lf-joined`) and rules read it with style queries, because the medium
@@ -198,12 +198,14 @@ lf-options:has(> lf-option > strong) {
  * affordances are screen-only, where a handler answers.
  *
  * A quoted group is exhibited, not offered, so every rule granting an input affordance
- * excludes it where it is written (`:not(:where([data-lf-exhibit]) *)`), so each new
+ * excludes it where it is written (`:not([data-lf-exhibit] *)`), so each new
  * affordance carries its own exclusion. Delivery paints `data-lf-exhibit` from the
- * registry's x-exhibit (`mark_declared`). The guard sits in :where() so it adds no
- * specificity: these rules grant an affordance and need to outrank nothing. */
+ * registry's x-exhibit (`mark_declared`). The guard has an attribute selector's
+ * specificity, which a live group's rules need to outrank the rules for a group that
+ * only shows its state: without it, a live card's bottom padding loses to the caption
+ * room a picked card keeps (below). */
 @media screen {
-  lf-options[required]:not(:where([data-lf-exhibit]) *) > lf-option {
+  lf-options:not([data-lf-exhibit] *) > lf-option {
     cursor: pointer;
   }
 }
@@ -211,7 +213,8 @@ lf-options:has(> lf-option > strong) {
  * stands in the state slot at the card's opening edge, empty until picked, so a user who
  * has not hovered still sees where the press lands. The obligation's binding badge takes the
  * same slot; the slot is reserved beside the chips and title on every card, so neither
- * moves or covers the words. A document-only chosen card keeps the compact caption below. */
+ * moves or covers the words. A quoted card that carries a pick keeps the compact caption
+ * below. */
 lf-options:has(> lf-option > strong) > lf-option[selected] {
   padding-bottom: 32px;
 }
@@ -221,7 +224,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
   bottom: 9px;
 }
 @media screen {
-  lf-options[required]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
+  lf-options:not([data-lf-exhibit] *):has(> lf-option > strong) {
     /* The seat below, past the card's inset, and a gap before the words. */
     --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
     --lf-card-state-height: 22px;
@@ -381,10 +384,10 @@ lf-option .lf-pick:not([data-lf-said]) {
  * joined group the mark's own focus ring is withheld, so this and the wash say which
  * mark the next toggle takes. */
 @media screen {
-  lf-options[required]:not(:where([data-lf-exhibit]) *)
+  lf-options:not([data-lf-exhibit] *)
     > lf-option:not([selected]):hover
     > .lf-pick::before,
-  lf-options[required]:not(:where([data-lf-exhibit]) *)
+  lf-options:not([data-lf-exhibit] *)
     > lf-option:not([selected])
     > .lf-pick[data-lf-focus]::before {
     border-color: var(--ink-2);
@@ -465,7 +468,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   bottom: 0;
   margin: auto 0;
 }
-/* A `required` group is one control: cells of one width in one grid, in both forms, so the
+/* A live group is one control: cells of one width in one grid, in both forms, so the
  * offer is visible before the pointer commits. Screen only and not `settled`: paper
  * cannot take a pick, and a settled group is a line the user opens. Those media get the
  * cards back by never being handed the control's shape.
@@ -476,16 +479,16 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
  * inline floor applies to settled groups too, which reserve the same column behind their
  * disclosure; the block floor is the control's. */
 @media screen {
-  :where(lf-options[required]:not(:where([data-lf-exhibit]) *)) > * {
+  :where(lf-options:not([data-lf-exhibit] *)) > * {
     padding-inline-start: var(--lf-key-badge-col);
   }
-  :where(lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
+  :where(lf-options:not([settled]):not([data-lf-exhibit] *)) > * {
     padding-block: var(--sp-2);
     padding-inline-end: var(--sp-3);
   }
 }
 @media screen {
-  lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *) {
+  lf-options:not([settled]):not([data-lf-exhibit] *) {
     display: grid;
     gap: var(--lf-cell-gap);
     /* The authored options paint before the generated Add and Done cells, so their rows
@@ -575,7 +578,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   /* A group of words joins its cells, as a segmented control does: one frame, with a
    * hairline wherever two cells meet. */
-  lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *):not(
+  lf-options:not([settled]):not([data-lf-exhibit] *):not(
       :has(
         > lf-option :is(figure, img, svg, table, video, [data-lf-visual]):not(.lf-ui *)
       )
@@ -621,7 +624,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * user's choice, 29 October 2026). Titled cards bring their own frames. Bare rows,
    * which draw none standing alone, and the add cell take one here. Done's press
    * draws its own frame. */
-  lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *):has(
+  lf-options:not([settled]):not([data-lf-exhibit] *):has(
       > lf-option :is(figure, img, svg, table, video, [data-lf-visual]):not(.lf-ui *)
     ) {
     --lf-cell-gap: var(--sp-3);
@@ -653,9 +656,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * shortfall from that row by 999, which pushes it past one bound or the other.
    * `auto-fit` keeps a column the spanning Add and Done cells stand in, so the count,
    * not the cells, sets the floor. */
-  lf-options[across][required]:not([settled]):not(:where([data-lf-exhibit]) *):has(
-      > lf-option > strong
-    ) {
+  lf-options[across]:not([settled]):not([data-lf-exhibit] *):has(> lf-option > strong) {
     --lf-option-count: 99;
     --lf-options-row-width: calc(
       var(--lf-option-count) * (14rem + var(--lf-cell-gap)) - var(--lf-cell-gap)
@@ -719,19 +720,18 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   /* Focus inside the control is carried by the exact row, so the control holding it
    * stands down the location ring of the obligation around it (page-paint.js,
    * `locationStandsDown`), which would otherwise read as a second border. */
-  lf-options[required]:not(:where([data-lf-exhibit] lf-options))
-    [data-lf-focus-visible] {
+  lf-options:not([data-lf-exhibit] *) [data-lf-focus-visible] {
     --lf-obligation-ring: none;
   }
   /* A joined group's row shows its mark's focus: its ring, and the aim wash above. */
-  lf-options[required] > lf-option > .lf-pick {
+  lf-options:not([data-lf-exhibit] *) > lf-option > .lf-pick {
     --lf-focus-box: lf-option;
   }
-  lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *)
+  lf-options:not([settled]):not([data-lf-exhibit] *)
     > lf-option[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
   }
-  lf-options[required]:not([settled]):not(:where([data-lf-exhibit]) *)
+  lf-options:not([settled]):not([data-lf-exhibit] *)
     > lf-option[data-lf-control-focus] {
     --lf-wears-ring: 1;
   }
@@ -740,8 +740,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   .lf-another > leaf-composition-field > .lf-compose-field > leaf-text {
     --lf-focus-box: .lf-another;
   }
-  lf-options[required]:not(:where([data-lf-exhibit]) *)
-    > .lf-another[data-lf-control-focus-visible] {
+  lf-options:not([data-lf-exhibit] *) > .lf-another[data-lf-control-focus-visible] {
     outline: var(--focus-ring);
     --lf-wears-ring: 1;
   }
@@ -824,7 +823,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   /* The leading column holds the key badge (from an 8px inset, --lf-key-badge-size wide)
    * and 6px before the words. It is held before the badge appears, so focusing an
    * option moves nothing. Screen only: paper gets no badge. */
-  lf-options[required]:not(:where([data-lf-exhibit]) *) {
+  lf-options:not([data-lf-exhibit] *) {
     /* Keep the form's padding, growing it only to contain the action's hit box, its
      * face and the reach above and below it.
      * The draft and the option it becomes use this same padded text line. */
@@ -837,7 +836,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px
     );
   }
-  lf-options[required]:not(:where([data-lf-exhibit]) *) > lf-option {
+  lf-options:not([data-lf-exhibit] *) > lf-option {
     padding-inline-start: var(--lf-key-badge-col);
   }
 }
@@ -847,7 +846,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
  * A table, because a row is a run of prose between apparatus, and a table's anonymous
  * cell is the only box the words can have while the markup stays the author's; flex
  * items would split the label at each inline element and trim its spaces. The width is
- * the whole box (border-box), since a live `required` group pads it for the binding badge
+ * the whole box (border-box), since a live group pads it for the binding badge
  * and the group clips what overflows. */
 lf-options:not(:has(> lf-option > strong)) > lf-option {
   position: relative;
@@ -860,14 +859,14 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
 }
 /* The mark's own 17px column, after the binding badge's: a row is one line, so the two
  * cannot share a gutter as they do on a card. Every child opens after it, the add cell
- * included. The live `required` group sets --lf-key-badge-col on every child, so the second
+ * included. The live group sets --lf-key-badge-col on every child, so the second
  * rule adds to it at a weight that outranks that. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
   --lf-pick-col: 17px;
   --lf-row-gap: var(--sp-2);
   padding-inline-start: var(--lf-pick-col);
 }
-lf-options[required]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
+lf-options:not([data-lf-exhibit] *):not(:has(> lf-option > strong))
   > :is(lf-option, .lf-another) {
   padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col));
 }
@@ -903,12 +902,11 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
 /* An opened settled group's option answers the pointer with a wash, without moving its
  * words. A live cell has its own aim wash (above). */
 @media screen {
-  lf-options[required][settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
+  lf-options[settled]:not([data-lf-exhibit] *) > lf-option:hover {
     --lf-ground: var(--chip);
     background: var(--lf-ground);
   }
-  lf-options[required][settled]:not(:where([data-lf-exhibit]) *)
-    > lf-option[selected]:hover {
+  lf-options[settled]:not([data-lf-exhibit] *) > lf-option[selected]:hover {
     --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
   }
 }

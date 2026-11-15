@@ -318,7 +318,7 @@ def ask(g: int, options: int = 4) -> str:
     """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" required multiple>'
+        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
@@ -381,7 +381,7 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" required multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -399,7 +399,7 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" required multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -418,7 +418,7 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" required multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )

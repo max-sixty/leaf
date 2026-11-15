@@ -411,7 +411,7 @@ FLOATING_PAGE = LONG_PAGE.replace(
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     "</main>",
     """<lf-ask id="where-decision"><h2>Which option?</h2>
-<lf-options id="where" required>
+<lf-options id="where">
   <lf-option id="opt-a"><strong>First</strong>
     <div class="layout-note"><p>An option carrying a note written inside it.</p>
     <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
@@ -598,7 +598,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
-    '<lf-options id="go" required>'
+    '<lf-options id="go">'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
     '<lf-option id="go-no"><strong>No</strong></lf-option>'
     "</lf-options></lf-ask>"
@@ -1000,12 +1000,12 @@ AIM_PAINT_PAGE = leaf_page(
     """
 <h1 id="t">Aim paint</h1>
 <lf-ask id="cards-decision"><h2>Which card?</h2>
-<lf-options id="cards" required>
+<lf-options id="cards">
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
   <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="rows-decision"><h2>Should we ship?</h2>
-<lf-options id="rows" required>
+<lf-options id="rows">
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
 </lf-options></lf-ask>
@@ -1432,7 +1432,7 @@ SHORT_CHIP_PAGE = leaf_page(
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
 <lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
-<lf-options id="extras" required multiple>
+<lf-options id="extras" multiple>
 <lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
 <strong>Seed tray</strong> Catches the spill under the south pair.
 </lf-option>

@@ -793,7 +793,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         )
     ) as response:
         pass
-    assert response.value.text() == reading
+    assert response.value.json()["reading"] == reading
     # The next poll starts after the runtime admitted the replacement response.
     with page.expect_request("**/api/news"):
         pass

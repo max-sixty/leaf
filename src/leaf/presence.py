@@ -55,8 +55,10 @@ class _Neighbors:
 
 
 def neighbor_reading(page_dir: Path) -> list:
-    """The page's one reading of its neighbours (`other_leaves`), which its state
-    answer and its news fingerprint both take, so the two never disagree.
+    """The page's reading of its neighbours (`other_leaves`), which `/api/pages`
+    answers and the news names by its `pages_reading`. Nothing the page's own state
+    or reading holds takes it, so a neighbour's change moves only this list, and a
+    tab reads this page's state again for its own changes alone.
 
     Local page writes do not invalidate it. Producer writes invalidate it
     immediately; kernel lease changes have the same bounded two-second observation
@@ -73,6 +75,17 @@ def neighbor_reading(page_dir: Path) -> list:
         return kept.token[2]
 
 
+def pages_reading(pages: list) -> str | None:
+    """The token naming a list of other pages (`neighbor_reading`), which the news
+    answer carries beside the page's own reading, or None while the list is empty, so
+    a tab with no neighbour asks for no list."""
+    if not pages:
+        return None
+    return hashlib.sha256(
+        json.dumps(pages, sort_keys=True, default=str).encode()
+    ).hexdigest()[:8]
+
+
 class _Presence:
     """What a page keeps of its presence between readings.
 
@@ -81,7 +94,7 @@ class _Presence:
 
     def __init__(self) -> None:
         self.lock = threading.RLock()
-        # (page reading, wait lease and neighbours; expiry; the token given)
+        # (page reading and wait lease; expiry; the token given)
         self.token: tuple | None = None
 
 
@@ -416,10 +429,10 @@ def presence(page_dir: Path, events: list) -> dict:
     return reading
 
 
-def presence_fingerprint(present: dict, others: list) -> str:
+def presence_fingerprint(present: dict) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as All pages shows them."""
-    facts = ([present[key] for key in LIVE_FACTS], others)
+    already carries: its `live_facts`."""
+    facts = [present[key] for key in LIVE_FACTS]
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
     ).hexdigest()[:8]
@@ -431,9 +444,9 @@ def presence_reading(page_dir: Path, files: str) -> str:
     It keys on `files`, the page's own reading (`served_state.reading`), which
     names every page input, and on the claimant's wait lease, the one input of
     presence outside them. A move in either invalidates it immediately; process
-    and lock leases are refreshed when the interval expires. The three facts are
-    read the way `presence` and `full_state` read them, so a freshness answer and
-    the state it prompts name the same reading once the bounded cache interval has
+    and lock leases are refreshed when the interval expires. The facts are read
+    the way `presence` and `full_state` read them, so a freshness answer and the
+    state it prompts name the same reading once the bounded cache interval has
     elapsed.
     """
     claim = page_claim(page_dir)
@@ -443,8 +456,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # unclaimed page's lease is in the page directory, so `files` covers it.
     lease_path = waiter_lease_path(None, claim["id"]) if claim else None
     lease = file_stamp(lease_path) if lease_path is not None else None
-    neighbors = neighbor_reading(page_dir)
-    stamp = (files, lease, neighbors)
+    stamp = (files, lease)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)
     with kept.lock:
@@ -452,10 +464,10 @@ def presence_reading(page_dir: Path, files: str) -> str:
         if held and held[0] == stamp and now < held[1]:
             return held[2]
 
-        # Keep the lock while observing the neighbours. Concurrent freshness reads
-        # then share one complete reading instead of racing into one each; the
-        # lock and pid checks remain part of this fresh observation.
-        reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
+        # Keep the lock while observing. Concurrent freshness reads then share one
+        # complete reading instead of racing into one each; the lock and pid checks
+        # remain part of this fresh observation.
+        reading = presence_fingerprint(live_facts(page_dir, claim))
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading
 

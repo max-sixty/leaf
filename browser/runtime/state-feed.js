@@ -1,5 +1,7 @@
 /* The page's ear: the state reads, finite freshness reads that say when to ask, the heartbeat
-   that re-applies what the page holds, and the phase the answers leave it in.
+   that re-applies what the page holds, and the phase the answers leave it in. A
+   freshness read also names the reading of the machine's other pages, which it hands to
+   their list (live-leaves.js, `hearPages`) and never compares with the page's own.
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
    while waiting means the log has not been read; it does not mean there are no comments.
@@ -23,6 +25,7 @@ import { activityTransitionDue, tickClock } from "./presence.js";
 import { offlineInteractive, offlineState, pageUrl, runtime } from "./context.js";
 import { applicationState } from "./semantic-state.js";
 import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
+import { hearPages } from "./live-leaves.js";
 import {
   completeState,
   heldHeaders,
@@ -361,8 +364,11 @@ export function createStateFeed({
           if (!admitResponse(response))
             throw new Error("news belongs to another delivery");
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
-          const observed = await response.text();
+          /** @type {import("../types/contract.js").ServedNewsAnswer} */
+          const { reading: observed, pages } = await response.json();
           if (listening === interval) {
+            // The machine's other pages, which the list follows on its own.
+            hearPages(pages);
             const held = readingInHand();
             crossed = observed === held ? null : { held };
             if (observed !== freshness && observed !== held) item(observed);

@@ -34,6 +34,7 @@ from render_harness import (
     PANEL,
     PREVIEW,
     RELEASE_FOCUS,
+    all_pages_offered,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -295,6 +296,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     """All pages is a destination of the panel's and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ADDRESSED_PAGE))
+    all_pages_offered(page)
 
     page.keyboard.press("g")
     expect(
@@ -857,6 +859,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(page.locator(".lf-fp-version").filter(has_text="v1")).to_be_visible()
     page.locator(".lf-fp-leaf").click()
 
+    all_pages_offered(page)
     panel_control(page, "leaves", at="navigate").click()
     expect(page.locator("a.lf-fp-page")).to_contain_text("A second Leaf page")
     page.locator(".lf-fp-close").click()

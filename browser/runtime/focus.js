@@ -75,6 +75,7 @@ import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { eventSource, pressIsKeyboardActivation } from "./pointer.js";
 import {
+  eachRenderedElement,
   excludedByInert,
   hostIn,
   isElement,
@@ -95,32 +96,21 @@ import {
  * @typedef {StandInResult | (() => StandInResult)} StandIn
  * @typedef {(...standIns: StandIn[]) => boolean | PromiseLike<boolean>} FocusRestore
  */
-// The elements under `node` in the tree as rendered: a host's shadow tree in place of
-// its children, and a slot's assigned elements, or its fallback, in its place. A host
-// its author took out of the order (a negative `tabindex`) takes its whole tree out
-// with it, so Tab skips what it renders.
+// The elements under `node` in the tree as rendered (`eachRenderedElement`). A host its
+// author took out of the order (a negative `tabindex`) takes its whole tree out with it,
+// so Tab skips what it renders.
 //
-// It steps from sibling to sibling, as browser/AGENTS.md ("One answer for each
-// question") says a walk does, and collects into one array, as its caller wants:
-// walked through a generator for each element, Tab stops over a listing of 96,000 rows
-// took Firefox 54 to 60 ms, and 36 to 39 ms with the array.
+// It collects into one array, as its caller wants: walked through a generator for each
+// element, Tab stops over a listing of 96,000 rows took Firefox 54 to 60 ms, and 36 to
+// 39 ms with the array.
 /** @param {Element | Document | ShadowRoot} node @param {Element[]} [into] */
 function renderedElements(node, into = []) {
-  /** @param {Element} child */
-  const enter = (child) => {
+  eachRenderedElement(node, (child) => {
     into.push(child);
     const tabIndex = child.getAttribute("tabindex");
     if (!(child.shadowRoot && tabIndex !== null && parseInt(tabIndex) < 0))
       renderedElements(child, into);
-  };
-  if (isHTML(node, "slot")) node.assignedElements({ flatten: true }).forEach(enter);
-  else
-    for (
-      let child = ((isElement(node) && node.shadowRoot) || node).firstElementChild;
-      child;
-      child = child.nextElementSibling
-    )
-      enter(child);
+  });
   return into;
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
@@ -1442,17 +1432,21 @@ export function holdFocus(scope, { key = null } = {}) {
     // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
     // several nodes of one place, as a diff line's text and its gutter's Comment: the one
     // like the control the user was on, or holding one, comes first.
+    // Read in the item's own tree, as `like` was (`eachRenderedElement`, entering no
+    // host's root).
     /** @param {Element} root @returns {Element | null} */
     const matching = (root) => {
       if (root.matches(like) && drawn(root)) return root;
-      const assigned = isHTML(root, "slot")
-        ? root.assignedElements({ flatten: true })
-        : [];
-      for (const child of assigned.length ? assigned : root.children) {
-        const found = matching(child);
-        if (found) return found;
-      }
-      return null;
+      /** @type {Element | null} */
+      let found = null;
+      eachRenderedElement(
+        root,
+        (child) => {
+          found ??= matching(child);
+        },
+        () => null,
+      );
+      return found;
     };
     /** @param {string | null | undefined} value */
     const find = (value) => {

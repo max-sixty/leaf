@@ -642,6 +642,12 @@ class LayerComposition:
     def fingerprint(self) -> str:
         return layer_fingerprint(self)
 
+    @cached_property
+    def files_digest(self) -> str:
+        """Identify the bytes the layer serves (`files`), which a browser runs,
+        without the instructions `fingerprint` names too."""
+        return files_identity(self.files)
+
     @property
     def files(self) -> dict[str, bytes]:
         """Every file the layer serves, by its rooted page path."""

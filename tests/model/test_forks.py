@@ -37,6 +37,7 @@ from leaf import event_log as events_model
 from leaf import file_changes as file_changes_model
 from leaf import forks as forks_model
 from leaf import harness as harness_model
+from leaf import holding as holding_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
@@ -746,6 +747,76 @@ def test_a_start_on_a_to_do_in_a_forks_thread_hears_of_the_fork(claimed, lane, c
     assert holds in beside, beside
 
 
+def test_only_a_commands_own_write_hears_of_the_line_fork_holding_its_thread(
+    claimed, lane, capsys
+):
+    """While Leaf keeps a thread back, a command acting as the main session hears of
+    the line fork that holds it, and Leaf's own post of the line fork's working
+    message, in the claimant's name, says nothing beside it."""
+    asked = said(claimed, "Why a 2-second poll?")
+    capsys.readouterr()
+    assert todos_model.cmd_start(claimed, asked["id"], "reading the poll")
+    beside = capsys.readouterr().err
+    assert "a line fork holds this thread" in beside, beside
+    handed = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("reading the poll code"),
+        failed=None,
+    )
+    assert handed["outcome"] == "hand_over"
+    assert "fork-holds-thread" not in capsys.readouterr().err
+
+
+def test_a_session_that_ended_names_its_forks_threads_and_hands_nothing_on(
+    claimed, lane
+):
+    """A session that has ended still names the fork that held each thread in
+    `leaf page state`, but holds nothing for delivery: the message its fork picked
+    up is no input for it, as the fold's and the page's readings agree."""
+    asked, _holds = held_by_a_running_fork(claimed, "Does the suggest service cache?")
+    state_model.end_session("s1")
+    _owed, threads = holders(claimed)
+    assert threads[asked["id"]]["kind"] == "fork"
+    assert deliverable(claimed) == []
+    with PageTransaction(claimed) as page:
+        assert not forks_model.page_holding(page).live
+        assert delivery_model.deliverable(page, received=False) == []
+
+
+def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer():
+    """A thread's holder is the turn whose pickup of one of its waiting messages is
+    newest, even where another turn picked up an older message of the thread later,
+    as a late acknowledgement does: the turn that took the waiting messages holds
+    them."""
+    events = [
+        {"kind": "comment", "id": "c1", "author": "user", "seq": 1},
+        {
+            "kind": "reply",
+            "id": "a1",
+            "author": "agent",
+            "parent": "c1",
+            "responds": "c1",
+            "turn": "t0",
+            "seq": 2,
+        },
+        {"kind": "reply", "id": "u2", "author": "user", "parent": "a1", "seq": 3},
+        *(
+            {
+                "kind": "pickup",
+                "phase": "opened",
+                "session": "s1",
+                "turn": turn,
+                "events": [input_id],
+                "seq": seq,
+            }
+            for seq, turn, input_id in ((4, "waiting", "u2"), (5, "older", "c1"))
+        ),
+    ]
+    held = holding_model.reading(events, "s1", {}, set(), live=True).hold("c1")
+    assert (held.turn, held.picked) == ("waiting", True)
+
+
 def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeypatch):
     """The end of a fork's run says the fork answered, and names the to-dos it
     opened, only by what its own turn wrote: a to-do the main thread opened on the
@@ -1313,7 +1384,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     claim = service_model.page_claim(claimed)
     assert claim is not None
     with PageTransaction(claimed) as page:
-        held = forks_model.page_reading(page).of(more["id"])
+        held = forks_model.page_holding(page).of(more["id"])
     assert (held.turn, held.picked) == (claim["turn"], True)
 
     late = CliRunner().invoke(
@@ -1322,7 +1393,7 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
     assert late.exit_code != 0
     assert "no longer holds" in late.output
     with PageTransaction(claimed) as page:
-        assert forks_model.page_reading(page).of(more["id"]) == held
+        assert forks_model.page_holding(page).of(more["id"]) == held
 
 
 def test_a_command_marked_with_an_ended_fork_acts_as_nobody(claimed, lane, capsys):

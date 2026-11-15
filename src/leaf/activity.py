@@ -12,10 +12,13 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from .obligations import response_address
 from .state import turn_closed, turn_open
+
+if TYPE_CHECKING:
+    from .holding import Holding
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
@@ -636,6 +639,32 @@ def _canonical_todos(
     return result, aging
 
 
+def present_holding(present: dict, events: list, now_iso: str) -> "Holding":
+    """Who holds each thread of a page (`holding.reading`), from its log `events` and
+    its presence reading `present`: the claimant's session and agent turns, which may
+    run only while the session is alive, and the messages Leaf keeps back, whose
+    threads the line fork holds. `forks.page_holding` reads the same under a page's
+    transaction."""
+    from .holding import reading
+
+    live = present["session_alive"] is True
+    stamps = present["agent_turns"]
+    held = reading(
+        events,
+        present.get("claim_session"),
+        stamps,
+        running_agent_turns(stamps, live, datetime.fromisoformat(now_iso)),
+        live=live,
+    )
+    return held.keeping(
+        {
+            thread
+            for input_id in present["kept_back"]
+            if (thread := held.found.names.get(input_id)) is not None
+        }
+    )
+
+
 def canonical_activity(
     present: dict,
     interaction_evidence: list[dict],
@@ -647,6 +676,7 @@ def canonical_activity(
     *,
     todo_reading=None,
     updates: dict,
+    holding: "Holding",
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
@@ -664,15 +694,14 @@ def canonical_activity(
     claimant's exact App Server turn (`reply_reservation_stands`); an answer they
     reserve adds `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it. `holding` is who
-    holds each thread (`holding.reading`), the line fork for each thread whose
-    messages `present` says Leaf keeps back, and each owed answer's `holder` who owes
-    it now (`holding.owed_by`): a running fork, the line fork, or the main thread.
+    holds each thread (`present_holding`), and each owed answer's `holder` who owes it
+    now (`holding.owed_by`): a running fork, the line fork, or the main thread.
 
     `detail_source` preserves the selected start's event and item identity when
     its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
-    from .holding import owed_by, reading
+    from .holding import owed_by
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -707,19 +736,7 @@ def canonical_activity(
     # The turns the agents the claimant's session runs beside its main thread are
     # running now, and who holds each thread (`holding.py`), with the threads whose
     # waiting messages Leaf keeps back held by the line fork.
-    agents = running_agent_turns(
-        present["agent_turns"], present["session_alive"] is True, now
-    )
-    holding = reading(
-        events, present.get("claim_session"), present["agent_turns"], agents
-    )
-    holding = holding.keeping(
-        {
-            thread
-            for input_id in present["kept_back"]
-            if (thread := holding.found.names.get(input_id)) is not None
-        }
-    )
+    agents = holding.running
 
     def owes(item: dict) -> dict:
         """Who owes the answer to `item` now (`holding.owed_by`, `agent_holds`): a
@@ -943,8 +960,4 @@ def canonical_activity(
             }
             for item in obligations
         ],
-        # Who holds each thread, which `leaf page state` names on each thread and,
-        # through `owes`, on each answer owed, and which delivery filters
-        # (`served_state.work.WorkState.holding`).
-        "holding": holding,
     }

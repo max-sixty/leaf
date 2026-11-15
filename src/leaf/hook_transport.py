@@ -765,7 +765,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     Nothing else of the main thread's, its input, debt, reminders or the clerk's
     lines, reaches an agent."""
     from .delivery import current_responses
-    from .forks import page_reading
+    from .forks import page_holding
     from .holding import to_carry
     from .state import agent_turns, renew_agent_turn
 
@@ -783,7 +783,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
                     continue
                 if inputs := [
                     event
-                    for event in to_carry(page_reading(page), turn)
+                    for event in to_carry(page_holding(page), turn)
                     if event["seq"] > through.get(str(page_dir), 0)
                 ]:
                     batches.append(

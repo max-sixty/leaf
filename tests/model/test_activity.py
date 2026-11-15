@@ -451,6 +451,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
@@ -463,6 +464,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -500,6 +502,7 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
+        holding=activity_model.present_holding(present, events, now.isoformat()),
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 

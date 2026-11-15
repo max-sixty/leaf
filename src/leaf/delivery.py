@@ -1097,10 +1097,10 @@ def record_pickup(
         )
     )
     if phase == "opened" and session is not None:
-        from .forks import page_reading
+        from .forks import page_holding
         from .holding import pickable
 
-        fresh = pickable(page_reading(page), fresh, session, turn)
+        fresh = pickable(page_holding(page), fresh, session, turn)
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
@@ -1155,10 +1155,11 @@ def deliverable(
     why (`hook_transport.remedies`).
 
     Both kinds are filtered by who holds each thread (`holding.Holding`, the fold's
-    or `forks.page_reading`). More, too, the waiting messages of each thread a fork
-    whose turn has ended holds by its pickup of them, which it left owed, giving the
-    thread back or ending without answering, and which the main thread now owes
-    (`holding.owed_by`). Less, the waiting messages of each thread the main thread
+    or `forks.page_holding`). More, too, while the owner's session lives, the waiting
+    messages of each thread a fork whose turn has ended holds by its pickup of them,
+    which it left owed, giving the thread back or ending without answering, and which
+    the main thread now owes (`holding.owed_by`). Less, the waiting messages of each
+    thread the main thread
     doesn't owe: one Leaf keeps back while a line fork of the owner's conversation
     writes its line (`forks.kept_back`), until the line fork hands it over or its
     bound runs out, which keeps the watch from waking the session for it as it
@@ -1177,7 +1178,7 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .forks import page_reading
+    from .forks import page_holding
     from .holding import owed_by
 
     owed = []
@@ -1189,19 +1190,23 @@ def deliverable(
         owed = unreferenced(page, work.obligations)
         holding = work.holding
     else:
-        holding = page_reading(page) if pending else None
+        holding = page_holding(page) if pending else None
     if holding is not None:
-        if received and (
-            left := {
-                event["id"]
-                for event in holding.waiting(
-                    lambda held: (
-                        held.picked
-                        and held.holder["kind"] == "fork"
-                        and held.holder["state"] != "running"
+        if (
+            received
+            and holding.live
+            and (
+                left := {
+                    event["id"]
+                    for event in holding.waiting(
+                        lambda held: (
+                            held.picked
+                            and held.holder["kind"] == "fork"
+                            and held.holder["state"] != "running"
+                        )
                     )
-                )
-            }
+                }
+            )
         ):
             # What a fork's turn picked up and then left owed, giving its thread back
             # or ending without answering, is the main thread's input now; a message
@@ -1286,7 +1291,7 @@ def confirm_entered(harness, payload: dict) -> None:
     hook of a harness whose hooks don't commit their context runs this before it
     reads the page, so the prompt a nudge wakes after an interrupt confirms what the
     interrupted turn read before it hands anything over."""
-    from .forks import page_reading
+    from .forks import page_holding
     from .holding import taken_by_agent_turns
     from .service import owned_pages
 
@@ -1308,7 +1313,7 @@ def confirm_entered(harness, payload: dict) -> None:
                     for event_id in pickup["events"]
                     if event_id in entered
                 }
-                receive_passed(page, shown | taken_by_agent_turns(page_reading(page)))
+                receive_passed(page, shown | taken_by_agent_turns(page_holding(page)))
         except FileNotFoundError:
             continue
 
@@ -1521,7 +1526,7 @@ def receive_one(
         ) as events,
     ):
         if agent_turn is not None:
-            from .forks import page_reading
+            from .forks import page_holding
             from .holding import taken_by_agent_turns
 
             assert session_id is not None
@@ -1534,7 +1539,7 @@ def receive_one(
                 turn=agent_turn,
                 refs=batch_refs(batch),
             )
-            receive_passed(page, taken_by_agent_turns(page_reading(page)))
+            receive_passed(page, taken_by_agent_turns(page_holding(page)))
             return page_dir
         turn = None
         if session_id:

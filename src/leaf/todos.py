@@ -390,7 +390,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     (`holding.authorize`)."""
     from .event_contracts import append_admitted
     from .findings import note
-    from .forks import page_reading
+    from .forks import page_holding
     from .holding import authorize
     from .state import acting_turn
 
@@ -405,7 +405,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
         None,
     )
     beside = authorize(
-        page, page_reading(page), identity.get("session"), [item], thread=on
+        page, page_holding(page), identity.get("session"), [item], thread=on
     )
     turn = acting_turn(page.claim, identity.get("session"))
     record, _ = append_admitted(

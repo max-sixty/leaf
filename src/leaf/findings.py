@@ -160,17 +160,14 @@ def _explained(console: list[dict]) -> str:
 
 def _fork_holds_thread(holder: dict, answers: bool) -> str:
     """What a command acting as the main session hears where a fork or the line fork
-    holds its thread (`holding.authorize`): the holder, whether the command's answer
-    took the thread from it, and, for a fork, how to stop it and how the fork's own
-    commands act as the fork."""
+    holds its thread (`holding.authorize`): the holder, and, for a fork, whether the
+    command's answer took the thread from it, how to stop it and how the fork's own
+    commands act as the fork. No command answers a message a line fork holds, which
+    page state gives no answer reference."""
     if holder["kind"] == "line":
-        held = "a line fork {} this thread while writing the agent's working line"
         return (
-            held.format("held")
-            + "; this command acted as the main session and took the thread from it"
-            if answers
-            else held.format("holds")
-            + "; this command acted as the main session beside it"
+            "a line fork holds this thread while writing the agent's working message;"
+            " this command acted as the main session beside it"
         )
     fork = holder["name"]
     return (

@@ -135,7 +135,7 @@ open and renewed within the working grace (`activity.running_agent_turns`).
 
 Which turn holds each thread, the main thread's or an agent's, with its waiting
 messages, is one reading every reader asks (`holding.py`, whose header states the
-rule; `forks.page_reading`), and `leaf page state`'s `holder` names it: the main
+rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
 thread, the fork by name with whether its turn runs, or the line fork. The newest
 pickup of a thread's waiting messages holds them, an answer takes its thread as a
 pickup does, and a running agent turn that last took a thread holds the messages the

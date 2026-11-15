@@ -8,7 +8,7 @@ A serving context holds this result once; its browser selects the same objects.
 
 from typing import NamedTuple
 
-from ..activity import canonical_activity, canonical_stream_reply
+from ..activity import canonical_activity, canonical_stream_reply, present_holding
 from ..holding import Holding
 from ..projection import FrozenThreadReading, page_reading
 from ..service import no_stream
@@ -22,15 +22,13 @@ class WorkState(NamedTuple):
     workflows: list[dict]
     live_reply: dict | None
     presence: dict
+    # Who holds each thread, as the fold read it (`activity.present_holding`), which
+    # `leaf page state` names and delivery filters.
+    holding: Holding
 
     @property
     def obligations(self) -> list[dict]:
         return self.activity["obligations"]
-
-    @property
-    def holding(self) -> Holding:
-        """Who holds each thread, as the fold read it (`holding.Holding`)."""
-        return self.activity["holding"]
 
 
 # Delivery progress, furthest last. `answered` is only ever the retained failed
@@ -131,6 +129,7 @@ def work_state(
     )
     stream = live_stream or no_stream()
     reply = canonical_stream_reply(present, now, stream["reply"])
+    holding = present_holding(present, events, now)
     activity = canonical_activity(
         present,
         durable.workflows,
@@ -141,6 +140,7 @@ def work_state(
         stream["reply_reservations"],
         todo_reading=log,
         updates=durable.updates,
+        holding=holding,
     )
     workflows = (
         served_workflows(
@@ -148,11 +148,9 @@ def work_state(
             durable.thread,
             durable.updates,
             # With no active claim, no fork speaks for the page.
-            frozenset(activity["holding"].forked())
-            if present["session_alive"] is True
-            else frozenset(),
+            frozenset(holding.forked()) if holding.live else frozenset(),
         )
         if source
         else activity["workflows"]
     )
-    return WorkState(durable, activity, workflows, reply, present)
+    return WorkState(durable, activity, workflows, reply, present, holding)

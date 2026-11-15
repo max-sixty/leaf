@@ -30,7 +30,7 @@ the moment it takes the thread until another turn does (`Hold`).
   own answer, but not answer again a message the main thread answered over it.
 
 `reading` reads this once for a page, from its log, the claimant's agent turns and
-the threads Leaf keeps back (`forks.page_reading`), and every rule asks that one
+the threads Leaf keeps back (`forks.page_holding`), and every rule asks that one
 `Holding` rather than reading the pickups and answers itself: delivery
 (`delivery.deliverable`) and admission (`forks.kept_from_main_at_admission`) keep
 from the main thread what it doesn't owe and hand it what a fork's ended turn left
@@ -79,7 +79,7 @@ class Rounds(NamedTuple):
     # Each thread's waiting messages in log order, the user's since the agent's last
     # answer in it.
     waiting: dict[str, list[dict]]
-    # The ids of the user's messages an agent's working line came after, which read
+    # The ids of the user's messages an agent's working message came after, which read
     # On it (`Holding.forked`).
     lined: set[str]
     # Each thread's last answer from the agent: its last message that responds to
@@ -113,7 +113,7 @@ def rounds(events: list[dict]) -> Rounds:
         if event["author"] == "user":
             waiting.setdefault(thread, []).append(event)
         elif event.get("ephemeral"):
-            # The agent's working line answers nothing, and speaks for what waits.
+            # The agent's working message answers nothing, and speaks for what waits.
             lined.update(said["id"] for said in waiting.get(thread, []))
         else:
             answered.update((said["id"], event) for said in waiting.pop(thread, []))
@@ -188,17 +188,21 @@ UNHELD = Hold(None, False, MAIN)
 
 class Holding(NamedTuple):
     """Who holds each thread of a page, as `reading` reads it once for every rule
-    that asks: the claimant's `session`, its agent turns `stamps` and those of them
-    running now `running` (`activity.running_agent_turns`), the log's `rounds`, the
-    session's pickups, and each thread's `Hold`."""
+    that asks: the claimant's `session`, whether it is `live`, holding the page by an
+    active claim, its agent turns `stamps` and those of them running now `running`
+    (`activity.running_agent_turns`), the log's `rounds`, the session's pickups, and
+    each thread's `Hold`.
+
+    A session that has ended still names the turns that held its threads, which
+    `leaf page state` prints, but holds nothing for a rule that acts: delivery hands
+    nothing on for it (`delivery.deliverable`), and no pickup or receipt of its turns
+    moves a thread (`pickable`, `taken_by_agent_turns`)."""
 
     session: str | None
+    live: bool
     stamps: dict[str, dict]
     running: set[str]
     found: Rounds
-    # The newest opened pickup by `session` of each input one names, as its seq and
-    # turn.
-    newest: dict[str, tuple[int, str]]
     # The inputs each turn of `session` picked up, in log order.
     picked: dict[str, dict[str, None]]
     # The threads each turn of `session` took, by a pickup of any of their messages
@@ -259,7 +263,7 @@ class Holding(NamedTuple):
     def forked(self) -> set[str]:
         """The waiting messages a fork has taken on, which read On it
         (`served_state.work`): those of a thread the line fork holds, and those the
-        agent's working line came after, until the session answers."""
+        agent's working message came after, until the session answers."""
         return {
             event["id"]
             for event in self.waiting(lambda held: held.holder["kind"] == "line")
@@ -276,13 +280,16 @@ def reading(
     session: str | None,
     stamps: dict[str, dict],
     running: set[str],
+    *,
+    live: bool,
     found: Rounds | None = None,
 ) -> Holding:
     """Who holds each thread of a page by its pickups and answers (the module header),
     from its log `events`, for the claimant's `session`, whose agent turns are
-    `stamps` and `running` as `Holding` holds them, where `found` is the log's
-    `rounds`, where the caller has them. The threads Leaf keeps back are the line
-    fork's (`Holding.keeping`); `forks.page_reading` reads both for a page."""
+    `stamps` and `running`, and which is `live`, as `Holding` holds them, where
+    `found` is the log's `rounds`, where the caller has them. The threads Leaf keeps
+    back are the line fork's (`Holding.keeping`). `forks.page_holding` reads both for
+    a page under its transaction, and `activity.present_holding` for the fold."""
     found = rounds(events) if found is None else found
     newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
@@ -322,7 +329,7 @@ def reading(
         threads[thread] = Hold(
             turn, bool(pickups), holder(turn, thread, stamps, running)
         )
-    return Holding(session, stamps, running, found, newest, picked, took, threads)
+    return Holding(session, live, stamps, running, found, picked, took, threads)
 
 
 def taken_over(input_ids) -> str:
@@ -431,7 +438,7 @@ def pickable(
     has since taken over is refused, and records nothing. Any other turn's pickup of
     a message an agent's running turn holds would take the thread over, which waits
     until that turn has closed or lapsed, so it leaves those messages out."""
-    if holding.session != session or not holding.stamps:
+    if not holding.live or holding.session != session or not holding.stamps:
         return input_ids
     if turn in holding.stamps:
         refuse_unheld(holding, turn, input_ids)
@@ -449,7 +456,7 @@ def taken_by_agent_turns(holding: Holding) -> set[str]:
     it in: should that turn end without picking it up, Leaf keeps it back for a line
     fork as it does any new message (`forks.kept_back`), and a receipt that passed it
     would have handed it to the main thread instead."""
-    if not holding.stamps:
+    if not holding.live or not holding.stamps:
         return set()
     return {
         input_id for turn in holding.stamps for input_id in holding.picked.get(turn, {})

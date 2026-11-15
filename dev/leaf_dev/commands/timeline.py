@@ -65,7 +65,13 @@ from leaf.events import is_answer
 from leaf.holding import reading
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
-from leaf.state import agent_turn_open, agent_turns, now_iso, session_record
+from leaf.state import (
+    agent_turn_open,
+    agent_turns,
+    now_iso,
+    session_live,
+    session_record,
+)
 from leaf.thread_context import thread_names
 from leaf_dev.commands.response_times import page_timings
 from leaf_dev.reply_phases import (
@@ -395,7 +401,7 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
-    holding = reading(events, session, turns, running)
+    holding = reading(events, session, turns, running, live=session_live(record))
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
         took = sorted(holding.took.get(turn, ()))

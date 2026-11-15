@@ -87,6 +87,21 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
     assert "style(--lf-reading-face: 1)" in bare
 
 
+def test_a_personal_theme_builds_on_the_reading_look(tmp_path):
+    """A personal theme composes after `reading`, so one that states only an accent
+    keeps the look's face and idioms, and its own declaration follows the look's."""
+    catalogue(tmp_path)
+    page = tmp_path / "page"
+    cmd_init(page, theme="dense")
+    record = layer_record(page)
+    assert record is not None
+    assert record["theme"] == {"name": "dense", "source": "explicit"}
+    layer = selected(record, page)
+    assert ".callout" in layer.vocabulary.registry
+    sheet = layer.files["/theme.css"].decode()
+    assert sheet.index("--lf-reading-face: 1;") < sheet.index("--lf-accent: #553399")
+
+
 def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     """The theme composes before the content packages, so a project package that
     restates one of its idioms replaces the entry and its rule follows the theme's."""

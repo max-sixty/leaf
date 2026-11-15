@@ -655,11 +655,9 @@ class LayerComposition:
         }
 
 
-def selected_layer(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
-) -> LayerComposition:
+def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages` and the `theme`, composed before them: its core and
+    `packages`, its theme's among them (`themes.with_theme`): its core and
     bundled packages, the user's installed ones, as this process first read them,
     and the copies the page holds of packages it selects by path.
 
@@ -671,24 +669,20 @@ def selected_layer(
     rather than its spelling, since a page's own copy is another directory in another
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
-    return _composed(*_selection(packages, theme, page_dir))
+    return _composed(*_selection(packages, page_dir))
 
 
-def selected_vocabulary(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
-) -> LayerVocabulary:
+def selected_vocabulary(packages: tuple[str, ...], page_dir: Path) -> LayerVocabulary:
     """The vocabulary of the layer `selected_layer` composes for the same selection,
     without reading the layer's files. Held for the process, as the layer is."""
-    return _vocabulary(*_selection(packages, theme, page_dir))
+    return _vocabulary(*_selection(packages, page_dir))
 
 
 def _selection(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
+    packages: tuple[str, ...], page_dir: Path
 ) -> tuple[tuple[Path, ...], tuple]:
     """The inputs a selection resolves to, and the stamps of the page's own copies
     among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
-    if theme is not None:
-        packages = (theme, *(name for name in packages if name != theme))
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
     return inputs, copies

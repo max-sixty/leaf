@@ -37,16 +37,19 @@ themes = ["editorial", "dense"]
 default = "editorial"
 ```
 
-A page takes one theme, so a personal theme is the page's whole look and replaces
-`reading`. One that only adjusts the reading look, such as its palette, is selected
-as a content package on a page that keeps `reading`: `leaf page init <page> --package
-dense`.
+A personal theme builds on the reading look: `reading` composes first and the theme
+after it, so a theme states only what it changes, such as its three colours, a face
+and a corner, and its pages keep the look's idioms, such as `.callout` and `.tag`. A
+theme's rule wins a tie with the reading look's. A look that wants none of `reading`
+is a content package on a page that takes no theme: `leaf page init <page> --no-theme
+--package dense`.
 
 `leaf theme list` returns the available choices, default and author instructions.
 The author's selection follows the user's request first, then the task and those
 instructions; leaving it unspecified uses the default on a new page. Select one with
 `leaf page init <page> --theme dense`. Content packages remain independent; the
-selected theme composes right after Leaf's default package and before them, so a
+reading look and the selected theme compose right after Leaf's default package and
+before them, so a
 project package can restate a theme's idiom, such as `.callout`, and its rules win a
 tie with the theme's.
 
@@ -92,8 +95,8 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
 `--lf-paper`, which is the browser's `Canvas` until a theme or the page sets it. The
-reading theme paints the window that colour, and a theme of your own that replaces
-it paints `html` the same way. Each solid containing surface
+reading theme paints the window that colour, and a look of your own on a page that
+takes no theme paints `html` the same way. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.

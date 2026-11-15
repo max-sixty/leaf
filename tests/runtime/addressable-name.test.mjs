@@ -148,6 +148,14 @@ test("a heading titles the outermost element it is the first heading of, short o
     </section>
     <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
       <h3 id="notes">Notes</h3><p>Words.</p></section>
+    <section id="plan"><div><strong>Task one</strong> words</div>
+      <div><strong>Task two</strong> words <lf-ask id="restart">
+        <h3 id="restart-question">Restart it?</h3></lf-ask></div></section>
+    <section id="more"><details id="details"><summary>More</summary>
+      <h4 id="inside">Inside</h4></details></section>
+    <section id="tools"><p>Developer tools</p><h2 id="inspect">Inspect</h2></section>
+    <section id="rollout"><h2 id="rollout-heading">Rollout</h2><p>Plan.</p>
+      <lf-ask><h2>Include runners?</h2></lf-ask></section>
     <div id="body"><p>Lede.</p><section id="in"><h2 id="inputs">Inputs</h2></section>
       <section><h2>Outputs</h2></section></div>
     <div><h2>Before</h2><hgroup id="pair"><h2 id="first">First title</h2>
@@ -163,6 +171,13 @@ test("a heading titles the outermost element it is the first heading of, short o
   // A heading after the question titles only itself.
   assert.equal(titled("store"), "notes-section");
   assert.equal(titled("notes"), "notes");
+  // Words before a heading stop it titling anything but a section: a task's, a
+  // disclosure's summary; a section's eyebrow doesn't.
+  assert.equal(titled("restart-question"), "restart");
+  assert.equal(titled("inside"), "inside");
+  assert.equal(titled("inspect"), "tools");
+  // A section takes its first heading past a question of the same rank inside it.
+  assert.equal(titled("rollout-heading"), "rollout");
   // A wrapper holding sections of one rank is none's.
   assert.equal(titled("inputs"), "in");
   // Only an hgroup's leading heading titles it.

@@ -171,11 +171,11 @@ the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
 Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
 panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
-in `--lf-paper`, with a theme or without one: Leaf paints the window that colour, and
-`body` is a container, which keeps its own background off the window below a short
-page. A page that takes no theme and has a ground and text colour of its own sets
-`--lf-paper` and `--lf-ink` to them, so Leaf's panel, thread cards and widgets stand
-on that ground rather than the browser's white. A reset
+in `--lf-paper`, which the theme paints the window in. A page that takes no theme
+paints its own ground on `html`, since `body` is a container, which keeps its own
+background off the window below a short page, and sets `--lf-paper` and `--lf-ink`
+to its ground and text colours, so Leaf's panel, thread cards and widgets stand on
+that ground rather than the browser's white. A reset
 that zeroes `body`'s padding, or an app shell whose own box scrolls, puts
 `padding-top: var(--lf-head-room)` and `padding-bottom: var(--lf-foot-room)` on
 whatever scrolls. A box page CSS makes opaque,

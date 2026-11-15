@@ -282,13 +282,6 @@ body {
   box-sizing: border-box !important;
   container: lf-shell / inline-size;
 }
-/* The root paints the page's ground (`--lf-paper`, styles/tokens.css): the browser's
- * canvas until a theme or the page sets another. The body is a container, and
- * containment keeps its own background off the canvas, so a page shorter than the
- * window otherwise ended in white below it. */
-html {
-  background: var(--lf-paper);
-}
 /* What the page's body and Leaf's chrome after it both inherit from the root.
  *
  * A run with nothing to break on breaks anyway rather than painting outside the box that

@@ -661,8 +661,12 @@
      hairline, and this tint is the disc or ground that rises under it on hover, or that
      a reaction the user added rests on. */
   --lf-accent-tint: color-mix(in srgb, var(--lf-accent) 12%, var(--lf-card));
-  /* Status marker, text and ground are independent theme inputs. In particular,
-     a warning dot's color need not provide readable small text on its ground.
+  /* Status marker and text are independent theme inputs. In particular, a warning
+     dot's color need not provide readable small text on its ground. A status ground
+     is seven parts the page's paper and three a colour of the status's hue, so it
+     sits on whatever paper the page has and follows a theme's status colour; the
+     three parts are the lightness and chroma that give the reading theme the tints it
+     was tuned to. A theme restates a ground it wants otherwise.
 
      A light status tint is darker than every ground it stands on. A dark one is
      lighter than the paper, as a card and the panel are, so it takes its distance
@@ -670,20 +674,59 @@
      paper, a card and the panel, about as far as the light tints stand. Tuned on the
      paper alone, the dark tints stood 3 apart on the panel, where a tag's tint all
      but vanished. */
-  --lf-ok-tint: light-dark(#dfeddf, #142f1a);
+  --lf-ok-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(
+      oklch(from var(--lf-ok) 0.82 0.072 calc(h + 3)),
+      oklch(from var(--lf-ok) 0.44 0.163 calc(h + 3))
+    )
+  );
   --lf-ok-wash: color-mix(in srgb, var(--lf-ok-tint) 52%, var(--lf-paper));
   --lf-ok-ink: light-dark(#2f6b40, #97cca3);
   /* Green identifies the user's turn. Unread and agent progress keep the blue
      accent, so neither can be mistaken for a request to the user. */
   --lf-turn-wash: var(--lf-ok-wash);
   --lf-turn-ink: var(--lf-ok-ink);
-  --lf-warn-tint: light-dark(#f7ecd2, #37280e);
+  --lf-warn-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(
+      oklch(from var(--lf-warn) 0.86 0.108 calc(h + 18)),
+      oklch(from var(--lf-warn) 0.47 0.138 calc(h - 1))
+    )
+  );
   --lf-warn-ink: light-dark(#8a5a12, #e2bb75);
-  --lf-danger-tint: light-dark(#f7e0da, #3c1e16);
+  --lf-danger-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(
+      oklch(from var(--lf-danger) 0.79 0.084 calc(h - 4)),
+      oklch(from var(--lf-danger) 0.43 0.157 calc(h - 1))
+    )
+  );
   --lf-danger-ink: light-dark(#9c3526, #e0a091);
-  --lf-add-tint: light-dark(#e4efe0, #1b2a1c);
-  --lf-del-tint: light-dark(#f7e2dc, #33201b);
-  --lf-hi-tint: light-dark(#fff8c5, #342d14);
+  --lf-add-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(
+      oklch(from var(--lf-ok) 0.84 0.068 calc(h - 6)),
+      oklch(from var(--lf-ok) 0.4 0.102 calc(h + 2))
+    )
+  );
+  --lf-del-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(
+      oklch(from var(--lf-danger) 0.8 0.076 calc(h - 3)),
+      oklch(from var(--lf-danger) 0.4 0.097 calc(h - 4))
+    )
+  );
+  --lf-hi-tint: color-mix(
+    in oklab,
+    var(--lf-paper) 70%,
+    light-dark(oklch(0.95 0.207 101), oklch(0.51 0.122 94))
+  );
   /* Shiki's theme reads these CSS variables directly. The palette follows the
      page's color scheme and can be overridden wherever code is drawn. The render
      gate checks the colors the browser actually paints on each code canvas. */

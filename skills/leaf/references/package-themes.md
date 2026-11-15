@@ -91,8 +91,9 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
-`--lf-paper`, which Leaf paints the window in and which is the browser's `Canvas`
-until a theme or the page sets it. Each solid containing surface
+`--lf-paper`, which is the browser's `Canvas` until a theme or the page sets it. The
+reading theme paints the window that colour, and a theme of your own that replaces
+it paints `html` the same way. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -241,30 +242,31 @@ change it for that subtree. Any other `--lf-` property is Leaf's own.
 A theme sets these colours. Where the foreground and background need a deliberate
 contrast choice, they are independent tokens:
 
-| Role             | Tokens                                                                                                                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links, focus and the chosen item. With no theme the first two are the browser's canvas and text              |
-| Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text; `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` for grounds |
-| Counts           | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                   |
-| Code             | `--lf-code-bg` for inline code; `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block                                           |
-| Syntax           | `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type`                                                                  |
-| Changed lines    | `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`, the grounds of an added, a removed and a highlighted line                                                                     |
-| A chart's series | `--lf-series-1`, `--lf-series-2`, `--lf-series-3`, `--lf-series-4`, `--lf-series-5`                                                                                             |
+| Role             | Tokens                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links, focus and the chosen item. With no theme the first two are the browser's canvas and text |
+| Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text                                                      |
+| Counts           | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                      |
+| Code             | `--lf-code-bg` for inline code; `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block                              |
+| Syntax           | `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type`                                                     |
+| A chart's series | `--lf-series-1`, `--lf-series-2`, `--lf-series-3`, `--lf-series-4`, `--lf-series-5`                                                                                |
 
-Leaf steps these neutrals from `--lf-paper` toward `--lf-ink`, so they follow a
-palette that sets those two. A page's or package's rules read them, and a theme
-restates one it wants otherwise:
+Leaf derives these from the colours above, the neutrals as steps from `--lf-paper`
+toward `--lf-ink`, so they follow a palette that sets those. A page's or package's
+rules read them, and a theme restates one it wants otherwise:
 
-| Token              | Draws                                                  |
-| ------------------ | ------------------------------------------------------ |
-| `--lf-card`        | A raised surface: a card, a panel, a control           |
-| `--lf-field`       | A tinted ground: a field, a callout                    |
-| `--lf-chip`        | A neutral chip's ground                                |
-| `--lf-rule`        | A hairline between rows or parts                       |
-| `--lf-border`      | A control's or a box's edge                            |
-| `--lf-muted`       | Words that qualify a line: a caption, a status, a hint |
-| `--lf-ink-2`       | Secondary text, between the ink and `--lf-muted`       |
-| `--lf-accent-tint` | The ground under an accented press, from `--lf-accent` |
+| Token                                                | Draws                                                      |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| `--lf-card`                                          | A raised surface: a card, a panel, a control               |
+| `--lf-field`                                         | A tinted ground: a field, a callout                        |
+| `--lf-chip`                                          | A neutral chip's ground                                    |
+| `--lf-rule`                                          | A hairline between rows or parts                           |
+| `--lf-border`                                        | A control's or a box's edge                                |
+| `--lf-muted`                                         | Words that qualify a line: a caption, a status, a hint     |
+| `--lf-ink-2`                                         | Secondary text, between the ink and `--lf-muted`           |
+| `--lf-accent-tint`                                   | The ground under an accented press, from `--lf-accent`     |
+| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` | A status's ground, from the paper and that status's colour |
+| `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`     | The ground of an added, a removed and a highlighted line   |
 
 Type, space and shape:
 

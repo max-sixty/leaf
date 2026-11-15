@@ -34,7 +34,7 @@ assert:
     value: |
       Read the CSS. Pass only if both hold. First, the three reset rules (the
       universal `*` rule, the `button, input, select` rule and the list rule) stand
-      inside a cascade layer named `reset` or `base`, such as `@layer reset { … }`,
+      inside a cascade layer named `reset`, such as `@layer reset { … }`,
       and nowhere outside one. Second, the root sets Leaf's `--lf-paper`, `--lf-ink`
       and `--lf-accent` from the site's background, text and brand colours, by value
       or through `var()`. `color-scheme: dark` beside them neither helps nor hurts.

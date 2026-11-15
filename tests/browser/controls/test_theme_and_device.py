@@ -591,7 +591,7 @@ def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
                 'Recompute</button> <input class="lf-field" id="field" aria-label="Volume">'
                 "</p>",
                 head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
-                " --lf-ink: #e2e8f0; }</style>",
+                " --lf-ink: #e2e8f0; } html { background: var(--lf-paper); }</style>",
             ),
             theme=theme,
         ),
@@ -612,7 +612,7 @@ RESET = (
 def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     """A page that brings its own framework takes no theme, and its reset in a layer
     named `reset` clears the page's own elements and leaves what Leaf draws as it was
-    (layer.py, `PAGE_RESET_LAYERS`). The layer ranked
+    (layer.py, `PAGE_RESET_LAYER`). The layer ranked
     above every tier of Leaf's, as any layer a page names does, and the reset took the
     padding, border and ground from Leaf's buttons and fields and the frame from a
     choice group."""
@@ -643,3 +643,18 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
         reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")
         == "0px"
     ), "the reset still clears the page's own elements"
+    # Only `reset` ranks low: an author's own layer still outranks the theme's look.
+    themed = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retention",
+                body,
+                head="<style>@layer base { h1 { font-size: 80px; } }</style>",
+            )
+        ),
+    )
+    assert (
+        themed.evaluate("getComputedStyle(document.querySelector('h1')).fontSize")
+        == "80px"
+    ), "a page's own layer lost to the theme"

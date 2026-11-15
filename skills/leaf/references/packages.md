@@ -124,7 +124,7 @@ below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
 the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-overrides`,
 `lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
 packages win ties. The page's own CSS is unlayered above these normal rules, and so
-is every cascade layer the page names, except `reset` and `base`, which Leaf ranks
+is every cascade layer the page names, except `reset`, which Leaf ranks
 below its own so a page's reset leaves Leaf's widgets and chrome their faces
 (`page-layout.md`, "Page CSS and Leaf's controls"). Layouts
 do not reach inside shadow trees. A theme's rules, like the page's own, reach the

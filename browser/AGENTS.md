@@ -433,8 +433,8 @@ around the rows already there (`margin-layout.js`). `test_page_fixture_renders` 
 these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
-(`../skills/leaf/references/packages.md`, "Styles and composition"), above the two
-layers a page's reset stands in (`PAGE_RESET_LAYERS`). A widget package's rules
+(`../skills/leaf/references/packages.md`, "Styles and composition"), above the
+layer a page's reset stands in (`PAGE_RESET_LAYER`). A widget package's rules
 name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on

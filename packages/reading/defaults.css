@@ -41,6 +41,13 @@ body {
   color: var(--lf-ink);
   font: var(--lf-t-4)/1.6 var(--lf-serif);
 }
+/* A container is contained, and containment keeps the body's background off the canvas,
+ * so the root paints the page's colour itself: a page shorter than the window, with no
+ * live body stretched to fill it, otherwise ended in white. A page with no theme paints
+ * its own root, in its own colour. */
+html {
+  background: var(--lf-paper);
+}
 /* A callout keeps the prose measure, including on a wider sidebar page.
  * Its own data-width requests room for wider evidence inside the frame. */
 @media screen {

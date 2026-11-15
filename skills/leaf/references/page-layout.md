@@ -313,13 +313,16 @@ against a page rule as light as one class (`button`, `.card`); a heavier selecto
 as `button:hover`, an `!important` declaration or a rule in a cascade layer of the
 page's own reaches them too, so name your own content in it.
 
-A CSS reset, or a framework's base styles, clears the margins, borders and faces of
-every element, the controls Leaf's widgets build among them. Put one in a cascade
-layer named `reset` or `base`, as in `@layer reset { … }`; Tailwind's preflight
-already stands in `base`. Leaf ranks those two layers below its own, so the reset
-applies wherever Leaf's rules say nothing, which on a page with no theme is all of
-the page's own elements, and Leaf's widgets, panel and thread cards keep their
-faces. A page whose framework has design tokens hands Leaf three of them, so
+A CSS reset clears the margins, borders and faces of every element, the controls
+Leaf's widgets build among them. Put one in a cascade layer named `reset`, as in
+`@layer reset { … }`. Leaf ranks that layer below its own and below the page's
+theme, so the reset applies wherever neither says anything, and Leaf's widgets,
+panel and thread cards keep their faces. A framework that keeps its reset in a
+layer of another name, as Tailwind keeps preflight in `base` beside the element
+rules its author writes there, outranks Leaf's faces from it: import or rename the
+reset into `reset`, and leave the author's rules where they are.
+
+A page whose framework has design tokens hands Leaf three of them, so
 what Leaf draws takes the framework's colours:
 
 ```css
@@ -331,7 +334,9 @@ what Leaf draws takes the framework's colours:
 ```
 
 Every custom property of Leaf's starts with `--lf-`, so a framework's own `--accent`
-or `--muted` changes nothing Leaf draws. A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
+or `--muted` changes nothing Leaf draws.
+
+A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
 on one of the chrome's parts, such as `--lf-paper` on `[part~="card"]`, changes only that
 surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme

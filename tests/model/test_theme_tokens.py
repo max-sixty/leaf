@@ -24,6 +24,8 @@ DECLARED = re.compile(
     r"(?<![\w-])(--[A-Za-z0-9_-]+)\s*:|@property\s+(--[A-Za-z0-9_-]+)"
 )
 COMMENT = re.compile(r"/\*.*?\*/", re.S)
+# A property a module names in a string of its own, which is how one sets it.
+SET_BY_NAME = re.compile(r"[\"'`](--lf-[a-z0-9-]+)[\"'`]")
 
 
 def sheets():
@@ -121,17 +123,15 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
 def test_every_token_a_reference_names_exists():
     """A reference that names a property nothing declares teaches a rule that does
     nothing: `var()` of an unset property makes its whole declaration invalid, with no
-    error an author would see."""
+    error an author would see. A sheet declares a property, and a module or delivery
+    sets one by naming it in a string of its own, as `setProperty("--lf-top", …)` does;
+    a module's `var(--lf-paper)` only reads it."""
     known = set()
     for sheet in sheets():
         known |= declared(sheet.read_text())
-    for root in (ASSETS, BUNDLED_PACKAGES):
-        for module in root.rglob("*.js"):
-            if "vendor" not in module.parts:
-                known |= {
-                    name
-                    for name in NAME.findall(module.read_text())
-                    if name.startswith("--lf-")
-                }
+    sources = (ASSETS, BUNDLED_PACKAGES, PLUGIN_ROOT / "src/leaf")
+    for module in sorted(path for root in sources for path in root.rglob("*")):
+        if module.suffix in {".js", ".py"} and "vendor" not in module.parts:
+            known |= set(SET_BY_NAME.findall(module.read_text()))
     missing = sorted(documented() - known)
     assert not missing, f"the references name properties nothing declares: {missing}"

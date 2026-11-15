@@ -1540,7 +1540,7 @@ RING_CARRIERS = {
     "box-shadow": ("box-shadow",),
 }
 RING_TOKEN = {
-    "outline": re.compile(r"--(?:focus-ring|lf-band-ink)(?![\w-])"),
+    "outline": re.compile(r"--lf-(?:focus-ring|band-ink)(?![\w-])"),
     "box-shadow": re.compile(r"--lf-focus-shadow(?![\w-])"),
 }
 _ring_sessions = WeakKeyDictionary()

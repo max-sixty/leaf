@@ -143,7 +143,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             '<div id="plan-choice-decision">',
             '<lf-ask id="plan-choice-decision" data-width="available">',
         )
-        .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
+        .replace("<lf-options>", '<lf-options id="plan-choice" required>')
         .replace(
             "</lf-options>\n  </div>",
             "</lf-options>\n"

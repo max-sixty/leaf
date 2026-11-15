@@ -1452,7 +1452,7 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
     page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
     page.evaluate(
         """async () => {
-          const {notice} = await window.__lfWidgetApi();
+          const {notice} = await window.__lfCheckApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
           notice('Saved');

@@ -1500,7 +1500,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfWidgetApi())
+          (await window.__lfCheckApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )

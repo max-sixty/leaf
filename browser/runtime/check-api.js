@@ -45,6 +45,7 @@ export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
 export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
 export { clockValue } from "./presence.js";
+export { notice } from "./notifications.js";
 export {
   readingRegions,
   shownRegionBounds,

@@ -2387,7 +2387,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');

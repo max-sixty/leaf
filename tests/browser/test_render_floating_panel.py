@@ -3102,9 +3102,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.clock.set_fixed_time(now)
     ticked(page)
     assert peek.inner_text() == words
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
-    )
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved for later')")
     expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
@@ -3341,7 +3339,7 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    say = "async (text) => (await window.__lfWidgetApi()).notice(text)"
+    say = "async (text) => (await window.__lfCheckApi()).notice(text)"
     peek = page.locator(".lf-fp-peek")
     page.evaluate(say, "Saved for later")
     expect(field(page)).to_have_attribute(

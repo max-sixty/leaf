@@ -5144,7 +5144,7 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     # Lit's html template creates HTML elements even when its result is rendered
     # into an SVG parent; the svg template is what creates SVG elements.
     page.locator("#drawing").evaluate("""async drawing => {
-      const {html, render} = await window.__lfWidgetApi();
+      const {html, render} = await window.__lfVendorImport('lit.js');
       render(html`<text>HTML template content</text>`, drawing.querySelector('g'));
     }""")
     reading = render_checks_model.evaluate_probe(page, "shrunkLabelReading")

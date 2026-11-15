@@ -3430,6 +3430,15 @@ export function findQuote(text, quote, anchor, within) {
 // the shared reading: stored quote resolution and file comparisons do not read styles.
 // display: contents has no box of its own yet still speaks through its children, and
 // visibility may be restored by a descendant, so neither is an ancestor veto.
+//
+// A `content-visibility: auto` box answers for everything it holds, so the search reads
+// no style inside one. Such a box asks the browser to style its content only near the
+// window, and a style read inside one the browser skipped makes it style the box's
+// content to answer: 28 ms a run of a text document's rows in Chromium
+// (lf-text-document.js, `inRuns`), so a search for a word in every run of thirty 4 MB
+// documents had found 108,000 of its 524,000 matches after five minutes. A drawn box
+// answers the same way, so what a search finds doesn't depend on where the window
+// stands. What this gives up: words CSS hides inside such a box are found.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();
@@ -3438,6 +3447,22 @@ function searchableWords() {
     let value = styles.get(el);
     if (!value) styles.set(el, (value = getComputedStyle(el)));
     return value;
+  };
+  /** @type {Map<Element, Element | null>} */
+  const autoBoxes = new Map();
+  // The outermost `content-visibility: auto` box at or over `el`, or null. Asked from
+  // the top down, so no style inside such a box is read.
+  /** @param {Element | null} el @returns {Element | null} */
+  const autoBox = (el) => {
+    if (!el) return null;
+    let box = autoBoxes.get(el);
+    if (box === undefined) {
+      box =
+        autoBox(renderedParent(el)) ??
+        (style(el).contentVisibility === "auto" ? el : null);
+      autoBoxes.set(el, box);
+    }
+    return box;
   };
   /** @param {Element | null} el @returns {boolean} */
   const canReveal = (el) => {
@@ -3455,7 +3480,8 @@ function searchableWords() {
   };
   return (/** @type {Segment} */ { node }) => {
     const parent = renderedParent(node);
-    return parent && style(parent).visibility === "visible" && canReveal(parent);
+    const shown = parent && (autoBox(parent) ?? parent);
+    return shown && style(shown).visibility === "visible" && canReveal(shown);
   };
 }
 

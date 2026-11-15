@@ -10,7 +10,8 @@ import {
 } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
-import { setRuntimeRootAttribute, setRuntimeRootStyle } from "../root-state.js";
+import { setRuntimeRootAttribute } from "../root-state.js";
+import { legendRoot } from "../design.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { pointInto } from "../pointed-place.js";
 
@@ -116,14 +117,11 @@ export function createAim({
       RUNTIME_PAINT_ATTRIBUTE.aiming,
       aiming || targetPicker.active() ? "" : null,
     );
-    // Picker keys name the Design legend's corners while the picker owns the choice.
-    // Inherit through the paint stages, whose boxes may live in shadow roots, and into
-    // the chrome after body, which holds the legend.
-    setRuntimeRootStyle(
-      document.documentElement,
-      "--lf-design-tag-visibility",
-      targetPicker.active() ? "hidden" : "visible",
-    );
+    // Picker keys name the Design legend's corners while the picker owns the choice, so
+    // the legend's tags step aside (chrome.css). The mark stands on the legend, which
+    // holds every box and tag, since a custom property changing on the root restyles
+    // every element of the page (root-state.js).
+    legendRoot.classList.toggle("lf-picking", targetPicker.active());
     refreshAim();
   }
   /** @param {boolean} on */

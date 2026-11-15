@@ -1964,7 +1964,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   ]);
   reflectFirstScopes();
   control.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
@@ -2053,7 +2053,7 @@ test("an earlier route keeps its face under a later route's face in another shad
   ]);
   reflectFirstScopes();
   first.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.deepEqual(

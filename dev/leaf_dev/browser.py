@@ -456,7 +456,7 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 }"""
 
 
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+def scroll_settled(page, scroller=None, axis="y"):
     """Wait for stable scroll position after the caller observes scroll initiation.
 
     The helper cannot distinguish a finished scroll from one not yet issued.
@@ -470,14 +470,14 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, SCROLL_STILL_FRAMES])
     except PlaywrightTimeout:
         where = scroller or "the document"
         held = page.evaluate(
             "() => globalThis.__lfScrollStill ?? null",
         )
         raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
+            f"{where} never held one position for {SCROLL_STILL_FRAMES} frames: gave up on {held}"
         ) from None
 
 

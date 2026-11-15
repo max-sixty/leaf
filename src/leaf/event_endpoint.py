@@ -46,12 +46,6 @@ def event_fault(event: dict, error: str) -> EventAnswer:
     return 500, body
 
 
-def accept_event(page_dir: Path, event: dict) -> EventAnswer:
-    """Validate and append one browser record. An acceptance names the event the log
-    holds for it; the transport adds the state that shows it (`with_state`)."""
-    return _receive_event(page_dir, event)
-
-
 def with_state(answer: dict, state: dict, sent: dict) -> dict:
     """`answer` with the page's state, `state` whole and `sent` as the tab is sent it.
 
@@ -70,7 +64,9 @@ def with_state(answer: dict, state: dict, sent: dict) -> dict:
     return {**answer, "state": sent}
 
 
-def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
+def accept_event(page_dir: Path, event: dict) -> EventAnswer:
+    """Validate and append one browser record. An acceptance names the event the log
+    holds for it; the transport adds the state that shows it (`with_state`)."""
     # The shape check before the lease reads only the kernel's own records, which no
     # layer changes; admission inside the lease reads the page's vocabulary.
     contracts = kernel_event_kinds()

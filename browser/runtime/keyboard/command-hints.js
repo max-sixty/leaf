@@ -105,7 +105,7 @@ function hintRoutes(available) {
   return gathered;
 }
 
-/** @param {{presentedControl: (control: Element) => Element | null}} options */
+/** @param {{presentedControl: (control: Element) => Element}} options */
 export function createCommandHints({ presentedControl }) {
   let mounted = false;
   let hasRoutes = false;
@@ -310,7 +310,7 @@ export function createCommandHints({ presentedControl }) {
     const placed = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
       if (bindingBadge && worn.has(bindingBadge)) continue;
-      const presented = presentedControl(control) ?? control;
+      const presented = presentedControl(control);
       if (!presented.checkVisibility()) continue;
       const face = bindingBadge && faceBoxes.get(bindingBadge);
       const corner = face

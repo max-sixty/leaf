@@ -572,7 +572,7 @@ def test_app_server_events_report_semantic_codex_progress():
     restored.restore_turn({"items": snapshot})
     assert restored.said_opening() == opening["text"]
     assert restored.said_opening() == ""
-    assert events.reply_so_far({"items": snapshot}) == ""
+    assert events.final_text({"items": snapshot}) == ""
     # Narration after a tool call is never the opening, even with no message before it.
     tool = {"type": "commandExecution", "command": "pytest"}
     assert events.final_text({"items": [tool, narration, final]}) == (

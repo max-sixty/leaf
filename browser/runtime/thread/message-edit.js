@@ -268,8 +268,8 @@ export function openMessageEditIn(thread, id) {
  *   box: () => Element | null,
  *   home: (node?: Element) => Element,
  *   opening?: (id: string) => void,
- *   landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"],
- *   landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
+ *   landInThread: typeof import("./landing.js").landInThread,
+ *   landSent: typeof import("./landing.js").returnToThread,
  * }} reader */
 export function threadRewrites({
   views,

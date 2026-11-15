@@ -27,7 +27,9 @@ since the server has to place it.
 Packages declare no dependency on each other, so two that share a contract each
 declare it in their own `$data.contracts`, word for word; a page composing both keeps
 one copy, and `page check --render` holds what the producer holds to it. What a
-provider of the contract must take as commands goes in the contract's `instructions`.
+producer of the contract must take as commands goes in the contract's `instructions`,
+under `producer`: `leaf page instructions --use` returns it for a widget on either
+side of the contract.
 
 ### Asking another widget to act
 

@@ -636,13 +636,20 @@ export function shownBox(el) {
 // Bounded at the element, for the reason given where the question is stated: a widget an
 // agent sent stands inside the panel, and asked about the page instead it would have no
 // child of its own left to fall back to.
-/** @param {Element} el @returns {Element[]} */
-export function shownParts(el) {
+//
+// A box with no area may hold content the browser skips, as a closed tab's panel does.
+// A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
+// read its boxes, which lays it out to answer: the target picker's first map read the
+// panels of 29 closed tabs, each a 4 MB text document, about 270 ms apiece in Firefox.
+// A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
+// `skipped`).
+/** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */
+export function shownParts(el, { leaveSkipped = false } = {}) {
   const r = el.getBoundingClientRect();
   if (r.width && r.height) return [el];
   return [...el.children]
-    .filter((child) => !uiInside(child, el))
-    .flatMap((child) => shownParts(child));
+    .filter((child) => !uiInside(child, el) && !(leaveSkipped && skipped(child)))
+    .flatMap((child) => shownParts(child, { leaveSkipped }));
 }
 // The box an element's shown parts cover together: a mark hung on the element stands at
 // its corner, so a comment on one shape of a drawing stands on that shape rather than at

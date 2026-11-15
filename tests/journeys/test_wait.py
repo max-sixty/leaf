@@ -186,6 +186,7 @@ import threading
 import urllib.parse
 import urllib.request
 
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     acknowledged_through,
@@ -204,6 +205,7 @@ from interact_support import (
     write_record,
 )
 
+from leaf import cli as cli_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import server as server_model
@@ -212,7 +214,7 @@ from leaf import session as session_model
 
 
 def test_wait_restarts_a_server_that_died_under_it(
-    page_dir, comment_once_served, capsys, snapshot
+    page_dir, comment_once_served, snapshot
 ):
     """A page whose server died is offline in the user's browser and nowhere
     else — so `leaf wait`, the one thing positioned to notice, brings it back
@@ -230,7 +232,8 @@ def test_wait_restarts_a_server_that_died_under_it(
     )
     comment_once_served(page_dir)
     service_model.claim_page(page_dir)
-    assert session_model.cmd_wait(page_dir) == 0
+    waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert waited.exit_code == 0, waited.output
     info = server_model.running_server(page_dir)
     # The revived server has to answer on the URL it published, key included:
     # the user's browser has been polling that address since it died.
@@ -239,8 +242,7 @@ def test_wait_restarts_a_server_that_died_under_it(
     assert (
         urllib.request.urlopen(state._replace(path="/api/state").geturl()).status == 200
     )
-    printed = capsys.readouterr()
-    assert "server had died; restarted" in printed.err
+    assert "server had died; restarted" in waited.stdout
     snapshot.check(
         yaml_document(
             "A wait revives its server, notes the recovery, and delivers input.\n"
@@ -249,7 +251,9 @@ def test_wait_restarts_a_server_that_died_under_it(
                 page_dir,
                 {
                     "exit": 0,
-                    "stderr": said(printed.err.replace(info["url"], "<served-url>")),
+                    "findings": said(
+                        waited.stdout.replace(info["url"], "<served-url>")
+                    )["findings"],
                 },
             ),
         )
@@ -292,9 +296,9 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     declare_idle(page)
 
     first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
-    assert (first.returncode, first_out) == (2, ""), first_err
-    assert "no longer owns it" in first_err
-    assert "the page closed" not in first_err
+    assert first.returncode == 2, first_out + first_err
+    assert "no longer owns it" in first_out
+    assert "the page closed" not in first_out
     session = service_model.page_claim(page)
     assert session is not None
     assert session["id"] == "replacement"
@@ -430,8 +434,8 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
     bare_out, bare_err = bare.communicate(timeout=STATED_TIMEOUT)
     harness_out, harness_err = harness.communicate(timeout=STATED_TIMEOUT)
 
-    assert (bare.returncode, bare_out) == (2, ""), bare_err
-    assert "no longer owns it" in bare_err
+    assert bare.returncode == 2, bare_out + bare_err
+    assert "no longer owns it" in bare_out
     assert harness.returncode == 0, harness_err
     _, _, shown = woken(harness_out, "harness-owner")
     assert [event["id"] for event in shown] == ["once"]

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
-from .findings import Finding, note
+from .findings import Finding, note, with_held
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import (
     end_if_terminated,
@@ -437,7 +437,10 @@ def cmd_serve_temporary(page_dir: Path, host: str | None = None) -> None:
         raise Refused("a temporary server is loopback-only; omit --host")
     exited = caller_exited()
     server = TemporaryPageServer(page_dir)
-    print(json.dumps({"url": server.url, "lifetime": "temporary"}), flush=True)
+    print(
+        json.dumps(with_held({"url": server.url, "lifetime": "temporary"})),
+        flush=True,
+    )
 
     def stop_with_caller() -> None:
         while not exited():
@@ -502,11 +505,12 @@ def _serve_claim(
 
 
 def _announce_server(page_dir: Path, url: str) -> bool:
-    """Print a committed foreground server's reading (`started_server`) before it
-    serves, since the command returns only when the server stops."""
+    """Print a committed foreground server's reading (`started_server`), with what
+    the command noted (`findings.with_held`), before it serves, since the command
+    returns only when the server stops."""
     from .event_log import jsonl_line
 
-    print(jsonl_line(started_server(page_dir, url)), flush=True)
+    print(jsonl_line(with_held(started_server(page_dir, url))), flush=True)
     return True
 
 

@@ -118,7 +118,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     expect(add).to_have_attribute("aria-disabled", "false")
     expect(add).to_have_css("opacity", "1")
     aim_floor = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-aim-floor'))"
     )
     form_box = form.bounding_box()
     field_box = field.bounding_box()
@@ -158,21 +158,23 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     # from the shared face. Both rules are the theme's, and this one wins by coming
     # after it; when the face was stated in the adopted sheet instead, it outranked
     # this rule and drew the mark near black.
-    assert face["glyph"] == token_colour(page, "--accent")
-    assert face["glyph"] != token_colour(page, "--ink")
+    assert face["glyph"] == token_colour(page, "--lf-accent")
+    assert face["glyph"] != token_colour(page, "--lf-ink")
     # The disc is clear until the pointer is on it, and it is the whole of what rises:
     # the press still paints nothing of its own, at the size it holds at rest. The
     # pointer leaves again so the coarse reading below is of a press at rest too.
     add.hover()
     hovered = glyph_action_face(add)
     assert hovered["press"] == "rgba(0, 0, 0, 0)"
-    assert hovered["disc"] == token_colour(page, "--accent-tint")
+    assert hovered["disc"] == token_colour(page, "--lf-accent-tint")
     assert hovered["discWidth"] == face["discWidth"]
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
-    page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
+    page.locator("html").evaluate(
+        "el => el.style.setProperty('--lf-aim-floor', '44px')"
+    )
     form_box = form.bounding_box()
     add_aim = add.evaluate(AIM_RECT)
     assert form_box["height"] >= 44

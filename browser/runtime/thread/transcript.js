@@ -78,7 +78,7 @@ const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 /** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null, age: string | null}} working
  * @param {unknown} controls
  * @param {((node: Element | undefined) => void) | null} observe */
-function workingView(working, controls = nothing, observe = null) {
+function workingView(working, controls, observe) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${

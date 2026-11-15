@@ -85,7 +85,7 @@ STYLE = """
 .comparison-output-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-block: .5rem 1rem; }
 .comparison-output-links > div { min-width: 0; }
 .comparison-output-links strong { display: block; margin-block-end: .25rem; }
-.pair-shots img { display: block; box-sizing: border-box; max-width: 100%; height: auto; border: 1px solid var(--rule, #ccc); }
+.pair-shots img { display: block; box-sizing: border-box; max-width: 100%; height: auto; border: 1px solid var(--lf-rule, #ccc); }
 .pair-shots > figure > figcaption { display: flex; align-items: baseline; align-content: start; flex-wrap: wrap; gap: .35rem 1rem; margin-block: 0 .5rem; font-weight: 600; }
 .capture-actions { display: inline-flex; flex-wrap: wrap; gap: .35rem .8rem; font-weight: 400; }
 .comparison-views > details { margin-block: 1rem; }
@@ -101,21 +101,21 @@ STYLE = """
 @media (max-width: 640px) {
   .sample-table, .sample-table tbody { display: block; }
   .sample-table thead { display: none; }
-  .sample-table tr { display: grid; grid-template-columns: 1fr 1fr; padding-block: .75rem; border-bottom: 1px solid var(--border-2); }
+  .sample-table tr { display: grid; grid-template-columns: 1fr 1fr; padding-block: .75rem; border-bottom: 1px solid var(--lf-border); }
   .sample-table td { display: block; border: 0; min-width: 0; }
-  .sample-table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--muted); }
+  .sample-table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--lf-muted); }
 }
 main > lf-tabs, #report-views { border-radius: 0; }
 .result-list { margin-block: .5rem; }
-.result-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .35rem; border-bottom: 1px solid var(--border-2); }
+.result-list > div { display: flex; justify-content: space-between; gap: 1rem; padding-block: .35rem; border-bottom: 1px solid var(--lf-border); }
 .result-list dt { font-weight: 500; }
 .result-list dd { margin: 0; text-align: right; }
 .report-metadata { overflow-wrap: anywhere; }
 .report-metadata dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1.5rem; }
 .report-metadata dd { margin: 0; }
-.output-status { color: var(--muted); font-size: .875rem; }
+.output-status { color: var(--lf-muted); font-size: .875rem; }
 .capture-actions + .output-status { display: block; }
-.report-meta { color: var(--muted); font-size: .875rem; }
+.report-meta { color: var(--lf-muted); font-size: .875rem; }
 main > lf-tabs:not(#report-views) > lf-tab:not(#all-results) :is(p, ul, ol, dl) { max-width: 82ch; }
 """
 
@@ -217,10 +217,8 @@ def media_paths(page: Path, files: list[Path]) -> dict[Path, str]:
     """Register captures through the page's media door and return their served paths."""
     added = {}
     for start in range(0, len(files), 50):
-        for line in leaf(
-            "page", "media", str(page), *map(str, files[start : start + 50])
-        ).splitlines():
-            record = json.loads(line)
+        printed = leaf("page", "media", str(page), *map(str, files[start : start + 50]))
+        for record in json.loads(printed)["files"]:
             added[Path(record["source"])] = record["path"]
     return added
 
@@ -746,7 +744,7 @@ def grade_summary(sample: dict) -> str:
     )
 
 
-def overview(found: dict, *, table_id: str = "overview") -> str:
+def overview(found: dict) -> str:
     """Every sample is reachable, including single arms and uneven repetitions."""
     rows = []
     for subject, columns in found.items():
@@ -763,7 +761,7 @@ def overview(found: dict, *, table_id: str = "overview") -> str:
                     f'<td data-label="Output"><a href="#{anchor}">View output</a></td></tr>'
                 )
     return (
-        f'<table id="{table_id}" class="sample-table" data-width="available"><thead><tr>'
+        '<table id="overview" class="sample-table" data-width="available"><thead><tr>'
         '<th scope="col">Task</th><th scope="col">Version</th>'
         '<th scope="col">Checks</th><th scope="col">Recorded reviews</th>'
         '<th scope="col">Output</th></tr></thead><tbody>'
@@ -1332,9 +1330,9 @@ def judge_preferences(
           y: {type: "point", domain: $TASKS, label: null,
             tickFormat: d => d.replaceAll("-", width < 650 ? "\n" : " ")},
           marks: [
-            Plot.ruleX(["Tie"], {stroke: "var(--rule)"}),
-            Plot.dot($POINTS.filter(d => d.order === 1), {x: "category", y: "task", fill: "var(--series-1)", r: 5, dy: -5}),
-            Plot.dot($POINTS.filter(d => d.order === 2), {x: "category", y: "task", fill: "var(--series-1)", r: 5, dy: 5})
+            Plot.ruleX(["Tie"], {stroke: "var(--lf-rule)"}),
+            Plot.dot($POINTS.filter(d => d.order === 1), {x: "category", y: "task", fill: "var(--lf-series-1)", r: 5, dy: -5}),
+            Plot.dot($POINTS.filter(d => d.order === 2), {x: "category", y: "task", fill: "var(--lf-series-1)", r: 5, dy: 5})
           ]
         })"""
         values = {

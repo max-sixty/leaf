@@ -2,9 +2,7 @@
 
 exit: 1
 
-stdout: ''
-
-stderr:
-  - error: >-
-      delivery no longer owns its page: <page>
-    findings: []
+stdout:
+  error: >-
+    delivery no longer owns its page: <page>
+  findings: []

@@ -761,13 +761,13 @@ class Traffic:
     second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
     it, and a definitive refusal or a response naming the accepted attempt clears it.
-    That is delivery. Whether the page then applied the returned state is a separate
-    product fact asserted on the surface that needs it.
+    That is delivery. `received` and `applied` count the states those answers and the
+    page's reads carried, as the page takes each in hand and finishes applying it.
 
     The count is the document's: a navigation starts it over with the page that carries
     it, and a page that has not booted reads as nothing sent."""
 
-    KEYS = ("sends", "acked", "asked", "heard", "pending")
+    KEYS = ("sends", "acked", "asked", "heard", "received", "applied", "pending")
 
     def __init__(self, page):
         self.page = page
@@ -795,7 +795,8 @@ class Traffic:
     def describe(reading):
         return (
             f"sends={reading.sends} acked={reading.acked} "
-            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard}"
+            f"pending={len(reading.pending)} asked={reading.asked} heard={reading.heard} "
+            f"received={reading.received} applied={reading.applied}"
         )
 
     def __str__(self):
@@ -846,24 +847,41 @@ def _until(page, fact, wanted):
             continue
 
 
-# A browser trip is over when every post the page issued has ended and the outbox holds
-# no attempt without an outcome. Each half misses what the other names. A gesture's
-# request failure ends its post but not its delivery, because the outbox keeps the same
-# attempt and retries; `acked` alone would return on that ambiguous edge. A post that
-# skips the outbox — a bookkeeping event such as `read` (delivery.js), the page's own
-# `error` report, a media upload (layer-client.js) — leaves `pending` empty while it is
-# still on the wire; `pending` alone returns before the server has it. A test that
-# holds requests on a route must release every one, that report included.
-# Neither says whether the runtime then applied the response state; tests assert that
-# on the affected page surface.
-def heard_back(reading):
+# A browser trip is over when every post the page issued has ended, the outbox holds no
+# attempt without an outcome, and the page has applied every state an answer carried.
+# Each part misses what the others name. A gesture's request failure ends its post but
+# not its delivery, because the outbox keeps the same attempt and retries; `acked` alone
+# would return on that ambiguous edge. A post that skips the outbox — a bookkeeping
+# event such as `read` (delivery.js), the page's own `error` report, a media upload
+# (layer-client.js) — leaves `pending` empty while it is still on the wire; `pending`
+# alone returns before the server has it. And the page adopts the server's reading of a
+# gesture after its attempt leaves `pending`, once the frame painting the gesture has
+# drawn (state-application.js), so a read straight after delivery alone finds the
+# tab's own copy: a pending thread id, an Undo not yet offered. A test that holds
+# requests on a route must release every one, that report included.
+def answered(reading):
     """Whether one ledger reading says what the page sent has all come back."""
     return reading.acked == reading.sends and not reading.pending
 
 
+def heard_back(reading):
+    """Whether one ledger reading says what the page sent has all come back, and the
+    page has finished applying the state it brought."""
+    return answered(reading) and reading.applied == reading.received
+
+
 def round_trip(page):
-    """Wait for what this page has sent to have come back to it."""
+    """Wait for what this page has sent to have come back to it, and for the page to
+    have finished applying the server's reading the answers carried; a reading it
+    failed to show is a browser problem the `browser` fixture reports."""
     _until(page, heard_back, "heard back what it sent")
+
+
+def delivered(page):
+    """Wait for what this page has sent to have come back to it, but not for the page
+    to apply what the answers carried: for a test that holds that application on
+    purpose, behind a module, a timer or a frame it has yet to release."""
+    _until(page, answered, "heard back what it sent")
 
 
 # A press or a click reaches the runtime inside the driver's call and posts behind it, so
@@ -874,11 +892,12 @@ def round_trip(page):
 # slow enough to lose the race. Naming the gesture's own send first is the arrangement
 # that closes the window; `_until` is what waits on it.
 @contextmanager
-def sending(page, what):
+def sending(page, what, *, until=round_trip):
     """Enclose a gesture whose own event has to be in the wire before its trip is over.
 
-    Waits for one further send to enter the wire, then for everything the page has sent
-    to come back, so a log or state read behind the block is a read of this gesture.
+    Waits for one further send to enter the wire, then for the trip to end (`until`:
+    `round_trip`, or `delivered` where the test holds the page's application of the
+    answer), so a log or state read behind the block is a read of this gesture.
     `what` names the send for the failure a wait that runs out raises. The ledger is the
     document's, so a gesture that navigates cannot be enclosed here: the count it would
     wait to grow starts over with the new document.
@@ -886,7 +905,7 @@ def sending(page, what):
     sends = _traffic(page).sends
     yield
     _until(page, lambda traffic: traffic.sends > sends, f"sent {what}")
-    round_trip(page)
+    until(page)
 
 
 def back_gesture(page):
@@ -945,19 +964,38 @@ def holding(page, held, count, what):
 
 @contextmanager
 def held_frames(page):
-    """Keep frame-dependent handoffs pending while real input supplies a newer intent."""
+    """Keep frame-dependent handoffs pending while real input supplies a newer intent.
+
+    The page's frame clock, each frame's timestamp and `performance.now()`, stands still
+    while held, so a motion a press sets off stands where it started however long the
+    hold lasts. The hold yields `step`, which runs the frames held so far in one real
+    frame, a frame's length (1/60 s) on, so a press after it meets the motion that far
+    along on a fast machine or a slow one. Leaving the hold rejoins real time and runs
+    the frames still held."""
     page.evaluate(
         """() => {
           const frame = requestAnimationFrame.bind(window);
           const cancel = cancelAnimationFrame.bind(window);
+          let clock = performance.now();
           const held = new Map();
           let handle = 1e6;
+          performance.now = () => clock;
           window.requestAnimationFrame = callback => {
             held.set(++handle, callback);
             return handle;
           };
           window.cancelAnimationFrame = handle => held.delete(handle);
+          window.leafStepFrame = () => new Promise(resolve => frame(() => {
+            clock += 1000 / 60;
+            const due = [...held.values()];
+            held.clear();
+            for (const callback of due) {
+              try { callback(clock); } catch (error) { reportError(error); }
+            }
+            resolve();
+          }));
           window.leafReleaseFrames = () => {
+            delete performance.now;
             window.requestAnimationFrame = frame;
             window.cancelAnimationFrame = cancel;
             for (const callback of held.values()) frame(callback);
@@ -966,7 +1004,7 @@ def held_frames(page):
         }"""
     )
     try:
-        yield
+        yield lambda: page.evaluate("leafStepFrame()")
     finally:
         page.evaluate("leafReleaseFrames()")
 
@@ -1800,11 +1838,15 @@ def confirming_resize_notices(page, attempt, again=None):
 
     A platform notice seen once under load is not a page fault; one that the
     confirming attempt, `again` or else `attempt` itself, repeats is, reported with the
-    `confirmation` value `recurred`, as the render gate reports one. Everything else
-    remains on the page from the attempt that reported it, and anything arriving after
-    this helper returns remains strict.
+    `confirmation` value `recurred`, as the render gate reports one. Every other
+    problem stands once: the confirming attempt's record starts empty, and a problem
+    only the first attempt raised is kept beside it, so one a load raises each time,
+    as a widget's refusal, isn't counted twice. Anything arriving after this helper
+    returns remains strict. What the page wrote to its server's log is not this
+    helper's: the log only grows, and a test reading it sees both loads' writes.
     """
     errors = page.lf_errors
+    start = len(errors)
 
     def noticed(act):
         # A test that adjudicates the page's notices itself keeps its own list.
@@ -1822,11 +1864,20 @@ def confirming_resize_notices(page, attempt, again=None):
     notices = noticed(attempt)
     if not notices:
         return
+    first = errors[start:]
+    del errors[start:]
     try:
         confirming_notices = noticed(again or attempt)
     except Exception:
         errors.extend(notice for notice in notices if notice not in errors)
         raise
+    finally:
+        repeated = errors[start:]
+        for problem in first:
+            if problem in repeated:
+                repeated.remove(problem)
+            else:
+                errors.append(problem)
     if confirming_notices:
         errors.append(confirming_notices[0].but(values={"confirmation": "recurred"}))
 
@@ -2632,6 +2683,33 @@ def primed(browser, prepare):
     return SimpleNamespace(new_page=new_page, version=getattr(browser, "version", ""))
 
 
+def clocked(browser):
+    """`browser`, opening each page on a clock the test runs forward (`dwelt`),
+    installed before navigation so that every timer the runtime sets, and every
+    `performance.now` it reads, is the clock's. Otherwise the clock keeps real time."""
+    return primed(browser, lambda page: page.clock.install())
+
+
+def dwelt(page, *timers):
+    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/preview.js:
+    `DWELL` by default, `WARM`, `HOLD`) have run one after another and what they
+    decided has drawn, whatever the machine's speed: the repaints that set them, then
+    the page's clock run forward by their sum as the page's runtime states them, then
+    the repaints they queued. The page's clock is installed (`clocked`, or on its
+    context)."""
+    rendered(page)
+    page.clock.run_for(
+        page.evaluate(
+            """async (names) => {
+              const {PREVIEW_TIMERS} = await window.__lfCheckApi();
+              return names.reduce((sum, name) => sum + PREVIEW_TIMERS[name], 0);
+            }""",
+            list(timers or ("DWELL",)),
+        )
+    )
+    rendered(page)
+
+
 @pytest.fixture
 def held_events(browser):
     """Hold event requests from navigation onward, including the first POST.
@@ -3129,10 +3207,10 @@ def root_overflow(page) -> float:
 
 
 def wide_width(page) -> float:
-    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    """The page's `--lf-wide` in pixels: the theme derives it from the code size, and a
     page may restate it, so a width check reads it rather than copying the number."""
     return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-wide'))"
     )
 
 

@@ -21,7 +21,7 @@
    The rules name the elements holding the words the highlights paint, which the runtime
    marks `data-lf-marked-words` (anchor-paint.js, `holdWords`), so a mark reads its
    colours on the element its words stand in: words marked in a dark panel on a light
-   page wear the dark scheme's ink and wash, and a `--mark` set on a section, or on a
+   page wear the dark scheme's ink and wash, and a `--lf-mark` set on a section, or on a
    widget's host, recolours the marks inside it. A rule matching every element cost a
    seventh of a large page's load in Chromium, which resolves a highlight's style for
    each element a rule matches. A rule on the root alone reaches the other elements
@@ -29,20 +29,20 @@
    every mark to the root's tokens and scheme (notes/browser-support.md, "Highlight
    style inheritance" and "A highlight's `light-dark()` colour in a dark region"). */
 [data-lf-marked-words]::highlight(lf-mark) {
-  background-color: var(--mark);
-  color: var(--mark-ink-text);
+  background-color: var(--lf-mark);
+  color: var(--lf-mark-ink-text);
 }
 [data-lf-marked-words]::highlight(lf-mark-hover) {
-  background-color: var(--mark-hover);
+  background-color: var(--lf-mark-hover);
 }
 [data-lf-marked-words]::highlight(lf-mark-here) {
-  background-color: var(--mark-strong);
+  background-color: var(--lf-mark-strong);
 }
 [data-lf-marked-words]::highlight(lf-pending) {
-  background-color: var(--mark-pending);
-  color: var(--mark-pending-text);
+  background-color: var(--lf-mark-pending);
+  color: var(--lf-mark-pending-text);
 }
 [data-lf-marked-words]::highlight(lf-react) {
-  background-color: var(--react);
-  color: var(--mark-ink-text);
+  background-color: var(--lf-react);
+  color: var(--lf-mark-ink-text);
 }

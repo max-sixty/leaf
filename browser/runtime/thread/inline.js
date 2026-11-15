@@ -361,7 +361,7 @@ class ThreadSeat {
 
 /** @param {Element} host @param {ThreadCommands} commands
  * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
-function seatFor(host, commands, response = () => null, outlets = {}) {
+function seatFor(host, commands, response, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ThreadSeat(host, commands);

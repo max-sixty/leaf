@@ -93,7 +93,7 @@ import {
   HEADING,
   inChrome,
   pageDocument,
-  pageReadingVersion,
+  keptWithPageReading,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -266,9 +266,20 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{top: number, bottom: number, left: number, right: number}} Span
  * @typedef {Span & ({member: Member, byBox: boolean} | {frame: Element, at: Element})} Entry
  * @typedef {{key: string, laid: Entry[], reach: number[], held: Element[]}} Layout
- * @typedef {{source: string, members: Member[], layout: Layout | null}} Frame */
-/** @type {WeakMap<Element, Frame>} */
-const frames = new WeakMap();
+ * @typedef {{source: string, members: Member[], layout: Layout | null}} Frame
+ * @typedef {{key: string, runs: BlockRun[]}} ShownRuns
+ * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
+ * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
+// The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
+// the page's reading (passages.js, `keptWithPageReading`) and go with it: a revision that
+// removes a block leaves none of them holding it.
+/** @returns {Kept} */
+const kept = () =>
+  keptWithPageReading(kept, () => ({
+    frames: new WeakMap(),
+    shown: null,
+    index: null,
+  }));
 let layouts = 0;
 document.addEventListener(LAYOUT, () => {
   layouts += 1;
@@ -382,25 +393,25 @@ function* drawnSegments(segments, range, drawn = new Map()) {
 // reading that can't show any (`showsWords`) is not read, so a place costs the documents
 // drawn, not those in closed tabs. Whether a part reaches the window is left to the
 // layout, so a part scrolling into view reads no run again.
-/** @type {{key: string, runs: BlockRun[]} | null} */
-let shown = null;
+/** @returns {ShownRuns} */
 function shownRuns() {
   const parts = readingParts().filter(showsWords);
-  const key = [idOf(pageReadingVersion()), ...parts.map(idOf)].join(" ");
-  if (shown?.key !== key) {
+  const key = parts.map(idOf).join(" ");
+  const keeping = kept();
+  if (keeping.shown?.key !== key) {
     const showing = new Set(parts);
-    shown = { key, runs: pageRuns((part) => showing.has(part)) };
+    keeping.shown = { key, runs: pageRuns((part) => showing.has(part)) };
   }
-  return shown;
+  return keeping.shown;
 }
 // The blocks of those runs, every element holding one (`holdsBlocks`), and every element
 // holding one or a part of the page's reading (`holding`), read once for each reading of
 // the page and parts shown, so a question about one node asks no list of the page.
-/** @type {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>} | null} */
-let shownBlocks = null;
+/** @returns {BlockIndex} */
 function blockIndex() {
   const { runs, key } = shownRuns();
-  if (shownBlocks?.key === key) return shownBlocks;
+  const keeping = kept();
+  if (keeping.index?.key === key) return keeping.index;
   /** @type {Set<Element>} */
   const blocks = new Set();
   /** @type {WeakSet<Element>} */
@@ -426,7 +437,7 @@ function blockIndex() {
       hold(block, holdsBlocks, holding);
     }
   for (const part of readingParts()) hold(part, holding);
-  return (shownBlocks = { key, blocks, holdsBlocks, holding });
+  return (keeping.index = { key, blocks, holdsBlocks, holding });
 }
 // The runs whose words stood in `band` where the page was last laid out for `box`, in
 // reading order, laying out again each frame that no longer stands. A box scrolling in
@@ -435,14 +446,14 @@ function blockIndex() {
 /** @param {Element} box @param {Pick<Box, "top" | "bottom"> & Partial<Pick<Box, "left" | "right">>} band @param {Range} range */
 function runsIn(box, band, range) {
   const { key, runs } = shownRuns();
-  let frame = frames.get(box);
+  let frame = kept().frames.get(box);
   if (frame?.source !== key) {
     /** @type {Member[]} */
     const members = [];
     runs.forEach((run, order) => {
       if (run.block && under(run.block, box)) members.push({ run, order });
     });
-    frames.set(box, (frame = { source: key, members, layout: null }));
+    kept().frames.set(box, (frame = { source: key, members, layout: null }));
   }
   /** @type {Member[]} */
   const found = [];
@@ -527,7 +538,7 @@ function readFrame(box, frame, page, band, range, found) {
 // own box, so its band is the reading's.
 /** @param {Element} box @param {string} page @param {Span} band @param {Range} range @param {Member[]} found */
 function readInner(box, page, band, range, found) {
-  const frame = frames.get(box);
+  const frame = kept().frames.get(box);
   if (!frame) return;
   if (scrollsBy(getComputedStyle(box))) {
     const { top, bottom, left, right } = box.getBoundingClientRect();
@@ -618,7 +629,7 @@ function layOut(box, frame, key, origin, range) {
   /** @type {Element[]} */
   const held = [];
   for (const [holder, members] of inner) {
-    frames.set(holder, { source: frame.source, members, layout: null });
+    kept().frames.set(holder, { source: frame.source, members, layout: null });
     const at = placed.has(holder)
       ? box
       : kinds.get(holder) === "sticky"

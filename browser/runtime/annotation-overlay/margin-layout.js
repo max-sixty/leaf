@@ -139,7 +139,7 @@ import {
 /** @typedef {import("../rect.js").Box} Box
  * @typedef {import("../resolved-target.js").ResolvedTarget} ResolvedTarget
  * @typedef {{able: () => boolean, controls: () => number, open: () => boolean, changed: () => void}} Fold
- * @typedef {{anchor: () => Element | null, point?: () => Element | null, passage?: () => ResolvedTarget | null, order?: number, fold?: Fold}} RowOptions
+ * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, order: number, fold: Fold}} RowOptions
  * @typedef {{root: HTMLElement, projection: HTMLElement, lanes: Map<Element, HTMLElement>, sizes: ResizeObserver}} Layer
  */
 /** @typedef {import("../css-anchors.js").Anchor} Anchor
@@ -601,7 +601,7 @@ function restingRail(layer) {
 // Where across the page the margin row for a comment on `target` stands, at `point`
 // inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
 // quotes (a range), each of which stands a row of its own: the row standing there
-// now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
+// now where one is shown, else where a rail row would stand at rest, `--lf-rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. comment-placement.js keeps this
 // row clear when the full preferred message width fits beyond it; otherwise the
@@ -610,9 +610,9 @@ function restingRail(layer) {
 export function marginSpot(target, point = null, passage = null) {
   for (const [row, options] of rows)
     if (
-      options.anchor?.() === target &&
-      (options.point?.() ?? null) === point &&
-      samePassage(options.passage?.() ?? null, passage) &&
+      options.anchor() === target &&
+      options.point() === point &&
+      samePassage(options.passage(), passage) &&
       row.checkVisibility()
     ) {
       const { left, right } = row.getBoundingClientRect();
@@ -621,7 +621,7 @@ export function marginSpot(target, point = null, passage = null) {
   if (!layer || !railStandsBeside(target)) return null;
   const hang =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-hang"),
     ) || 0;
   const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
@@ -632,12 +632,12 @@ export function marginSpot(target, point = null, passage = null) {
 // reading of visibility measure.
 /** @param {RowOptions} options */
 function quotedBoxes(options) {
-  if (options.point?.()) return [];
-  return passageBoxes(options.passage?.() ?? null);
+  if (options.point()) return [];
+  return passageBoxes(options.passage());
 }
 // The text node those words start in.
 /** @param {RowOptions} options */
-const wordsStart = (options) => targetSegments(options.passage?.())[0]?.node ?? null;
+const wordsStart = (options) => targetSegments(options.passage())[0]?.node ?? null;
 
 // What shows of each line of a passage's words, those `boxes` starting in `start`, short
 // of `stop`'s band, in order, the lines nothing shows left out: what every box holding
@@ -1391,7 +1391,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
             : preformatted.top - GAP - height,
           bottom: line ? (line.top + line.bottom + height) / 2 : preformatted.top - GAP,
         };
-    const fold = !preformatted && read.options.fold?.able() ? read.options.fold : null;
+    const fold = !preformatted && read.options.fold.able() ? read.options.fold : null;
     if (!fold) standFolded(row, read.options.fold, false);
     entry.fold = fold;
     const dimensions = fold ? { fold, style: getComputedStyle(row) } : null;
@@ -1563,8 +1563,8 @@ function scheduleRowLayout() {
 export function registerMarginRow(row, options) {
   const named = {
     target: options.anchor(),
-    point: options.point?.() ?? null,
-    passage: options.passage?.() ?? null,
+    point: options.point(),
+    passage: options.passage(),
     order: options.order,
   };
   const was = registered.get(row);
@@ -1730,7 +1730,7 @@ function scheduleStirReading() {
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
-      const point = options.point?.() ?? null;
+      const point = options.point();
       const subject =
         point?.getBoundingClientRect() ??
         words[0] ??
@@ -1896,8 +1896,8 @@ function layoutMountedRows(layer) {
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
-  const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
-  const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
+  const hang = parseFloat(rootStyle.getPropertyValue("--lf-rail-hang")) || 0;
+  const pinInset = parseFloat(rootStyle.getPropertyValue("--lf-pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   // Read once a row could stand in the rail, since every other row pins whatever the
@@ -2007,7 +2007,7 @@ function layoutMountedRows(layer) {
     // Level with the row a gesture pointed into, where the row's comment has one
     // (pointed-place.js), or with the first line of the passage its comments quote;
     // otherwise level with the target's top.
-    const point = options.point?.() ?? null;
+    const point = options.point();
     const words = quotedBoxes(options);
     const passageNode = words.length ? wordsStart(options) : null;
     observeGeometry(point ?? target);
@@ -2253,9 +2253,7 @@ function layoutMountedRows(layer) {
   // after the last, so the tab order runs the lanes as the rows run.
   for (const read of reads)
     if (read.target) read.lane ??= laneFor(read.scroller, layer);
-  const orderedReads = [...reads].sort(
-    (a, b) => (a.options.order ?? 0) - (b.options.order ?? 0),
-  );
+  const orderedReads = [...reads].sort((a, b) => a.options.order - b.options.order);
   // Retain each lane's outer frame beside the chain it owns, including a withheld
   // lane whose existing frames this pass leaves in place.
   for (const [scroller, lane] of layer.lanes) {

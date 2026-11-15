@@ -837,11 +837,17 @@ def open_agent_turns(session_id: str) -> dict[str, dict]:
 
 def agent_turn_stamps(claim: dict) -> dict[str, dict]:
     """The agent turns of the session `claim` names, opened in the claim's
-    generation: by turn id, when each was last renewed and when it closed, or null
-    while it is open, which `activity.running_agent_turns` reads. The page's served
-    reading carries them for every reader of its claim (`presence`)."""
+    generation: by turn id, the agent's id in its harness, null until the harness
+    starts it, by which the main thread reaches the agent (`holding.holder`), and
+    when the turn was last renewed and when it closed, or null while it is open,
+    which `activity.running_agent_turns` reads. The page's served reading carries
+    them for every reader of its claim (`presence`)."""
     return {
-        turn: {"renewed": entry["renewed"], "closed": entry["closed"]}
+        turn: {
+            "agent": entry["agent"],
+            "renewed": entry["renewed"],
+            "closed": entry["closed"],
+        }
         for turn, entry in agent_turns(claim["id"]).items()
         if entry["generation"] == claim["generation"]
     }

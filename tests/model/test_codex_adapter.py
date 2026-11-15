@@ -54,6 +54,7 @@ from leaf import codex_state as codex_state_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import forks as forks_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -2303,7 +2304,9 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
         )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
-    assert desktop_pickups(page_dir) == []
+    assert desktop_pickups(page_dir) == (
+        [("failed", None, codex_model.UNCONFIRMED_DELIVERY)] if abandoned else []
+    )
     assert [
         event.get("failure")
         for event in events_model.read_events(page_dir)
@@ -2312,6 +2315,22 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
     assert [record["state"] for _, record in codex_records("codex-thread")] == (
         [] if abandoned else ["starting"]
     )
+    if abandoned:
+        # The pickup names what the abandonment's receipt passed, so a quiet tool
+        # hook on the page reads its log alone.
+        def unread(page):
+            raise AssertionError("a quiet tool hook read who holds each thread")
+
+        monkeypatch.setattr(forks_model, "page_holding", unread)
+        cleanup_model.prompt_turn("codex-thread", "next-turn")
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": "codex-thread",
+                "turn_id": "next-turn",
+            },
+        )
 
 
 def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(

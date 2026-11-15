@@ -1167,14 +1167,16 @@ def deliverable(
     its tool boundary.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
-    of CPU to import. Codex's tool hook runs after every tool call, so it passes
-    `received=False` and hands over only what the cursor has not passed, answered
-    without loading the page's layer; the adapter, or the Stop hook where no adapter
-    runs, hands over the rest (`harness.CodexHarness.offer_at_step`). Claude Code's
-    tool-boundary hook asks the same before it folds its pages
-    (`hook_transport.new_input`), and for a session with forks it also hands over
-    what the cursor passed while another held it and the main thread owes now, read
-    from the log."""
+    of CPU to import. A tool hook runs after every tool call, so Codex's passes
+    `received=False`, as Claude Code's does before it folds its pages
+    (`hook_transport.new_input`): what the cursor has not passed, and the waiting
+    messages the main thread owes of input the cursor passed that no pickup names,
+    which a holder kept from it. Every receipt's pickup names what it passes, so
+    a page holds such input only where a fork or a line fork held it, and only
+    there, or where input is pending in a session with forks, does this read who
+    holds each thread; otherwise it reads the log alone, without the page's layer.
+    The adapter, or the Stop hook where no adapter runs, hands over the rest
+    (`harness.CodexHarness.offer_at_step`)."""
     cursor = page.cursor
     pending = unacknowledged(page.events, cursor)
     held = awaiting_receipt(page) if pending else ()

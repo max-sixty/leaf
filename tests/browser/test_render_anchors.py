@@ -6452,46 +6452,6 @@ def test_a_step_back_past_the_first_search_match_stays_while_the_search_runs(
     expect(status).to_have_text("2 of 4")
 
 
-def test_a_page_search_styles_no_row_of_the_text_documents_it_finds_words_in(
-    browser, serve
-):
-    """A text document's rows stand in runs the browser skips while out of view
-    (lf-text-document.js, `inRuns`), and asking a row's style makes Chromium style its
-    whole run: 28 ms a run, so a search for a word in every run of thirty 4 MB
-    documents had found 108,000 of its 524,000 matches after five minutes. Whether a
-    match in a run the browser skips is read from the run's style instead (passages.js,
-    `searchableWords`). Counted in the browser's own restyled elements, a search
-    finding a word on each of the 4,000 lines of four documents, three in closed tabs,
-    restyles fewer elements than one document has lines: about 180, where reading each
-    row's style restyled 30,000."""
-    lines = "\n".join(f"Line {n} holds a needle." for n in range(1000))
-    tabs = "".join(
-        f'<lf-tab id="t{i}" label="Doc {i}">'
-        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
-        f"<pre>{lines}\n</pre></lf-text-document></lf-tab>"
-        for i in range(4)
-    )
-    page = open_page(
-        browser,
-        serve(leaf_page("Runs", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')),
-    )
-    expect(page.locator("#d3 .lf-text-document-run")).to_have_count(8)
-    page.keyboard.press("/")
-    # The open's own restyle lands before the search's are counted.
-    rendered(page)
-    search = page.get_by_role("searchbox", name="Search page text")
-    status = page.locator(".lf-page-search-status")
-
-    def find():
-        search.fill("needle")
-        expect(status).to_have_text("1 of 4000")
-        expect(status).not_to_have_attribute("aria-busy", "true")
-        rendered(page)
-
-    counts = restyle_counts(page, find)
-    assert sum(counts) < 1000, counts
-
-
 def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser, serve):
     """After Enter closes the search and the page changes, Shift+n searches again from
     the match it selected. While that search still runs, a step back from the first

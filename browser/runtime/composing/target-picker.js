@@ -11,7 +11,6 @@ import { html, nothing, render, signal } from "/runtime/framework.js";
 import {
   contextAround,
   inChrome,
-  matchShows,
   pageMatches,
   pageReadingVersion,
   readingHolding,
@@ -533,22 +532,17 @@ export function createTargetPicker({
         pending = null;
         break;
       }
-      const match = next.value;
-      const lands = match && active < 0 && landing && landsOn(match, landing.was);
-      if (match && (!lands || matchShows(match))) {
-        found.push(match);
-        if (lands) active = found.length - 1;
+      if (next.value) {
+        found.push(next.value);
+        if (active < 0 && landing && landsOn(next.value, landing.was))
+          active = found.length - 1;
       }
       if (enough(found) || performance.now() >= until) break;
     }
     if (found.length && !from) matches.value = [...found];
     if (!landing) return false;
-    const all = matches.value;
-    if (active < 0 && !pending && all.length) {
-      active = landing.was ? Math.min(landing.index, all.length - 1) : 0;
-      for (let at; (at = all[active]) && !matchShows(at);) dropMatch(active);
-      if (active >= all.length) active = all.length - 1;
-    }
+    if (active < 0 && !pending && found.length)
+      active = landing.was ? Math.min(landing.index, found.length - 1) : 0;
     if (active < 0 && pending) return false;
     const { show } = landing;
     landing = null;
@@ -557,18 +551,6 @@ export function createTargetPicker({
     if (show) showMatch();
     return true;
   }
-  // A match the search counted for a box the browser skipped (passages.js,
-  // `searchableWords`) is asked again of its own words where the search would land on
-  // it or a step reaches it (`matchShows`). One they hide leaves the matches, as every
-  // match the search finds hidden does, so no landing stands on it or reads it out.
-  /** @param {number} at */
-  function dropMatch(at) {
-    const found = matches.value;
-    found.splice(at, 1);
-    if (at < active) active -= 1;
-    if (!found.length) matches.value = [];
-  }
-
   // Whether the search lands on `match`: the match it stood on, found again, or for a
   // new query the first at or below the top of the window.
   /** @param {Match} match @param {Match | null} was */
@@ -629,21 +611,15 @@ export function createTargetPicker({
 
   /** @param {import("../keyboard/bindings.js").Step} direction */
   function moveMatch(direction) {
-    /** @type {Match} */
-    let selected;
-    for (;;) {
-      settle((found) => direction < 0 || active + 1 < found.length);
-      const found = matches.value;
-      if (!hasRows(found)) return presentSearchStatus();
-      if (stillFinding(active, direction)) {
-        presentSearchStatus();
-        return notice(searching);
-      }
-      selected = cycledRow(found, found[active], direction);
-      if (matchShows(selected)) break;
-      dropMatch(found.indexOf(selected));
+    settle((found) => direction < 0 || active + 1 < found.length);
+    const found = matches.value;
+    if (!hasRows(found)) return presentSearchStatus();
+    if (stillFinding(active, direction)) {
+      presentSearchStatus();
+      return notice(searching);
     }
-    active = matches.value.indexOf(selected);
+    const selected = cycledRow(found, found[active], direction);
+    active = found.indexOf(selected);
     presentSearchStatus();
     showMatch();
     const query = searchQuery();
@@ -706,30 +682,22 @@ export function createTargetPicker({
   function repeatSearch(direction) {
     const repetition = repeatedSearch;
     if (!repetition) return;
-    let { index } = repetition;
+    const { index } = repetition;
     // It steps from where it stood, so the search it starts again lands nowhere.
     if (matchesFor !== repetition.query || pageReadingVersion() !== matchesIn)
       find(repetition.query, null);
-    /** @type {Match} */
-    let selected;
-    for (;;) {
-      settle((found) => found.length > index + (direction > 0 ? 1 : 0));
-      const found = matches.value;
-      if (!hasRows(found)) {
-        repeatedSearch = null;
-        active = -1;
-        notice(`No matches left for “${repetition.query}”`);
-        return repaint();
-      }
-      const from = Math.min(index, found.length - 1);
-      if (stillFinding(from, direction)) return notice(searching);
-      selected = cycledRow(found, found[from], direction);
-      if (matchShows(selected)) break;
-      const at = found.indexOf(selected);
-      dropMatch(at);
-      if (at < index) index -= 1;
+    settle((found) => found.length > index + (direction > 0 ? 1 : 0));
+    const found = matches.value;
+    if (!hasRows(found)) {
+      repeatedSearch = null;
+      active = -1;
+      notice(`No matches left for “${repetition.query}”`);
+      return repaint();
     }
-    active = matches.value.indexOf(selected);
+    const from = Math.min(index, found.length - 1);
+    if (stillFinding(from, direction)) return notice(searching);
+    const selected = cycledRow(found, found[from], direction);
+    active = found.indexOf(selected);
     repetition.index = active;
     showMatch();
     landOnMatch(selected, repetition.query);

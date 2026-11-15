@@ -1701,6 +1701,82 @@ def hook_answer(capsys, command: str, agent: str, tool_use: str) -> dict | None:
     return json.loads(out)["hookSpecificOutput"] if out else None
 
 
+def test_a_fork_cannot_start_on_a_to_do_in_a_thread_another_turn_took(claimed, lane):
+    """A to-do on a thread stands in that thread, so a fork whose thread the main
+    thread took over by answering can't start on the main thread's to-do there, as it
+    can't start on the thread's message."""
+    asked, _holds = held_by_a_running_fork(claimed, "Does the suggest service cache?")
+    assert thread_model.post_response(
+        answer_ref(claimed, asked["id"]), "Yes, for an hour.", asks_back=False
+    )
+    main_thread_opens_a_to_do(claimed, asked["id"])
+    [todo] = todos_model.TodoReading(events_model.read_events(claimed)).owed
+    ran = CliRunner().invoke(
+        cli_model.cli,
+        ["--agent-id", "agent-1", "task", "start", str(claimed), todo["id"]]
+        + ["--text", "profiling it"],
+    )
+    assert ran.exit_code != 0
+    assert "no longer holds" in ran.output, ran.output
+
+
+def test_a_fork_ending_on_a_thread_the_user_resolved_hands_nothing_back(
+    claimed, lane, capsys
+):
+    """A message waiting in a thread the user resolved is owed nobody, so a fork
+    whose run ends on it hands nothing back: the main thread hears of no thread given
+    back, and its next prompt brings only the resolution."""
+    asked, _holds = held_by_a_running_fork(claimed, "Which Python does it need?")
+    resolved = append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    assert (
+        forks_model.ended(
+            "s1", agent="agent-1", turn=None, answer="Nothing to answer.", failed=None
+        )
+        == []
+    )
+    assert clerk_model.queued("s1") == []
+    _opening, envelope = context(capsys, "UserPromptSubmit").split("\n", 1)
+    [batch] = json.loads(envelope)["batches"]
+    assert [event["id"] for event in batch["events"]] == [resolved["id"]]
+
+
+def test_a_page_reads_only_the_agent_turns_it_needs(claimed, lane):
+    """What a page's reading carries of its session's agent turns grows with the page,
+    not with how long the session has run: each turn still open, and each one its
+    log names, whose holder page state names, but not a closed turn of another page's.
+    A turn of an earlier generation of the session leaves the record as the next
+    opens."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does it need?")
+    forks_model.started(
+        "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
+    )
+    elsewhere = state_model.open_agent_turn("s1", "agent-2")
+    assert elsewhere is not None
+    state_model.close_agent_turns("s1", turn=elsewhere)
+
+    def served() -> set[str]:
+        return set(
+            presence_model.presence(claimed, events_model.read_events(claimed))[
+                "agent_turns"
+            ]
+        )
+
+    assert served() == {taken["turn"]}
+    forks_model.ended("s1", agent="agent-1", turn=None, answer="Done.", failed=None)
+    assert served() == {taken["turn"]}
+
+    turns = state_model.agent_turns("s1")
+    turns["earlier"] = {**turns[elsewhere], "generation": "an earlier one"}
+    state_model.AGENT_TURNS.write(
+        session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
+    )
+    assert state_model.open_agent_turn("s1") is not None
+    assert "earlier" not in state_model.agent_turns("s1")
+    assert {taken["turn"], elsewhere} <= set(state_model.agent_turns("s1"))
+
+
 def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
     claimed, lane, capsys
 ):

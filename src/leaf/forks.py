@@ -388,7 +388,7 @@ def claim_holding(events: list[dict], claim: dict | None, *, live: bool) -> Hold
     turns of a session that is `live`, holding the page by an active claim, may run,
     and those of one that has ended only name what they held, as the fold reads them
     (`activity.present_holding`)."""
-    stamps = agent_turn_stamps(claim) if claim is not None else {}
+    stamps = agent_turn_stamps(claim, events) if claim is not None else {}
     return reading(
         events,
         claim["id"] if claim is not None else None,
@@ -957,7 +957,8 @@ def ended(
     means that turn took the thread over (`taken_over`); otherwise the turn answered
     every one (`answer`), and opened a to-do on the thread with a reply of its own
     that is still open (`todo`), which the main thread now owes and schedules
-    (`todos`). A message the user took back counts for nothing. The main session
+    (`todos`). A message the user took back counts for nothing, and so does one in
+    a thread the user resolved, which the page's fold owes nothing. The main session
     hears of an answer, a to-do or a thread given back (`clerk.queue`), and that the
     thread owes nothing only where nothing waits in it and no to-do on it is open;
     the take's line, if it hasn't heard it yet, leaves the queue (`clerk.unqueue`).
@@ -969,7 +970,9 @@ def ended(
     one for each thread. An agent with no open turn, as most of a session's are,
     ends nothing."""
     from .clerk import queue, unqueue
+    from .holding import owed_threads
     from .presence import nudge_unwatched
+    from .served_state.context import read_page
     from .todos import TodoReading
 
     closed = set(close_agent_turns(session_id, turn=turn, agent=agent))
@@ -1014,6 +1017,14 @@ def ended(
                     for input_id in holding.picked.get(turn, {}):
                         if (thread := found.names.get(input_id)) is not None:
                             taken.setdefault(thread, {})[input_id] = None
+                # The threads the fold still owes an answer: a message waiting in a
+                # thread the user resolved since is owed nobody, so it counts for
+                # nothing.
+                due = (
+                    owed_threads(read_page(page_dir, page.events).work, found)
+                    if taken
+                    else set()
+                )
                 for thread, picked in taken.items():
                     keepers = {i: holding.keeper(i) for i in picked}
                     settled = {
@@ -1023,7 +1034,9 @@ def ended(
                         and (answer := found.answer_to(i)) is not None
                     }
                     inputs = [
-                        i for i in picked if keepers[i] is not None or i in settled
+                        i
+                        for i in picked
+                        if (keepers[i] is not None and thread in due) or i in settled
                     ]
                     if not inputs:
                         continue

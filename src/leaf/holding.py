@@ -182,6 +182,18 @@ def rounds(events: list[dict]) -> Rounds:
     return Rounds(waiting, lined, answers, names, threads)
 
 
+def owed_threads(work, found: Rounds) -> set[str]:
+    """The threads the page's fold, `work` (`served_state.work.WorkState`), owes an
+    answer, of the log's `rounds`: where a waiting message stands in an open thread.
+    The fold names each thread's newest owed message, its answer's address, so the
+    thread, not the message, is what it owes."""
+    return {
+        thread
+        for item in work.obligations
+        if (thread := found.names.get(item["input"])) is not None
+    }
+
+
 MAIN = {"kind": "main"}
 # Who holds a thread Leaf keeps back while a line fork judges it.
 LINE = {"kind": "line"}

@@ -130,7 +130,8 @@ agent's harness id once the harness has started or resumed it. The agent's tool
 boundary renews it, and it closes as the harness says the
 run ended, or with the session's generation or instance. A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
-claimant's agent turns (`agent_turns`), each with its agent's id, and the fold believes
+claimant's agent turns that are open or that its log names (`agent_turns`), each with
+its agent's id, and the fold believes
 one running while it is open and renewed within the working grace
 (`activity.running_agent_turns`).
 

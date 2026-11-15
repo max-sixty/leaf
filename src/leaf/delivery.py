@@ -1179,7 +1179,7 @@ def deliverable(
     if held:
         pending = [event for event in pending if event["id"] not in held]
     from .forks import lane_since, page_holding
-    from .holding import owed_by
+    from .holding import owed_by, owed_threads
     from .state import agent_turn_stamps
 
     owed = []
@@ -1191,7 +1191,9 @@ def deliverable(
         owed = unreferenced(page, work.obligations)
         holding = work.holding
     elif (claim := page.active_claim) is not None and (
-        pending or agent_turn_stamps(claim) or lane_since(claim["id"]) is not None
+        pending
+        or agent_turn_stamps(claim, page.events)
+        or lane_since(claim["id"]) is not None
     ):
         holding = page_holding(page)
         # A waiting message the cursor passed while another held it
@@ -1210,26 +1212,23 @@ def deliverable(
     else:
         holding = None
     if holding is not None:
-        if (
-            received
-            and holding.live
-            and (
-                left := {
-                    event["id"]
-                    for event in holding.waiting(
-                        lambda held: (
-                            held.picked
-                            and held.holder["kind"] == "fork"
-                            and held.holder["state"] != "running"
-                        )
-                    )
-                }
-            )
-        ):
+        if work is not None and holding.live:
             # What a fork's turn picked up and then left owed, giving its thread back
-            # or ending without answering, is the main thread's input now; a message
-            # already pending or owed goes once.
-            left -= {event["id"] for event in [*owed, *pending]}
+            # or ending without answering, is the main thread's input now, in a
+            # thread the fold still owes an answer, so a message in a thread the user
+            # resolved goes to nobody; a message already pending or owed goes once.
+            due = owed_threads(work, holding.found)
+            left = {
+                event["id"]
+                for event in holding.waiting(
+                    lambda held: (
+                        held.picked
+                        and held.holder["kind"] == "fork"
+                        and held.holder["state"] != "running"
+                    )
+                )
+                if holding.found.names[event["id"]] in due
+            } - {event["id"] for event in [*owed, *pending]}
             owed += [event for event in page.events if event["id"] in left]
         # A message a fork's running turn holds is owed and unreferenced once the
         # cursor has passed it, and stays the fork's all the same; a kept-back one is

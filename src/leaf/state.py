@@ -835,13 +835,17 @@ def open_agent_turns(session_id: str) -> dict[str, dict]:
     }
 
 
-def agent_turn_stamps(claim: dict) -> dict[str, dict]:
+def agent_turn_stamps(claim: dict, events: list[dict]) -> dict[str, dict]:
     """The agent turns of the session `claim` names, opened in the claim's
-    generation: by turn id, the agent's id in its harness, null until the harness
-    starts it, by which the main thread reaches the agent (`holding.holder`), and
-    when the turn was last renewed and when it closed, or null while it is open,
-    which `activity.running_agent_turns` reads. The page's served reading carries
-    them for every reader of its claim (`presence`)."""
+    generation, that a page whose log is `events` needs: each still open, which may
+    take any of its threads, and each the log names, whose holder `leaf page state`
+    names (`holding.holder`). By turn id: the agent's id in its harness, null until
+    the harness starts it, by which the main thread reaches the agent, and when the
+    turn was last renewed and when it closed, or null while it is open, which
+    `activity.running_agent_turns` reads. The page's served reading carries them for
+    every reader of its claim (`presence`), so what it carries grows with the page
+    rather than with how long its session has run."""
+    named = {event["turn"] for event in events if event.get("turn")}
     return {
         turn: {
             "agent": entry["agent"],
@@ -850,6 +854,7 @@ def agent_turn_stamps(claim: dict) -> dict[str, dict]:
         }
         for turn, entry in agent_turns(claim["id"]).items()
         if entry["generation"] == claim["generation"]
+        and (entry["closed"] is None or turn in named)
     }
 
 
@@ -884,7 +889,9 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
     named once the harness has started it (`name_agent_turn`), and until then no
     agent's `leaf` command can act in it or as the main thread
     (`hooks.agent_command`). Each opening mints a new id, so a closed turn never
-    reopens."""
+    reopens. The turns of the session's earlier generations go as it opens one,
+    since their agents ended with them and no reading of its pages asks for them
+    (`agent_turn_stamps`)."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
@@ -894,7 +901,11 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
         _write_agent_turns(
             session_id,
             {
-                **agent_turns(session_id),
+                **{
+                    id: entry
+                    for id, entry in agent_turns(session_id).items()
+                    if entry["generation"] == record["generation"]
+                },
                 turn: {
                     "agent": agent,
                     "generation": record["generation"],

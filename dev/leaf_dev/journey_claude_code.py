@@ -694,6 +694,18 @@ def steps(
             """The turns that picked up step `name`'s comment."""
             return picked_up(page, user.ids[name])
 
+        def agent_of(turn: str) -> str | None:
+            """The agent of the fork that ran `turn`, which Leaf learns only as the
+            fork starts, so its start record carries it and its take may not."""
+            return next(
+                (
+                    record["agent"]
+                    for record in (user.forks() if user.forks else [])
+                    if record.get("step") == "start" and record["turn"] == turn
+                ),
+                None,
+            )
+
         def forked_work(started: float) -> None:
             """`fork-idle` with forks that do the work: its fork judges the question a
             fork's and posts the agent's working line, and a fork it spawns, in a
@@ -748,7 +760,8 @@ def steps(
                 detail=(
                     f"`fork-idle` had its first reply after "
                     f"{timings['first_reply']['elapsed_s']:.1f} s, and the fork "
-                    f"{taken['agent']} answered it in its own turn, which ended after "
+                    f"{agent_of(taken['turn'])} answered it in its own turn, which "
+                    f"ended after "
                     f"{run_end['elapsedMs'] / 1000:.1f} s: {reply['text'][:200]!r}"
                 ),
             )
@@ -805,7 +818,8 @@ def steps(
                 "fork-follow-up",
                 started,
                 detail=(
-                    f"`fork-follow-up`: {taken['agent']} took the question, its turn "
+                    f"`fork-follow-up`: {agent_of(taken['turn'])} took the question, "
+                    f"its turn "
                     f"picked up the further message, and it answered that "
                     f"{after:.1f} s after it was sent: {reply['text'][:200]!r}"
                 ),
@@ -833,16 +847,6 @@ def steps(
                         record
                         for record in records(input_id)
                         if record["outcome"] in ("take", "hand_over", "dropped")
-                    ),
-                    None,
-                )
-
-            def agent_of(turn: str) -> str | None:
-                return next(
-                    (
-                        record["agent"]
-                        for record in (user.forks() if user.forks else [])
-                        if record.get("step") == "start" and record["turn"] == turn
                     ),
                     None,
                 )
@@ -1043,7 +1047,7 @@ def steps(
                 started,
                 "fork-todo",
                 detail=(
-                    f"`fork-todo`: {taken['agent']}'s working line came "
+                    f"`fork-todo`: {agent_of(taken['turn'])}'s working line came "
                     f"{timings['first_reply']['elapsed_s']:.1f} s after the comment, "
                     f"and its answer, opening the to-do “{replies[0]['todo']}”, from "
                     f"its own turn, which ended after "

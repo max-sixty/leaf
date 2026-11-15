@@ -2,6 +2,12 @@
 
 @SOUL.md
 
+`SOUL.md`, above, says what a person using a Leaf page and an agent writing one
+can count on. The sections from here to "Repository map" are the principles
+Leaf is built by. The rest of the repository's guidance applies the values and
+principles to particular code, so weigh a case no rule covers against them. They
+are the maintainer's direction and change only when the maintainer asks.
+
 ## Leaf's role
 
 Core owns shared state, event, and lifecycle guarantees; packages own domain
@@ -37,17 +43,37 @@ consumer of them is in this tree, so when a different contract makes the code
 simpler, change it and every consumer together, prose included. A change that
 keeps every guarantee changes no contract prose.
 
-A restriction Leaf imposes, such as a content security policy, a validator's
-refusal, an import allowlist or a markup limit, doesn't decide whether a feature
-is allowed. When one blocks a feature, don't drop the feature or quietly work
-around it: tell the user what the restriction blocks, what it protects and what
-lifting it would cost. It may guard something the user values, or be a side
-effect nobody chose, so only the user can weigh the feature against it.
-
 Coherent new features can be tried before every product detail is settled, as
-long as any architectural problem they leave stays easy to fix. Make
-improvements that follow from the repository, and ask the user only when the
-choice depends on purpose or intent the code can't supply.
+long as any architectural problem they leave stays easy to fix.
+
+## The maintainer decides
+
+Make the improvements that follow from the repository, and take a call its
+guidance settles, saying which passage settled it. Ask the maintainer only where
+a choice depends on purpose or intent the code can't supply:
+
+- **What Leaf is for**, and any change to `SOUL.md` or these principles.
+- **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` or an
+  `AGENTS.md` states, such as losing the user's selection or typed words, is a
+  defect to fix. Listing it as a call the maintainer may reverse doesn't make it
+  a call.
+- **Taking a feature away.** Propose the removal with what users lose and what
+  it deletes. The maintainer builds features ahead of their use, so a record of
+  little use on their own pages isn't enough: rest the proposal on a test of the
+  feature itself, such as an honest attempt to place it in an example.
+- **Lifting a restriction.** A restriction Leaf imposes, such as a content
+  security policy, a validator's refusal, an import allowlist or a markup limit,
+  doesn't decide whether a feature is allowed. When one blocks a feature, don't
+  drop the feature or quietly work around it: say what the restriction blocks,
+  what it protects and what lifting it would cost. It may guard something the
+  maintainer values, or be a side effect nobody chose.
+- **An open design.** Where a visual or interaction design is still open after
+  these principles, show the candidates side by side and let the maintainer
+  select one (`/developing-leaf`, "Explore an open design").
+
+A choice that will come up again for each new case is better settled once.
+Propose the rule that would decide every such case, with what adopting it
+changes, rather than asking about the case in front of you.
 
 ## Responsiveness
 
@@ -88,24 +114,11 @@ that serves, checks or exports it supplies everything else: the runtime, and the
 layer (registry, theme, widgets and package modules) it composes from the page's
 selection. So what changes with Leaf ships together, and what crosses the gap
 between Leaf versions is only what a page keeps: its event log and the records kept
-outside it.
-
-- **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page at another number is refused until the session holding it takes it to the
-  new number, which it does itself on its first command or hook naming the page.
-  Bump it only for a change a Leaf at the same number would misread in the log or
-  in a record kept outside a page. A change to the runtime, the served state, the
-  bundled widgets and their registry entries, the theme or the public package API
-  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
-  Leaf's only version, so a record kept outside a page, such as a browser draft,
-  carries the protocol at which its own shape last changed (`layer-registry.md`,
-  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
-  commits. Once Leaf is released, only a bump may break an existing page.
-- **A page's own code**, its widgets and scripts, and an installed package's
-  modules call the public package API across Leaf versions. While Leaf is in alpha
-  an update may change that API without a bump, since a bump would not repair code
-  Leaf doesn't compose; `page check --render` and `package check --render` report a
-  module it breaks, and the agent fixes it as any other check failure.
+outside it. A change there that a Leaf at the same number would misread bumps the
+page protocol, Leaf's only version. A change to the runtime, the served state, the
+bundled widgets, the theme or the public package API never does.
+`src/leaf/layer-registry.md`, "Page protocol", owns the rules, and the browser
+build checks each changed record against them.
 
 ## Fix the underlying issue
 
@@ -130,6 +143,18 @@ Don't add another patch on top of existing ones. A change that fixes the symptom
 and leaves the code harder to maintain doesn't go in, even with the real fix
 filed behind it, because the next change has to undo the patch first. Defer an
 underlying fix only when the change leaves it as easy to make as before.
+
+## Use dependencies
+
+Use maintained dependencies, including the platform and standard library, for
+established capabilities, in prototypes too. Leaf code owns product-specific
+behavior and integration, and writes a mechanism itself only when existing ones
+can't meet a concrete requirement. In the browser, use the platform's layout,
+cascade and focus model first (`browser/AGENTS.md`, "The browser answers
+first"). A control's look is such a capability: start from the design of the UI
+library Leaf ships, themed through its tokens, and draw Leaf's own only where
+that design fails a requirement of Leaf's, such as legibility on its palette.
+Build browser dependencies in Leaf's pipeline and ship ready assets.
 
 ## Repository map
 
@@ -190,8 +215,10 @@ for agents that use Leaf or extend its package interface.
 
 ### Where instructions live
 
-The sections above **Repository map**, and the `SOUL.md` they import, are the
-maintainer's direction; change them only when the user asks. An `AGENTS.md` holds what an agent needs before changing
+A section of rules opens with the goal the rules serve, naming the value or
+principle behind it where that isn't plain, so that a reader can weigh a case no
+rule covers. A rule whose goal nobody can name is a candidate to cut once
+`git log -S` shows no failure behind it. An `AGENTS.md` holds what an agent needs before changing
 its area: goals, invariants that span modules, who owns what, and the gates to
 run. A contract one module owns goes in that module's header, a helper's in its
 docstring, and how a rule was found in the commit message. A contract several modules
@@ -200,22 +227,15 @@ relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
 change that reverses one rewrites that record and says so in its commit. A
 maintainer's workflow for one kind of task goes in a project skill such as
-`/developing-leaf`, not in the shipped `/leaf` skill.
+`/developing-leaf`, not in the shipped `/leaf` skill. A call the maintainer makes
+that will come up again goes into the guidance its next case will read, in the
+change that carries the call out; a note in one agent's memory reaches no other
+agent.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
-`vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
+`vendor.mjs`, or a count of its members; point to it, so a new member needs no edit. Where the prose must
 list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
-
-### Use dependencies
-
-Use maintained dependencies, including the platform and standard library, for
-established capabilities, in prototypes too. Leaf code owns product-specific
-behavior and integration, and writes a mechanism itself only when existing ones
-can't meet a concrete requirement. In the browser, use the platform's layout,
-cascade and focus model first (`browser/AGENTS.md`, "The browser
-answers first"). Build browser dependencies in Leaf's pipeline and ship ready
-assets.
 
 ### The install runs this tree
 
@@ -352,9 +372,6 @@ than failing.
 
 ## Working on the repository
 
-When the user is to choose among designs, show the candidates side by side and
-let them select one (`/developing-leaf`, "Explore an open design").
-
 Before finishing a feature:
 
 - Give every result a pointer reaches a keyboard route and a touch route
@@ -395,11 +412,14 @@ delivery, Worker routing or containers. Read the comparison by phase (the
 document arriving, widgets upgrading, the page first showing the server's
 state), and compare the requests and bytes loaded before that last phase
 directly; elapsed time is only diagnostic. A change that adds work on that path
-says what the user gains and why it can't wait. Bytes off the path, such as a
+says what the user gains and why it can't wait. A better look or a more immediate
+answer to the user is gain enough: the maintainer weighs how Leaf looks and
+responds far above its size. Take it and report the bytes, rather than putting
+the trade to the maintainer or building machinery to save them. Bytes off the path, such as a
 lazy module, a vendored file or the install's size, are not alone a reason for a
 change.
 
 Land through a GitHub pull request, which squash-merges to `main`; use `wt merge`
-only when the user asks for it. For now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,
+only when the maintainer asks for it. For now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,
 "Run what the change needs"). Tend sessions follow **Landing** in
 `.claude/skills/running-tend/SKILL.md`.

@@ -112,7 +112,10 @@ registry entries, the theme or the public package API (`runtime/widget-api.js` a
 its portable part `runtime/portable-api.js`) keeps the number, since the Leaf serving a page supplies all of them. A page's own widgets
 and an installed package's modules call that API across Leaf versions, and a bump
 would not repair them, since neither is re-composed from Leaf's tree; `page check
---render` and `package check --render` report a module an API change breaks.
+--render` and `package check --render` report a module an API change breaks, and
+the agent fixes it as any other check failure. While Leaf is in alpha an update may
+change that API without a bump. Bumps are rare, perhaps one in five hundred commits,
+and once Leaf is released only a bump may break an existing page.
 
 The browser build holds the schemas to this. `build/browser/protocol-baseline.json`
 keeps `$events`, each `state.Record` schema and the composer's draft as they stood at

@@ -24,12 +24,12 @@ import shutil
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from pathlib import Path
 
 import click
 
 from leaf_dev import ROOT
+from leaf_dev.arms import run_directory
 from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 COPIES = 18
@@ -56,9 +56,7 @@ def flake(selection: tuple[str, ...], throttle: float | None) -> None:
     copy's output stays under .tmp/flake/. Exits 1 unless every copy of every test
     passed.
     """
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
-    out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-flake-") as directory:
         scratch = Path(directory)
         candidate = scratch / "snapshot"

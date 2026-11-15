@@ -24,13 +24,12 @@ working tree's tests over the merge base's code.
 
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import click
 
 from leaf_dev import ROOT
-from leaf_dev.arms import merge_base
+from leaf_dev.arms import merge_base, run_directory
 from leaf_dev.commands.suite._runs import Outcome, checkout, collect, run, snapshot
 
 OUT = ROOT / ".tmp" / "bugback"
@@ -71,9 +70,7 @@ def bugback(selection: tuple[str, ...]) -> None:
             f"the working tree changes nothing outside {', '.join(KEPT)} "
             f"since {base[:12]}"
         )
-    OUT.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S-")
-    out = Path(tempfile.mkdtemp(prefix=stamp, dir=OUT))
+    out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-bugback-") as directory:
         candidate, tree = Path(directory) / "snapshot", Path(directory) / "checkout"
         snapshot(candidate)

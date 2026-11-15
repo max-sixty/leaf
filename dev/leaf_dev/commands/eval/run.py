@@ -36,7 +36,6 @@ import sys
 import tempfile
 from collections.abc import Callable, Iterator
 from copy import deepcopy
-from datetime import datetime
 from functools import cache, partial
 from importlib import import_module
 from pathlib import Path
@@ -63,6 +62,7 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
     instruction_context,
+    run_directory,
 )
 from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
@@ -712,12 +712,7 @@ def eval(
         raise click.ClickException(
             "Install development dependencies first: pnpm install --frozen-lockfile"
         )
-    RUNS.mkdir(parents=True, exist_ok=True)
-    out = Path(
-        tempfile.mkdtemp(
-            prefix=f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-", dir=RUNS
-        )
-    )
+    out = run_directory(RUNS)
     click.echo(f"evidence: {out}")
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as temporary:
         scratch = Path(temporary)

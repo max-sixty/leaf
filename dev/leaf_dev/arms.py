@@ -119,9 +119,11 @@ COMPARED_MODELS = ("claude-fable-5-2",)
 
 
 def run_directory(parent: Path) -> Path:
-    """Allocate one invocation's evidence without replacing another run's files."""
+    """Allocate one invocation's evidence without replacing another run's files,
+    named `run-` and the time it started, so a listing sorts runs by age."""
     parent.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix="run-", dir=parent))
+    started = datetime.now().astimezone()
+    return Path(tempfile.mkdtemp(prefix=f"run-{started:%Y%m%d-%H%M%S}-", dir=parent))
 
 
 def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str, str]:

@@ -1,8 +1,8 @@
 """Count what the pages kept on this machine used: widgets, packages, commands and `leaf` commands.
 
-    leaf-dev usage [--since ISO] [--json]
+    leaf-dev logs usage [--since ISO] [--json]
 
-Regular maintenance asks who would notice a mechanism gone (`/developing-leaf`,
+Regular maintenance asks who would notice a mechanism gone (root `AGENTS.md`,
 "Regular maintenance"). This answers from the record rather than from the tree: a
 widget an example shows and no page ever held, a key nobody pressed in a month, a
 `leaf` command no agent ran. It reads every page directory under the state home's
@@ -39,7 +39,7 @@ from pathlib import Path
 
 import click
 
-from leaf.interaction_log import read_interactions
+from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.storage import LAYER
 from leaf.schema import LAYER_FILE
 from leaf.state import state_home
@@ -197,13 +197,18 @@ def _table(rows: list[tuple]) -> None:
 
 @click.command()
 @click.option(
-    "--since", help="Count observations and `leaf` commands from this ISO time."
+    "--since",
+    help="Count observations and `leaf` commands from this timezone-qualified ISO time.",
 )
 @click.option("--json", "as_json", is_flag=True, help="Print the survey as JSON.")
 def usage(since: str | None, as_json: bool) -> None:
     """Count what this machine's pages used: widgets, packages, commands, `leaf` commands."""
     pages = sorted(page for page in (state_home() / "pages").iterdir() if page.is_dir())
-    result = survey(pages, datetime.fromisoformat(since) if since else None)
+    try:
+        beginning = interaction_time(since) if since else None
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+    result = survey(pages, beginning)
     if as_json:
         click.echo(json.dumps(result, indent=2))
         return

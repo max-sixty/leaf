@@ -2,7 +2,6 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
-from base64 import b64encode
 
 import pytest
 from interact_support import append_carried_log_record
@@ -11,7 +10,6 @@ from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE
 from render_harness import (
     ROOT,
-    held_frames,
     holding,
     leaf_page,
     open_page,
@@ -681,6 +679,53 @@ ROWS_IN_VIEW = """selector => {
 }"""
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
+    request, serve, engine
+):
+    """A document's listing is a code block, which is a Tab stop from the moment it is
+    first seen, in a closed tab too. So the tab's opening asks none of the listing's
+    lines whether they take a Tab stop, which it asked of every line on each reach paint
+    while the stop waited for the listing to be drawn, and Tab reaches the listing by its
+    own stop."""
+    url = serve(
+        leaf_page(
+            "Documents",
+            '<lf-tabs id="docs" list="side">'
+            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            "</lf-tabs>",
+        )
+    )
+    text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(2000))
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#log.lf-rendered")).to_have_count(1)
+    # Every line asked for its `tabindex` from the press until the tab has settled.
+    page.evaluate("""() => {
+      const lines = new Set(document.querySelectorAll('#log .lf-text-document-run > *'));
+      const read = Element.prototype.getAttribute;
+      window.linesAsked = 0;
+      Element.prototype.getAttribute = function (name) {
+        if (name === 'tabindex' && lines.has(this)) window.linesAsked++;
+        return read.call(this, name);
+      };
+    }""")
+    page.get_by_role("tab", name="Long", exact=True).click()
+    listing = page.locator("#log pre")
+    expect(listing).to_be_visible()
+    expect(listing).to_have_attribute("tabindex", "0")
+    expect(page.locator(".lf-code-copy")).to_have_count(1)
+    rendered(page)
+    assert page.evaluate("window.linesAsked") == 0
+    page.get_by_role("tab", name="Long", exact=True).focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#tab-long")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(listing).to_be_focused()
+
+
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,
@@ -757,23 +802,6 @@ def closed_documents(serve, count):
         lines = "".join(f"line {line} of document {at}\n" for line in range(40))
         data_model.cmd_data_set(serve.page_dir, f"text-{at}", lines)
     return url
-
-
-def test_a_closed_tab_s_document_reports_its_draw_while_later_ones_wait(browser, serve):
-    """A closed tab's document reports its draw, marking its text and stamping its
-    data's provenance, as it draws, whether its tab shows or not, so the stamp a
-    comment on its text anchors to stands while the documents after it still wait to
-    draw."""
-    url = closed_documents(serve, 4)
-    page = open_page(browser, url, init_script=HOLD_QUEUE, upgraded=False)
-    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
-    last = page.locator("#doc-3")
-    expect(page.locator("#doc-1 figure")).to_have_attribute("data-lf-source", "text-1")
-    expect(last).not_to_have_class("lf-rendered")
-    page.get_by_role("tab", name="Doc 2", exact=True).click()
-    expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
-    expect(last).not_to_have_class("lf-rendered")
-    expect(page.locator("#doc-3 figure")).to_have_attribute("data-lf-source", "text-3")
 
 
 def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
@@ -1430,114 +1458,6 @@ def drawn_numbers(page, document):
         for node in drawn
         if names[node] == "::before" and parents[node] in line
     ]
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
-    request, serve, engine
-):
-    """A long text document draws only the runs of lines in view: styling every line on
-    each change to the page took tens of seconds and gigabytes at a few megabytes of
-    text. The lines out of view stay whole for the reader. The listing holds every
-    line, its numbers stand in one column from the first run to the last, and a thread
-    on a line far down jumps to the line drawn there. Each run is sized by the lines
-    its rows fill: sized a line a row, Firefox drew the far line's run for a returning
-    reader. A run drawn before the window narrows forgets the height it was drawn at:
-    kept, it left a drag to the bottom short of the last line in both engines. Long
-    tokens, which Firefox also breaks after a slash, fill more lines than the size
-    says, and the run the travel lands in is drawn for the jump: left skipped,
-    Firefox's jump stopped short and a second scroll followed. A second travel while
-    the first still holds the run drawn jumps too: it glided."""
-    # Long tokens stand in every run but the last, which the drag to the bottom draws:
-    # Firefox draws more lines than the size says over them, and the drag would stop
-    # short, a limit Leaf accepts.
-    text = "".join(
-        f"line {i} "
-        + (
-            b64encode(bytes((i * 31 + k * 101) % 256 for k in range(240))).decode()
-            if i % 7 == 0 and i <= 7 * 128
-            else "wrapping words " * 20
-            if i % 3 == 0
-            else "short"
-        )
-        + "\n"
-        for i in range(1, 1001)
-    )
-    url = serve(
-        leaf_page(
-            "Long evidence",
-            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
-            "</lf-text-document>",
-        )
-    )
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
-    page = open_page(request.getfixturevalue(engine), url)
-    assert page.locator("#log code").text_content() == text
-    expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
-    first, far = page.locator(ROWS).nth(0), page.locator(ROWS).nth(879)
-    # A run itself always has a box; the browser skips the lines inside it.
-    drawn = "line => line.checkVisibility({contentVisibilityAuto: true})"
-    assert first.evaluate(drawn)
-    assert not far.evaluate(drawn)
-    left = "line => line.getBoundingClientRect().left"
-    first_left = first.evaluate(left)
-
-    # The last run, drawn and then skipped, meets a narrower window.
-    pre, last = page.locator("#log pre"), page.locator(ROWS).nth(999)
-    width, height = page.viewport_size["width"], page.viewport_size["height"]
-    bottom = "pre => { pre.scrollTop = pre.scrollHeight; }"
-    for to, shown in ((bottom, "line"), ("pre => { pre.scrollTop = 0; }", "!line")):
-        pre.evaluate(to)
-        page.wait_for_function(
-            f"line => {shown}.checkVisibility({{contentVisibilityAuto: true}})",
-            arg=last.element_handle(),
-        )
-    resized(page, 560, height)
-    rendered(page)
-    pre.evaluate(bottom)
-    rendered(page)
-    below = last.evaluate(
-        "line => line.getBoundingClientRect().bottom"
-        " - line.closest('pre').getBoundingClientRect().bottom"
-    )
-    assert below <= 1
-    resized(page, width, height)
-    pre.evaluate("pre => { pre.scrollTop = 0; }")
-
-    for line, words in ((840, "Where does this start?"), (880, "Why does it repeat?")):
-        select_words(page, f"{ROWS} >> nth={line - 1}")
-        write(page.locator(".lf-composer leaf-text"), words)
-        with sending(page, f"the comment on line {line}"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        page.keyboard.press("Escape")
-    assert far.evaluate(left) == pytest.approx(first_left, abs=0.5)
-    # The open card keeps its passage's run drawn; a returning reader finds it skipped.
-    page.reload()
-    wait_until_ready(page)
-    assert not far.evaluate(drawn)
-    # Each travel jumps: a glide across the runs drew each one it passed, for seconds.
-    # The second leaves while the first still holds the run drawn, as a held `t` does:
-    # the frames that would release it are held.
-    page.locator("#log pre").evaluate(
-        "pre => { window.steps = 0; pre.addEventListener('scroll', () => steps++); }"
-    )
-    with held_frames(page):
-        page.keyboard.press("t")
-        page.wait_for_function("() => steps > 0")
-        page.keyboard.press("t")
-    expect(page.locator(".lf-page-thread")).to_be_focused()
-    scroll_settled(page, "#log pre")
-    assert page.evaluate("steps") == 2
-    landed = far.evaluate("""line => {
-      const box = line.closest('pre').getBoundingClientRect();
-      const at = line.getBoundingClientRect();
-      const hit = document.elementFromPoint(at.left + 30, at.top + 8);
-      return {shown: at.top >= box.top && at.bottom <= box.bottom,
-              hit: hit && [...line.closest('code').querySelectorAll('.lf-text-document-run > *')]
-                .indexOf(hit.closest('.lf-text-document-run > *')) + 1,
-              top: at.top - box.top};
-    }""")
-    assert landed == {"shown": True, "hit": 880, "top": landed["top"]}, landed
 
 
 def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve):

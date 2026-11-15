@@ -1,5 +1,9 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
+
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
 
 import os
 import subprocess

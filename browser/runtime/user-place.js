@@ -127,7 +127,11 @@ const boxStoodAt = (node) => {
 // there, so a key pressed on the way is meant for the stop. `g g` carries a control
 // mid-page away, so `c` or Tab pressed as it sets off lets go of the control though it
 // is still on screen, and acts from where `g g` lands (reading-place.js,
-// `landingPlace`). The user chose this on 2026-11-14. Rejected: judging a node still on
+// `landingPlace`). The user chose this on 2026-11-14, as the one rule for every key
+// pressed during a glide, which tests/journeys/navigation/test_reading_place.py holds
+// each glide and key to. A key whose work goes to a reader that can't ask where the
+// glides land, the browser's answer to Tab or PageDown or a placement, lands them first
+// (scrolling.js, `landGlides`). Rejected: judging a node still on
 // screen as the place, which opened a comment box on the control and let the glide
 // carry it off screen with focus in it, and moved Tab on from the control as though
 // the glide had not run; and counting every glide that carries focus, which took the

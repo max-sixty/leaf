@@ -201,17 +201,6 @@ the two axes of `oklab()` instead, which holds no hue and paints the same in all
 engines. Recheck by loading that `oklch()` declaration in the engine: the gap stands
 while it computes a hue of `none`.
 
-### Contents spine lens
-
-`packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll
-where `ScrollTimeline` is absent. The lens still marks the visible part of the
-page, but follows scrolling a frame later than the native timeline.
-Installed Firefox 157.0.1 lacked the API on 2026-10-10; Chrome 155 exposed it.
-Revisit the fallback when supported engines provide it.
-`test_the_lens_follows_the_scroll_without_a_scroll_timeline` in
-`tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
-the native timeline with the API removed.
-
 ### Sticky boxes' own place
 
 A margin pin's seat is read against the room around its target, with a sticky box

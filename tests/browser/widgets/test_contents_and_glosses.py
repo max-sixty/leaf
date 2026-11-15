@@ -1043,13 +1043,12 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
     assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
 
 
-def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
-    """A browser without `ScrollTimeline`, as Firefox ships, still shows the reader's place.
-
-    The same page in a context with the API removed draws the lens where the scroll
-    timeline draws it, at the top, the middle and the foot of the document."""
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
+    """The lens shows the reader's place by the browser's own scroll timeline in each
+    engine Leaf supports, at the top, the middle and the foot of the document."""
     source = contents_page(
-        "contents lens without a scroll timeline",
+        "contents lens in every engine",
         """
 <h1>A migration read in every browser</h1>
 
@@ -1059,35 +1058,22 @@ def test_the_lens_follows_the_scroll_without_a_scroll_timeline(browser, serve):
 """,
         toc_id="lens-contents",
     )
-    url = serve(source)
-
-    def lens_track(init_script=None):
-        page = open_page(browser, url, init_script=init_script)
-        resized(page, 1400, 900)
-        lens = page.locator("#lens-contents .lf-toc-window")
-        expect(lens).to_be_visible()
-        track = []
-        for fraction in (0, 0.5, 1):
-            page.evaluate(
-                "fraction => { const s = document.scrollingElement; "
-                "s.scrollTop = (s.scrollHeight - s.clientHeight) * fraction; "
-                "return new Promise(done => requestAnimationFrame("
-                "() => requestAnimationFrame(done))); }",
-                fraction,
-            )
-            box = lens.bounding_box()
-            track.append((box["y"], box["height"]))
-        page.close()
-        return track
-
-    native = lens_track()
-    fallback = lens_track("delete globalThis.ScrollTimeline;")
-    assert native[2][0] > native[0][0] + 300, native
-    for (native_top, native_height), (top, height) in zip(
-        native, fallback, strict=True
-    ):
-        assert top == pytest.approx(native_top, abs=1), (native, fallback)
-        assert height == pytest.approx(native_height, abs=1), (native, fallback)
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 900)
+    lens = page.locator("#lens-contents .lf-toc-window")
+    expect(lens).to_be_visible()
+    track = []
+    for fraction in (0, 0.5, 1):
+        page.evaluate(
+            "fraction => { const s = document.scrollingElement; "
+            "s.scrollTop = (s.scrollHeight - s.clientHeight) * fraction; "
+            "return new Promise(done => requestAnimationFrame("
+            "() => requestAnimationFrame(done))); }",
+            fraction,
+        )
+        track.append(lens.bounding_box()["y"])
+    top, middle, foot = track
+    assert top < middle < foot and foot > top + 300, track
 
 
 @pytest.mark.parametrize(

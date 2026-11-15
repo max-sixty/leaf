@@ -1062,6 +1062,34 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
     ], "a notice after the classified navigation was hidden too"
 
 
+def test_a_navigation_made_again_to_confirm_a_notice_counts_its_problems_once(
+    browser, serve
+):
+    """A navigation that raised a ResizeObserver notice is made again to confirm it, and
+    what the page raises on both loads, as a widget's refusal, stands once, beside what
+    only the first load raised."""
+    first_load_notices = (
+        """addEventListener('DOMContentLoaded', () => {
+      const seen = Number(sessionStorage.getItem('lf-test-resize-loads') || 0);
+      sessionStorage.setItem('lf-test-resize-loads', String(seen + 1));
+      console.error('raised on every load');
+      if (seen === 0) {
+        console.error('raised on the first load');
+        """
+        + RESIZE_LOOP_EVENT
+        + """
+      }
+    });"""
+    )
+    page = open_page(browser, serve(LONG_PAGE), init_script=first_load_notices)
+
+    errors = take_browser_errors(page)
+    assert sorted(e.values.get("text") for e in errors) == [
+        "raised on every load",
+        "raised on the first load",
+    ]
+
+
 def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"

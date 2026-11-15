@@ -449,8 +449,6 @@ def authorize(
     session: str | None,
     input_ids: list[str],
     thread: str | None = None,
-    *,
-    answers: bool = False,
 ) -> Finding | None:
     """Refuse a write a command of `session` makes about the messages `input_ids` on
     `page`, whose `Holding` is `holding`, a reply to one or a start on one, or a
@@ -461,13 +459,16 @@ def authorize(
 
     Any other writer acts as the main thread, whoever runs it: the main thread itself,
     a fork's script, a worker, the user's terminal or another session
-    (`state.acting_turn`). It may write anywhere, and its answer (`answers`, a reply
-    that responds to a message) takes the thread from any turn that held it. The user
-    chose on 2026-11-14 that such a write goes through on a thread a fork or a line
-    fork holds, rather than being refused, and says so beside its result: the advice
-    this returns (`fork-holds-thread`), where the thread's holder owes its answer
-    (`owed_by`). `thread`, where given, names the write's thread, as for a start on a
-    to-do on a thread; otherwise each of `input_ids` names its own."""
+    (`state.acting_turn`). It may write anywhere, and its answer may take the thread
+    from the turn that held it, by the module header's rule. The user chose on
+    2026-11-14 that such a write goes through on a thread a fork or a line fork
+    holds, rather than being refused, and says so beside its result: the advice this
+    returns (`fork-holds-thread`), where the thread's holder owes its answer
+    (`owed_by`), whose `answers`, whether the write took the thread, its writer sets
+    once the write is in (`thread.post_reply`). `thread`, where given, names the
+    write's thread, as a reply's parent or a to-do's subject does, which an answer to
+    a widget frozen in a thread names by no message of its own; otherwise each of
+    `input_ids` names its own."""
     from .state import acting_agent_turn
 
     claim = page.claim
@@ -487,7 +488,7 @@ def authorize(
         if (owes := owed_by(holding.hold(name).holder))["kind"] != "main":
             return Finding(
                 "fork-holds-thread",
-                values={"holder": owes, "answers": answers},
+                values={"holder": owes, "answers": False},
                 severity="advice",
             )
     return None

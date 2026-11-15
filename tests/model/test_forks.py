@@ -641,8 +641,9 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
     """What waits in a thread is what the fold owes: an answer settles the turns it
     responds to. So the main thread answering the user's older choice in a thread
     where a fork holds the user's newer message leaves that message, and the thread,
-    with the fork, whose answer to it goes in and ends its run as an answer, after
-    which nothing is owed."""
+    with the fork, which the main thread hears beside its answer, though the choice
+    names no message of the thread's. The fork's answer to the message goes in and
+    ends its run as an answer, after which nothing is owed."""
     activated = revisioning_model.activate_source(claimed)
     assert activated.error is None, activated.error
     asked = append_carried_log_record(
@@ -684,7 +685,10 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
         "s1", basis(claimed, asked["id"], more["id"]), taken["turn"], "agent-1"
     )
     fork = {"kind": "fork", "agent": "agent-1", "state": "running"}
+    clerk_model.heard("s1", clerk_model.queued("s1"))
+    capsys.readouterr()
     assert thread_model.post_response(choice, "Recorded East.", asks_back=False)
+    assert "fork agent-1 holds this thread" in capsys.readouterr().err
     assert holders(claimed)[1][asked["id"]] == fork
     ran = CliRunner().invoke(
         cli_model.cli,

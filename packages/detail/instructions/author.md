@@ -19,12 +19,12 @@ Which passages carry that is your judgment, made for this page and its reader. W
 - A question the reader owes an answer, such as an `lf-ask`, must not be missed: mark
   it `.gist`.
 - A section can contribute nothing to a quick pass, such as the method or a timeline
-  the argument has already summarized. Give it no gist: Skim then folds it whole,
-  heading included, behind a ⋯ the reader can press.
+  the argument has already summarized. Give it no gist: a heading stays at Skim only
+  when a lede or gist follows it before the next heading of its rank or above, so Skim
+  folds such a section whole, heading included, behind a ⋯ the reader can press.
 
-A heading stays at Skim only when a lede or gist follows it before the next heading of
-its rank or above. The rest of each section supports its gists without restating them,
-since at Read the reader sees both.
+The rest of each section supports its gists without restating them, since at Read the
+reader sees both.
 
 Put material only some readers want, such as method, raw output or an alternative you
 ruled out, in a `details` with a summary naming it. Read leaves it closed and Everything

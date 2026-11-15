@@ -10,7 +10,7 @@
  *
  * Skim folds the rest with `hidden="until-found"`, so find-in-page, a fragment, the On
  * walk and travel to a comment still reach folded text and open the run holding it
- * (`beforematch`, `lf-reveal`). Folding walks the dial's document (the view or `main`
+ * (`beforematch`). Folding walks the dial's document (the view or `main`
  * holding it, as `lf-toc`'s outline does) and descends only into plain structure that
  * holds the lede, a gist or a heading that stands. A heading stands at Skim when a lede
  * or gist follows it in document order before the next heading of its rank or above,
@@ -365,7 +365,6 @@ customElements.define(
         block.addEventListener("beforematch", () => this.#unfoldRun(marker), {
           signal,
         });
-        block.addEventListener("lf-reveal", () => this.#unfoldRun(marker), { signal });
       }
       this.#runs.set(marker, { after, blocks });
     }

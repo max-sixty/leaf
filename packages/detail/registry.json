@@ -1,7 +1,7 @@
 {
   "lf-dial": {
     "description": "A control that sets how much of the page shows: Skim shows the lede, the gists and the headings above them, Read the page as written, and Everything also opens every closed detail.",
-    "x-instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only its conclusions. It governs the nearest tab or part containing it, or the whole main. Skim is only as good as the gists: mark `.gist` the passages that give a reader on a quick pass the page's argument and anything they must act on, reading coherently in order; a section with nothing for that reader takes no gist and folds whole (the detail package's author instructions).",
+    "x-instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only a quick pass. It governs the nearest tab or part containing it, or the whole main. Skim is only as good as the gists: mark `.gist` the passages that give a reader on a quick pass the page's argument and anything they must act on, reading coherently in order; a section with nothing for that reader takes no gist and folds whole (the detail package's author instructions).",
     "type": "object",
     "properties": {
       "id": { "type": "string" }

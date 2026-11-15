@@ -348,8 +348,10 @@
   --lf-figure-margin-block: 22px;
   --lf-callout-margin-block: 18px;
   --lf-hr-margin-block: 40px;
-  /* The ladder, body at --lf-t-4. Measured on Charter at 17px: 7.9px a character, so
-     the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
+  /* The ladder, body at --lf-t-4. Prose in Charter at 17px averages about 7.4px a
+     character, and a full line of the 720px column (--lf-col) holds about 93 of them,
+     89 to 97 in nine lines of ten (measured in Chromium on macOS over the docs' and
+     examples' paragraphs). The numbered rungs are the prose's hierarchy;
      --lf-t-working-label is the shared compact heading between its two smallest rungs, and
      Leaf's interface sets its words in them through its fonts (`--lf-font-*`, below). Every
      font size in Leaf's sheets names a token declared in this file or scales the size it

@@ -19,12 +19,18 @@ progress without adding a checkpoint, use `leaf page export <page> --draft -o <f
 it checks and captures current source and reports `version: null`. `--draft` and
 `--version` cannot be combined.
 
-Hand back the `file://` URL; don't start a server or wait. The file opens offline with
-the selected content and the decisions recorded on its widgets. Reading controls and
-the page's own code work, but recording new Leaf choices or updates and Undo require the
-served page and its server; an active agent is not required to record a choice. A page
-with a live sample can't be exported. Write the file where the project keeps files for
-the user. Exporting a live page doesn't end its loop.
+The file shows the page as it stands: the selected content, each widget drawn with the
+decisions recorded on it, and its images and fonts, with no script, so it reads the
+same with scripts off and is small enough to attach. Leaf draws it in the host's
+browser, which `page check --render` also needs. When the file's reader should operate
+the page, such as a playground's controls, add `--runtime`: the file then carries
+Leaf's runtime, about 11 MB, and opens with the reading controls and the page's own
+code working. Recording new Leaf choices or updates, and Undo, still require the served
+page and its server, though not an active agent.
+
+Hand back the `file://` URL; don't start a server or wait. A page with a live sample
+can't be exported. Write the file where the project keeps files for the user.
+Exporting a live page doesn't end its loop.
 
 An export can go to people who shouldn't read your conversation with the user, so the
 file holds none of it, on screen or in its source: no threads or their attachments,

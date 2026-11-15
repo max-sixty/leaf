@@ -600,6 +600,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
             str(claimed),
             "--out",
             str(tmp_path / "export.html"),
+            "--runtime",
         ],
         capture_output=True,
         text=True,

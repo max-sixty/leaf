@@ -26,9 +26,15 @@ import { test } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 // The `data-lf-` names Python writes only for itself: the export's fallback style
-// hides a page until its bootstrap replaces the document, and the inlined annotation
-// sheet is named for the suite to find.
-const PYTHON_ONLY = new Set(["data-lf-export-pending", "data-lf-annotation-theme"]);
+// hides a page until its bootstrap replaces the document, the inlined annotation
+// sheet is named for the suite to find, and a static export's CSS reads what a script
+// would have shown it from the marks its drawing writes (`static-export.js`).
+const PYTHON_ONLY = new Set([
+  "data-lf-export-pending",
+  "data-lf-annotation-theme",
+  "data-lf-defined",
+  "data-lf-highlight",
+]);
 
 const registry = JSON.parse(
   await readFile(

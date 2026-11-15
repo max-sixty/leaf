@@ -4269,14 +4269,16 @@ flowchart LR
           <section id="runtime-export" class="layout-flow">
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
-              <code>leaf page export PAGE -o FILE</code> captures a stamped version, its
-              resources and the decisions recorded on its widgets in one HTML file. The
-              file holds none of the conversation with the agent, on screen or in its
-              source: no threads or their attachments, to-dos, plan or changelogs.
-              Reading controls and page-owned code work offline; new Leaf choices,
-              comments and Undo need the served page. An agent need not be running to
-              record a choice on a live server. Pages containing live samples cannot
-              export.
+              <code>leaf page export PAGE -o FILE</code> captures a stamped version as
+              one HTML file that shows the page as it stands: its content, each widget
+              drawn with the decisions recorded on it, and its images and fonts, with no
+              script. Leaf draws it in the host's browser. With
+              <code>--runtime</code> the file carries Leaf's runtime instead, so reading
+              controls and page-owned code work offline; new Leaf choices, comments and
+              Undo need the served page. An agent need not be running to record a choice
+              on a live server. Either way the file holds none of the conversation with
+              the agent, on screen or in its source: no threads or their attachments,
+              to-dos, plan or changelogs. Pages containing live samples cannot export.
             </p>
           </section></lf-tab
         ></lf-tabs

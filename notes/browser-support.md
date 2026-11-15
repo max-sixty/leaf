@@ -77,33 +77,37 @@ or a claim about other Chrome builds or engines.
 
 ### Walking every element of a page of millions in Chromium
 
-On 2026-11-15, on macOS 26.5.1, Playwright 1.65.0's Chromium headless shell
-158.0.8127.18, build 1254, and installed Google Chrome 157.0.8103.51, driven
-headlessly through Playwright's `chrome` channel, crashed the page's renderer
-with `V8 process OOM (ExternalEntityTable::AllocateEntry)` on the 22nd to 25th
-back-to-back walk over every element of a page of 2.96 million elements. A
+The pages Leaf's checks and measurements drive are opened by
+`dev/leaf_dev/browser.py`. On 2026-11-15, on macOS 26.5.1, Playwright 1.65.0's
+Chromium headless shell 158.0.8127.18, build 1254, and installed Google Chrome
+157.0.8103.51, driven headlessly through Playwright's `chrome` channel, crashed
+the renderer of a page of 2.96 million elements partway through a run of
+back-to-back walks over every element. Playwright reported `Target crashed`,
+and the browser's log `V8 process OOM (ExternalEntityTable::AllocateEntry)`. A
 script's `for (const el of document.querySelectorAll("*"))` is such a walk, and
-so is each `page.query_selector` for a CSS selector, because Playwright's
-injected CSS engine walks every element that way to look inside shadow roots. A
-page of plain `div` rows built by a script crashed after as many walks as the
-page of issue #4781, 30 text documents of 4 MB with as many elements. With a
-forced full garbage collection after each walk (CDP
-`HeapProfiler.collectGarbage`), 40 walks passed, and 60 walks over 1.48 million
-elements passed without one. The counts fit one entry for each element a walk
-wraps, in a V8 pointer table of 2^26 entries whose dead entries only a full
-collection frees; that mechanism is inferred from the counts, not read from V8.
+crashed on the 24th to 26th. Each `page.query_selector` for a CSS selector is
+one too, because Playwright's injected CSS engine walks every element that way
+to look inside shadow roots, and crashed between the 22nd and the 32nd. A page
+of plain `div` rows built by a script crashed as the page of issue #4781 did,
+30 text documents of 4 MB with as many elements. With a forced full garbage
+collection after each walk (CDP `HeapProfiler.collectGarbage`), 100 walks
+passed, and 60 walks over 1.48 million elements passed without one. The counts
+fit one entry for each element a walk wraps, in a V8 pointer table of 2^26
+entries whose dead entries only a full collection frees; that mechanism is
+inferred from the counts, not read from V8.
 
-A reader's route on #4781's page walks only the document whose tab opens.
-Clicking its 30 tabs one after another crashed neither Chromium nor Playwright's
-Firefox 159.0, build 1572, and Firefox also survived the same journey driven by
-`page.query_selector`. A measurement or check that clicks through a page this
-size with Playwright selectors crashes the renderer itself, so it finds controls
-with `document.querySelector` inside `page.evaluate` and clicks the returned
-position with `page.mouse`. There is no Leaf workaround.
+Opening #4781's 30 tabs walks only each opened document, and clicking them one
+after another crashed neither Chromium nor Playwright's Firefox 159.0, build
+1572; Firefox also survived the same journey driven by `page.query_selector`. A
+check or measurement that drives a page this size through Playwright selectors
+crashes the renderer itself, so it finds controls with `document.querySelector`
+inside `page.evaluate` and clicks the returned position with `page.mouse`.
+There is no Leaf workaround.
 
-Recheck: in a blank page, build 2.96 million `div` rows by script, then run the
-walk above 40 times in a row in `leaf_dev.browser.launch("chromium")`. The gap
-stands while the renderer crashes before the 40th walk.
+Recheck: in a blank page opened by `leaf_dev.browser.launch("chromium")`, build
+2.96 million `div` rows by script and run the script walk above 100 times in a
+row, then again with a forced full collection after each walk. The gap stands
+while the first run ends in `Target crashed` and the second passes all 100.
 
 ### Tab underline travel between anchors
 

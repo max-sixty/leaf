@@ -1,4 +1,5 @@
-"""Serve an example or developer fixture as a live page, or export it as one file.
+"""Serve an example or developer fixture as a live page, beside a base's with
+`--base`, or export it as one file.
 
 An example is authored content, not a page directory; opened from disk it is a dead
 page, since Chrome refuses ES modules from file://. This builds the page directory
@@ -30,6 +31,14 @@ sources and regenerates their composition before refreshing its page.
 Changes to the watcher's Python, schemas or dependencies need an explicit restart;
 the current preview stays served until then.
 
+`--base` serves a base runtime's preview beside this working tree's: the merge base
+with `main`, or the commit it names (`leaf_dev.arms.choose_arms`). The head preview
+follows runtime edits as any preview does. Both read the head's authored source,
+following its edits, unless `--authored` has the base read its own copy
+(`leaf_dev.arms.own_source`). Each invocation owns fresh preview slots, named after the
+source and the run. User previews keep their base under `.tmp/preview-base` after startup,
+because detached watchers still need its files. Foreground previews end together.
+
 The preview serves the selected checkout in place, with its runtime's source modules,
 so a runtime edit reaches the page with no build. A `--user` preview's session runs its
 hooks and delivery from the launching checkout's `bin/leaf`.
@@ -47,7 +56,7 @@ and the browser runtime. Restarting a user preview preserves its history and cur
 seed data, while captures continue following their authored companion declarations.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
-        [--slot NAME] [--user] [--export]
+        [--slot NAME] [--user] [--export] [--authored] [--base [REF]]
 
 The command execs the selected checkout's own worker,
 `python -m leaf_dev.commands.preview --worker`, into its environment
@@ -78,6 +87,7 @@ from leaf.publishing import authored_digest, authored_files, write_authored_file
 from leaf.refusals import Refused
 from leaf.schema import LAYER_FILE, PACKAGES_DIR
 from leaf_dev import ROOT
+from leaf_dev.arms import base_option
 from leaf_dev.example_data import (
     capture_file,
     data_companion,
@@ -1092,6 +1102,12 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     is_flag=True,
     help="Write an offline HTML file instead of serving the page.",
 )
+@click.option(
+    "--authored",
+    is_flag=True,
+    help="With --base, build the base's page from its own authored source.",
+)
+@base_option()
 @click.option("--worker", is_flag=True, hidden=True)
 @click.option("--prepared-claim", hidden=True)
 @click.option("--handshake", type=int, hidden=True)
@@ -1102,6 +1118,8 @@ def preview(
     slot: str | None,
     user: bool,
     export: bool,
+    authored: bool,
+    base: str | None,
     worker: bool,
     prepared_claim: str | None,
     handshake: int | None,
@@ -1113,6 +1131,15 @@ def preview(
         raise click.UsageError("choose an example name or --source, not both")
     if user and export:
         raise click.UsageError("--user serves a page; omit --export")
+    if authored and base is None:
+        raise click.UsageError("--authored builds the base's page; add --base")
+    if base is not None:
+        if export or slot or runtime != ROOT:
+            raise click.UsageError(
+                "--base serves two previews; omit --export, --slot and --runtime"
+            )
+        serve_versions(authored_source(example, source), base, authored, user)
+        return
     # An explicitly selected runtime owns its launcher, including in the worker
     # and the page commands it starts. A host override would redirect those calls.
     os.environ.pop("LEAF_HOST_LAUNCHER", None)
@@ -1167,6 +1194,85 @@ def preview(
         raise SystemExit(error.returncode) from None
     except (Refused, ValueError, OSError, RuntimeError) as error:
         raise click.ClickException(str(error)) from None
+
+
+def serve_versions(source: Path, base: str, authored: bool, user: bool) -> None:
+    """Serve the base's preview and this working tree's together, each in a preview
+    process of its own (`--base`)."""
+    from threading import Thread
+
+    from leaf.harness import session_harness
+    from leaf_dev.arms import choose_arms, own_source, run_directory
+
+    if authored and not source.is_relative_to(ROOT):
+        raise click.UsageError("--authored needs a source inside this checkout")
+    directory = run_directory(ROOT / ".tmp" / "preview-base")
+    arms = choose_arms(base, directory)
+    prefix = f"{source.stem}-{directory.name}"
+    harness = session_harness() if user else None
+    detached = bool(harness and harness.lifetime() == {"chat": True})
+    processes = []
+    readers = []
+
+    def output(name, process):
+        for line in process.stdout:
+            click.echo(f"{name}: {line.rstrip()}")
+
+    def stop(_signal, _frame):
+        raise KeyboardInterrupt
+
+    previous = signal.signal(signal.SIGTERM, stop)
+    try:
+        for name, arm in arms.items():
+            process = subprocess.Popen(
+                [
+                    "uv",
+                    "run",
+                    "--project",
+                    str(ROOT),
+                    "leaf-dev",
+                    "preview",
+                    "--source",
+                    str(own_source(arm, source) if authored else source),
+                    "--runtime",
+                    str(arm.directory),
+                    "--slot",
+                    f"{prefix}-{name}",
+                    *(["--user"] if user else []),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            processes.append(process)
+            reader = Thread(target=output, args=(name, process))
+            reader.start()
+            readers.append(reader)
+        # A failed arm ends the pair; successful detached startup may exit while
+        # the other arm is still preparing. Polling here never inspects page state.
+        while processes:
+            for process in tuple(processes):
+                code = process.poll()
+                if code is not None:
+                    if code:
+                        raise click.ClickException(f"preview exited {code}")
+                    if not detached:
+                        return
+                    processes.remove(process)
+            if processes:
+                time.sleep(0.1)
+    except KeyboardInterrupt:
+        raise SystemExit(130) from None
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+        for process in processes:
+            process.wait()
+        for reader in readers:
+            reader.join()
 
 
 def export_preview(

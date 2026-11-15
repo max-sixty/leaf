@@ -1,4 +1,4 @@
-"""`leaf-dev timeline` answers who did what to a message: which fork's turn answered
+"""`leaf-dev logs timeline` answers who did what to a message: which fork's turn answered
 it, what Leaf refused or denied that fork, why no fork lane took a message, and
 where each of the session's agent turns stands now."""
 
@@ -152,7 +152,7 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     )
 
     result = CliRunner().invoke(
-        cli, ["timeline", str(tmp_path), "--until", "2026-10-14T13:00:00Z"]
+        cli, ["logs", "timeline", str(tmp_path), "--until", "2026-10-14T13:00:00Z"]
     )
     assert result.exit_code == 0, result.output
     out = result.output

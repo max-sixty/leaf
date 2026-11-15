@@ -113,9 +113,13 @@ describe("published runtime bundle", () => {
       // The production layer is the one a prepared installation composes for a page
       // and serves beside its runtime, as the live shell publishes a revision.
       const install = join(directory, "install");
-      execFileSync("uv", ["run", "leaf-dev", "distribution", "--output", install], {
-        cwd: fileURLToPath(new URL("../..", import.meta.url)),
-      });
+      execFileSync(
+        "uv",
+        ["run", "leaf-dev", "site", "distribution", "--output", install],
+        {
+          cwd: fileURLToPath(new URL("../..", import.meta.url)),
+        },
+      );
       const runtime = join(directory, "layer");
       execFileSync(join(install, "bin", "leaf"), ["page", "init", runtime], {
         env: { ...process.env, XDG_STATE_HOME: join(directory, "state") },
@@ -161,7 +165,7 @@ describe("published runtime bundle", () => {
       const verifier = await readFile(
         fileURLToPath(
           new URL(
-            "../../dev/leaf_dev/commands/verify_site_browser.js",
+            "../../dev/leaf_dev/commands/site/verify_browser.js",
             import.meta.url,
           ),
         ),

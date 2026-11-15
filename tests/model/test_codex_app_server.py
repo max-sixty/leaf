@@ -60,7 +60,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf_dev.commands.response_times import page_timings
+from leaf_dev.commands.logs.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():

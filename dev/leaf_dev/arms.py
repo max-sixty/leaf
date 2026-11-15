@@ -1,7 +1,7 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+A command that runs Leaf at two versions, such as `stills`, `probe` or `preview --base`, runs
 `head`, this working tree in place with its uncommitted edits, and `base`, the merge
 base with the local `main` unless `--base REF` names another commit (`choose_arms`,
 `base_option`). The base is the whole tree at its commit, so it serves pages, runs the
@@ -108,7 +108,7 @@ MODELS = {
     CodexHarness.name: "gpt-6.1-sol",
     "user": "gpt-6.1-sol",
     # It answers only setup and the developer's turns, so a fast one does.
-    "claude-code-session": "claude-sonnet-5-5",
+    "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",

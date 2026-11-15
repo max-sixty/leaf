@@ -20,7 +20,7 @@ from pathlib import Path
 
 from websockets.exceptions import ConnectionClosed
 
-from leaf.codex import private_app_server, stop_app_server
+from leaf.codex import private_app_server
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 
 
@@ -368,12 +368,7 @@ class CodexChild:
                         env=self.env,
                         output=output,
                     )
-            endpoint, self.app_server = self.resources.enter_context(self.server)
-            # The limit covers the task's start too. App Server answers each request
-            # however long it takes, so giving up stops it, which ends any request.
-            self.deadline.start()
-            self.resources.callback(self.deadline.cancel)
-            self.task = Task(endpoint, self._hear)
+            self.task = Task(self.resources.enter_context(self.server)[0], self._hear)
             self.resources.callback(self.task.socket.close)
             if payload:
                 trust_plugin_hooks(self.task, self.cwd)
@@ -391,6 +386,7 @@ class CodexChild:
                 "thread/resume" if session else "thread/start", params
             )["thread"]["id"]
             self.task.say(self.prompt, self.schema)
+            self.deadline.start()
             return self
         except BaseException:
             self.resources.close()
@@ -425,7 +421,7 @@ class CodexChild:
     def _give_up(self):
         self.timed_out.touch()
         self.closing = True
-        stop_app_server(self.app_server)
+        self.task.socket.close()
 
     def __exit__(self, *exc):
         self.deadline.cancel()

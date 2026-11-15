@@ -13,8 +13,7 @@ import socket
 import subprocess
 import sys
 import threading
-import time
-from contextlib import ExitStack, contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -61,7 +60,6 @@ from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
-from leaf import session_runtime as session_runtime_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -772,111 +770,6 @@ def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
         codex_adapter_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
     assert not leases_model.adapter_is_live(harness.session)
     assert not leases_model.wait_is_live(None, harness.session)
-
-
-def test_a_hook_behind_another_start_of_delivery_is_refused_at_its_deadline(
-    monkeypatch,
-):
-    """Another start of the task's delivery holds the start lock while it waits for
-    its own adapter, however long that takes. A hook preparing delivery behind it
-    stops waiting at its own deadline and is refused, so it still answers inside its
-    harness's timeout."""
-    harness = harness_model.CodexHarness(session="codex-thread", agent="Codex")
-    start_lock = codex_adapter_model.adapter_start_lock_path(harness.session)
-    # Past the lock, a preparation that waited for it starts no real adapter.
-    monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: ["page"])
-    monkeypatch.setattr(
-        codex_adapter_model, "starting_detached", lambda *_a, **_k: nullcontext()
-    )
-    outcome = []
-
-    def prepare():
-        try:
-            with codex_adapter_model.preparing_adapter(harness, time.monotonic()):
-                outcome.append("prepared")
-        except Refused as error:
-            outcome.append(str(error))
-
-    hook = threading.Thread(target=prepare, daemon=True)
-    with cleanup_model.flocked(start_lock):
-        hook.start()
-        hook.join(STATED_TIMEOUT)
-        waited = hook.is_alive()
-    hook.join(STATED_TIMEOUT)
-    assert not waited
-    assert outcome == ["another start of this task's Leaf delivery was still running"]
-
-
-@pytest.mark.parametrize("caller", ["command", "hook"])
-def test_a_switch_of_leaf_waits_for_the_former_adapter_however_long_it_takes(
-    monkeypatch, caller
-):
-    """Once a task selects another Leaf, the adapter running from the former one
-    leaves at the top of its next pass, which can follow a 30 s wait between
-    retries. A command preparing delivery from the selected Leaf waits for that
-    adapter's lease to go, however long that takes, then starts the new adapter
-    under no deadline of its own. Only a caller's own deadline, a hook's, refuses
-    the switch before then, leaving the former adapter running."""
-    session = "codex-thread"
-    harness = harness_model.CodexHarness(session=session, agent="Codex")
-    lifetime = {"pid": os.getpid()}
-    cleanup_model.ensure_session(session, lifetime)
-    monkeypatch.setattr(harness_model.CodexHarness, "lifetime", lambda _: lifetime)
-    selected = session_runtime_model.own_launcher()
-    session_runtime_model.select_launcher(session, selected)
-    former = leases_model.take_lease(leases_model.adapter_lease_path(session))
-    former.write(
-        codex_adapter_model.ADAPTER.encode(
-            {"app_server": None, "launcher": "/former/leaf/bin/leaf"}
-        )
-    )
-    former.flush()
-
-    class Clock:
-        """Each reading an hour after the last, past any bound a wait could
-        set, and the former adapter leaving at the third look."""
-
-        now = time.monotonic()
-        looks = 0
-
-        def monotonic(self):
-            self.now += 3600
-            return self.now
-
-        def sleep(self, _seconds):
-            self.looks += 1
-            if self.looks == 3:
-                leases_model.release_lease(former)
-
-    clock = Clock()
-    monkeypatch.setattr(codex_adapter_model, "time", clock)
-    started = []
-
-    @contextmanager
-    def starting_detached(_arguments, **options):
-        started.append(options)
-        yield {}
-
-    monkeypatch.setattr(codex_adapter_model, "starting_detached", starting_detached)
-
-    try:
-        if caller == "command":
-            with codex_adapter_model.preparing_adapter(harness):
-                pass
-            assert clock.looks == 3
-            [options] = started
-            assert (options["launcher"], options["deadline"]) == (selected, None)
-        else:
-            with (
-                pytest.raises(Refused, match="did not release its session"),
-                codex_adapter_model.preparing_adapter(harness, clock.now + 60),
-            ):
-                pass
-            assert started == []
-            assert leases_model.adapter_is_live(session)
-    finally:
-        if not former.closed:
-            leases_model.release_lease(former)
 
 
 @pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])

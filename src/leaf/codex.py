@@ -153,11 +153,6 @@ from .state import (
     turn_open,
 )
 
-# How long Leaf waits on a start that can hang without closing anything: a spawned
-# App Server's listen, a connection's opening handshake, before its keepalive runs,
-# and a desktop start through the app's router, whose requests name a timeout.
-# The first two take about 0.1 s and 40 ms on an 18-core Mac at load 10. A request
-# on an open connection waits for its answer instead (`app_server_request`).
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf page claim`).
@@ -361,7 +356,6 @@ def app_server_request(
     on_notification=None,
     *,
     stopped=None,
-    deadline: float | None = None,
 ) -> dict:
     """Make one request on an App Server connection and return its result.
 
@@ -372,31 +366,15 @@ def app_server_request(
     because that choice is what separates a stream it is following from a snapshot
     request whose answer outranks everything sent before it.
 
-    A request waits for its answer however long it takes. App Server answers every
-    request, and a request can take as long as the task's history: a full-history
-    `thread/resume` of a 3,800-turn task took 9–12 s at load 16 on 18 cores. The
-    connection's end stops the wait by raising `ConnectionClosed`. App Server's exit
-    closes its socket, and the websocket's keepalive closes the connection when App
-    Server stops answering its pings, which it answers while it works on a request.
-    A send to an App Server that has stopped reading holds those pings back, so only
-    App Server's exit ends it. A caller with a budget of its own, such as
-    inference's cap on a request's cost, passes its `deadline`, a
-    `time.monotonic()` reading. Once that has passed, the request is not sent, or
-    its wait raises `TimeoutError`. `stopped` lets a client being shut down stop
-    waiting on a peer that is still talking.
+    A request waits for its answer however long it takes, as a full-history resume
+    of a long task can take tens of seconds. Only the connection's close ends the
+    wait: App Server's exit, or the websocket's keepalive once App Server stops
+    answering its pings. `stopped` lets a client being shut down stop waiting on a
+    peer that is still talking.
     """
-
-    def left() -> float | None:
-        if deadline is None:
-            return None
-        if (remaining := deadline - time.monotonic()) <= 0:
-            raise TimeoutError(f"Codex App Server did not answer {method} in time")
-        return remaining
-
-    left()
     socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
     while stopped is None or not stopped():
-        message = json.loads(socket.recv(timeout=left()))
+        message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
                 from .registry.schema import json_value
@@ -416,8 +394,6 @@ def app_server_handshake(
     name: str,
     title: str,
     on_notification=None,
-    *,
-    deadline: float | None = None,
 ) -> None:
     """Complete the exchange every Leaf App Server connection opens with."""
     app_server_request(
@@ -426,7 +402,6 @@ def app_server_handshake(
         request_id,
         _initialize_params(name, title),
         on_notification,
-        deadline=deadline,
     )
     socket.send(json.dumps({"method": "initialized", "params": {}}))
 

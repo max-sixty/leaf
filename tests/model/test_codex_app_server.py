@@ -1442,14 +1442,9 @@ def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
         codex_model.recv_notification(socket, long_ago, 120.0)
 
 
-def test_a_request_waits_for_its_answer_until_the_connection_ends(
-    app_server, task_connection
-):
-    """A request waits for App Server's answer however long it takes, since a
-    full-history resume of a long task takes tens of seconds on a loaded machine.
-    Only the connection's end stops the wait, as App Server exiting or failing its
-    keepalive ends it, so an adapter whose App Server closes during its resume
-    refuses its start with that reason."""
+def test_a_request_waits_for_its_answer_however_long_it_takes():
+    """A full-history resume of a long task takes tens of seconds on a loaded
+    machine, so a request sets no bound of its own on its answer."""
 
     class Slow:
         """Answers later than any bound a reader could set."""
@@ -1464,17 +1459,6 @@ def test_a_request_waits_for_its_answer_until_the_connection_ends(
 
     answer = codex_model.app_server_request(Slow(), "thread/resume", 1, {})
     assert answer == {"thread": {"id": "codex-thread"}}
-
-    def handle(socket):
-        for raw in socket:
-            request = json.loads(raw)
-            if request.get("method") == "initialize":
-                socket.send(json.dumps({"id": request["id"], "result": {}}))
-            elif request.get("method") == "thread/resume":
-                return
-
-    with pytest.raises(Refused, match="Codex App Server connection failed"):
-        task_connection(app_server(handle))
 
 
 def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):

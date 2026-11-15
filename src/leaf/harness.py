@@ -170,13 +170,11 @@ class Harness:
         """
 
     @contextmanager
-    def preparing_delivery(self, deadline: float | None = None):
+    def preparing_delivery(self):
         """Prepare delivery and retain it until the caller publishes its page.
 
         The adapter is kept from no-page retirement throughout this boundary.
         A failed preparation therefore precedes any page ownership transition.
-        A caller with a deadline of its own, a `time.monotonic()` reading, passes
-        it (`codex_adapter.preparing_adapter`).
         """
         self.ensure_delivery()
         yield
@@ -680,14 +678,14 @@ class CodexHarness(EnvironmentHarness):
             pass
 
     @contextmanager
-    def preparing_delivery(self, deadline: float | None = None):
+    def preparing_delivery(self):
         from .codex_adapter import preparing_adapter
 
         # A model wait already selected by this task remains its watcher.
         if wait_is_live(None, self.session) and not adapter_is_live(self.session):
             yield
             return
-        with preparing_adapter(self, deadline):
+        with preparing_adapter(self):
             yield
 
     def lifetime(self) -> dict:

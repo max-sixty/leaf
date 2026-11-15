@@ -84,6 +84,7 @@ import { draftStore } from "./storage.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { retainUserIntent } from "./user-intent.js";
+import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
@@ -977,7 +978,8 @@ export function restoreDraftEditing(editing, input) {
     )
       return false;
     focusDestination(field, "return", { caret: editing.selection });
-    [field.scrollLeft, field.scrollTop] = editing.scroll;
+    const [left, top] = editing.scroll;
+    setScroll(field, { left, top });
     return true;
   }
   return false;

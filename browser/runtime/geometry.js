@@ -672,8 +672,12 @@ export function shownRect(item, clips) {
 /** @param {Element | Range} item @param {ClipCache} clips @param {Box} [box] */
 export function seenRect(item, clips, box = placeBox(item)) {
   const holder = placeHolder(item);
-  const shown = holder && clippedPlace(item, clips, box);
-  return holder && shown ? inFront(shown, holder) : null;
+  // What clips a box only cuts it, so a box the visible viewport's height doesn't reach
+  // shows nothing in front of the user, and its walk goes unread.
+  const { offsetTop, height } = visualViewport;
+  if (!holder || box.bottom <= offsetTop || box.top >= offsetTop + height) return null;
+  const shown = clippedPlace(item, clips, box);
+  return shown ? inFront(shown, holder) : null;
 }
 // What of `box`, already cut by every box clipping `item`, is in front of the user: its
 // part within the visible viewport's height, less the boxes the chrome covers
@@ -1019,9 +1023,12 @@ const pagePlaneRect = (box, item, clips) => clipped(box, item, clips, false, fal
 // screen. A box out of layout costs no layout pass, where boxes hidden beside the shown
 // ones made every pass revisit them all. `nearObserver` maintains the reading for the
 // anchored controls (css-anchors.js, `anchorView`) and paint sets (target-paint-geometry.js,
-// `paintSet`); `nearWindow` reads it at once for a first presentation, which cannot wait
-// for the observer's first task. It clips at each scroller exactly, so it calls near only
-// what the observer will, and the observer's first record adds the rest.
+// `paintSet`), and starts work a widget holds until the reader nears it
+// (presentation.js, `whenNear`); `nearWindow` reads it at once for a first
+// presentation, which cannot wait for the observer's first task. It clips at each
+// scroller exactly, so it calls near only what the observer will, and the observer's
+// first record adds the rest. A percentage scroll margin misreads in Chromium
+// (notes/browser-support.md, "Percentage scroll margins in Chromium").
 /** @param {IntersectionObserverCallback} callback */
 export const nearObserver = (callback) =>
   new IntersectionObserver(callback, { rootMargin: "100%", scrollMargin: "600px" });

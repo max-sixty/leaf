@@ -131,7 +131,7 @@ test("Leaf says what it observes of an update, and the agent only what it did", 
 // starts, and says so until the server has the update.
 test("a send that launches the agent says so until the server has it", () => {
   assert.deepEqual(said({ ...workflow("first", "sending"), launching: true }), [
-    "Launching agent container",
+    "Starting the agent",
     "leaf",
   ]);
   assert.deepEqual(said({ ...workflow("next", "sending"), launching: false }), [

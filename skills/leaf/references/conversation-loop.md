@@ -135,13 +135,8 @@ its result, put it on the page, move finished work out of the open work
 (`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
 that asked, linking to the result.
 
-Workers return results to you and leave the page alone. The server, the watcher,
-acknowledgements, replies, starts, status, `index.html`, and stamps stay yours. The
-exceptions are a command hub worker (the `worker` value from
-`leaf page instructions <page>`) and a Codex watcher task
-(`references/codex-watcher.md`). Say so in each brief, since a worker that inherits
-your conversation inherits the page too. Work that needs its own conversation with
-the user belongs in its own session, with its own page.
+Work that needs its own conversation with the user belongs in its own session, with
+its own page.
 
 Decisions built from a worker's report tend to keep the report's shape, and the
 brief sets that shape. When the user will decide on what a worker finds, such as an
@@ -194,11 +189,12 @@ comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On Me doesn't
-hold. It asks each in a new thread as your message with `--obligation`, on the passage
-it concerns or the page, and tells you at your next step what it wrote. Where a few of
-a page's words have gone stale, it swaps in new ones and tells you the old and new
-words; change them back or rewrite them if they're wrong, and carry the change into
-any file you build the page from. It also tells you what else it found, such as a
+hold. It asks each as your message with `--obligation`, in a new thread on the
+passage it concerns or the page, or, for a question asked before, in that question's
+thread under its id, which reopens the thread if the user closed it. It tells you at
+your next step what it wrote. Where a few of a page's words have gone stale, it swaps
+in new ones and tells you the old and new words; change them back or rewrite them if
+they're wrong, and carry the change into any file you build the page from. It also tells you what else it found, such as a
 page that still says what has since changed, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't

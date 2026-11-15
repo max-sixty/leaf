@@ -153,10 +153,6 @@ producer publishes in the turn that commits the matching rendering, and publishe
 `null` rather than keep stale records after a failed replacement. Leaf doesn't check a
 published value against its contract, so publish only values that fit it.
 
-Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
-with `loadDeferred(value, key)`, passing the value Leaf delivered that the row came
-from; it throws if the source changed in the meantime.
-
 ### Marking drawn data
 
 Mark which nodes show data with plain attributes, so comments on them anchor to the
@@ -303,10 +299,12 @@ To render generated Leaf source as an isolated working preview, use
 `mountSample(frame, {source})` from the same module. The [generated sample
 workflow](live-samples.md#generated-samples) covers readiness, sizing and disposal.
 
-The page must have an active Codex, Claude Code or Pi claim. The host reuses that harness's
-existing login and selects its model: Luna for Codex, Haiku for Claude, and the model
-the user configured for Pi. Pi has no structured-output mode, so it is given the schema
-and its answer is validated against it; an answer that doesn't match rejects the promise.
+The page must have an active Codex, Claude Code or Pi claim, and a Claude Code claimant's
+session must be running, since Leaf's plugin in it makes the call. The host reuses that
+harness's existing login and selects its model: Luna for Codex, Haiku for Claude, and the
+model the user configured for Pi. Neither Claude Code's call nor Pi has a
+structured-output mode, so each is given the schema and its answer is validated against
+it; an answer that doesn't match rejects the promise.
 Credentials stay on the host; a widget cannot choose the model or supply tools. Leaf does not yet enforce a
 spending allowance: repeated calls can continue to incur charges. Usage is returned
 per call, not retained as a billing ledger. Independent generation calls run

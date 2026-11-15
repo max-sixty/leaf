@@ -20,11 +20,12 @@ const { collapse, blocks, context, phrasing } = kernel.$passages;
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
 // `-` meanings of their own.
-const escaped = collapse
+// `COLLAPSE_CHARS` is that class's body, for a pattern that adds to the set.
+export const COLLAPSE_CHARS = collapse
   .split("")
   .map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`)
   .join("");
-export const COLLAPSE = new RegExp(`[${escaped}]+`, "g");
+export const COLLAPSE = new RegExp(`[${COLLAPSE_CHARS}]+`, "g");
 export const TEXT_BLOCK = blocks.join(",");
 // The elements a line of words runs through (`$passages.phrasing`).
 export const PHRASING = new Set(phrasing);

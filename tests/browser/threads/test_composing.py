@@ -38,7 +38,7 @@ from browser.threads import (
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame, rendered, wait_for_probe
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -137,10 +137,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
 
     # A margin card follows the send with its own motion (box-motion.js), which ends
     # before the card is read where it stands.
-    page.wait_for_function(
-        "() => !document.querySelector('.lf-margin-preview')?.getAnimations({subtree: true})"
-        ".some(a => Number.isFinite(a.effect?.getComputedTiming().endTime))"
-    )
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
     route = held.pop()
     route.fulfill(
         status=400,
@@ -440,21 +437,27 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             )
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
-            # The scrollport can clip the message's top edge. Sample inside the
-            # sticky header's visible paint, clear of its words and controls: a card
-            # beside its passage rises as one piece on a send, which leaves the
-            # pointer on the new message's Copy, lit in its own hover face.
-            head_point = message.evaluate(
+            # Something can cover either edge of the message. The scrollport can clip
+            # its top, and for the 300 ms that the send's box tween carries the reply
+            # box down from where it stood, the reply box covers its foot
+            # (runtime/box-motion.js). So sample the ground at the middle of the
+            # sticky header's row and of the words' row, at an x clear of the words
+            # and the controls: a card beside its passage rises as one piece on a
+            # send, which leaves the pointer on the new message's Copy, lit in its
+            # own hover face.
+            head_point, body_point = message.evaluate(
                 """node => {
                   const box = node.getBoundingClientRect();
-                  const head = node.querySelector('.lf-msg-head').getBoundingClientRect();
                   const controls = node.querySelector('.lf-msg-controls').getBoundingClientRect();
-                  return [Math.round(controls.left - box.left) - 12,
-                    Math.round(head.top + head.height / 2 - box.top)];
+                  const x = Math.round(controls.left - box.left) - 12;
+                  return ['.lf-msg-head', '.lf-msg-body'].map(part => {
+                    const row = node.querySelector(part).getBoundingClientRect();
+                    return [x, Math.round(row.top + row.height / 2 - box.top)];
+                  });
                 }"""
             )
             assert pixels.getpixel(tuple(head_point)) == pixels.getpixel(
-                (head_point[0], pixels.height - 4)
+                tuple(body_point)
             )
     held.pop().continue_()
     page.unroute("**/api/event")

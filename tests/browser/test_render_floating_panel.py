@@ -25,7 +25,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import solid_png
+from render_cases_layout import page_at_rest, solid_png
 from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
@@ -59,6 +59,7 @@ from render_harness import (
     stamp_page,
     ticked,
     told,
+    undo,
     watched,
     write,
 )
@@ -156,8 +157,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     # Resolving moves the user on: with no other thread open, back to Threads.
     expect(page.locator(panel_view("threads"))).to_be_visible()
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
     expect(page.locator(panel_view("thread"))).to_be_focused()
     expect(page.locator(panel_view("thread"))).to_have_attribute(
@@ -380,8 +380,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     expect(threads).to_be_visible()
-    with sending(page, "the undo"):
-        page.keyboard.press("z")
+    undo(page)
     expect(thread).to_be_focused()
     expect(settle).to_have_accessible_name("Resolve thread")
 
@@ -571,13 +570,13 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     holding(page, held, 1, "the resolve")
     expect(said).to_have_text(f"Resolved “{first}”")
     expect(undo).to_contain_text("Undo")
-    # The refusal arrives as news, after the Resolve's rendering has settled. Its
-    # thread rejoins Open in the Threads view as that view leaves for the thread,
-    # which carries the Resolved heading under it down: the one move the refusal
-    # makes without input, inside the panel (browser/AGENTS.md, "The page holds still
-    # under the user's aim", allows a rare path that move).
-    rendered(page)
-    one_frame(page)
+    # The refusal arrives as news once the Resolve's motion has ended, which can be
+    # well after its rendering settles. Its thread rejoins Open in the Threads view as
+    # that view leaves for the thread, which carries the Resolved heading under it
+    # down: the one move the refusal makes without input, inside the panel
+    # (browser/AGENTS.md, "The page holds still under the user's aim", allows a rare
+    # path that move).
+    page_at_rest(page)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
@@ -2053,6 +2052,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     assert long["panel"] >= long["window"] * 0.1, long
 
 
+# The field's place is its words': while the caret is in it, its slot runs out to the
+# panel's edges for its ring, and the words stay put (floating-panel.css).
 GROWTH = """() => {
   const view = document.querySelector('.lf-fp-view[data-lf-route=thread]');
   const box = (node) => node.getBoundingClientRect();
@@ -2064,7 +2065,7 @@ GROWTH = """() => {
     height: box(view).height,
     cap: parseFloat(getComputedStyle(view.parentElement).maxHeight),
     bottom: box(view).bottom,
-    field: box(document.querySelector('.lf-fp-field')).top,
+    field: box(document.querySelector('.lf-fp-field leaf-text')).top,
     turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
                    foot ? box(foot).top - box(turn).bottom : box(view).bottom - box(turn).bottom],
     foot: foot && box(foot).bottom,
@@ -5103,6 +5104,65 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     assert view.evaluate(beside) == pytest.approx(stood, abs=1)
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
+    engine, request, serve
+):
+    """A wheel up the open thread's view, as the view gives up room at its top in the
+    same moment, as it does to a reply that gains a line or to a draft from another tab,
+    moves the thread as far as the wheel moves it alone, and the view gives way too
+    (scrolling.js, `keepFoot`). Firefox applies the wheel's scroll a frame or more after
+    the wheel, and the view's own move made meanwhile cancelled it: with 100px of room
+    taken from 300, a wheel of 200px up left the view 100px further down the thread
+    rather than 100px further up it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    thread_model.post_reply(
+        serve.page_dir, {"responds": root}, "The mounts come first. " * 120
+    )
+    page = floating(request.getfixturevalue(engine), url)
+    # The view opens 300px tall, so the room it gives up below is a share of its own.
+    page.add_style_tag(
+        content="leaf-floating-panel .lf-fp-view[data-lf-route='thread']"
+        " { max-height: 300px }"
+    )
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(panel_view("thread"))
+    expect(view.locator(".lf-msg")).to_have_count(2)
+    assert view.evaluate("v => v.clientHeight") == 300
+    # The room the view gives up stands in for a reply's new line, taken as the wheel
+    # is heard, before the browser applies its scroll.
+    view.evaluate("""v => v.addEventListener('wheel', () => {
+      if (v.dataset.giving) v.style.maxHeight = `${v.clientHeight - 100}px`;
+    }, {passive: true})""")
+    settled(page)
+    view.hover()
+    moved = {}
+    for giving in (False, True):
+        view.evaluate("v => { v.scrollTop = 400; }")
+        settled(page)
+        # The wheel's scroll ends once, the move the view owes made at that end.
+        stood = view.evaluate(
+            """async (v, giving) => {
+              if (giving) v.dataset.giving = '1';
+              const { watchScrollEnds } = await window.__lfCheckApi();
+              window.lfEnded = false;
+              const stop = watchScrollEnds((box) => {
+                if (box !== v) return;
+                stop();
+                window.lfEnded = true;
+              });
+              return v.scrollTop; }""",
+            giving,
+        )
+        page.mouse.wheel(0, -200)
+        page.wait_for_function("() => window.lfEnded")
+        moved[giving] = stood - view.evaluate("v => v.scrollTop")
+    assert moved[False] > 100, moved
+    assert moved[True] == pytest.approx(moved[False] - 100, abs=2), moved
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
     browser, serve, touch
@@ -6191,9 +6251,10 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
 
 def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     """Asking to write reaches the panel's field from any state it stands in: `c`
-    unfolds a panel folded to the leaf and rings the field as an anchored comment box is
-    ringed, so the move shows, and Resume writing comes back to a reply left unsent in a
-    thread the user has since closed, in the same field."""
+    unfolds a panel folded to the leaf and makes the field the box the words go in, out
+    to the panel's top, right and bottom edges with its ring just inside them and a
+    ground lighter than the panel's, so the move shows; and Resume writing comes back to
+    a reply left unsent in a thread the user has since closed, in the same field."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -6205,10 +6266,20 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
     page.keyboard.press("c")
     expect(panel).to_have_attribute("data-lf-rest", "row")
     expect(field(page)).to_be_focused()
-    ring = page.locator(".lf-fp-field .lf-compose-field").evaluate(
-        "box => [getComputedStyle(box).outlineStyle, getComputedStyle(box).outlineWidth]"
+    face = page.locator(".lf-fp-field").evaluate(
+        """box => {
+          const style = getComputedStyle(box);
+          const card = document.querySelector('.lf-fp-card');
+          const at = box.getBoundingClientRect(), edge = card.getBoundingClientRect();
+          return [style.outlineStyle, style.outlineWidth, style.outlineOffset,
+            style.backgroundColor !== getComputedStyle(card).backgroundColor,
+            [at.top - edge.top, edge.right - at.right, edge.bottom - at.bottom]
+              .map(Math.round)];
+        }"""
     )
-    assert ring == ["solid", "2px"], f"the field holding the caret wears {ring}"
+    assert face == ["solid", "2px", "-2px", True, [0, 0, 0]], (
+        f"the field holding the caret wears {face}"
+    )
     page.keyboard.press("Escape")
 
     page.locator("body").focus()

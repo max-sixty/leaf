@@ -457,11 +457,14 @@ def test_server_stop_closes_accepted_keep_alive_connections(
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
 
+    # A closed connection reads as end of stream or a reset. A socket still open,
+    # as one a surviving child process inherited would be, times out instead, and
+    # `TimeoutError` is an `OSError` this must not take for a close.
     accepted.settimeout(STATED_TIMEOUT)
     try:
         accepted.sendall(b"\r\n")
         remainder = accepted.recv(1)
-    except OSError:
+    except (ConnectionResetError, BrokenPipeError):
         remainder = b""
     assert remainder == b""
 

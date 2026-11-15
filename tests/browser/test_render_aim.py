@@ -396,7 +396,8 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate("scrollY") == before_scroll
-    assert expanded["width"] > compact["width"]
+    # It opens at the full measure, so it grows only downward as words arrive.
+    assert expanded["width"] == compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
     assert expanded["y"] >= 0 and expanded["y"] + expanded["height"] <= 900
@@ -869,12 +870,13 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     assert rest["top"] > stood["top"] + 0.5, (stood, rest)
 
 
-def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
-    """A comment box sizes to its words, so each key past its least width widens it;
-    the box stands at its new width in the frame the key lands, as a textarea sized to
-    its words does (box-motion.js, "Whose change it is"). Each key used to start a
-    tween that trailed the caret, and the field's cut hid most of the glyph just
-    typed until the tween caught up."""
+def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
+    """A comment box opens at the full measure and grows only downward, so a key that
+    takes it a new line stands it at its new height in the frame the key lands, as a
+    textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
+    used to start a tween that trailed the caret, and the field's cut hid what was
+    just typed until the tween caught up. A line taken at the window's foot is
+    `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
         browser,
         serve(
@@ -887,42 +889,37 @@ def test_a_key_that_widens_the_comment_box_draws_it_at_once(browser, serve):
     page.emulate_media(reduced_motion="no-preference")
     resized(page, 1000, 800)
     page.locator("#passage").click(modifiers=["Alt"])
-    open_compact_comment(page)
+    open_compact_comment(page, "The first line")
+    rendered(page)
     box = page.locator(".lf-fab-bar .lf-compose-field")
-    least = box.bounding_box()["width"]
-    # Words until the box has begun to widen past its least width.
-    for word in "the window is too short for what we see in practice".split():
-        page.keyboard.type(f"{word} ")
-        rendered(page)
-        if box.bounding_box()["width"] > least + 0.5:
-            break
-    else:
-        pytest.fail(f"the box never widened past {least}px")
-    wide = box.bounding_box()["width"]
+    tall = box.bounding_box()["height"]
     page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.keyboard.press("Shift+Enter")
     page.keyboard.type("m")
     page.wait_for_function(
-        "wide => document.querySelector('.lf-fab-bar .lf-compose-field')"
-        ".getBoundingClientRect().width > wide + 0.5",
-        arg=wide,
+        "tall => document.querySelector('.lf-fab-bar .lf-compose-field')"
+        ".getBoundingClientRect().height > tall + 0.5",
+        arg=tall,
     )
     # A reading of the box follows its size change before the frame after it paints.
     page.evaluate("() => new Promise(r => requestAnimationFrame(() => r()))")
     drawn = page.evaluate(
-        """() => {
+        r"""() => {
           const ground = document.querySelector('.lf-fab-ground');
-          const right = /inset\\(([^r)]*)/
+          const [top, right = top, bottom = top] = /inset\(([^r)]*)/
             .exec(getComputedStyle(ground.querySelector('.lf-box-fill')).clipPath)[1]
-            .trim().split(/\\s+/).map(Number.parseFloat)[1];
+            .trim().split(/\s+/).map(Number.parseFloat);
           const host = document.querySelector('.lf-fab-input');
           return {
-            right: ground.getBoundingClientRect().right - right + 1,
+            bottom: ground.getBoundingClientRect().bottom - bottom,
             cut: getComputedStyle(host).getPropertyValue('--lf-field-cut').trim(),
           };
         }"""
     )
-    assert drawn["right"] == pytest.approx(
-        box.bounding_box()["x"] + box.bounding_box()["width"], abs=0.5
+    stands = box.bounding_box()
+    assert drawn["bottom"] == pytest.approx(stands["y"] + stands["height"], abs=1.5), (
+        drawn,
+        stands,
     )
     assert drawn["cut"] in ("", "none"), drawn
 
@@ -1023,6 +1020,10 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
           return field.scrollHeight > field.clientHeight;
         }"""
     )
+    # The field's growth to its cap queues one more reveal of the caret at the end,
+    # which runs at the field's next scroll; let it run before scrolling the field to
+    # its top, or it scrolls the field back down and the wheel below moves the page.
+    rendered(page)
     box = bar.bounding_box()
     ceiling = page.evaluate(SHOWN_TOP)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
@@ -3706,7 +3707,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="field" type="text" value="Ada"></p>
+<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3759,7 +3760,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3805,8 +3806,8 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".choice")).to_have_css("outline-style", "solid")
+    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
+    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 

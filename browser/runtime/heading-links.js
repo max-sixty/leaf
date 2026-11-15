@@ -2,11 +2,11 @@
    whose press copies the page's URL ending in that address's fragment, so a reader can
    link to the section they are reading.
 
-   A heading's address is the outermost authored addressable it titles, by the rule that
-   names an element after its leading title (addressable-names.js, `leadingTitle`): a
-   section's address when the heading opens an identified section, an hgroup's when it
-   opens an identified hgroup, else the heading's own id. A heading with none of these
-   has no link, since a lent id would not survive the next revision.
+   A heading's address is the outermost authored addressable between it and the element
+   it titles (addressable-names.js, `titledElement`): a section's address when the
+   heading opens an identified section, an hgroup's when it opens an identified hgroup,
+   else the heading's own id. A heading with none of these has no link, since a lent id
+   would not survive the next revision.
 
    The control follows Copy at a code block's corner (code-copy.js): it stands in chrome
    (block-controls.js), hidden at rest, so it covers no words and takes no presses, and
@@ -36,7 +36,7 @@
    over every row. A heading named already, by its author or in its style, keeps
    those names, and the link writes a name of the heading's own beside them into its
    style, as other owners do, since a rule can't add a name to the ones a box has. */
-import { leadingTitle } from "./addressable-names.js";
+import { titledElement, titlingHeading } from "./addressable-names.js";
 import { fragmentUrl } from "./anchor-coordinate.js";
 import { isAddressable } from "./anchor-resolution.js";
 import { watchOwner } from "./arrivals.js";
@@ -50,7 +50,7 @@ import {
   watchNear,
   writeInsets,
 } from "./block-controls.js";
-import { copyControl, copyTrigger } from "./copy-control.js";
+import { copyControl, pressCopy } from "./copy-control.js";
 import { anchorReading, headerLevels, nameAnchor } from "./css-anchors.js";
 import { focusDestination, focused, onCurrentLocation } from "./focus.js";
 import { inlineStyle, keeps, keepsHidden, layoutPx } from "./keeps.js";
@@ -58,6 +58,7 @@ import { pageScope } from "./keyboard/register.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { HEADING, inChrome, pageQueryAll } from "./passages.js";
 import { upFrom } from "./shadow-tree.js";
+import { contentsRects } from "./shown-box.js";
 
 /** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
 /** @type {Map<Element, HeadingLink>} */
@@ -71,10 +72,11 @@ const LENT = RUNTIME_PAINT_ATTRIBUTE.headingLink;
 /** The element `heading`'s link names, or null where it has no address (header). */
 /** @param {Element} heading */
 export function headingAddress(heading) {
-  let address = isAddressable(heading) ? heading : null;
-  for (let at = heading.parentElement; at && leadingTitle(at) === heading;) {
+  const titled = titledElement(heading);
+  let address = null;
+  for (let at = /** @type {Element | null} */ (heading); at; at = at.parentElement) {
     if (isAddressable(at)) address = at;
-    at = at.parentElement;
+    if (at === titled) break;
   }
   return address;
 }
@@ -95,7 +97,7 @@ function headingAt(node) {
 function headingOn(node) {
   if (!(node instanceof Element)) return null;
   if (headingAt(node) === node) return headingAddress(node) ? node : null;
-  const title = leadingTitle(node);
+  const title = titlingHeading(node);
   return title && headingAt(title) === title && headingAddress(title) === node
     ? title
     : null;
@@ -165,9 +167,7 @@ function makeLink(heading) {
 /** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
-  const range = document.createRange();
-  range.selectNodeContents(heading);
-  const line = range.getClientRects()[0];
+  const [line] = contentsRects(heading);
   return line
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };
@@ -326,13 +326,9 @@ export function watchHeadingLinks() {
         title: "copy link to section",
         // The link's own control beside the heading takes a finger.
         touch: false,
-        // A control made by this press has not drawn its button yet.
         run: async () => {
           const link = stand(headingOn(focused()));
-          if (!link) return;
-          await customElements.whenDefined(link.control.localName);
-          await link.control.updateComplete;
-          copyTrigger(link.control)?.click();
+          if (link) await pressCopy(link.control);
         },
       },
     ],

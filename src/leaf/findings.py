@@ -158,6 +158,31 @@ def _explained(console: list[dict]) -> str:
     return "\n".join(_words(Finding.loads(entry)) for entry in console)
 
 
+def _fork_holds_thread(holder: dict, answers: bool) -> str:
+    """What a command acting as the main session hears where a fork or the line fork
+    holds its thread (`holding.authorize`): the holder, and, for a fork, whether the
+    command's answer took the thread from it, how to stop it and how the fork's own
+    commands act as the fork. No command answers a message a line fork holds, which
+    page state gives no answer reference."""
+    if holder["kind"] == "line":
+        return (
+            "a line fork holds this thread while writing the agent's working message;"
+            " this command acted as the main session beside it"
+        )
+    fork = holder["name"]
+    return (
+        f"fork {fork} held this thread; this command acted as the main session and"
+        " took the thread from it, so the fork's own writes there are refused from"
+        f" now on; to stop the fork, SendMessage {fork}"
+        if answers
+        else f"fork {fork} holds this thread; this command acted as the main session"
+        " beside it"
+    ) + (
+        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
+        " that begins with `leaf`)"
+    )
+
+
 def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
@@ -263,7 +288,7 @@ def _clipped_content(at: str, v: dict) -> str:
     if v["across"]:
         cuts.append(
             f"{v['across']}px of it past its width — let it wrap, or scroll it"
-            ' sideways with overflow-x: auto and class="scroll"'
+            ' sideways with overflow-x: auto and class="lf-scroll"'
         )
     return f"{at} cuts off its content where no scroll reaches it: " + "; ".join(cuts)
 
@@ -563,6 +588,9 @@ _TEXT = {
         if v["what"] == "children"
         else f"unchanged write: {v['what']} on {placed(v['node'])}"
     ),
+    "unmoved-scroll": lambda at, v: (
+        f"unmoved scroll: {v['how']} on {placed(v['node'])}, from {' < '.join(v['by'])}"
+    ),
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
         f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
@@ -675,7 +703,7 @@ _TEXT = {
         )
         + 'to give it more room, mark it data-width="wide" or "available" rather than'
         " sizing it past the column, or scroll it sideways in a box of its own with"
-        ' overflow-x: auto and class="scroll"'
+        ' overflow-x: auto and class="lf-scroll"'
     ),
     "outside-frame": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
@@ -724,6 +752,12 @@ _TEXT = {
     "covered-words": lambda at, v: (
         f"{at} draws {_json(v['words'])} in the same place as {v['under']}'s"
         f" {_json(v['covered'])}"
+    ),
+    "under-panel": lambda at, v: (
+        f"{at} ends under Leaf's panel: {_json(v['words'])} stays beneath it however"
+        " far the page scrolls, so leave the panel's room, var(--lf-foot-room),"
+        " between the last words and the window's foot (page-authoring.md, \"Style"
+        ' the page")'
     ),
     # Advice: what the author decides.
     "unreduced-motion": lambda at, v: (
@@ -843,6 +877,17 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
+    "inert-allocation": lambda at, v: (
+        f"{_bearing(at, v, _json(v['value']))} has no effect: "
+        + {
+            "flow": "the element takes no width of its own, so put it on the block"
+            " inside that needs the room",
+            "content": "only a block inside body, other than main, takes it, so put"
+            " it on the block that needs it",
+            "declared": "only a widget that draws into a box of a stated height"
+            " takes it",
+        }[v["holds"]]
+    ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
     ),
@@ -874,7 +919,7 @@ _TEXT = {
     "reserved-markers": lambda at, v: (
         f"{at} at line {v['line']} wears the runtime's own markers"
         f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
-        " runtime's to write"
+        " runtime's to write, but for the classes Leaf's idioms name"
     ),
     "ids-taken-by-messages": lambda at, v: (
         f"ids already taken by message markup: {_json(v['ids'])}"
@@ -1144,12 +1189,6 @@ _TEXT = {
         lambda v: (
             f"$data contract {v['contract']!r} resource expression"
             f" {v['expression']!r} is invalid: {v['error']}"
-        )
-    ),
-    "contract-records": _declared(
-        lambda v: (
-            f"$data contract {v['contract']!r} records must name distinct"
-            " items, key, and deferred fields"
         )
     ),
     "contract-schema": _declared(
@@ -1988,6 +2027,9 @@ _TEXT = {
     "watch-taken-over": lambda at, v: (
         "a watch between turns took over this session's pages"
     ),
+    # A command that acted as the main session on a thread a running fork or the line
+    # fork holds (`holding.authorize`), which goes through all the same.
+    "fork-holds-thread": lambda at, v: _fork_holds_thread(v["holder"], v["answers"]),
     # The thread and task commands' refusals (`thread`, `todos.cmd_create`), before or
     # beside the append door's. `held` is what the log holds a refused id as
     # (`validation.admission.logged_id`), and `answer` the command that answers an

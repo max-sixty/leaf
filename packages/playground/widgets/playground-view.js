@@ -486,9 +486,12 @@ export function createPlayground(host) {
                     )}
                   </select>`
                 : kind === "choice"
-                  ? html`<div
+                  ? // A group, not a radiogroup, which may hold only radios: a
+                    // candidate's preview keeps its own buttons, fields and media. The
+                    // radios share a name, so the browser walks them as one set.
+                    html`<div
                       class="lf-playground-input lf-playground-choices"
-                      role="radiogroup"
+                      role="group"
                       aria-label=${label}
                     >
                       ${choices}

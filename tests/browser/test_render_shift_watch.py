@@ -1591,7 +1591,11 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
         )
         == "presented"
     )
-    # While the preparation waits, the press owns no other movement on the page.
+    # While the preparation waits, the press owns no other movement on the page, since
+    # its rendering closes without waiting for the preparation. The press still owns
+    # the first frame that reads the loop settled, which can paint after `rendered`
+    # returns, so the move waits for the watch to close the press's rendering.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     control.evaluate("node => node.style.marginTop = '40px'")
     rendered(page, facts=("updatesSettled",))
     judge_watches()
@@ -1608,6 +1612,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
 
     # Once it has landed, the press owns nothing further. (The watch names each node
     # once, so this move is the diff's own, which the landing moved for the press.)
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()
@@ -1615,6 +1620,61 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     assert any(
         within(error.values["node"], "lf-diff#patch.lf-rendered") for error in moved
     ), moved
+
+
+def _far_sample(sample_id, after_id):
+    """A live sample whose page is shorter than the frame's placeholder, with a control
+    after it that its fit moves."""
+    return (
+        f'<lf-sample id="{sample_id}"><template id="{sample_id}-source" data-sample>'
+        f'<p>Practice</p><div style="height: 100px"></div></template></lf-sample>'
+        f'<p><button id="{after_id}">After the sample</button></p>'
+    )
+
+
+def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
+    """A link that jumps to a live sample far down starts its page there (`whenNear`),
+    and the frame fits that page as soon as it draws, carrying what follows it: the
+    jump owns that landing, however late it comes. It owns nothing after the landing,
+    so a control that moves once the frame has fitted is reported. A sample a script
+    brings near, with no input, fits as news, and its fit is reported too."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fit on arrival",
+                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
+                '<div style="height: 400vh"></div>'
+                + _far_sample("far", "after")
+                + '<div style="height: 400vh"></div>'
+                + _far_sample("scripted", "later")
+                + '<div style="height: 100vh"></div>',
+            )
+        ),
+    )
+    fitted = """sample => {
+        const frame = sample.querySelector('iframe');
+        return sample.ready.then(() => frame.clientHeight < 300);
+    }"""
+    page.locator("#jump").click()
+    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#after"))
+
+    page.locator("#scripted").evaluate(
+        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(moved, "button#later"), moved
 
 
 @pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])
@@ -2060,8 +2120,8 @@ def test_a_frame_off_screen_judges_existing_records_without_awaiting_paint(
     browser, when, opaque
 ):
     """A child frame its embedding page hides or scrolls out of the viewport paints
-    nothing on screen, and Chrome stops rendering an opaque one there, as it does the
-    feature gallery's samples below the fold. The frame learns it is off screen itself,
+    nothing on screen, and Chrome stops rendering an opaque one there, as it does a
+    live sample scrolled out of the window. The frame learns it is off screen itself,
     across origins, and its judgement ends on that fact rather than awaiting paint."""
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})
@@ -2413,43 +2473,75 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # press's rendering is still open when the news lands. What moves the line is the
 # page's `data-motion`: the news growing a box above it (none), the news beginning a
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
-# news that moves nothing (`press`). The matched marginTop arm checks the same
-# ownership with translation instead of size-induced flow.
+# news that moves nothing (`press`). The translation arms slide the line itself
+# instead of flowing it: by its margin, or by a registered property its translate
+# reads, as box-motion.js carries a part. `data-retarget` has the news cancel the
+# slide and begin its replacement in the task that adopts the reading, as box-motion.js
+# carries a send's ride on through the server's answer: from where it is drawn to the
+# same end (`drawn`) or a farther one (`farther`), or from where it began
+# (`restart`). A translation paints no layout shift, which every passive
+# verdict starts from, so a box no reader reads slides in the window meanwhile, as a
+# panel's controls redrawn by the reading shift.
 NEWS = """<!doctype html><body style="margin:0">
+<style>@property --carry { syntax: '<length>+'; inherits: false; initial-value: 0px 0px; }</style>
 <script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
+<div id="beat" style="position:fixed;left:0;bottom:0;width:8px;height:8px;background:gray"></div>
 <script>
   const frames = (n, then) => requestAnimationFrame(() => n > 1 ? frames(n - 1, then) : then());
-  const motion = () => document.body.dataset.motion;
-  const slide = () => document.body.dataset.translation === 'true'
-    ? document.getElementById("below").animate(
-        [{ marginTop: "0px" }, { marginTop: "300px" }], { duration: 400, fill: "forwards" })
-    : document.getElementById("bar").animate(
-        [{ height: "0px" }, { height: "300px" }], { duration: 400, fill: "forwards" });
+  const arm = () => document.body.dataset;
+  const keyframes = (from, to = 300) => arm().translation === 'carry'
+    ? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }]
+    : [{ marginTop: `${from}px` }, { marginTop: `${to}px` }];
+  const slide = () => {
+    if (arm().translation === 'carry') below.style.translate = 'var(--carry)';
+    window.sliding = arm().translation
+      ? below.animate(keyframes(0), { duration: 400, fill: 'forwards' })
+      : bar.animate([{ height: '0px' }, { height: '300px' }], { duration: 400, fill: 'forwards' });
+  };
+  const retarget = () => {
+    const style = getComputedStyle(below);
+    const drawn = arm().translation === 'carry'
+      ? style.getPropertyValue('--carry').split(' ')[1] : style.marginTop;
+    const left = 400 - sliding.currentTime;
+    sliding.cancel();
+    window.sliding = below.animate(
+      arm().retarget === 'restart' ? keyframes(0)
+        : keyframes(parseFloat(drawn), arm().retarget === 'farther' ? 400 : 300),
+      { duration: left, fill: 'forwards' });
+  };
   document.getElementById("press").addEventListener("pointerdown", (event) => {
-    if (motion() === "press") slide();
-    const until = performance.now() + Number(document.body.dataset.work);
+    if (arm().motion === "press") slide();
+    if (arm().retarget) beat.animate([{ left: '0px' }, { left: '400px' }], { duration: 1000 });
+    const until = performance.now() + Number(arm().work);
     while (performance.now() < until) {}
     frames(3, () => {
-      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
+      arm().inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
       document.body.setAttribute("data-lf-reading", "news");
-      if (motion() === "news") slide();
-      if (!motion()) document.getElementById("above").style.height = "40px";
-      document.body.dataset.newsFromTrustedPress = String(event.isTrusted);
+      if (arm().motion === "news") slide();
+      if (!arm().motion) document.getElementById("above").style.height = "40px";
+      // Once the watch has heard the reading, as the runtime's renderers follow it.
+      if (arm().retarget) queueMicrotask(retarget);
+      arm().newsFromTrustedPress = String(event.isTrusted);
     });
   });
 </script>"""
 
 
-def news_page(browser, motion="", work_ms=65, *, translation=False):
+def news_page(browser, motion="", work_ms=65, *, translation="", retarget=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(NEWS))
     # The stand-in's page has presented, so its shifts are judged.
     page.evaluate("document.body.setAttribute('data-lf-presented', '')")
     page.evaluate(
-        "args => { document.body.dataset.motion = args.motion; document.body.dataset.work = args.work; document.body.dataset.translation = String(args.translation); }",
-        {"motion": motion, "work": work_ms, "translation": translation},
+        "arm => Object.assign(document.body.dataset, arm)",
+        {
+            "motion": motion,
+            "work": work_ms,
+            "translation": translation,
+            "retarget": retarget,
+        },
     )
     page.locator("#press").click()
     page.wait_for_function("document.body.dataset.newsFromTrustedPress !== undefined")
@@ -2809,13 +2901,27 @@ def test_width_animation_cannot_credit_a_script_height_change(browser):
     consume_browser_errors(page, moved_within("button#control"))
 
 
-@pytest.mark.parametrize("motion", ["press", "news"])
-def test_sampled_native_translation_distinguishes_press_from_news(browser, motion):
-    """Identical native motion survives news only when the trusted press began it."""
-    page = news_page(browser, motion, translation=True)
-    page.wait_for_function("parseFloat(getComputedStyle(below).marginTop) > 0")
+@pytest.mark.parametrize(
+    "motion,translation,retarget",
+    [
+        ("press", "margin", ""),
+        ("news", "margin", ""),
+        ("press", "carry", "drawn"),
+        ("press", "carry", "restart"),
+        ("press", "carry", "farther"),
+    ],
+)
+def test_sampled_native_translation_distinguishes_press_from_news(
+    browser, motion, translation, retarget
+):
+    """Identical native motion survives news only when the trusted press began it.
+    News may retarget the press's motion: a replacement begun from where the cancelled
+    slide is drawn, toward its end, carries it on; one begun from its start jumps, and
+    one sent farther moves the line by news."""
+    page = news_page(browser, motion, translation=translation, retarget=retarget)
+    page.evaluate("sliding.finished.then(() => {})")
     judge_watches()
-    if motion == "press":
+    if motion == "press" and retarget in ("", "drawn"):
         assert take_browser_errors(page) == []
     else:
         consume_browser_errors(page, moved_within("div#below"))
@@ -3162,6 +3268,12 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     page.wait_for_function("scrollY > 0")
     paint(page)
     judge_watches()
+    if how == "passive":
+        # The gesture's own scroll moves nothing, which is this case's point and a
+        # scroll write the write watch reports.
+        consume_browser_errors(
+            page, {"code": "unmoved-scroll", "node": ["html"], "how": "scrollBy"}
+        )
     if how in ("scrolls", "renames its entry"):
         consume_browser_errors(
             page,
@@ -5006,21 +5118,37 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
     )
 
 
-def test_a_tap_s_press_letting_go_is_heard(browser):
-    """A tap leaves its control `:active` on the browser's timer after its last event,
-    so the press feedback letting go restyles it with no event; the sensor still
-    reads it (`shift_watch.js`, "Unchanged frames")."""
+# What the tap lands on: the control itself, or a door whose press shows the control
+# over it, under the finger, before the tap lands, as a heading's tap shows its link.
+PRESSES = {
+    "control": "",
+    "shown under the finger": (
+        '<button id="door" style="position: absolute; inset: 0 auto auto 0; width: 9em"'
+        ' onpointerdown="control.hidden = false">Door</button>'
+    ),
+}
+
+
+@pytest.mark.parametrize("press", PRESSES)
+def test_a_tap_s_press_letting_go_is_heard(browser, press):
+    """A tap leaves `:active` on the browser's timer after its last event, on what stood
+    under the finger as the browser took the tap: the control tapped, or one the press
+    showed there first. The press feedback letting go restyles that control with no
+    event, and the sensor still reads it (`shift_watch.js`, "Unchanged frames")."""
     context = browser.new_context(has_touch=True)
     page = context.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             "<!doctype html><style>button:active {transform: scale(.9875)}</style>"
-            '<button id="control">Control</button>'
+            + PRESSES[press]
+            + '<button id="control" style="position: absolute; inset: 0 auto auto 0;'
+            f' width: 9em"{" hidden" if PRESSES[press] else ""}>Control</button>'
         )
     )
     paint(page)
-    page.locator("#control").tap()
+    page.locator("#door" if PRESSES[press] else "#control").tap()
+    expect(page.locator("#control")).to_be_visible()
     page.wait_for_function("() => !document.querySelector(':active')")
     page.evaluate(FRAMES, 4)
     judge_watches()

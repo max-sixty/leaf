@@ -54,6 +54,7 @@ from render_cases_navigation import (
     call_node,
 )
 from render_cases_widgets import (
+    FAN_OUT,
     GENERIC_VISUAL_LAYER,
     prefixed_visual_layer,
     visual_widgets,
@@ -224,7 +225,8 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     large, beside a stated height that matches and an authored body that already
     takes the drawing's height, as an inline diff's source text can.
     """
-    findings, _, completed = render_gate_scheme._render_scheme(
+    findings = []
+    _, _, completed = render_gate_scheme._render_scheme(
         browser,
         serve(
             leaf_page(
@@ -248,6 +250,9 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
         {"width": 1200, "height": 900},
         3_000,
         [],
+        then=lambda page, _: findings.extend(
+            render_gate_readings.drawn_height_advice(page, "1200x900")
+        ),
     )
     assert completed, findings
     drawn = {
@@ -396,6 +401,83 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     assert later["at"] == "<div id=later-arrangement>"
     assert later["rows"] == "2"
     assert page.locator(later["path"]).get_attribute("id") == "later-arrangement"
+
+
+def test_user_view_checks_ask_nothing_inside_what_the_browser_skips(browser, serve):
+    """The reading of the user's view walks what the browser draws: of a folded panel,
+    a closed disclosure and a box out of view under `content-visibility: auto`, it asks
+    no more than each child whether it is drawn. Asking about what they hold would make
+    the browser style it first, and a page of long documents in tabs is almost all such
+    content (`drawnElements` in runtime/shadow-tree.js)."""
+    held = "".join(f"<div><p>Row {n}</p><p>More {n}</p></div>" for n in range(20))
+    source = leaf_page(
+        "Skipped content",
+        '<h1 id="t">Skipped content</h1>'
+        f'<div id="folded" hidden="until-found">{held}</div>'
+        f'<details id="shut"><summary>More</summary>{held}</details>'
+        f'<div id="away" style="content-visibility: auto; margin-top: 4000px">{held}</div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate(
+        """async () => {
+          const {readViewChecks} = await import('/checks/view.js');
+          const boxes = ['folded', 'shut', 'away'].map(id => document.getElementById(id));
+          const skipped = boxes.every(box =>
+            !box.querySelector('p').checkVisibility({contentVisibilityAuto: true}));
+          const asked = new Set();
+          const watch = (owner, name, subject) => {
+            const original = owner[name];
+            owner[name] = function (...args) {
+              asked.add(subject(this, args));
+              return original.apply(this, args);
+            };
+            return () => { owner[name] = original; };
+          };
+          const restores = [
+            ...['checkVisibility', 'getBoundingClientRect', 'getClientRects'].map(name =>
+              watch(Element.prototype, name, (self) => self)),
+            watch(window, 'getComputedStyle', (_, [element]) => element),
+          ];
+          try { readViewChecks([]); } finally { restores.forEach(restore => restore()); }
+          return {skipped, inside: boxes.flatMap(box =>
+            [...box.querySelectorAll(':scope > * *')].some(el => asked.has(el)) ? [box.id] : [])};
+        }"""
+    )
+    assert reading["skipped"], "a box drew what it holds, so the reading proves nothing"
+    assert reading["inside"] == [], reading
+
+
+def test_user_view_checks_read_what_a_box_draws_beside_a_child_it_does_not(
+    browser, serve
+):
+    """A box on screen under `content-visibility: auto` draws the children beside one
+    that draws no box, and a closed disclosure draws its summary wherever the summary
+    stands, so the reading of the user's view reads the drawings both show."""
+
+    def drawing(words):
+        return (
+            '<svg viewBox="0 0 1000 100" style="width:250px;font-size:20px">'
+            f'<text x="10" y="30">{words}</text></svg>'
+        )
+
+    source = leaf_page(
+        "Drawn beside",
+        '<h1 id="t">Drawn beside</h1>'
+        '<section id="auto" style="content-visibility: auto"><span hidden>Note</span>'
+        f'<figure id="in-auto">{drawing("Auto label")}</figure></section>'
+        f'<details id="late"><p>Folded</p><summary>{drawing("Summary label")}</summary>'
+        "</details>",
+    )
+    page = open_page(browser, serve(source))
+    assert page.evaluate(
+        "() => document.querySelector('#in-auto svg').checkVisibility("
+        "{contentVisibilityAuto: true}) && document.querySelector('#late summary svg')"
+        ".checkVisibility({contentVisibilityAuto: true})"
+    ), "a drawing is not drawn, so the reading proves nothing"
+    reading = render_checks_model.evaluate_probe(page, "readViewChecks", [])
+    assert {
+        drawing["words"] for drawing in reading["checks"]["shrunk_labels"]["drawings"]
+    } == {"Auto label", "Summary label"}, reading["checks"]["shrunk_labels"]
 
 
 # A widget whose module draws a 120px box, where its authored markup holds nothing.
@@ -701,6 +783,41 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
         "probe invalidPaints must be synchronous" in failure.values["error"]
         for failure in failures
     ), f"an async reading has to name itself, and this came back as {failures}"
+
+
+SAMPLE_FAULT = (
+    '<p id="practice">Practice.</p><script>function sampleFault() {'
+    " throw new TypeError('thrown in the sample'); } sampleFault();</script>"
+)
+
+
+@pytest.mark.parametrize("nested", [False, True], ids=["far", "nested"])
+def test_the_gate_reads_a_sample_far_below_the_window(browser, serve, nested):
+    """A live sample starts its page only as the reader nears it, but the gate reads
+    every document the page can show (`start_near_work`), so it refuses a page whose
+    sample's own script throws wherever on the page the sample stands, a sample far
+    down inside another one included: each started child starts its own."""
+    content = SAMPLE_FAULT
+    if nested:
+        content = (
+            '<p id="outer-words">Outer.</p><div style="height: 400vh"></div>'
+            '<lf-sample id="inner"><template id="inner-source" data-sample>'
+            f"{SAMPLE_FAULT}</template></lf-sample>"
+        )
+    source = leaf_page(
+        "Far fault",
+        '<p id="words">Words.</p><div style="height: 400vh"></div>'
+        '<lf-sample id="far"><template id="far-source" data-sample>'
+        f"{content}</template></lf-sample>",
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched, serve(source)
+    ).failures
+    assert any(
+        failure.code == "page-exception"
+        and "thrown in the sample" in failure.values["text"]
+        for failure in failures
+    ), failures
 
 
 def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
@@ -1221,6 +1338,32 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
     page.emulate_media(color_scheme="dark")
     assert page.evaluate(
         "() => document.getElementById('hidden-field').getAnimations().length"
+    )
+    render_checks_model.wait_for_probe(page, "pageSettled")
+
+
+def test_a_scroll_driven_animation_leaves_the_page_settled(firefox_browser, serve):
+    """A view-timeline animation moves only while something scrolls, as a margin
+    card's message heads do. Firefox 159 gives one a finite end in time, and reading it
+    as motion held `leaf-dev probe --browser firefox` until its 120 s limit on every
+    page showing a margin card."""
+    page = open_page(
+        firefox_browser,
+        serve(
+            leaf_page(
+                "a scroll-driven animation",
+                "<h1>Settles</h1><p id='rising'>Rises as the page scrolls.</p>",
+                head="<style>@keyframes rise { to { translate: 0 -4px; } }"
+                " #rising { animation: rise linear both;"
+                " animation-timeline: view(); }</style>",
+            )
+        ),
+    )
+    assert (
+        page.evaluate(
+            "() => document.getElementById('rising').getAnimations()[0].playState"
+        )
+        == "running"
     )
     render_checks_model.wait_for_probe(page, "pageSettled")
 
@@ -2110,7 +2253,8 @@ def resize_findings(page, path):
     positions too, since native scroll snapping can settle away from zero.
     Both ends are tried: a state written on the way down and one written on the
     way up are cleared by different widths, so each journey runs on a page opened at
-    the end it starts from.
+    the end it starts from. Work a width brings near the window, such as a live
+    sample's page, stays started at every other, so the journey starts it all first.
 
     Unlike a scroll, a resize lays the whole page out again and repaints it, so what it
     writes at each step costs nothing beside that; a write that restates what stood is
@@ -2144,6 +2288,7 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    render_checks_model.start_near_work(page)
     # A sample can hold its child's growth while the reader sees the frame. Resizing
     # interrupts that reading and releases the held height; take the baseline after
     # that first release, so the return trip compares settled layouts at each width.
@@ -3241,13 +3386,16 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     the overlay and classic track share the drawing's own blank bottom padding.
     """
     source = named_source("security-boundary").read_text()
-    # The example draws its five-step chain top-down so it fits a phone; drawn
-    # left-to-right it runs past a 678px viewport and scrolls, which this test needs.
-    source = source.replace("flowchart TD", "flowchart LR", 1).replace(
-        'id="security-before-flow" data-height="449"',
-        'id="security-before-flow" data-height="200"',
+    # The example's chain fits any column it is laid out for; a row of six calls
+    # still runs past a 678px viewport and scrolls, which this test needs.
+    source, drawn = re.subn(
+        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
+        lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
+        source,
+        count=1,
+        flags=re.S,
     )
-    assert "flowchart LR" in source and 'data-height="200"' in source
+    assert drawn == 1, "the example's diagram moved, so this test draws nothing"
     if track:
         source = source.replace(
             "</head>",
@@ -3287,7 +3435,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     assert frames[-1]["drawn"], frames
     assert frames[-1]["track"] == track, frames
     assert frames[-1]["clear"] >= max(15, track + 1), frames
-    assert {frame["height"] for frame in frames} == {200}, frames
+    assert {frame["height"] for frame in frames} == {240}, frames
     assert len({frame["following"] for frame in frames}) == 1, frames
     # A missing or underestimated reservation must not sacrifice content to the bar;
     # extra reserved room must not stretch the drawing into it.
@@ -3304,7 +3452,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     }""")
     natural = reservations[0]["svg"]
     height = natural + max(0, track - 15)
-    assert 0 < height < 200, reservations
+    assert 0 < height < 240, reservations
     assert [reading["height"] for reading in reservations] == [
         height,
         height,
@@ -4173,6 +4321,50 @@ def test_the_covered_words_gate_reads_a_cover_between_the_first_and_last_words(
     assert [
         f for f in covered if {f["at"], f["under"]} == {"<p id=p0>", "<p id=over>"}
     ], f"a cover between the page's first and last words went unreported: {covered}"
+
+
+@pytest.mark.parametrize(
+    ("style", "under"),
+    [
+        ("", []),
+        ("body { padding: 0 }", ["<p id=last>"]),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0 }"
+            " main { height: 100%; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+        (
+            "html, body { height: 100% } body { margin: 0; padding: 0; overflow-y: auto }",
+            ["<p id=last>"],
+        ),
+    ],
+    ids=["room-kept", "reset", "main-scrolls", "body-scrolls"],
+)
+def test_words_the_panel_covers_at_the_page_s_end_are_reported(
+    browser, serve, style, under
+):
+    """Leaf pads the page's end by the panel's room, so its last words scroll clear of
+    the panel. A reset that zeroes that padding, or a box of the page's own that scrolls
+    with nothing at its end, leaves them under the panel however far the user scrolls.
+    The gate reads the page from its top, as it reads the rest, and places each word
+    where it stands with every scroller holding it at its end: the document for the
+    reset, `main` or `body` for a page that scrolls a box of its own. The last paragraph
+    is reported there, and nothing above it."""
+    source = leaf_page(
+        "end",
+        "<h1>The end of the page</h1>"
+        + "".join(f"<p>Paragraph {i}. {'Filler. ' * 30}</p>" for i in range(30))
+        + f"<p id='last'>The last paragraph. {'Its closing words. ' * 30}</p>",
+        head=f"<style>{style}</style>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    found = render_checks_model.evaluate_probe(page, "coveredWords")
+    page.close()
+    under_panel = [f for f in found if f["code"] == "under-panel"]
+    assert [f["at"] for f in under_panel] == under, found
+    # The author reads the record as words naming the element it found.
+    assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the

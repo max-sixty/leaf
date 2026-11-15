@@ -53,13 +53,13 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 // fork's taking an update on the agent's On it, from the moment the fork starts.
 // On leaf.page a write to a page whose agent isn't running waits seconds while its
 // container starts, a wait only that first write pays, so a send that launches it says
-// so until the server has it. The user asked for these words on 9 November 2026.
+// so until the server has it. The user asked for these words on 10 November 2026.
 /** @param {string} agent */
 const queuedFor = (agent) => leafSays(`Queued for ${agent}`);
 /** @type {Record<Workflow["stage"], (agent: string, workflow: Workflow) => import("../voice.js").Said>} */
 const STAGES = Object.freeze({
   sending: (agent, workflow) =>
-    workflow.launching ? leafSays("Launching agent container") : queuedFor(agent),
+    workflow.launching ? leafSays("Starting the agent") : queuedFor(agent),
   sent: queuedFor,
   queued: () => leafSays("Up next"),
   picked_up: () => leafSays("Delivered"),

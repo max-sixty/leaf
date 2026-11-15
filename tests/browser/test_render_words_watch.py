@@ -911,6 +911,28 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     judge_watches()
 
 
+def test_words_in_a_firefox_frame_its_page_hides_fail_when_judged(firefox_browser):
+    """Judgement reaches every frame of a Firefox page, an opaque one like a sample's
+    included: words typed in it fail once the page hides it. A hidden frame paints
+    nothing, so its watch reads the loss only when judged."""
+    page = firefox_browser.new_page()
+    page.route(
+        "https://frames.test/**",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body='<!doctype html><iframe sandbox="allow-scripts"'
+            ' srcdoc="<!doctype html><textarea id=field></textarea>"></iframe>',
+        ),
+    )
+    page.goto("https://frames.test/")
+    page.frame_locator("iframe").locator("#field").fill("Half a thought")
+    page.locator("iframe").evaluate("frame => { frame.hidden = true; }")
+    judge_watches()
+    consume_browser_errors(
+        page, {"code": "words-left-screen", "words": "Half a thought"}
+    )
+
+
 @pytest.mark.parametrize("cause", ["press", "passive", "unrelated", "older-press"])
 def test_words_message_ports_keep_their_scheduling_source(browser, cause):
     """Opaque IPC owns only the effect sent by a press, including asynchronous work.

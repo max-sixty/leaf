@@ -51,7 +51,7 @@ from browser.threads import open_panel_thread
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import rendered, wait_for_probe
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -188,11 +188,7 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
         # Layout already has its final width while Send still rides the box's
         # growth (box-motion.js). Compare their geometry only once it rests.
         rendered(page)
-        page.wait_for_function(
-            """() => !document.querySelector('.lf-fab-bar')
-              .getAnimations({subtree: true}).some(motion =>
-                Number.isFinite(motion.effect?.getComputedTiming().endTime))"""
-        )
+        wait_for_probe(page, "restingIn", ".lf-fab-bar")
         return field.bounding_box()
 
     page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
@@ -249,6 +245,171 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     expect(root).to_have_attribute("data-lf-floating-editor", "")
     moves = {"leaving": leaving, "entering": entering, "whole page": whole}
     assert max(leaving, entering) < whole / 4, moves
+
+
+def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve):
+    """Opening search runs the target picker's arm writer (aim.js, `armChanged`),
+    which hides the Design legend's tags while the picker stands. It wrote that as a
+    custom property on the root, so the first open, which wrote its first value,
+    restyled every element (root-state.js): 6 to 11 s in Firefox on a page of thirty
+    4 MB text documents, where a second open took 80 to 120 ms. Counted in the
+    browser's own restyled elements, against a restyle of the whole page."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Search", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    field = page.get_by_role("searchbox", name="Search page text")
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    opening = restyled(lambda: page.keyboard.press("/"))
+    expect(field).to_be_focused()
+    closing = restyled(lambda: page.keyboard.press("Escape"))
+    expect(field).to_be_hidden()
+    moves = {"opening": opening, "closing": closing, "whole page": whole}
+    assert max(opening, closing) < whole / 4, moves
+
+
+def questions_page(sections: int) -> str:
+    """`sections` sections of a column page's article, each with words to comment on
+    and a question on the user, so its margin holds a row per section."""
+    return leaf_page(
+        "Questions",
+        "<article>"
+        + "".join(
+            f'<section id="s{g}"><h2>Section {g}</h2>'
+            f'<p id="p{g}">Some words about section {g}.</p>'
+            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-option id="o{g}-1">One</lf-option>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
+            for g in range(1, sections + 1)
+        )
+        + "</article>",
+    )
+
+
+def comment_ready(browser, serve, sections: int):
+    """`questions_page(sections)` with a comment written on the first section's words,
+    ready to send. Reduced motion keeps the card from easing in over as many frames as
+    the host's speed allows, so each count is the same on every run."""
+    page = open_page(browser, serve(questions_page(sections)))
+    page.emulate_media(reduced_motion="reduce")
+    page.evaluate("""() => {
+      const words = document.getElementById('p1').firstChild;
+      getSelection().setBaseAndExtent(words, 0, words, 10);
+    }""")
+    page.keyboard.press("c")
+    page.locator(".lf-composer leaf-text").focus()
+    page.keyboard.insert_text("Why this section?")
+    rendered(page)
+    return page
+
+
+def send_comment(page):
+    with sending(page, "the comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-margin-preview .lf-resolve")).to_be_visible()
+    rendered(page)
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_sending_a_comment_restyles_only_the_rows_it_changes(browser, serve):
+    """Send removes the comment's row from the margin and inserts its thread's row. The
+    rows are siblings, and once Chromium has evaluated an `:nth-child()` selector for a
+    parent's children, it restyles all of them whenever one is inserted or removed
+    (reading.css, the frame edges), so Send restyled every row on the page. Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        counts = restyle_counts(page, lambda: send_comment(page))
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
+    """Resolve closes the thread's card and returns focus to the thread's words, and
+    focus marks every ancestor of them, the column's `main` and its article included.
+    Restyling one of those ancestors must not restyle everything under it. Two rules
+    once made it do so, each restyling the whole page on a resolve: a rule keyed on the
+    focus mark whose last compound names no type (reading.css, the sticky row names),
+    and the column's room, a length less a percentage, registered as a
+    `<length-percentage>` (layouts.css). Counted in the browser's own restyled elements,
+    a page of six times the sections restyles no more."""
+
+    def restyled(sections):
+        page = comment_ready(browser, serve, sections)
+        send_comment(page)
+
+        def resolve():
+            with sending(page, "the resolve"):
+                page.locator(".lf-margin-preview .lf-resolve").click()
+            rendered(page)
+
+        counts = restyle_counts(page, resolve)
+        expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(4), restyled(24)
+    assert long - short < 10, {"4 sections": short, "24 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, serve):
+    """Shift+Tab from the last section's link to the one before it. Focus marks each
+    ancestor of the link it leaves and lands on, the column's `main` among them, and
+    each `:has()` that reads a focus mark is asked again of the elements on that path.
+    Two shapes once made each move restyle every section before the link: a
+    `:has(~ …)` asked of every child of `main`, which sends Chromium back through
+    every earlier sibling (the static guard beside it in test_interact_layer.py), and
+    the column's room registered as a `<length-percentage>`, which Chromium counts as
+    changed whenever the column restyles (layouts.css). Counted in
+    the browser's own restyled elements, a page of six times the sections restyles no
+    more."""
+
+    def restyled(sections):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Sections",
+                    "<h1>Sections</h1>"
+                    + "".join(
+                        f'<section id="s{g}"><h2>Section {g}</h2>'
+                        f"<p>Some words about section {g}.</p>"
+                        f'<p>More words with a <a id="a{g}" href="#s1">link</a>.</p>'
+                        "</section>"
+                        for g in range(1, sections + 1)
+                    ),
+                )
+            ),
+        )
+        page.locator(f"#a{sections}").focus()
+        rendered(page)
+        counts = restyle_counts(
+            page, lambda: (page.keyboard.press("Shift+Tab"), rendered(page))
+        )
+        expect(page.locator(f"#a{sections - 1}")).to_be_focused()
+        page.close()
+        return sum(counts)
+
+    short, long = restyled(8), restyled(48)
+    assert long - short < 10, {"8 sections": short, "48 sections": long}
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -370,7 +531,7 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
 
     with subtests.test("a caret at a line's end paints inside the field"):
         # The caret after a line's last character stands at the very end of the text
-        # column: in a box that grows with its words, and in a narrow allocation.
+        # column: in the box at the full measure, and in a narrow allocation.
         # Firefox paints the caret a pixel wide from that offset onward, pulled inside
         # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
         # clipping its words at the column's end hid it, and it read as gone under Send.
@@ -385,9 +546,9 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
         rendered(page)
         wrapped = box.bounding_box()
         hold_motion(page)
-        # The box grows with its words, so the caret after the last word ends its column,
-        # and the lines the words give up move the box. The first line's words are those
-        # each platform's fonts fit.
+        # The first line's words are those each platform's fonts fit in the box's
+        # column, so the caret after the last word ends it, and the lines the words give
+        # up move the box.
         first_line = field.evaluate(FIRST_LINE)
         assert first_line, wrapped
         page.keyboard.press("ControlOrMeta+a")
@@ -398,7 +559,8 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
             arg=least["height"] + 0.5,
         )
         one_line = box.bounding_box()
-        assert least["width"] < one_line["width"] < wrapped["width"], (
+        # The box neither narrows to its words nor widens as they arrive.
+        assert least["width"] == one_line["width"] == wrapped["width"], (
             least,
             one_line,
             wrapped,

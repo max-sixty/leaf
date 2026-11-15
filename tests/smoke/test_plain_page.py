@@ -128,8 +128,9 @@ GRID = (
 )
 # The host's own markup beside the widgets, a row of its own above them so their drawing
 # moves none of it, which portable.css leaves as the host drew it: none of its rules
-# reaches past the widgets, so a host's `.button`, `.choice`, `.field` or `data-room`,
-# names a Leaf page gives its own controls, keeps the host's look.
+# reaches past the widgets, so a host's `data-room`, a Leaf page's attribute idiom, and
+# its own `.button`, `.choice` and `.field`, names Leaf styles nowhere, keep the host's
+# look.
 HOST = (
     '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
     '<button class="button">Go</button><a class="button" href="#host">Link</a>'

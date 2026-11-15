@@ -5,6 +5,31 @@
 import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./rendering.js";
 
+// What a node's contents are drawn in, read through the one range this module keeps.
+// A Range a page makes stays live until a collection reclaims it, and every change to
+// the document walks each live range to keep its ends in place: a range made for each
+// node of a pass over the page left every later write as slow as the page was large,
+// half a millisecond each at 1,024 sections of the bench's asks page. The range lets go
+// of the node once read, so it holds nothing a page has removed.
+const contents = document.createRange();
+/** @template T @param {Node} node @param {(range: Range) => T} read @returns {T} */
+function readContents(node, read) {
+  contents.selectNodeContents(node);
+  try {
+    return read(contents);
+  } finally {
+    contents.setStart(document, 0);
+    contents.collapse(true);
+  }
+}
+// The boxes of the lines `node`'s contents are drawn in, and the box around them all.
+/** @param {Node} node */
+export const contentsRects = (node) =>
+  readContents(node, (range) => [...range.getClientRects()]);
+/** @param {Node} node */
+export const contentsBox = (node) =>
+  readContents(node, (range) => range.getBoundingClientRect());
+
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is
@@ -23,9 +48,7 @@ export function elementBox(el) {
   // its bounds from contents, which a hidden-until-found panel deliberately skips.
   if (r.width || r.height || skipped(el) || getComputedStyle(el).display !== "contents")
     return r;
-  const contents = document.createRange();
-  contents.selectNodeContents(el);
-  return contents.getBoundingClientRect();
+  return contentsBox(el);
 }
 
 // A number a widget can only read off a box the browser has laid out, such as the room

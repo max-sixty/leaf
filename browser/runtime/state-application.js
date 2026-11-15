@@ -18,6 +18,7 @@ import {
 } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { reportCarried, sameLayer } from "./layer-client.js";
+import { afterOwedFrame } from "./rendering.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -153,6 +154,11 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
+      // A reading that arrives while a gesture of the user's is unresolved, before the
+      // frame painting what the gesture drew, waits for that frame, so the gesture's own
+      // result paints before the reading's work (rendering.js, `afterOwedFrame`). With no
+      // gesture in flight, as while the page loads, nothing on screen is owed first.
+      if (readApplication().unresolved.length) await afterOwedFrame();
       // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate

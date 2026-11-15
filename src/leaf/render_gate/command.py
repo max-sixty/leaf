@@ -175,12 +175,13 @@ def browser_check(
     *,
     page_code: bool,
     render: bool,
+    screens: bool = True,
 ) -> BrowserCheck:
     """Serve the candidate source once and, in one browser, run the page's own code
     (`page_code` says which run and which errors fail it), then the render invariants
     at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
-    the author reads, including when there are findings. Page code that fails ends the
-    check before the render reading."""
+    the author reads where `screens` asks, including when there are findings. Page code
+    that fails ends the check before the render reading."""
     artifact = snapshot.artifact(snapshot.active_revision())
     gates = [
         gate
@@ -201,18 +202,23 @@ def browser_check(
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
         )
-        screens = save_screens(browser, url, reading, page_dir, desktop.viewport)
-        return errors, reading, screens
+        return (
+            errors,
+            reading,
+            save_screens(browser, url, reading, page_dir, desktop.viewport)
+            if screens
+            else None,
+        )
 
     with preview_server(page_dir, snapshot) as url:
         try:
-            (errors, reading, screens), browser_name = run_in_browser(
+            (errors, reading, saved), browser_name = run_in_browser(
                 lambda browser: read(browser, url)
             )
         except NoBrowser as error:
             return BrowserCheck(gates, unavailable=str(error), desktop=desktop)
     return BrowserCheck(
-        gates, browser_name, None, errors, reading, screens, desktop=desktop
+        gates, browser_name, None, errors, reading, saved, desktop=desktop
     )
 
 

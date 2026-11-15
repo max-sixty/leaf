@@ -12,7 +12,7 @@
 // rather than `instanceof ShadowRoot`, whose class belongs to one window: an iframe's
 // runtime climbs its parent document's elements out to the frame's place in the page.
 /** @param {Node | null | undefined} node @returns {node is ShadowRoot} */
-const isShadowRoot = (node) =>
+export const isShadowRoot = (node) =>
   node != null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && "host" in node;
 /** Native event origins can be nodes from another window; Window and other targets are not tree nodes.
  * @param {unknown} node @returns {node is Node} */
@@ -130,8 +130,10 @@ const renderedParentNode = (node) =>
 // order, and a host stands for its whole tree only by losing the order inside it, so the
 // two ancestries are compared from the top instead: the first nodes where they part
 // share a parent, and that parent's tree orders them. A host's shadow root and its other
-// children share a parent and no tree, and the root comes first. `under` is whether
-// `node` is inside `root`, or `root` itself.
+// children share a parent and no tree, and the root comes first. `ordering()` answers
+// the same for a sort of many nodes, reading each node's climb once and each parent's
+// children once, where a comparison alone would read both climbs and walk the siblings
+// between the two. `under` is whether `node` is inside `root`, or `root` itself.
 /** @param {(node: Node) => Node | null} parentOf */
 export function alongClimb(parentOf) {
   /** @param {Node} node */
@@ -141,27 +143,63 @@ export function alongClimb(parentOf) {
       nodes.push(at);
     return nodes.reverse();
   };
+  /** @param {Node} first @param {Node} second */
+  const inTree = (first, second) =>
+    first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+  /**
+   * @param {Node[]} left
+   * @param {Node[]} right
+   * @param {(first: Node, second: Node) => number} siblings
+   */
+  const ordered = (left, right, siblings) => {
+    let index = 0;
+    while (index < left.length && index < right.length && left[index] === right[index])
+      index += 1;
+    const first = left[index];
+    const second = right[index];
+    if (!first || !second) return left.length - right.length;
+    if (isShadowRoot(first)) return -1;
+    if (isShadowRoot(second)) return 1;
+    return siblings(first, second);
+  };
   return {
     /** @param {Node} a @param {Node} b */
-    order(a, b) {
-      if (a === b) return 0;
-      const left = chain(a);
-      const right = chain(b);
-      let index = 0;
-      while (
-        index < left.length &&
-        index < right.length &&
-        left[index] === right[index]
-      )
-        index += 1;
-      const first = left[index];
-      const second = right[index];
-      if (!first || !second) return left.length - right.length;
-      if (isShadowRoot(first)) return -1;
-      if (isShadowRoot(second)) return 1;
-      return first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING
-        ? -1
-        : 1;
+    order: (a, b) => (a === b ? 0 : ordered(chain(a), chain(b), inTree)),
+    ordering() {
+      /** @type {Map<Node, Node[]>} */
+      const chains = new Map();
+      /** @param {Node} node */
+      const chainOf = (node) => {
+        let nodes = chains.get(node);
+        if (!nodes) chains.set(node, (nodes = chain(node)));
+        return nodes;
+      };
+      /** @type {Map<Node, Map<Node, number>>} */
+      const indices = new Map();
+      /** @param {Node} parent @param {Node} child */
+      const indexIn = (parent, child) => {
+        let at = indices.get(parent);
+        if (!at) {
+          at = new Map();
+          let index = 0;
+          for (let node = parent.firstChild; node; node = node.nextSibling)
+            at.set(node, index++);
+          indices.set(parent, at);
+        }
+        return /** @type {number} */ (at.get(child));
+      };
+      // Children of one node in its own tree stand in the order of its child list;
+      // anything else, such as a slot's fallback beside what it is assigned, is left to
+      // the tree as `order` leaves it.
+      /** @param {Node} first @param {Node} second */
+      const siblings = (first, second) => {
+        const parent = first.parentNode;
+        return parent && parent === second.parentNode
+          ? indexIn(parent, first) - indexIn(parent, second)
+          : inTree(first, second);
+      };
+      /** @param {Node} a @param {Node} b */
+      return (a, b) => (a === b ? 0 : ordered(chainOf(a), chainOf(b), siblings));
     },
     /** @param {Node | null | undefined} node @param {Node | null | undefined} root */
     under(node, root) {
@@ -181,6 +219,7 @@ export const under = alongClimb(composedParentNode).under;
 // the rendered tree, which includes slots and their shadow ancestors.
 const rendered = alongClimb(renderedParentNode);
 export const renderedOrder = rendered.order;
+export const renderedOrdering = rendered.ordering;
 export const renderedUnder = rendered.under;
 
 // Which layer a node stands in — the runtime's chrome, a declared label, or the
@@ -241,8 +280,9 @@ export const byRenderedOrder = (items, placeOfItem) => {
     if (place) placed.push({ item, place });
     else unplaced.push(item);
   }
+  const order = renderedOrdering();
   return [
-    ...placed.sort((a, b) => renderedOrder(a.place, b.place)).map(({ item }) => item),
+    ...placed.sort((a, b) => order(a.place, b.place)).map(({ item }) => item),
     ...unplaced,
   ];
 };
@@ -308,10 +348,10 @@ export function excludedByInert(node) {
 //
 // `skipper` names the box that skips `el`, so a reading over many elements under it,
 // such as a long text document's lines in one run, asks once and passes over the rest.
+/** @param {Element} box */
+export const drawn = (box) => box.checkVisibility({ contentVisibilityAuto: true });
 /** @param {Element} element @returns {Element | null} */
 export const skipper = (element) => {
-  const drawn = (/** @type {Element} */ box) =>
-    box.checkVisibility({ contentVisibilityAuto: true });
   if (drawn(element)) return null;
   let child = element;
   let box = renderedParent(element);
@@ -326,3 +366,61 @@ export const skipper = (element) => {
 };
 /** @param {Element} element */
 export const skipped = (element) => Boolean(skipper(element));
+
+// Every element the browser draws at or under `root`, through the open shadow trees of
+// the hosts it draws, each tree in its own order, which a reading of the page as drawn
+// walks (render-checks/open-roots.js, `drawnPage`). An element that draws no box of its
+// own, under `display: contents` or a slot, is left out and what it holds is walked. A
+// box under `content-visibility: hidden`, such as a folded tab panel, skips everything
+// it holds, so once `skipper` names it for one child the rest go unasked. An `auto` box
+// on screen draws the children beside one that draws no box, and a closed disclosure
+// draws its summary wherever it stands, so under either each child is asked whether it
+// is drawn, though nothing it holds is asked. On a page of thirty 4 MB documents in
+// tabs, the walk asks about the open document's 68,000 lines of two million elements,
+// in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
+// so each asks for itself, and a host draws no child that no slot takes.
+//
+// One case goes unwalked: a `display: contents` child of an `auto` box on screen.
+// `skipper` names the box for any child of it that draws no box, on screen or not, and
+// telling such a child from a skipped line would mean asking each undrawn child its
+// `display`, which makes the browser style it: 21 s in Chromium on the page above.
+/** @param {Element} root @returns {Element[]} */
+export function drawnElements(root) {
+  /** @type {Element[]} */
+  const found = [];
+  /** @param {Element | null} child @param {boolean} hosted */
+  const within = (child, hosted) => {
+    // Whether `skipper` named a box for an earlier child. It names the same box for
+    // every later child the browser doesn't draw, since its climb starts from the
+    // parent they share.
+    let skipping = false;
+    for (; child; child = child.nextElementSibling) {
+      if (drawn(child)) {
+        found.push(child);
+        walk(child);
+        continue;
+      }
+      if (hosted && !child.assignedSlot) continue;
+      if (skipping && !child.assignedSlot) continue;
+      const box = skipper(child);
+      if (box) {
+        if (child.assignedSlot) continue;
+        if (getComputedStyle(box).contentVisibility === "hidden") return;
+        skipping = true;
+        continue;
+      }
+      if (getComputedStyle(child).display === "contents") walk(child);
+    }
+  };
+  /** @param {Element} parent */
+  const walk = (parent) => {
+    const shadow = parent.shadowRoot;
+    if (shadow) within(shadow.firstElementChild, false);
+    within(parent.firstElementChild, shadow !== null);
+  };
+  if (drawn(root)) {
+    found.push(root);
+    walk(root);
+  }
+  return found;
+}

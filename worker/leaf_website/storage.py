@@ -19,6 +19,7 @@ import ssl
 import tarfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -30,13 +31,12 @@ from pathlib import Path
 from tempfile import TemporaryFile
 from types import SimpleNamespace
 from typing import BinaryIO
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
@@ -54,6 +54,13 @@ from leaf.state import STRING, Record, described, object_schema, page_key, state
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
 UPLOADS = 8
+
+
+class PageStoreRefused(OSError):
+    """A call the page store answered with an error, carrying the store's reason
+    (`worker/src/index.ts`, the `leaf-state.internal` handler), which a page fault
+    records as its detail. An `OSError`, as urllib's own errors are, so callers
+    handle it as they handle the store being unreachable."""
 
 
 @contextmanager
@@ -76,7 +83,12 @@ def _request(path: str, payload: dict | bytes | None = None) -> Generator[HTTPRe
     )
     certificate = os.environ.get("CODEX_CA_CERTIFICATE")
     context = ssl.create_default_context(cafile=certificate) if certificate else None
-    with urllib.request.urlopen(request, context=context, timeout=60) as response:
+    try:
+        response = urllib.request.urlopen(request, context=context, timeout=60)
+    except urllib.error.HTTPError as error:
+        reason = error.read().decode(errors="replace").strip()
+        raise PageStoreRefused(f"{path} answered {error.code}: {reason}") from error
+    with response:
         yield response
 
 
@@ -248,26 +260,8 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    registry = snapshot.context.registry
-    assert registry is not None
     paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
-    for source_name, reading in snapshot.context.data["sources"].items():
-        value = reading.get("value")
-        spec = deferred_records(value, reading["contract"], registry)
-        if spec is not None:
-            paths.update(
-                "api/deferred?"
-                + urlencode(
-                    {
-                        "source": source_name,
-                        "source_revision": reading["revision"],
-                        "key": record[spec["key"]],
-                    }
-                )
-                for record in value[spec["items"]]
-                if spec["deferred"] in record
-            )
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():
         if item in published:

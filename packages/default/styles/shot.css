@@ -100,7 +100,10 @@ lf-shot {
 .lf-shot-open[data-lf-focus-visible] {
   outline: none;
 }
-.lf-shotframe:has(.lf-shot-open[data-lf-focus-visible]) {
+.lf-shotframe .lf-shot-open {
+  --lf-focus-box: .lf-shotframe;
+}
+.lf-shotframe[data-lf-control-focus-visible] {
   /* The source can scroll beyond its frame; focus stays on the visible image, at a
      region's gap (base.css). */
   --lf-wears-ring: 1;

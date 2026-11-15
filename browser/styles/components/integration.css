@@ -201,7 +201,7 @@ html[data-lf-draw-mode] body {
   [data-lf-hovered],
   [data-lf-keyed],
   :hover,
-  :has([data-lf-focus-visible])
+  [data-lf-focus-visible-within]
 ) {
   opacity: 1;
   pointer-events: auto;

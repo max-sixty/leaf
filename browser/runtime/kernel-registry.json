@@ -137,7 +137,7 @@
     "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one."
   },
   "$events": {
-    "protocol": 43,
+    "protocol": 44,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 17,
@@ -374,7 +374,7 @@
       ],
       "resolve": [
         {
-          "text": "The user closed the thread. You owe no reply there; a to-do you opened on it stays open until you end it."
+          "text": "The user resolved the thread."
         }
       ],
       "unresolve": [
@@ -500,6 +500,11 @@
       "error": [
         {
           "text": "The page's runtime reported a failure the user saw. Fix the page or widget and save the fix. Reply only if the user asked about it."
+        }
+      ],
+      "render": [
+        {
+          "text": "Leaf's render check read the version you handed over, as the user's browser draws it. Fix each failure it lists and save the fix. Weigh each piece of advice against the page, and change the page only where that helps the user. Reply only if the user asked about it."
         }
       ]
     },
@@ -862,12 +867,12 @@
             "start": {
               "type": "object",
               "properties": {
-                "item": { "type": "string", "minLength": 1 },
-                "turn": { "type": "string", "minLength": 1 }
+                "item": { "type": "string", "minLength": 1 }
               },
               "required": ["item"],
               "additionalProperties": false
             },
+            "turn": { "type": "string", "minLength": 1 },
             "failure": { "type": "string", "minLength": 1 },
             "responds": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
@@ -966,6 +971,9 @@
               },
               {
                 "required": ["start"]
+              },
+              {
+                "required": ["turn"]
               },
               {
                 "required": ["title"]
@@ -1793,6 +1801,45 @@
           "additionalProperties": false
         },
         "browser": { "required": ["kind", "text"] }
+      },
+      "render": {
+        "skippable": true,
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "page" },
+            "kind": { "const": "render" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "findings": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string", "minLength": 1 },
+                  "severity": { "enum": ["error", "advice"] },
+                  "text": { "type": "string", "minLength": 1 }
+                },
+                "required": ["code", "severity", "text"]
+              }
+            }
+          },
+          "required": [
+            "attention",
+            "id",
+            "ts",
+            "author",
+            "kind",
+            "seq",
+            "revision",
+            "findings"
+          ],
+          "additionalProperties": false
+        }
       }
     }
   }

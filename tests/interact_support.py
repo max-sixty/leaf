@@ -57,6 +57,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -1735,6 +1736,17 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 
 @pytest.fixture(autouse=True)
+def _hook_bounds_take_the_suites_deadline(monkeypatch):
+    """A hook bounds the work it does by its harness's timeout: a page server's
+    start and the inline handover after it share `hook_transport.CONFIRM_WITHIN`,
+    10 s from the hook's start. A start takes about 1 s on an idle host and over
+    5 s on a loaded runner, so in process the bound takes `STATED_TIMEOUT`, and a
+    test whose subject is the bound sets its own (tests/AGENTS.md, "Results do not
+    depend on execution speed")."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", STATED_TIMEOUT)
+
+
+@pytest.fixture(autouse=True)
 def _each_test_composes_its_own_layers():
     """Each test composes the layers its pages select afresh, as a new process does.
 
@@ -1742,8 +1754,8 @@ def _each_test_composes_its_own_layers():
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
     a package at a path an earlier test's package held."""
     yield
-    layer_model._composed.cache_clear()
-    layer_model._vocabulary.cache_clear()
+    layer_model._compositions.clear()
+    layer_model._vocabularies.clear()
 
 
 def retire_bridge(lock):
@@ -2094,6 +2106,52 @@ def claimed(page_dir, monkeypatch, context_record):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     service_model.claim_page(page_dir)
     return page_dir
+
+
+@contextmanager
+def claude_code_module(session: str, reply: str | dict):
+    """Stand in for Leaf's Claude Code hooks module (`hooks/claude-code.ts`), which
+    `test_interact_claude_code_module.py` holds to the same: answer each completion
+    `session` is asked (`completions`) with the text `reply`, or the failure it
+    names (`{"failed": …}`), as the model's usage of 300 tokens in and 12 out, and
+    yield the requests it took, each with its `id` and `request`."""
+    from leaf import completions
+
+    asked = []
+    done = threading.Event()
+    answered = reply if isinstance(reply, dict) else {"text": reply}
+    queued = completions.watch(session)
+
+    def answer() -> None:
+        while not done.is_set():
+            mark = queued.mark()
+            for request in completions.pending(session):
+                asked.append(request)
+                completions.cmd_reply(
+                    session,
+                    {
+                        "completion": request["id"],
+                        **answered,
+                        "usage": {
+                            "input_tokens": 300,
+                            "output_tokens": 12,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0,
+                        },
+                        "elapsed_ms": 900,
+                    },
+                )
+            # A tenth of a second at most, so the context's exit ends the thread.
+            queued.wait(mark, 0.1)
+
+    worker = threading.Thread(target=answer, daemon=True)
+    worker.start()
+    try:
+        yield asked
+    finally:
+        done.set()
+        worker.join()
+        queued.close()
 
 
 def _launched_as(monkeypatch, argv: list[str]) -> None:
@@ -2970,6 +3028,8 @@ def _interaction_prompt_evidence(page, value):
                 if key in {"ts", "created_at"}
                 else "<attempt>"
                 if key == "attempt"
+                else "<turn>"
+                if key == "turn" and isinstance(child, str)
                 else "<claim-session>"
                 if key == "claim" and child is not None
                 else stable(child)

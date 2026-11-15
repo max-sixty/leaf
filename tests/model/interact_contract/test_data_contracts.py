@@ -1,5 +1,5 @@
 """Data contracts and widget data inputs: what the registry door refuses, run receipts,
-and bindings and deferred content across revisions and re-vendors."""
+and bindings across revisions and re-vendors."""
 
 import json
 from copy import deepcopy
@@ -68,17 +68,6 @@ from model.interact_contract import declare_vocabulary, vocabulary
             },
             "contract-reference",
             {"contract": "builds", "reference": "#/$defs/missing"},
-        ),
-        (
-            {
-                "builds": {
-                    "description": "Build facts.",
-                    "schema": {"type": "object"},
-                    "records": {"items": "rows", "key": "id", "deferred": "id"},
-                }
-            },
-            "contract-records",
-            {"contract": "builds"},
         ),
         (
             {
@@ -295,7 +284,7 @@ def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(pag
     assert [f.code for f in findings] == ["not-utf8"]
 
 
-def _page_owned_deferred_source(page_dir):
+def _page_owned_files_source(page_dir):
     schema = {
         "type": "object",
         "properties": {
@@ -319,7 +308,7 @@ def _page_owned_deferred_source(page_dir):
     contract = {
         "description": "Page-owned file payloads.",
         "schema": schema,
-        "records": {"items": "files", "key": "key", "deferred": "patch"},
+        "records": {"items": "files", "key": "key"},
     }
     widget = element_declaration("lf-local-data")
     widget["properties"]["source"] = {"type": "string"}
@@ -355,69 +344,17 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
-def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
-    page_dir,
-):
-    """The item schema owns presence; delivery neither invents nor requires payloads."""
-    authored = _page_owned_deferred_source(page_dir)
-    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
-        data_model.cmd_data_set(
-            page_dir,
-            "files",
-            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
-        )
-    declarations = json.loads(authored.read_text())
-    contract = declarations["$data"]["contracts"]["local-files"]
-    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
-    authored.write_text(json.dumps(declarations))
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None
-    value = {
-        "files": [
-            {"key": "metadata", "body": "mode 100644 → 100755"},
-            {"key": "text", "body": "changed", "patch": "source evidence"},
-        ]
-    }
-    data_model.cmd_data_set(page_dir, "files", value)
-    registry = registry_storage.require_registry(page_dir)
-    stored = data_model.read_data(page_dir, registry)
-    reading = stored["sources"]["files"]
-    browser = data_model.browser_data_from(stored, registry)
-    assert browser["sources"]["files"]["value"] == {
-        "files": [
-            value["files"][0],
-            {"key": "text", "body": "changed"},
-        ]
-    }
-    assert (
-        data_model.deferred_value(
-            reading, registry, source="files", revision=reading["revision"], key="text"
-        )["value"]
-        == "source evidence"
-    )
-    with pytest.raises(
-        data_model.DataError, match="defers no field of record 'metadata'"
-    ):
-        data_model.deferred_value(
-            reading,
-            registry,
-            source="files",
-            revision=reading["revision"],
-            key="metadata",
-        )
-
-
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
     """Current declarations can change; old documents retain their captured registry."""
-    authored = _page_owned_deferred_source(page_dir)
+    authored = _page_owned_files_source(page_dir)
     old_registry = data_contracts_model.read_revision(
         page_dir, files_model.list_revisions(page_dir)[-1]
     ).registry
     declarations = json.loads(authored.read_text())
     contract = declarations["$data"]["contracts"]["local-files"]
     if change == "records":
-        contract["records"]["deferred"] = "body"
+        contract["records"]["key"] = "body"
     elif change == "resources":
         contract["resources"] = ["optional"]
     else:
@@ -426,34 +363,26 @@ def test_page_owned_data_contracts_can_change_after_publication(page_dir, change
 
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.created
-    data_model.cmd_data_set(
-        page_dir,
-        "files",
-        {"files": [{"key": "app.py", "patch": "next", "body": "other"}]},
-    )
+    value = {"files": [{"key": "app.py", "patch": "next", "body": "other"}]}
+    if change == "records":
+        # Rows the new key tells apart and the old one doesn't.
+        value["files"].append({"key": "app.py", "patch": "next", "body": "more"})
+    data_model.cmd_data_set(page_dir, "files", value)
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert revendored.exit_code == 0, revendored.output
-    current_registry = registry_storage.require_registry(page_dir)
-    current = data_model.read_data(page_dir, current_registry)["sources"]["files"]
+    current = registry_storage.require_registry(page_dir)
+    assert data_model.read_data(page_dir, current)["sources"]["files"]["value"] == value
     old = data_model.read_data(page_dir, old_registry)["sources"]["files"]
-    for registry, reading, field in [
-        (old_registry, old, "patch"),
-        (current_registry, current, "body" if change == "records" else "patch"),
-    ]:
-        deferred = data_model.deferred_value(
-            reading,
-            registry,
-            source="files",
-            revision=reading["revision"],
-            key="app.py",
-        )
-        assert deferred["value"] == reading["value"]["files"][0][field]
+    if change == "records":
+        assert 'repeated ["app.py"]' in old["error"]
+    else:
+        assert old["value"] == value
 
 
 def test_data_binding_inventory_keeps_each_documents_captured_registry(
     page_dir, tmp_path
 ):
-    authored = _page_owned_deferred_source(page_dir)
+    authored = _page_owned_files_source(page_dir)
     declarations = json.loads(authored.read_text())
     inputs = declarations["lf-local-data"]["x-data"]
     inputs["renamed"] = inputs.pop("document")
@@ -551,7 +480,7 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
 def test_page_owned_data_contract_can_change_without_changing_source_meaning(
     page_dir, change
 ):
-    authored = _page_owned_deferred_source(page_dir)
+    authored = _page_owned_files_source(page_dir)
     declarations = json.loads(authored.read_text())
     contract = declarations["$data"]["contracts"]["local-files"]
     if change == "description":

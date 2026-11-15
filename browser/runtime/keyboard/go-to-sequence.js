@@ -7,14 +7,17 @@
    activation, and the paint — and this owner declares what the scene holds, what a chip
    says, and what taking one does. The lowercase kind mnemonics are separate commands
    that filter the map: `g h` shows hyperlinks, `g f` folds, `g m` margin targets, `g t`
-   Thread controls. A filtered map keeps each member's code from
-   the complete map, which is why codes are assigned here rather than by the session.
+   Thread controls. A filter narrows the complete map, as a typed letter does
+   (hints.js, `kept`), so each member keeps its code and its chip's seat; codes are
+   assigned here, over the complete map, rather than by the session.
 
    Lowercase `g`, `j`, `k`, and `p` retain their structural meanings, while `f`, `h`, `m`,
-   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
-   `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
-   an edge of the list; `g p` returns focus to the page while leaving open surfaces
-   in place. Uppercase mnemonics remain named
+   and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the
+   current item at the top; these are excluded from the generated alphabet. `g g` and
+   `g G` glide what `u` and `d` move, a workspace's pane as well as the page, to its
+   edges (navigation.js, `stepReading`); from a focused thread, `g k` and `g j` place
+   its card at an edge of the list; `g p` returns focus to the page while leaving open
+   surfaces in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
    searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
    panel's view of that name, and `g V` its Versions, through the panel's own doors
@@ -65,6 +68,7 @@ import { html, nothing } from "/runtime/framework.js";
 import { isExternalPageLink } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
+import { actionClass } from "../control-faces.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
 import { letGo, focusDestination, focused } from "../focus.js";
@@ -75,7 +79,7 @@ import { closestAcross, inPage, pageQueryAll } from "../passages.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
-import { glideTo, pageScroller, stopGlide } from "../scrolling.js";
+import { pageScroller, stopGlide } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -98,6 +102,7 @@ goToHintLayer.setAttribute("aria-hidden", "true");
  * @property {() => boolean} leavesOffered
  * @property {{visibleMarginEntries: () => HTMLElement[], activateMarginEntry: (element: HTMLElement) => unknown, marginEntryKind: (element: Element) => string | null} | null} marginEntries
  * @property {typeof import("../navigation.js").placeThreadEdge} placeThreadEdge
+ * @property {ReturnType<typeof import("../navigation.js").createNavigation>["stepReading"]} stepReading
  */
 /** @param {GoToOptions} options */
 export function createGoToSequence({
@@ -109,6 +114,7 @@ export function createGoToSequence({
   leavesOffered,
   marginEntries,
   placeThreadEdge,
+  stepReading,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -149,9 +155,11 @@ export function createGoToSequence({
   // the values the theme's hand already reads. A widget joins by building its control rather
   // than by an entry here. The register stays about capabilities; a press is
   // a route to one, and this is how a route that spends no key of its own is reached. The
-  // reading stops where the hand stops, because it is the same reading.
+  // reading stops where the hand stops, because it is the same reading. A gutter's press
+  // is left out: it stands for its line, which the target picker addresses, and a chip
+  // on each of a diff's lines buried the map's other routes (control-faces.js).
   /** @returns {HTMLElement[]} */
-  const pageControls = () => pageParts(PRESSABLE);
+  const pageControls = () => pageParts(`${PRESSABLE}:not(.${actionClass("gutter")})`);
 
   // A link keeps the platform activation that its author wrote. Fragment travel owns
   // arrival for every activation route; the sequence only names an external new tab.
@@ -316,8 +324,7 @@ export function createGoToSequence({
           .join(" ")
       : "";
 
-  /** @param {TargetFilter | null} [filter] */
-  function visibleCandidates(filter = null) {
+  function visibleCandidates() {
     const placement = keyBadgePlacement();
     /** @type {Set<Element>} */
     const seen = new Set();
@@ -352,8 +359,7 @@ export function createGoToSequence({
         left.rect.left - right.rect.left ||
         left.order - right.order,
     );
-    const coded = codedHints(found, GO_TO_HINT_KEYS.join(""));
-    return filter ? coded.filter(filter.matches) : coded;
+    return codedHints(found, GO_TO_HINT_KEYS.join(""));
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
@@ -416,7 +422,8 @@ export function createGoToSequence({
   const hintOptions = {
     layer: goToHintLayer,
     walk: "go-to-target",
-    read: () => visibleCandidates(targetFilter),
+    read: visibleCandidates,
+    kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
     scene: keyBadgePlacement,
     layout: (candidates, { current, reading }) =>
@@ -481,13 +488,12 @@ export function createGoToSequence({
     const chosen = TARGET_FILTERS.find(({ key }) => key === binding);
     if (!chosen) return;
     targetFilter = chosen;
-    const found = hints.refresh();
+    const found = hints.narrow();
     const message = found.length
       ? `${found.length} visible ${chosen.word}; type a hint or press Tab to hear them.`
       : `No visible ${chosen.word}.`;
     if (found.length) notice(message);
     else announce(message);
-    repaint();
   }
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
@@ -649,12 +655,12 @@ export function createGoToSequence({
           {
             id: "navigation.page.top",
             binding: "g",
-            title: "Go to the top of the page",
+            title: "Go to the top",
           },
           {
             id: "navigation.page.bottom",
             binding: "Shift+g",
-            title: "Go to the bottom of the page",
+            title: "Go to the bottom",
           },
         ],
         title: "top / bottom",
@@ -662,8 +668,9 @@ export function createGoToSequence({
         when: atGoToTargets,
         runKey: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
-          const box = pageScroller;
-          glideTo(box, binding === "g" ? 0 : box.scrollHeight);
+          // A step no box can outrun stops at the edge of the box that takes it, so an
+          // edge moves what `u` and `d` move, chosen and chained the same way.
+          stepReading(binding === "g" ? -Infinity : Infinity, "page");
         },
       },
       {
@@ -677,7 +684,7 @@ export function createGoToSequence({
           if (hints.backOneLetter()) return;
           if (targetFilter) {
             targetFilter = null;
-            hints.invalidate();
+            hints.narrow();
             announce("All go-to targets.");
             return;
           }

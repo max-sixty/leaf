@@ -5,7 +5,7 @@ the agent's turn ended, to check the page against the conversation. The main
 session carries on separately and never reads this exchange. Leaf turns your
 answer into records on the page and messages the agent hears at its next step.
 Don't call tools and don't continue the work: answer from the conversation above
-and the page state below.
+and the page state below, straight away and without thinking it over.
 
 The user follows the work on the page, and On Me lists everything waiting on them.
 Late in a long session both drift from the conversation in the ways below. Name only
@@ -13,29 +13,31 @@ what the conversation shows; an empty list is a complete answer.
 
 ## Asks waiting on the user
 
-Leaf's rule for what goes On Me, the one the agent follows (`conversation-loop.md`,
-"The On lists"), comes after this check. Name each ask that rule puts On Me which
-the agent left to the user, in its replies or anywhere in the conversation, where
-no On Me item holds it and the user hasn't answered it since. Leaf puts each
-ask On Me as the agent's own, in a new thread opened by the agent's message, and
-the agent takes the user's reply or withdraws the ask. For each, give:
+Leaf's guidance for asking, the agent's own, comes after this check: what goes On
+Me (`conversation-loop.md`, "The On lists") and how a question reads in a thread.
+Name each ask that guidance puts On Me which the agent left to the user, in its
+replies or anywhere in the conversation, where no On Me item holds it and the user
+hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
+message in a thread, and the agent takes the user's reply or withdraws the ask. For
+each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
   "Reloading the plugin").
-- `text`: the message that asks it, as the agent would write it. The user reads it
-  on the page, perhaps days later and without the chat, so say what is waiting, why
-  it arises and what each answer leads to, naming things as the page does, and end
-  with the question. For a step the user takes, such as running a command or trying
-  a build, say what to do. Ask for a reply only for what the user alone can report,
-  such as what the build showed them, or where the agent's next step waits on it,
-  such as a merge waiting on the user's approval, since the reply is what tells the
-  agent to go on. The agent checks for itself whatever else it can, such as a file
-  deleted or an issue filed.
-  It shows in a narrow card, so keep it to at most four short sentences of Markdown,
-  and link a pull request or commit by its URL where the conversation gives one.
+- `text`: the message that asks it, written as that guidance says the agent writes
+  one. For a step the user takes, such as running a command or trying a build, say
+  what to do. Ask for a reply only for what the user alone can report, such as what
+  the build showed them, or where the agent's next step waits on it, such as a merge
+  waiting on the user's approval, since the reply is what tells the agent to go on.
+  The agent checks for itself whatever else it can, such as a file deleted or an
+  issue filed.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.
+- `again`: where the ask asks again a question the page asked before, such as a
+  step the user took that didn't work or a question their reply left standing, that
+  question's id from the page state below. Leaf asks it again in its thread, under
+  its id, and reopens the thread if it was closed, so the user meets it with what
+  came before. Otherwise empty, and Leaf opens a new thread for it.
 - `quote`: the agent's words that leave it to the user.
 
 ## Findings for the agent

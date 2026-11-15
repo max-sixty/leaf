@@ -448,9 +448,13 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
     page.keyboard.press(last[0])
-    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(last[0]) for code in held))
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -604,10 +608,13 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
-    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
-    tail = next(code for code in codes if len(code) > 1)
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    tail = next(code for code in held if len(code) > 1)
     page.keyboard.press(tail[0])
-    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(tail[0]) for code in held))
     continued = page.locator(
         f'.lf-target-picker-hint[data-lf-hint-code="{tail}"] .lf-binding-sequence'
     )

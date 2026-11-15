@@ -1330,115 +1330,43 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     )
 
 
-def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, page_dir):
-    schema = {
-        "type": "object",
-        "properties": {
-            "files": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "key": {"type": "string"},
-                        "path": {"type": "string"},
-                        "patch": {"type": "string"},
-                    },
-                    "required": ["key", "path", "patch"],
-                    "additionalProperties": False,
-                },
-            }
-        },
-        "required": ["files"],
-        "additionalProperties": False,
-    }
-    declare_data_input(
-        page_dir, "review-patch", schema, contract="diff-files", activate=False
-    )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["diff-files"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
-        ),
-    )
-    index = page_dir / "index.html"
-    index.write_text(
-        index.read_text().replace(
+def test_a_tab_holding_a_reading_is_sent_only_the_source_a_write_changed(
+    server, page_dir
+):
+    """A tab naming the reading it holds, and the data version it holds, is sent after
+    one of the page's sources is rewritten that source alone, though the answer it
+    holds left its sources out (`http.sent`, `served_state.tail`)."""
+    declare_data_input(page_dir, "builds", {"type": "string"}, activate=False)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
             "</main>",
-            '<lf-test-data id="other-data" source="other-patch"></lf-test-data></main>',
+            '<lf-test-data id="notes-data" source="notes"></lf-test-data>\n</main>',
         )
     )
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None
-    with pytest.raises(
-        data_model.DataError, match="record keys must be unique"
-    ) as repeated:
-        data_model.cmd_data_set(
-            page_dir,
-            "review-patch",
-            {
-                "files": [
-                    {"key": key, "path": "file", "patch": "diff"}
-                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
-                ]
-            },
-        )
-    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "key": "src/a.py",
-                    "path": "src/a.py",
-                    "patch": "diff --git a/src/a.py b/src/a.py\n",
-                },
-                {
-                    "key": "src/b.py",
-                    "path": "src/b.py",
-                    "patch": "diff --git a/src/b.py b/src/b.py\n",
-                },
-            ]
-        },
-    )
+    assert revisioning_model.activate_source(page_dir).error is None
+    data_model.cmd_data_set(page_dir, "builds", "green")
+    data_model.cmd_data_set(page_dir, "notes", "Unmoved.\n" * 1000)
+    version = json.loads(fetch(f"{server}/api/state")[1])["data"]["version"]
+    holding = {"Leaf-Data-Version": version}
+    held = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+    assert held["data"] == {"version": version}
 
-    status, body = fetch(f"{server}/api/state")
-    assert status == 200
-    data = json.loads(body)["data"]
-    assert data["sources"]["review-patch"]["value"] == {
-        "files": [
-            {"key": "src/a.py", "path": "src/a.py"},
-            {"key": "src/b.py", "path": "src/b.py"},
-        ]
+    data_model.cmd_data_set(page_dir, "builds", "red")
+    holding["Leaf-Held-Basis"] = held["browser"]["basis"]["key"]
+    tail = json.loads(fetch(f"{server}/api/state", headers=holding)[1])
+
+    assert tail["since"] == {"key": holding["Leaf-Held-Basis"]}
+    assert "data" not in tail
+    data = {tuple(change["at"]): change for change in tail["patch"]}
+    assert {at[:3] for at in data if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "builds"),
     }
-
-    held = data["sources"]["review-patch"]["revision"]
-    deferred_url = f"{server}/api/deferred?source_revision={held}&source=review-patch&key=src%2Fa.py"
-    status, body = fetch(deferred_url)
-    assert status == 200
-    assert json.loads(body) == {
-        "revision": held,
-        "source": "review-patch",
-        "contract": "diff-files",
-        "key": "src/a.py",
-        "value": "diff --git a/src/a.py b/src/a.py\n",
-    }
-
-    # Each source keeps its own revision, so replacing another leaves this one read.
-    data_model.cmd_data_set(page_dir, "other-patch", {"files": []})
-    assert fetch(deferred_url)[0] == 200
-
-    data_model.cmd_data_set(
-        page_dir,
-        "review-patch",
-        {"files": [{"key": "src/a.py", "path": "src/a.py", "patch": "new"}]},
-    )
-    status, body = fetch(deferred_url)
-    assert status == 409
-    assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
+    assert data[("data", "sources", "builds", "value")]["value"] == "red"
 
 
-def test_historical_deferred_reads_keep_the_document_revision_and_layer(
+def test_a_historical_state_read_keeps_its_layer_and_reads_current_data(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1486,27 +1414,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     historical = json.loads(body)
     assert status == 200
     assert historical["layer"]["generation"] == first_layer
-    assert (
-        "patch"
-        not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
+    assert historical["data"]["sources"]["review-patch"]["value"] == patch_manifest(
+        patch
     )
-
-    address = urllib.parse.urlsplit(server)
-    connection = http.client.HTTPConnection(address.hostname, address.port)
-    held = historical["data"]["sources"]["review-patch"]["revision"]
-    connection.request(
-        "GET",
-        f"/api/deferred?source_revision={held}&source=review-patch&key=app.py&t="
-        + TOKEN,
-        headers={"Leaf-View-Revision": str(first.revision)},
-    )
-    response = connection.getresponse()
-    deferred = json.loads(response.read())
-    connection.close()
-
-    assert response.status == 200
-    assert response.getheader("Leaf-Layer") == first_layer
-    assert deferred["value"] == patch
 
 
 def _select_another_layer(page_dir):
@@ -2992,6 +2902,9 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     file invalidates it immediately, while a repeated quiet observation does not
     call the neighboring-page scan again.
     """
+    # The cache's two-second age would expire it on a slow machine; age isn't the
+    # subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     real_other_leaves = presence_model.other_leaves
     calls = 0
 
@@ -3082,6 +2995,9 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     neighbour_page(neighbor, title="Neighbor")
     own = server_rows_model.RowPublisher(page_dir, "own-server")
     own.refresh()
+    # Twenty rounds can outlast the cache's two-second age on a slow machine; age
+    # isn't the subject here.
+    monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
     calls = []
     read = presence_model.other_leaves
 
@@ -3967,12 +3883,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     declare_data_input(
         page_dir, "patches", schema, contract="patch-list", activate=False
     )
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["$data"]["contracts"]["patch-list"].update(
-            records={"items": "files", "key": "key", "deferred": "patch"}
-        ),
-    )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
     data_model.cmd_data_set(
@@ -4029,7 +3939,11 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     ) as server:
         status, state = fetch(f"{server.origin}/api/state")
         assert status == 200
-        assert json.loads(state)["reading"] == snapshot.reading
+        served = json.loads(state)
+        assert served["reading"] == snapshot.reading
+        assert served["data"]["sources"]["patches"]["value"] == {
+            "files": [{"key": "a.py", "patch": "old"}]
+        }
         assert fetch(f"{server.origin}/")[0] == 200
         assert fetch(f"{server.origin}{snapshot.context.versions[0]['url']}")[0] == 200
         assert active is not None
@@ -4039,13 +3953,6 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        held = projection["data"]["sources"]["patches"]["revision"]
-        status, deferred = fetch(
-            f"{server.origin}/api/deferred?source_revision={held}&source=patches&key=a.py"
-        )
-        assert status == 200
-        assert json.loads(deferred)["value"] == "old"
-
         assert _news(server.origin) == snapshot.reading
 
 
@@ -4678,16 +4585,27 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
 
 
 def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypatch):
-    """An occupied address refuses after the wait budget, retaining EADDRINUSE."""
-    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0.01)
+    """An address another listener holds refuses at its first bind, retaining
+    EADDRINUSE: the bind passes TIME_WAIT, so only a live listener refuses it, and
+    waiting would not move that listener."""
+    attempts = []
+    native_bind = socket.socket.bind
+
+    def counted_bind(sock, address):
+        attempts.append(address)
+        return native_bind(sock, address)
+
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
+        address = occupied.getsockname()
+        monkeypatch.setattr(socket.socket, "bind", counted_bind)
         with pytest.raises(OSError) as refused:
             hosting_model.LeafHTTPServer(
-                occupied.getsockname(), http_model.page_endpoint(page_dir, TOKEN)
+                address, http_model.page_endpoint(page_dir, TOKEN)
             )
     assert refused.value.errno == errno.EADDRINUSE
+    assert attempts == [address]
 
 
 @pytest.mark.parametrize(
@@ -4739,11 +4657,15 @@ else:
         first.server_close()
 
 
-def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
-    """Both preview lifetimes use native port availability, without changing URLs.
+def test_a_wildcard_restart_waits_for_its_port_on_a_bsd_kernel(page_dir, monkeypatch):
+    """A BSD kernel refuses a wildcard bind over the TIME_WAIT its previous server
+    left, since address reuse there would also admit it beside a specific listener,
+    so a `--host` restart waits for its port rather than changing its URL.
 
-    A held listener arranges EADDRINUSE, which address reuse never passes.
+    A held wildcard listener arranges the same EADDRINUSE without the cooldown.
     """
+    if hosting_model.REUSE_EXCLUDES_LISTENERS:
+        pytest.skip("Linux rebinds every address over TIME_WAIT, so nothing waits")
     refused = threading.Event()
     native_bind = socket.socket.bind
 
@@ -4756,13 +4678,16 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             raise
 
     monkeypatch.setattr(socket.socket, "bind", observed_bind)
-    occupied = socket.socket()
-    occupied.bind(("127.0.0.1", 0))
+    occupied = socket.socket(socket.AF_INET6)
+    occupied.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    occupied.bind(("::", 0))
     occupied.listen()
     port = occupied.getsockname()[1]
     with ThreadPoolExecutor(max_workers=1) as workers:
         restarting = workers.submit(
-            hosting_model.TemporaryPageServer, page_dir, token=TOKEN, port=port
+            hosting_model.LeafHTTPServer,
+            ("::", port),
+            http_model.page_endpoint(page_dir, TOKEN),
         )
         try:
             assert refused.wait(STATED_TIMEOUT), (
@@ -4771,9 +4696,10 @@ def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatc
             assert not restarting.done()
         finally:
             occupied.close()
-        with restarting.result(timeout=STATED_TIMEOUT) as server:
-            assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
-            assert fetch(f"{server.origin}/api/state")[0] == 200
+        httpd = restarting.result(timeout=STATED_TIMEOUT)
+    with running_http_server(httpd):
+        assert httpd.server_address[1] == port
+        assert fetch(f"http://127.0.0.1:{port}/api/state?t={TOKEN}")[0] == 200
 
 
 @pytest.mark.parametrize("bind", ["127.0.0.1", "::"])

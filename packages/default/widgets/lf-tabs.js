@@ -77,6 +77,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  addressableLabel,
   setScroll,
   actionTemplate,
   agentName,
@@ -594,6 +595,14 @@ export class TabSet extends LeafElement {
     this.#pageFlow = this.#parts
       ? this.#root
       : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    // The strip is named as the chrome names the set (`addressableLabel`): its author's
+    // `aria-label`, else the nearest element holding it that has a name, such as its
+    // section. The page's navigation stands in no section, and the page's title names it.
+    keeps(
+      this.#strip,
+      "aria-label",
+      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+    );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.
     if (wasFlow !== this.#pageFlow && this.#active.value) {

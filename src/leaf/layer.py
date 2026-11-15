@@ -23,6 +23,7 @@ from .files import file_stamp
 from .findings import Finding
 from .locations import first_overlap, located
 from .machine import package_store
+from .page_memory import once
 from .refusals import Refused
 from .registry.contract import is_element_name
 from .registry.kernel import kernel_protocol
@@ -429,7 +430,14 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
 
     A sheet's filename sets its role. defaults.css holds a package's defaults in
     lf-base, below Layouts: a widget's own, and a theme's element rules and idioms,
-    such as the bundled `reading` look. widget-shadow.css holds rules for both trees, in lf-base in the
+    such as the bundled `reading` look. A thread's transcript holds layer markup
+    wherever it is drawn, and a widget can seat one in its shadow tree, such as a
+    diff's line threads, so every shadow tree also takes defaults.css within
+    `@scope (.lf-thread-transcript)`, in lf-shadow after the package's
+    widget-shadow.css, the order and tier it holds against the shared sheets in the
+    document: a message's markup wears its packages' look there as in the document,
+    and the tree's own elements take none of it.
+    widget-shadow.css holds rules for both trees, in lf-base in the
     document and lf-shadow in every declared shadow tree. Leaf adds no scope around
     either, so each names the widgets it styles: by tag in the document, and by
     `:host(tag)` in a shadow tree, where a rule reaches everything the tree holds,
@@ -470,6 +478,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
         place(theme, "lf-base", root, "widget-shadow.css")
         place(shadow, "lf-shadow", root, "widget-shadow.css")
         place(theme, "lf-base", root, "defaults.css")
+        if (source := root / "defaults.css").is_file():
+            shadow.append(
+                f"@layer lf-shadow {{\n@scope (.lf-thread-transcript) {{\n"
+                f"{stylesheet(source, root)}}}\n}}\n"
+            )
         place(theme, "lf-overrides", root, "overrides.css")
         if (source := root / "chrome.css").is_file():
             chrome.append(chrome_restyle(stylesheet(source, root), source))
@@ -496,8 +509,9 @@ def portable_sheet(inputs: list[Path], tags: list[str]) -> bytes:
     shadow.css) nested under `:where(<the layer's tags>)`, then the sheets of each package that ships
     widgets (widget-shadow.css and defaults.css), all in lf-base, the tier a widget
     module's adopted rules take off Leaf too (runtime/base-layer.js). The nesting keeps
-    the shared sheet's page-wide control faces (`.button`, `.field`, a native control's
-    font) to the widgets' insides, so the host's own markup keeps its look; it adds no
+    the shared sheet's page-wide faces (a native control's font, and the faces a Leaf
+    page's own controls take by name, such as `.lf-btn`) to the widgets' insides, so
+    the host's own markup keeps its look; it adds no
     specificity and keeps each rule's order, so a widget's insides rank as on a Leaf
     page. A rule there that reaches the widget element itself, or declares on `:root`,
     reaches nothing on the host, which is why the tokens stand outside it. The shared
@@ -598,7 +612,8 @@ class LayerVocabulary:
     widgets: frozenset[str]
     instructions: dict[str, bytes]
     # What readers derive from this vocabulary, such as a revision's
-    # (`registry.storage.revision_vocabulary`), held for as long as it is.
+    # (`registry.storage.revision_vocabulary`), held for as long as it is, each
+    # made once (`page_memory.once`).
     readings: dict = field(default_factory=dict, repr=False)
 
 
@@ -664,15 +679,25 @@ def _selection(
     return inputs, copies
 
 
-@cache
+_vocabularies: dict = {}
+_compositions: dict = {}
+
+
 def _vocabulary(inputs: tuple[Path, ...], copies: tuple) -> LayerVocabulary:
-    return compose_vocabulary(checked_inputs(list(inputs)))
+    return once(
+        _vocabularies,
+        (inputs, copies),
+        lambda: compose_vocabulary(checked_inputs(list(inputs))),
+    )
 
 
-@cache
 def _composed(inputs: tuple[Path, ...], copies: tuple) -> LayerComposition:
-    return _composition(
-        checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+    return once(
+        _compositions,
+        (inputs, copies),
+        lambda: _composition(
+            checked_layer_inputs(list(inputs)), lambda: _vocabulary(inputs, copies)
+        ),
     )
 
 

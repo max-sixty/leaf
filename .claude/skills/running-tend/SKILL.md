@@ -180,11 +180,19 @@ the complete suite takes hours, and later changes may have removed the cause. A 
 alone does not clear a failure that comes and goes.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
-route. An unresolved diagnosis or a missing verification environment remains
-engineering work, owned by the cause's session through `/tend-ci-runner:triage`'s
-**A cause issue** route.
+route. An unresolved diagnosis, or a verification environment you can reach another
+way, remains engineering work, owned by the cause's session through
+`/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
+
+A cause waits on the maintainer when its next step is one only they can take: a
+decision, or reproducing a failure only `test-macos` shows once the failing run's
+diagnostics, pictures and the code leave its cause open, since no runner you can
+reach has macOS. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
+names them), say in it what you found and what their answer or reproduction should
+settle, and unassign them once they act. A cause that asks them something without
+assigning them is missing from their list of assigned issues.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then
@@ -263,8 +271,9 @@ Each nightly run, scan the
 [Claude Platform release notes](https://platform.claude.com/docs/en/release-notes/overview),
 [OpenAI API changelog](https://developers.openai.com/api/docs/changelog),
 [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md),
-[Codex releases](https://github.com/openai/codex/releases), and
-[Codex product changelog](https://developers.openai.com/codex/changelog/).
+[Codex releases](https://github.com/openai/codex/releases),
+[Codex product changelog](https://developers.openai.com/codex/changelog/), and
+[Pi releases](https://github.com/earendil-works/pi/releases).
 Read entries since the last successful `tend-nightly` run, with a day's overlap;
 on the first run, read the past week. Report a source that cannot be read in the
 run summary rather than treating it as having no changes. Search open and closed
@@ -320,11 +329,38 @@ In the rolling survey, apply `/developing-leaf`, "Regular maintenance", to each 
 you review. Propose a removal that takes a feature away in an issue for the
 maintainer; a consolidation or delegation that keeps behavior is an ordinary fix.
 
+## Review-runs: benchmark costs that grow
+
+Root `AGENTS.md`, **Responsiveness**, sets how fast each cost may grow with the page,
+and the daily scheduled `ci` run's `bench` job measures those costs. Nothing passes or
+fails on its readings (`tests/AGENTS.md`, **Results do not depend on execution
+speed**), because a CI runner's speed varies from run to run and no single threshold
+separates a regression from a slow runner. So this review weighs the readings in place
+of a cutoff.
+
+Read the report of the latest scheduled run (`gh run list -w ci -e schedule`). Its
+`bench-report-*` artifact holds the browser and server tables, each reading by size
+with the exponent of its growth. Earlier runs' artifacts go back 30 days, and
+`dev/bench/data.js` on the `gh-pages` branch holds each run's CPU and `shown` readings
+at 64 sections.
+
+Judge from several runs whether a cost grows with the page faster than that rule
+allows, or rises across runs at the same size, by more than the runner's noise
+explains. The table marks `!` beside each exponent above its reading's `limit`.
+The header of `dev/leaf_dev/commands/bench.py` says which readings a busy runner
+stretches; an exponent compares sizes within one run, so a slow runner moves it less
+than the readings themselves. Where a cost grows, open an issue that names the reading, its
+values at each size, the runs compared, and the commits between the last run that read
+it at its earlier level and the first that read it higher. Where an open issue already
+tracks that cost, add only what it lacks, and leave one labelled `backlog` alone
+(**Leave backlog issues to the maintainer**). Say in the run summary which runs you
+compared, whether or not anything grew.
+
 ## Weekly: test tier budgets
 
 Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
 `test` job's summary lists the tests over their directory's budget and the journeys
-within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+within the browser budget (`leaf-dev suite profile`). A test over budget in two daily
 runs either moves to `tests/journeys/` or gets faster; a journey within the browser
 budget in both moves to `tests/browser/` when its boundary is one page. A single
 reading moves nothing, since one run's time includes contention. Open one pull

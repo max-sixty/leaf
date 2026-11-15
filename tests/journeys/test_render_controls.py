@@ -67,7 +67,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -292,24 +292,30 @@ RING_CASES = (
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),
-                ("lf-option > .lf-pick", "lf-option:has(> .lf-pick"),
+                ("lf-option > .lf-pick", "lf-option[data-lf-control-focus-visible]"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
                     FLOOR_RING,
                 ),
-                (".lf-draft-edit", ".lf-draft-edit"),
+                (".lf-draft-edit", "lf-draft[data-lf-control-focus-visible]"),
             ),
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # Working density, where a choice's gap is narrowest beside the next face.
             "notification-playground": (
-                ("lf-playground input[type=radio]", ":is(.lf-choice, .choice):has"),
+                (
+                    "lf-playground input[type=radio]",
+                    ".lf-choice[data-lf-control-focus-visible]",
+                ),
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
                 ("#pr-flow-tab", ".lf-ring-frame"),
-                ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
+                (
+                    "lf-gloss:visible > .lf-gloss-mark",
+                    "lf-gloss[data-lf-control-focus-visible]",
+                ),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", FLOOR_RING),
                 ("lf-diff code", ".lf-ring-frame"),
@@ -354,7 +360,15 @@ RING_CASES = (
     ),
     # The same walk with the panel shut lands in the margin's thread view, on the
     # thread itself rather than a control inside it.
-    ("an inline thread", ("t",), {"ship-review": ((None, ".lf-page-thread"),)}),
+    (
+        "an inline thread",
+        ("t",),
+        {
+            "ship-review": (
+                (None, ".lf-margin-preview-card[data-lf-control-focus-visible]"),
+            )
+        },
+    ),
     (
         "passage search",
         ("/",),
@@ -830,6 +844,8 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     """Child pages hold independent panel and anchored views across sample Reset."""
     page = open_page(browser, serve(named_source("thread-panel-gallery")))
+    # Each sample's page starts as it nears the window; the views below read them all.
+    start_near_work(page)
     views = {
         "overview": page.frame_locator("#overview-sample iframe"),
         "you": page.frame_locator("#on-you-sample iframe"),

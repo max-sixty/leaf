@@ -4,6 +4,7 @@ import { effect, signal } from "/vendor/signals-core.js";
 import {
   createApplicationPublisher,
   share,
+  shareFold,
 } from "../../browser/runtime/framework/snapshot.js";
 import { createPresentationCoordinator } from "../../browser/runtime/framework/presentation.js";
 
@@ -172,6 +173,66 @@ test("sharing a list keeps each item the prior list holds, wherever it moved", (
   // prior's.
   const [first] = share(items, [{ id: "a" }]);
   assert.equal(first, items[0]);
+});
+
+// A reading's records arrive as new objects, and one a list loses or gains, such as an
+// obligation leaving the user's, shifts each record after it to its neighbour's place.
+test("sharing a list keeps each record equal to the prior one of its name", () => {
+  const records = [
+    { id: "a", status: "open" },
+    { id: "b", status: "open" },
+    { id: "c", status: "open" },
+  ];
+  const fresh = () => structuredClone(records);
+  /** @param {unknown[]} next */
+  const priorOf = (next) =>
+    share(records, next).map((record) => records.indexOf(record));
+
+  const lost = fresh().slice(1);
+  lost[1].status = "answered";
+  assert.deepEqual(priorOf(lost), [1, -1], "a record that changed is the new one");
+  const gained = fresh();
+  gained.splice(1, 0, { id: "new", status: "open" });
+  assert.deepEqual(priorOf(gained), [0, -1, 1, 2]);
+  assert.deepEqual(priorOf(fresh().toReversed()), [2, 1, 0]);
+  // Records named by the event each holds, as the server's patch names them.
+  const held = records.map((event) => ({ event }));
+  const reread = structuredClone(held).toReversed();
+  assert.deepEqual(
+    share(held, reread).map((record) => held.indexOf(record)),
+    [2, 1, 0],
+  );
+
+  // A list whose records go by no names, or share one, is compared place by place.
+  const unnamed = [{ text: "x" }, { id: "b" }];
+  assert.equal(share(unnamed, [{ text: "x" }])[0], unnamed[0]);
+  const twice = [
+    { id: "a", status: "open" },
+    { id: "b", status: "open" },
+  ];
+  const [one, other] = share(twice, [
+    { id: "a", status: "open" },
+    { id: "a", status: "open" },
+  ]);
+  assert.equal(one, twice[0]);
+  assert.notEqual(other, one, "two places stay two objects");
+});
+
+// A fold hands back a subtree it made before where its inputs held still, and sharing
+// the fold's result (`shareFold`) answers it from the last time without reading it
+// again. That answer holds only against the value it was shared as.
+test("a subtree shared before is answered from that sharing only against its value", () => {
+  const shared = { list: [{ id: 1 }], meta: { kept: true } };
+  const next = { list: [{ id: 1 }], meta: { kept: true } };
+  assert.equal(shareFold(shared, next), shared);
+  assert.equal(shareFold(shared, next), shared);
+  // Against another value it shares with that one, as a reader of it compares.
+  const other = { list: [{ id: 2 }], meta: { kept: true } };
+  const against = shareFold(other, next);
+  assert.deepEqual(against, next);
+  assert.equal(against.meta, other.meta);
+  assert.equal(against.list, next.list);
+  assert.equal(shareFold(shared, next), shared);
 });
 
 test("sharing keeps a JSON field named __proto__ an own field", () => {

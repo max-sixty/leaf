@@ -41,7 +41,10 @@ lf-gloss:has(> [data-lf-said="tip"])::after {
 }
 /* The phrase takes the pointer; its proxy (`.lf-gloss-mark`) is the keyboard's route,
    whose visible focus the phrase wears as its own ring. */
-lf-gloss:has(> .lf-gloss-mark[data-lf-focus-visible]) {
+lf-gloss > .lf-gloss-mark {
+  --lf-focus-box: lf-gloss;
+}
+lf-gloss[data-lf-control-focus-visible] {
   outline: var(--focus-ring);
   --lf-wears-ring: 1;
 }

@@ -124,12 +124,12 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         }"""
     )
     past = (
-        geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + 16)
         >= geometry["preferred"]
     )
     assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 16,
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
@@ -334,7 +334,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     threads, the head keeps "Me" and its time whole. On a card at its least width
     under a finger, whose three controls, the notice and the head's Edit each take a
     finger's width, the head keeps "Me" whole and gives up its time, as any narrow
-    head does before its name; a touch screen as wide as 1400 stands that card beside
+    head does before its name; a touch screen as wide as 1408 stands that card beside
     its words. The notice says one count, "2 new", on either. Drawn whole, the notice
     stood over the head."""
     url = serve(PANEL_PAGE)
@@ -354,7 +354,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     first = append_agent_reply(serve.page_dir, root, "The status line can drop one.")
     if finger:
         context = browser.new_context(
-            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
+            viewport={"width": 1408, "height": 844}, has_touch=True, is_mobile=True
         )
         page = open_page(browser, url, context=context)
     else:
@@ -612,7 +612,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     # right of the words, so the card stands there, across the cluster, at its whole
     # height.
     assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
-    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, beside
+    assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 15.5, beside
     assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
         beside
     )

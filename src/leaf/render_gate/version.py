@@ -8,6 +8,7 @@ from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS, close_render_
 from .readings import (
     SWEEP_WIDTHS,
     arrangement_changes,
+    drawn_height_advice,
     open_widgets,
     passive_layout_shift_advice,
     settle_at,
@@ -98,7 +99,8 @@ def _render_version_attempt(
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
     reach, a box cutting off its own content where no scroll reaches it, words drawn on
-    top of other words. There it also reads, as advice naming
+    top of other words, words left under Leaf's panel with every scroller at its end.
+    There it also reads, as advice naming
     the widths it spans, whether a drawing's fit to its box shrinks its labels past
     reading, whether a table scrolls sideways with a cell in it wrapped, and whether a
     code block scrolls its lines in too little width to read them. That pass
@@ -144,6 +146,7 @@ def _render_version_attempt(
 
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
+        advice.extend(drawn_height_advice(page, _viewport_label(desktop)))
         advice.extend(passive_layout_shift_advice(page))
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))

@@ -52,7 +52,7 @@ line, outside a code block.
 ## Subagents
 
 A subagent runs with this session's id and leaves your input for you. A page it
-claims belongs to this session. A `leaf wait` it runs is refused while Leaf watches, and otherwise
-takes input from every page you hold away from you. So keep the page with you
-(`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
-session has its own id and can drive a page of its own.
+claims belongs to this session. A `leaf wait` it runs is refused while Leaf watches,
+and otherwise takes input from every page you hold away from you, so keep `leaf wait`
+with you. A separate Claude Code session has its own id and can drive a page of its
+own.

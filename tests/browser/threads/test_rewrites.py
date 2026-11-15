@@ -690,7 +690,9 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
     thread whose words the user left as they were, in a thread card. A rewrite left open
     in Feed stayed open when another message's rewrite opened in another reader, since
     each reader put aside only its own."""
-    page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
+    page, workspace, message = _rewrite_surface(
+        browser, serve, "feed", size=(1408, 900), thanks=True
+    )
     mine = message.get_attribute("data-lf-event")
     marker = page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker')
 
@@ -988,12 +990,14 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     and opening it moves none of the head's words. The row is the rewrite's: the card's
     Resolve leaves it while the rewrite is open.
 
-    Under a finger each glyph takes the aim floor, so on a card at its least width the
-    pair reaches past the Edit's room into the head's labels, which it doesn't under a
-    fine pointer. A touch screen as wide as 1400 stands that card beside its words."""
+    Under a finger each glyph takes the aim floor, so on a card as narrow as the margin
+    beside its words the pair reaches past the Edit's room into the head's labels,
+    which it doesn't under a fine pointer. A touch screen 1440 wide stands the card in
+    that margin, 336 px wide; a narrower window puts it under its words at the full
+    measure, where the labels end clear of the pair."""
     context = browser.new_context(has_touch=True, is_mobile=True)
     page, card, message = _rewrite_surface(
-        browser, serve, "card", size=(1400, 844), context=context
+        browser, serve, "card", size=(1440, 844), context=context
     )
     # A saved rewrite marks the message edited, and the agent owes it an answer, so
     # the head carries its labels out to its end.

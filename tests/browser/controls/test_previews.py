@@ -290,6 +290,71 @@ def test_a_range_previews_beside_the_line_the_pointer_rests_on(engine, request, 
     assert not reading["open"], "the preview stayed once the pointer left the range"
 
 
+# One paragraph whose fourth and fifth lines each hold words a thread marks.
+STACKED = leaf_page(
+    "Stacked",
+    '<p id="stacked">The first line says nothing much.<br>Nor does the second.<br>'
+    "The third stays quiet too.<br>Here the first thread's words stand.<br>"
+    "And here the second thread's words.<br>The last line closes it.</p>"
+    + "<p>More words.</p>"
+    * 12,
+)
+STACKED_WORDS = {
+    "first": "the first thread's words",
+    "second": "the second thread's words",
+}
+WORDS_LINE = """(words) => {
+  const walker = document.createTreeWalker(
+    document.getElementById('stacked'), NodeFilter.SHOW_TEXT);
+  let text = walker.nextNode();
+  while (!text.data.includes(words)) text = walker.nextNode();
+  const range = document.createRange();
+  range.setStart(text, text.data.indexOf(words));
+  range.setEnd(text, text.data.indexOf(words) + words.length);
+  return range.getClientRects()[0].toJSON();
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_mark_s_preview_stands_clear_of_the_mark_on_the_next_line(
+    engine, request, serve
+):
+    """A passage mark's preview keeps clear of another thread's mark as of any control,
+    though the mark is a range of words in the same paragraph, so the pointer going on
+    to that mark finds it and its press opens that thread, rather than landing on the
+    preview and only putting it away (preview.js, `declareRanges`)."""
+    url = serve(
+        STACKED,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {which} words?",
+                "anchor": {"section": "stacked", "quote": words},
+            }
+            for which, words in STACKED_WORDS.items()
+        ],
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+    first, second = (
+        page.evaluate(WORDS_LINE, words) for words in STACKED_WORDS.values()
+    )
+    assert second["top"] >= first["bottom"], (first, second)
+    page.mouse.move(first["x"] + 8, first["y"] + first["height"] / 2)
+    expect(page.locator(PREVIEW)).to_be_visible()
+    tip = page.locator(PREVIEW).bounding_box()
+    assert (
+        tip["y"] >= second["bottom"]
+        or tip["y"] + tip["height"] <= second["top"]
+        or tip["x"] >= second["right"]
+        or tip["x"] + tip["width"] <= second["left"]
+    ), f"the preview {tip} covers the next mark {second}"
+    page.mouse.click(second["x"] + 8, second["y"] + second["height"] / 2)
+    expect(page.locator(CARD)).to_contain_text("About the second words?")
+
+
 # A passage a thread is about, the words its mark paints, and where they stand.
 PASSAGE = (
     "Nothing is lost, and the edits stay queued, but the user sees a spinner until "
@@ -4149,7 +4214,7 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
 # and a frame with a field in it.
 REACHED = {
     "code": (
-        '<pre id="region" class="scroll" style="width: 400px; height: 120px;'
+        '<pre id="region" class="lf-scroll" style="width: 400px; height: 120px;'
         ' overflow: auto; margin: 4px 0 0"><code>'
         + "total = sum(item.price * item.quantity for item in all_items_with_a_long"
         "_collection_name_that_runs_past_the_box)\n" * 8 + "</code></pre>"

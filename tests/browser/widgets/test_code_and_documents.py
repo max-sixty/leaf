@@ -550,15 +550,55 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     assert not page.evaluate(TOKENS_IN, "#doc-1 code")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engine):
+    """Opening a tab nobody opened draws only the runs of its document's lines that are
+    in view, in every frame from the press on. Firefox took the runs under the closed
+    tab for drawn and kept them so as it opened, drawing every line of a long document
+    for the first frames and reading and colouring every one of them
+    (notes/browser-support.md, "An `auto` box under a fold in Firefox")."""
+    url = serve(
+        leaf_page(
+            "Documents",
+            '<lf-tabs id="docs" list="side">'
+            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            "</lf-tabs>",
+        )
+    )
+    text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(4000))
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#log.lf-rendered")).to_have_count(1)
+    runs = page.locator("#log .lf-text-document-run")
+    assert runs.count() > 20
+    # How many runs draw their lines in each of the 20 frames from the press.
+    page.evaluate("""() => {
+      const runs = [...document.querySelectorAll('#log .lf-text-document-run')];
+      window.drawnRuns = [];
+      const frame = () => {
+        window.drawnRuns.push(runs.filter((run) =>
+          run.firstElementChild.checkVisibility({contentVisibilityAuto: true})).length);
+        if (window.drawnRuns.length < 20) requestAnimationFrame(frame);
+      };
+      addEventListener('pointerdown', () => requestAnimationFrame(frame),
+        {capture: true, once: true});
+    }""")
+    page.get_by_role("tab", name="Long", exact=True).click()
+    page.wait_for_function("() => window.drawnRuns.length >= 20")
+    drawn = page.evaluate("window.drawnRuns")
+    assert drawn[-1] > 0, drawn
+    assert max(drawn) == drawn[-1], drawn
+
+
 def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, serve):
     """A document in a tab nobody opened draws once the page has presented, each in a
     task of its own, so presentation waits only for the document in view. Drawn first,
     30 tabs of 50,000 lines held presentation for 22 s in Firefox, which then restyled
-    every row of every closed tab as the page presented, a 2.6 s frame. The closed
-    tabs' documents announce their draws (`drawn`, which stamps their data's
-    provenance) together once the last has drawn, so the page reads itself again once:
-    announced one at a time, a comment anchored by its words made the page read every
-    element again after each, 3 to 5 s a document in Firefox."""
+    every row of every closed tab as the page presented, a 2.6 s frame. Each announces
+    its draw (`drawn`, which stamps its data's provenance) as it draws, so a comment on
+    its words stands on them without waiting for the documents after it."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'
@@ -589,10 +629,10 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
         "announced doc-0",
         "doc-0",
         "presented",
-        "doc-1",
-        "doc-2",
         "announced doc-1",
+        "doc-1",
         "announced doc-2",
+        "doc-2",
     ]
 
 
@@ -630,25 +670,17 @@ def closed_documents(serve, count):
     return url
 
 
-def test_a_tab_opened_while_closed_documents_draw_reports_its_document_at_once(
-    browser, serve
-):
+def test_a_closed_tab_s_document_reports_its_draw_while_later_ones_wait(browser, serve):
     """A closed tab's document reports its draw, marking its text and stamping its
-    data's provenance, with the other closed tabs' once the last has drawn, or as soon
-    as its tab shows: opened before its draw, it reports as it draws; opened after,
-    it reports as it opens. Either way the stamp a comment on its text anchors to
-    stands while the other documents still draw."""
+    data's provenance, as it draws, whether its tab shows or not, so the stamp a
+    comment on its text anchors to stands while the documents after it still wait to
+    draw."""
     url = closed_documents(serve, 4)
     page = open_page(browser, url, init_script=HOLD_QUEUE, upgraded=False)
     page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
     last = page.locator("#doc-3")
-    page.get_by_role("tab", name="Doc 1", exact=True).click()
     expect(page.locator("#doc-1 figure")).to_have_attribute("data-lf-source", "text-1")
     expect(last).not_to_have_class("lf-rendered")
-    expect(page.locator("#doc-2")).to_have_class("lf-rendered")
-    expect(page.locator("#doc-2 figure")).not_to_have_attribute(
-        "data-lf-source", "text-2"
-    )
     page.get_by_role("tab", name="Doc 2", exact=True).click()
     expect(page.locator("#doc-2 figure")).to_have_attribute("data-lf-source", "text-2")
     expect(last).not_to_have_class("lf-rendered")

@@ -240,7 +240,8 @@ a[data-lf-external]::after,
    painting over its outline or a scrollport clipping it, wears the band on a later box
    laid over it, its ::after, one band inside its edge. Two kinds of box draw it:
    - a ring frame (`.lf-ring-frame`) for the child that holds focus, such as the box
-     around a scroller of positioned lines, and a pane for its body (base.css). It
+     around a scroller of positioned lines, and a pane for its body (base.css). Each
+     child names it as the box that shows its focus (`--lf-focus-box`, base.css), and it
      declares that it wears the band (`--lf-wears-ring`, base.css); its header and
      footer are not children it rings, and its own focus wears the ordinary band;
    - a ring overlay (`.lf-ring-overlay`) for its own focus, such as a box whose
@@ -249,9 +250,10 @@ a[data-lf-external]::after,
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
    a grid area. */
-:is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
-  > :not(header, footer)[data-lf-focus-visible]
-) {
+:is(.lf-ring-frame, [data-lf-reading-role="pane"]) > :not(header, footer) {
+  --lf-focus-box: .lf-ring-frame, [data-lf-reading-role=pane];
+}
+:is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
   --lf-wears-ring: 1;
 }
 .lf-ring-overlay[data-lf-focus-visible],
@@ -261,9 +263,7 @@ a[data-lf-external]::after,
 }
 :where(
   .lf-ring-overlay[data-lf-focus-visible],
-  :is(.lf-ring-frame, [data-lf-reading-role="pane"]):has(
-    > :not(header, footer)[data-lf-focus-visible]
-  )
+  :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible]
 )::after {
   content: "";
   position: absolute;
@@ -324,7 +324,8 @@ a[data-lf-external]::after,
   --lf-band-w: 1px;
 }
 /* Any other mark on the box keeps the accent over those two: the aim, a comment's
-   mark, the proxy or location ring, or the focus ring the box wears. */
+   mark, the proxy or location ring, or the focus ring the box wears, its own or a
+   control's in it. */
 :where(
   :is([data-lf-traced], [data-lf-mark="action"]):is(
     [data-lf-aimed],
@@ -332,7 +333,7 @@ a[data-lf-external]::after,
     [data-lf-projected-location],
     [data-lf-mark]:not([data-lf-mark="action"]),
     [data-lf-focus-visible],
-    :has(> [data-lf-focus-visible])
+    [data-lf-control-focus-visible]
   )
 ) {
   --lf-band-ink: var(--accent);
@@ -375,7 +376,7 @@ a[data-lf-external]::after,
     [data-lf-proxied],
     [data-lf-mark~="focus"],
     [data-lf-focus-visible],
-    :has(> [data-lf-focus-visible])
+    [data-lf-control-focus-visible]
   )
 ) {
   --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--focus-ring-w)));
@@ -561,7 +562,6 @@ a[data-lf-external]::after,
   )
 ),
 .lf-btn,
-.button,
 button.lf-inline-action,
 .lf-react,
 .lf-margin-entry {
@@ -593,7 +593,6 @@ button.lf-inline-action,
 }
 :where(
   .lf-btn,
-  .button,
   button.lf-icon-action,
   button.lf-inline-action,
   button.lf-mark-action,

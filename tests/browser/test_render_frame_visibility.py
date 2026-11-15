@@ -95,7 +95,7 @@ def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve)
     outer = page.locator("#outer")
     inner = outer.element_handle().content_frame().locator("iframe")
     embedded = inner.element_handle().content_frame()
-    embedded.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    embedded.wait_for_function("() => document.body?.hasAttribute('data-lf-presented')")
     embedded.evaluate(VISIBLE)
     embedded.wait_for_function("frameIsVisible()")
 
@@ -153,7 +153,7 @@ def test_a_framed_page_moves_nobody_until_the_user_enters_it(browser, serve):
     here.click()
     page.locator("#frame").evaluate("frame => frame.src = location.href")
     embedded = page.locator("#frame").element_handle().content_frame()
-    embedded.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    embedded.wait_for_function("() => document.body?.hasAttribute('data-lf-presented')")
     expect(here).to_be_focused()
 
     go = page.locator("#go")

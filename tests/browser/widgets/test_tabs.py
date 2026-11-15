@@ -1437,6 +1437,33 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
         expect(page.locator("#after")).to_be_focused()
 
 
+def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
+    """A screen reader names each list of tabs, so a page's several sets can be told
+    apart: the page's navigation by the page's title, a set in a section by the
+    section's heading, and a set its author labelled by that label."""
+    source = leaf_page(
+        "Kitchen plan",
+        """<h1>Redo the kitchen</h1>
+<lf-tabs id="views">
+  <lf-tab id="view-plan" label="Plan"><p>Cabinets first.</p></lf-tab>
+  <lf-tab id="view-costs" label="Costs"><p>Under budget.</p></lf-tab>
+</lf-tabs>
+<section id="finishes"><h2>Finishes</h2>
+  <lf-tabs id="finish-sets">
+    <lf-tab id="finish-oak" label="Oak"><p>Warm.</p></lf-tab>
+    <lf-tab id="finish-ash" label="Ash"><p>Pale.</p></lf-tab>
+  </lf-tabs>
+  <lf-tabs id="handle-sets" aria-label="Handles">
+    <lf-tab id="handle-bar" label="Bar"><p>Long.</p></lf-tab>
+    <lf-tab id="handle-knob" label="Knob"><p>Round.</p></lf-tab>
+  </lf-tabs>
+</section>""",
+    )
+    page = open_page(browser, serve(source))
+    for name in ("Redo the kitchen", "Finishes", "Handles"):
+        expect(page.get_by_role("tablist", name=name, exact=True)).to_have_count(1)
+
+
 def test_root_tab_targets_remain_global(browser, serve):
     """Obligation travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)

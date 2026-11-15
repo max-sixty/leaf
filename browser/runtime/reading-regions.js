@@ -52,13 +52,13 @@
    every other. Mechanical returns, programmatic arrivals and scrolling are not
    choices of another passage. Each consumer interprets that target in its own
    domain. */
-import { scrollersOf, installScrollerLookup } from "./scroll-containers.js";
+import { installScrollerLookup } from "./scroll-containers.js";
 export { scrollersOf } from "./scroll-containers.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { landingBand, shownRect, userScrollport } from "./geometry.js";
 import { skipped } from "./shadow-tree.js";
 import { pageScroller } from "./scrolling.js";
-import { reachReadingScroller } from "./reach.js";
+import { holdReach, reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { focusInPage, inPage, layoutBox } from "./passages.js";
 import { deepFocus, onCurrentLocation, pressing } from "./focus.js";
@@ -410,17 +410,6 @@ export const scrollerFor = (el) => {
 
 installScrollerLookup(scrollerFor);
 
-// The boxes a scroll passes to once each inner one is spent, as native input chains it
-// at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
-// scroll still chains to the page, the box its containing block, the viewport, scrolls.
-/** @param {Element | null} node @returns {Generator<Element>} */
-export function* scrollChainOf(node) {
-  let last = null;
-  for (last of scrollersOf(node)) yield last;
-  if (last !== pageScroller) yield pageScroller;
-}
-
 /** @param {RegionTarget} regionOrNode */
 export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);
@@ -456,6 +445,7 @@ export async function preserveReadingRegions(owner, change) {
     retained: compositionTransitions.has(owner),
   });
   compositionTransitions.set(owner, transition);
+  const releaseReach = holdReach(owner);
   let completed = false;
   try {
     await change();
@@ -468,6 +458,7 @@ export async function preserveReadingRegions(owner, change) {
         phase: "after",
         cancelled: !completed || !owner.isConnected,
       });
+      releaseReach();
     }
   }
 }

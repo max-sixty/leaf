@@ -29,7 +29,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered, start_near_work, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS, settle_at
 from leaf.render_gate.scheme import stand_in_other_leaves
 from leaf.state import page_key, state_home
@@ -51,6 +51,7 @@ def _open(browser, url: str, viewport: dict, phone: bool):
     page = context.new_page()
     page.goto(url)
     wait_until_ready(page)
+    start_near_work(page)
     rendered(page)
     return context, page
 

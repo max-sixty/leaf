@@ -1637,12 +1637,16 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     browser, serve
 ):
     """An editing field keeps the native attachment through its visual's scroller,
-    including beyond the visible part of the diagram, and returns with its target."""
+    including beyond the visible part of the diagram, and returns with its target. It
+    follows its part when the part moves, and keeps its draft when a new width draws
+    the diagram anew."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
-    diagram.evaluate("element => { element.style.width = '240px'; }")
+    # Narrower than any layout of the flow, so the drawing laid out for it still
+    # scrolls in its box.
+    diagram.evaluate("element => { element.style.width = '100px'; }")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
@@ -1709,6 +1713,18 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
         )
         <= 2
     ), (before_part, before_field, after_part, after_field)
+
+    # Given the column's room, the diagram draws the flow anew, left to right, which
+    # replaces the part the field is about; the field keeps its draft and the user's
+    # place in it (floating-response.js says where it stands).
+    page.keyboard.type("Why here?")
+    page.evaluate("() => { window.lfDrawn = document.querySelector('#flow svg'); }")
+    diagram.evaluate("element => { element.style.removeProperty('width'); }")
+    rendered(page)
+    assert page.evaluate("() => document.querySelector('#flow svg') !== window.lfDrawn")
+    expect(bar).to_be_visible()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", "Why here?")
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(

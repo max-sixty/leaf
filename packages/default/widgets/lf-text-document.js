@@ -300,6 +300,10 @@ function sizeRuns(code, text, { columns, tab }, drawn) {
 // highlight (null). The rules are declared rather than written as each colour first
 // appears: Firefox restyled the whole page for each rule a sheet gained, 0.85 s a rule
 // beside a long document, and End there showed its scroll 1.5 s after the press.
+// They rank under the comment marks (priority -1), whose ink the marked words wear
+// however late a colour first appears: at equal priority the highlight registered
+// last paints on top, and a string scrolled to after the marks were painted kept its
+// syntax colour inside a violet mark.
 /** @type {Map<string, Highlight>} */
 const tokenHighlights = new Map();
 /** @param {{color?: string}} style */
@@ -308,7 +312,7 @@ function tokenHighlight(style) {
   if (!colour) return null;
   let highlight = tokenHighlights.get(colour);
   if (!highlight) {
-    highlight = new Highlight();
+    highlight = Object.assign(new Highlight(), { priority: -1 });
     CSS.highlights.set(`lf-token-${colour}`, highlight);
     tokenHighlights.set(colour, highlight);
   }
@@ -523,15 +527,8 @@ class RunColours {
 }
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
-// a task in the order their updates asked (`show`). A document drawn so reports its
-// draw (`announce`: its text's marks and `drawn`, which stamps its data's provenance
-// and has the page take a new reading) once the queue is empty, together with the
-// others, or as soon as it shows; until then a comment on its data stands on the
-// document (anchor-resolution.js). Reported one at a time, each sent the page through a
-// pass that read every element in it again to find a comment's words: 3 to 5 s a
-// document in Firefox with one comment on the page. The queue is a stopgap: a page
-// reading that keeps what an unchanged part of the page read would make each report
-// cheap, and the queue removable.
+// a task in the order their updates asked (`show`). Until a document draws, a comment on
+// its data stands on the document (anchor-resolution.js).
 /** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
@@ -540,16 +537,12 @@ let drawingAfterPresentation = null;
 function drawLater(doc, value, rendering) {
   drawingLater.push({ doc, value, rendering });
   drawingAfterPresentation ??= afterPresentation(async () => {
-    /** @type {Set<TextDocument>} */
-    const drawn = new Set();
     for (let next; (next = drawingLater.shift());) {
       await new Promise((resolve) => setTimeout(resolve));
       if (next.rendering !== next.doc.rendering) continue;
       await next.doc.show(next.value, true);
-      drawn.add(next.doc);
     }
     drawingAfterPresentation = null;
-    for (const doc of drawn) doc.announce();
   });
 }
 
@@ -628,8 +621,10 @@ class TextDocument extends LeafElement {
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
   // The runs the browser draws now, which syntax colour paints (`RunColours`), while
-  // the listing has a box (`listed`). Firefox reports the runs of a closed tab's
-  // listing drawn, and every document in a closed tab was coloured as the page loaded.
+  // the listing has a box (`listed`), so a document in a tab closed since the page
+  // loaded takes no colour. A fold over the listing makes its runs `visible`
+  // (text-document.css), and nothing reports them leaving the view as it closes, so
+  // the fold keeps the colour of the runs last shown until it opens.
   /** @type {Set<Element>} */
   shown = new Set();
   listed = false;
@@ -639,25 +634,7 @@ class TextDocument extends LeafElement {
   list(listed) {
     if (listed === this.listed) return;
     this.listed = listed;
-    if (listed) this.announce();
     this.colourShown();
-  }
-  // The value of the draw the document has yet to announce (`drawLater`).
-  /** @type {{value: string | null} | null} */
-  unannounced = null;
-  // Reports the draw: marks its text's items for whoever hosts the widget, in the turn
-  // that announces them (`drawn`), so on a Leaf page comments on them anchor to the
-  // document's data.
-  announce() {
-    const drawing = this.unannounced;
-    const { view, sourceView } = this;
-    if (!drawing || !view || !sourceView || !this.isConnected) return;
-    this.unannounced = null;
-    if (view.preview) {
-      mark(sourceView.pre, "source");
-      mark(view.preview, "preview");
-    } else mark(view.figure, "document");
-    this.dispatchEvent(new CustomEvent("drawn", { detail: { value: drawing.value } }));
   }
   colourShown() {
     const code = this.sourceView?.code;
@@ -854,9 +831,14 @@ class TextDocument extends LeafElement {
       setChildren(this, [view.figure]);
       this.showLone();
       if (this.listed) this.refit();
-      // A first draw the page doesn't show is announced with the others (`drawLater`).
-      this.unannounced = { value };
-      if (!presented || this.listed) this.announce();
+      // Reports the draw: marks its text's items for whoever hosts the widget, in the
+      // turn that announces them (`drawn`), so on a Leaf page comments on them anchor to
+      // the document's data.
+      if (view.preview) {
+        mark(this.sourceView.pre, "source");
+        mark(view.preview, "preview");
+      } else mark(view.figure, "document");
+      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);

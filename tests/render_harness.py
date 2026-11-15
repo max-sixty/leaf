@@ -43,7 +43,7 @@ import weakref
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import cache
+from functools import cache, wraps
 from pathlib import Path
 from socket import gethostname
 from types import SimpleNamespace
@@ -65,7 +65,14 @@ from interact_support import (
 )
 from model_folds import leaf_page
 from PIL import Image
-from playwright.sync_api import BrowserContext, Frame, Page, expect
+from playwright.sync_api import (
+    BrowserContext,
+    Frame,
+    Locator,
+    Page,
+    Touchscreen,
+    expect,
+)
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -1438,9 +1445,10 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. A detached frame has no further paint to judge; native frame
-    lifetime, rather than protocol error text, releases its pending read. Scripts-disabled
-    pages have no script-driven sensors to judge.
+    completed paint, and a frame that never completes fails the test, named. A
+    detached frame has no further paint to judge; native frame lifetime, rather than
+    protocol error text, releases its pending read. Scripts-disabled pages have no
+    script-driven sensors to judge.
     `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
@@ -1448,61 +1456,44 @@ def judge_watches():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
                 try:
-                    if not _reachable(frame):
-                        continue
                     _judge_frame_watches(frame)
-                except PlaywrightError:
+                except PlaywrightError as error:
                     # Enumeration owns no frame lifetime: a sample or its page can
                     # disappear across any subsequent protocol request. Native
                     # lifetime facts release it; every live-frame failure propagates.
                     if not frame.is_detached() and not page.is_closed():
+                        error.add_note(f"judging the watches in {frame.url}")
                         raise
 
 
-def _reachable(frame):
-    """Whether Playwright holds a document in `frame` that can answer it.
-
-    Playwright's Firefox loses some sample frames: it reports one at `about:blank`
-    or at an earlier URL of its document, runs none of the suite's init scripts in
-    it, and an evaluate there never returns. Such a frame has no watch to judge.
-    Every frame in another engine, and every top-level document, is asked."""
-    if (
-        frame.parent_frame is None
-        or frame.page.context.browser.browser_type.name != "firefox"
-    ):
-        return True
-    try:
-        frame.wait_for_function(
-            "() => true", polling=100, timeout=render_checks_model.SERVED_TIMEOUT_MS
-        )
-    except PlaywrightTimeout:
-        return False
-    return True
+# Starts a frame's drain on its first reading and answers on the reading that finds it
+# complete, so the hang deadline bounds the start as well as the drain.
+_JUDGE_FRAME = """() => {
+  let judgement = window.lfWatchJudgement;
+  if (!judgement) {
+    judgement = window.lfWatchJudgement = { complete: false, error: null };
+    Promise.resolve().then(async () => {
+      await window.lfShiftsJudged?.();
+      await window.lfWordsJudged?.();
+      await window.lfSwapsJudged?.();
+    }).then(() => { judgement.complete = true; },
+      error => { judgement.error = error; });
+  }
+  if (judgement.error) {
+    delete window.lfWatchJudgement;
+    throw judgement.error;
+  }
+  if (!judgement.complete) return false;
+  delete window.lfWatchJudgement;
+  return true;
+}"""
 
 
 def _judge_frame_watches(frame):
     """Drain a frame while its page owns it; the caller handles native detachment."""
-    frame.evaluate(
-        """() => {
-            const judgement = window.lfWatchJudgement = { complete: false, error: null };
-            Promise.resolve().then(async () => {
-              await window.lfShiftsJudged?.();
-              await window.lfWordsJudged?.();
-              await window.lfSwapsJudged?.();
-            }).then(() => { judgement.complete = true; },
-              error => { judgement.error = error; });
-        }"""
-    )
     frame.wait_for_function(
-        """() => {
-            const judgement = window.lfWatchJudgement;
-            if (judgement.error) throw judgement.error;
-            return judgement.complete;
-        }""",
-        polling=10,
-        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        _JUDGE_FRAME, polling=10, timeout=render_checks_model.SERVED_TIMEOUT_MS
     )
-    frame.evaluate("delete window.lfWatchJudgement")
 
 
 def watched(page, *, java_script_enabled=True):
@@ -1514,7 +1505,8 @@ def watched(page, *, java_script_enabled=True):
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
-    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    `__leafWatchFinding` binding: DOM writes that change nothing and scroll writes that
+    move nothing (`write_watch.js`),
     layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), typed words leaving the screen without a key or press
     (`words_watch.js`), and a row sized by the occupant that took a seat in it
@@ -1895,9 +1887,11 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          // A working indicator may keep animating while the panel has settled.
+          // A working indicator may keep animating while the panel has settled, and
+          // a scroll-driven animation follows the scroll rather than the clock.
           const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
-            Number.isFinite(move.effect?.getComputedTiming().endTime));
+            move.timeline === document.timeline
+            && Number.isFinite(move.effect?.getComputedTiming().endTime));
           const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;
@@ -1910,11 +1904,47 @@ def panel_settled(page, open=True, view=None):
     )
 
 
-# Chromium counts a tap that lands near the page's previous one within about 400 ms
-# as the next in a run of taps (a click's `detail` above 1). This bound clears it.
+# Chromium counts a touch tap as the next in a run of taps (a click's `detail` above 1,
+# and a `dblclick`) when it lands within about 25 px of the page's previous tap and
+# less than about 400 ms after it, as measured on Playwright's Chromium.
 TAP_RUN_S = 0.5
-# When each page's latest tap ended, on the host's monotonic clock.
-_last_tap = weakref.WeakKeyDictionary()
+
+
+def fresh_taps():
+    """Make every tap Playwright sends a fresh press, never the next in a run of taps.
+
+    A person reads what one press did before making the next, and a mouse click
+    states its own count, but a touch tap takes Chromium's. So two taps a test sends
+    back to back near one spot are a double tap wherever the page answers fast
+    enough, and the floating panel presses nothing for a run's later press on a
+    control its first press drew there (floating-panel.js, `runOfClicks`): a test that
+    tapped the menu open and then the row that opened under the finger passed only on
+    a host slow enough to space them. So each tap through `Locator.tap` or
+    `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
+    passed since the page's previous tap, however far apart they land: Playwright
+    doesn't report where a locator's tap lands, and its target can move before or
+    after the tap. Touches sent as raw CDP events, as a finger hold is, go unspaced,
+    so a test of a double tap sends those. The session's Playwright fixture calls this
+    once, before any page exists.
+    """
+    # When each page's touchscreen last tapped, on the host's monotonic clock.
+    tapped = weakref.WeakKeyDictionary()
+
+    def fresh(tap, touchscreen):
+        @wraps(tap)
+        def fresh_tap(self, *args, **kwargs):
+            screen = touchscreen(self)
+            since = time.monotonic() - tapped.get(screen, -math.inf)
+            time.sleep(max(0, TAP_RUN_S - since))
+            try:
+                return tap(self, *args, **kwargs)
+            finally:
+                tapped[screen] = time.monotonic()
+
+        return fresh_tap
+
+    Locator.tap = fresh(Locator.tap, lambda locator: locator.page.touchscreen)
+    Touchscreen.tap = fresh(Touchscreen.tap, lambda screen: screen)
 
 
 def press_visible(page, control, *, touch=False):
@@ -1924,23 +1954,13 @@ def press_visible(page, control, *, touch=False):
     visible fixed control. Coordinates exercise the user's visible route directly.
     A frame's bounding box is already in its owning page's coordinates; input
     goes through that page while the control stays scoped to its document.
-
-    Each press is a fresh one, as a person's reading between presses makes it. A
-    mouse click states its own count; a tap takes Chromium's, so a tap waits out the
-    run the page's previous tap began. Otherwise a control a tap's view brought under
-    the finger would take the next tap as the run's second, which the floating panel
-    presses nothing for (floating-panel.js, `runOfClicks`).
     """
     expect(control).to_be_in_viewport()
     box = control.bounding_box()
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page = page.page if isinstance(page, Frame) else page
     if touch:
-        remaining = _last_tap.get(page, -TAP_RUN_S) + TAP_RUN_S - time.monotonic()
-        if remaining > 0:
-            time.sleep(remaining)
         page.touchscreen.tap(x, y)
-        _last_tap[page] = time.monotonic()
     else:
         page.mouse.click(x, y)
 

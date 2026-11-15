@@ -63,7 +63,7 @@ from leaf.passages import SourceReading, enclosing_ids
 from leaf.registry.contract import is_element_name
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, kernel_registry
+from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -701,10 +701,14 @@ def _path_stamp(path: Path) -> tuple:
     return (link, file_stamp(path))
 
 
+# The page's trees a capture may read a dependency from (`capture_local_resource`).
+CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
     paths = []
-    for name in ("page", "media"):
+    for name in CAPTURED_TREES:
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():

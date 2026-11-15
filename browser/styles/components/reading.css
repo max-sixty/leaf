@@ -441,25 +441,32 @@ dl.lf-facts dd {
        which keeps a table nested in a cell read for itself. The table of captures
        below asks the same way. An `@scope` rooted on the table also answers once, but a
        scope's root names a class, id or attribute, never a type alone
-       (test_an_untyped_has_leads_only_to_a_typed_subject). */
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Each rule below names its cells' types, in a `:where()` that adds no weight,
+       because its subject follows the table's `:has()`: when such a subject names no
+       type, class, id or attribute, Chromium restyles every element under any one whose
+       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
+       marks every ancestor of the focused element, `main` included, so with
+       `:first-child` alone every focus move restyled the page
+       (test_resolving_a_thread_restyles_what_focus_marks). */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
       }
-      & > * > tr > :first-child {
+      & > * > tr > :where(th, td):first-child {
         position: sticky;
         inset-inline-start: 0;
       }
-      &[data-lf-more-before] > * > tr > :first-child {
+      &[data-lf-more-before] > * > tr > :where(th, td):first-child {
         background: var(--lf-ground);
       }
       @media screen {
         &[data-lf-more-before]:not([data-lf-focus-within])
           > *
           > tr
-          > :first-child::after {
+          > :where(th, td):first-child::after {
           content: "";
           position: absolute;
           inset-block: 0;
@@ -550,8 +557,10 @@ dl.lf-facts dd {
     figure {
       margin: var(--figure-margin-block) 0;
     }
+    /* A caption is a sentence read with its figure, so it stands one rung under the
+       prose rather than at the apparatus size beside a label or a chip. */
     figcaption {
-      font-size: var(--t-6);
+      font-size: var(--t-5);
       color: var(--muted);
       margin-top: 8px;
     }
@@ -844,7 +853,15 @@ details::details-content {
 /* Frame edges propagate through generated shadow wrappers and their slots by the
  * same rule as ordinary document wrappers (theme.css, block-flow frames). The reset
  * stands in the face's layer, the lowest of the tier, so every frame's declaration
- * outranks it, the face's own on a quotation, a disclosure and a cell among them. */
+ * outranks it, the face's own on a quotation, a disclosure and a cell among them.
+ *
+ * Each edge rule checks that an element is neither chrome (`.lf-ui`) nor generated
+ * (`data-lf-gen`) before it checks the element's position, in a `:where()` that adds
+ * no weight. Chromium matches these selectors against every element, whether or not
+ * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
+ * children, it restyles all of them whenever a child is inserted or removed. The
+ * margin's rows are `.lf-ui` siblings, so without the check, sending a comment
+ * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes). */
 @layer lf-reading-face {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
@@ -853,13 +870,13 @@ details::details-content {
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  :where(:not(.lf-ui, [data-lf-gen])):nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
-  :nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  :where(:not(.lf-ui, [data-lf-gen])):nth-last-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-end: 0;
     --lf-frame-end: 1;
   }

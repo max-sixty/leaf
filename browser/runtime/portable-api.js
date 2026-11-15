@@ -98,8 +98,6 @@ export { LeafElement } from "./leaf-element.js";
 
 export { publishOutput } from "./widget-output.js";
 
-export { loadDeferred } from "./deferred-value.js";
-
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 

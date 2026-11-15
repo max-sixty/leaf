@@ -1861,6 +1861,11 @@ _TEXT = {
     "summary-order": lambda at, v: (
         "summary must cover at least two messages in thread order"
     ),
+    "summary-gap": lambda at, v: (
+        f"summary would leave older message {v['older']!r} unsummarized above it,"
+        " and only the thread's opening message may stay there; summarize"
+        f" --from {v['older']!r} --through {v['through']!r}"
+    ),
     "reanchor-thread": lambda at, v: "reanchor needs an open anchored thread",
     "reanchor-section": lambda at, v: (
         "reanchor must retain the thread's surviving section or detach it"

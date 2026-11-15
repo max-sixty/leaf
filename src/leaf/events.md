@@ -370,8 +370,12 @@ to-do is made from an obligation.
   single line of plain text no longer than its registry `title` allows
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
-  one thread; a reaction may lie inside it but not at an endpoint. `text` may be empty
-  and `label` defaults to “Earlier discussion”. `events.active_summaries` says which
+  one thread; a reaction may lie inside it but not at an endpoint. It replaces the
+  summaries it overlaps whole, and every spoken turn older than `from` must then lie
+  in a summary, apart from the thread's opening message and progress a later reply
+  completed (`events.summary_gap`). The refusal names the range admission would take,
+  and a delivery's `summary_hint` names only such a range. `text` may be empty and
+  `label` defaults to “Earlier discussion”. `events.active_summaries` says which
   summaries stand. A summary answers, resolves, settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,
   `todo`, markup, failure or anchor transition and takes part in no turn, settlement or

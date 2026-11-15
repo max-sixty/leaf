@@ -249,6 +249,69 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
+def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
+    """A summary that would leave an older message outside every summary is refused,
+    naming the range admission takes, apart from the thread's opening message (#5531).
+    A reaction is a mark on a message and completed progress is drawn nowhere, so
+    neither counts; pending progress is drawn, so it does. A summary it overlaps is
+    replaced whole, so what that one covered counts too."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
+    )
+
+    def say(author, text, **extra):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root["id"],
+                "text": text,
+                **extra,
+            },
+        )
+
+    append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root["id"], "token": "mark"},
+    )
+    say("agent", "Checking the regions.", ephemeral=True)
+    first = say("agent", "Two regions first.")
+    second = say("user", "Which two?")
+    third = say("agent", "East and west.")
+
+    def summarize(start: str, end: str) -> list:
+        return command_findings(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            start,
+            "--through",
+            end,
+            "--text",
+            "The regions.",
+        )
+
+    def retried(start: str, end: str) -> str:
+        """The message the refusal says to start at, once the range it names is
+        admitted."""
+        [refusal] = summarize(start, end)
+        assert refusal.code == "summary-gap"
+        assert summarize(refusal.values["older"], refusal.values["through"]) == []
+        return refusal.values["older"]
+
+    # Admitted from `first`, with the reaction and completed progress still above it.
+    assert retried(second["id"], third["id"]) == first["id"]
+    # The same range again would replace that summary and leave `first` above it.
+    assert retried(second["id"], third["id"]) == first["id"]
+
+    pending = say("agent", "Checking the east.", ephemeral=True)
+    north = say("user", "And the north?")
+    south = say("user", "Or the south?")
+    assert retried(north["id"], south["id"]) == pending["id"]
+
+
 @pytest.mark.parametrize("label", [None, "Previous progress messages"])
 def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     root = append_carried_log_record(
@@ -438,35 +501,68 @@ def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
     }
 
 
-def test_summary_hint_takes_the_earliest_qualifying_run(page_dir):
+@pytest.mark.parametrize(
+    ("reply_text", "suggested"),
+    [
+        pytest.param("y" * 1000, True, id="older-run-qualifies"),
+        pytest.param("Short.", False, id="older-run-too-short"),
+    ],
+)
+def test_a_summary_hint_names_only_a_range_admission_takes(
+    page_dir, reply_text, suggested
+):
+    """The hint keeps the rule admission keeps, so following it is never refused and
+    never leaves older discussion in full above a summary (#5531). A rewrite that
+    retires a summary leaves its run uncovered above a later one. The hint names that
+    run, or nothing where it is too short to suggest, though a run after the later
+    summary qualifies. Built from uncovered messages, it never overlaps a summary in
+    force."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
-    long_reply = append_carried_log_record(
-        page_dir,
-        {"kind": "reply", "author": "agent", "parent": root["id"], "text": "y" * 1000},
-    )
-    folded = [
-        append_carried_log_record(
+
+    def say(author, text):
+        return append_carried_log_record(
             page_dir,
-            {"kind": "reply", "author": "agent", "parent": root["id"], "text": "z"},
+            {"kind": "reply", "author": author, "parent": root["id"], "text": text},
         )
-        for _ in range(2)
+
+    reply = say("agent", reply_text)
+    folded = [say("agent", "z") for _ in range(2)]
+    thread_model.cmd_summarize(page_dir, root["id"], reply["id"], "The opening.")
+    later = thread_model.cmd_summarize(page_dir, folded[0]["id"], folded[-1]["id"], "")
+    thread_model.cmd_edit(page_dir, reply["id"], f"{reply_text} Revised.")
+    newer = [
+        say(author, "Next?")
+        for author in ("agent", "user", "agent", "agent", "user", "agent", "user")
     ]
-    thread_model.cmd_summarize(page_dir, folded[0]["id"], folded[-1]["id"], "")
-    # Five short messages after the summary form a longer qualifying run, but the
-    # older run is the one a summary must not leave above it.
-    for author in ("agent", "user", "agent", "agent", "user", "agent", "user"):
-        latest = append_carried_log_record(
-            page_dir,
-            {"kind": "reply", "author": author, "parent": root["id"], "text": "Next?"},
-        )
     [digest] = thread_context_model.batch_threads(
         events_model.read_events(page_dir),
-        [latest],
+        [newer[-1]],
         page_view_model.PageView(page_dir).within,
     )
-    assert digest["summary_hint"] == {"from": root["id"], "through": long_reply["id"]}
+    assert [summary["id"] for summary in digest["summaries"]] == [later["id"]]
+
+    def summarize(start: str, end: str) -> list:
+        return command_findings(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            start,
+            "--through",
+            end,
+            "--text",
+            "Earlier.",
+        )
+
+    if suggested:
+        assert digest["summary_hint"] == {"from": root["id"], "through": reply["id"]}
+        assert summarize(root["id"], reply["id"]) == []
+    else:
+        assert "summary_hint" not in digest
+        [refusal] = summarize(newer[0]["id"], newer[4]["id"])
+        assert (refusal.code, refusal.values["older"]) == ("summary-gap", reply["id"])
 
 
 @pytest.mark.parametrize(

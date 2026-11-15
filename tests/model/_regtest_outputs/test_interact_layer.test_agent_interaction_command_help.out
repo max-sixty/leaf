@@ -76,10 +76,11 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 
   Replace --from through --through in the panel with a Markdown summary.
 
-  Both name messages in one thread, which is the thread summarized. An empty
-  summary, such as `--text ''`, folds them without prose. The original messages
-  remain in the append-only transcript and can always be revealed. A later
-  overlapping summary replaces this one.
+  Both name messages in one thread, which is the thread summarized. Every
+  message older than --from must already be summarized, apart from the thread's
+  first. An empty summary, such as `--text ''`, folds them without prose. The
+  original messages remain in the append-only transcript and can always be
+  revealed. A later overlapping summary replaces this one.
 
 Options:
   --from MESSAGE     the first message folded  [required]

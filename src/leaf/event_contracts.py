@@ -13,9 +13,11 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
+    active_summaries,
     build_threads,
     note_settlements,
     spoken_turns,
+    summary_gap,
     taken_back,
     undo_error,
     unshown,
@@ -694,6 +696,11 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start >= end:
         return Finding("summary-order", values=named)
+    # The summaries in force once this one stands: those it overlaps it replaces whole.
+    candidate = {**event, "seq": events[-1]["seq"] + 1}
+    after = active_summaries([*events, candidate], {thread["id"]: thread})
+    if older := summary_gap(thread, after[thread["id"]], event["from"]):
+        return Finding("summary-gap", values={**named, "older": older["id"]})
     return None
 
 

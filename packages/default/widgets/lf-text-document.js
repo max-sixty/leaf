@@ -108,7 +108,7 @@ function listing(drawn) {
     const count = Math.min(RUN, drawn.text.length - first);
     const held = run(count);
     for (let at = first; at < first + count; at++) held.append(row(words(drawn, at)));
-    number(held, first);
+    number(held.firstElementChild, first);
     code.append(held);
   }
   return { pre, code };
@@ -152,9 +152,9 @@ function firstLines(code) {
 // a line added at the top of 50,000 had Firefox, which styles the rows of runs it
 // skips, restyle all of them: 190 to 240 ms, against 35 with each run's number on its
 // first row. A row no longer first keeps a number the stylesheet doesn't read.
-/** @param {Element} run @param {number} first */
-function number(run, first) {
-  /** @type {HTMLElement | null} */ (run.firstElementChild)?.style.setProperty(
+/** @param {Element | null | undefined} row a run's first row @param {number} first */
+function number(row, first) {
+  /** @type {HTMLElement | null | undefined} */ (row)?.style.setProperty(
     "--lf-lines-before",
     `${first}`,
   );
@@ -277,8 +277,13 @@ function refill(code, after, shown) {
   let line = 0;
   for (const held of runs) {
     const rows = [];
+    const first = line;
     for (const end = Math.min(line + held.childElementCount, count); line < end; line++)
       rows.push(row(words(after, line)));
+    // The reconciliation gives each row the new row's attributes, so the first carries
+    // its number in: patched bare, it lost the number, and where the run kept its first
+    // line and first row, nothing numbered it again (`regroup`).
+    number(rows[0], first);
     setRenderedChildren(held, rows);
   }
   /** @type {Element[]} */
@@ -361,7 +366,8 @@ function regroup(code, runs, touched, shown, firsts, heads) {
   let line = 0;
   for (const held of kept) {
     const at = was.get(held) ?? -1;
-    if (firsts[at] !== line || heads[at] !== held.firstElementChild) number(held, line);
+    if (firsts[at] !== line || heads[at] !== held.firstElementChild)
+      number(held.firstElementChild, line);
     line += held.childElementCount;
   }
   return new Set(kept.filter((held) => touched.has(held)));

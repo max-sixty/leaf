@@ -1296,6 +1296,19 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     rendered(page)
     assert page.locator("#log code").text_content() == "\n".join(indented) + "\n"
     assert page.evaluate("() => getSelection().toString()").strip() == selected
+    # Past the cap again with every line in its place, so each run keeps its first
+    # line and first row: the rows still count their places.
+    reindented = [f"  {line}" for line in indented]
+    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(reindented) + "\n")
+    told(page)
+    rendered(page)
+    page.locator(ROWS).nth(1000).evaluate(
+        "row => row.scrollIntoView({block: 'center'})"
+    )
+    rendered(page)
+    drawn = drawn_numbers(page, "log")
+    assert 1001 in dict(drawn), drawn
+    assert all(text == str(line) for line, text in drawn), drawn
 
 
 def drawn_numbers(page, document):

@@ -64,6 +64,7 @@ from render_harness import (
 
 from browser.threads import append_agent_reply
 from leaf import event_log
+from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
@@ -536,7 +537,8 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
 ):
     """Beside its text, the comment box and its card stand at the card's least width
     while each message fits in four lines there, so Send opens the card in the box's
-    rectangle and a short answer keeps it. A long answer widens the card from its
+    rectangle, and a short answer and progress steps keep it, however long an earlier
+    step that folds away. A long answer widens the card from its
     start as it arrives, carrying the card's controls, which the shift watch credits to
     the card's declaration (`permittedWidening`). Reopening stands the card between the
     same sides."""
@@ -568,8 +570,20 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
         if event["kind"] == "comment"
     )["id"]
     append_agent_reply(serve.page_dir, root, "Checking which runner the plan pins.")
+    address = {"parent": root, "responds": root}
+    thread_model.post_reply(
+        serve.page_dir,
+        address,
+        "Reading every workflow that checks out the runner, and each job it runs. " * 3,
+        ephemeral=True,
+    )
+    thread_model.post_reply(
+        serve.page_dir, address, "Reading the plan's last step.", ephemeral=True
+    )
     told(page)
-    expect(card.locator(".lf-msg")).to_have_count(2)
+    expect(card.locator(".lf-thread-working-words")).to_have_text(
+        "Reading the plan's last step"
+    )
     rendered(page)
     short = page.evaluate(RECT, ".lf-margin-preview")
     assert {side: short[side] for side in sides} == pytest.approx(

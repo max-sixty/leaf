@@ -845,10 +845,13 @@ export function createThreadPreview({
               session.wide || !fromSubject
                 ? Math.min(cardMeasure(), width, carried)
                 : narrow;
+            // Only the messages it shows count: a run's earlier progress steps and the
+            // turns under a closed checkpoint fold (`hidden="until-found"`) and still
+            // lay out when measured.
             const outgrown = () =>
               fromSubject &&
               !held.writing &&
-              outgrowsNarrow(preview.querySelectorAll(".lf-msg-text"));
+              outgrowsNarrow(preview.querySelectorAll(".lf-msg-text:not([hidden] *)"));
             // A card at the least width reads its messages there before this fit
             // writes, so news widens it in one write; a selection's first fit lays it
             // out there first.

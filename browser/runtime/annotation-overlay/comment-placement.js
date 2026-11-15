@@ -432,8 +432,8 @@ export const cardMeasure = () => rootLength("--thread-card");
 // A card by its text stands at the least width while each sent message in it fits in
 // `NARROW_LINES` lines there, and at the measure from the first that runs past them
 // (`size-width`): a short comment stays slim, as it does through the agent's progress
-// steps, which a card draws apart from its messages, and a paragraph long enough to read
-// gets the measure's line length.
+// steps, which a card shows one at a time apart from its messages, and a paragraph long
+// enough to read gets the measure's line length.
 const NARROW_LINES = 4;
 /** Whether any of `texts`, laid out at the width it stands at, is as tall as one line
  * more than `NARROW_LINES`, which a paragraph's own spacing doesn't reach.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Check a UI change before it merges</title>
+    <meta
+      name="description"
+      content="Step through before-and-after captures of each screen a front-end change reaches, mark the ones that look right, and send back the one that broke."
+    />
+    <style>
+      /* A workspace sets no reading measure; the lede keeps one. */
+      #captures-lede {
+        max-inline-size: var(--wide);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-workspace density-working" id="captures-workspace">
+      <header>
+        <h1>Do the run status badges look right?</h1>
+        <p id="captures-lede">
+          I captured five console screens on <code>main</code> and on the branch. At
+          phone width the new column pushes Duration out of view, which I'll fix before
+          merging. Overview's rows grew 4 px through the shared table, which I'd keep.
+          Mark each screen that looks right, or comment on what doesn't.
+        </p>
+      </header>
+      <lf-visual-review
+        id="captures-review"
+        source="status-column-run"
+      ></lf-visual-review>
+    </main>
+  </body>
+</html>

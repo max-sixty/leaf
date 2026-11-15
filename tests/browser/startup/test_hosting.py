@@ -498,7 +498,21 @@ def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     assert readiness(page) == "arrived"
     frame = page.locator("#practice iframe")
-    frame.scroll_into_view_if_needed()
+    # The reader scrolls to it with a wheel off the frame, an input of their own after
+    # whatever brought it near.
+    page.mouse.move(5, 450)
+    page.mouse.wheel(
+        0, frame.evaluate("frame => frame.getBoundingClientRect().top - 100")
+    )
+    page.evaluate("""async () => {
+        const frame = document.querySelector('#practice iframe');
+        for (let last = null; ; ) {
+          await new Promise(done => requestAnimationFrame(done));
+          const top = frame.getBoundingClientRect().top;
+          if (top === last && top < 200) return;
+          last = top;
+        }
+    }""")
     loading = frame.bounding_box()["height"]
     after = page.locator("#after").bounding_box()
     # The sample's document goes on; the inner sample's, once asked for, waits.
@@ -696,6 +710,108 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
     page.locator("#last").evaluate("sample => sample.reset()")
     assert allocated == ["far-source", "folded-source", "last-source"]
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_sample_the_gesture_shows_fits_though_it_started_out_of_sight(
+    engine, request, serve
+):
+    """A link that takes the reader to two samples brings a third near, just below the
+    window, so all three start. The two in view fit their short pages as those draw,
+    pulling the third into view while its page is still loading. That frame is the
+    link's too: it fits its page as soon as that draws, rather than standing empty until
+    the reader looks away, and the link owns what that fit carries, as it owns what
+    the two above carried. Which page draws first is the network's to decide, so the
+    test holds each sample's document and lets the two above draw first."""
+    page = request.getfixturevalue(engine).new_page(
+        viewport={"width": 1200, "height": 1300}
+    )
+    watched(page)
+    held = {}
+    templates = {}
+    page.on(
+        "response",
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/samples")
+            and templates.update(
+                {
+                    next(SAMPLE_DOCUMENT.finditer(response.json()["url"])).group(1): (
+                        response.request.post_data_json["template"]
+                    )
+                }
+            )
+        ),
+    )
+    passing = set()
+
+    def hold(request_route):
+        match = SAMPLE_DOCUMENT.search(request_route.request.url)
+        assert match is not None
+        if match.group(1) in passing:
+            request_route.continue_()
+        else:
+            held.setdefault(match.group(1), []).append(request_route)
+
+    def release(template):
+        [sample] = [each for each, name in templates.items() if name == template]
+        passing.add(sample)
+        for each in held.pop(sample):
+            each.continue_()
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    page.goto(
+        serve(
+            leaf_page(
+                "Samples together",
+                '<p><a id="go" href="#first">Go to the samples</a></p>'
+                '<div style="height: 400vh"></div>'
+                + live_sample("first")
+                + live_sample("second")
+                + live_sample("pulled")
+                + "<p><button id=after>After the samples</button></p>"
+                '<div style="height: 200vh"></div>',
+                # The link lands the third frame just below the window's foot.
+                head="""<script type="module">
+document.querySelector('#go').addEventListener('click', (event) => {
+  event.preventDefault();
+  const frame = document.querySelector('#pulled iframe');
+  scrollBy(0, frame.getBoundingClientRect().top - innerHeight - 40);
+});
+</script>""",
+            )
+        )
+    )
+    wait_until_ready(page)
+    assert templates == {}
+    page.locator("#go").click()
+    holding(page, held, 3, "the three samples' documents")
+    frame = page.locator("#pulled iframe")
+    in_view = "node => node.getBoundingClientRect().bottom < innerHeight"
+    for each in ("#first iframe", "#second iframe"):
+        assert page.locator(each).evaluate(in_view)
+    assert frame.evaluate("frame => frame.getBoundingClientRect().top > innerHeight")
+    loading = frame.evaluate("frame => frame.clientHeight")
+
+    # The page's rendering waits for the third frame's landing, so wait on its place.
+    release("first-source")
+    release("second-source")
+    for each in ("#first", "#second"):
+        page.locator(each).evaluate("sample => sample.ready")
+    page.wait_for_function(
+        f"({in_view})(document.querySelector('#after'))", polling="raf"
+    )
+    assert frame.evaluate("frame => frame.clientHeight") == loading
+
+    release("pulled-source")
+    page.locator("#pulled").evaluate("sample => sample.ready")
+    rendered(page)
+    drawn = frame.content_frame.locator("body").evaluate(
+        "body => Math.ceil(body.getBoundingClientRect().height)"
+    )
+    assert drawn < loading
+    assert frame.evaluate("frame => frame.clientHeight") == drawn
 
 
 def test_a_sample_counts_each_document_its_frame_loads(browser, serve):

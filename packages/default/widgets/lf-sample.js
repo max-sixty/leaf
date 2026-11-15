@@ -31,12 +31,18 @@
  * so nothing is counted between. Work a child starts after it has arrived, such as
  * one of its own samples' Reset, is the child's to count. A resize of a child the
  * reader did not ask to load, one that started near the window but out of their
- * sight, waits while it would move what they see, the frame keeping its current
+ * sight and that they reach after another input, as a reader scrolling ahead of it
+ * does, waits while it would move what they see, the frame keeping its current
  * height (`heldGrowth`), until they look away, or until they click, type or press a
  * key inside the child, which makes every later resize of that document theirs,
  * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
  * page, or one of a frame the reader saw as it mounted or as it started, as when a
- * tab, a link or a jump brings it into view, is theirs and applies at once. The user
+ * tab, a link or a jump brings it into view, is theirs and applies at once. So is one
+ * of a frame the same gesture shows them before its page first draws, while that
+ * gesture is still their latest input (`retainUserIntent`), as a nearer sample's fit
+ * pulls into view a frame that started just below the window. Rejected: asking only
+ * whether the reader sees the frame as its page draws, which would also fit one they
+ * had scrolled onto while it loaded. The user
  * chose on 14 November 2026 to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
  * click into it, which left a short page standing in a blank frame. A load that
@@ -74,6 +80,7 @@ import {
   isNativeLayer,
   handBack,
   heldGrowth,
+  retainUserIntent,
   whenNear,
 } from "/runtime/widget-api.js";
 
@@ -127,11 +134,16 @@ export class Sample extends HTMLElement {
   // Drops a resize `heldGrowth` holds.
   /** @type {(() => void) | null} */
   #heldFit = null;
-  // The current document's arrival (`#track`); whether its resizes wait while seen
-  // until the reader claims it; and whether the reader asked for the load.
+  // The current document's arrival (`#track`); whether its resizes are the reader's,
+  // applying at once, rather than waiting while seen until the reader claims it; and
+  // whether the reader asked for the load. The last two are each true, false, or, for
+  // a frame that started out of their sight, the intent of the gesture that brought it
+  // near (`retainUserIntent`), which the frame's first resize settles (`#height`).
   /** @type {{land: () => void, reported: (() => void) | null} | null} */
   #arrival = null;
-  #unclaimed = false;
+  /** @type {boolean | (() => boolean)} */
+  #claimed = true;
+  /** @type {boolean | (() => boolean)} */
   #asked = false;
   /** @type {{source: Promise<SampleReady>, ready: Promise<SampleReady>} | null} */
   #following = null;
@@ -201,39 +213,46 @@ export class Sample extends HTMLElement {
       return;
     }
     // One the reader sees as it starts, brought into view by a tab, a link or a jump,
-    // is theirs too, and fits its page as soon as that draws; `whenNear` holds the fit
-    // as the landing of the gesture that brought it near. One that starts near the
-    // window but out of their sight arrives as news, and lands nothing they see.
+    // is theirs too, and fits its page as soon as that draws. So is one that starts
+    // just out of their sight and that the same gesture then shows them before its
+    // page draws, as a nearer sample's fit pulls it into view, while that gesture is
+    // still their latest input. One they reach after another input, as a reader
+    // scrolling ahead of it does, arrives as news. Either way `whenNear` holds the
+    // fit as the landing of the gesture that brought the frame near, which a window,
+    // keeping its height, never has.
     this.#nearing = whenNear(this.#frame, () => {
       this.#nearing = null;
-      const asked = this.#seen();
-      const fitted = this.#start(asked);
-      return asked ? fitted : undefined;
+      if (this.#windowed) {
+        this.#start(false);
+        return;
+      }
+      return this.#start(growthIsSeen(this.#frame) || retainUserIntent());
     });
   }
 
-  // Whether the frame's resize to its child would move what the reader sees now. A
-  // window keeps its height.
+  // Whether the frame shows a whole window at its own height, a window sample's or
+  // Full view's, rather than taking its child's height.
+  get #windowed() {
+    return this.hasAttribute("window") || isNativeLayer(this.#view);
+  }
+
+  // Whether the frame's resize to its child would move what the reader sees now.
   #seen() {
-    return (
-      !this.hasAttribute("window") &&
-      !isNativeLayer(this.#view) &&
-      growthIsSeen(this.#frame)
-    );
+    return !this.#windowed && growthIsSeen(this.#frame);
   }
 
   // Start the child. Its resize on arrival applies at once where the reader `asked`
   // for it, and otherwise waits while they see it (`#height`). Returns the frame's
   // first fit to its child, or its readiness settling where it fits nothing then, or
   // the server's wait.
-  /** @param {boolean} asked @returns {Promise<unknown>} */
+  /** @param {boolean | (() => boolean)} asked @returns {Promise<unknown>} */
   #start(asked, { present = false } = {}) {
     this.#mounting = true;
     /** @type {PromiseWithResolvers<void>} */
     const { promise: waiting, resolve: waited } = Promise.withResolvers();
     const ready = mountSample(this.#frame, {
       template: this.#template.id,
-      window: this.hasAttribute("window") || isNativeLayer(this.#view),
+      window: this.#windowed,
     }).then(
       async (host) => {
         this.#mounting = false;
@@ -261,7 +280,7 @@ export class Sample extends HTMLElement {
         // without it, and it arrives as one below the window does, its growth held
         // while seen.
         host.on("waiting", () => {
-          this.#unclaimed = true;
+          this.#claimed = false;
           waited();
         });
         host.on("current-location", ({ focused }) => {
@@ -419,22 +438,26 @@ export class Sample extends HTMLElement {
   // Full view retains the embedded height while its same frame fills the dialog;
   // returning applies the current block reading without replacing any native editor.
   // An unclaimed child's reading waits while its resize would be seen, unless
-  // the reader `asked` for it, by Reset or Return to page.
+  // the reader `asked` for it, by Reset or Return to page. The first reading of a
+  // frame the gesture that brought it near may yet claim settles that claim: the frame
+  // is the reader's if they see it now and that gesture is still their latest input.
   /** @param {number} height */
   #height(height, { immediate = false, asked = false } = {}) {
-    if (this.hasAttribute("window") || isNativeLayer(this.#view)) return;
+    if (this.#windowed) return;
     this.#heightReading = height;
     this.#heldFit?.();
     this.#heldFit = null;
+    if (typeof this.#claimed === "function")
+      this.#claimed = this.#claimed() && growthIsSeen(this.#frame);
     const fit = immediate ? this.#fit : this.#scheduleFit;
-    if (this.#unclaimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
+    if (!this.#claimed && !asked) this.#heldFit = heldGrowth(this.#frame, fit);
     else fit();
   }
 
   // The reader's click or key inside the child makes the frame theirs to move: a
   // resize held while they read applies now, and so does each later one.
   #release() {
-    this.#unclaimed = false;
+    this.#claimed = true;
     if (!this.#heldFit) return;
     this.#heldFit();
     this.#heldFit = null;
@@ -486,7 +509,7 @@ export class Sample extends HTMLElement {
       if (this.#arrival !== arrival) return;
       this.#arrival = null;
     });
-    this.#unclaimed = !this.#asked;
+    this.#claimed = this.#asked;
     this.#asked = false;
     const ready = this.#follow(promise);
     // The child reports its arrival after its presentation, which this widget draws
@@ -509,9 +532,7 @@ export class Sample extends HTMLElement {
     if (promise === this.#following?.source) return this.#following.ready;
     const ready = promise.then(async (reading) => {
       if (this.#ready !== ready) return reading;
-      const current = await this.#activeHost.setWindow(
-        this.hasAttribute("window") || isNativeLayer(this.#view),
-      );
+      const current = await this.#activeHost.setWindow(this.#windowed);
       if (this.#ready !== ready) return reading;
       this.#height(current.height, { immediate: true });
       keeps(this.#reset, "aria-disabled", null);

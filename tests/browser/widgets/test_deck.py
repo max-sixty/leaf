@@ -83,6 +83,37 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
     open_card(page, "notes-ask")
 
 
+def test_the_end_of_the_pass_lists_each_answer_and_a_row_opens_its_card(browser, serve):
+    """Once the pass is over, the cards are put away but the end frame lists each one's
+    question beside the answer given, or that it still waits; a row opens its card, by
+    Enter as by pointer."""
+    page = open_page(browser, serve(DECK_PAGE))
+    open_card(page, "store-ask")
+    answer(page, "store-yes")
+    open_card(page, "beta-ask")
+    forward(page, "Later")
+    open_card(page, "notes-ask")
+    answer(page, "notes-no")
+    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+
+    recap = page.locator("lf-deck .lf-deck-end .lf-deck-recap > li")
+    expect(recap.locator("a")).to_have_text(
+        ["Keep Redis?", "Ship the beta?", "Post the notes?"]
+    )
+    expect(recap.locator("span")).to_have_text(["Yes", "Still waiting", "No"])
+
+    page.locator("lf-deck .lf-deck-end").get_by_role("button").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(recap.get_by_role("link", name="Ship the beta?")).to_be_focused()
+    page.keyboard.press("Enter")
+    open_card(page, "beta-ask")
+    forward(page, "Later")
+    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+    recap.get_by_role("link", name="Keep Redis?").click()
+    open_card(page, "store-ask")
+
+
 def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):
     """A tab that never showed the deck opens on the first card still waiting, not on
     the answered card the markup puts first; the tab that answered keeps its place."""

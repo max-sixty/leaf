@@ -31,7 +31,13 @@
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
  * or Review, once the pass is over. Then a quiet frame stands where the cards stood,
  * saying how many still wait, with the same step back in as words, since a symbol
- * alone at the end of the pass went unnoticed. They are symbols of one size and one style, named by
+ * alone at the end of the pass went unnoticed. Under that line it lists each card that
+ * asks something: its question, linked to the card, beside what became of it, the
+ * answer in the runtime's words (`answerWords`) or who it still waits on. The cards are
+ * put away by then, and without the list the record of the pass hid behind Back, one
+ * card at a time. A row opens its card as any fragment link does (`beforematch`), by
+ * pointer, finger or Enter, and the rows are kept nodes, so a reading that arrives
+ * while one has focus leaves it there. The bar's controls are symbols of one size and one style, named by
  * their titles as a draft's actions are. Each is a command row whose control it is, so the arrow
  * keys toward and away from the text's start are Back and forward wherever the user is
  * in the deck, and Leaf shows Back unavailable on the first card while focus stays on it.
@@ -42,7 +48,8 @@
  * a card in over the open one from the left, and the deck's height follows, so the page
  * below slides (`#go`). A card a press brings up that would end under the panel then
  * scrolls up until its options clear it, the bar still above it, since a deck below the
- * page's opening brought a tall card back with its options out of reach. A touch drag across the card sends it either way, flying on from
+ * page's opening brought a tall card back with its options out of reach. A touch drag
+ * across the card sends it either way, flying on from
  * where the finger let go: left is Later, right is Next once the card no longer waits,
  * and a short or early drag settles back. A mouse or pen drag stays text selection,
  * which comments start from. Unupgraded, and on paper, the cards stand one after
@@ -53,6 +60,7 @@
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
 import {
   agentName,
+  answerWords,
   nameAction,
   rowArrows,
   dragging,
@@ -117,6 +125,10 @@ customElements.define(
     #forward = offerAction("symbol", "lf-deck-forward", undefined, { action: "next" });
     #end = offer("div", "lf-deck-end");
     #again = offerAction("word", "lf-deck-again");
+    // The end frame's record of the pass: a row per card, made once and kept.
+    #recap = document.createElement("ol");
+    /** @type {Map<HTMLElement, {row: HTMLLIElement, question: HTMLAnchorElement, ending: HTMLSpanElement}>} */
+    #rows = new Map();
     /** @type {HTMLElement[]} */
     #cards = [];
     // The open card, or null once the pass is over.
@@ -157,6 +169,18 @@ customElements.define(
       this.#end.append(document.createElement("p"));
       this.#again.addEventListener("click", () => this.#forwardPress(this.#readings()));
       this.#end.append(this.#again);
+      this.#recap.className = "lf-deck-recap";
+      for (const card of this.#cards) {
+        const row = document.createElement("li");
+        const question = document.createElement("a");
+        if (card.id) question.href = `#${card.id}`;
+        const ending = document.createElement("span");
+        row.hidden = true;
+        row.append(question, ending);
+        this.#rows.set(card, { row, question, ending });
+        this.#recap.append(row);
+      }
+      this.#end.append(this.#recap);
       const [back, ahead] = rowArrows(this);
       /** @type {HTMLElement["lfCommands"]} */
       const commands = {
@@ -600,6 +624,17 @@ customElements.define(
       `;
     }
 
+    // What became of a card's question, and who says it: the answers given, in the
+    // runtime's words and the interface's face, or Leaf's word for whom it waits on.
+    /** @param {ReturnType<typeof obligationsIn>} held @returns {[string, "leaf" | null]} */
+    #ending(held) {
+      if (waitsOn(held)) return ["Still waiting", "leaf"];
+      if (held.some((item) => item.status === "open"))
+        return [`Waiting on ${agentName()}`, "leaf"];
+      const words = held.map(answerWords).filter(Boolean).join("; ");
+      return words ? [words, null] : ["Answered", "leaf"];
+    }
+
     updated() {
       if (!this.#cards.length) return;
       const word = this.#forwardWord();
@@ -619,6 +654,17 @@ customElements.define(
             : "You've been through every card, and none waits on you.",
         );
         keepsText(this.#again, word);
+        for (const [each, { row, question, ending }] of this.#rows) {
+          const held = readings?.(each) ?? [];
+          const [first] = held;
+          keepsHidden(row, !first);
+          if (!first) continue;
+          // The question's heading, as On Me names it (`prompt.text`).
+          keepsText(question, first.prompt.text ?? each.id);
+          const [words, voice] = this.#ending(held);
+          keepsText(ending, words);
+          keeps(ending, "data-lf-voice", voice);
+        }
       }
       if (!readings || this.#drag) return;
       const card = this.#open.value;

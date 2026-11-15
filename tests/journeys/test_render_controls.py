@@ -310,7 +310,7 @@ RING_CASES = (
                 ),
             ),
             "pr-walkthrough": (
-                ("#pr-path-tree > summary", "[data-lf-mark]"),
+                ("#pr-prepared-diff-evidence > summary", "[data-lf-mark]"),
                 ("#pr-flow-tab", ".lf-ring-frame"),
                 (
                     "lf-gloss:visible > .lf-gloss-mark",

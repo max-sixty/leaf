@@ -252,9 +252,9 @@ margin, so space it with `margin-block` rather than `margin`. `data-width` works
 column and sidebar pages:
 
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
-  to 100 columns, a diff or a table of a few more columns. The block starts at the
-  prose's start edge, the left in a left-to-right page, and extends toward its end
-  edge to `--wide`, as far as the window allows.
+  to 100 columns, a diff, a table of a few more columns or a row of three option
+  cards. The block starts at the prose's start edge, the left in a left-to-right page,
+  and extends toward its end edge to `--wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.

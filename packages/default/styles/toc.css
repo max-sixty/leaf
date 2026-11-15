@@ -181,8 +181,10 @@ lf-toc [data-lf-toc-mark="thread"] {
 lf-toc [data-lf-toc-mark="on-me"] {
   --lf-toc-mark: var(--ok);
 }
+/* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
+   circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark] {
-  --lf-toc-halo: color-mix(in oklch, var(--lf-toc-mark) 38%, var(--paper));
+  --lf-toc-halo: color-mix(in oklab, var(--lf-toc-mark) 38%, var(--paper));
 }
 lf-toc
   :is(.lf-toc-start, li, .lf-toc-toggle, .lf-toc-heading)[data-lf-toc-changed]::after {

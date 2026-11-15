@@ -8,7 +8,7 @@ assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishe
 asset commit and moves Leaf's exact pin. Host pages are not part of the captured
 scene.
 
-    uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
+    uv run leaf-dev site previews    (or `wt refresh-previews`)
 """
 
 import io
@@ -28,7 +28,7 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.browser import Window, headless_shell, load, screenshot, tab
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
@@ -110,7 +110,7 @@ def bootstrap_assets(target: Path) -> Path:
     return target
 
 
-@click.command()
+@click.command("previews")
 def refresh_previews() -> None:
     """Recapture, publish and repin the catalog previews."""
     captures: dict[str, bytes] = {}

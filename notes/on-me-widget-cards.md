@@ -8,9 +8,10 @@ only which controls are copied. Max asked for a widget to decide how its obligat
 shows there, and chose to prototype design C below.
 
 A widget in an unopened thread message got only Discuss and Show until 15 November
-2026, when the card took design A for it (#5404): it draws the widget's message, and
-with it the widget's one instance. A record's obligation (`lf-visual-review`'s) in a
-thread message still gets only Discuss and Show.
+2026, when the card took design A for it (#5404): it draws the widget's message aside
+from the conversation, which holds the widget's one instance only while no thread on
+the page shows the message. A record's obligation (`lf-visual-review`'s) in a thread
+message still gets only Discuss and Show.
 
 ## Designs compared
 
@@ -56,7 +57,8 @@ replies carried a widget in a thread message, the case design A now covers.
 ## If it is picked up
 
 Keep the card's copy out of id space: mount it where no lookup reaches. A thread
-widget's single instance already moves into the card (design A above). B suits
+widget's single instance already moves into the card while nothing else shows its
+message (design A above). B suits
 per-record obligations and touches no ids, at the cost of a second render path
 per widget. The prototype's tests are in its
 `tests/browser/widgets/test_on_panel.py`.

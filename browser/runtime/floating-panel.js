@@ -3188,7 +3188,9 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     if (top) viewOf(top).nominate?.(top, collection, parts);
   }
-  // On draws each question asked in words as its message, in its card's outlet.
+  // On draws each message its cards ask in, in the card's outlet, aside from the
+  // conversation: a thread the page shows keeps the message's widgets (messages.js,
+  // `HOLDS`).
   /** @param {import("./thread/primary-reader.js").PrimaryCollection} collection @param {import("./thread/primary-reader.js").NominationParts} parts */
   function nominateAsked(collection, parts) {
     /** @type {NodeListOf<HTMLElement>} */
@@ -3199,7 +3201,8 @@ export function createFloatingPanel({
       const { lfThread: key, lfMessage: message } = outlet.dataset;
       const thread = collection.threads.find((candidate) => candidate.key === key);
       const asked = thread?.msgs.find((candidate) => candidate.key === message);
-      if (thread && asked) parts.message(thread.key, asked.key, outlet);
+      if (thread && asked)
+        parts.message(thread.key, asked.key, outlet, { aside: true });
     }
   }
   /** @param {RouteFor<"thread">} route @param {import("./thread/primary-reader.js").PrimaryCollection} collection @param {import("./thread/primary-reader.js").NominationParts} parts */
@@ -3730,16 +3733,18 @@ export function createFloatingPanel({
         : null;
     // A widget in an agent's message, such as a choice asked in a thread, is in the
     // document only while a drawing of that message holds it (thread/messages.js,
-    // `authoredHolders`). So its card draws the message too, and the widget stands in
-    // the card: focused, the card shows the options' digits, and a pick is the same
-    // action a pick in the thread records. Until 15 November 2026 the card showed only
-    // the widget's words, and while the thread wasn't drawn it offered no options and
-    // took no digits. Only one drawing holds a message's widgets, so where a message
-    // holds several such widgets, the first card draws the message and the other cards
-    // answer their widgets through `choicesOf`, as a page choice's card does. A line in
-    // Done is named by its widget's own question, since one message can ask several. A
-    // record's obligation (`source.unit`), one of many that a widget such as a review
-    // asks, draws no message, since its card is about the one record.
+    // `HOLDS`). So its card draws the message too, aside from the conversation. Where
+    // nothing else shows the message, the widget stands in the card: focused, the card
+    // shows the options' digits, and a pick is the same action a pick in the thread
+    // records. Where the page shows the message, as a thread open beside its passage
+    // does, the widget stays there, and the card answers it with its choices
+    // (`choicesOf`), as a page choice's card does. Until 15 November 2026 the card showed
+    // only the widget's words, and while the thread wasn't drawn it offered no options
+    // and took no digits. A view draws a message once, so where it holds several such
+    // widgets the first card draws it and the others answer through their choices. A
+    // line opened into its card keeps the name it has folded. A record's obligation
+    // (`source.unit`), one of many that a widget such as a review asks, draws no
+    // message, since its card is about the one record.
     const holding =
       record?.source.kind === "widget" && !record.source.unit && thread
         ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
@@ -3791,8 +3796,14 @@ export function createFloatingPanel({
     const heading =
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
+    const standing =
+      record && !answered && record.source.kind === "widget"
+        ? obligationPlace(record).source
+        : null;
     const choices =
-      record && !answered && record.source.kind === "widget" && !message
+      record &&
+      standing &&
+      closestAcross(standing, ON_CARD)?.getAttribute("data-lf-key") !== key
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -3814,17 +3825,12 @@ export function createFloatingPanel({
     // stood far from the question it shows. The arrival may open a thread in this
     // panel; keep its current route until the destination decides, then close only for
     // page travel.
-    // A card drawing the message it asks (`message`) holds that message's drawing ahead
-    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On Me
-    // standing landed in this card, and the user fell to the page as it closed. Where
-    // the thread stands on the page, On Me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
-            if (message && placedAt(message.thread.id)?.place) close();
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });

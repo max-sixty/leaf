@@ -5,7 +5,7 @@ import { aborted } from "../abort.js";
 import { randomId } from "../ids.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
 import { ThreadView, threadReading } from "./thread-card.js";
-import { MessageView, messageReading } from "./messages.js";
+import { HOLDS, MessageView, messageReading } from "./messages.js";
 import { createReplyView } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { generatedElement } from "../widget-elements.js";
@@ -32,7 +32,9 @@ import { turns } from "./model.js";
    the box its nomination says scrolls it (`ThreadView.settled`). A message part is one
    of its thread's turns
    (model.js, `turns`), the messages a card draws: its root, even a reaction, and its
-   spoken messages. A later reaction stands as the pressed chip on the message it
+   spoken messages. A message part drawn aside from the conversation (`aside`), as On
+   Me's card draws the message asking a question, holds the message's widgets only while
+   no other drawing shows it (messages.js, `HOLDS`). A later reaction stands as the pressed chip on the message it
    answers, so naming one as a part of its own is refused, as naming a message the
    thread lacks is. A message part offers the user's rewrite of it, and
    a reply part ↑ to the latest, as a thread card does, through the thread's one
@@ -51,9 +53,10 @@ import { turns } from "./model.js";
    arriving moves none of the head's words. */
 /** @typedef {Pick<ReturnType<typeof import("./state.js").readThreads>, "phase" | "threads">} PrimaryCollection */
 /** @typedef {import("./thread-card.js").ThreadOutlets & {drawn?: () => unknown}} ThreadOptions */
+/** @typedef {{aside?: boolean}} MessageOptions */
 /** @typedef {{signal: AbortSignal,
  * thread: (key: string, outlet: Element, options?: ThreadOptions) => void,
- * message: (key: string, message: string, outlet: Element) => void,
+ * message: (key: string, message: string, outlet: Element, options?: MessageOptions) => void,
  * reply: (key: string, outlet: Element, options?: import("./replies.js").ReplyOptions) => void}} NominationParts */
 /** @typedef {(collection: PrimaryCollection, parts: NominationParts) => unknown} PrimaryRender */
 /** @typedef {ReturnType<typeof newsNotice>} PartNotice */
@@ -62,7 +65,7 @@ import { turns } from "./model.js";
 /** @typedef {PartBase & {kind: "reply", reply: ReturnType<typeof createReplyView>}} ReplyPart */
 /** @typedef {ThreadView & {kind: "thread"}} WholePart */
 /** @typedef {WholePart | MessagePart | ReplyPart} RetainedPart */
-/** @typedef {{key: string, outlet: Element} & ({kind: "thread", message: null, options: ThreadOptions} | {kind: "reply", message: null, options: import("./replies.js").ReplyOptions} | {kind: "message", message: string, options: {}})} PartRequest */
+/** @typedef {{key: string, outlet: Element} & ({kind: "thread", message: null, options: ThreadOptions} | {kind: "reply", message: null, options: import("./replies.js").ReplyOptions} | {kind: "message", message: string, options: MessageOptions})} PartRequest */
 /** @typedef {PartRequest & {identity: string, thread: import("./thread-card.js").ThreadRecord}} Nomination */
 // The places a nomination names, with what stands in each: the part in its outlet, and
 // a whole thread's parts it draws apart in the places its options name
@@ -261,7 +264,7 @@ export function createPrimaryReader(
     void cancelled.then(() => abort.abort());
     const candidate = held.prepare({
       threads: collection.threads.map((thread) =>
-        threadReading(thread, "outlet", { ...commands, authoredRank: 3 }),
+        threadReading(thread, "outlet", { ...commands, authoredRank: HOLDS.reader }),
       ),
     });
     const byKey = new Map(
@@ -343,8 +346,14 @@ export function createPrimaryReader(
               outlet,
               options: options ?? {},
             }),
-          message: (key, id, outlet) =>
-            nominate({ kind: "message", key, message: id, outlet, options: {} }),
+          message: (key, id, outlet, options) =>
+            nominate({
+              kind: "message",
+              key,
+              message: id,
+              outlet,
+              options: options ?? {},
+            }),
           reply: (key, outlet, options) =>
             nominate({
               kind: "reply",
@@ -383,11 +392,12 @@ export function createPrimaryReader(
     if (!message) throw new Error(`Thread ${thread.key} has no message ${key}`);
     return message;
   };
-  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key */
-  const messageModel = (thread, key) => {
+  /** @param {import("./thread-card.js").ThreadRecord} thread @param {string} key
+   * @param {MessageOptions} options */
+  const messageModel = (thread, key, { aside = false }) => {
     const message = messageSource(thread, key);
     return messageReading(message, {
-      authoredRank: 3,
+      authoredRank: aside ? HOLDS.aside : HOLDS.reader,
       workflows: message.workflows,
     });
   };
@@ -459,7 +469,7 @@ export function createPrimaryReader(
               notice,
               message,
               messageKey: item.message,
-              reading: messageModel(item.thread, item.message),
+              reading: messageModel(item.thread, item.message, item.options),
               // Draws the message again at once, as its rewrite opens or closes, the
               // thread's notice in its head.
               draw() {
@@ -574,9 +584,9 @@ export function createPrimaryReader(
         const notice = Boolean(news) && first === item;
         if (notice && news) view.notice.set(news);
         keepsHidden(view.notice.node, !notice);
-        if (view.kind === "message") {
+        if (view.kind === "message" && item.kind === "message") {
           const message = messageSource(item.thread, view.messageKey);
-          view.reading = messageModel(item.thread, view.messageKey);
+          view.reading = messageModel(item.thread, view.messageKey, item.options);
           view.draw();
           // A reply still streaming at the thread's end grows at its foot as its words
           // come, as in a thread card (thread-card.js, shift_watch.js).

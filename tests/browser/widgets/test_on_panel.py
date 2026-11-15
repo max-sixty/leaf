@@ -13,6 +13,7 @@ from render_cases_interaction import (
     OBLIGATIONS_PAGE,
     ON_ITEM_SAYS,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
     expect_obligations_answered,
@@ -34,6 +35,7 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
+from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import panel_tab
@@ -865,6 +867,8 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     expect(card).to_be_focused()
     expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
     expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
+    # The options themselves, with no second set of choices beside them.
+    expect(card.locator(".lf-fp-answer")).to_have_count(0)
     with sending(page, "the pick"):
         page.keyboard.press("1")
     event = events_model.read_events(serve.page_dir)[-1]
@@ -891,6 +895,68 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     wait_until_ready(page)
     expect(page.locator("#ship")).to_have_count(0)
     done_says()
+
+
+def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
+    browser, serve
+):
+    """Where the page shows the thread asking a choice, as a thread on a diff's line
+    does, opening On Me leaves the choice in that thread, so nothing below it moves.
+    The card draws the message's words and answers with the choice's options, and `1`
+    there picks in the thread. Until 15 November 2026 the card took the choice out of
+    the thread, and the paragraph after the diff rose by the choice's height."""
+    url = serve(
+        leaf_page(
+            "diff choice",
+            '<h1 id="title">Review the changed line</h1>'
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<p id="tail">The rollout can proceed once the line is reviewed.</p>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" choose>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(browser, url)
+    thread = page.locator("#patch .lf-page-thread")
+    expect(thread.locator("#ship")).to_be_visible()
+    tail = page.locator("#tail").bounding_box()["y"]
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("ArrowDown")
+    card = on_card(page, "widget:ship")
+    expect(card).to_be_focused()
+    # The card has drawn the message, which is when it could take the choice.
+    expect(card.locator(".lf-fp-asked .lf-msg")).to_contain_text("Ship on Friday?")
+    expect(card.locator("#ship")).to_have_count(0)
+    expect(thread.locator("#ship")).to_be_visible()
+    assert page.locator("#tail").bounding_box()["y"] == tail
+    expect(card.get_by_role("button", name="Ship Friday", exact=True)).to_be_visible()
+    with sending(page, "the pick"):
+        page.keyboard.press("1")
+    expect(thread.locator("#ship-friday")).to_have_attribute("chosen", "")
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

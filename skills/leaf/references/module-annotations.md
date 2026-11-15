@@ -174,6 +174,10 @@ reactions, read tracking and reply draft; the package keeps layout, order, selec
 scroll and disclosure. The user's message editor opens in place of the message,
 with its frame extending slightly beyond the message's edges, so a scroller holding message
 parts keeps about 12px of padding beside them (the worked example's `.reader`).
+A message drawn aside from the conversation, as On Me's card draws the message asking
+a question, passes `parts.message` a fourth argument, `{aside: true}`: the widgets in
+the message then stand there only while no other drawing shows the message, and a
+thread opened at the message never lands there.
 
 A widget that draws the conversation's head itself, as Leaf's floating panel does,
 passes `parts.thread` a third argument, `{head, reply, quote, scroller, landing,

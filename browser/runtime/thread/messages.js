@@ -378,8 +378,8 @@ const authoredMessage = (message) => {
 
 // Which drawing of an authored message holds its widgets, the one instance above. A
 // message can stand in several drawings at once (the primary reader's, a margin card,
-// a seat on the page), and the shown one of highest `authoredRank` holds them, the
-// first to draw it among equals. Every other drawing draws only the message's words:
+// a seat on the page, On Me's card), and the shown one of highest `authoredRank`
+// (`HOLDS`) holds them, the first to draw it among equals. Every other drawing draws only the message's words:
 // the holder is then the one shown, so the widgets already stand in view. A drawing
 // shown as it draws takes them where it should hold them, as does the first to draw
 // them, and after each draw the holder is settled again among the drawings shown, so
@@ -388,6 +388,14 @@ const authoredMessage = (message) => {
 // nor hidden: it waits for that settling to take them, and keeps what it holds.
 // Whichever drawings gain or lose them draw again at once, as their own containers
 // would not.
+// Each drawing's `authoredRank`, highest first: the primary reader's view of the
+// conversation, a margin card, a thread drawn in the page, and a drawing aside from the
+// conversation, as On Me's card is (primary-reader.js, `aside`). A drawing aside holds
+// the widgets only while no other drawing shows the message, so opening On Me takes
+// no choice out of a thread the user sees, and no arrival lands in it
+// (`authoredHolder`). Until 15 November 2026 On Me's card ranked as the primary
+// reader's view, and opening it emptied a thread on the page of its widgets.
+export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
 /** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
  * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */
 /** @type {Map<string, Set<PresentedMessage>>} */
@@ -436,11 +444,14 @@ export function releaseAuthoredUnder(root) {
   for (const [key, view] of [...authoredHolders])
     if (root.contains(view.node)) releaseAuthored(key, view);
 }
-// The drawn message holding the widgets of the message `id`, if a drawing holds them.
+// The drawn message holding the widgets of the message `id`, if a drawing holds them,
+// where an arrival at the message lands (destination.js). None while a drawing aside
+// holds them, since no thread opens there.
 /** @param {string} id */
 export function authoredHolder(id) {
   for (const view of authoredHolders.values())
-    if (view.model.id === id && shown(view)) return view.node;
+    if (view.model.id === id && view.model.authoredRank !== HOLDS.aside && shown(view))
+      return view.node;
   return null;
 }
 /** @param {MessageRecord} message

@@ -533,7 +533,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # inside that floor but beside the face still presses Copy.
     face = touch_button.bounding_box()
     floor = touch.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     assert face
     touch.touchscreen.tap(

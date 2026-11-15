@@ -960,7 +960,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--lf-accent"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-workflow", "working")
         expect(control).to_have_css(
@@ -999,20 +999,22 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
     )
     expect(selected).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--accent")
+        "color", token_colour(page, "--lf-accent")
     )
 
     interactive = sample("hover or focus")
     interactive.hover()
-    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
-    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive).to_have_css("background-color", token_colour(page, "--lf-chip"))
+    expect(interactive).to_have_css(
+        "border-top-color", token_colour(page, "--lf-accent")
+    )
     expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     interactive.focus()
@@ -1026,7 +1028,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
     )
     expect(opened).to_have_attribute("aria-expanded", "true")
-    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(opened_result).to_be_visible()
     opened.click()
     expect(opened).to_have_attribute("aria-expanded", "false")

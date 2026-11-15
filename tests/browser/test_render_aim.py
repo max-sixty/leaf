@@ -3269,7 +3269,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--accent")
+    accent = token_colour(page, "--lf-accent")
     assert_drawn_in(page.locator("#outer-surface"), accent, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
@@ -3319,7 +3319,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert_drawn_in(inner, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(inner, token_colour(page, "--lf-mark-contour-ink"), 1.5)
 
 
 def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
@@ -3491,13 +3491,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     surface.click(position={"x": 20, "y": 20})
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
 
@@ -3516,7 +3516,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -3645,7 +3645,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink-2); }
   </style>""",
             )
         ),
@@ -3653,7 +3653,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     resized(page, 1100, 900)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
 
     def boundary(node, brackets):
@@ -3773,7 +3773,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     page.locator("#component").evaluate(
         """host => {
           host.attachShadow({mode:'open'}).innerHTML = `<style>
-            button:focus-visible { outline:var(--focus-ring); outline-offset:3px; }
+            button:focus-visible { outline:var(--lf-focus-ring); outline-offset:3px; }
           </style><button id="private">Private control</button>`;
         }"""
     )
@@ -4264,7 +4264,7 @@ HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
     "<h2 id='head' style='position: sticky; top: var(--lf-safe-top); height: 40px;"
-    " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
+    " margin: 0; background: var(--lf-paper)'>Head</h2><p id='p0'>",
 ).replace("</p>\n</main>", "</p></section>\n</main>", 1)
 
 
@@ -4519,9 +4519,9 @@ OFF_FLOW_PAGE = leaf_page(
     "off flow",
     "<h1 id='t'>Off flow</h1>"
     "<nav id='nav' style='position: sticky; top: var(--lf-top);"
-    " background: var(--paper)'>Contents</nav>"
+    " background: var(--lf-paper)'>Contents</nav>"
     "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
-    " background: var(--paper)'>A fixed bar.</div>"
+    " background: var(--lf-paper)'>A fixed bar.</div>"
     "<div id='pop' popover='manual' style='top: 120px; left: 40px; margin: 0'>"
     "<p id='inpop'>Inside the popover.</p></div>"
     + "".join(

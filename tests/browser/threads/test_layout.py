@@ -697,8 +697,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
-        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
-        'html & [part~="card"] { --r-l: 5px; }'
+        '[part~="panel"] { font-family: cursive; --lf-r-l: 0px; }'
+        'html & [part~="card"] { --lf-r-l: 5px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
         "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
@@ -711,8 +711,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
                     "t",
                     "<h1>t</h1><p>Words.</p>",
                     head='<style>[part~="panel"] { font-family: fantasy;'
-                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
-                    '[part~="composer"] { --sans: monospace; }</style>',
+                    " color: rgb(0, 128, 0); --lf-ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --lf-sans: monospace; }</style>',
                 ),
                 packages=(package,),
             )
@@ -727,9 +727,9 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             font: cs(document.querySelector('[part~="composer"]'))
-                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+                .getPropertyValue('--lf-font-message').trim().split(' ').at(-1),
             card: cs(document.querySelector('.lf-chrome [part~="card"]'))
-                .getPropertyValue('--r-l').trim(),
+                .getPropertyValue('--lf-r-l').trim(),
             parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
                 .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
             prose: cs(document.querySelector('main p')).color,

@@ -592,7 +592,7 @@ def foot_reserve(page, pane="#workspace-pane"):
           const style = getComputedStyle(reader);
           return Math.round(
             parseFloat(style.paddingBlockEnd) -
-              parseFloat(style.getPropertyValue('--pane-inset'))
+              parseFloat(style.getPropertyValue('--lf-pane-inset'))
           );
         }"""
     )
@@ -895,8 +895,8 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             const outer = document.getElementById('outer');
             const style = getComputedStyle(outer ?? document.documentElement);
             const outside = outer ? parseFloat(style.paddingBottom) : 0;
-            const ringRoom = parseFloat(style.getPropertyValue('--focus-region-gap'))
-              + parseFloat(style.getPropertyValue('--focus-ring-w'));
+            const ringRoom = parseFloat(style.getPropertyValue('--lf-focus-region-gap'))
+              + parseFloat(style.getPropertyValue('--lf-focus-ring-w'));
             return {frameBottom: frame.bottom, outside, ringRoom,
                     endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
         }""",

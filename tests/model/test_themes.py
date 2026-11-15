@@ -21,7 +21,7 @@ def catalogue(tmp_path, *, default="editorial"):
     for name, color in (("editorial", "#814b07"), ("dense", "#553399")):
         source = tmp_path / name
         source.mkdir()
-        (source / "overrides.css").write_text(f":root {{ --accent: {color}; }}")
+        (source / "overrides.css").write_text(f":root {{ --lf-accent: {color}; }}")
         (source / "instructions").mkdir()
         (source / "instructions/author.md").write_text(
             f"Use {name} for its distinctive presentation."
@@ -50,8 +50,8 @@ def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
     (source / "overrides.css").write_text(
         '@import "./styles/accent.css";\n@import "./widgets/paper.css";\n'
     )
-    (source / "styles/accent.css").write_text(":root { --accent: #123456; }\n")
-    (source / "widgets/paper.css").write_text(":root { --paper: #fedcba; }\n")
+    (source / "styles/accent.css").write_text(":root { --lf-accent: #123456; }\n")
+    (source / "widgets/paper.css").write_text(":root { --lf-paper: #fedcba; }\n")
     cmd_package_install(source)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)

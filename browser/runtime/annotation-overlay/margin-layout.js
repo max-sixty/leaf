@@ -535,7 +535,7 @@ function restingRail(layer) {
 // Where across the page the margin row for a comment on `target` stands, at `point`
 // inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
 // quotes (a range), each of which stands a row of its own: the row standing there
-// now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
+// now where one is shown, else where a rail row would stand at rest, `--lf-rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. comment-placement.js keeps this
 // row clear when the full preferred message width fits beyond it; otherwise the
@@ -555,7 +555,7 @@ export function marginSpot(target, point = null, passage = null) {
   if (!layer || !railStandsBeside(target)) return null;
   const hang =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-hang"),
     ) || 0;
   const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
@@ -1696,8 +1696,8 @@ function layoutMountedRows(layer) {
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
-  const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
-  const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
+  const hang = parseFloat(rootStyle.getPropertyValue("--lf-rail-hang")) || 0;
+  const pinInset = parseFloat(rootStyle.getPropertyValue("--lf-pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   // Read once a row could stand in the rail, since every other row pins whatever the

@@ -204,7 +204,7 @@
       /* How far anything in a cell draws outside its box: a focus ring, or a capture's
          frame, whose reach beside the image is its lift's blur. The table clips at its
          own edges, so its outer cells keep this much room on their outer sides. */
-      --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
+      --lf-table-edge: max(var(--lf-focus-ring-room), var(--lf-raise-1-blur));
     }
     table > * {
       --lf-top: 0px;
@@ -233,7 +233,7 @@
      * outside the table would have to come from a negative margin, which overflows any
      * scroller holding the table flush, as an x-bound box does. */
     :is(tr, th, td) {
-      --lf-ring-at: var(--focus-ring-inset);
+      --lf-ring-at: var(--lf-focus-ring-inset);
     }
   }
 }
@@ -254,14 +254,14 @@ dl.lf-facts {
   display: grid;
   grid-template-columns: fit-content(40%) minmax(0, 1fr);
   align-items: baseline;
-  gap: var(--sp-1) var(--sp-3);
+  gap: var(--lf-sp-1) var(--lf-sp-3);
 }
 dl.lf-facts > div {
   display: contents;
 }
 dl.lf-facts dt {
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 dl.lf-facts dd {
   margin: 0;
@@ -272,9 +272,9 @@ dl.lf-facts dd {
 @layer lf-reading-face {
   @container style(--lf-reading-face: 1) {
     a {
-      color: var(--accent);
-      text-underline-offset: var(--link-underline-offset);
-      text-decoration-color: var(--link-underline);
+      color: var(--lf-accent);
+      text-underline-offset: var(--lf-link-underline-offset);
+      text-decoration-color: var(--lf-link-underline);
     }
     a:hover {
       text-decoration-color: currentColor;
@@ -286,39 +286,39 @@ dl.lf-facts dd {
        belongs only to the span's start and end: cloning each fragment adds padding
        after line breaking and can paint past the column. */
     :is(code, samp, kbd) {
-      background: var(--code-bg);
-      border-radius: var(--code-inline-r);
-      padding: var(--code-inline-pad);
-      font-size: var(--code-inline-size);
-      font-family: var(--mono);
+      background: var(--lf-code-bg);
+      border-radius: var(--lf-code-inline-r);
+      padding: var(--lf-code-inline-pad);
+      font-size: var(--lf-code-inline-size);
+      font-family: var(--lf-mono);
       box-decoration-break: slice;
     }
     /* A key wears the hairline and ground the runtime's own keys do (`.lf-key-badge`,
        surfaces.css, whose rule outranks these), so a shortcut the page names looks like
        the one Leaf shows. */
     kbd {
-      border: 1px solid var(--border-2);
-      background: var(--chip);
+      border: 1px solid var(--lf-border);
+      background: var(--lf-chip);
     }
     /* A code block is sized by how many characters it takes across, which is why its size
-     * is off the serif ladder above. At --code-size, the column keeps a few more than the
+     * is off the serif ladder above. At --lf-code-size, the column keeps a few more than the
      * 80 characters most source is written to (about 84 at 13.5px), and a `wide` block
-     * 100 (tokens.css, --wide).
+     * 100 (tokens.css, --lf-wide).
      *
      * The size and leading are tokens because plain blocks, upgraded widgets, and the diff's
      * shadow tree must keep one density through upgrade. */
     /* A pre and an hr take the room a draft edited in place gives a fence's and a
        rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
-      background: var(--pre-bg);
-      border: 1px solid var(--code-border);
-      border-radius: var(--r);
-      padding: var(--code-line) var(--pre-inset)
-        calc(var(--code-line) - var(--lf-text-scroll-clearance));
-      font-size: var(--code-size);
-      line-height: var(--code-line);
-      font-family: var(--mono);
-      color: var(--code-ink);
+      background: var(--lf-pre-bg);
+      border: 1px solid var(--lf-code-border);
+      border-radius: var(--lf-r);
+      padding: var(--lf-code-line) var(--lf-pre-inset)
+        calc(var(--lf-code-line) - var(--lf-text-scroll-clearance));
+      font-size: var(--lf-code-size);
+      line-height: var(--lf-code-line);
+      font-family: var(--lf-mono);
+      color: var(--lf-code-ink);
       font-variant-ligatures: none;
     }
     pre > :is(code, samp, kbd) {
@@ -329,15 +329,15 @@ dl.lf-facts dd {
     }
     blockquote {
       margin: 18px 0;
-      padding: 2px var(--quote-inset);
-      border-left: var(--quote-rule);
-      color: var(--muted);
-      font-style: var(--quote-style);
+      padding: 2px var(--lf-quote-inset);
+      border-left: var(--lf-quote-rule);
+      color: var(--lf-muted);
+      font-style: var(--lf-quote-style);
       --lf-block-frame: 1;
     }
     table {
       border-collapse: collapse;
-      font: var(--t-5)/1.5 var(--sans);
+      font: var(--lf-t-5)/1.5 var(--lf-sans);
       margin: 18px 0;
       font-variant-numeric: tabular-nums;
     }
@@ -381,7 +381,7 @@ dl.lf-facts dd {
     :is(th, td) {
       text-align: start;
       padding: 8px 14px;
-      border-bottom: 1px solid var(--rule);
+      border-bottom: 1px solid var(--lf-rule);
       vertical-align: top;
       --lf-block-frame: 1;
     }
@@ -409,10 +409,10 @@ dl.lf-facts dd {
        values' working face and size, while the
        column headings are quieter. Both keep the author's capitalization. */
     th:not([scope="row"]) {
-      font-size: var(--t-working-label);
-      color: var(--muted);
+      font-size: var(--lf-t-working-label);
+      color: var(--lf-muted);
       font-weight: 600;
-      border-bottom-color: var(--border-2);
+      border-bottom-color: var(--lf-border);
     }
     th[scope="row"] {
       font-weight: 600;
@@ -482,10 +482,10 @@ dl.lf-facts dd {
       }
     }
     img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
-      border-radius: var(--r);
+      border-radius: var(--lf-r);
       box-shadow:
-        0 0 0 1px var(--lf-ring, var(--border-2)),
-        var(--raise-1);
+        0 0 0 1px var(--lf-ring, var(--lf-border)),
+        var(--lf-raise-1);
     }
     @media (forced-colors: active) {
       img:where(:not(.lf-media-frame img, [data-lf-frame] img)) {
@@ -510,12 +510,12 @@ dl.lf-facts dd {
       }
       & > * > tr > th:not([scope="row"]) {
         text-align: center;
-        color: var(--ink);
+        color: var(--lf-ink);
       }
     }
     :is(ul, ol) {
       margin: 10px 0;
-      padding-inline-start: var(--list-inset);
+      padding-inline-start: var(--lf-list-inset);
     }
     li {
       margin: 6px 0;
@@ -523,8 +523,9 @@ dl.lf-facts dd {
     hr {
       border: none;
       block-size: 1lh;
-      background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
-      margin: calc(var(--hr-margin-block) + 0.5px - 0.5lh) 0;
+      background: linear-gradient(var(--lf-rule), var(--lf-rule)) center / 100% 1px
+        no-repeat;
+      margin: calc(var(--lf-hr-margin-block) + 0.5px - 0.5lh) 0;
     }
     /* The headings are the body serif at weight, size and spacing — one face, four
      * volumes — rather than a display face over a text face. A page whose subject is
@@ -532,36 +533,36 @@ dl.lf-facts dd {
      * hierarchy it needs is the one that survives being skimmed, which is size and
      * air, not contrast of family. */
     h1 {
-      font-size: var(--t-1);
+      font-size: var(--lf-t-1);
       line-height: 1.16;
       letter-spacing: -0.014em;
       margin: 0 0 12px;
       text-wrap: balance;
     }
     h2 {
-      font-size: var(--t-2);
+      font-size: var(--lf-t-2);
       line-height: 1.25;
       letter-spacing: -0.008em;
-      margin: var(--h2-start) 0 12px;
+      margin: var(--lf-h2-start) 0 12px;
       text-wrap: balance;
     }
     h3 {
-      font-size: var(--t-3);
+      font-size: var(--lf-t-3);
       line-height: 1.3;
-      margin: var(--h3-start) 0 8px;
+      margin: var(--lf-h3-start) 0 8px;
       text-wrap: balance;
     }
     p {
       margin: 13px 0;
     }
     figure {
-      margin: var(--figure-margin-block) 0;
+      margin: var(--lf-figure-margin-block) 0;
     }
     /* A caption is a sentence read with its figure, so it stands one rung under the
        prose rather than at the apparatus size beside a label or a chip. */
     figcaption {
-      font-size: var(--t-5);
-      color: var(--muted);
+      font-size: var(--lf-t-5);
+      color: var(--lf-muted);
       margin-top: 8px;
     }
     /* Media sits in a line box, and on the baseline it leaves the line's descender room
@@ -577,7 +578,7 @@ dl.lf-facts dd {
        summary clear of adjacent prose; it does not turn the content into another card. */
     details {
       padding-block: 8px;
-      margin: var(--details-margin-block) 0;
+      margin: var(--lf-details-margin-block) 0;
       --lf-block-frame: trim;
     }
     /* Disclosures written one after another read as one list of them, at the distance
@@ -592,7 +593,7 @@ dl.lf-facts dd {
     summary {
       cursor: pointer;
       font-weight: 600;
-      font-size: var(--t-5);
+      font-size: var(--lf-t-5);
     }
     details pre {
       margin: 10px 0 6px;
@@ -634,7 +635,7 @@ dl.lf-facts dd {
      * box the number is set in — a chip has a filled edge, so that edge is visible on its
      * own — and moves whatever stands after it, which for a metric is the delta riding
      * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
-     * --t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
+     * --lf-t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
      * tabular. That is the movement browser/AGENTS.md's "The page holds still under the user's aim" forbids,
      * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
      * explain where the line went.
@@ -646,7 +647,7 @@ dl.lf-facts dd {
     figcaption,
     th:not([scope="row"]),
     summary {
-      font-family: var(--sans);
+      font-family: var(--lf-sans);
       font-variant-numeric: tabular-nums;
     }
     /* Working density (`--lf-density: working`, which the `density-working` style sets with
@@ -676,20 +677,20 @@ dl.lf-facts dd {
   }
 }
 /* One owner for message type and spacing on every surface, including widget shadow
-   trees: a message and the comment field it is typed in read in `--font-message`
+   trees: a message and the comment field it is typed in read in `--lf-font-message`
    (base.css). A contextual
    card supplies its editor's vertical inset; retaining its viewport never changes
    these rules.
    Paragraphs keep the editor's whitespace, and a Markdown message's blocks the blank
    lines between them (below), through send, replies and reopening. */
 :is(.lf-msg-body, leaf-text) {
-  --quote-inset: 10px;
-  --pre-inset: 10px;
+  --lf-quote-inset: 10px;
+  --lf-pre-inset: 10px;
 }
 leaf-text.lf-fab-input,
 .lf-msg-body {
-  font: var(--font-message);
-  color: var(--ink);
+  font: var(--lf-font-message);
+  color: var(--lf-ink);
 }
 /* A message runs to the width of the box that holds it, a card, a seat or the
      floating panel, which sets the limit: a thread is all messages, so its box is
@@ -777,11 +778,12 @@ leaf-text.lf-fab-input,
 .lf-msg-body hr {
   border: none;
   block-size: 1lh;
-  background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat;
+  background: linear-gradient(var(--lf-rule), var(--lf-rule)) center / 100% 1px
+    no-repeat;
 }
 .lf-msg-body pre {
-  padding-block: var(--code-line)
-    calc(var(--code-line) - var(--lf-text-scroll-clearance));
+  padding-block: var(--lf-code-line)
+    calc(var(--lf-code-line) - var(--lf-text-scroll-clearance));
 }
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
@@ -823,11 +825,11 @@ leaf-text.lf-fab-input,
   margin: 14px 0;
 }
 :where([data-lf-content="data"]:not([data-lf-verbatim]):not(.lf-rendered)) {
-  font-family: var(--mono);
-  font-size: var(--code-size);
-  line-height: var(--code-line);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
+  line-height: var(--lf-code-line);
   font-variant-ligatures: none;
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   overflow-x: auto;
 }
 :where([data-lf-content="data"]:not([data-lf-verbatim]):not(.lf-rendered)) > pre {

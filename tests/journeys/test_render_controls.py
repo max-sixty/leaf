@@ -1612,8 +1612,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     # above, and every reading that credits a ring an ancestor wears, rest on telling a
     # ring rule from a contour that paints the same pixels.
     assert not undrawn, (
-        "the corpus paints a focus ring on boxes no rule draws with --focus-ring or "
-        "--focus-shadow, so no reading can tell it from pointer feedback: "
+        "the corpus paints a focus ring on boxes no rule draws with --lf-focus-ring or "
+        "--lf-focus-shadow, so no reading can tell it from pointer feedback: "
         + ", ".join(sorted(undrawn))
     )
 
@@ -1624,7 +1624,7 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
 ):
     """A press the user cannot land on is a capability the page does not have.
 
-    Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
+    Measured before --lf-aim-floor existed, at 1200x900: a thread's Reopen and the panel's
     reaction chips stood at 20 and 22 pixels tall, the old banner's page preview at 23, and a
     version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,

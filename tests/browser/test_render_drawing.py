@@ -1187,7 +1187,7 @@ CLIPPED_DRAWING_PAGE = leaf_page(
     '<h1 id="title">Inspect a captured detail</h1>'
     '<div id="viewport"><div id="pixels">Captured pixels</div></div>',
     head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
-    "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
+    "#pixels { width: 360px; height: 200px; background: var(--lf-paper); }</style>",
 )
 
 
@@ -1230,7 +1230,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     source = CLIPPED_DRAWING_PAGE.replace(
         '<div id="pixels">Captured pixels</div>',
         '<svg id="pixels" viewBox="0 0 180 100" role="img" aria-label="Sample">'
-        '<rect width="180" height="100" fill="var(--paper)"/></svg>',
+        '<rect width="180" height="100" fill="var(--lf-paper)"/></svg>',
     )
     page = open_page(browser, serve(source))
     target = page.locator("#pixels")

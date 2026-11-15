@@ -705,7 +705,7 @@ def test_a_key_onto_a_control_at_a_scrollers_edge_shows_its_ring(
     rendered(page)
     target.evaluate(
         """(el) => {
-          const w = getComputedStyle(el).getPropertyValue('--focus-ring-w').trim();
+          const w = getComputedStyle(el).getPropertyValue('--lf-focus-ring-w').trim();
           for (let n = el; n; n = n.parentElement ?? n.getRootNode().host) {
             const cs = getComputedStyle(n);
             if (cs.outlineStyle === 'solid' && cs.outlineWidth === w)

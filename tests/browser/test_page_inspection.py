@@ -28,7 +28,7 @@ def test_page_diagnostics_reads_and_copies_the_opening_view(browser, serve, subt
         '<h1 id="heading">Inspect this page</h1>'
         '<details id="evidence"><summary>Evidence</summary><p>Kept closed</p></details>'
         '<p id="last">The page stays in place.</p>',
-        head="<style>#last { color: var(--muted); }</style>",
+        head="<style>#last { color: var(--lf-muted); }</style>",
     )
     page = open_page(browser, serve(source, packages=()))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])

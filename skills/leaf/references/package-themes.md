@@ -67,9 +67,9 @@ pages remains a possible later change.
 
 ## A theme change
 
-Shared inputs coordinate the page and its widgets: color palettes, radius `--r`, and
-the three faces, `--serif` for prose, `--sans` for Leaf's chrome, injected controls and
-notes on evidence, and `--mono` for literal evidence. The color pairs are described
+Shared inputs coordinate the page and its widgets: color palettes, radius `--lf-r`, and
+the three faces, `--lf-serif` for prose, `--lf-sans` for Leaf's chrome, injected controls and
+notes on evidence, and `--lf-mono` for literal evidence. The color pairs are described
 under "Theme colors" below. An ordinary selector tunes one element. A
 pattern the project reuses across pages, such as a callout, is an idiom: declare it
 under its CSS selector in the package's `registry.json`, with a `description`, an
@@ -86,7 +86,7 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the browser's
-`Canvas`, or `var(--paper)` under the reading theme, which paints the body that colour;
+`Canvas`, or `var(--lf-paper)` under the reading theme, which paints the body that colour;
 a theme or page that paints its own ground sets it on `:root` to match. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
@@ -136,8 +136,8 @@ needs nothing: Leaf fades its content at any edge with more beyond.
 
 Leaf rings every box that holds visible focus, at a control's gap outside it. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
-its kind (`base.css`, "Where it stands"): `--focus-region-gap` for a block of the page,
-`0` for a box that draws its own edge, and `--focus-ring-inset` for a row packed edge to
+its kind (`base.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
+`0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
 edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
 on a box as the box's own outline there, over any outline your rules give the box while
 the mark shows, so a comment's or an aim's brackets stand where the ring does. The
@@ -171,7 +171,7 @@ Startup behavior and transition protection follow
 ## Leaf's chrome
 
 Leaf's panel, thread cards and comment box take the page's look through its tokens, so
-a theme or page that sets `--paper`, `--ink`, `--sans` or `--r` on `:root` changes them
+a theme or page that sets `--lf-paper`, `--lf-ink`, `--lf-sans` or `--lf-r` on `:root` changes them
 with the page. To restyle one of them alone, name it by its part:
 
 | Part       | Surface                                             |
@@ -181,13 +181,13 @@ with the page. To restyle one of them alone, name it by its part:
 | `composer` | the comment box, and the choices a selection offers |
 
 Tokens set on a part change that surface alone, whether a theme's sheet or the page's
-own CSS sets them: `[part~="card"] { --paper: #fffdf5; --r-l: 4px; }` gives thread
+own CSS sets them: `[part~="card"] { --lf-paper: #fffdf5; --lf-r-l: 4px; }` gives thread
 cards their own ground and corners. Each part resolves the chrome's fonts again
-(`--font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--sans` or `--t-5`,
+(`--lf-font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--lf-sans` or `--lf-t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part, such as the focus ring and link underline, which follow the
-root's `--accent`, and the raise shadows, which follow its `--shade`; set
-`--focus-ring` and `--focus-shadow` on the part beside `--accent`. Leaf draws each
+root's `--lf-accent`, and the raise shadows, which follow its `--lf-shade`; set
+`--lf-focus-ring` and `--lf-focus-shadow` on the part beside `--lf-accent`. Leaf draws each
 surface's ground, ring, corners and shadow from these tokens, and places and sizes the
 surface itself, so restyle those through tokens rather than `background`, `border`, a
 position or a transform. The panel's ground is a second box carrying the `panel`
@@ -208,8 +208,8 @@ since Leaf already scopes it.
 ```css
 [part~="panel"],
 [part~="card"] {
-  --sans: var(--mono);
-  --r-l: 0;
+  --lf-sans: var(--lf-mono);
+  --lf-r-l: 0;
 }
 [part~="panel"] {
   letter-spacing: -0.01em;
@@ -229,18 +229,18 @@ package the page keeps: `leaf page init <page> --package diff --package ./chrome
 Use independent inputs where the foreground and background need a deliberate contrast
 choice. The default palette is declared in `browser/base.css`:
 
-| Surface                  | Inputs                                                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--paper`, `--card`, `--field`; `--ink`, `--ink-2`, `--muted`; `--rule`, `--border-2`                                                                                                 |
-| Interactive emphasis     | `--accent`; focus ring and shadow derive from it at their declaration scope                                                                                                           |
-| Status                   | `--ok`, `--warn`, `--danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                          |
-| Counts                   | `--badge-fill` with `--badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--border-2` and status inks                                                |
-| Code                     | `--code-bg`, `--pre-bg`, `--code-chrome`, `--code-ink`, `--code-muted`, `--code-border`; `--syn-comment`, `--syn-keyword`, `--syn-string`, `--syn-number`, `--syn-name`, `--syn-type` |
+| Surface                  | Inputs                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page and raised surfaces | `--lf-paper`, `--lf-card`, `--lf-field`; `--lf-ink`, `--lf-ink-2`, `--lf-muted`; `--lf-rule`, `--lf-border`                                                                                                               |
+| Interactive emphasis     | `--lf-accent`; focus ring and shadow derive from it at their declaration scope                                                                                                                                            |
+| Status                   | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                                                     |
+| Counts                   | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                                                             |
+| Code                     | `--lf-code-bg`, `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border`; `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type` |
 
-Changing `--accent` does not choose the count's pair or the status palette. Check the
+Changing `--lf-accent` does not choose the count's pair or the status palette. Check the
 foreground against each ground where it is used, in both color schemes. A theme may
 set `light-dark()` values so the browser's scheme preference selects the palette.
 Subtree overrides follow normal CSS inheritance: when changing an input locally,
-redeclare any derived value needed there, such as `--focus-ring` and `--focus-shadow`.
+redeclare any derived value needed there, such as `--lf-focus-ring` and `--lf-focus-shadow`.
 Keep the inherited `--lf-ground` surface contract described above so opaque nested
 controls match their containing surface.

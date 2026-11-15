@@ -4799,7 +4799,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--ink)';
+          ink.style.color = 'var(--lf-ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();
@@ -6218,7 +6218,7 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
     page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
-        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"
+        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--lf-accent)';"
         " document.body.append(probe); const seen = getComputedStyle(probe).color;"
         " probe.remove(); return seen; }"
     )

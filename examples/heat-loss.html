@@ -41,7 +41,7 @@
         {element: "front door and letterbox", loss: 155},
         {element: "chimney with no cap", loss: 120},
       ],
-      {x: "loss", y: "element", fill: "var(--series-1)", sort: {y: "-x"}},
+      {x: "loss", y: "element", fill: "var(--lf-series-1)", sort: {y: "-x"}},
     ),
     Plot.ruleX([0]),
   ],
@@ -102,7 +102,7 @@
   color: {
     legend: true,
     domain: ["before", "after"],
-    range: ["var(--series-1)", "var(--series-2)"],
+    range: ["var(--lf-series-1)", "var(--lf-series-2)"],
   },
   marks: [
     Plot.dot(

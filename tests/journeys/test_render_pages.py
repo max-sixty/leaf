@@ -534,7 +534,7 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
         room: (() => {
           const style = getComputedStyle(el.parentElement);
           return parseFloat(style.getPropertyValue('--lf-shell-width'))
-            - 2 * parseFloat(style.getPropertyValue('--col-pad'));
+            - 2 * parseFloat(style.getPropertyValue('--lf-col-pad'));
         })(),
       };
     }""")
@@ -580,11 +580,11 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
 
 def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands on a document
-    page. A sidebar page's body is wider than `--wide` at a large window, so the
+    page. A sidebar page's body is wider than `--lf-wide` at a large window, so the
     breakout's growth alone left a named-wide block at the holder's width there. The
     cap holds an authored occurrence and a package default (a diff) alike, at the
-    page's own `--wide`, while a block that names no width still fills its holder and
-    `available` takes it all. At the theme's own `--wide`, which it derives from the
+    page's own `--lf-wide`, while a block that names no width still fills its holder and
+    `available` takes it all. At the theme's own `--lf-wide`, which it derives from the
     code size, the diff's 100-column line at four-digit line numbers reads without
     scrolling. A workspace states no evidence width, so there both fill
     their pane as a block that names none does. A narrow window's holder still bounds
@@ -614,7 +614,7 @@ diff --git a/feeders/mount.py b/feeders/mount.py
     configured = leaf_page(
         "Configured width",
         f"<div>{blocks}</div>",
-        head="<style>:root { --wide: 900px; }</style>",
+        head="<style>:root { --lf-wide: 900px; }</style>",
         layout="sidebar",
     )
     measure = """() => Object.fromEntries(
@@ -668,7 +668,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
     source = OWN_MARGIN_FURNITURE.replace(
         "</head>",
-        "<style>main { position: relative; max-inline-size: var(--col); "
+        "<style>main { position: relative; max-inline-size: var(--lf-col); "
         "margin-inline: auto; grid-template-columns: [full-start prose-start] minmax(0, 1fr) "
         "[prose-end full-end]; } "
         "#sprint, #framed { width: 1080px; max-inline-size: none; } "

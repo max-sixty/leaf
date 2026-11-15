@@ -48,7 +48,7 @@ the reading measure, on a column page too.
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
 narrow its grid track or cap its blocks in the page's `<style>`, such as
-`#queue > lf-tab > * { max-inline-size: var(--wide); }`.
+`#queue > lf-tab > * { max-inline-size: var(--lf-wide); }`.
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
@@ -141,7 +141,7 @@ layout; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
-and after it when they should follow the body. Set `--aside` on the Layout to a
+and after it when they should follow the body. Set `--lf-aside` on the Layout to a
 length or share, such as `20rem` or `25%`, to choose its width; its contents fit that
 width. The default dashboard shares are two thirds body and one third sidebar.
 
@@ -243,7 +243,7 @@ downward, follows the newest entry while the user is at the end. The box takes t
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
 It clips at its sides too, with no room there, so a control that starts a line in it,
 such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
-box that holds such a control `padding-inline: var(--sp-2)`.
+box that holds such a control `padding-inline: var(--lf-sp-2)`.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
@@ -254,7 +254,7 @@ column and sidebar pages:
 - `data-width="wide"` is for a block slightly wider than the column, such as code up
   to 100 columns, a diff, a table of a few more columns or a row of three option
   cards. The block starts at the prose's start edge, the left in a left-to-right page,
-  and extends toward its end edge to `--wide`, as far as the window allows.
+  and extends toward its end edge to `--lf-wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
   leave free, into both margins.
@@ -311,8 +311,8 @@ what it means to style, such as a class on your own controls or a widget's id be
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
 as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--accent` on `:root` changes every surface that reads it, and a token
-on one of the chrome's parts, such as `--paper` on `[part~="card"]`, changes only that
+reaches them too, so name your own content in it. A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
+on one of the chrome's parts, such as `--lf-paper` on `[part~="card"]`, changes only that
 surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".

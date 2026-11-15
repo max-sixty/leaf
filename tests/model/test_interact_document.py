@@ -3779,9 +3779,9 @@ def _palette(theme, half):
     pair = r"light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)"
     steps = {
         number: colours[half]
-        for number, *colours in re.findall(rf"--series-(\d+):\s*{pair}", theme)
+        for number, *colours in re.findall(rf"--lf-series-(\d+):\s*{pair}", theme)
     }
-    match = re.search(rf"--paper:\s*{pair}", theme)
+    match = re.search(rf"--lf-paper:\s*{pair}", theme)
     assert match is not None
     paper = match[half + 1]
     assert steps, "no series tokens in the theme"

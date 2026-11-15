@@ -22,11 +22,13 @@ test("every token colour has the highlight rule that paints it", () => {
   );
   assert.ok(colours.size > 0);
   for (const colour of colours) {
-    const name = colour.match(/^var\(--([\w-]+)\)$/)?.[1];
+    const name = colour.match(/^var\(--lf-([\w-]+)\)$/)?.[1];
     assert.ok(name, `${colour} is no colour variable`);
     assert.match(
       css,
-      new RegExp(`::highlight\\(lf-token-${name}\\) \\{\\s*color: var\\(--${name}\\);`),
+      new RegExp(
+        `::highlight\\(lf-token-${name}\\) \\{\\s*color: var\\(--lf-${name}\\);`,
+      ),
       `no rule paints lf-token-${name}`,
     );
   }

@@ -93,9 +93,9 @@ MORE = (
 
 def _cards(prefix: str, count: int) -> str:
     return "".join(
-        f'<section id="{prefix}{i}" style="border:1px solid var(--rule);'
-        'background:var(--card);margin:0;height:44px">'
-        '<div style="background:var(--chip);height:44px">'
+        f'<section id="{prefix}{i}" style="border:1px solid var(--lf-rule);'
+        'background:var(--lf-card);margin:0;height:44px">'
+        '<div style="background:var(--lf-chip);height:44px">'
         f'<button class="lf-btn" style="float:right">Action</button></div></section>'
         for i in range(count)
     )
@@ -103,7 +103,7 @@ def _cards(prefix: str, count: int) -> str:
 
 def _tiles(prefix: str, count: int) -> str:
     tiles = "".join(
-        f'<div id="{prefix}{i}" style="border:1px solid var(--rule);padding:8px">'
+        f'<div id="{prefix}{i}" style="border:1px solid var(--lf-rule);padding:8px">'
         f"<strong>Tile {i}</strong><p style='margin:4px 0 0'>Twelve open, three late, "
         "one blocked on review.</p></div>"
         for i in range(count)
@@ -305,7 +305,7 @@ CASES = (
     Case(
         "scroll-pane",
         "A narrow paragraph at the top of a short bounded block, which scrolls.",
-        '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
+        '<div data-bound="start" style="height:120px;border:1px solid var(--lf-rule)">'
         f'<p id="scroll-pane-p" style="max-width:260px">{WORDS}</p>'
         f"<p>{WORDS}</p></div>",
         ({"section": "scroll-pane-p"},),
@@ -313,7 +313,7 @@ CASES = (
     Case(
         "scroll-pane-cut",
         "A narrow paragraph a short bounded block shows only the top of, below another.",
-        '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
+        '<div data-bound="start" style="height:120px;border:1px solid var(--lf-rule)">'
         "<p>Placement reads the room.</p>"
         f'<p id="scroll-pane-cut-p" style="max-width:260px">{WORDS} {MORE}</p>'
         f"<p>{WORDS}</p></div>",

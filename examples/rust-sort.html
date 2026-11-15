@@ -71,11 +71,11 @@
         }
       }
       lf-sort-film .sort-stage {
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
         overflow: hidden;
         line-height: 0;
-        background: var(--card);
+        background: var(--lf-card);
       }
       lf-sort-film .sort-stage svg {
         width: 100%;
@@ -86,18 +86,18 @@
         grid-template-rows: auto minmax(3.2em, auto) auto;
         gap: 2px;
         align-content: start;
-        font-family: var(--serif);
+        font-family: var(--lf-serif);
       }
       lf-sort-film .sort-narration > strong {
-        font-family: var(--sans);
-        font-size: var(--t-6);
+        font-family: var(--lf-sans);
+        font-size: var(--lf-t-6);
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--muted);
+        color: var(--lf-muted);
       }
       lf-sort-film .sort-moment {
-        color: var(--accent);
-        font: 600 var(--t-6)/1.4 var(--sans);
+        color: var(--lf-accent);
+        font: 600 var(--lf-t-6)/1.4 var(--lf-sans);
         width: fit-content;
       }
       lf-sort-film .sort-moment-count {
@@ -106,16 +106,16 @@
         font-variant-numeric: tabular-nums;
       }
       lf-sort-film[data-phase="insert"] .sort-narration > strong {
-        color: var(--warn-ink);
+        color: var(--lf-warn-ink);
       }
       lf-sort-film[data-phase="merge"] .sort-narration > strong {
-        color: var(--accent);
+        color: var(--lf-accent);
       }
       lf-sort-film[data-phase="stack"] .sort-narration > strong {
-        color: var(--mark-ink);
+        color: var(--lf-mark-ink);
       }
       lf-sort-film[data-phase="done"] .sort-narration > strong {
-        color: var(--ok-ink);
+        color: var(--lf-ok-ink);
       }
       lf-sort-film .sort-timeline {
         width: 100%;
@@ -132,16 +132,16 @@
       }
       lf-sort-film .sort-scrub {
         width: 100%;
-        accent-color: var(--accent);
+        accent-color: var(--lf-accent);
       }
       lf-sort-film button {
         font: inherit;
-        font-size: var(--t-5);
+        font-size: var(--lf-t-5);
         padding: 3px 10px;
-        border-radius: var(--r);
-        border: 1px solid var(--border-2);
-        background: var(--card);
-        color: var(--ink);
+        border-radius: var(--lf-r);
+        border: 1px solid var(--lf-border);
+        background: var(--lf-card);
+        color: var(--lf-ink);
         cursor: pointer;
       }
       lf-sort-film .sort-play {
@@ -168,23 +168,23 @@
       lf-sort-film .sort-inputs legend {
         float: left;
         padding: 0;
-        color: var(--muted);
-        font-size: var(--t-6);
+        color: var(--lf-muted);
+        font-size: var(--lf-t-6);
       }
       lf-sort-film .sort-inputs label {
         display: inline-flex;
         gap: 6px;
         align-items: baseline;
         cursor: pointer;
-        font-size: var(--t-5);
+        font-size: var(--lf-t-5);
       }
       lf-sort-film .sort-inputs input {
         align-self: center;
       }
       lf-sort-film .sort-stats {
         margin: 0;
-        color: var(--muted);
-        font-size: var(--t-5);
+        color: var(--lf-muted);
+        font-size: var(--lf-t-5);
       }
     </style>
   </head>

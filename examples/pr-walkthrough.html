@@ -11,76 +11,76 @@
     />
     <style>
       .pr-review-gesture {
-        padding-block: var(--sp-2);
-        border-block: 1px solid var(--rule);
-        color: var(--muted);
+        padding-block: var(--lf-sp-2);
+        border-block: 1px solid var(--lf-rule);
+        color: var(--lf-muted);
       }
 
       .pr-change-key {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-2);
-        margin: var(--sp-2) 0;
-        color: var(--muted);
-        font: var(--t-6) var(--sans);
+        gap: var(--lf-sp-2);
+        margin: var(--lf-sp-2) 0;
+        color: var(--lf-muted);
+        font: var(--lf-t-6) var(--lf-sans);
       }
 
       .pr-change-key span {
         padding: 2px 8px;
-        border: 1px solid var(--rule);
-        border-radius: var(--chip-r);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-chip-r);
       }
 
       .pr-change-key .pr-added {
-        background: var(--ok-tint);
-        color: var(--ok-ink);
+        background: var(--lf-ok-tint);
+        color: var(--lf-ok-ink);
       }
 
       .pr-change-key .pr-removed {
-        background: var(--danger-tint);
-        color: var(--danger-ink);
+        background: var(--lf-danger-tint);
+        color: var(--lf-danger-ink);
       }
 
       #pr-flow-diagram .pele-node.removed rect {
-        fill: var(--del-tint);
-        stroke: var(--danger);
+        fill: var(--lf-del-tint);
+        stroke: var(--lf-danger);
       }
       #pr-flow-diagram .pele-node.removed text {
-        fill: var(--danger-ink);
+        fill: var(--lf-danger-ink);
       }
       #pr-flow-diagram .pele-node.added rect {
-        fill: var(--ok-tint);
-        stroke: var(--ok);
+        fill: var(--lf-ok-tint);
+        stroke: var(--lf-ok);
       }
       #pr-flow-diagram .pele-node.added text {
-        fill: var(--ok-ink);
+        fill: var(--lf-ok-ink);
       }
 
       .pr-scale-facts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
-        margin: var(--sp-3) 0;
-        border-block: 1px solid var(--rule);
+        margin: var(--lf-sp-3) 0;
+        border-block: 1px solid var(--lf-rule);
         overflow: hidden;
       }
 
       .pr-scale-facts > div {
         min-width: 0;
-        padding: var(--sp-2);
-        box-shadow: -1px 0 0 var(--rule);
+        padding: var(--lf-sp-2);
+        box-shadow: -1px 0 0 var(--lf-rule);
       }
 
       .pr-scale-facts dt {
-        color: var(--muted);
-        font: var(--t-6) / 1.4 var(--sans);
+        color: var(--lf-muted);
+        font: var(--lf-t-6) / 1.4 var(--lf-sans);
         letter-spacing: 0.045em;
         text-transform: uppercase;
       }
 
       .pr-scale-facts dd {
         margin: 2px 0 0;
-        color: var(--ink);
-        font: var(--t-3) / 1.3 var(--mono);
+        color: var(--lf-ink);
+        font: var(--lf-t-3) / 1.3 var(--lf-mono);
       }
     </style>
   </head>

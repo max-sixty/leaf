@@ -915,9 +915,9 @@ def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
     theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
-    largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
+    largest = max(int(step) for step in re.findall(r"--lf-sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
-    assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
+    assert f"`--lf-sp-1` to `--lf-sp-{largest}`" in " ".join(prose.split())
 
 
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
@@ -1648,7 +1648,9 @@ def test_layout_style_and_widgets_never_read_each_other():
             match[1]
             for _conditions, _enclosing, selector, declarations in _style_rules(theme)
             if (match := re.fullmatch(r"\.([a-z][a-z-]*)", selector))
-            and any(name.startswith(("--t-", "--sp-")) for name, _ in declarations)
+            and any(
+                name.startswith(("--lf-t-", "--lf-sp-")) for name, _ in declarations
+            )
         },
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
@@ -2007,13 +2009,13 @@ def test_every_ring_stands_at_a_kind_of_box():
     itself read from `--lf-ring-at`."""
     kinds = {
         "0",
-        "var(--focus-region-gap)",
-        "var(--focus-ring-gap)",
-        "var(--focus-ring-inset)",
+        "var(--lf-focus-region-gap)",
+        "var(--lf-focus-ring-gap)",
+        "var(--lf-focus-ring-inset)",
     }
     reads = {
         "var(--lf-ring-at, 0px)",
-        "var(--lf-ring-at, var(--focus-ring-gap))",
+        "var(--lf-ring-at, var(--lf-focus-ring-gap))",
         "var(--lf-band-gap)",
     }
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
@@ -2307,25 +2309,25 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
     an id or a class attribute, or by where the press stands."""
     home = tmp_path / "controls.css"
     home.write_text(
-        ".lf-icon-action { color: var(--muted); font: var(--font-ui); }\n"
-        ".lf-icon-action[data-lf-disc]::before { background: var(--chip); }\n"
-        ":is(.lf-row, .lf-btn):hover { background: var(--chip); }\n"
-        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--accent); }\n'
+        ".lf-icon-action { color: var(--lf-muted); font: var(--lf-font-ui); }\n"
+        ".lf-icon-action[data-lf-disc]::before { background: var(--lf-chip); }\n"
+        ":is(.lf-row, .lf-btn):hover { background: var(--lf-chip); }\n"
+        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--lf-accent); }\n'
         ":is(summary, .lf-dial-depth)::before { mask: url(a.svg); background: currentColor; }\n"
-        '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--ok-ink); }\n'
-        ".lf-page .lf-btn { border-color: var(--accent); }\n"
-        '[class~="lf-page"] .lf-btn { border-color: var(--accent); }\n'
-        "#dial.lf-btn { color: var(--accent); }\n"
-        "@scope (.lf-page) { .lf-btn { color: var(--accent); } }\n"
+        '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--lf-ok-ink); }\n'
+        ".lf-page .lf-btn { border-color: var(--lf-accent); }\n"
+        '[class~="lf-page"] .lf-btn { border-color: var(--lf-accent); }\n'
+        "#dial.lf-btn { color: var(--lf-accent); }\n"
+        "@scope (.lf-page) { .lf-btn { color: var(--lf-accent); } }\n"
     )
     away = tmp_path / "widget.css"
     away.write_text(
-        ".lf-dial-depth { padding: 4px; opacity: 0; font: var(--font-small); }\n"
-        "a.lf-dial-depth { color: var(--accent); }\n"
+        ".lf-dial-depth { padding: 4px; opacity: 0; font: var(--lf-font-small); }\n"
+        "a.lf-dial-depth { color: var(--lf-accent); }\n"
         ".lf-dial-depth { background-color: currentColor; }\n"
-        ".lf-dial-depth:is(a, .lf-btn) { color: var(--ink); }\n"
+        ".lf-dial-depth:is(a, .lf-btn) { color: var(--lf-ink); }\n"
         ".lf-dial > .lf-btn:hover { box-shadow: none; }\n"
-        '[class~="lf-btn"] { background: var(--chip); }\n'
+        '[class~="lf-btn"] { background: var(--lf-chip); }\n'
         ".lf-icon-action::before { mask: none; background: currentColor; }\n"
     )
     refused = _face_overrides(
@@ -3679,7 +3681,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     package = package_parent / ".leaf"
     package.mkdir(parents=True)
     theme = package / "overrides.css"
-    theme.write_text(":root { --accent: teal; }\n")
+    theme.write_text(":root { --lf-accent: teal; }\n")
     monkeypatch.chdir(package_parent)
 
     result = CliRunner().invoke(
@@ -3688,7 +3690,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
-    assert theme.read_text() == ":root { --accent: teal; }\n"
+    assert theme.read_text() == ":root { --lf-accent: teal; }\n"
     assert not (page / cleanup_model.EVENTS_FILE).exists()
 
 
@@ -3819,7 +3821,7 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     config = tmp_path / "config"
     user = config / "leaf"
     user.mkdir(parents=True)
-    (user / "overrides.css").write_text(":root { --accent: teal; }\n")
+    (user / "overrides.css").write_text(":root { --lf-accent: teal; }\n")
     project_layer = project / ".leaf"
     project_layer.symlink_to(user, target_is_directory=True)
     monkeypatch.chdir(project)
@@ -3956,7 +3958,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     widgets = managed / "widgets"
     widgets.mkdir(parents=True)
     theme = managed / "overrides.css"
-    theme.write_text(":root { --accent: teal; }\n")
+    theme.write_text(":root { --lf-accent: teal; }\n")
     registry = managed / "registry.json"
     registry.write_text("{}\n")
     (layer / "overrides.css").symlink_to(theme)
@@ -3970,7 +3972,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     assert (layer / "overrides.css").is_symlink()
     assert (layer / "registry.json").is_symlink()
     assert (layer / "widgets").is_symlink()
-    assert theme.read_text() == ":root { --accent: teal; }\n"
+    assert theme.read_text() == ":root { --lf-accent: teal; }\n"
     assert json.loads(registry.read_text()) == {}
     checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
     assert checked.exit_code == 0, checked.output
@@ -4170,11 +4172,11 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     theme = layer / "overrides.css"
-    theme.write_text(":root { --accent: rebeccapurple; }\n")
+    theme.write_text(":root { --lf-accent: rebeccapurple; }\n")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert result.exit_code == 0, result.output
-    assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
+    assert theme.read_text() == ":root { --lf-accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
     (layer / "instructions" / "author.md").write_text("Keep me.\n")
     before = {

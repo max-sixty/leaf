@@ -152,13 +152,13 @@ Wrap content with its own design in a themed page in a box that sets
 (`package-themes.md`, "Personal themes").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
-`body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
-ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces
-`--serif` for prose, `--sans` for labels and controls and `--mono` for code
+`body`, so Leaf's widgets, threads and panel follow the page: `--lf-paper` and `--lf-ink` for
+ground and text, `--lf-card`, `--lf-muted`, `--lf-rule` and `--lf-accent`, and the faces
+`--lf-serif` for prose, `--lf-sans` for labels and controls and `--lf-mono` for code
 (`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
 also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that
-scheme's values. `--col` sets the reading column's width, and the spacing steps
-`--sp-1` to `--sp-5` tighten under `density-working`.
+scheme's values. `--lf-col` sets the reading column's width, and the spacing steps
+`--lf-sp-1` to `--lf-sp-5` tighten under `density-working`.
 
 The page is `body`. One `main` directly inside it holds the page's content, its title
 included, and carries its Layout. Site furniture around that content, such as a
@@ -168,7 +168,7 @@ the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
 Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
 panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
-in `--paper`; a page that takes no theme paints its ground on `html` and sets
+in `--lf-paper`; a page that takes no theme paints its ground on `html` and sets
 `--lf-ground` there (`package-themes.md`, "A theme change"), since `body` is a
 container, which keeps its own background off the window below a short page. A reset
 that zeroes `body`'s padding, or an app shell whose own box scrolls, puts

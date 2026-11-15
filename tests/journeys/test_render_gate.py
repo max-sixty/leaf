@@ -1146,13 +1146,13 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
 <lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
 <lf-paint id="flow"></lf-paint>
 <svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
-  <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
+  <defs><linearGradient id="blue"><stop stop-color="var(--lf-accent)" /></linearGradient></defs>
   <rect width="20" height="20" fill="var(--diagram-gradient)" />
 </svg>
 """,
         head="""<style>:root {
-  --diagram-safe: var(--not-defined, var(--ok-tint));
-  --diagram-gradient: url(#blue) var(--accent);
+  --diagram-safe: var(--not-defined, var(--lf-ok-tint));
+  --diagram-gradient: url(#blue) var(--lf-accent);
 }</style>""",
     )
     url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
@@ -1555,7 +1555,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 </lf-options></lf-ask></div>
 """,
         head="""<style>
-#tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+#tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }
 @media (min-width: 600px) and (max-width: 900px) { #mid-spill { white-space: nowrap; } }
 #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
 #strip button { flex: 0 0 180px; height: 40px; margin: 0; }

@@ -1325,10 +1325,10 @@ def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     )
     page = open_page(browser, url)
     mark = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mark-size'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-mark-size'))"
     )
     floor = page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     for index, block in enumerate(("#compact", "#tall")):
         page.locator(block).hover()
@@ -1695,8 +1695,8 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         # The string token crosses the mark's end, so both pieces keep its colour.
         assert marked.evaluate("""code => {
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--syn-string)')
-            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--syn-string)');
+          return tokens.some(t => t.textContent === '"rea' && t.style.color === 'var(--lf-syn-string)')
+            && tokens.some(t => t.textContent === 'd"' && t.style.color === 'var(--lf-syn-string)');
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
@@ -1763,15 +1763,15 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
-    assert ["var(--syn-keyword)", "def", "normal"] in colors["widget"]
-    assert ["var(--syn-name)", "bucket_key", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-keyword)", "def", "normal"] in colors["widget"]
+    assert ["var(--lf-syn-name)", "bucket_key", "normal"] in colors["widget"]
     assert {color for color, _, _ in colors["widget"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }, colors["widget"]
     assert [
-        "var(--syn-comment)",
+        "var(--lf-syn-comment)",
         "# apply the migration, then run the marked suite",
         "italic",
     ] in colors["plain"]
@@ -1829,7 +1829,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
+          .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -1943,18 +1943,18 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             ("type", "$OUTPUT"),
         ):
             assert any(
-                token["style"] == f"var(--syn-{color})" and text in token["text"]
+                token["style"] == f"var(--lf-syn-{color})" and text in token["text"]
                 for token in tokens
             ), (surface, color, text, tokens)
         assert any(
-            token["style"] == "var(--syn-string)" and "page" in token["text"]
+            token["style"] == "var(--lf-syn-string)" and "page" in token["text"]
             for token in tokens
         )
         assert (
             "".join(
                 token["text"]
                 for token in tokens
-                if token["style"] == "var(--syn-comment)"
+                if token["style"] == "var(--lf-syn-comment)"
                 and token["fontStyle"] == "italic"
             ).strip()
             == "# inspect"
@@ -1972,7 +1972,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       const tokens = roots.map(root => [...root.querySelectorAll('[data-lf-syn]')]
         .find(token => token.textContent === 'leaf'));
       const before = tokens.map(token => getComputedStyle(token).color);
-      document.documentElement.style.setProperty('--syn-name', '#a12345');
+      document.documentElement.style.setProperty('--lf-syn-name', '#a12345');
       return {before, after: tokens.map(token => getComputedStyle(token).color),
         connected: tokens.every(token => token.isConnected)};
     })""")
@@ -2053,12 +2053,12 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
       return (await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash')).tokens;
     }""")
     assert any(
-        token["style"].get("color") == "var(--syn-string)"
+        token["style"].get("color") == "var(--lf-syn-string)"
         and "leaf is literal text" in token["text"]
         for token in heredoc
     )
     assert not any(
-        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        token["style"].get("color") == "var(--lf-syn-name)" and "leaf" in token["text"]
         for token in heredoc
     )
 
@@ -2217,19 +2217,21 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     py = by_path["gateway/limits.py"]
     assert any(
-        ["var(--syn-keyword)", "if", "normal"] in line["colors"] for line in py
+        ["var(--lf-syn-keyword)", "if", "normal"] in line["colors"] for line in py
     ), py
     assert {color for line in py for color, _, _ in line["colors"]} >= {
-        "var(--syn-keyword)",
-        "var(--syn-string)",
-        "var(--syn-name)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+        "var(--lf-syn-name)",
     }
 
     # Docstrings keep the theme's comment color and italic style on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        assert {color for color, _, _ in line["colors"]} == {"var(--syn-comment)"}, line
+        assert {color for color, _, _ in line["colors"]} == {"var(--lf-syn-comment)"}, (
+            line
+        )
         assert {style for _, _, style in line["colors"]} == {"italic"}, line
         assert "".join(text for _, text, _ in line["colors"]) == line["text"], line
 
@@ -2243,7 +2245,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert len(yml) == 2
     for line in yml:
         assert any(
-            color == "var(--syn-type)" and "burst" in text
+            color == "var(--lf-syn-type)" and "burst" in text
             for color, text, _ in line["colors"]
         ), line
     assert {
@@ -2343,8 +2345,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     after = changed("gateway/config.yaml", "change-addition", "burst: 40")
     assert before["marks"] and any("20" in mark for mark in before["marks"])
     assert after["marks"] and any("40" in mark for mark in after["marks"])
-    assert ["var(--syn-number)", "20"] in before["inked"]
-    assert ["var(--syn-number)", "40"] in after["inked"]
+    assert ["var(--lf-syn-number)", "20"] in before["inked"]
+    assert ["var(--lf-syn-number)", "40"] in after["inked"]
 
     changed_lines = [
         line
@@ -2819,7 +2821,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     look = figure.evaluate(MARK)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
     assert look and look["style"] == "solid" and look["width"] > 0, look
     assert look["offset"] == region, (look, region)

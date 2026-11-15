@@ -106,7 +106,7 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     readings = page.locator("label.lf-choice").evaluate_all("""labels => labels.map(label => {
       const style = getComputedStyle(label), box = label.getBoundingClientRect();
       const mark = label.querySelector('input').getBoundingClientRect();
-      return {height: box.height, floor: parseFloat(style.getPropertyValue('--aim-floor')),
+      return {height: box.height, floor: parseFloat(style.getPropertyValue('--lf-aim-floor')),
         mark: mark.height, border: style.borderStyle, background: style.backgroundColor};
     })""")
     for reading in readings:
@@ -323,7 +323,7 @@ ELEVATION_SHADOWS = """() => {
   // A height is written from its drop and blur tokens (base.css), so those read as
   // the lengths they hold, and a rule spelling a lift from them is still a lift.
   const theme = getComputedStyle(document.documentElement);
-  const parts = (value) => value.replace(/var\\((--raise-\\d-(?:drop|blur))\\)/g,
+  const parts = (value) => value.replace(/var\\((--lf-raise-\\d-(?:drop|blur))\\)/g,
     (_, name) => theme.getPropertyValue(name).trim());
   const found = [];
   const eaten = new Set();
@@ -383,11 +383,11 @@ ELEVATION_SHADOWS = """() => {
 }"""
 
 
-# A box that spends --shade, since the token itself is the same `light-dark()` text
+# A box that spends --lf-shade, since the token itself is the same `light-dark()` text
 # under either scheme.
 PAINTED_SHADE = """() => {
   const probe = document.createElement('div');
-  probe.style.color = 'var(--shade)';
+  probe.style.color = 'var(--lf-shade)';
   document.body.append(probe);
   const ink = getComputedStyle(probe).color;
   probe.remove();
@@ -402,14 +402,14 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (tokens.css, beside
-    --shade) are now the only declarations that write a blur; every other rule, a
+    the next one from writing a fifteenth. The `--lf-raise-*` tokens (tokens.css, beside
+    --lf-shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.
 
     A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
     over the light paper a menu lifts its ground by 10 L*, and over the dark paper by
-    1.4. So the heights are cast in --shade, the ink stated once per scheme, and the two
+    1.4. So the heights are cast in --lf-shade, the ink stated once per scheme, and the two
     schemes are then asked for different answers from it.
 
     Asked of the declarations rather than of the paint, because that is where the fault
@@ -417,21 +417,21 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
     """
     page = open_page(browser, serve(LONG_PAGE))
     lifted = page.evaluate(ELEVATION_SHADOWS)
-    heights = {s["property"] for s in lifted if s["property"].startswith("--raise-")}
-    assert heights == {"--raise-1", "--raise-2", "--raise-3"}, (
-        f"the layer spells the heights {sorted(heights)}, not --raise-1 to --raise-3: "
+    heights = {s["property"] for s in lifted if s["property"].startswith("--lf-raise-")}
+    assert heights == {"--lf-raise-1", "--lf-raise-2", "--lf-raise-3"}, (
+        f"the layer spells the heights {sorted(heights)}, not --lf-raise-1 to --lf-raise-3: "
         f"this reading has stopped finding them and the assertions below are about "
         f"nothing"
     )
-    spelled = [s for s in lifted if not s["property"].startswith("--raise-")]
+    spelled = [s for s in lifted if not s["property"].startswith("--lf-raise-")]
     assert not spelled, (
-        f"{len(spelled)} lifts write their own geometry rather than naming a --raise-* "
+        f"{len(spelled)} lifts write their own geometry rather than naming a --lf-raise-* "
         f"height:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in spelled)
     )
-    raw = [s for s in lifted if "var(--shade)" not in s["value"]]
+    raw = [s for s in lifted if "var(--lf-shade)" not in s["value"]]
     assert not raw, (
-        f"{len(raw)} heights are cast in a colour of their own rather than in --shade, "
+        f"{len(raw)} heights are cast in a colour of their own rather than in --lf-shade, "
         f"so the dark scheme cannot answer for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )

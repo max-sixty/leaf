@@ -57,11 +57,11 @@ PLAYGROUND_PAGE = leaf_page(
 <style>
   #playground-card {
     --lf-block-frame: 1;
-    border: 2px solid var(--playground-accent);
-    border-radius: var(--playground-radius);
+    border: 2px solid var(--lf-playground-accent);
+    border-radius: var(--lf-playground-radius);
     padding: 24px;
   }
-  #playground-card::before { content: var(--playground-title); }
+  #playground-card::before { content: var(--lf-playground-title); }
   #card-playground[data-playground-compact="true"] #playground-card { padding: 8px; }
   #card-playground[data-playground-tone="bold"] #playground-card { font-weight: 700; }
 </style>

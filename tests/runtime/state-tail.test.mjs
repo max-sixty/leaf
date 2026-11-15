@@ -63,8 +63,8 @@ for (const { name, held, tail, whole } of servedTails())
     );
     const done = completeState(tail, holding);
     assert.deepEqual(done, whole);
-    // The log and the data keep their own mechanisms.
-    const { events: _events, data: _data, ...rest } = done;
+    // The log keeps its own mechanism.
+    const { events: _events, ...rest } = done;
     assertKept(held, rest, "the answer");
   });
 
@@ -94,7 +94,6 @@ test("an answer that moves every item of a list puts each after the one it names
       since: { key: "held" },
       patch: [{ at: ["browser", "list"], by: "id", after }],
       events: [],
-      data,
     },
     { data, state: /** @type {never} */ (held) },
   );

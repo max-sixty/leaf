@@ -1474,7 +1474,16 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     state = json.loads(state_result.output)
     assert all(
         set(thread)
-        == {"id", "title", "anchor", "detached_from", "resolved", "unread", "attention"}
+        == {
+            "id",
+            "title",
+            "anchor",
+            "detached_from",
+            "resolved",
+            "unread",
+            "attention",
+            "holder",
+        }
         for thread in state["threads"]
     )
     expected = {root["id"]: [root["id"]], user["id"]: [user["id"], reply["id"]]}

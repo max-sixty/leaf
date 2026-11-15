@@ -146,6 +146,11 @@ import { shifted } from "./rect.js";
  * @typedef {{x: number, y: number, kept: Kept | null}} Stood
  * @typedef {{held: () => Held | null, place: () => boolean}} Placement */
 
+// The registered property (base.css) a carried part's `translate` reads while it
+// travels, which tells a reader of the motions under way that the part is moving rather
+// than being cut or faded (user-place.js, `slides`).
+export const CARRY = "--lf-box-carry";
+
 // Whose change it is, one clock for every box, since an input anywhere is the user's:
 // their key, press or typing owns what it sets going until that rendering settles
 // (rendering.js, `afterSettling`), so changes to a box meanwhile are theirs, and what
@@ -718,11 +723,8 @@ export function boxMotion({
           priority: inlineStyle(element).getPropertyPriority("translate"),
         });
       translated.add(element);
-      inlineStyle(element).setProperty("translate", "var(--lf-box-carry)");
-      start(element, [
-        { "--lf-box-carry": `${dx}px ${dy}px` },
-        { "--lf-box-carry": "0px 0px" },
-      ]);
+      inlineStyle(element).setProperty("translate", `var(${CARRY})`);
+      start(element, [{ [CARRY]: `${dx}px ${dy}px` }, { [CARRY]: "0px 0px" }]);
     };
     /** @param {Element} element @param {readonly number[]} cut @param {number} [radius] */
     const cutFrom = (element, cut, radius = 0) =>

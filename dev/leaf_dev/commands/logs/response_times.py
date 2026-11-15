@@ -59,13 +59,17 @@ to. A survey of every page touched in a week:
         ~/.local/state/leaf/pages -maxdepth 2 -name events.jsonl -mtime -7 |
         sed 's:/events.jsonl$::')
 
-Each input also carries the fork that decided it (`fork`: its outcome and seconds),
-the last whose inputs name its message, and a fork's working line, posted as it
-handed the thread over, is the progress and first reply of the thread's newest
-waiting message. The summary's `delivered` row is how long an update read Delivered,
-from its opened pickup to the session starting or answering it; `fork_hand_over`
-times the first reply over the inputs a fork handed to the session, so a survey
-shows whether forks bring the agent's first words sooner.
+Each input also carries the line fork that decided it (`fork`: its outcome and
+seconds), the last whose inputs name its message, and where a working fork took it,
+how that fork's turn ended (`work`: `leaf.forks.Ending`, its seconds and the to-dos
+it opened). A fork's working line, posted as it handed the thread over, is the
+progress and first reply of the thread's newest waiting message. The summary's
+`delivered` row is how long an update read Delivered, from its opened pickup to the
+session starting or answering it; `fork_hand_over` times the first reply over the
+inputs a fork handed to the session, so a survey shows whether forks bring the
+agent's first words sooner, and `fork_take` the answer over the inputs a line fork
+gave a working fork. A line under the table counts the line forks' decisions and the
+working forks' endings.
 
 `prompted` waits are where nothing of Leaf's woke an idle session before the user
 typed. The watch record says whether a watch ran and the protocol its Leaf spoke,
@@ -220,7 +224,7 @@ def page_timings(
             "run_context",
             "leaf_command",
             "watch",
-            "fork_reply",
+            "fork_outcome",
         ),
     )
     contexts = [
@@ -244,7 +248,7 @@ def page_timings(
     fork_lines = {
         row["line"]: row["inputs"][-1]
         for row in observations
-        if row["type"] == "fork_reply" and "line" in row
+        if row["type"] == "fork_outcome" and "line" in row
     }
     messages = kinds_declaring("message")
     threads = thread_names([observation["event"] for observation in semantic])
@@ -422,10 +426,22 @@ def page_timings(
     watches = [
         row for row in observations if row["source"] == "cli" and row["type"] == "watch"
     ]
-    forks = [row for row in observations if row["type"] == "fork_reply"]
-    # The last fork made for a message decided it: another message in its held
-    # thread forks again for them all, dropping the earlier fork's line.
-    decided = {message: fork for fork in forks for message in fork["inputs"]}
+    forks = [row for row in observations if row["type"] == "fork_outcome"]
+    # The last line fork made for a message decided it: another message in its kept
+    # back thread forks again for them all, dropping the earlier fork's line. A
+    # working fork's turn notes its start and end as steps of its own.
+    decided = {
+        message: fork
+        for fork in forks
+        if "step" not in fork
+        for message in fork["inputs"]
+    }
+    ended = {
+        message: fork
+        for fork in forks
+        if fork.get("step") == "end"
+        for message in fork["inputs"]
+    }
     for row in rows.values():
         fork = decided.get(row["message_id"])
         row["fork"] = (
@@ -436,6 +452,17 @@ def page_timings(
                 "elapsed_s": fork["elapsedMs"] / 1000 if "elapsedMs" in fork else None,
                 # Leaf's reason, where Leaf handed the thread over without a line.
                 "why": None if "line" in fork else fork.get("why"),
+            }
+        )
+        work = ended.get(row["message_id"])
+        row["work"] = (
+            None
+            if work is None
+            else {
+                "outcome": work["outcome"],
+                "elapsed_s": work["elapsedMs"] / 1000 if "elapsedMs" in work else None,
+                "todos": len(work.get("todos", [])),
+                "why": work.get("why"),
             }
         )
         answered = row["milestones"].get("answered")
@@ -664,6 +691,14 @@ def response_times(
         [row for row in rows if row["fork"] and row["fork"]["outcome"] == "hand_over"],
         "first_reply",
     )
+    summary["fork_take"] = distribution(
+        [row for row in rows if row["fork"] and row["fork"]["outcome"] == "take"],
+        "answered",
+    )
+    # How often the line fork decided each way, and how each working fork's turn
+    # ended (`leaf.forks.Ending`), over the inputs each counts.
+    fork_counts = Counter(row["fork"]["outcome"] for row in rows if row["fork"])
+    work_counts = Counter(row["work"]["outcome"] for row in rows if row["work"])
     summary["leaf_commands"] = spread(
         rows,
         [row["leaf_commands_s"] for row in rows if row["leaf_commands_s"] is not None],
@@ -694,6 +729,8 @@ def response_times(
                         for reading in readings
                     ],
                     "summary": summary,
+                    "forks": dict(fork_counts),
+                    "working_forks": dict(work_counts),
                     "selection": selection,
                     "samples": rows,
                 },
@@ -717,7 +754,10 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a fork handed to the session, its working line included."
+        "delivered runs from opened to the session's start or answer; fork_hand_over is first_reply over the inputs a fork handed to the session, its working line included; fork_take is answered over the inputs a line fork gave a working fork."
+    )
+    click.echo(
+        f"Line forks decided: {dict(fork_counts) or 'none'}; working forks' turns ended: {dict(work_counts) or 'none'}"
     )
     click.echo(
         "leaf_commands reads each command's own record on any harness; whole_* and leaf_share_* read Claude Code transcripts, so their missing includes every other input."

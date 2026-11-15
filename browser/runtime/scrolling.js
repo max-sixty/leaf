@@ -356,6 +356,18 @@ export function aimScroll(box, event) {
 // takes a reader heading down where they were going.
 /** @param {Element} box */
 export const readerScroll = (box) => (readerScrolls(box) && asked.get(box)) || null;
+// Whether `box` has moved toward its lower end (`down`) or its upper one since its last
+// scroll sequence ended, layout aside. A wheel's sequence ends only when its gesture
+// does, and the browser may scroll before the page hears the wheel, as it does for
+// macOS's precise wheels, so the event that takes a box to its end finds it there.
+/** @param {Element} box @param {boolean} down */
+export function carriedToward(box, down) {
+  const from = ended.get(box);
+  if (from === undefined || layoutMoved.has(box)) return false;
+  return down
+    ? box.scrollTop > from + SCROLL_SLACK
+    : box.scrollTop < from - SCROLL_SLACK;
+}
 /** @param {Element[]} boxes */
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);

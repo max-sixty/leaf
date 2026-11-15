@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Finish a worker's production config</title>
+    <meta
+      name="description"
+      content="Set the values only you can choose in a service's real deploy files: pick a file in the tree, edit it beside what staging measured, and each file saves to disk as you type."
+    />
+    <style>
+      /* The notes and the files they point into share the left column; the editor
+         takes the rest of the window, so a file reads at its full width. */
+      #dc-regions {
+        display: grid;
+        grid-template-columns: 22rem minmax(0, 1fr);
+        grid-template-rows: 20rem minmax(0, 1fr);
+      }
+      #dc-editor-pane {
+        grid-row: 1 / span 2;
+        grid-column: 2;
+      }
+      #dc-yours > ol {
+        padding-inline-start: 1.25rem;
+      }
+      #dc-yours li + li {
+        margin-block-start: 0.6rem;
+      }
+      @media (width < 720px) {
+        #dc-regions {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: none;
+        }
+        #dc-editor-pane {
+          grid-row: auto;
+          grid-column: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-workspace density-working" id="dc-workspace">
+      <header>
+        <h1>Four settings before receipts-worker ships</h1>
+        <p id="dc-lede">
+          I wrote the production values, alerts, deploy workflow and runbook from what
+          staging measured. Four settings are yours, each a <code>TODO(you)</code> in
+          its file. Edit them here: each file saves to disk as you type, and I render
+          the chart against staging once they're set.
+        </p>
+      </header>
+      <div id="dc-regions">
+        <lf-pane id="dc-files-pane" label="Files">
+          <lf-file-tree
+            id="dc-files"
+            for="dc-editor"
+            aria-label="receipts-worker deploy files"
+          ></lf-file-tree>
+        </lf-pane>
+        <lf-pane id="dc-yours-pane" label="Yours to set">
+          <section id="dc-yours">
+            <h2>Yours to set</h2>
+            <ol>
+              <li id="dc-replicas">
+                <strong>Pods at the morning peak.</strong> One pod renders 46 receipts a
+                minute; the 09:00 peak is 130. Three pods leave 6% headroom, four leave
+                41%.
+                <a href="#dc-editor:values-production">values-production.yaml</a>
+              </li>
+              <li id="dc-memory">
+                <strong>Memory limit.</strong> Chromium peaked at 1.35Gi in staging at
+                four renders a pod. I set 1536Mi; a pod over it is killed mid-render.
+                <a href="#dc-editor:values-production">values-production.yaml</a>
+              </li>
+              <li id="dc-paging">
+                <strong>Who a backlog pages.</strong> I routed it to payments on-call,
+                whose cluster runs the queue.
+                <a href="#dc-editor:alerts">alerts.yaml</a>
+              </li>
+              <li id="dc-escalation">
+                <strong>Who to call next.</strong> The runbook's escalation, for a
+                backlog on-call can't clear in an hour.
+                <a href="#dc-editor:runbook">receipts-worker.md</a>
+              </li>
+            </ol>
+            <p id="dc-checked">
+              The workflow and staging values are as staging ran them: 3,412 receipts on
+              12 November, none dead-lettered.
+            </p>
+          </section>
+        </lf-pane>
+        <lf-pane id="dc-editor-pane" label="File">
+          <lf-file-editor
+            id="dc-editor"
+            binding="values-production values values-staging alerts deploy-workflow runbook"
+          ></lf-file-editor>
+        </lf-pane>
+      </div>
+    </main>
+  </body>
+</html>

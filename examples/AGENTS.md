@@ -65,7 +65,11 @@ An example's markup is its current version. Beside it may sit:
   it, which the page admits through the append door, so leave out what admission
   derives, such as an action's `meaning`;
 - `<stem>.data.json`, each page-owned data source's current value (`example_data.py`
-  says how to give it).
+  says how to give it);
+- `<stem>.files/`, the files the page's editors edit, laid out as their project holds
+  them, with `<stem>.files.json` mapping each binding the markup names to its path
+  there. Each builder copies them into the page directory's `files/` and binds them
+  there, so a preview, a test and each leaf.page visitor edit their own copy.
 
 `prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
 example.

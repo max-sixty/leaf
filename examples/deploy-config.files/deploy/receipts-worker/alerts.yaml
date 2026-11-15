@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: receipts-worker
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: receipts-worker
+      rules:
+        - alert: ReceiptsBacklogGrowing
+          # The queue has grown for 15 minutes with every render slot busy.
+          expr: |
+            deriv(receipts_queue_depth{queue="receipts.render"}[15m]) > 0
+              and on() sum(receipts_worker_busy_slots)
+                >= sum(receipts_worker_slots)
+          for: 15m
+          labels:
+            severity: page
+            # TODO(you): who answers this page? I routed it to payments
+            # on-call because the queue sits in their cluster.
+            team: payments-oncall
+          annotations:
+            summary: Receipts are queueing faster than pods render them
+            runbook: docs/runbooks/receipts-worker.md#backlog
+
+        - alert: ReceiptsDeadLettered
+          expr: increase(receipts_dead_lettered_total[30m]) > 10
+          labels:
+            severity: ticket
+            team: payments-oncall
+          annotations:
+            summary: More than 10 receipts failed five times in 30 minutes
+            runbook: docs/runbooks/receipts-worker.md#dead-letters
+
+        - alert: ReceiptsMailThrottled
+          expr: rate(receipts_mail_throttled_total[5m]) > 0
+          for: 10m
+          labels:
+            severity: ticket
+            team: payments-oncall
+          annotations:
+            summary: Postmark is refusing receipt mail at the account limit
+            runbook: docs/runbooks/receipts-worker.md#mail-throttled

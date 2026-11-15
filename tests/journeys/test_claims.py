@@ -198,8 +198,7 @@ def test_page_list_names_each_page_and_the_session_holding_it(dead_pid):
 
     listed = CliRunner().invoke(cli_model.cli, ["page", "list"])
     assert listed.exit_code == 0, listed.output
-    lines = [json.loads(line) for line in listed.output.splitlines()]
-    assert lines == [
+    assert json.loads(listed.output)["pages"] == [
         {
             "page": str(held.resolve()),
             "title": "Held page",

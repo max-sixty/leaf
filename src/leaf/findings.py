@@ -13,9 +13,9 @@ carries the records, so a command that reports it reads them from it. So does ev
 note a command gives beside its result, such as why a `leaf wait` ended. Each is
 produced where it is detected, the browser probes and sensors included, which return
 records rather than sentences, and its words are written here and nowhere else. A
-command prints `finding.json()`, its words as `text`, in its result or as a note on
-stderr (`note`), as the event door's refusal answer carries it, and a failing test
-prints the words; every
+command prints `finding.json()`, its words as `text`, in its result's `findings`
+(`note`), as the event door's refusal answer carries it, and a failing test prints
+the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -138,10 +138,44 @@ def _json(value) -> str:
     return json_value(value)
 
 
+# What the running command has noted for the record it prints (`hold`), or None
+# where no record will carry a note.
+_held: list[Finding] | None = None
+
+
+def hold() -> None:
+    """Keep what the running command notes for the record it prints on stdout
+    (`with_held`), from now until that record is printed."""
+    global _held
+    _held = []
+
+
+def release() -> list[Finding]:
+    """Stop keeping notes, so each later one prints on stderr, and return those
+    kept so far."""
+    global _held
+    held, _held = _held or [], None
+    return held
+
+
+def with_held(record: dict) -> dict:
+    """`record` with what the command has noted added to its `findings`, as the
+    command prints it on stdout (`cli`). A note after this prints on stderr, since no
+    record is left to carry it, as one noted by a process that prints no record,
+    such as a hook, a stream or a server, does."""
+    if not (held := release()):
+        return record
+    return record | {
+        "findings": [*record.get("findings", []), *(f.json() for f in held)]
+    }
+
+
 def note(*found: Finding) -> None:
-    """Say each finding beside a command's result, as one JSON line on stderr
-    (`cli`), after whatever the result has printed."""
-    sys.stdout.flush()
+    """Say each finding beside a command's result: in the `findings` of the record
+    it prints (`with_held`), or as a JSON line on stderr where none will print."""
+    if _held is not None:
+        _held.extend(found)
+        return
     for finding in found:
         print(
             json.dumps(finding.json(), ensure_ascii=False), file=sys.stderr, flush=True

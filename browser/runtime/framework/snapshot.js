@@ -345,11 +345,20 @@ export function createApplicationPublisher(initial) {
      * @returns {SnapshotReading<Immutable<T>>}
      */
     select(derive, from) {
-      /** @type {unknown} */
+      /** @type {Immutable<T>} */
       let prior;
+      // What `derive` answered last, which `prior` holds shared. A derivation that
+      // answers it again, as one keeping its reading while its inputs hold still does,
+      // has changed nothing, so its contents are not compared again.
+      /** @type {T | undefined} */
+      let derived;
       const selected = computed(() => {
         const value = from ? from.read() : /** @type {F} */ (root.value);
-        return signalUntracked(() => (prior = immutable(share(prior, derive(value)))));
+        return signalUntracked(() => {
+          const next = derive(value);
+          if (next !== derived) prior = immutable(share(prior, (derived = next)));
+          return prior;
+        });
       });
       /** @type {SnapshotReading<Immutable<T>>} */
       const reading = Object.freeze({

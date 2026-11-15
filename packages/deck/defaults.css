@@ -113,7 +113,10 @@ lf-deck[data-lf-deck-flying] {
       touch-action: pan-y;
     }
 
-    :scope:is(lf-deck) > [data-lf-view] > :first-child {
+    /* An eyebrow carries its heading's top margin, so a card that opens with an
+       eyebrow's `hgroup`, as an `lf-ask` may, starts at the eyebrow. */
+    :scope:is(lf-deck) > [data-lf-view] > :first-child,
+    :scope:is(lf-deck) > [data-lf-view] > hgroup:first-child > :first-child {
       margin-block-start: 0;
     }
     :scope:is(lf-deck) > [data-lf-view] > :last-child {

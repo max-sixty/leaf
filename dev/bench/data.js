@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794656346881,
+  "lastUpdate": 1794743868551,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -3562,6 +3562,488 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: resolve shown",
             "value": 77.7,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Maximilian Roos",
+            "username": "max-sixty",
+            "email": "5635139+max-sixty@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "f20c08b730013f354f568fb2cb794c58a119056e",
+          "message": "Bench #4781's tabs of large documents, with the inputs that found its costs (#6033)\n\n`leaf-dev bench` now generates #4781's page, a side list of tabs each\nholding a large text document bound to its own source, and measures the\ninputs that found this week's costs on it by hand. The daily `bench` job\nruns it, so Tend's review sees these costs grow with the page.\n\n## The page\n\n`documents` holds the shown document, one more in a closed tab for each\neight of `n`, and one more again: 3 documents on the BASE page, so\n`reveal` has two closed tabs to open there, then 10, 18 and 34 at the\ndaily sizes 64, 128 and 256, about #4781's 30 tabs at the largest. Each\nsource is 2,048 lines of Python (16 of a listing's 128-row runs), the\nsame at every size. So a cost that grows with the documents a page holds\ngrows with `n` and shows in the exponent. A cost that grows with the\nlength of the one document opened stays level and shows only beside\nanother arm (`--base`).\n\nThe largest page holds 69,000 rows where #4781's held 2.9 million. That\nis enough for a walk of every panel on each tab switch (#5996) to fit an\nexponent in Chromium, and it keeps the daily run short (below). The text\nis Python rather than #4781's Markdown, because Python's syntax colour\npaints most words, and the colour a closed tab keeps is what `browse`\nreads.\n\nThe sources are set through the fixture's data companion\n(`page.data.json`, which `prepare_page` sets with `leaf data set`), so\neach arm builds the page with its own Leaf. `Collection` gains `data`\nfor it, which `server_paths.build` also sets in process.\n\n## The inputs\n\n| Input | What it does | Fix it watches |\n|---|---|---|\n| `data` | the agent's `leaf data set` changes the first line of the\nshown document's source; `painted` is the frame that draws the new line\n| #5992 |\n| `reveal` | a click opens the second tab, then the third, neither\nopened before | #5996 |\n| `search` | the first `/`, which opens page search | #5999 |\n| `matches` | type `value`, which every line holds, into page search,\nuntil the count is final | none yet |\n| `browse` | put away page search, open every closed tab, then turn the\nwheel a run's height down and up the last one's listing, 16 steps |\nclosed tabs keep their colour ranges (still on main; #6035) |\n\nThey run in that order, so `search` and `matches` read the page before\n`browse` has opened every tab, whose kept colour every later input would\nmeet. They need the page's own ids (`#docs #d0[source]`) and find the\nother tabs and documents by them. Each finds what it acts on through\n`page.evaluate`, never a locator, since a Playwright locator walks every\nelement of the page for each query. `holds`, which decides whether a\npage has what an input needs, now asks the document with `querySelector`\nfor the same reason. `painted.js` gains three facts: `shows` (an element\nis drawn and holds some words), `searching` (page search's field holds\nthe caret) and `searched` (its count is final). `BenchPage.written`\ntakes the file a command writes, here the source's file rather than the\nlog.\n\n## What the marks hold\n\n`held` now covers the requests and bytes any input causes, the size of\nthe answer to each of its POSTs (`<input> event KB`) included, besides\nthe CPU of an input the browser answers alone: root `AGENTS.md`,\n\"Responsiveness\", holds an input's work to what it changes. Without it,\n#5992's cost, every source sent to the tab after a write to one, fits\nexponent 1.08 with no mark, since an agent's write may grow with the\npage. An input whose result is the whole page is exempt, through a new\n`Input.whole`: `revision` and `stamp`, which carry the new document, and\n`matches`. A held count's noise floor is a quarter of its own reading on\nthe BASE page and at least one, where every count's was a fixed 10 KB or\none request.\n\nRe-judged under main's rules and this branch's, the nine daily reports\nof 11-06 to 11-14 differ in one reading: `asks` `comment event KB`, 4.9,\n8.1, 11.9 and 19.6 KB across the sizes in the six reports of 11-06 to\n11-11, now marked at 1.08. Those reports showed it with no mark; it\nreads level from 11-12 on. On this page's runs the only differences are\n`matches`, which `whole` lets grow, and `data KB` with #5992 reverted.\n\n## Evidence\n\nAll on this Mac (M5 Max, 18 cores, load average 3–21 from other\nsessions), `uv run leaf-dev bench documents --sizes 64,128,256 …`.\n\nCurrent main, Chromium, the daily job's command (`--rounds 2 --input\ndata --input reveal --input search --input matches --input browse`), 266\ns:\n\n```\n                            8         64        128        256   exponent\nelements               6435.0    20988.0    37620.0    70884.0         - \nload cpu ms             200.0      242.8      299.5      510.5      1.43 \ndata cpu ms              23.1       21.3       25.5       30.7         - \nreveal cpu ms            46.0       42.0       43.9       47.1         - \nsearch cpu ms            18.3       17.3       18.4       19.7         - \nmatches cpu ms          290.5      718.7     1271.1     2328.5      1.13 \nbrowse cpu ms            15.4       19.5       25.4       28.0      0.81!\ndata painted ms         133.5       99.9       68.6       99.5         - \ndata requests             1.0        1.0        1.0        1.0         - \ndata KB                  82.6       82.6       82.6       82.6         - \nreveal painted ms        37.2       33.5       34.8       36.1         - \nreveal requests           0.0        0.0        0.0        0.0         - \nreveal KB                 0.0        0.0        0.0        0.0         - \n```\n\nCurrent main, Firefox, the first commit's page and input order with\n`--browser firefox`:\n\n```\n                         8         64        128        256   exponent\nelements            4351.0    18904.0    35536.0    68800.0         - \nload cpu ms          344.8      521.9      557.5      917.8      0.85 \ndata cpu ms           40.6       56.2       43.4       52.0         - \nreveal cpu ms         73.5       78.3       65.0       71.7         - \nbrowse cpu ms         43.9       51.4       54.6       68.1         - \nsearch cpu ms         37.5       61.3       40.8       48.5     -0.56 \nmatches cpu ms        98.3      115.0      201.3      287.1      0.87 \n```\n\nWhat main shows, with a V8 profile of each growing input from\n`--profile`, which lists the functions whose time grew past the input's\nlimit from the smallest page to the largest:\n\n- **`browse`, 0.81 `!` in Chromium**, and 0.96 and 1.04 in two runs of\n`browse` alone. A closed tab keeps the colour ranges of the runs it last\nshowed (896 a tab here), and each run a step colours rebuilds highlights\nholding every opened tab's ranges. The profile names `unpaint` and\n`follow` (`lf-text-document.js`), 3 to 40–45 ms. This is the cost\n#5996's body left unmeasured, which #6035 removes: with its change,\nreview read `browse` level. Firefox grows too (44 to 68 ms), but under\nthe noise floor in one of two runs.\n- **`load cpu`**, 1.43 here and between 1.02 and 1.71 across seven runs\non main, above 1.5 in two. The profile names an anonymous function at\n`addressable-names.js:187`, `headingsIn`'s query of every heading under\nan element, growing from 1 to 126 ms (exponent 1.54). Read from the\ncode, not confirmed: each document's first draw may start a new page\nreading, whose heading queries walk the whole page again.\n- `matches` grows at 1.13 in Chromium and 0.87 in Firefox, within its\nlimit as a `whole` input. Chromium's 2.3 s at 34 documents against\nFirefox's 0.29 s is #5999's note that a match's visibility read styles\neach run it lies in.\n- `search`, `data` and `reveal` stay level in both engines. In the first\ncommit `search` ran after `browse` and grew with the tabs `browse` left\ncoloured (0.79 `!`); run before it, it reads 17 to 20 ms.\n\nEach fix reverted in the working tree (`git revert --no-commit`), with\n`--base HEAD` for main beside it. The #5992 and #5999 rows are from the\nfirst commit's page, which held one document fewer:\n\n- **#5992**, Chromium: `data KB` goes 164, 736, 1,398, 2,722 KB with the\nfix reverted, exponent 1.08 `!`; main reads 82.6 KB at every size.\n- **#5996**, Chromium, two rounds, this head's page and `reveal`:\n`reveal cpu` goes 48, 50, 63, 84 ms with the fix reverted, exponent 1.25\n`!`; main reads 48, 43, 51, 49 ms. On the first commit's page, whose\n`reveal` reopened the first tab for its second sample, the revert read\n1.77 `!`. In Firefox the revert raises `reveal cpu` to 210–290 ms at\nevery size from 60–90 ms, level rather than growing, since the Firefox\nhalf of #5996 (the fold rule) scaled with the opened document's length,\nwhich this page holds fixed.\n- **#5999**, Firefox, two rounds: `search cpu` goes 45, 83, 92, 165 ms\nwith the fix reverted, exponent 0.82 `!`; main reads 26, 30, 28, 24 ms.\n\n## CI time\n\nThe daily job measures `documents` in a step of its own after the\ndefault pages, with only these five inputs, since the `document` page's\ntext already grows under every other input. The step runs after a failed\none, and the readings to chart are collected once both have run, so one\npage's failure keeps the other's chart. Its table goes to\n`documents.txt` in the `bench-report` artifact, which Tend's benchmark\nreview (`.claude/skills/running-tend/SKILL.md`) now names beside the\nbrowser and server tables. The command took 266–284 s here. To scale it\nto the runner: the `rows` page with the daily job's arguments took 397 s\nhere and 7.5 minutes on the runner on 2026-11-14, a ratio of 1.13, while\nthe runner's load CPU is 2.2 times this Mac's. So the job should grow by\nbetween about 5 and 10.5 minutes, nearer the first, since most of a run\nis waiting rather than CPU.\n\n## Not verified\n\n- The runner's time for the new step, which the first daily run's step\ntimings will show.\n- Firefox on CI. The Firefox clock (`ContentClock`) reads macOS's thread\ntimes, so the daily job reads Chromium only, and a Firefox-only cost\nsuch as #5999's shows only in a local run.\n- WebKit.\n\nNo `dev/tests` smoke test: the bench has none, and each input ran here\nin both engines at four sizes.\n\n## Calls Max may reverse\n\n- `held` covering requests and bytes, with `Input.whole` to exempt a\nrevision and a search.\n- The CI step's input list, rather than every input on this page.\n- Python content, 2,048 lines a document and `2 + n/8` documents.\n- `browse`'s 16 steps, which over two runs fitted 0.96 and 1.04 where\nthree runs of 8 fitted 0.49 to 0.75.\n\nPart of #5194.",
+          "timestamp": "2026-11-15T10:38:39Z",
+          "url": "https://github.com/max-sixty/leaf/commit/f20c08b730013f354f568fb2cb794c58a119056e"
+        },
+        "date": 1794743867531,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "documents: load cpu",
+            "value": 783.01,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: data cpu",
+            "value": 72.83,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: reveal cpu",
+            "value": 113.89,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: search cpu",
+            "value": 47.82,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: matches cpu",
+            "value": 2165.13,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: browse cpu",
+            "value": 47.61,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: load cpu",
+            "value": 1418.65,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 42.44,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 10.7,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 28.14,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 41.74,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 5.31,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: hover cpu",
+            "value": 1.96,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 328.01,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 309.2,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 89.97,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: open cpu",
+            "value": 132.17,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 191.1,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve cpu",
+            "value": 85.95,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 78.39,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 24.61,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 69.15,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 195.4,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve shown",
+            "value": 89.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 618.42,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 54.6,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 15.33,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 37.71,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 47.55,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 10.21,
+            "unit": "ms"
+          },
+          {
+            "name": "document: hover cpu",
+            "value": 1.25,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 125.63,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 140.63,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 69.45,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 236.81,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve cpu",
+            "value": 125.61,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 119.84,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 45.68,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 53.6,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 198.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve shown",
+            "value": 91.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 481.78,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 29.76,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 10.39,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 24.97,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 32.05,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.58,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: hover cpu",
+            "value": 2.39,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 74.13,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 72.87,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 64.32,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 174.39,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve cpu",
+            "value": 79.77,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 70.92,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 19.54,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 32.65,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 189.5,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve shown",
+            "value": 76.7,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 496.91,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 29.95,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 9.87,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 24.4,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 42.42,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 3.18,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: hover cpu",
+            "value": 0.78,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 88.17,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 88.14,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 51.61,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 178.13,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve cpu",
+            "value": 87.99,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 60.61,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 18.49,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 33.35,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 171.4,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve shown",
+            "value": 89.5,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 682.99,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 53.35,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 11.1,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 22.16,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 60.57,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 3.49,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: hover cpu",
+            "value": 4.22,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 121.13,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 114.82,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 71.03,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 233.51,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve cpu",
+            "value": 106.89,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 84.95,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 24.36,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 69.8,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 219.5,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve shown",
+            "value": 95,
             "unit": "ms"
           }
         ]

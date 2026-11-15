@@ -1,8 +1,14 @@
 /* The theme's tokens: the custom properties Leaf's interface, its widgets and its
- * packages read for colour, type, spacing, size and motion, each colour stating both
- * schemes in one `light-dark()`. base.css imports them for every Leaf page, and
- * portable.css carries them to a page without Leaf, so a widget reading `var(--lf-ink)`
- * resolves the same on either; each page or theme restates what it wants changed. */
+ * packages read for colour, type, spacing, size and motion. base.css imports them for
+ * every Leaf page, and portable.css carries them to a page without Leaf, so a widget
+ * reading `var(--lf-ink)` resolves the same on either; each page or theme restates
+ * what it wants changed.
+ *
+ * Every name starts with `--lf-`, so none meets a name a page or its framework coins
+ * (tests/model/test_theme_tokens.py). The ones a page, theme or package may rely on
+ * are those the references name (skills/leaf/references/package-themes.md, "Theme
+ * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
+ * and change freely. */
 @property --lf-motion-flash {
   syntax: "<time>";
   inherits: true;

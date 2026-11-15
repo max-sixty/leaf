@@ -226,8 +226,9 @@ CASCADE_LAYERS = (
 # widgets and chrome among them, and a layer the page names after Leaf's sheet outranks
 # all of Leaf's tiers. Frameworks put their reset in a layer of one of these names
 # (Tailwind's preflight in `base`), and a page that brings an unlayered reset wraps it
-# in `@layer reset`. Named ahead of Leaf's tiers, the reset still zeroes the page's own
-# elements, and Leaf's faces outrank it on what Leaf draws. Every other layer of the
+# in `@layer reset`. Named ahead of Leaf's tiers, the reset applies wherever Leaf's
+# rules say nothing, which on a page with no theme is all of the page's own elements,
+# and Leaf's faces outrank it on what Leaf draws. Every other layer of the
 # page's is first named after Leaf's sheet and outranks Leaf's tiers, as its unlayered
 # rules do. A shadow tree takes no page rule, so it names only Leaf's tiers.
 PAGE_RESET_LAYERS = ("reset", "base")

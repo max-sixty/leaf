@@ -32,7 +32,7 @@ const ROLES = {
   faint: "--lf-border",
   main: "--lf-accent",
   feat: "--lf-warn",
-  squash: "--lf-mark-ink",
+  squash: "--lf-series-4",
   ok: "--lf-ok",
   bad: "--lf-danger",
   warn: "--lf-warn-ink",

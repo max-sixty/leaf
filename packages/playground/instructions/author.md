@@ -222,7 +222,7 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
 
 ```css
 .notification-candidate {
-  border-radius: var(--lf-playground-radius);
+  border-radius: var(--playground-radius);
 }
 #notification-playground[data-playground-compact="true"] .notification-candidate {
   padding: var(--lf-sp-2);

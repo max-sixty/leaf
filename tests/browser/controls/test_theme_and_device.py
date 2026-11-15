@@ -546,3 +546,100 @@ button.dataset.connected = '';
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+# The WCAG contrast of an element's words, or of its edge, against the ground they stand
+# on, each colour as the browser paints it.
+CONTRAST = """([selector, property]) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    const painted = (colour) => {
+        context.fillStyle = colour;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    };
+    const luminance = (colour) => painted(colour)
+        .map((channel) => channel / 255)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+        .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const element = document.querySelector(selector);
+    let ground = element;
+    while (getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)')
+        ground = ground.parentElement;
+    const [a, b] = [
+        luminance(getComputedStyle(element)[property]),
+        luminance(getComputedStyle(ground).backgroundColor),
+    ].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+}"""
+
+
+@pytest.mark.parametrize("theme", [None, False])
+def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
+    """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
+    the neutral colours Leaf draws in step from the one toward the other
+    (styles/tokens.css), with a theme or without one. While each neutral was a colour
+    stated for the reading theme's paper, a dark page kept them: a control's quiet
+    words read 2.3:1 on it and a field's edge 1.2:1."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Night shift",
+                '<h1>Night shift</h1><p><button class="lf-btn" id="press" type="button">'
+                'Recompute</button> <input class="lf-field" id="field" aria-label="Volume">'
+                "</p>",
+                head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
+                " --lf-ink: #e2e8f0; }</style>",
+            ),
+            theme=theme,
+        ),
+    )
+    words = page.evaluate(CONTRAST, ["#press", "color"])
+    edge = page.evaluate(CONTRAST, ["#field", "borderTopColor"])
+    assert words >= 4.5, f"a control's quiet words read {words:.2f}:1 on the page"
+    assert edge >= 1.3, f"a field's edge reads {edge:.2f}:1 against its ground"
+
+
+RESET = (
+    "@layer reset { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
+    " button, input { background: transparent; border-radius: 0; font: inherit;"
+    " color: inherit; } }"
+)
+
+
+def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
+    """A page that brings its own framework takes no theme, and its reset in a layer
+    named `reset` clears the page's own elements and leaves what Leaf draws as it was
+    (layer.py, `PAGE_RESET_LAYERS`). The layer ranked
+    above every tier of Leaf's, as any layer a page names does, and the reset took the
+    padding, border and ground from Leaf's buttons and fields and the frame from a
+    choice group."""
+    body = (
+        '<h1>Retention</h1><p id="own">Words.</p>'
+        '<p><button class="lf-btn" id="press" type="button">Recompute</button>'
+        ' <input class="lf-field" id="field" aria-label="Volume"></p>'
+        '<lf-options id="window" choose><lf-option id="short"><strong>30 days</strong>'
+        ' In budget.</lf-option><lf-option id="long"><strong>90 days</strong>'
+        " Covers the hold.</lf-option></lf-options>"
+    )
+    faces = """() => Object.fromEntries(['press', 'field', 'window', 'short'].map((id) => {
+        const style = getComputedStyle(document.getElementById(id));
+        return [id, ['paddingTop', 'paddingLeft', 'borderTopWidth', 'borderTopLeftRadius',
+            'backgroundColor', 'fontFamily'].map((p) => style[p])];
+    }))"""
+    plain = open_page(browser, serve(leaf_page("Retention", body), theme=False))
+    expected = plain.evaluate(faces)
+    assert expected["press"][0] != "0px" and expected["window"][2] != "0px", expected
+    reset = open_page(
+        browser,
+        serve(
+            leaf_page("Retention", body, head=f"<style>{RESET}</style>"), theme=False
+        ),
+    )
+    assert reset.evaluate(faces) == expected
+    assert (
+        reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")
+        == "0px"
+    ), "the reset still clears the page's own elements"

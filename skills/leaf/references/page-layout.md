@@ -310,8 +310,28 @@ buttons widgets build as well as the page's own. Give each rule a selector that 
 what it means to style, such as a class on your own controls or a widget's id before
 its controls (`#triage button`). Leaf's panel and thread cards keep their own look
 against a page rule as light as one class (`button`, `.card`); a heavier selector such
-as `button:hover`, an `!important` declaration or a rule in the page's own `@layer`
-reaches them too, so name your own content in it. A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
+as `button:hover`, an `!important` declaration or a rule in a cascade layer of the
+page's own reaches them too, so name your own content in it.
+
+A CSS reset, or a framework's base styles, clears the margins, borders and faces of
+every element, the controls Leaf's widgets build among them. Put one in a cascade
+layer named `reset` or `base`, as in `@layer reset { … }`; Tailwind's preflight
+already stands in `base`. Leaf ranks those two layers below its own, so the reset
+applies wherever Leaf's rules say nothing, which on a page with no theme is all of
+the page's own elements, and Leaf's widgets, panel and thread cards keep their
+faces. A page whose framework has design tokens hands Leaf three of them, so
+what Leaf draws takes the framework's colours:
+
+```css
+:root {
+  --lf-paper: var(--background);
+  --lf-ink: var(--foreground);
+  --lf-accent: var(--primary);
+}
+```
+
+Every custom property of Leaf's starts with `--lf-`, so a framework's own `--accent`
+or `--muted` changes nothing Leaf draws. A token such as `--lf-accent` on `:root` changes every surface that reads it, and a token
 on one of the chrome's parts, such as `--lf-paper` on `[part~="card"]`, changes only that
 surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme

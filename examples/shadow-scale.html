@@ -278,7 +278,7 @@
         content: "";
         position: absolute;
         inset: 0 auto 0 0;
-        width: var(--lf-fill, 0%);
+        width: var(--fill, 0%);
         background: var(--ws-fill);
         pointer-events: none;
       }
@@ -287,7 +287,7 @@
         position: absolute;
         top: 8px;
         bottom: 8px;
-        left: calc(var(--lf-fill, 0%) - 5px);
+        left: calc(var(--fill, 0%) - 5px);
         width: 2px;
         border-radius: 1px;
         background: var(--ws-ink);
@@ -720,8 +720,8 @@
               const v = current[key];
               if (part.input.value !== String(v)) part.input.value = String(v);
               const fill = ((v - part.min) / (part.max - part.min)) * 100;
-              if (part.label.style.getPropertyValue("--lf-fill") !== `${fill}%`)
-                part.label.style.setProperty("--lf-fill", `${fill}%`);
+              if (part.label.style.getPropertyValue("--fill") !== `${fill}%`)
+                part.label.style.setProperty("--fill", `${fill}%`);
               keepsText(part.value, String(v));
             }
             if (this.#parts.colour.value !== s.colour)

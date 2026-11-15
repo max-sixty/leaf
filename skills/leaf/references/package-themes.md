@@ -19,7 +19,8 @@ rule of `lf-base`, so a theme's or package's rule for one of those elements outr
 them whatever its weight. A new page takes it unless the user names another default.
 A page that takes none (`--no-theme`) starts from the browser's defaults and Leaf's
 tokens: nothing of the look reaches it, its tables and code blocks included, while
-Leaf's widgets, threads and panel keep their own faces. A page or a theme may still
+Leaf's widgets, threads and panel keep their own faces, in the browser's own canvas
+and text colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still
 set `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there.
@@ -67,16 +68,20 @@ pages remains a possible later change.
 
 ## A theme change
 
-Shared inputs coordinate the page and its widgets: color palettes, radius `--lf-r`, and
-the three faces, `--lf-serif` for prose, `--lf-sans` for Leaf's chrome, injected controls and
-notes on evidence, and `--lf-mono` for literal evidence. The color pairs are described
-under "Theme colors" below. An ordinary selector tunes one element. A
+Shared tokens coordinate the page and its widgets ("Theme tokens" below). Three
+colours carry a palette: `--lf-paper`, the page's ground, `--lf-ink`, its text, and
+`--lf-accent`. Leaf steps the neutral colours of every surface from the paper toward
+the ink, so a theme that sets the three recolours the page, its widgets and Leaf's
+chrome together, and restates a neutral only where it wants another. The three faces
+are `--lf-serif` for prose, `--lf-sans` for Leaf's chrome, injected controls and
+notes on evidence, and `--lf-mono` for literal evidence, and `--lf-r` sets every
+corner. An ordinary selector tunes one element. A
 pattern the project reuses across pages, such as a callout, is an idiom: declare it
 under its CSS selector in the package's `registry.json`, with a `description`, an
 `x-example` and optional `x-instructions`, and style it in one of the package's sheets.
 
-Where a Layout reads a geometry input (the "Theme inputs" table in `packages.md`,
-"Styles and composition"), set that input rather than overriding the Layout.
+Where a Layout reads a page geometry token ("Theme tokens" below), set that token
+rather than overriding the Layout.
 
 A widget's rules depend only on the box it is given and the theme's tokens, never on
 the Layout around it. A
@@ -85,9 +90,9 @@ token from the box that knows it: `--lf-full-height` where the widget has a defi
 height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 `--lf-density: working` under the `density-working` style.
 
-The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the browser's
-`Canvas`, or `var(--lf-paper)` under the reading theme, which paints the body that colour;
-a theme or page that paints its own ground sets it on `:root` to match. Each solid containing surface
+The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
+`--lf-paper`, which Leaf paints the window in and which is the browser's `Canvas`
+until a theme or the page sets it. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -185,9 +190,11 @@ own CSS sets them: `[part~="card"] { --lf-paper: #fffdf5; --lf-r-l: 4px; }` give
 cards their own ground and corners. Each part resolves the chrome's fonts again
 (`--lf-font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--lf-sans` or `--lf-t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
-root's reading on a part, such as the focus ring and link underline, which follow the
-root's `--lf-accent`, and the raise shadows, which follow its `--lf-shade`; set
-`--lf-focus-ring` and `--lf-focus-shadow` on the part beside `--lf-accent`. Leaf draws each
+root's reading on a part: the neutrals stepped from the root's paper and ink, the
+focus ring and link underline, which follow the root's `--lf-accent`, and the raise
+shadows, which follow its `--lf-shade`. Set the ones the part should change beside
+the token they follow, such as `--lf-card` beside `--lf-paper`, and
+`--lf-focus-ring` and `--lf-focus-shadow` beside `--lf-accent`. Leaf draws each
 surface's ground, ring, corners and shadow from these tokens, and places and sizes the
 surface itself, so restyle those through tokens rather than `background`, `border`, a
 position or a transform. The panel's ground is a second box carrying the `panel`
@@ -224,23 +231,60 @@ versions, so a rule naming one can stop applying after an update. A page that re
 the chrome beyond tokens does it through a package of its own, named beside every
 package the page keeps: `leaf page init <page> --package diff --package ./chrome-look`.
 
-## Theme colors
+## Theme tokens
 
-Use independent inputs where the foreground and background need a deliberate contrast
-choice. The default palette is declared in `browser/base.css`:
+These are the custom properties a page, a theme or a package sets or reads to share
+Leaf's look. Leaf declares each on the root (`browser/styles/tokens.css`). Set one
+there to change it for the page and everything Leaf draws on it, or on a subtree to
+change it for that subtree. Any other `--lf-` property is Leaf's own.
 
-| Surface                  | Inputs                                                                                                                                                                                                                    |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Page and raised surfaces | `--lf-paper`, `--lf-card`, `--lf-field`; `--lf-ink`, `--lf-ink-2`, `--lf-muted`; `--lf-rule`, `--lf-border`                                                                                                               |
-| Interactive emphasis     | `--lf-accent`; focus ring and shadow derive from it at their declaration scope                                                                                                                                            |
-| Status                   | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; each has independent `-ink` and `-tint` inputs for text and ground                                                                                                     |
-| Counts                   | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                                                             |
-| Code                     | `--lf-code-bg`, `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border`; `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type` |
+A theme sets these colours. Where the foreground and background need a deliberate
+contrast choice, they are independent tokens:
 
-Changing `--lf-accent` does not choose the count's pair or the status palette. Check the
-foreground against each ground where it is used, in both color schemes. A theme may
-set `light-dark()` values so the browser's scheme preference selects the palette.
-Subtree overrides follow normal CSS inheritance: when changing an input locally,
-redeclare any derived value needed there, such as `--lf-focus-ring` and `--lf-focus-shadow`.
-Keep the inherited `--lf-ground` surface contract described above so opaque nested
-controls match their containing surface.
+| Role             | Tokens                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links, focus and the chosen item. With no theme the first two are the browser's canvas and text              |
+| Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text; `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` for grounds |
+| Counts           | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                   |
+| Code             | `--lf-code-bg` for inline code; `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block                                           |
+| Syntax           | `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type`                                                                  |
+| Changed lines    | `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`, the grounds of an added, a removed and a highlighted line                                                                     |
+| A chart's series | `--lf-series-1`, `--lf-series-2`, `--lf-series-3`, `--lf-series-4`, `--lf-series-5`                                                                                             |
+
+Leaf steps these neutrals from `--lf-paper` toward `--lf-ink`, so they follow a
+palette that sets those two. A page's or package's rules read them, and a theme
+restates one it wants otherwise:
+
+| Token              | Draws                                                  |
+| ------------------ | ------------------------------------------------------ |
+| `--lf-card`        | A raised surface: a card, a panel, a control           |
+| `--lf-field`       | A tinted ground: a field, a callout                    |
+| `--lf-chip`        | A neutral chip's ground                                |
+| `--lf-rule`        | A hairline between rows or parts                       |
+| `--lf-border`      | A control's or a box's edge                            |
+| `--lf-muted`       | Words that qualify a line: a caption, a status, a hint |
+| `--lf-ink-2`       | Secondary text, between the ink and `--lf-muted`       |
+| `--lf-accent-tint` | The ground under an accented press, from `--lf-accent` |
+
+Type, space and shape:
+
+| Role             | Tokens                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Faces            | `--lf-serif` for prose, `--lf-sans` for labels and controls, `--lf-mono` for code                                                                                                                                                                                                                                                                                     |
+| Sizes            | `--lf-t-1`, the title's, down through `--lf-t-2`, `--lf-t-3`, `--lf-t-4`, the body's, `--lf-t-5`, `--lf-t-working-label`, `--lf-t-6` and `--lf-t-7`, in `rem`; `--lf-code-size` and `--lf-code-line` for source                                                                                                                                                       |
+| A widget's words | A whole font for the `font` shorthand, by kind (`packages.md`, "Styles and composition"): `--lf-font-ui`, `--lf-font-widget`, `--lf-font-small`, `--lf-font-title`, `--lf-font-heading`, `--lf-font-label`, `--lf-font-status`, `--lf-font-compact`, `--lf-font-choice`, `--lf-font-chip`, `--lf-font-count`, `--lf-font-fine`, `--lf-font-code`, `--lf-font-message` |
+| Spacing          | `--lf-sp-1` to `--lf-sp-5`: 4, 8, 16, 24 and 32px, through `--lf-sp-2`, `--lf-sp-3` and `--lf-sp-4`                                                                                                                                                                                                                                                                   |
+| Corners          | `--lf-r`, a control's or box's; `--lf-r-s`, half of it, for a mark no taller than a line; `--lf-r-l`, twice it, for a surface floating over the page                                                                                                                                                                                                                  |
+| Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`                                                                                                                                                                                                     |
+| Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face                                                                                                                                                                                 |
+| Focus            | `--lf-focus-ring` as an outline and `--lf-focus-shadow` as a shadow, set together; where a ring stands is `--lf-ring-at` ("A theme change")                                                                                                                                                                                                                           |
+| Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page                                                                                                                                                          |
+
+Changing `--lf-accent` does not choose the count's pair or the status palette. Check
+the foreground against each ground where it is used, in both color schemes. A theme
+may set `light-dark()` values so the browser's scheme preference selects the palette.
+Subtree overrides follow normal CSS inheritance: when changing a token locally,
+redeclare any value stepped from it that is needed there, such as `--lf-card` after
+`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` after `--lf-accent`. Keep
+the inherited `--lf-ground` surface contract described above so opaque nested controls
+match their containing surface.

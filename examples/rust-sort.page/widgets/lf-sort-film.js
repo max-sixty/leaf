@@ -40,7 +40,7 @@ const C = {
   faint: "color-mix(in srgb, var(--lf-muted) 42%, var(--lf-card))",
   accent: "var(--lf-accent)",
   accentTint: "var(--lf-accent-tint)",
-  mark: "var(--lf-mark-ink)",
+  mark: "var(--lf-series-4)",
   ok: "var(--lf-ok)",
   warn: "var(--lf-warn)",
   warnTint: "var(--lf-warn-tint)",

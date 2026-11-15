@@ -525,7 +525,7 @@ function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
 const tokenHighlights = new Map();
 /** @param {{color?: string}} style */
 function tokenHighlight(style) {
-  const colour = style.color?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  const colour = style.color?.match(/^var\(--lf-([\w-]+)\)$/)?.[1];
   if (!colour) return null;
   let highlight = tokenHighlights.get(colour);
   if (!highlight) {

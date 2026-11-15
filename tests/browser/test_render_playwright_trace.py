@@ -291,6 +291,22 @@ def navigate_to_phase(timeline, identity):
     raise AssertionError(f"Native phase not reached: {identity}")
 
 
+def press_scale(widget, name):
+    """Press the choice `name` in `widget`'s open Image scale menu, where it stands.
+
+    The menu hangs from its trigger by CSS anchor positioning, which Chromium moves for
+    a scroll only at the page's next rendering update. Below image tools near the
+    window's foot, the menu reaches into the root's foot padding (floating-panel.js,
+    `followBox`), so Playwright's click scrolls the choice into view and then presses
+    where the menu stood before that update. On a slower runner the update comes first,
+    the press lands on the page, and the menu closes, as any press outside it does. So
+    the choice comes into view, and the page renders the menu there, before the press."""
+    choice = widget.get_by_role("button", name=name, exact=True)
+    choice.scroll_into_view_if_needed()
+    rendered(widget.page)
+    choice.click()
+
+
 def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     browser, serve
 ):
@@ -531,7 +547,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         "data-lf-datum", targets[0]
     )
     before.get_by_role("button", name="Image scale", exact=True).click()
-    before.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(before, "Actual size")
     canvas = before.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
     )
@@ -814,7 +830,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     scale.focus()
     scale.press("Enter")
     expect(widget.get_by_role("button", name="Fit image", exact=True)).to_be_focused()
-    widget.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(widget, "Actual size")
     expect(scale).to_have_text("100%")
     expect(scale).to_be_focused()
     scale.press("Enter")
@@ -1060,7 +1076,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
             "data-lf-datum", targets[-1]
         )
     after.get_by_role("button", name="Image scale", exact=True).click()
-    after.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(after, "Actual size")
     canvas = after.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
     )

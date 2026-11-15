@@ -65,7 +65,7 @@ from .schema import (
     RUNTIME_ENTRY,
 )
 from .state import PLUGIN_ROOT, json_bytes
-from .themes import theme_package
+from .themes import with_theme
 
 # Non-CSS core inputs. Core stylesheet identity comes
 # from the same composition that delivers them, including its imports and roles.
@@ -300,14 +300,12 @@ def executing(artifact: RevisionArtifact) -> _ExecutingArtifact:
     # copies this selection needs, using the same file inventory as page init.
     from .vendoring import package_files
 
-    names = [*record["packages"]]
-    if theme := theme_package(record["theme"]):
-        names.append(theme)
+    names = with_theme(tuple(record["packages"]), record["theme"])
     copies = {
         root.relative_to(artifact.page_dir).as_posix(): MappingProxyType(
             package_files(root)
         )
-        for root in layer_inputs(tuple(names), artifact.page_dir)
+        for root in layer_inputs(names, artifact.page_dir)
         if root.is_relative_to(artifact.page_dir)
     }
     executed = _ExecutingArtifact(

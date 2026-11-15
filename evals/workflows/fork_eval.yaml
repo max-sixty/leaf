@@ -234,6 +234,21 @@ conversations:
         59	        # Fill the cache with the 10,000 most frequent queries from yesterday's log.
         60	        for query in await top_queries(10_000):
         61	            self._store[query.key] = await self._search(query)
+  # The claude-code journey's start (`leaf-dev journey run claude-code`): the session
+  # serves the user's page and handles their comments on it by revising its source.
+  board:
+    - user: >-
+        I wrote a Leaf page at {page}. Serve it so I can review it in my browser, and
+        handle the comments I leave on it.
+    - tool: Bash
+      input:
+        command: leaf server start {page} && leaf page open {page}
+        description: Start the Leaf server and open the page
+      result: '{"url": "http://127.0.0.1:57477/?t=8YBmQvVWW-rx16WNmxen0Q", "page": "{page}"}'
+    - assistant: >-
+        Your Release triage page is being served at http://127.0.0.1:57477/?t=8YBmQvVWW-rx16WNmxen0Q.
+        Each comment you leave comes back to this session, and I'll answer it and
+        revise the page.
 
 # The agent's replies more than one case ends a turn with.
 replies:
@@ -844,6 +859,112 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
+    labels:
+      work: hand_over
+    assert:
+      - *line
+  # The journey's `fork-lookup` question, after the session recorded a passed release
+  # in the page's source and ended its turn.
+  source-edited:
+    fork: line
+    page: line-fork/pages/release-board.html
+    conversation:
+      - from: board
+      - &leaf-input
+        user: |-
+          <task-notification>
+          <summary>Leaf: new input</summary>
+          </task-notification>
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
+          "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
+          "agent", "text": "recording that release bf40b427 passed its deployment
+          checks on the board", "ephemeral": true}]}], "handling": {"h1": "Do the
+          work, put the result on the page, and answer with `leaf thread reply
+          <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or
+          two, linking the section that shows it."}, "events": [{"kind": "comment",
+          "author": "user", "id": "r1", "text": "Release bf40b427 passed its
+          deployment checks. Record that on the board, and tell me when it's done.",
+          "handling": ["h1"], "answer": {"kind": "reply", "parent": "r1", "ref":
+          "d1:0:r1"}}]}]}
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: |-
+            <dd><strong>2 days</strong></dd>
+                      </dl>
+          new_string: |-
+            <dd><strong>2 days</strong></dd>
+                      </dl>
+                      <dl id="count-deploy-checks" class="metric">
+                        <dt>deployment checks, release <code>bf40b427</code></dt>
+                        <dd><strong>passed</strong></dd>
+                      </dl>
+        result: The file {page}/index.html has been updated successfully.
+      - tool: Bash
+        input:
+          command: |-
+            cat > reply.md <<'EOF'
+            Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).
+
+            The cards and columns are unchanged.
+            EOF
+            leaf thread reply d1:0:r1 --done --file reply.md
+          description: Post the reply, which also checks and publishes the edit
+        result: '{"kind": "reply", "author": "agent", "parent": "r1", "id": "r3", "revision": 2, "text": "Done. Release `bf40b427` now shows **passed** for deployment checks, in a new tile in the [triage status](#count-deploy-checks).\n\nThe cards and columns are unchanged.\n"}'
+      - assistant: >-
+          I've recorded on the board that release bf40b427 passed its deployment
+          checks: a new tile in the status panel, beside the countdown to the
+          Thursday cut. I didn't change any cards or columns. The update is live, and
+          I've answered your comment on the page.
+    thread: w1
+    waiting: &count-cards
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: How many cards does this page's source hold? Count them in the file.
+        anchor:
+          section: rt-lede
+    labels:
+      work: take
+    assert:
+      - *line
+  # The same question while the session is part way through a change to the page's
+  # source that changes the count.
+  source-editing:
+    fork: line
+    page: line-fork/pages/release-board.html
+    conversation:
+      - from: board
+      - *leaf-input
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/15", "batches": [{"page": "{page}", "threads":
+          [{"id": "r1", "title": "Splitting the webhook retries card", "anchor":
+          {"section": "card-retry"}, "resolved": null, "messages": [{"id": "r2",
+          "author": "agent", "text": "splitting the webhook retries card into one per
+          partner", "ephemeral": true}]}], "handling": {"h1": "Do the work, put the
+          result on the page, and answer with `leaf thread reply <answer.ref>
+          <declaration> --file reply.md`: what changed, in a sentence or two, linking
+          the section that shows it."}, "events": [{"kind": "comment", "author":
+          "user", "id": "r1", "text": "Split this card into one card per partner that
+          rate limits us: Acme, Globex and Initech.", "anchor": {"section":
+          "card-retry"}, "handling": ["h1"], "answer": {"kind": "reply", "parent":
+          "r1", "ref": "d1:0:r1"}}]}]}
+      - assistant: Splitting the webhook retries card into three, one per partner, starting with Acme.
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: <lf-card id="card-retry">Webhook retries ignore Retry-After</lf-card>
+          new_string: <lf-card id="card-retry-acme">Acme rate limits our webhook retries, which ignore Retry-After</lf-card>
+        result: The file {page}/index.html has been updated successfully.
+    thread: w1
+    waiting: *count-cards
     labels:
       work: hand_over
     assert:

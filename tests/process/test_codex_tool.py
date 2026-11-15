@@ -178,4 +178,4 @@ def test_a_codex_sandbox_refusal_names_the_tool(tmp_path, monkeypatch):
         check=False,
     )
     assert refused.returncode == 1
-    assert "rerun it with the `run` tool of the `leaf` MCP server" in refused.stderr
+    assert "rerun it with the `run` tool of the `leaf` MCP server" in refused.stdout

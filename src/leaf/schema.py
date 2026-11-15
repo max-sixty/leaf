@@ -153,10 +153,8 @@ REFERENCE_SCHEMA = {
         "properties": {
             "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-            "contract": {"type": "string", "pattern": f"^{DATA_CONTRACT_NAME}$"},
         },
         "dependentRequired": {"tag": ["key"], "key": ["tag"]},
-        "not": {"required": ["tag", "contract"]},
         "additionalProperties": False,
     },
 }

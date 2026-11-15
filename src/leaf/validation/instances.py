@@ -391,9 +391,6 @@ def reference_errors(
     whose `key` attribute holds the value, as a playground preset's setting names a
     control of the same playground.
 
-    A reference that declares a `contract` names a widget holding a value of it, so
-    the referrer may rely on the target being that kind of thing without naming its tag.
-
     A worker's assignment, the attribute its `$work.widgets` entry names in `on`,
     names an element whose tag has the role goal there, since the work reading
     (`runtime/work.js`) assigns the worker to nothing else.
@@ -441,24 +438,6 @@ def reference_errors(
                     )
             elif target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
-            elif (contract := reference.get("contract")) and contract not in (
-                held := {
-                    output["contract"]
-                    for output in registry.get(by_id.get(target, {}).get("tag"), {})
-                    .get("x-output", {})
-                    .values()
-                }
-            ):
-                errors.append(
-                    found_at(
-                        "reference-contract",
-                        rec,
-                        **reference_to,
-                        target_tag=by_id.get(target, {}).get("tag"),
-                        contract=contract,
-                        held=sorted(held),
-                    )
-                )
             elif (
                 attr == work.get(rec["tag"], {}).get("on")
                 and work.get(tag := by_id.get(target, {}).get("tag"), {}).get("role")

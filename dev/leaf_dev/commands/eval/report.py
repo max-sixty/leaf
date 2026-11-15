@@ -64,7 +64,7 @@ if checked.errors:
 version = stamped_version(events, planned_activation(page, checked).revision)
 if version is None:
     version = cmd_stamp(page, "Capture saved evaluation phase for inspection.")["version"]
-cmd_export(page, target, version)
+cmd_export(page, target, version, runtime=True)
 """
 
 
@@ -217,10 +217,8 @@ def media_paths(page: Path, files: list[Path]) -> dict[Path, str]:
     """Register captures through the page's media door and return their served paths."""
     added = {}
     for start in range(0, len(files), 50):
-        for line in leaf(
-            "page", "media", str(page), *map(str, files[start : start + 50])
-        ).splitlines():
-            record = json.loads(line)
+        printed = leaf("page", "media", str(page), *map(str, files[start : start + 50]))
+        for record in json.loads(printed)["files"]:
             added[Path(record["source"])] = record["path"]
     return added
 

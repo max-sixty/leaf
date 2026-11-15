@@ -1930,7 +1930,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     )
 
     assert result.exit_code != 0
-    assert refused_on(result.stderr).values["operation"] == "reply"
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert events_model.read_events(page_dir) == before
     assert files_model.list_revisions(page_dir) == revisions
     assert "c1" in delivery_model.current_responses(page_dir, before)
@@ -2250,11 +2250,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "</lf-options></lf-ask>",
         ).output.splitlines()
     ]
-    [renamed] = [
-        json.loads(line)
-        for line in run(
-            "thread", "edit", "t-ask", "--title", "Store"
-        ).output.splitlines()
+    [renamed] = json.loads(run("thread", "edit", "t-ask", "--title", "Store").output)[
+        "records"
     ]
     picked = append_command(
         page_dir,
@@ -2286,7 +2283,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
-    assert refused_on(not_a_thread.stderr).code == "widget-not-thread"
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()
@@ -2719,7 +2716,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
             input=encoded,
         )
         assert rejected.exit_code != 0
-        error = json.loads(rejected.stderr)["error"]
+        error = json.loads(rejected.stdout)["error"]
         assert "source 'deployments' value is invalid" in error
         assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first

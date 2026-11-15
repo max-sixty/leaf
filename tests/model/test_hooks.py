@@ -1551,8 +1551,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         result = CliRunner().invoke(cli_model.cli, ["page", "close", str(page)])
         return {
             "exit": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": said(result.stderr),
+            "stdout": said(result.stdout),
         }
 
     # The turn ends over the page, and Leaf watches it from here.

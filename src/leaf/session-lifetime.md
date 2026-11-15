@@ -139,12 +139,13 @@ state`'s `holder` names the turn: the main thread, or the fork by name with whet
 turn runs (`holding.holder`). The newest pickup of a
 thread's waiting messages holds them, an answer takes its thread as a pickup does, and
 a running agent turn that last took a thread holds the messages the user writes in it
-until another turn picks them up. A message a running agent turn holds is in hand for
-that turn: the main thread's hooks neither hold its turn over it, remind it of it, nor
-take it in again (`activity.agent_holds`), and its deliveries leave it out
-(`forks.kept_from_main`). Once the agent's turn ends or lapses, a message still owed is
-the main thread's input, which its next delivery hands over with a reference of its own
-(`holding.left_by_agent_turns`), and the main thread's pickup of it takes the thread
+until another turn picks them up. A message Leaf keeps back while a line fork judges it
+is the line fork's (`holding.message_holders`). The main thread doesn't owe a message a
+running agent turn holds or a line fork judges (`holding.owed_by`): its hooks neither
+hold its turn over it, remind it of it, nor take it in again (`activity.agent_holds`),
+and its deliveries leave it out (`delivery.deliverable`). Once the agent's turn ends or
+lapses, a message still owed is the main thread's input, which its next delivery hands
+over with a reference of its own, and the main thread's pickup of it takes the thread
 over; the main thread's answer
 takes the thread over at once, even while the agent's turn runs. An agent's turn may
 pick up, answer or start on only the messages it holds or no turn holds, and post in a

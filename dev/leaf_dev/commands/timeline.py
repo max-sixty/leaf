@@ -148,7 +148,7 @@ def page_entries(
                     "fork",
                     f"{row['event']} kept back for a line fork"
                     if row["kept_back"]
-                    else f"{row['event']} held by turn {row['held_by'][:8]}"
+                    else f"{row['event']} held by {row['held_by']}"
                     if row["held_by"]
                     else f"{row['event']} not kept back: "
                     + (
@@ -714,7 +714,7 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         if note is None
         else "kept back · "
         if note["kept_back"]
-        else f"held by turn {note['held_by'][:8]} · "
+        else f"held by {note['held_by']} · "
         if note["held_by"]
         else f"not kept back ({without_lane(note, followers)}) · "
         if note["lane"] is None

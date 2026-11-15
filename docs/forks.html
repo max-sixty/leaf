@@ -409,11 +409,14 @@ sequenceDiagram
             <code>holder</code> (<code>holding.holder</code>), the main thread or a fork
             by the name the main thread reaches it by, on each answer the agent owes and
             on each thread. An answer's holder is who owes it now: a fork while its turn
-            runs, and otherwise the main thread. A thread's holder is the turn that last
-            took it, with whether that fork's turn is <code>running</code>,
+            runs, the <code>line</code> fork while Leaf keeps the message back for it,
+            and otherwise the main thread (<code>holding.owed_by</code>). Delivery, the
+            Stop hook and the watch read the same holders. A thread's holder is the turn
+            that last took it, with whether that fork's turn is <code>running</code>,
             <code>closed</code> or <code>lapsed</code>. A main thread recovering what it
             owes there, as after a compaction, leaves a running fork's answer to the
-            fork. <span class="tag ok">built</span>
+            fork, and a message a line fork is judging to it.
+            <span class="tag ok">built</span>
           </p>
           <figure id="holding-figure" class="diagram-figure">
             <lf-diagram id="holding-diagram" data-height="450" parts="all">
@@ -463,7 +466,7 @@ flowchart TD
             <p id="takeover-waits">
               While a fork's turn runs, the main thread isn't given the messages the
               fork holds. Its deliveries leave them out
-              (<code>forks.kept_from_main</code>), its Stop hook and watch neither keep
+              (<code>delivery.deliverable</code>), its Stop hook and watch neither keep
               its turn from ending over them nor remind it of them
               (<code>activity.agent_holds</code>), and its own pickups leave them out
               (<code>holding.pickable</code>). While the fork's turn runs, the thread's
@@ -578,6 +581,14 @@ flowchart TD
             workers, isn't marked and acts as the main thread. The mark follows the
             agent rather than its turn, so every command of a fork still running after
             its turn ended is refused rather than taken for the main thread's.
+          </p>
+          <p id="acting-beside">
+            A command that acts as the main thread on a thread a running fork holds,
+            whether the main thread's own, a worker's, a fork's script's or the
+            terminal's, goes through with the main thread's authority, as you chose on
+            14 Nov over refusing it. It says beside its result which fork it acted
+            beside, and for an answer that it took the thread from that fork
+            (<code>holding.authorize</code>). <span class="tag ok">built</span>
           </p>
           <p id="acting-starting">
             A new fork runs before Leaf knows its agent id. The turn Leaf opens at the
@@ -705,8 +716,8 @@ flowchart TD
                 <td>
                   That the fork gave the thread back, and why, and the user's waiting
                   messages themselves, as new input at its next tool boundary or prompt
-                  (<code>holding.<wbr />left_by_agent_turns</code>). If the session is
-                  idle, Leaf wakes it.
+                  (<code>delivery.<wbr />deliverable</code>). If the session is idle,
+                  Leaf wakes it.
                 </td>
               </tr>
               <tr id="ending-taken-over">

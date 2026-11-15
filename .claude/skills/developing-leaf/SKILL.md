@@ -47,8 +47,8 @@ Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-The user judges a UI change by using it and by looking at it, so review both before
-handing it over. Whoever reviews it, you or an independent reviewer, first uses the
+The maintainer judges a UI change by using it and by looking at it, so review both
+before handing it over. Whoever reviews it, you or an independent reviewer, first uses the
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
 those routes leave. A reviewer's brief gives the task and the candidate and asks for

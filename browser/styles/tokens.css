@@ -126,11 +126,17 @@
      schemes does so in one `light-dark()`. Code keeps a white editor canvas and quiet
      grey chrome, so source stays distinct from the document's fields.
 
-     Each step is the light scheme's, then the dark's, which takes a longer step for
-     the same visible difference. They are OKLab mixes, the space in which equal steps
-     look equal, and the reading theme's paper and ink land each within 1.4 of the
-     colour it was tuned to by hand (OKLab distance x100; about 2 is the least a reader
-     sees). A theme restates a neutral it wants otherwise. */
+     Each neutral is a step from the paper toward the ink, in OKLab, where equal steps
+     look equal: the light scheme's step, then the dark's, which is longer for the same
+     visible difference. A neutral between a tinted paper and ink looks greyer than
+     either, so each step also scales the mix's two colour axes, which raises its
+     chroma and keeps its hue: by its own factor, and by no more than 0.014 of chroma,
+     so a colourful palette's neutrals stay neutral and a grey one's stay grey. The
+     steps and factors are those that give the reading theme the palette it was tuned
+     to by hand, each colour within two levels of one channel. The axes are scaled
+     rather than `oklch()`'s chroma because Chromium reads a near-grey colour's hue as
+     none there, which drew these neutrals pink (notes/browser-support.md). A theme
+     restates a neutral it wants otherwise. */
   --lf-paper: Canvas;
   --lf-ink: CanvasText;
   /* What qualifies a line, in the page's prose and the interface alike: a caption, a
@@ -139,8 +145,16 @@
      the darkest is a panel row washed by its linked passage's hover (--lf-mark-hover),
      where it reads 4.6:1 in either scheme. */
   --lf-muted: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 64%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 75%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 63.8%) l
+        calc(a * min(3.2, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(3.2, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 74.8%) l
+        calc(a * min(1.8, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.8, 1 + 0.014 / hypot(a, b)))
+    )
   );
   /* A step dimmer than --lf-muted, for words that stand in for what isn't there yet: an
      empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
@@ -148,8 +162,16 @@
      where it reads 4.8:1; the 48% the panel's status first wore read 3.1:1. */
   --lf-quiet: color-mix(in srgb, var(--lf-ink) 62%, transparent);
   --lf-rule: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 8.5%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 15%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 8.6%) l
+        calc(a * min(2.6, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.6, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 14.8%) l
+        calc(a * min(1.6, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.6, 1 + 0.014 / hypot(a, b)))
+    )
   );
   /* The accent marks where the machinery points — a link, the active milestone,
      a focus ring — and so has to stay hue-distinct from the
@@ -379,13 +401,21 @@
   /* Raised surfaces, such as cards, panels and controls, stand lighter than the
      ground in either scheme. */
   --lf-card: light-dark(
-    color-mix(in oklab, var(--lf-paper), white 80%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 4%)
+    oklab(from var(--lf-paper) calc(l + 0.015) a b),
+    oklab(from var(--lf-paper) calc(l + 0.027) calc(a * 1.3) calc(b * 1.3))
   );
   /* Tinted fields and callout emphasis. */
   --lf-field: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 3%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 3.1%) l
+        calc(a * min(2.3, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.3, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5%) l
+        calc(a * min(2.1, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.1, 1 + 0.014 / hypot(a, b)))
+    )
   );
   /* The ink every raised surface casts its shadow in. One per scheme, because the two
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
@@ -442,8 +472,16 @@
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
      vanished and its side padding read as double spaces around every span. */
   --lf-code-bg: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.5%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 11%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.6%) l
+        calc(a * min(1.5, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.5, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 11.2%) l
+        calc(a * min(0.5, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(0.5, 1 + 0.014 / hypot(a, b)))
+    )
   );
   --lf-pre-bg: light-dark(#fff, #1b1b1a);
   --lf-code-chrome: light-dark(#f6f8fa, #222220);
@@ -452,17 +490,41 @@
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
   /* A neutral chip's ground. */
   --lf-chip: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 6%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 10.5%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.9%) l
+        calc(a * min(3.1, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(3.1, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 10.4%) l
+        calc(a * min(2, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2, 1 + 0.014 / hypot(a, b)))
+    )
   );
   --lf-ink-2: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 84%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 86%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 83.7%) l
+        calc(a * min(1.6, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.6, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 85.8%) l
+        calc(a * min(1.6, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(1.6, 1 + 0.014 / hypot(a, b)))
+    )
   );
   /* A control's or a box's edge, a step stronger than --lf-rule's hairline. */
   --lf-border: light-dark(
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 16.5%),
-    color-mix(in oklab, var(--lf-paper), var(--lf-ink) 23%)
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 16.6%) l
+        calc(a * min(3.4, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(3.4, 1 + 0.014 / hypot(a, b)))
+    ),
+    oklab(
+      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 22.8%) l
+        calc(a * min(2.3, 1 + 0.014 / hypot(a, b)))
+        calc(b * min(2.3, 1 + 0.014 / hypot(a, b)))
+    )
   );
   /* A translucent backdrop is the paper it floats over, so it is derived rather than
      restated: a project that overrides --lf-paper gets a backdrop that follows it, where a

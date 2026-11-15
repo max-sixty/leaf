@@ -2199,7 +2199,10 @@ def test_a_desktop_start_the_app_may_have_run_is_settled_from_the_transcript(
     page_dir, idle_desktop_chat, monkeypatch, capsys, start, socket_dir
 ):
     chat = idle_desktop_chat
-    monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
+    if start is None:
+        # Only a lost answer waits out the bound. An answer arriving after a short
+        # one would read as lost too, and the arm would test nothing of its own.
+        monkeypatch.setattr(codex_desktop_model, "START_TIMEOUT", 0.2)
     answers = {"thread-owner-discovery": OWNED, "thread-follower-start-turn": start}
     with desktop_router(monkeypatch, socket_dir, answers) as requests:
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)

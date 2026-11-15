@@ -391,7 +391,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`)."""
+    (`agent_id`, `state.worker_tool_batch`). Leaf's PreToolUse hook marks the `leaf`
+    commands of a fork Leaf gave a thread's work with its agent id, so they act in
+    that fork's own turn (`hooks.agent_command`)."""
 
     job: str | None = None
 
@@ -958,7 +960,7 @@ HARNESSES: dict[str, type[Harness]] = {
 AGENT_VARIABLE = "LEAF_AGENT"
 # Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
-# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# scrubs the set: a build that publishes pages (`leaf-dev site build`), an eval's child
 # (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(

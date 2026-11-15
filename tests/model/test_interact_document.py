@@ -1606,7 +1606,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    from leaf_dev.commands.corpus import sources
+    from leaf_dev.commands.generate.corpus import sources
 
     for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
@@ -3164,6 +3164,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
                 "reason": "workflow",
                 "workflow": opened["id"],
             },
+            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(

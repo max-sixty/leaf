@@ -1126,7 +1126,7 @@ def preparing_adapter(harness: CodexHarness):
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),
-            timeout=START_TIMEOUT,
+            deadline=time.monotonic() + START_TIMEOUT,
             launcher=launcher,
         ):
             pass

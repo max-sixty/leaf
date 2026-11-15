@@ -531,6 +531,20 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .holding import authorize
+
+        # A fork may answer only what its turn holds, and write in no thread
+        # another turn took, and an ended one nothing; it asks first, so a refused
+        # fork is never handed another turn's answer as the repeat of its own.
+        responds = address.get("responds")
+        authorize(
+            page,
+            posting_identity.get("session"),
+            [responds] if responds else [],
+            thread=None
+            if responds or not address.get("parent")
+            else thread_names(page.events).get(address["parent"]),
+        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events,
@@ -912,16 +926,14 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        claim = page.claim
-        turn = (
-            claim["turn"]
-            if claim and claim["id"] == posting_identity.get("session")
-            else None
-        )
-        event["start"] = {
-            "item": in_hand,
-            **({"turn": turn} if turn else {}),
-        }
+        event["start"] = {"item": in_hand}
+    from .state import acting_turn
+
+    # The turn the reply's command acts in, which names the start it carries
+    # (`todos.start_reading`) and holds the messages it answers
+    # (`holding.refuse_unheld`).
+    if turn := acting_turn(page.claim, posting_identity.get("session")):
+        event["turn"] = turn
     if explicit_obligation:
         event["obligation"] = explicit_obligation
     if todo is not None:

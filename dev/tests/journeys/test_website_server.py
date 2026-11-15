@@ -8,7 +8,7 @@ from process.website_server import (
     get,
 )
 
-from leaf_dev.commands import refresh_previews
+from leaf_dev.commands.site import previews as refresh_previews
 from leaf_dev.example_data import named_source
 
 

@@ -64,3 +64,65 @@ test("a form named host cannot trap the words watch's ancestry climb", () => {
     dom.window.close();
   }
 });
+
+// Another tab's edit puts words away only if it had replaced them in the store by the
+// time they left the screen; one arriving before the next frame judges the loss is
+// later input, which cannot redeem it.
+for (const [foreignFirst, reported] of [
+  [true, 0],
+  [false, 1],
+]) {
+  const when = foreignFirst ? "before" : "after";
+  const outcome = reported ? "does not redeem" : "puts away";
+  test(`a foreign store write ${when} a passive loss ${outcome} its words`, () => {
+    const dom = new JSDOM("<textarea></textarea>", {
+      runScripts: "outside-only",
+      url: "http://localhost/",
+    });
+    const { window } = dom;
+    const context = dom.getInternalVMContext();
+    const listeners = new Map();
+    const frames = [];
+    const findings = [];
+    let edit;
+    let checkpoint;
+    window.lfWatchPlatform = {
+      frame: (run) => frames.push(run),
+      later: (run) => run(),
+      listen: (_owner, type, run) => listeners.set(type, run),
+    };
+    window.lfInputWork = {
+      current: () => null,
+      subscribeEdits: (run) => (edit = run),
+      subscribe: (run) => (checkpoint = run),
+      dispatching: () => false,
+    };
+    window.__leafWatchFinding = (finding) => findings.push(finding);
+    const field = window.document.querySelector("textarea");
+    field.checkVisibility = () => field.isConnected;
+    // Another document's write reaches this one's store without its own setItem.
+    const { setItem } = window.Storage.prototype;
+    const theirs = JSON.stringify({ text: "Theirs" });
+    const foreignWrite = () => setItem.call(window.localStorage, "draft", theirs);
+    try {
+      vm.runInContext(source, context);
+      const words = "Keep this draft";
+      edit({ node: field, order: 1, event: { type: "beforeinput" } });
+      field.value = words;
+      listeners.get("input")({ isTrusted: true, composedPath: () => [field] });
+      window.localStorage.setItem("draft", JSON.stringify({ text: words }));
+      frames.shift()();
+      assert.equal(findings.length, 0);
+      if (foreignFirst) foreignWrite();
+      // Cleared with no input: the checkpoint observes the loss and leaves it pending.
+      field.value = "";
+      checkpoint(null);
+      if (!foreignFirst) foreignWrite();
+      frames.shift()();
+      assert.equal(findings.length, reported);
+      if (reported) assert.equal(findings[0].words, words);
+    } finally {
+      dom.window.close();
+    }
+  });
+}

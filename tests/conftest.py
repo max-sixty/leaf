@@ -34,7 +34,7 @@ from leaf.render_gate import browser as browser_model
 from leaf.render_gate import command as render_command_model
 from leaf.render_gate import handover_pass as handover_pass_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import shell_executable, use_linux_fonts
+from leaf_dev.browser import FIREFOX_PREFS, shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 
 __all__ = ["LEAF_COMMAND"]
@@ -339,7 +339,7 @@ def pytest_runtest_call(item):
 # first tier, None, runs in every selection: a pull request, `wt merge`, and broad
 # discovery. A `main` test can land without running and runs on each push to main
 # (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite_profile.BUDGETS`
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite.profile.BUDGETS`
 # holds what a test in each directory may cost.
 TESTS = Path(__file__).parent
 TIERS = {
@@ -825,7 +825,7 @@ def firefox_browser(_playwright, request):
     """Desktop Firefox, including its compositor's inherited-colour painting."""
     from render_harness import WatchedBrowser, clean_browser
 
-    firefox = _playwright.firefox.launch()
+    firefox = _playwright.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
     try:
         with clean_browser(request.node):
             yield WatchedBrowser(firefox)

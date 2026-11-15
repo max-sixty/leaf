@@ -44,7 +44,7 @@ import turbohtml
 from .layer import CASCADE_LAYERS
 from .passages import markdown_markup
 from .registry.contract import exhibits, is_element_name
-from .registry.kernel import kernel_marks
+from .registry.kernel import authored_inert, kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -70,6 +70,7 @@ from .structure import (
     rewrite_attribute_references,
     script_kind,
     source_index,
+    splice,
 )
 
 # From a page-local URL (path and suffix) to its delivery URL, or None if unavailable.
@@ -323,7 +324,7 @@ def rebase_document(
             if delivered != body:
                 edits.append((start, end, delivered))
 
-    return _spliced(source, edits)
+    return splice(source, edits)
 
 
 def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, str]]:
@@ -344,21 +345,6 @@ def _deferred(source: str, span, location, attrs: dict) -> list[tuple[int, int, 
         at = end - (2 if source[end - 2 : end] == "/>" else 1)
         edits.append((at, at, " defer"))
     return edits
-
-
-def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
-    """`source` with each `(start, end, text)` edit's range replaced by its text.
-
-    The ranges must not overlap. Edits at one offset land in the order their texts
-    sort. Joining the pieces once keeps delivery linear in the page's size, where
-    splicing each of a large page's thousands of marks into a fresh copy was not."""
-    pieces = []
-    at = 0
-    for start, end, text in sorted(edits):
-        pieces += (source[at:start], text)
-        at = end
-    pieces.append(source[at:])
-    return "".join(pieces)
 
 
 def media_size(data: bytes) -> tuple[int, int] | None:
@@ -443,12 +429,12 @@ def mark_declared(
                 if key == "x-exhibit"
                 else declaration.get(key)
             )
-            means = {"content": content, "declared": bool(declared)}
             authored = mark.get("authored")
-            # A flow takes no width of its own (`x-flow`), whatever its markup says.
-            if key == "x-space" and declaration.get("x-flow"):
+            inert = authored and authored_inert(key, declaration, content=content)
+            # A flow takes no width of its own, whatever its markup says.
+            if inert == "flow":
                 continue
-            if authored in attrs and means[mark["authored_on"]]:
+            if authored in attrs and not inert:
                 value = attrs[authored]
             elif declared:
                 value = (
@@ -501,7 +487,7 @@ def mark_declared(
                     ),
                 )
             )
-    return _spliced(source, [(offset, offset, text) for offset, text in edits])
+    return splice(source, [(offset, offset, text) for offset, text in edits])
 
 
 @dataclass(frozen=True)

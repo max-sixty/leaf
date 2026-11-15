@@ -15,7 +15,8 @@ from render_harness import (
 )
 
 from leaf_dev import startup
-from leaf_dev.commands import journey, verify_site
+from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.site import verify as verify_site
 
 
 def shown_by(page, id):
@@ -109,7 +110,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
             content_type="text/html",
             body="""<div class="lf-threads" style="height: 100px; overflow: auto">
                   <div style="height: 500px"></div>
-                  <div class="lf-msg" data-lf-author="agent" data-mid="answer"><span class="lf-msg-text">Visible reply</span></div>
+                  <div class="lf-msg" data-lf-author="agent" data-lf-event="answer"><span class="lf-msg-text">Visible reply</span></div>
                 </div>""",
         ),
     )
@@ -136,9 +137,9 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="failed">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-lf-event="failed">
                       <span class="lf-msg-text">Could not start</span></div>
-                    <div class="lf-msg" data-lf-author="agent" data-mid="answer" style="display: none">
+                    <div class="lf-msg" data-lf-author="agent" data-lf-event="answer" style="display: none">
                       <span class="lf-msg-text">Deployment verified</span></div></div>""",
         ),
     )
@@ -149,7 +150,9 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
     assert page.evaluate("window.__leafVerifier.replyShownAt", hidden) is None
 
     before = page.evaluate("Date.now()")
-    page.locator('[data-mid="answer"]').evaluate("node => node.style.display = 'block'")
+    page.locator('[data-lf-event="answer"]').evaluate(
+        "node => node.style.display = 'block'"
+    )
     shown = shown_by(page, "answer")
     assert shown["by"] == "message" and shown["at"] >= before
 
@@ -162,7 +165,7 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
+            body="""<div class="lf-threads"><div class="lf-msg" data-lf-author="agent" data-lf-event="stream:turn">
                       <span class="lf-msg-text">Answer in progress</span></div></div>""",
         ),
     )
@@ -171,7 +174,7 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
     streamed = shown_by(page, "stream:turn")
 
     page.locator(".lf-msg").evaluate("""node => {
-      node.dataset.mid = 'answer';
+      node.dataset.lfEvent = 'answer';
       node.querySelector('.lf-msg-text').textContent = 'Complete answer';
     }""")
     shown = shown_by(page, "answer")
@@ -188,18 +191,18 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser)
         url,
         lambda route: route.fulfill(
             content_type="text/html",
-            body="""<div class="lf-threads"><div class="lf-thread" data-id="comment">
+            body="""<div class="lf-threads"><div class="lf-page-thread" data-lf-thread="comment">
               <button class="lf-thread-news" onclick="this.remove(); setTimeout(() => {
                 const next = document.createElement('button');
                 next.className = 'lf-thread-news';
                 next.textContent = 'Final reply waiting';
                 next.onclick = () => {
-                  document.querySelector('.lf-msg').dataset.mid = 'answer';
+                  document.querySelector('.lf-msg').dataset.lfEvent = 'answer';
                   next.remove();
                 };
-                document.querySelector('.lf-thread').append(next);
+                document.querySelector('.lf-page-thread').append(next);
               }, 0)">Stream update waiting</button>
-              <div class="lf-msg" data-lf-author="agent" data-mid="stream:turn">
+              <div class="lf-msg" data-lf-author="agent" data-lf-event="stream:turn">
                 <span class="lf-msg-text">Complete answer</span></div>
               </div></div>""",
         ),

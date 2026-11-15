@@ -116,7 +116,11 @@
    the preview is about (the box it stands by and the declaration's `about`); a box
    around the target is a control there only where a press acts on it, as a card a
    press opens around a chart is and a scrolling box or a widget drawing its own
-   content isn't. For a finger, whose
+   content isn't. Another thread's passage mark is such a control, though it is a range
+   with no element of its own, which its owner finds for the test (`declareRanges`), on
+   the paragraph's other lines too: until 14 November 2026 a mark's preview stood over
+   the mark on the next line, where the press the pointer went on to make only put the
+   preview away. For a finger, whose
    hand hides what lies below the touch, below holds none. Where it stands now comes
    first, its top corner on the edge it stands by at the same offsets from the box it
    stands by, and it stays there while
@@ -339,6 +343,9 @@ const HOLD = 500;
 // exposes `GestureEvent`, desktop Safari's included, where no touch reaches a hold.
 const holdsUntold = () => "GestureEvent" in window;
 const WARM = 400;
+// The timers above, for a reader outside the page that runs the page's clock past one
+// (check-api.js).
+export const PREVIEW_TIMERS = Object.freeze({ DWELL, HOLD, WARM });
 
 // The one element every preview draws in.
 const tip = document.createElement("div");
@@ -551,14 +558,28 @@ const wordsOf = (text) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-/** @param {Element} control @returns {HTMLLabelElement[]} */
+// The elements labelling a form control: its `<label>`s, and what `aria-labelledby`
+// names, as a playground's words beside its range do.
+/** @param {Element} control @returns {Element[]} */
 function labelsOf(control) {
   const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
     control
   );
-  return labels ? [...labels] : [];
+  return [...(labels ?? []), ...labelledBy(control)];
 }
-// The text of the `<label>`s naming a form control, less the control's own where a label
+// The elements a control's `aria-labelledby` names, found by id in its tree. Not its
+// `ariaLabelledByElements`: Firefox's content process crashes once the page and an
+// isolated world, such as Playwright's role locator, have both read that property
+// (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
+/** @param {Element} control @returns {Element[]} */
+function labelledBy(control) {
+  const root = /** @type {Document | ShadowRoot} */ (control.getRootNode());
+  if (!("getElementById" in root)) return [];
+  return (control.getAttribute("aria-labelledby") ?? "")
+    .split(/\s+/)
+    .flatMap((id) => (id && root.getElementById(id)) || []);
+}
+// The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more
 // than a face's worth (`FACE`).
 /** @param {Element} control */
@@ -703,8 +724,8 @@ const faceSays = (face, name) =>
 function markupName(control) {
   const label = control.getAttribute("aria-label")?.trim();
   if (label) return label;
-  const by = control.ariaLabelledByElements;
-  if (by?.length)
+  const by = labelledBy(control);
+  if (by.length)
     return by
       .map((el) => el.textContent?.trim() ?? "")
       .join(" ")
@@ -1460,7 +1481,8 @@ function stand(record, reading, standing, aim = false) {
       Math.max(0, Math.min(height, at.room, towardSubject(at))),
     );
     if (reach < least) return reach;
-    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder)));
+    const own = target instanceof Range ? box : holder.getBoundingClientRect();
+    return Math.min(reach, atLayoutPrecision(clearRoom(at, reach, holder, own)));
   };
   /** @type {Placement | null} */
   let chosen = null;
@@ -1584,10 +1606,11 @@ function stand(record, reading, standing, aim = false) {
 // are about so their previews keep clear of it, since no sampling proves a control
 // absent, which is the grid's limit. A point inside the holder's own box finds the
 // holder or what it holds, which are no other control, so it is not tested, as most of
-// a preview standing over a chart is not, which bounds its cost.
-/** @param {Placement} at @param {number} reach @param {Element} holder */
-function clearRoom(at, reach, holder) {
-  const own = holder.getBoundingClientRect();
+// a preview standing over a chart is not, which bounds its cost. A range's holder, the
+// element holding its words, holds other ranges on its other lines, as a paragraph does
+// other threads' marks, so for a range only its own line (`own`) goes untested.
+/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box} own */
+function clearRoom(at, reach, holder, own) {
   const around = new Set(climb(holder));
   // The boxes around `holder` a press acts on (`targetAt`).
   /** @type {Set<Element>} */
@@ -1607,9 +1630,8 @@ function clearRoom(at, reach, holder) {
     let edge = Infinity;
     for (const x of across) {
       if (holds(own, x, y)) continue;
-      const found = targetAt(x, y, holder, around, taking);
-      if (!found) continue;
-      const hit = found.getBoundingClientRect();
+      const hit = targetAt(x, y, holder, around, taking);
+      if (!hit) continue;
       edge = Math.min(edge, down ? hit.top - at.from : at.from - hit.bottom);
     }
     if (edge < Infinity) return Math.max(0, edge);
@@ -1655,8 +1677,22 @@ function hitAt(x, y) {
     hit = inner;
   return hit;
 }
-// The control other than `holder` and what it holds that must stay reachable at a point
-// of the page beneath the preview, the nearest around what the point finds. A box
+// A range a press acts on, as a thread's passage mark is, has no element of its own for
+// a hit test to find, so its owner says where one lies under a point of the page: the
+// box of its line there, or null. `under` is the page's element at the point, beneath
+// the preview.
+/** @typedef {(x: number, y: number, under: Element) => Box | null} RangesAt */
+/** @type {Set<RangesAt>} */
+const rangeOwners = new Set();
+/** @param {RangesAt} at */
+export function declareRanges(at) {
+  rangeOwners.add(at);
+  return () => void rangeOwners.delete(at);
+}
+// The box of what must stay reachable at a point of the page beneath the preview: the
+// control other than `holder` and what it holds, the nearest around what the point
+// finds, or a range its owner says lies there, which may be in the holder (`declareRanges`).
+// A box
 // around `holder` (`around`) stands under the preview wherever it stands, so it is no
 // control to keep clear of where it takes nothing (widget-elements.js, `aimableAt`),
 // as a scrolling box, a stop Leaf lends code or a tab panel doesn't, nor where it takes
@@ -1665,14 +1701,19 @@ function hitAt(x, y) {
 // it (`taking`), as a card a press opens around a chart is. Until 8 November 2026 every
 // box around it that took the pointer counted, so inside `lf-toc`, drawn across the
 // column, no side held a line and a row's preview stood over the next row.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking */
+/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @returns {Box | null} */
 function targetAt(x, y, holder, around, taking) {
   const hit = hitAt(x, y);
-  for (const at of hit ? climb(hit) : []) {
-    if (at === holder) return null;
-    if (taking.has(at)) return at;
+  if (!hit) return null;
+  for (const at of climb(hit)) {
+    if (at === holder) break;
+    if (taking.has(at)) return at.getBoundingClientRect();
     if (!around.has(at) && keepsAccess(at))
-      return renderedUnder(at, holder) ? null : at;
+      return renderedUnder(at, holder) ? null : at.getBoundingClientRect();
+  }
+  for (const owner of rangeOwners) {
+    const box = owner(x, y, hit);
+    if (box) return box;
   }
   return null;
 }

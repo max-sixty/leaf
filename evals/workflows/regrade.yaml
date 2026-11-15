@@ -1,4 +1,4 @@
-# Judgments `leaf-dev eval --from` makes of saved samples (`dev/leaf_dev/regrade.py`).
+# Judgments `leaf-dev eval run --from` makes of saved samples (`dev/leaf_dev/regrade.py`).
 # A pair judge compares two live pages built for one request; discovery explores one
 # page for observations and has no winner or fitness score.
 pair:

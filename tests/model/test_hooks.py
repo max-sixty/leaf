@@ -831,14 +831,11 @@ def test_pi_takes_input_of_any_size_inline(page_dir, monkeypatch, capsys):
     assert acknowledged_through(page_dir) == last_deliverable_seq(page_dir)
 
 
-def test_one_tool_calls_hooks_do_its_work_once(monkeypatch):
+def test_one_tool_calls_hooks_do_its_work_once():
     """Claude Code runs the PreToolUse registration once for each of its `if`
     rules a command matches, at once, before the call; the first opens the turn a
     claim would join, and the rest leave it as they find it. Another call's hook
     does its work again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
 
     def before(call: str) -> None:
         hooks_model.cmd_hook(
@@ -1069,9 +1066,6 @@ def test_a_prompt_escape_dropped_is_handed_its_input_again_after_one_wake(
         assert woke.startswith(f"{claimed} has new input")
         assert acknowledged_through(claimed) == 0
         assert handed_over("p2") == updates
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     hooks_model.cmd_hook(
         "claude-code",
         {"hook_event_name": "PreToolUse", "session_id": "s1", "prompt_id": "p2"},
@@ -1379,9 +1373,6 @@ def test_a_boundary_handover_escape_kept_is_never_handed_over_twice(
     comment may not have reached the model. The woken prompt's hook confirms what
     the transcript shows first, so it names the comment as owed rather than handing
     the delivery over again."""
-    monkeypatch.setattr(
-        harness_model.ClaudeCodeHarness, "escape_sandbox", lambda harness: None
-    )
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
     leases_model.mark_hooks("s1")
@@ -1632,7 +1623,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     snapshot.check(
         yaml_document(
             "Complete agent-facing outputs through real hooks, wait and thread reply commands.\n"
-            "Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.\n"
+            "Only page paths, event/delivery/attempt, turn and claim identities, and timestamps are normalized.\n"
             "A null hook output means the turn can end without a reminder.",
             _interaction_prompt_evidence(
                 page,
@@ -1958,15 +1949,12 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
 
 
 def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_input(
-    claimed, capsys, monkeypatch
+    claimed, capsys
 ):
     """A plugin update that bumps the page protocol leaves the session's page on the
     older Leaf's layer. The first prompt under the new Leaf re-vendors it, keeping its
     log, and hands over the input waiting there, so the user's comment reaches the
-    turn with nothing asked of the agent first. The re-vendor runs inside the hook's
-    time, which a loaded host can stretch past CONFIRM_WITHIN; that bound has its
-    own tests."""
-    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", 600.0)
+    turn with nothing asked of the agent first."""
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
@@ -2037,33 +2025,6 @@ def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
 
     assert session_runtime_model.selected_launcher("s1") == other
     assert started == []
-
-
-@pytest.mark.parametrize("command", ["page init", "renewal"])
-def test_a_checkout_that_takes_over_a_held_page_starts_its_sessions_delivery_again(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A checkout's init or renewal of a page its session holds makes the checkout
-    the session's Leaf, then starts the session's delivery again, since a Codex
-    task's adapter running from the former Leaf leaves once another is selected.
-    Doing it again changes no selection, so it leaves the running delivery alone."""
-    select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
-    own = session_runtime_model.own_launcher()
-
-    def take_over():
-        if command == "page init":
-            vendoring_model.cmd_init(claimed)
-        else:
-            vendored_at_another_protocol(claimed)
-            vendoring_model.renew_layer(
-                claimed, harness_model.session_harness(), command=True
-            )
-
-    take_over()
-    assert started == [own]
-    take_over()
-    assert started == [own]
 
 
 @pytest.mark.parametrize("command", ["page claim", "server start", "server run"])

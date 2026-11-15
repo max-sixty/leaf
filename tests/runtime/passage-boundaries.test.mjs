@@ -35,7 +35,7 @@ import {
   neighbourhood,
   pageReadingVersion,
   pageText,
-  pageBlocks,
+  pageRuns,
   pageWords,
   pointAt,
   quoteFrom,
@@ -48,6 +48,11 @@ import {
 } from "/runtime/passages.js";
 import { declaredRoot, upFrom } from "/runtime/shadow.js";
 import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
+
+// The elements the page reading treats as blocks, each once, in reading order.
+const blocksRead = () => [
+  ...new Set(pageRuns(() => true).flatMap(({ block }) => (block ? [block] : []))),
+];
 
 test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(null, "main"), null);
@@ -183,30 +188,18 @@ test("projected rows have separate passages inside one text block", () => {
   const pre = document.querySelector("pre");
   const first = document.querySelector("#first");
   const second = document.querySelector("#second");
-  assert.deepEqual(
-    pageBlocks(() => true),
-    [pre],
-  );
+  assert.deepEqual(blocksRead(), [pre]);
   for (const row of [first, second]) {
     row.dataset.lfProjection = "source";
     row.dataset.lfDatum = row.id;
   }
-  assert.deepEqual(
-    pageBlocks(() => true),
-    [first, second],
-  );
+  assert.deepEqual(blocksRead(), [first, second]);
   assert.equal(blockAt(first.querySelector("b").firstChild), first);
   assert.equal(says(pre), "First rowSecond row");
   first.removeAttribute("data-lf-datum");
-  assert.deepEqual(
-    pageBlocks(() => true),
-    [pre, second],
-  );
+  assert.deepEqual(blocksRead(), [pre, second]);
   second.removeAttribute("data-lf-projection");
-  assert.deepEqual(
-    pageBlocks(() => true),
-    [pre],
-  );
+  assert.deepEqual(blocksRead(), [pre]);
 });
 
 test("projecting an inline value preserves its typography and resolved quote", () => {
@@ -217,10 +210,7 @@ test("projecting an inline value preserves its typography and resolved quote", (
   value.dataset.lfGen = "1";
   value.dataset.lfProjection = "source";
   value.dataset.lfDatum = "rate";
-  assert.deepEqual(
-    pageBlocks(() => true),
-    [paragraph, value],
-  );
+  assert.deepEqual(blocksRead(), [paragraph, value]);
   assert.equal(says(paragraph), "The rate is 42%.");
   assert.equal(quoteFrom(findQuote(pageText(), "42%", {}, value)), "42%");
 });

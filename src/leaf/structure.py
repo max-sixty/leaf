@@ -288,12 +288,29 @@ def rewrite_attribute_references(
     tag: str, attrs: dict, name: str, value: str, rewrite
 ) -> str | None:
     """Rewrite just the URL spans `attribute_references` reads in one value."""
-    for start, end in reversed(tuple(attribute_references(tag, attrs, name, value))):
+    edits = []
+    for start, end in attribute_references(tag, attrs, name, value):
         replacement = rewrite(value[start:end])
         if replacement is None:
             return None
-        value = value[:start] + replacement + value[end:]
-    return value
+        edits.append((start, end, replacement))
+    return splice(value, edits)
+
+
+def splice(source, edits):
+    """`source`, a str or bytes, with each `(start, end, text)` edit's range replaced
+    by its text.
+
+    The ranges must not overlap. Edits at one offset land in the order their texts
+    sort. Joining the pieces once keeps the splice linear in the source's size, where
+    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    pieces = []
+    at = 0
+    for start, end, text in sorted(edits):
+        pieces += (source[at:start], text)
+        at = end
+    pieces.append(source[at:])
+    return source[:0].join(pieces)
 
 
 def pre_body(element) -> str | None:
@@ -595,7 +612,8 @@ class Authoring:
         self.resource_refs = set()
         self.style_blocks = []  # {css, line, attrs} per independent <style> sheet
         self.inline_styles = []  # {tag, line, style} per style="" declaration list
-        # {tag, line, attr, value} per authored allocation (`AUTHORED_ALLOCATIONS`).
+        # {tag, id, line, attr, value, in_template, content} per authored allocation
+        # (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
         # {tag, line, under} per id-less pointable block, where under is the nearest
@@ -742,7 +760,19 @@ class Authoring:
                 and attr in PAGE_ALLOCATIONS
             ):
                 self.authored_allocations.append(
-                    {"tag": tag, "line": line, "attr": attr, "value": attrs[attr]}
+                    {
+                        "tag": tag,
+                        "id": attrs.get("id") or "",
+                        "line": line,
+                        "attr": attr,
+                        "value": attrs[attr],
+                        # Where delivery reads it: it skips a template and what it
+                        # holds, which is inert until cloned, and only a block in the
+                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        "in_template": "template" in (tag, *ancestors),
+                        "content": tag not in {"html", "body", "main"}
+                        and "body" in ancestors,
+                    }
                 )
         markers = sorted(name for name in attrs if name.startswith("data-lf-"))
         markers += sorted(

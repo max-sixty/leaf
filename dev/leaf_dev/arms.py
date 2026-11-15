@@ -1,7 +1,7 @@
 """Arms, served pages, and isolated CC, Codex and Pi sessions for the commands and eval
 harnesses that run a version of Leaf.
 
-A command that runs Leaf at two versions, such as `stills`, `probe` or `compare`, runs
+A command that runs Leaf at two versions, such as `stills`, `probe` or `preview --base`, runs
 `head`, this working tree in place with its uncommitted edits, and `base`, the merge
 base with the local `main` unless `--base REF` names another commit (`choose_arms`,
 `base_option`). The base is the whole tree at its commit, so it serves pages, runs the
@@ -108,7 +108,7 @@ MODELS = {
     CodexHarness.name: "gpt-6.1-sol",
     "user": "gpt-6.1-sol",
     # It answers only setup and the developer's turns, so a fast one does.
-    "claude-code-session": "claude-sonnet-5-5",
+    "journey-session": "claude-sonnet-5-5",
 }
 JUDGE_MODELS = {
     ClaudeCodeHarness.name: "claude-opus-5-5",
@@ -319,11 +319,11 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
         yield copies
 
 
-def merge_base(ref: str = "HEAD") -> str:
-    """The commit `ref` branched from the local `main`: the base a command compares
+def merge_base() -> str:
+    """The commit `HEAD` branched from the local `main`: the base a command compares
     this working tree with unless it is handed another."""
     return subprocess.run(
-        ["git", "-C", ROOT, "merge-base", ref, "main"],
+        ["git", "-C", ROOT, "merge-base", "HEAD", "main"],
         capture_output=True,
         text=True,
         check=True,
@@ -1176,7 +1176,7 @@ class LiveSession:
                 return True
         return self.answered > since
 
-    def during(self, action, before=None):
+    def during(self, action):
         """Run `action` while the driver records and observes the child's output,
         and return what it returns."""
         done: queue.Queue = queue.Queue()
@@ -1191,7 +1191,7 @@ class LiveSession:
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         try:
-            for _ in self.records(idle=0.5, before=before):
+            for _ in self.records(idle=0.5):
                 if not worker.is_alive():
                     break
         finally:

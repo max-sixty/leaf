@@ -57,6 +57,7 @@ from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
@@ -1735,15 +1736,25 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 
 
 @pytest.fixture(autouse=True)
-def _each_test_composes_its_own_layers():
+def _hook_bounds_take_the_suites_deadline(monkeypatch):
+    """A hook bounds the work it does by its harness's timeout: a page server's
+    start and the inline handover after it share `hook_transport.CONFIRM_WITHIN`,
+    10 s from the hook's start. A start takes about 1 s on an idle host and over
+    5 s on a loaded runner, so in process the bound takes `STATED_TIMEOUT`, and a
+    test whose subject is the bound sets its own (tests/AGENTS.md, "Results do not
+    depend on execution speed")."""
+    monkeypatch.setattr(hook_transport_model, "CONFIRM_WITHIN", STATED_TIMEOUT)
+
+
+@pytest.fixture(autouse=True)
+def _each_test_composes_its_own_layers(monkeypatch):
     """Each test composes the layers its pages select afresh, as a new process does.
 
     A process holds each selection's composition and vocabulary for its life
     (`layer.selected_layer`, `layer.selected_vocabulary`), and a test may rewrite
-    a package at a path an earlier test's package held."""
-    yield
-    layer_model._compositions.clear()
-    layer_model._vocabularies.clear()
+    a package at a path an earlier test's package held, so each test holds its own."""
+    monkeypatch.setattr(layer_model, "_compositions", {})
+    monkeypatch.setattr(layer_model, "_vocabularies", {})
 
 
 def retire_bridge(lock):
@@ -3018,6 +3029,8 @@ def _interaction_prompt_evidence(page, value):
                 if key in {"ts", "created_at"}
                 else "<attempt>"
                 if key == "attempt"
+                else "<turn>"
+                if key == "turn" and isinstance(child, str)
                 else "<claim-session>"
                 if key == "claim" and child is not None
                 else stable(child)

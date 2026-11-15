@@ -16,6 +16,8 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATIONS_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     answered_comment,
     live_url,
 )
@@ -25,6 +27,7 @@ from render_cases_navigation import (
     CHIPS,
     address_code,
     address_codes,
+    go_to_address,
 )
 from render_harness import (
     FEATURE_GALLERY,
@@ -40,6 +43,7 @@ from render_harness import (
     navigate,
     open_page,
     open_threads,
+    opened_tab,
     pane_scroll_behavior,
     panel_control,
     panel_says,
@@ -56,6 +60,7 @@ from render_harness import (
 from journeys import expect_showing
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, show_resolved
 from leaf_dev.example_data import named_source, published_sources
@@ -1521,7 +1526,13 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
-    page.wait_for_timeout(100)
+    # Once Escape clears the filter's word, the waiting news takes the panel's seat
+    # after the notices queued ahead of it retire. The live region speaks
+    # announcements in the order they are made, so the next Escape's word arrives
+    # after any announcement made as the news showed.
+    expect_panel_says(page, "Agent replied — open Threads")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
     assert (
         page.evaluate(
             "() => window.__liveChanges.filter(words => "
@@ -1531,7 +1542,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ), "showing deferred news announced it a second time"
 
     # The obligation route may scroll these hyperlinks out of the visible target map.
-    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     scroll_settled(page)
@@ -1864,3 +1874,342 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.type("gc1")
     expect(box).to_have_js_property("value", "gc1")
     expect(box).to_be_focused()
+
+
+def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
+    """The diff package's worked page carries a real line thread through both seats."""
+    source = named_source("pr-walkthrough")
+    url = live_url(serve(source))
+    page = open_page(browser, url)
+    diff = page.locator("#pr-exact-patch")
+    details = diff.locator(".lf-diff-file > details").first
+    details.evaluate("element => { element.open = true; }")
+    target = details.locator("[data-line-type='change-addition'][data-lf-datum]").first
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this review note beside the line that changes it.",
+            "anchor": {
+                "section": "pr-exact-patch",
+                "datum": target.get_attribute("data-lf-datum"),
+                "source": target.get_attribute("data-lf-source"),
+                "source_revision": target.get_attribute("data-lf-source-revision"),
+            },
+        },
+    )
+    told(page)
+    thread = diff.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
+    expect(thread).to_contain_text(
+        "Keep this review note beside the line that changes it."
+    )
+    send = thread.locator(".lf-compose-submit")
+    expect(send).to_be_disabled()
+    expect(thread.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    baseline = markers.count()
+
+    details.evaluate("element => { element.open = false; }")
+    expect(thread).to_have_count(0)
+    expect(markers).to_have_count(baseline + 1)
+    details.evaluate("element => { element.open = true; }")
+    expect(thread).to_have_count(1)
+    expect(markers).to_have_count(baseline)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    # A thread the margin projects, standing before the diff in page order: the walk
+    # opens the margin's view to reach it and then steps on to the diff's own seat,
+    # closing that view on the way. The walk moves the user laterally rather than down
+    # a level, so Escape lets go of the thread they ended on and lands them in the page
+    # where they now are — not back at the heading the walk started from, which is
+    # off screen by then.
+    prose = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "And one on the prose above the patch.",
+            "anchor": {"section": "pr-scale-intro", "quote": "Risk is concentrated"},
+        },
+    )
+    told(page)
+    heading = page.locator("main h2").first
+    heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(heading).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{prose["id"]}"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
+
+
+def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
+    """A contextual thread has one side, and leaves and returns with its anchor."""
+    page = open_page(
+        browser,
+        live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("t")
+    card = page.locator(".lf-margin-preview")
+    # Whichever thread the walk reaches first; the page's order decides that.
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    walked = card.locator(".lf-page-thread").get_attribute("data-lf-thread")
+    owner = page.locator(
+        '.lf-margin-marker[data-lf-kinds~="comment"]'
+        '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+    ).locator("xpath=..")
+    expect(owner).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    initial = owner.bounding_box()
+    assert initial["y"] + initial["height"] > 50
+    assert initial["y"] < 900
+    page.evaluate("distance => scrollBy(0, distance)", min(160, initial["y"] - 80))
+    page.wait_for_function(
+        """() => {
+          const owner = document.querySelector(
+            '.lf-margin-marker[data-lf-kinds~="comment"]' +
+            '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+          )?.parentElement?.getBoundingClientRect();
+          return owner && owner.bottom > 50 && owner.top < innerHeight;
+        }"""
+    )
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    # Scrolled away, the card leaves with its anchor rather than closing, and scrolled
+    # back it stands where it stood, with the user still in it.
+    rendered(page)
+    placed = card.evaluate("node => node.getBoundingClientRect().top")
+    before = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    rendered(page)
+    assert card.evaluate("node => node.getBoundingClientRect().bottom <= 0")
+    page.evaluate("top => scrollTo(0, top)", before)
+    rendered(page)
+    assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        placed, abs=0.5
+    )
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{walked}"]')).to_be_focused()
+    # A press the page answers leaves the window where the user put it: `g G` carries the
+    # card away, and `g` then opens Go-to over the page's foot rather than bringing the
+    # card back and mapping the window around it.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+g")
+    rendered(page)
+    foot = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert card.evaluate("node => node.getBoundingClientRect().bottom <= 0")
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # Every key is Go-to's while it stands, one it has no use for included: that key
+    # takes Go-to down and keeps the page where it is.
+    page.keyboard.press("F2")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    # A turn arriving in the card is news, not a move of the user's: it stays away.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": walked,
+            "revision": 1,
+            "text": "A turn arriving while the card is away.",
+        },
+    )
+    told(page)
+    expect(card).to_contain_text("A turn arriving while the card is away.")
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    shown = """() => {
+      const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+      return card.top >= 0 && card.bottom <= innerHeight;
+    }"""
+    # The `g` that opened Go-to let go of the card it was pressed in, scrolled away
+    # there, so a page command acts from what the user sees: `c` opens the page's own
+    # field rather than the card's reply, and the card stays where the page took it.
+    page.keyboard.press("c")
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
+    assert not page.evaluate(shown)
+    page.keyboard.press("Escape")
+    # Back at the card, a click on its words puts the user in it again, and `c` replies
+    # there.
+    page.evaluate("top => scrollTo(0, top)", before)
+    rendered(page)
+    card.locator(".lf-page-thread .lf-msg-body").first.click()
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
+    # A field keeps its keys scrolled away, since typing brings its box back, so Tab
+    # moves on from the reply to the card's next control, which the browser reveals.
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    rendered(page)
+    assert not page.evaluate(shown)
+    page.keyboard.press("Tab")
+    expect(reply).not_to_be_focused()
+    assert page.evaluate(
+        "() => document.activeElement.closest('.lf-margin-preview') !== null"
+    )
+    page.wait_for_function(shown)
+    # A card the page has carried half past the window's top, Reply with it, is as
+    # unseen there as one scrolled off: a landing in it brings it back all the same.
+    reply.evaluate(
+        """async (box) => {
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= 0) {
+            scrollBy(0, 10);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(
+        "() => document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom > 0"
+    )
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    page.wait_for_function(shown)
+    # A click from the card's thread into its Reply, cut off at the window's top, leaves
+    # the page and the box under the pointer still: the pointer found the box where it
+    # is. The first word typed there brings the card back, as a browser brings a field
+    # back for its caret.
+    page.keyboard.press("Escape")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    reply.evaluate(
+        """async (box) => {
+          const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          while (box.getBoundingClientRect().top >= 0) {
+            scrollBy(0, 2);
+            await frame();
+          }
+        }"""
+    )
+    rendered(page)
+    pressed = reply.bounding_box()
+    assert pressed["y"] < 0 < pressed["y"] + pressed["height"] - 8
+    held = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.mouse.click(
+        pressed["x"] + pressed["width"] / 2, pressed["y"] + pressed["height"] - 6
+    )
+    expect(reply).to_be_focused()
+    rendered(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == held
+    assert reply.bounding_box()["y"] == pytest.approx(pressed["y"], abs=0.5)
+    page.keyboard.type("S")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview leaf-text')"
+        ".getBoundingClientRect().top >= 0"
+    )
+
+
+def test_an_addressed_link_leaves_the_user_at_its_destination(
+    browser, serve, other_leaf, one_user
+):
+    """A generated link hint completes the navigation step it names.
+
+    A fragment lands focus on its target, so the user does not remain at the place they
+    left. An external link keeps its new-tab behavior and names that context change even
+    though the sequence activates the link without first moving focus through it."""
+    other_url, _ = other_leaf
+    destination = f"{other_url}/?t={server_model.host_key()}"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "addressed links",
+                f"""
+<h1>Addressed links</h1>
+<p><a id="internal" href="#arrival">Read the conclusion</a>.</p>
+<p><a id="external" href="{destination}" aria-label="Leaf guide">Open the guide</a>.</p>
+<div style="height: 1600px"></div>
+<h2 id="arrival">Conclusion</h2>
+<p>The internal navigation step ends here.</p>
+""",
+            )
+        ),
+        context=one_user,
+    )
+
+    go_to_address(page, "Link", "internal")
+    page.wait_for_url(re.compile(r"#arrival$"))
+    expect(page.locator("#arrival")).to_be_focused()
+    expect(page.locator("#arrival")).to_be_in_viewport()
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+    )
+
+    page.keyboard.press("g")
+    external_code = address_code(page, "Link", "external")
+    tab = opened_tab(page, destination, lambda: page.keyboard.type(external_code))
+    expect(tab).to_have_url(f"{other_url}/")
+    expect(page.locator(".lf-live")).to_have_text("Opened Leaf guide in a new tab")
+
+
+def test_an_external_link_says_and_opens_where_it_goes(
+    browser, serve, other_leaf, one_user
+):
+    other_url, _ = other_leaf
+    destination = f"{other_url}/?t={server_model.host_key()}"
+    url = serve(
+        leaf_page(
+            "external link",
+            f"""
+<h1 id="top">Links</h1>
+<p>Read the <a id="external" href="{destination}" aria-label="other leaf documentation"
+  aria-describedby="source-note">other leaf</a>.</p>
+<span id="source-note" hidden>curated source</span>
+<p>Return to <a id="fragment" href="#top">the heading</a>.</p>
+<svg viewBox="0 0 40 20" aria-label="map"><a id="svg-external" href="{destination}">
+  <text x="0" y="15">map</text>
+</a></svg>
+""",
+        )
+    )
+    page = open_page(browser, url, context=one_user)
+    external = page.locator("#external")
+
+    expect(external).to_have_attribute("target", "_blank")
+    expect(external).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
+    expect(external).to_have_accessible_name("other leaf documentation")
+    expect(external).to_have_accessible_description("curated source opens in a new tab")
+    # The treatment stands inside the link, so the paragraph ends where it was written.
+    expect(page.locator("#external ~ *")).to_have_count(0)
+    expect(external).to_have_attribute("data-lf-external", "")
+    mark = external.evaluate("""link => {
+      const style = getComputedStyle(link, '::after');
+      return {display: style.display, width: parseFloat(style.width), mask: style.maskImage};
+    }""")
+    assert mark["display"] == "inline-block"
+    assert mark["width"] > 0
+    assert "data:image/svg+xml" in mark["mask"]
+    expect(page.locator("#fragment")).not_to_have_attribute("data-lf-external", "")
+    expect(page.locator("#fragment")).not_to_have_attribute("target", "_blank")
+    expect(page.locator("#svg-external")).not_to_have_attribute("data-lf-external", "")
+    expect(page.locator("#svg-external")).not_to_have_attribute("target", "_blank")
+
+    tab = opened_tab(page, destination, external.click)
+    expect(tab).to_have_url(f"{other_url}/")
+    expect(page).to_have_url(url.split("?", 1)[0])

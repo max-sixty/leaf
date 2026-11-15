@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
-      # py-spy's sampling rate, which `leaf-dev suite-profile` reads to turn samples
+      # py-spy's sampling rate, which `leaf-dev suite profile` reads to turn samples
       # into minutes.
       PY_SPY_RATE: 2
 
@@ -112,7 +112,7 @@ jobs:
         # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
         # table of every process that ran meanwhile, and `stacks.txt` holds one line
         # per distinct stack and sample count, rooted at its process, for
-        # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
+        # `leaf-dev suite profile`, speedscope or flamegraph.pl. py-spy follows the
         # process tree from `uv run` once it has a child, and stops when it exits. Its
         # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
         # each worker's stack is still sampled 7,200 times an hour.
@@ -129,7 +129,7 @@ jobs:
           trap '' INT
           export PYTHONUNBUFFERED=1
           # Each worker charges its tests' CPU to a cgroup of its own under this one
-          # (`dev/leaf_dev/commands/suite_profile.py`). Owning it lets the workers make and join
+          # (`dev/leaf_dev/commands/suite/profile.py`). Owning it lets the workers make and join
           # theirs without root, and this shell joins it so pytest starts inside.
           export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
           sudo mkdir "$SUITE_PROFILE_CGROUP"
@@ -173,7 +173,7 @@ jobs:
       # interface changes interrupt Chrome's loopback requests in browser tests.
       - name: Build website
         if: github.event_name == 'pull_request'
-        run: uv run leaf-dev site
+        run: uv run leaf-dev site build
 
       # wait runs even when the build fails. Propagate both results and finish
       # Python's artifacts before Docker or the unconditional upload below.
@@ -199,12 +199,12 @@ jobs:
 
       - name: Measure the bundled release in a browser
         if: github.event_name == 'pull_request'
-        run: uv run leaf-dev verify-site website-worker
+        run: uv run leaf-dev site verify website-worker
 
       - name: Summarize where the suite's time went
         if: (success() || failure()) && hashFiles('.tmp/test-results/results.xml') != ''
         run: |
-          uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
+          uv run leaf-dev suite profile .tmp/test-results | tee .tmp/test-results/summary.txt
           { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload pytest results
@@ -250,7 +250,8 @@ jobs:
       # A step that overruns fails, where the six-hour job deadline would cancel the
       # run and never summon tend; `bash` adds `pipefail`, so the command's status
       # survives `tee`. Each run's `results.json` keeps each reading's lowest by page,
-      # size and arm (`lowest`), which the server's run leaves empty.
+      # size and arm (`lowest`), which the server's run leaves empty, and keeps what a
+      # failed run read before it failed.
       - name: Measure the pages in the browser
         timeout-minutes: 120
         shell: bash
@@ -258,6 +259,25 @@ jobs:
           mkdir -p .tmp/bench-report
           uv run leaf-dev bench --sizes 64,128,256 --rounds 2 | tee .tmp/bench-report/browser.txt
           { echo '```'; cat .tmp/bench-report/browser.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # #4781's tabs of large text documents, reading only the inputs that need its
+      # tabs and sources, which keeps it to minutes; the `document` page's text grows
+      # under every other input.
+      - name: Measure the documents page in the browser
+        if: success() || failure()
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          mkdir -p .tmp/bench-report
+          uv run leaf-dev bench documents --sizes 64,128,256 --rounds 2 \
+            --input data --input reveal --input search --input matches --input browse \
+            | tee .tmp/bench-report/documents.txt
+          { echo '```'; cat .tmp/bench-report/documents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect the browser readings to chart
+        if: success() || failure()
+        shell: bash
+        run: |
           jq -s '[.[].lowest[] | select(.size == 64) | .page as $page | .readings
             | to_entries[] | select(.key | endswith(" cpu") or endswith(" shown"))
             | {name: "\($page): \(.key)", unit: "ms", value: (.value * 100 | round / 100)}]' \

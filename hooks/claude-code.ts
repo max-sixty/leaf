@@ -39,7 +39,7 @@
  * counts the panel marks, then the agent's status. It goes above whatever other
  * plugins draw there. Claude Code keeps an empty row between the band and the
  * prompt (measured at 2.1.306); a negative margin to close it hides the band.
- * `leaf-dev claude-code-session` runs a session that draws it from this tree.
+ * `leaf-dev journey session` runs a session that draws it from this tree.
  *
  * In the terminal a click on the link opens the page wherever the terminal runs,
  * SSH included. No escape sequence makes a terminal open a URL without a click,
@@ -571,19 +571,18 @@ async function changeForks(
 /** Give a thread's work to the fork Leaf chose (`forks._take`), with Leaf's
  * `prompt`: resume the fork that answered the thread before, where Leaf names one
  * (`resume`), which runs the turn Leaf opened from its opening; or else spawn a fork
- * of the conversation, named so the main thread can reach it, and tell Leaf which
- * agent runs that turn (`forks.started`). A fork that can't be resumed or fails to
- * start, or a step of this that fails, ends that turn at once, which gives the
- * thread to the main thread (`forks.ended`). The end names the agent wherever one
- * started, so an agent that runs on after Leaf failed to record its start has its
- * `leaf` commands refused rather than run as the main thread's
- * (`state.close_agent_turns`). */
+ * of the conversation and tell Leaf which agent runs that turn (`forks.started`),
+ * which tells the main thread the agent id it reaches the fork by. A fork that
+ * can't be resumed or fails to start, or a step of this that fails, ends that turn
+ * at once, which gives the thread to the main thread (`forks.ended`). The end names
+ * the agent wherever one started, so an agent that runs on after Leaf failed to
+ * record its start has its `leaf` commands refused rather than run as the main
+ * thread's (`state.close_agent_turns`). */
 async function workFork(
   $: EngineInterface,
   session: string,
   kept: KeptBack,
   given: {
-    agent: string;
     prompt: string;
     text: string;
     turn: string;
@@ -619,10 +618,13 @@ async function workFork(
 
 /** Spawn a fork of the conversation for the turn Leaf opened (`workFork`): the
  * agent it started, if any, and how its run ended where it failed to start or
- * ended before the module registered it. */
+ * ended before the module registered it. The fork goes unnamed, so the main thread
+ * reaches it only by its agent id (`forks.py` says why): a name passes to the
+ * newest agent spawned under it, and the main thread's send to a name it reached an
+ * older fork by is then refused (measured at 2.1.325). */
 async function spawnFork(
   $: EngineInterface,
-  given: { agent: string; prompt: string; text: string; turn: string },
+  given: { prompt: string; text: string; turn: string },
 ): Promise<{
   agentId?: string;
   ended?: { answer: string } | { failed: string };
@@ -633,7 +635,6 @@ async function spawnFork(
     ({ agentId } = await $.agent.spawn({
       prompt: given.prompt,
       subagentType: "fork",
-      name: given.agent,
       description: `Leaf: ${given.text}`,
     }));
     if (agentId === undefined)

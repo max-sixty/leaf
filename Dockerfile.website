@@ -25,7 +25,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY --from=codex /codex-bin /codex-bin
 RUN ln -s /codex-bin/rg /usr/local/bin/rg
 
-# Leaf and its website server come from the installation `leaf-dev site` built its pages
+# Leaf and its website server come from the installation `leaf-dev site build` built its pages
 # with, a prepared one, so a revision a hosted session writes carries the same compiled
 # kernel as the published pages.
 COPY .tmp/site-install/ ./

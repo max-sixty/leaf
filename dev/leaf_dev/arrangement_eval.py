@@ -11,7 +11,7 @@ second decision reader or repeated render/quality grader for every revision.
 Each phase retains its primary output, initialized pages and served addresses.
 The judge restores known page links in disposable copies; archived bytes stay exact.
 Reports capture those pages and retain native timing/token accounting.
-`eval --from --judge pair` compares saved samples without rerunning their authors.
+`eval run --from --judge pair` compares saved samples without rerunning their authors.
 The run centrally selects its viewports, defaulting to one fullscreen desktop for
 every case.
 """

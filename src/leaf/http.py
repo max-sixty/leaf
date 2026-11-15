@@ -519,15 +519,9 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
 
-        A tab names the data it holds by `Leaf-Data-Version`, and an answer whose data
-        is still that version leaves out its sources for the tab to restore
-        (`completeState` in `layer-client.js`), since data moves only when an agent
-        sets it. What a tab is sent of the rest is `sent`'s to say.
+        What a tab is sent of it is `sent`'s to say.
         """
-        state = self._state_service().page_state(view_revision)
-        if self.headers.get("Leaf-Data-Version") == state["data"]["version"]:
-            state["data"] = {"version": state["data"]["version"]}
-        return state
+        return self._state_service().page_state(view_revision)
 
     def sent(self, state: dict) -> dict:
         """What a tab is sent of `state`, addressed at this page's root
@@ -540,6 +534,13 @@ class PageEndpoint:
         markup twice. The log travels apart from the reading, as only the events
         after the held reading's, so only the events sent are addressed, rather than
         every message's markup the session has logged.
+
+        A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
+        it still holds leaves out its sources for the tab to restore (`completeState`
+        in `layer-client.js`), as leaf.page's edge does for the answers it stores
+        (`prepareStateDelivery` in `worker/src/storage.ts`). Only a whole answer is
+        cut, and only once its reading is remembered whole, since a patch carries just
+        the sources that changed since the held reading.
 
         A capture's readings are whole and unnamed: a render check reads them, or
         leaf.page saves them as a published page's responses, one for each revision,
@@ -554,6 +555,10 @@ class PageEndpoint:
                 scoped, self.headers.get("Leaf-Held-Basis"), str(self.page_dir)
             )
         )
+        if "since" not in answer and (
+            self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
+        ):
+            answer = {**answer, "data": {"version": answer["data"]["version"]}}
         return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
 
     def page_comparison(

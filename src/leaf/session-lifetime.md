@@ -130,13 +130,15 @@ agent's harness id once the harness has started or resumed it. The agent's tool
 boundary renews it, and it closes as the harness says the
 run ended, or with the session's generation or instance. A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
-claimant's agent turns (`agent_turns`), and the fold believes one running while it is
-open and renewed within the working grace (`activity.running_agent_turns`).
+claimant's agent turns (`agent_turns`), each with its agent's id, and the fold believes
+one running while it is open and renewed within the working grace
+(`activity.running_agent_turns`).
 
 Which turn holds each thread, the main thread's or an agent's, with its waiting
 messages, is one reading every reader asks (`holding.py`, whose header states the
 rule; `forks.page_holding`), and `leaf page state`'s `holder` names it: the main
-thread, the fork by name with whether its turn runs, or the line fork. The newest
+thread; the fork, by the agent id the main thread reaches it by, null until the
+harness has started it, with whether its turn runs; or the line fork. The newest
 pickup of a thread's waiting messages holds them, an answer takes its thread as a
 pickup does, and a running agent turn that last took a thread holds the messages the
 user writes in it until another turn picks them up. A thread Leaf keeps back while a

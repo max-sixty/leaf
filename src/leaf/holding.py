@@ -41,10 +41,10 @@ that reads the fold does (`activity.agent_holds`); and an agent's tool boundary
 writer's right to act on a thread (`authorize`, `pickable`) ask it too.
 
 A thread's holder, for a reader (`holder`), is the session's main thread, the fork
-that took it, by the name the main thread reaches it by, with whether its turn runs,
-closed or lapsed, or the line fork. Who owes the answer to its waiting messages now
-is that holder while it is the line fork or a fork whose turn runs, and otherwise the
-main thread (`owed_by`). `leaf page state` prints both: each thread's holder, and on
+that took it, by the agent id the main thread reaches it by, with whether its turn
+runs, closed or lapsed, or the line fork. Who owes the answer to its waiting messages
+now is that holder while it is the line fork or a fork whose turn runs, and otherwise
+the main thread (`owed_by`). `leaf page state` prints both: each thread's holder, and on
 each answer the agent owes the holder that owes it now. So a main thread recovering
 what it owes there can leave a running fork's work, and a message a line fork is
 judging, to them.
@@ -127,23 +127,15 @@ MAIN = {"kind": "main"}
 LINE = {"kind": "line"}
 
 
-def fork_name(thread: str) -> str:
-    """The name Leaf gives the fork that takes `thread`, by which the main session
-    reaches it (`SendMessage`)."""
-    return f"leaf-{thread}"
-
-
-def holder(
-    turn: str | None, thread: str | None, stamps: dict[str, dict], running: set[str]
-) -> dict:
+def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict:
     """Who `turn` is, as every report of who holds a thread names it. `turn` is the
-    turn of the claimant's session that holds `thread`; `thread` is None for an
-    input in no thread, which only the main thread has.
+    turn of the claimant's session that holds a thread.
 
     One of the session's agent turns (`stamps`, as `state.agent_turn_stamps` gives
-    them) is `{"kind": "fork", "name", "state"}`: the fork that took the thread, by
-    `fork_name`, and whether its turn is `running` (in `running`,
-    `activity.running_agent_turns`), `closed` or `lapsed`
+    them) is `{"kind": "fork", "agent", "state"}`: the fork that took the thread, by
+    its agent id, the one address that reaches it (`forks.py`), null until its
+    harness has started it (`forks.started`), and whether its turn is `running` (in
+    `running`, `activity.running_agent_turns`), `closed` or `lapsed`
     (`activity.agent_turn_state`). Any other turn, or none, is the session's main
     thread (`MAIN`), which has whatever no agent's turn holds."""
     # TODO(2026-11-14): the shipped instructions no longer keep a worker subagent off
@@ -153,10 +145,9 @@ def holder(
 
     if turn not in stamps:
         return MAIN
-    assert thread is not None
     return {
         "kind": "fork",
-        "name": fork_name(thread),
+        "agent": stamps[turn]["agent"],
         "state": agent_turn_state(turn, stamps, running),
     }
 
@@ -326,9 +317,7 @@ def reading(
             if event["id"] in newest
         ]
         turn = max(pickups)[1] if pickups else last.get(thread, (0, None))[1]
-        threads[thread] = Hold(
-            turn, bool(pickups), holder(turn, thread, stamps, running)
-        )
+        threads[thread] = Hold(turn, bool(pickups), holder(turn, stamps, running))
     return Holding(session, live, stamps, running, found, picked, took, threads)
 
 

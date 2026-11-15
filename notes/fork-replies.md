@@ -148,7 +148,7 @@ them.
 
 ## Forks on real pages
 
-From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev response-times`, whose
+From 1 to 5 November, 58 thread messages on 26 pages (`leaf-dev logs response-times`, whose
 `fork_*` and `delivered` rows read this). Forks ran on 40: they answered 6, with the
 agent's first words a median 10.6 s after sending; handed 27 to the session, a median
 3.2 s after sending; and failed on 7. The session's own first words on those 27 came a
@@ -167,7 +167,7 @@ so the hand-over's nudge woke it in about 2 s, and a failure cost only the answe
 might have given.
 
 From 6 to 9 November, under the fork that only writes the line, 19 thread messages on
-5 pages: 9 got the line, the 7 of them `response-times` times a median 2.4 s after
+5 pages: 9 got the line, the 7 of them `logs response-times` times a median 2.4 s after
 sending (1.9–5.3 s); 1 failed `nothing-to-fork`; 1 got an answer from a session still
 running the module it started with on 4 November; and 8, all on one session, got no
 line. That session's pages follower had run since 4 November from its worktree's
@@ -181,7 +181,7 @@ foreground poll, and the user saw the agent's first words after 64 s. Nothing re
 why the other 6 had no fork. The follower now ends once the session's hooks would run
 another Leaf than its own, and the module starts it again (`hooks.cmd_pages`); the
 page now notes whether admission kept each message back, or a fork turn held it, and
-whether its lane was up (`fork_admission`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev timeline`
+whether its lane was up (`fork_admission`), and each fork Leaf asks for (`fork_asked`), which `leaf-dev logs timeline`
 reads.
 
 A message no fork answered reads Delivered until the session's first model call ends, a
@@ -254,6 +254,16 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
   then shows the user "Prompt dropped by a hook" (2.1.322 on 2026-11-10; the probe
   module is in `.tmp/resume-probe/` of the `send-pickup-latency` worktree, which may
   be gone, run with `uv run python .tmp/resume-probe/run.py sonnet`).
+- A name doesn't stay with its fork. `$.agent.spawn` accepts a name another fork
+  already has, ended or running, and the newest spawn takes it. The main thread's
+  first SendMessage to a name pins that agent, so once the name has moved a send to
+  it is refused ("now resolves to a different agent … Nothing was sent"); where the
+  main thread never pinned it, a send meant for the older fork reaches the newer one.
+  After `claude --resume` a send to the name finds no agent until a fork is spawned
+  under it, and is then refused against the stored pin. A send by agent id always
+  reaches its agent: it resumes an ended one, queues for a running one, and works
+  across generations (2.1.325). So Leaf spawns forks unnamed and names each by its
+  agent id (`src/leaf/forks.py`).
 - The fork can message the main thread itself: its SendMessage to `main` arrived as
   an `<agent-message from="…">` and started a turn on the idle main session 60 ms
   later (2026-11-07). The module's `$.session.send` to its own session id fails as
@@ -293,7 +303,7 @@ them, `clerk` and the new `agent-turns`, start at 44.
 2. **Doing and joining** (a prototype, only with `LEAF_FORK_WORK=on` in Claude
    Code's environment): the taken state (`forks.TAKEN`), the fork spawned on `take`,
    follow-ups passed to it, its answer posted at the join, and the clerk's lines to
-   the main thread. `leaf-dev journey claude-code --fork-work` runs it live: on
+   the main thread. `leaf-dev journey run claude-code --fork-work` runs it live: on
    2026-11-05 the question "What did I ask you to do with this page?" had the fork's
    line 2.1 s after sending and the working fork's answer at 6.9 s, after 4.6 s of
    work, while the session stayed idle; the session's next turn took the message in,

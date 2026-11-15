@@ -40,14 +40,26 @@ fenced to the thread still being kept back, so the messages go from kept back to
 with no moment in which neither has them. The fork's `leaf` commands act in its turn
 (`hooks.agent_command`), and as its run ends the module says so (`ended`), which
 closes the turn and judges each thread by what the turn picked up and wrote. The main
-session hears as a fork takes a thread and as its run ends (`clerk.queue`), since
-Claude Code tells it nothing of a fork a module made, and it can steer or stop the
-fork by the name Leaf gives it. The user chose these lines on 2026-11-11 over the
-fork's own SendMessage to the main thread, which would wake it for every answer
-(`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
+session hears which fork took a thread once the fork's agent id is known: at the take
+for a fork Leaf resumes, and as the module says which agent it spawned for a new one
+(`started`); and it hears as the fork's run ends (`clerk.queue`), since Claude Code
+tells it nothing of a fork a module made. The user chose these lines on 2026-11-11
+over the fork's own SendMessage to the main thread, which would wake it for every
+answer (`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
 session's next tool boundary or prompt, and Leaf wakes an idle session only for what
 a fork's end leaves it owing: a thread given back, whose answer is owed again, and a
 to-do the fork opened, whose line wakes it (`ended`).
+
+These lines, the holder `leaf page state` prints (`holding.holder`) and the advice
+beside a command on a fork's thread all name the fork by its agent id, and the main
+session steers or stops the fork with a SendMessage to that id. A send to the id
+reaches the agent in every run and every generation of the session, resuming an
+ended one. A name doesn't:
+Claude Code gives a name to the newest agent spawned under it, refuses a send to a
+name that has moved from the agent the main session first reached by it, and reaches
+nothing by a name after `claude --resume` (2.1.325, `notes/fork-replies.md`). So the
+module spawns each fork unnamed, leaving the main session no second address that
+could move.
 
 The user chose on 2026-11-10 that one fork works a thread. While a fork's turn runs,
 its thread's further messages are its own, and Leaf keeps none back for another
@@ -81,7 +93,7 @@ times its time (0.94–1.25). On 2026-11-09 low wrote lines as good as xhigh's. 
 recorded thread messages, each replayed from its session's transcript
 (`notes/fork-replies.md`, "How well the fork judges"), a judge blind to the effort
 passed 35 lines at each effort and preferred low's on 19, xhigh's on 16 and neither
-on 5; `leaf-dev eval 'line-fork*'` passed 35 of 35 at each over five repeats.
+on 5; `leaf-dev eval run 'line-fork*'` passed 35 of 35 at each over five repeats.
 Neither effort thought on the recorded messages, so their output and time matched
 there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the eval's short
 conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s where a line
@@ -132,8 +144,8 @@ it resent (`request` in `hooks/claude-code.ts`, which says where a replay cuts t
 conversation: to `sent` while `running` lists a call, else to `row`; its
 `effort` is the fork's), as the clerk's `turn_end_check` notes have it, which is
 what a later replay or audit scores; and a working fork's start and end (`step`).
-`leaf-dev timeline` reads them beside the session's transcript.
-`leaf-dev eval 'line-fork*' --harness claude-code --base` scores a change to the
+`leaf-dev logs timeline` reads them beside the session's transcript.
+`leaf-dev eval run 'line-fork*' --harness claude-code --base` scores a change to the
 line fork's prompt on a short constructed conversation for each kind of message
 (`dev/leaf_dev/fork_eval.py`).
 """
@@ -147,7 +159,6 @@ from typing import Literal, NamedTuple
 
 from .holding import (
     Holding,
-    fork_name,
     holder,
     owed_by,
     reading,
@@ -161,6 +172,7 @@ from .state import (
     STRING,
     Record,
     agent_turn_stamps,
+    agent_turns,
     close_agent_turns,
     described,
     flocked,
@@ -631,14 +643,14 @@ Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over
 </leaf-line-fork>"""
 
 
-def work_prompt(delivery: dict, agent: str) -> str:
+def work_prompt(delivery: dict) -> str:
     """The task of the fork that does a thread's work: what it is for, the delivery
     of the thread Leaf recorded as its turn's (`_take`), and the three ways it ends:
     an answer, an answer that opens a to-do for work bigger than a message, which the
     main thread schedules, or `HAND_BACK` for a message the main thread has to act on
     now (`docs/forks.html`, "To-dos")."""
     return f"""{WORK_OPENING}
-This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, named {agent}, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
+This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
@@ -822,29 +834,29 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
     fenced to the thread still being kept back, open a turn for it
     (`state.open_agent_turn`) and record that turn's pickup of the thread's waiting
     messages, with their receipt, from a delivery frozen for it. Returns
-    `{"outcome": "take", "agent", "turn", "prompt"}`, the fork's name, its turn and
-    its task carrying that delivery, which the module spawns it with; the main
-    session hears which fork has the thread, so it can steer or stop it
-    (`clerk.queue`).
+    `{"outcome": "take", "turn", "prompt"}`, the fork's turn and its task carrying
+    that delivery, which the module spawns it with.
 
     Where a fork's turn gave the thread's last answer and has closed (`_resumable`),
     the outcome adds `resume`, that fork's agent id, which runs the new turn from
     its opening, and its `prompt` is the message that resumes it (`resume_prompt`),
     so one fork works the thread however many messages the user sends it; a resume
     that fails ends the turn (`ended`), which gives the thread to the main thread.
-    A new fork's turn no agent runs until the module has spawned it and says which
-    agent that is (`started`)."""
-    from .clerk import queue
+    The main session hears now which fork it gave the thread to (`_given`). A new
+    fork has no id until the module has spawned it, and its turn no agent runs
+    until the module says which agent that is (`started`), which tells the main
+    session then."""
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
     page_dir = Path(basis["page"])
-    agent = fork_name(basis["thread"])
     posted = _line(session_id, basis, line)
     if "line" not in posted:
         return posted
     try:
         with PageTransaction(page_dir) as page:
-            holding = claim_holding(page.events, page.active_claim, live=True)
+            holding = claim_holding(
+                page.events, page.claim, live=page.active_claim is not None
+            )
             if not _still_kept_back(page, session_id, basis, holding):
                 return {"outcome": "dropped", **posted}
             data = _thread_data(page, basis["inputs"])
@@ -870,44 +882,57 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
             receive_passed(page, taken_by_agent_turns(page_holding(page)))
     except FileNotFoundError:
         return {"outcome": "dropped", **posted}
-    queue(
-        session_id,
-        [
-            f"Leaf gave the user's message in thread {basis['thread']} on {page_dir} "
-            f"to a fork of this conversation named {agent}, which is doing what it "
-            "asks beside you and will answer there; Leaf tells you when it has. Leave "
-            f"that thread to it; to steer or stop it, SendMessage {agent}. An answer "
-            "of your own there takes the thread from it."
-        ],
-        turn=turn,
-    )
+    if resumed is not None:
+        _given(session_id, basis, turn, resumed)
     return {
         "outcome": "take",
         **posted,
-        "agent": agent,
         "turn": turn,
         **(
-            {"prompt": work_prompt(delivery, agent)}
+            {"prompt": work_prompt(delivery)}
             if resumed is None
             else {"prompt": resume_prompt(delivery), "resume": resumed}
         ),
     }
 
 
+def _given(session_id: str, basis: dict, turn: str, agent: str) -> None:
+    """Tell the main session that Leaf gave the thread `basis` names to the fork
+    `agent`, in the turn `turn`, by the agent id it reaches the fork by (the module
+    header), so it leaves the thread to the fork and can steer or stop it
+    (`clerk.queue`). A line it hasn't heard by the turn's end leaves the queue
+    (`ended`)."""
+    from .clerk import queue
+
+    queue(
+        session_id,
+        [
+            f"Leaf gave the user's message in thread {basis['thread']} on "
+            f"{basis['page']} to a fork of this conversation, agent id {agent}, which "
+            "is doing what it asks beside you and will answer there; Leaf tells you "
+            "when it has. Leave that thread to it; to steer or stop it, SendMessage "
+            f"{agent}. An answer of your own there takes the thread from it."
+        ],
+        turn=turn,
+    )
+
+
 def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
     Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
     commands act in that turn and its tool boundaries carry the thread's further
-    messages: the fork the module spawned or the one it resumed. A turn that ended first, as its session's may have, is
-    left closed: a fork Leaf never named then acts as any subagent of the session
-    does, and one it named before, as a resumed fork is, has its commands refused
-    (`state.acting_agent_turn`)."""
+    messages, and tell the main session which fork has the thread (`_given`): the
+    fork the module spawned, whose id Leaf learns only now. A turn that ended first,
+    as its session's may have, is left closed, and the main session hears of it only
+    by that end (`ended`): a fork Leaf never named then acts as any subagent of the
+    session does (`state.acting_agent_turn`)."""
     named = name_agent_turn(session_id, turn, agent)
+    if named:
+        _given(session_id, basis, turn, agent)
     outcome = {
         "step": "start",
         "outcome": "start" if named else "dropped",
-        "agent": fork_name(basis["thread"]),
-        "agentId": agent,
+        "agent": agent,
         "turn": turn,
     }
     _record(session_id, basis, outcome)
@@ -957,6 +982,11 @@ def ended(
     if not closed:
         return []
     unqueue(session_id, closed)
+    # The agent that ran the closed turns, all of one agent's, by the id the main
+    # session reaches it by; None for a fork whose harness never started it.
+    entries = agent_turns(session_id)
+    [ran] = {entries[closing]["agent"] for closing in closed}
+    fork = "Your fork" if ran is None else f"Your fork {ran}"
     text = (answer or "").strip()
     why = (
         text.removeprefix(HAND_BACK).strip()
@@ -999,7 +1029,6 @@ def ended(
                     ]
                     if not inputs:
                         continue
-                    name = fork_name(thread)
                     subject = {"kind": "thread", "id": thread}
                     owing = [t for t in owed if t["subject"] == subject]
                     todos = [t for t in owing if t["id"] in own]
@@ -1019,21 +1048,20 @@ def ended(
                         outcome["why"] = _taken_by(
                             {keepers[i] for i in inputs if keepers[i] is not None}
                             | {a.get("turn") for a in answered if a["id"] not in own},
-                            thread,
                             holding,
                         )
                     elif ending == "hand_back":
                         outcome["why"] = why
                         told.append(
-                            f"Your fork {name} gave thread {thread} on {page_dir} "
-                            f"back to you, which now owes the user its answer: {why}"
+                            f"{fork} gave thread {thread} on {page_dir} back to "
+                            f"you, which now owes the user its answer: {why}"
                         )
                     elif ending != "taken_over":
                         if todos:
                             outcome["todos"] = [t["id"] for t in todos]
                         (wakes if todos else told).append(
                             _answered(
-                                name,
+                                fork,
                                 f"thread {thread} on {page_dir}",
                                 todos,
                                 owing=bool(owing),
@@ -1043,7 +1071,7 @@ def ended(
                     _record(
                         session_id,
                         {"page": str(page_dir), "thread": thread, "inputs": inputs},
-                        {"step": "end", "agent": name, **outcome, **elapsed},
+                        {"step": "end", "agent": ran, **outcome, **elapsed},
                     )
                     here.append({"page": str(page_dir), "thread": thread, **outcome})
                 queue(session_id, told)
@@ -1057,30 +1085,29 @@ def ended(
     return outcomes
 
 
-def _taken_by(turns: set, thread: str, holding: Holding) -> str:
-    """Why a fork's thread ended as `taken_over`: which turns took `thread`, the main
-    thread or another run of a fork (`holding.holder`), by the page's `holding`, as
-    the page's diagnostics note it."""
+def _taken_by(turns: set, holding: Holding) -> str:
+    """Why a fork's thread ended as `taken_over`: which turns took it, the main
+    thread or another run of a fork, by its agent id (`holding.holder`), by the
+    page's `holding`, as the page's diagnostics note it."""
     takers = sorted(
         "the main thread"
-        if (named := holder(turn, thread, holding.stamps, holding.running))["kind"]
-        == "main"
-        else f"{named['name']}'s turn {turn}"
+        if (named := holder(turn, holding.stamps, holding.running))["kind"] == "main"
+        else f"fork {named['agent'] or 'not yet started'}'s turn {turn}"
         for turn in turns
     )
     return f"{' and '.join(dict.fromkeys(takers))} took the thread"
 
 
 def _answered(
-    name: str, where: str, todos: list[dict], *, owing: bool, waiting: bool
+    fork: str, where: str, todos: list[dict], *, owing: bool, waiting: bool
 ) -> str:
-    """The line telling the main session that its fork `name` answered the user's
-    message in the thread `where` names, and opened `todos` there, which the session
-    now owes; and that the thread owes nothing, unless the user has written there
-    since (`waiting`) or a to-do on it is open (`owing`)."""
+    """The line telling the main session that its fork, as `fork` names it, answered
+    the user's message in the thread `where` names, and opened `todos` there, which
+    the session now owes; and that the thread owes nothing, unless the user has
+    written there since (`waiting`) or a to-do on it is open (`owing`)."""
     listed = " and ".join(f"the to-do “{t['title']}” ({t['id']})" for t in todos)
     return (
-        f"Your fork {name} answered the user's message in {where}"
+        f"{fork} answered the user's message in {where}"
         + (
             f" and opened {listed}, which you now owe: schedule "
             f"{'it' if len(todos) == 1 else 'each'} with your other "

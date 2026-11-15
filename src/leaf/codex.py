@@ -366,12 +366,15 @@ def app_server_request(
     because that choice is what separates a stream it is following from a snapshot
     request whose answer outranks everything sent before it.
 
-    `stopped` lets a client being shut down stop waiting on a peer that is still
-    talking.
+    A request waits for its answer however long it takes, as a full-history resume
+    of a long task can take tens of seconds. Only the connection's close ends the
+    wait: App Server's exit, or the websocket's keepalive once App Server stops
+    answering its pings. `stopped` lets a client being shut down stop waiting on a
+    peer that is still talking.
     """
     socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
     while stopped is None or not stopped():
-        message = json.loads(socket.recv(timeout=START_TIMEOUT))
+        message = json.loads(socket.recv())
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
                 from .registry.schema import json_value

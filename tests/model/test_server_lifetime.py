@@ -473,9 +473,9 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     assert service_model.page_claim(page_dir) is None
 
     process.send_signal(signal.SIGINT)
-    _, error = process.communicate(timeout=STATED_TIMEOUT)
+    output, error = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, error
-    assert json.loads(error)["error"] == "interrupted"
+    assert json.loads(output)["error"] == "interrupted"
 
 
 # The refusal Codex's macOS sandbox makes of a listing of every process, with the

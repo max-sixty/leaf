@@ -218,4 +218,16 @@ test("a heading titles what it opens as the page gains and loses headings", () =
   second.textContent = "Appendix";
   main.append(second);
   assert.equal(titledElement(title), title);
+  // A heading a widget's data draws loses its section to a heading the page puts
+  // before it outside the data.
+  document.body.innerHTML = `<main><section id="stages">
+    <div data-lf-projection="stages" data-lf-datum="k1"><p>Data words.</p>
+      <h3 id="drawn">Drawn</h3></div><p>Stage words.</p></section></main>`;
+  const drawn = /** @type {Element} */ (document.getElementById("drawn"));
+  const section = /** @type {Element} */ (document.getElementById("stages"));
+  assert.ok(titledElement(drawn).contains(section));
+  const stages = document.createElement("h2");
+  stages.textContent = "Stages";
+  section.prepend(stages);
+  assert.equal(titledElement(drawn), drawn);
 });

@@ -134,9 +134,22 @@ function readLeadingTitle(container) {
 // a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
 // which stops at a question inside a section and lets a sub-heading after a question
 // title the section around both. Neither took a question with no section around it.
+//
+// The answer turns on headings and words anywhere around the heading, so it is kept
+// with its document's whole reading: the record `documentOutline` returns, which the
+// reading replaces after any change to the document, a widget's data included. Kept
+// with the heading's own part of the page, it outlived a heading put before that part.
+/** @type {WeakMap<object, WeakMap<Element, Element>>} */
+const titles = new WeakMap();
 /** @param {Element} heading @returns {Element} */
-export const titledElement = (heading) =>
-  keptAnswer(heading, "titled element", () => readTitledElement(heading));
+export function titledElement(heading) {
+  const reading = documentOutline(authoredScope(heading));
+  let kept = titles.get(reading);
+  if (!kept) titles.set(reading, (kept = new WeakMap()));
+  let titled = kept.get(heading);
+  if (!titled) kept.set(heading, (titled = readTitledElement(heading)));
+  return titled;
+}
 /** @param {Element} heading @returns {Element} */
 function readTitledElement(heading) {
   let titled = heading;
@@ -191,13 +204,8 @@ const rank = (heading) => Number(heading.localName.slice(1));
 // aside, and is rebuilt only from the pieces of the page a change lands in: each
 // heading is credited to every element holding it, once for each outline, so the
 // answers cost the headings the page holds rather than its elements. An element no
-// document reads holds none.
-//
-// Replaced: asking each element's tree for its headings, kept while the page's
-// reading stood. That walked every element under it, and any change to the page
-// forgot it, so a page title's climb walked the whole page again after each change:
-// 126 ms of the load of `leaf-dev bench documents` at 256, as each of its 34 text
-// documents drew.
+// document reads holds none. Rejected: asking each element's tree for its headings,
+// which walks every element under it, again after any change to the page.
 /** @type {WeakMap<readonly Element[], Map<Element, {first: Element, below: number}>>} */
 const holders = new WeakMap();
 const NO_HEADINGS = Object.freeze({ first: null, below: 7 });

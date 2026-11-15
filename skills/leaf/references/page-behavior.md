@@ -50,8 +50,8 @@ and builds plain elements that page CSS styles. Leaf asks four things of it:
   shorten the page's under `@media (prefers-reduced-motion: reduce)`.
 
 Leaf writes attributes of its own on the page's elements, such as on each element
-holding commented words, so a script that reads, copies or observes attributes meets
-them; page CSS and scripts don't depend on them.
+holding commented words. A script that reads, copies or observes attributes meets them,
+so don't make page CSS or scripts depend on them.
 
 A page script may define custom elements with shadow DOM of their own. Comments can't
 quote the words only such a shadow root shows, and Leaf reads the element's own children

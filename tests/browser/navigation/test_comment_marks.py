@@ -463,7 +463,8 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
     covered wear the page's own colours again: a link's blue, prose's ink, and a text
     document's syntax colour, which is a highlight under the mark's. While the marks
     show, their ink is over the syntax colour however late the document colours the
-    words, and showing them again brings the ink back."""
+    words, and showing them again brings the ink back. Standing in a thread while they
+    are hidden washes its words and leaves them their own colour."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -519,10 +520,31 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
                 f"with the annotations hidden, the {scheme} {name} wears {words}, "
                 f"where its own colour is {owed.get(name, own)}: {hidden}"
             )
+        # Standing in a thread with the annotations hidden washes its words, and they
+        # keep their own colour under the wash rather than take the mark's ink. Read
+        # against both, since a translucent wash shifts the drawn cores of thin strokes.
+        page.keyboard.press("t")
+        wait_current_location(page, PASSAGES["mark"][1])
+        page.mouse.move(0, 0)
+        ground, words, own = _drawn(page, PASSAGES["mark"])
+        ink = shown["link"][1]
+        assert ground != hidden["link"][0], (
+            f"standing in the {scheme} link's thread drew no wash under its words"
+        )
+        assert _apart(words, own) < _apart(words, ink), (
+            f"standing in the {scheme} link's thread with the annotations hidden, its "
+            f"words wear {words}, nearer the mark's ink {ink} than their own {own}"
+        )
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+        wait_current_location(page, "")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
         expect(page.locator("html")).not_to_have_attribute(
             "data-lf-annotations", "hidden"
         )
+        page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
         again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         assert all(
             _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown

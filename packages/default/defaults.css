@@ -1,10 +1,12 @@
 /* Leaf's default package: broadly useful content rules concatenated after the kernel's
  * base.css by `page init`. These widgets reach a page through the same package route as
  * selected, user, and project contributions. Tokens and the suggestion family are the
- * kernel's, and elements and idioms the page's theme's (packages/reading by
- * default), which a widget's own face never leans on; the default package's widgets
- * wear the rules imported here, each widget's from its own file. The import order is the
- * cascade order. */
+ * kernel's. An idiom is Leaf's where a widget or Leaf's instructions depend on it.
+ * Those idioms are declared and drawn here (styles/idioms.css), so no widget's face
+ * depends on a theme. Every other idiom, and the look of the page's elements, is the
+ * page's theme's (packages/reading by default). The default package's widgets wear the rules
+ * imported here, each widget's from its own file. The import order is the cascade
+ * order. */
 
 /* Every attribute the registry marks x-says is written twice in these sheets. The runtime
  * renders the value as real text (renderSaid, in a span carrying data-lf-said),
@@ -40,3 +42,4 @@
 @import "./styles/text-document.css";
 @import "./styles/draft.css";
 @import "./styles/apparatus.css";
+@import "./styles/idioms.css";

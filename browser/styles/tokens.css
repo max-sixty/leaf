@@ -374,7 +374,7 @@
   --lf-t-1: 1.9375rem;
   --lf-code-size: 0.84375rem;
   --lf-code-line: 1.25rem;
-  /* A drawing's words (`svg.drawing`, the reading theme). These two are fixed, in pixels,
+  /* A drawing's words (`svg.drawing`, the default package's idiom). These two are fixed, in pixels,
      which an inline SVG reads as its own units, because the shapes around the words are
      numbers in those units. In rem, or at a rung a density restates, a reader's larger
      default size or a working page would change the words and leave the boxes that hold

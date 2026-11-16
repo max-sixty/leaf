@@ -574,7 +574,7 @@ export function shrunkLabelReading(drawn = drawnPage()) {
 }
 
 // Labels a drawing shrank past reading. An inline <svg> states its size in its own units
-// and the theme fits it to its box (`svg.drawing` takes the figure's width), so what the
+// and Leaf fits it to its box (the `svg.drawing` idiom takes the figure's width), so what the
 // author wrote as an 11px label is drawn at 11px times whatever the box made of the
 // viewBox. Nothing in the source says what that is: the page is correct, the labels are
 // all there, and every other reading passes it — an eval's dashboard went out with its

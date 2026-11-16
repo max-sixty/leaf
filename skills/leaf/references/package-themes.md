@@ -10,13 +10,15 @@ Leaf's own defaults; rules meant to win over widget defaults and Layouts belong 
 ## Personal themes
 
 Leaf bundles one theme, `reading`: the reading look, which styles the body's type and
-colour and the idioms such as `.callout`, and turns on the reading face markup wears
+colour and its own idioms, such as `.callout`, and turns on the reading face markup wears
 in Leaf's own surfaces (headings, prose, lists, tables, code, quotes, figures,
 disclosures, definitions, rules and pictures, with a wide table or code block
 scrolling inside itself and a `language-…` code block coloured by its tokens) by
 setting `--lf-reading-face: 1` on the root. The face's rules rank below every other
 rule of `lf-base`, so a theme's or package's rule for one of those elements outranks
-them whatever its weight. A new page takes it unless the user names another default.
+them whatever its weight. Leaf draws the idioms its widgets and instructions depend
+on itself, wherever markup wears the face: `.tag`, `.lede`, `.facts` and
+`svg.drawing`. A new page takes `reading` unless the user names another default.
 A page that takes none (`--no-theme`) starts from the browser's defaults and Leaf's
 tokens: nothing of the look reaches it, its tables and code blocks included, while
 Leaf's widgets, threads and panel keep their own faces, in the browser's own canvas
@@ -39,10 +41,11 @@ default = "editorial"
 
 A personal theme builds on the reading look: `reading` composes first and the theme
 after it, so a theme states only what it changes, such as its three colours, a face
-and a corner, and its pages keep the look's idioms, such as `.callout` and `.tag`. A
+and a corner, and its pages keep the look's idioms, such as `.callout`. A
 theme's rule wins a tie with the reading look's. A look that wants none of `reading`
 is a content package on a page that takes no theme: `leaf page init <page> --no-theme
---package dense`.
+--package dense`. Where it sets `--lf-reading-face: 1` on the root, its pages keep
+Leaf's own idioms and the face, and lose only the reading look's.
 
 `leaf theme list` returns the available choices, default and author instructions.
 The author's selection follows the user's request first, then the task and those

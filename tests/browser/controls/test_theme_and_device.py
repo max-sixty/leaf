@@ -658,3 +658,66 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
         themed.evaluate("getComputedStyle(document.querySelector('h1')).fontSize")
         == "80px"
     ), "a page's own layer lost to the theme"
+
+
+def test_leaf_draws_the_idioms_it_depends_on_wherever_markup_wears_the_face(
+    browser, serve
+):
+    """Leaf's widgets and instructions depend on some class idioms: the tag, the
+    lede, the facts and the drawing. Leaf draws them itself
+    (packages/default/styles/idioms.css) wherever markup wears the reading face: on a
+    page that takes no theme, in a box that turns the face on, where a drawing's boxes
+    were the browser's black while the reading theme held its rules. Outside such a
+    box that page's own `.tag` and `.lede` keep their author's look, since each is a
+    class a page could coin, and a tag in an option is a chip anywhere. An idiom
+    nothing of Leaf's depends on, such as the callout, is the reading look's, and
+    comes only with it."""
+    idioms = (
+        '<p class="lede" id="{0}-lede">What this page decides.</p>'
+        '<p><span class="tag" id="{0}-tag">experimental</span></p>'
+        '<dl class="facts" id="{0}-facts"><dt>Owner</dt><dd>payments</dd></dl>'
+        '<svg class="drawing" viewBox="0 0 80 40" role="img" aria-label="A box">'
+        '<rect class="box" id="{0}-box" x="4" y="4" width="72" height="32" /></svg>'
+        '<aside class="callout" id="{0}-callout">Rollback is one flag flip.</aside>'
+    )
+    body = (
+        "<h1>Retention</h1>"
+        + idioms.format("own")
+        + '<section id="faced" style="--lf-reading-face: 1">'
+        + idioms.format("faced")
+        + "</section>"
+        '<lf-options id="window" choose><lf-option id="short">'
+        '<small class="tag" id="option-tag">in budget</small> <strong>30 days</strong>'
+        "</lf-option></lf-options>"
+    )
+    looks = """() => Object.fromEntries(['own', 'faced'].map((place) => {
+        const style = (name) => getComputedStyle(document.getElementById(`${place}-${name}`));
+        return [place, {
+            tag: style('tag').display,
+            lede: style('lede').fontSize,
+            facts: style('facts').display,
+            box: style('box').fill,
+            callout: style('callout').backgroundColor,
+        }];
+    }))"""
+    bare = open_page(browser, serve(leaf_page("Retention", body), theme=False))
+    plain, faced = (bare.evaluate(looks)[place] for place in ("own", "faced"))
+    body_size = bare.evaluate("getComputedStyle(document.body).fontSize")
+    assert plain == {
+        "tag": "inline",
+        "lede": body_size,
+        "facts": "block",
+        "box": "rgb(0, 0, 0)",
+        "callout": "rgba(0, 0, 0, 0)",
+    }
+    assert (faced["tag"], faced["facts"]) == ("inline-block", "grid")
+    assert faced["lede"] != body_size and faced["box"] != "rgb(0, 0, 0)"
+    assert faced["callout"] == "rgba(0, 0, 0, 0)", "the callout is the reading look's"
+    assert (
+        bare.evaluate("getComputedStyle(document.getElementById('option-tag')).display")
+        == "inline-block"
+    )
+    themed = open_page(browser, serve(leaf_page("Retention", body)))
+    for place, look in themed.evaluate(looks).items():
+        assert (look["tag"], look["facts"]) == ("inline-block", "grid"), place
+        assert look["callout"] != "rgba(0, 0, 0, 0)", place

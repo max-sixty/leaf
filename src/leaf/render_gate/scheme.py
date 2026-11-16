@@ -1,4 +1,4 @@
-"""Lifecycle and trusted inputs for one browser color scheme."""
+"""Lifecycle and trusted inputs for the page the render gate reads."""
 
 import re
 import time
@@ -29,7 +29,7 @@ from leaf.render_checks import (
 )
 from leaf.server import page_origin
 
-from .readings import DevtoolsIssues, _scheme_findings, _SchemeContext, thread_findings
+from .readings import DevtoolsIssues, _page_findings, _PageContext, thread_findings
 
 # What a frame of another live Leaf page shows during a check (`stand_in_other_leaves`).
 OTHER_LEAF = "<!doctype html><p>Another Leaf page, checked on its own.</p>"
@@ -215,10 +215,9 @@ def collect_page_errors(page, errors: list[Finding]) -> None:
     collect_page_exceptions(page, errors)
 
 
-def _render_scheme(
+def _render_page(
     browser,
     url,
-    scheme,
     viewport,
     served_timeout_ms,
     opened_pages,
@@ -227,8 +226,8 @@ def _render_scheme(
     declaration_sources=None,
     page_code=None,
 ):
-    """Read and report the browser gate for one color scheme and viewport: the
-    findings that refuse the version, the ResizeObserver loop notices its retry
+    """Read and report the browser gate on one page at `viewport` in the light scheme:
+    the findings that refuse the version, the ResizeObserver loop notices its retry
     policy judges (`version.render_version`), and whether every reading completed.
 
     `then`, when given, is handed the settled page and its registry after every reading
@@ -240,7 +239,7 @@ def _render_scheme(
 
     from .page_code import PageCode
 
-    page = browser.new_page(viewport=viewport, color_scheme=scheme)
+    page = browser.new_page(viewport=viewport, color_scheme="light")
     stand_in_other_leaves(page)
     opened_pages.append(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
@@ -260,11 +259,7 @@ def _render_scheme(
 
     def ended(found, notices=(), complete=False):
         close_render_page(page)
-        return (
-            [finding.but(scheme=scheme) for finding in found],
-            [notice.but(scheme=scheme) for notice in notices],
-            complete,
-        )
+        return list(found), list(notices), complete
 
     def explained(code, **values):
         # The named wait says what never arrived; the console diagnostics collected
@@ -367,8 +362,8 @@ def _render_scheme(
     # nobody is shown. The page's readiness against the reading taken above is the
     # answer to that, and the frame the log lands in is the first frame of whatever
     # the replay set moving, a replay past the presentation boundary moving rather than
-    # teleporting, which `pageSettled` then waits out. Both waits are taken in both
-    # schemes, because every reading below has boxes or words in it. The windows open
+    # teleporting, which `pageSettled` then waits out. Every reading below has boxes
+    # or words in it. The windows open
     # under load alone, which is how one page passed at a desk and reported words
     # drawn over words under a full suite. The readings take in every document the
     # page can show, so work it holds until the reader nears it starts first.
@@ -400,9 +395,8 @@ def _render_scheme(
             moving = evaluate_probe(page, "moving")
             unsettled = [Finding("never-settled", values={"moving": moving})]
     replayed = _projection_was_applied(failed_stage)
-    context = _SchemeContext(
+    context = _PageContext(
         page=page,
-        light=scheme == "light",
         errors=errors,
         registry=registry,
         declarations=declarations,
@@ -413,7 +407,7 @@ def _render_scheme(
         unsettled=unsettled,
         devtools=devtools,
     )
-    found = _scheme_findings(context)
+    found = _page_findings(context)
     if then is not None:
         then(page, registry)
     # Last, because opening a thread changes what the page shows `then`.

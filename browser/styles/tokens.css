@@ -73,9 +73,8 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
-     under them. Ordinary content never sees either band; the document already keeps
-     clear of both (html[data-lf-live], base.css). */
+     the head room and any sticky header under it. Ordinary content never sees either
+     band; the document already keeps clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's

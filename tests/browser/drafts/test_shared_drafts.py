@@ -18,6 +18,7 @@ from render_harness import (
     expect_panel_says,
     expect_preview_words,
     heard_draft,
+    heard_draft_settled,
     held_stale,
     holding,
     open_page,
@@ -379,7 +380,9 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         second_say.get_by_role("button", name="Send", exact=True).click()
         round_trip(second)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
-        until_draft_settled(first, SEAT_DRAFT)
+        # Its state read held, the first tab hears the settlement from the drafts read
+        # the same look starts, so the refusal waits for that read.
+        heard_draft_settled(first, SEAT_DRAFT)
         holding(first, held_state, 1, "the accepted attempt's state read")
         if newer is not None:
             write(first_say.locator("leaf-text"), newer)

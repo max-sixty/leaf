@@ -1415,6 +1415,16 @@ def heard_draft(page, ctx: str, text: str | None) -> None:
     )
 
 
+def heard_draft_settled(page, ctx: str) -> None:
+    """Wait until this tab holds no unsettled words for the draft at `ctx`, including
+    words it is sending, which `heard_draft` can't see: until it has heard another
+    tab's send there settle the generation (`draftHasContent`)."""
+    has = page.evaluate_handle(
+        "async () => (await window.__lfCheckApi()).draftHasContent"
+    )
+    page.wait_for_function("([has, ctx]) => !has(ctx)", arg=[has, ctx])
+
+
 def write_draft_elsewhere(page, ctx: str, text: str) -> str:
     """Write a new generation of the draft at `ctx` to the page's server, as another
     tab or device would, over the one the server holds; return its attempt."""

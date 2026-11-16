@@ -57,6 +57,7 @@ from render_harness import (
     stamp_page,
     told,
     undo,
+    wait_for_revision,
     watched,
     write,
 )
@@ -3199,13 +3200,18 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
     expect(peek).to_have_text("Reconnected")
 
 
+# An error's own Dismiss, beside the copy that names the same error.
+DISMISS = re.compile(r"^Dismiss: ")
+
+
 def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     browser, serve
 ):
     """An error the page raises stands in the field's status place while the field can
     say it: about its editor, or about nothing while the editor is empty. The user's
     first edit passes every error the field says to Errors in the leaf's menu, where a
-    dot on the leaf marks them until the list is opened and each can be dismissed. Over
+    dot on the leaf and on the menu's Errors marks them until the list is opened and
+    each can be dismissed. Over
     words its editor holds, an error covers them until the first key there: an edit
     or a caret move lands in those words, and Enter only uncovers them, so nothing
     sends them unseen.
@@ -3219,7 +3225,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-field .lf-compose-error")
-    dot = page.locator(".lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])
     page.evaluate(raise_error, ["That reaction target is no longer available", False])
@@ -3260,20 +3266,22 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(cover).to_be_hidden()
     expect(field(page)).to_have_attribute("data-lf-says", "destination")
 
+    # The menu's Errors wears the leaf's dot, so the row the dot leads to is plain.
     errors = panel_menu(page).locator('[data-lf-row="errors"]')
     expect(errors).to_contain_text("5")
+    expect(errors.locator(".lf-fp-error-dot")).to_be_visible()
     errors.click()
     listed = page.locator(panel_view("errors")).locator(".lf-fp-error")
     expect(listed).to_have_count(5)
     expect(listed.first).to_contain_text("Draw on or beside something")
     expect(dot).to_be_hidden()
-    listed.first.get_by_role("button").click()
+    listed.first.get_by_role("button", name=DISMISS).click()
     expect(listed).to_have_count(4)
-    expect(listed.first.get_by_role("button")).to_be_focused()
+    expect(listed.first.get_by_role("button", name=DISMISS)).to_be_focused()
     # News waits until the list is opened again, leaving the error being read and
     # its focused Dismiss in place. Only errors actually shown lose their dot.
     settled(page)
-    reading = listed.first.get_by_role("button").element_handle()
+    reading = listed.first.get_by_role("button", name=DISMISS).element_handle()
     before = reading.bounding_box()
     one_frame(page)
     page.evaluate(raise_error, ["Another image could not be attached", False])
@@ -3292,7 +3300,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     # A condition that ends clears its words immediately but keeps their space,
     # so the next error's Dismiss does not move under the reader.
     settled(page)
-    reading = listed.nth(1).get_by_role("button").element_handle()
+    reading = listed.nth(1).get_by_role("button", name=DISMISS).element_handle()
     reading.focus()
     before = reading.bounding_box()
     page.evaluate("() => window.latestError.clear()")
@@ -3300,12 +3308,14 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(listed.first).to_be_hidden()
     assert reading.bounding_box() == before
     assert reading.evaluate("node => node === document.activeElement")
-    # Clearing the focused error also hands focus to the next live Dismiss.
+    # Clearing the focused error also hands focus to the next live Dismiss, from its
+    # copy press too, whose button stands in the copy control's own tree.
+    listed.nth(1).get_by_role("button", name=re.compile(r"^Copy with page")).focus()
     page.evaluate("() => window.fieldError.clear()")
     expect(listed.nth(1)).to_be_hidden()
-    expect(listed.nth(2).get_by_role("button")).to_be_focused()
-    listed.nth(2).get_by_role("button").click()
-    expect(listed.nth(2).get_by_role("button")).to_be_focused()
+    expect(listed.nth(2).get_by_role("button", name=DISMISS)).to_be_focused()
+    listed.nth(2).get_by_role("button", name=DISMISS).click()
+    expect(listed.nth(2).get_by_role("button", name=DISMISS)).to_be_focused()
     # Escape steps back to the menu, and from it puts the view away.
     page.keyboard.press("Escape")
     panel_settled(page, view="menu")
@@ -3319,6 +3329,42 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(panel).to_have_attribute("data-lf-rest", "mark")
     page.evaluate(raise_error, ["That selected passage is unavailable", False])
     expect(dot).to_be_visible()
+
+
+def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, serve):
+    """Each error in the menu's Errors list copies itself with what a person or an
+    agent needs to look into it: its words, when, on which revision and from which
+    code it was raised, however the page has moved on since, and which Leaf runs the
+    page, but never the page's link, which grants access."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, live_url(url))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          window.raisedFrom = () => api.raiseError('That writing place is unavailable');
+          window.raisedFrom();
+        }"""
+    )
+    field(page).click()
+    page.keyboard.type("x")
+    stamp_page(
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "2"
+    )
+    wait_for_revision(page, 2)
+    panel_menu(page).locator('[data-lf-row="errors"]').click()
+    listed = page.locator(panel_view("errors")).locator(".lf-fp-error")
+    listed.get_by_role(
+        "button", name=re.compile(r"^Copy with page details: That writing place")
+    ).click()
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Error copied"))
+    raised, *details = page.evaluate("navigator.clipboard.readText()").split("\n\n")
+    assert raised.startswith("Leaf error: That writing place is unavailable\nraised: ")
+    assert "\nrevision: 1\n" in raised
+    assert "raisedFrom" in raised
+    layer = next(block for block in details if block.startswith("Leaf layer\n"))
+    assert "\nrevision: 2\n" in layer
+    assert not any(re.search(r"[?&]t=", block) for block in [raised, *details])
 
 
 def test_a_walk_says_its_position_in_the_panel(browser, serve):
@@ -3460,7 +3506,7 @@ def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
         "async () => (await window.__lfWidgetApi()).raiseError('Link not copied')"
     )
     expect(field(page)).to_have_attribute("data-lf-says", "error")
-    dot = page.locator(".lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
     expect(dot).to_be_hidden()
     page.locator(".lf-fp-leaf").click()
     expect(dot).to_be_visible()

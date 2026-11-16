@@ -40,8 +40,7 @@ from leaf_dev import browser as dev_browser
 
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     """A draft taller than the field shows no scrollbar, whose overlay flashed with each
-    line; its words fade at whichever edge they run past, read from the field's scroll
-    rather than a scroll timeline, which Firefox lacks."""
+    line; its words fade at whichever edge they run past."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     for line in range(30):

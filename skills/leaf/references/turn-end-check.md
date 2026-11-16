@@ -17,8 +17,9 @@ list is a complete answer.
 
 ## Asks waiting on the user
 
-Leaf's guidance for asking, the agent's own, comes after this check: what goes On
-Me (`conversation-loop.md`, "The On lists") and how a question reads in a thread.
+Leaf's guidance for asking and for threads, the agent's own, comes after this
+check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
+reads in a thread, and how the agent keeps a thread current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
@@ -69,6 +70,11 @@ passed on. Name:
   background job or a subagent, that no page shows as owed or under way. Leave out
   servers, watchers and wait loops that only serve the agent's own checks. The
   agent decides whether it belongs on its list.
+- `overtaken`: an open thread that Leaf's guidance for threads below has the agent
+  bring current: one whose latest message, such as a question or the state of some
+  work, later work or the conversation has overtaken, or one where the agent
+  posted a correction as a new reply to its own unanswered one. Say in the summary
+  how that guidance has the agent bring it current.
 
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
 rereading the conversation, as `quote` the words it rests on, the agent's or the

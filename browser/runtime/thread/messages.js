@@ -224,7 +224,7 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
-const PREVIEWED_LINE = 120;
+export const PREVIEWED_LINE = 120;
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,

@@ -519,6 +519,8 @@ async function boot() {
       app.threadDestinations.openThreadSubject(id, options),
     showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
+    // Resume writing is built once the thread destinations it reveals in stand.
+    resumeDraft: (context) => writingResume.resumeDraft(context),
   });
   // The page's general comment box is the floating panel's field.
   const generalComment = floatingPanel.pageComment;
@@ -597,7 +599,7 @@ async function boot() {
     watchHeldDrawings: responseSurface.watchHeldDrawings,
     draftKey: responseSurface.draftKey,
     openAnchoredDrawing: (anchor, drawing) =>
-      responseSurface.openComposer(anchor, "", { carry: true, drawing }),
+      responseSurface.openComposer(anchor, "", { drawing }),
     replaceDrawing,
     setDesignMode: designMode.setActive,
     closeTargetPicker: targets.closeTargetPicker,
@@ -674,7 +676,7 @@ async function boot() {
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
-      writingResume,
+      writingResume.command,
       rewriteRestore,
       passageSelection.command,
       navigation.alignTop,

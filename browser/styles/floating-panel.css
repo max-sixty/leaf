@@ -220,21 +220,31 @@
     rotate: 18deg;
     scale: 0.92;
   }
-  /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
+  /* An error waiting unseen in the leaf's menu (floating-panel.js, `errorsWaiting`):
+     one dot, on the leaf's corner and at the corner of the menu's Errors, so the row
+     the dotted leaf opens to is the one it marks. */
   .lf-fp-error-dot {
-    position: absolute;
-    top: 3px;
-    inset-inline-end: 3px;
     display: none;
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--lf-danger);
-    box-shadow: 0 0 0 2px var(--lf-fp-surface);
     pointer-events: none;
   }
   .lf-fp-error-dot[data-lf-shown] {
-    display: block;
+    display: inline-block;
+  }
+  .lf-fp-leaf > .lf-fp-error-dot {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 3px;
+    box-shadow: 0 0 0 2px var(--lf-fp-surface);
+  }
+  /* Set at the text's top, so the whole dot stands inside the label's clipped line and
+     leaves the line's height, and the word beside it, where they stand without it. */
+  .lf-fp-label > .lf-fp-error-dot {
+    vertical-align: text-top;
+    margin-inline-start: 2px;
   }
   .lf-fp-field {
     position: relative;
@@ -897,7 +907,8 @@
       transition: opacity var(--lf-motion-disclosure);
     }
   }
-  /* What waits on the user, on the folded leaf: a count, and a dot for news. */
+  /* What waits on the user, on the folded leaf: a count, and a dot for news, grey for
+     a put-away draft where nothing has news (controls.css). */
   .lf-fp-badge,
   .lf-fp-news-dot {
     position: absolute;
@@ -1549,6 +1560,12 @@
   .lf-fp-dismiss {
     flex: none;
     font: var(--lf-font-small);
+  }
+  /* A symbol has no baseline of its own, so it stands at the row's top, where the
+     dismissal's box does. */
+  .lf-fp-error-copy {
+    flex: none;
+    align-self: flex-start;
   }
   /* A word space stands before the note, so a listener hears the name and the note as
      two words; the margin adds the rest of the gap. */

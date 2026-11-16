@@ -2255,7 +2255,7 @@ def expect_error_waits_in_menu(page, message):
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
     panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)

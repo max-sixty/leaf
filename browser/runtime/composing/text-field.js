@@ -467,8 +467,9 @@ class LeafText extends HTMLElement {
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
-  // editor's read/write phase. A scroll timeline would say it in CSS alone, but Firefox
-  // lacks scroll timelines.
+  // editor's read/write phase. A scroll timeline could fade the edges in CSS, but this
+  // reading runs on each scroll anyway for `corner-taken`, so the timeline would add two
+  // registered properties and their keyframes and save no work.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {

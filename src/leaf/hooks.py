@@ -32,10 +32,8 @@ on, so they always run. Claude Code's PreToolUse runs before each `leaf`
 command, and in such a session opens the turn the skipped prompt hook would have,
 so a claim that command makes joins it; of its runs for one tool call, one per
 registration the command matches, only the first does the turn's work
-(`leases.first_hook_for_tool`). For an agent running a turn of the session's own, such
-as a fork that took a thread's work, that work includes marking the command with the
-agent's id, so it acts in that turn (`agent_command`). Hooks
-that do run with no retained claim avoid page reading, and import the harness
+(`leases.first_hook_for_tool`). Hooks that do run with no retained claim avoid page
+reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
 records in `codex`. Claude Code's background Stop hook and Pi's extension watch
@@ -59,9 +57,10 @@ records the receipt of what its transcript shows entered the model's context
 Before it opens its turn, the prompt hook serves again each page the session still
 means to serve whose ownership or server is down, as a resumed session's are, and the
 turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
-turn and claims nothing; after a compaction it has an agent holding a page read the
-leaf skill again (`reload_skill`). Claude Code runs Leaf's start hook only then
-(`hooks.json`), since a resumed session's first reply waits for its start hooks.
+turn and claims nothing; after a compaction it tells an agent holding a page which of
+Leaf's instructions the compaction removed (`reload_skill`). Claude Code runs Leaf's
+start hook only then (`hooks.json`), since a resumed session's first reply waits for
+its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -70,8 +69,6 @@ developer-selected session runtime (`session_runtime`) owns the entire hook;
 
 import json
 import os
-import re
-import shlex
 import time
 
 from .leases import first_hook_for_tool, mark_hooks
@@ -79,8 +76,6 @@ from .refusals import Refused
 from .service import owned_pages
 from .state import (
     advance_turn,
-    agent_known,
-    agent_turn_of,
     close_session_turn,
     flocked,
     held_claims,
@@ -133,8 +128,6 @@ def cmd_hook(harness: str, payload: dict) -> None:
             from .delivery import confirm_entered
 
             confirm_entered(hooked, payload)
-        if harness == "claude-code" and (marked := agent_command(sid, payload)):
-            print(json.dumps(marked), flush=True)
         return
     # What kept a page the session still means to serve from serving again.
     unserved = []
@@ -207,166 +200,37 @@ def cmd_hook(harness: str, payload: dict) -> None:
             print(json.dumps(notice), flush=True)
 
 
-# A command that begins with `leaf`, by name or by a path to the launcher.
-LEADING_LEAF = re.compile(r"\s*(?:\S*/)?leaf(?=\s|$)")
-# The word `leaf`, alone or as a path to the launcher (`…/bin/leaf`, `./leaf`), as
-# against `leaf-dev`, `leaf.py`, a directory such as `src/leaf` or the noun `Leaf`.
-LEAF_WORD = re.compile(r"(?:(?<=bin/)|(?<=\./)|(?<![\w./-]))leaf(?![\w./-])")
-
-
-def leaf_words(command: str) -> list[int]:
-    """Where the word `leaf` stands in the Bash command line `command`, by
-    character offset, wherever Bash might run it from: after another command or a
-    keyword such as `then`, in a command substitution, quoted or in a here-document.
-    It reads words, not Bash's grammar, so it also finds one Bash would only pass as
-    text, as a reply's `--text` that names a `leaf` command does. Only the calls
-    Claude Code hands the hook reach it (`agent_command`)."""
-    return [found.start() for found in LEAF_WORD.finditer(command)]
-
-
-def agent_command(sid: str, payload: dict) -> dict | None:
-    """What Claude Code's PreToolUse hook answers for a command that begins with
-    `leaf` from an agent the session has run a turn of its own for, such as a fork
-    that took a thread's work (`state.agent_known`): the command with `--agent-id`
-    and the agent's id after its leading `leaf`, so it acts in that agent's open
-    turn, or is refused once that turn has ended (`state.acting_agent_turn`). The
-    mark follows the agent, not its turn, so a fork resumed or running late after
-    its turn ended can't act with the main thread's authority. Any other command,
-    such as one of the main thread's own workers, which the record doesn't name,
-    runs as it came, as the session's. A subagent's command runs in the session's
-    environment with nothing naming the agent, and only the hook's payload names it
-    (`agent_id`).
-
-    The command still begins with `leaf`, so a permission rule allowing `leaf`
-    commands still matches it; a marker of any other form, such as an `export`
-    before it, is a command of its own that Claude Code asks about (measured at
-    2.1.322). The answer names no decision, so the call goes on through the
-    permission flow. Leaf's hooks module can't mark the command: Claude Code runs
-    none of a plugin's hooks for the calls of an agent that plugin spawned
-    (measured at 2.1.322), while `hooks.json`'s run for every agent.
-
-    Such an agent's command that has `leaf` anywhere but as its leading word, as
-    `cd x && leaf …`, `if …; then leaf …` or `$(leaf …)` does (`leaf_words`), may
-    act as the main thread's, and a mark spliced into it could land inside quoted
-    text, so the answer denies it and tells the agent to run each `leaf` command on
-    its own, beginning with `leaf`. The rule reads words rather than Bash's grammar,
-    so it also denies a `leaf` call whose text names another, and the denial says how
-    to post text that names a `leaf` command and how to search for the word.
-
-    Claude Code runs the hook only for a call `hooks.json`'s `if` rules match: one
-    where `leaf` or `…/leaf` begins a command Claude Code finds in it, after `&&`,
-    `;`, `|` or a keyword, in `$(…)` or backticks, quoted, or after an assignment
-    (measured at 2.1.325). A call that hands `leaf` to another program, as
-    `bash -c 'leaf …'`, `sh -c`, `timeout 30 leaf …` or `bash` reading a
-    here-document do, never reaches it, nor one that only names the word, as
-    `grep leaf` does. Such a command acts as the main thread's, and says so beside
-    its result where a fork holds its thread (`holding.authorize`). A rule matching
-    `leaf` anywhere in the call would reach them, but would also run the hook, and
-    open the sandbox's road out (`bridge.py`), for every call naming a path through
-    a directory called `leaf`.
-
-    A new fork runs before Leaf learns its agent id: the turn Leaf opened for it
-    stays unnamed until the module, once `$.agent.spawn` returns, says which agent
-    runs it (`forks.started`), and the payload names neither the spawn's name nor
-    the turn. So while an agent turn of the session awaits its agent
-    (`state.unnamed_agent_turns`), the `leaf` command of any agent running no open
-    turn is denied with the instruction to run it again, as Leaf can't yet tell a
-    starting fork's command, which would act as the main thread's, from a worker's.
-    A resumed fork's turn is named as Leaf opens it (`forks._take`). A turn left
-    unnamed stops counting once it lapses, as every reader of agent turns believes
-    it (`activity.running_agent_turns`)."""
-    agent, given = payload.get("agent_id"), payload.get("tool_input")
-    if not agent or not isinstance(given, dict) or "command" not in given:
-        return None
-    leading = LEADING_LEAF.match(given["command"])
-    words = leaf_words(given["command"])
-    if leading is None and not words:
-        return None
-    if agent_turn_of(sid, agent) is None and _awaits_agent(sid):
-        return _denied(
-            sid,
-            agent,
-            given["command"],
-            "Leaf is starting a turn for an agent of this session and can't yet tell "
-            "whether this command is that agent's; run the same command again.",
-        )
-    if not agent_known(sid, agent):
-        return None
-    if leading is None or words != [leading.end() - len("leaf")]:
-        return _denied(
-            sid,
-            agent,
-            given["command"],
-            "Run each `leaf` command as a Bash call of its own, beginning with "
-            "`leaf`, with no other `leaf` anywhere in the call: Leaf marks only a "
-            "leading `leaf` as this agent's, and any other may act as the main "
-            "thread's. To post text, or run code, that names `leaf`, write it to a "
-            "file with the Write tool and pass that file; to search for the word, "
-            "use the Grep tool.",
-        )
-    command = (
-        given["command"][: leading.end()]
-        + f" --agent-id {shlex.quote(agent)}"
-        + given["command"][leading.end() :]
-    )
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "updatedInput": {**given, "command": command},
-        }
-    }
-
-
-def _denied(sid: str, agent: str, command: str, reason: str) -> dict:
-    """Claude Code's PreToolUse answer that denies `agent`'s call of `command`, with
-    `reason`, which the agent reads. The command never runs, so it leaves no
-    `leaf_command` record; the denial is noted in each page the session holds
-    instead (`interaction_log.record_denial`)."""
-    from .interaction_log import record_denial
-
-    record_denial(owned_pages(sid), sid, agent, command, reason)
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }
-
-
-def _awaits_agent(sid: str) -> bool:
-    """Whether an agent turn of the session awaits the agent its harness is
-    starting for it, and still counts (`agent_command`)."""
-    from datetime import datetime
-
-    from .activity import running_agent_turns
-    from .state import unnamed_agent_turns
-
-    unnamed = unnamed_agent_turns(sid)
-    return bool(
-        unnamed and running_agent_turns(unnamed, True, datetime.now().astimezone())
-    )
-
-
 def reload_skill(session_id: str) -> str | None:
-    """What a compaction tells an agent holding pages: to read the leaf skill again,
-    which the compaction may have dropped from its context.
+    """What a compaction tells an agent holding pages: which of Leaf's instructions
+    it removed, and to read the skill again and, through it, what the work in progress
+    needs.
 
-    On 2026-10-25 five sessions left questions for the user only in their replies,
-    so On Me read empty and told the user nothing waited on them. Each had read the
-    skill hours or days before, four of them before compacting, while their
-    harness's own instructions for asking the user stayed in context. Restating one
-    rule on every prompt weighed on every turn and covered only that rule; the
-    skill is where every rule a page-holding agent follows lives."""
+    Claude Code keeps a model-written summary, the last few files read and the
+    skills loaded through its Skill tool. The rest of what the agent read is gone,
+    which takes the skill when it was read as a file, the references, and every
+    widget's instructions, which only `leaf page instructions` prints. The summary
+    paraphrases those rules, as in "settle the lf-options with `settled`", and the
+    page's own markup offers a pattern to copy, so an agent can believe it still has
+    them. On 2026-10-25 five sessions left questions for the user only in their
+    replies, four of them after compacting, so this hook first sent the agent back
+    to the skill alone. Over the two weeks to 2026-11-15 agents reread the skill
+    after 273 of 324 compactions, yet 34 of the 107 `lf-options` groups written
+    after a compaction had that widget's instructions in context, against 34 of 34
+    written before one. Restating a rule on every prompt weighed on every turn and
+    covered only that rule, so this message names what the compaction removed and
+    leaves the rules to the skill and its routes."""
     from .schema import SKILL_FILE
 
     pages = owned_pages(session_id)
     if not pages:
         return None
     return (
-        f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
-        f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
-        "before you next reply or run a leaf command."
+        f"This session holds the Leaf page {', '.join(map(str, pages))}. The "
+        "compaction kept a summary of the Leaf instructions you had read, not their "
+        "text: the leaf skill's references and the widget instructions `leaf page "
+        "instructions` printed are gone, and the skill may be too. Before you next "
+        f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
+        "and widget instructions your work in progress needs."
     )
 
 

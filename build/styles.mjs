@@ -12,10 +12,19 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+/** A control a page writes itself: one Leaf didn't build (`data-lf-offer`,
+ * element-markers.js) and that doesn't stand in Leaf's chrome. */
+const PAGE_CONTROL = ":not([data-lf-offer], .lf-chrome *)";
+
 /** Source and output pairs, readable without build dependencies by the trusted
  * dependency publisher as well as the compiler. A third member takes regions of the
- * source onto Leaf's faces instead of the whole sheet (`regions`, below).
- * @type {[source: string, output: string, faces?: Faces][]} */
+ * source onto faces instead of the whole sheet, in one projection after another
+ * (`regions`, below).
+ *
+ * Web Awesome's native buttons, fields and choices draw two sets of controls: Leaf's
+ * own, by their roles' classes, and a page's own, in the reading face's layer and
+ * under its input (controls.css, "A page's own controls").
+ * @type {[source: string, output: string, projections?: Projection[]][]} */
 export const styleEntries = [
   [
     "node_modules/@awesome.me/webawesome/dist/styles/themes/default.css",
@@ -24,35 +33,57 @@ export const styleEntries = [
   [
     "node_modules/@awesome.me/webawesome/dist/styles/native.css",
     "browser/styles/vendor/webawesome-native.css",
-    {
-      "Checkboxes + Radios": { input: ".lf-choice > input" },
-      Buttons: {
-        button: ":is(.lf-btn, .lf-icon-action)",
-        ".wa-plain": ":not(.lf-commit)",
-        ".wa-outlined": ".lf-commit",
-        ":disabled": ':is(:disabled, [aria-disabled="true"])',
-        "::file-selector-button": null,
+    [
+      {
+        faces: {
+          "Checkboxes + Radios": { input: ".lf-choice > input" },
+          Buttons: {
+            button: ":is(.lf-btn, .lf-icon-action)",
+            ".wa-plain": ":not(.lf-commit)",
+            ".wa-outlined": ".lf-commit",
+            ":disabled": ':is(:disabled, [aria-disabled="true"])',
+            "::file-selector-button": null,
+          },
+          "Text Fields + Textareas + Selects": {
+            input: "input.lf-ui",
+            // A single-choice listbox (`size` over 1) keeps the browser's face: the
+            // library draws every select but a multiple one as closed, a line tall.
+            select: 'select.lf-ui:is([multiple], :not([size]), [size="0"], [size="1"])',
+          },
+        },
       },
-      "Text Fields + Textareas + Selects": {
-        input: "input:is(.lf-ui, .lf-field)",
-        // Leaf's own text boxes grow with their words (controls.css), which the
-        // library's fixed-height field doesn't; an authored one takes the library's.
-        textarea: "textarea.lf-field",
-        // A single-choice listbox (`size` over 1) keeps the browser's face: the
-        // library draws every select but a multiple one as closed, a line tall.
-        select:
-          'select:is(.lf-ui, .lf-field):is([multiple], :not([size]), [size="0"], [size="1"])',
+      {
+        faces: {
+          "Checkboxes + Radios": { input: `label > input${PAGE_CONTROL}` },
+          Buttons: {
+            button: `button${PAGE_CONTROL}`,
+            ".wa-plain": ':not([type="submit"])',
+            ".wa-outlined": '[type="submit"]',
+            ":disabled": ':is(:disabled, [aria-disabled="true"])',
+            "::file-selector-button": null,
+          },
+          "Text Fields + Textareas + Selects": {
+            input: `input${PAGE_CONTROL}`,
+            // Leaf's own text boxes grow with their words (controls.css), which the
+            // library's fixed-height field doesn't; a page's takes the library's.
+            textarea: `textarea${PAGE_CONTROL}`,
+            select: `select${PAGE_CONTROL}:is([multiple], :not([size]), [size="0"], [size="1"])`,
+          },
+        },
+        within: ["@layer lf-reading-face", "@container style(--lf-reading-face: 1)"],
       },
-    },
+    ],
   ],
 ];
 
 export async function styleOutputs() {
   const outputs = new Map();
-  for (const [source, output, faces] of styleEntries)
+  for (const [source, output, projections] of styleEntries)
     outputs.set(
       output,
-      Buffer.from(faces ? await regions(source, faces) : await sheet(source)),
+      Buffer.from(
+        projections ? await regions(source, projections) : await sheet(source),
+      ),
     );
   return outputs;
 }
@@ -69,26 +100,28 @@ const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
  * value the library no longer writes fails the build. */
 const LEAF_SETS = { "rgb(180 180 200)": "rgb(180 180 180)" };
 
-/** Regions of a dependency's sheet, each with its rules rewritten onto the Leaf faces
- * that take them. Web Awesome ships its styles for native controls only in
- * `native.css`, which restyles every element of a kind in the document, so Leaf takes
- * the regions for the controls it draws and names, for each region, the faces each of
- * the region's element types, classes and states stand for (controls.css says which
- * role takes which).
+/** Regions of a dependency's sheet, each with its rules rewritten onto the faces that
+ * take them, once for each projection. Web Awesome ships its styles for native
+ * controls only in `native.css`, which restyles every element of a kind in the
+ * document, so Leaf takes the regions for the controls it draws and names, for each
+ * region, the faces each of the region's element types, classes and states stand for
+ * (controls.css says which role takes which).
  *
  * A type or class a region's map doesn't name, and anything it maps to null, matches
- * no Leaf face: a selector that requires one goes, `:not()` of one goes from the
- * selector it stands in, and a selector that names nothing in the map goes too. Every
- * rule then weighs nothing (`:where()`), as the library's own sheet stands in its
- * lowest layer, and the rules keep the library's order, which alone ranks them among
- * themselves. shadow.css imports the result after the layer's defaults for every
- * control, such as `.lf-ui-face`'s ink, which it replaces, and before controls.css,
- * whose rules state where Leaf departs from it. A region that moves or goes fails the
- * build rather than shipping an empty sheet.
+ * no face: a selector that requires one goes, `:not()` of one goes from the selector
+ * it stands in, and a selector that names nothing in the map goes too. Every rule then
+ * weighs nothing (`:where()`), as the library's own sheet stands in its lowest layer,
+ * and the rules keep the library's order, which alone ranks them among themselves. A
+ * projection's rules stand within the at-rules it names, outermost first. shadow.css
+ * imports the result after the layer's defaults for every control, such as
+ * `.lf-ui-face`'s ink, which it replaces, and before controls.css, whose rules state
+ * where Leaf departs from it. A region that moves or goes fails the build rather than
+ * shipping an empty sheet.
  * @typedef {Record<string, Record<string, string | null>>} Faces
+ * @typedef {{ faces: Faces, within?: string[] }} Projection
  * @param {string} source
- * @param {Faces} faces */
-async function regions(source, faces) {
+ * @param {Projection[]} projections */
+async function regions(source, projections) {
   const { readFile } = await import("node:fs/promises");
   const { transform, Features } = await import("lightningcss");
   const text = await readFile(resolve(root, source), "utf8");
@@ -111,7 +144,21 @@ async function regions(source, faces) {
     return found;
   };
   let out = `/* @noformat Generated from ${source} by build/styles.mjs. */\n`;
-  for (const [name, select] of Object.entries(faces)) {
+  for (const { faces, within = [] } of projections) {
+    let projected = "";
+    for (const [name, select] of Object.entries(faces))
+      projected += `\n/* Region "${name}" */\n${region(name, select)}\n`;
+    out += within.reduceRight((rules, at) => `\n${at} {${rules}}\n`, projected);
+  }
+  for (const [from, to] of Object.entries(LEAF_SETS)) {
+    if (!out.includes(from))
+      throw new Error(`No ${from} in the regions taken from ${source}`);
+    out = out.replaceAll(from, to);
+  }
+  return out;
+
+  /** @param {string} name @param {Record<string, string | null>} select */
+  function region(name, select) {
     const start = text.indexOf(`/* #region ${name} `);
     const end = text.indexOf("/* #endregion */", start);
     if (start < 0 || end < 0) throw new Error(`No region "${name}" in ${source}`);
@@ -151,14 +198,8 @@ async function regions(source, faces) {
         media: (/** @type {any} */ rule) => (rule.value.rules.length ? undefined : []),
       },
     });
-    out += `\n/* Region "${name}" */\n${rules.trim()}\n`;
+    return rules.trim();
   }
-  for (const [from, to] of Object.entries(LEAF_SETS)) {
-    if (!out.includes(from))
-      throw new Error(`No ${from} in the regions taken from ${source}`);
-    out = out.replaceAll(from, to);
-  }
-  return out;
 }
 
 /** A selector rewritten onto the faces `map` names, or null where it names none of

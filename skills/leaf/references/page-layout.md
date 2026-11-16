@@ -342,14 +342,13 @@ surface (`package-themes.md`, "Leaf's chrome"). For
 a page-specific inset, use the frame declaration in `package-themes.md`, "A theme
 change".
 
-A native control you write keeps the browser's default face until it takes Leaf's,
-by the same name Leaf's own controls wear: `class="lf-btn"`, `class="lf-btn lf-commit"`
-for the committing action, `class="lf-field"` for a text input or select, and
-`<label class="lf-choice"><input type="radio" name="view" value="summary">Summary</label>`
-(or `type="checkbox"`) for a radio or checkbox. A rule naming one of these classes
-restyles Leaf's controls too, so arrange your own by a class or id of yours. A control
-drawn for the task, such as a stack of layer tiles or a curve's handles, is the page's
-own design (`page-authoring.md`, "Style the page").
+On a page that takes a theme, the buttons, fields and choices you write in plain HTML
+wear the faces of Leaf's own controls; the vocabulary's `button` and `input, select,
+textarea` entries say how to write each. Any rule of yours outranks that face, so a
+control drawn for the task, such as a stack of layer tiles or a curve's handles, takes
+the page's own design (`page-authoring.md`, "Style the page"), and
+`--lf-reading-face: initial` on a box leaves the controls in it the browser's, as on a
+page that takes no theme.
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

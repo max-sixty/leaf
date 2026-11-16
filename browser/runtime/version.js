@@ -219,8 +219,8 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // onto those same two elements. Most arrive after this module, but the server's prepaint
 // bootstrap deliberately runs before the module graph and has already written sample
 // presentation facts. Authored markup cannot use the `data-lf-` or `lf-` namespaces,
-// but for the kernel idioms' classes, which a page writes on a control or a scroll box
-// and never on a root, so that boundary identifies the authored share without mistaking
+// but for the kernel idioms' classes, which a page writes on a scroll box and never on
+// a root, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 /** @param {Element} root */

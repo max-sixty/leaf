@@ -528,9 +528,11 @@ custom property changes on `html`.
   refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
-  own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
-  face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
-  declares and `page check` therefore lets it write. Where a Leaf control looks like an
+  own `.button` or `.choice` keeps its author's look. A page's own controls take Leaf's
+  faces by element, where its theme turns on markup's reading face, never by writing
+  Leaf's names (`styles/components/controls.css`, "A page's own controls"); the `lf-`
+  classes a page may write are those a kernel idiom declares, such as `lf-scroll`,
+  which `page check` therefore lets it write. Where a Leaf control looks like an
   attribute idiom, `data-room`, it wears the idiom's `lf-` twin (`data-lf-room`), and
   one theme rule selects both. The kernel's other classes for authors are the Layouts'
   (`layout-column`, `density-working`), and a theme's idioms, such as the reading

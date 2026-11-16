@@ -6,8 +6,9 @@
  * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
- * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
- * and the root's colour scheme, which lets
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)
+ * and its own buttons, fields and labelled choices the faces of Leaf's controls
+ * (controls.css, "A page's own controls"), and the root's colour scheme, which lets
  * the tokens' light-dark() pairs follow the reader's preference.
  *
  * Three faces, because the page already has three kinds of words and the norms

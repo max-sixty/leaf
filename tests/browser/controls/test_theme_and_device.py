@@ -36,7 +36,7 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
                 '<section class="density-working"><p id="dense">Working words.</p>'
                 '<pre id="dense-code">const answer = 42;</pre>'
                 '<span id="dense-badge" style="display:inline-block;inline-size:var(--lf-key-badge-size)">B</span>'
-                '<label class="lf-choice"><input type="checkbox">Include notes</label></section>',
+                '<label><input type="checkbox">Include notes</label></section>',
             )
         ),
     )
@@ -67,6 +67,69 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
     expect(choice).to_be_checked()
 
 
+# What a control's face draws, as `getComputedStyle` names it.
+FACE = (
+    "el => Object.fromEntries(['paddingTop', 'paddingLeft', 'height', 'borderTopWidth',"
+    " 'borderTopColor', 'borderTopLeftRadius', 'backgroundColor', 'color', 'fontSize']"
+    ".map(p => [p, getComputedStyle(el)[p]]))"
+)
+
+
+@pytest.mark.parametrize("theme", [None, False])
+def test_a_theme_gives_the_page_s_own_controls_leaf_s_faces(browser, serve, theme):
+    """Where the page's theme turns on markup's reading face, a button, a submit
+    button, a text field and a labelled checkbox the page writes wear the faces of
+    Leaf's own word, commit, field and choice (controls.css, "A page's own controls"),
+    so the page's controls and Leaf's beside them read as one set. A rule of the page's
+    own outranks the face, a box that sets the input to `initial` keeps the browser's
+    controls, and so does a page that takes no theme. Until 16 November 2026 a page
+    took these faces only by writing Leaf's class names, `lf-btn`, `lf-field` and
+    `lf-choice`."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own controls",
+                '<h1>Own controls</h1><p id="controls"></p>'
+                '<p><button id="own" type="button">Run all</button>'
+                ' <button id="own-submit" type="submit">Generate</button>'
+                ' <input id="own-field" type="text" aria-label="Name">'
+                ' <label><input id="own-check" type="checkbox">Notes</label></p>'
+                '<p><button id="styled" class="mine" type="button">Mine</button></p>'
+                '<div style="--lf-reading-face: initial">'
+                '<p><button id="opted" type="button">Opted out</button></p></div>',
+                head="<style>.mine { background: rgb(1, 2, 3); }</style>",
+            ),
+            theme=theme,
+        ),
+    )
+    page.evaluate("""async () => {
+      const {offerAction} = await window.__lfWidgetApi();
+      const commit = offerAction('commit', '', 'Commit');
+      commit.id = 'commit';
+      document.getElementById('controls').append(commit);
+    }""")
+    page.evaluate(LEAF_CONTROLS)
+
+    def face(selector):
+        return page.locator(selector).evaluate(FACE)
+
+    mark = page.locator("#own-check").evaluate("el => getComputedStyle(el).appearance")
+    if theme is False:
+        assert face("#own")["paddingLeft"] != face("#press")["paddingLeft"]
+        assert face("#own-field")["height"] != face("#field")["height"]
+        assert mark == "auto"
+        return
+    assert face("#own") == face("#press")
+    assert face("#own-submit") == face("#commit")
+    assert face("#own-field") == face("#field")
+    assert mark == "none", "the checkbox keeps the browser's mark"
+    styled = face("#styled")
+    assert styled["backgroundColor"] == "rgb(1, 2, 3)", styled
+    assert styled["paddingLeft"] == face("#press")["paddingLeft"], styled
+    assert face("#opted")["paddingLeft"] != face("#press")["paddingLeft"]
+
+
 @pytest.mark.parametrize("touch", [False, True])
 def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, touch):
     """Authored choices share their label's hit area and focus ring without boxing
@@ -74,11 +137,11 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     source = leaf_page(
         "Preview settings",
         '<h1>Preview settings</h1><div role="group" aria-label="Detail">'
-        '<label class="lf-choice"><input type="radio" name="detail" value="summary" checked>'
+        '<label><input type="radio" name="detail" value="summary" checked>'
         "<span>Summary</span></label>"
-        '<label class="lf-choice"><input type="radio" name="detail" value="full">'
+        '<label><input type="radio" name="detail" value="full">'
         "<span>Full detail</span></label></div>"
-        '<label class="lf-choice"><input type="checkbox" name="notes">'
+        '<label><input type="checkbox" name="notes">'
         "<span>Include notes</span></label>",
     )
     context = browser.new_context(has_touch=touch)
@@ -103,7 +166,7 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     words = page.get_by_text("Include notes", exact=True)
     words.tap() if touch else words.click()
     expect(page.get_by_role("checkbox", name="Include notes")).to_be_checked()
-    readings = page.locator("label.lf-choice").evaluate_all("""labels => labels.map(label => {
+    readings = page.locator("main label").evaluate_all("""labels => labels.map(label => {
       const style = getComputedStyle(label), box = label.getBoundingClientRect();
       const mark = label.querySelector('input').getBoundingClientRect();
       return {height: box.height, floor: parseFloat(style.getPropertyValue('--lf-aim-floor')),
@@ -575,6 +638,20 @@ CONTRAST = """([selector, property]) => {
 }"""
 
 
+# A word press and a field Leaf builds by role, as a widget builds them (`offerAction`,
+# `offer`), into the page's `#controls`: Leaf's own controls, which wear their faces
+# with a theme or without one.
+LEAF_CONTROLS = """async () => {
+    const {offerAction, offer} = await window.__lfWidgetApi();
+    const press = offerAction('word', '', 'Recompute');
+    press.id = 'press';
+    const field = offer('input', '', undefined, 'text');
+    field.id = 'field';
+    field.setAttribute('aria-label', 'Volume');
+    document.getElementById('controls').append(press, ' ', field);
+}"""
+
+
 @pytest.mark.parametrize("theme", [None, False])
 def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
     """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
@@ -587,15 +664,14 @@ def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
         serve(
             leaf_page(
                 "Night shift",
-                '<h1>Night shift</h1><p><button class="lf-btn" id="press" type="button">'
-                'Recompute</button> <input class="lf-field" id="field" aria-label="Volume">'
-                "</p>",
+                '<h1>Night shift</h1><p id="controls"></p>',
                 head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
                 " --lf-ink: #e2e8f0; } html { background: var(--lf-paper); }</style>",
             ),
             theme=theme,
         ),
     )
+    page.evaluate(LEAF_CONTROLS)
     words = page.evaluate(CONTRAST, ["#press", "color"])
     edge = page.evaluate(CONTRAST, ["#field", "borderTopColor"])
     assert words >= 4.5, f"a control's quiet words read {words:.2f}:1 on the page"
@@ -617,9 +693,7 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     padding, border and ground from Leaf's buttons and fields and the frame from a
     choice group."""
     body = (
-        '<h1>Retention</h1><p id="own">Words.</p>'
-        '<p><button class="lf-btn" id="press" type="button">Recompute</button>'
-        ' <input class="lf-field" id="field" aria-label="Volume"></p>'
+        '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
         '<lf-options id="window" choose><lf-option id="short"><strong>30 days</strong>'
         ' In budget.</lf-option><lf-option id="long"><strong>90 days</strong>'
         " Covers the hold.</lf-option></lf-options>"
@@ -630,6 +704,7 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
             'backgroundColor', 'fontFamily'].map((p) => style[p])];
     }))"""
     plain = open_page(browser, serve(leaf_page("Retention", body), theme=False))
+    plain.evaluate(LEAF_CONTROLS)
     expected = plain.evaluate(faces)
     assert expected["press"][0] != "0px" and expected["window"][2] != "0px", expected
     reset = open_page(
@@ -638,6 +713,7 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
             leaf_page("Retention", body, head=f"<style>{RESET}</style>"), theme=False
         ),
     )
+    reset.evaluate(LEAF_CONTROLS)
     assert reset.evaluate(faces) == expected
     assert (
         reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")

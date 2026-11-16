@@ -12,6 +12,9 @@
  * sheet's faces and only a transcript there takes it again. A widget's own source or
  * controls keep its own sheet. The runtime colours a code block's tokens only where the
  * block wears the face (syntax.js), since the token palette is drawn for its ground.
+ * The face's native controls, a page's own buttons, fields and labelled choices, wear
+ * the faces of Leaf's own and stand beside them, under the same input
+ * (controls.css, "A page's own controls").
  *
  * The face is markup's default, so its rules also stand in a cascade layer of their
  * own, `lf-reading-face`, the first of the tier this sheet composes into (`lf-base` in

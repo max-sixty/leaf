@@ -780,14 +780,16 @@ export function makeMarkdown(module, message) {
   });
   // A cell whose whole text is one code span says so, for the reading face to keep the
   // name whole (reading.css), as delivery has the page's own cells say
-  // (revision_delivery.py, `name_alone`) and passages.py this dialect's.
-  markdown.core.ruler.push("name_cells", (state) => {
-    state.tokens.forEach((cell, at) => {
-      if (cell.type !== "td_open" && cell.type !== "th_open") return;
-      const mark = nameMark(state.tokens[at + 1]?.children ?? []);
-      if (mark !== null) cell.attrSet("data-lf-name", mark);
+  // (revision_delivery.py, `name_alone`) and passages.py this dialect's. A message's
+  // cells say nothing: a thread card is too narrow to keep names whole.
+  if (!message)
+    markdown.core.ruler.push("name_cells", (state) => {
+      state.tokens.forEach((cell, at) => {
+        if (cell.type !== "td_open" && cell.type !== "th_open") return;
+        const mark = nameMark(state.tokens[at + 1]?.children ?? []);
+        if (mark !== null) cell.attrSet("data-lf-name", mark);
+      });
     });
-  });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.
   markdown.renderer.rules.softbreak = (_tokens, _at, options) =>

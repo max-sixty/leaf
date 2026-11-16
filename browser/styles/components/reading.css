@@ -370,7 +370,9 @@ dl.lf-facts dd {
      * first cell, sentences included, and left a name in any other column to break. It
      * set the name's minimum with `calc-size(max-content, min(size, 20ch))`, which
      * Firefox lacks, so every name stayed breakable there. A table drawn from Markdown
-     * says the same of its cells (markdown.js and passages.py, `name_cells`). */
+     * says the same of its cells (markdown.js and passages.py, `name_cells`), except in
+     * a message: a thread card is 320px at its narrowest, where two columns of names
+     * kept whole left the sentence beside them a word to the line. */
     :is(th, td)[data-lf-name] :is(code, samp) {
       display: inline-block;
       inline-size: max-content;
@@ -773,16 +775,6 @@ leaf-text.lf-fab-input,
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
-}
-/* A name alone in its cell takes a quarter of the narrowest thread card here, however
-   long it is. No rule can read how wide the card or panel holding a message is, and at
-   the reading column's third a three-column table in a 320px card drew its names whole
-   and scrolled its other columns out of sight. A third of the card still scrolled that
-   table 14px, since the card's gutters are a larger share of it than the column's. */
-.lf-msg-body :is(th, td)[data-lf-name] :is(code, samp) {
-  inline-size: max-content;
-  min-inline-size: auto;
-  max-inline-size: calc(var(--lf-thread-card-min) / 4);
 }
 .lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;

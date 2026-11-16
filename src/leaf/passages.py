@@ -189,7 +189,9 @@ def markdown_dialect(message: bool):
 
     def name_cells(state) -> None:
         """A cell whose whole text is one code span says so, as delivery has the page's
-        own cells say (`revision_delivery.name_alone`; markdown.js, `name_cells`)."""
+        own cells say (`revision_delivery.name_alone`; markdown.js, `name_cells`). A
+        message's cells say nothing: a thread card is too narrow to keep names whole
+        (reading.css)."""
         for at, cell in enumerate(state.tokens):
             if cell.type not in ("td_open", "th_open"):
                 continue
@@ -203,7 +205,8 @@ def markdown_dialect(message: bool):
             if mark is not None:
                 cell.attrSet("data-lf-name", mark)
 
-    parser.core.ruler.push("name_cells", name_cells)
+    if not message:
+        parser.core.ruler.push("name_cells", name_cells)
     return parser
 
 

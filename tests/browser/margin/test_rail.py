@@ -503,8 +503,10 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
 def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine):
     """Tab from the page's last stop enters the rail at its highest row in view, after a
     scroll either way and when a new row is drawn there, and with no row in view at the
-    row nearest the window, from either side of a gap. The rail reads which rows stand
-    in view from the rows near the window, which change with each of these."""
+    row nearest the window, from either side of a gap. A row half past the window's top
+    is passed over for the row below it, so the page stays where the reader left it.
+    The rail reads which rows stand in view from the rows near the window, which change
+    with each of these."""
     rows = [f"row-{n}" for n in range(12)]
     # `late` stands between rows 3 and 4 and gains its comment while the page is open.
     near = "".join(
@@ -586,6 +588,15 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     # Back up: rows 2 and 3 come into view above the rows the window already held.
     scroll_to((markers["row-1"]["bottom"] + markers["row-2"]["top"]) / 2)
     assert tab_in() == "row-2"
+    # Row 6 half past the window's top. A Tab onto it would move the page 400 px, since
+    # Chromium and Firefox centre a focused box they count out of view, so the way in is
+    # row 7 and the page stays where it was.
+    half_past = markers["row-6"]["top"] + 20
+    scroll_to(half_past)
+    assert tab_in() == "row-7"
+    scroll_settled(page)
+    rendered(page)
+    assert page.evaluate("() => scrollY") == pytest.approx(half_past, abs=1)
     # In the gap, nearer the far row below than the last row above, and then the reverse.
     last_near = markers["row-11"]["bottom"]
     far = markers["far"]["top"]

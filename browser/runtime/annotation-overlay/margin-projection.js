@@ -155,6 +155,7 @@ import { releaseReplies } from "../thread/replies.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
+import { alreadyShown } from "../landing-scroll.js";
 
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { agentName } from "../semantic-state.js";
@@ -794,12 +795,17 @@ export function createMarginProjection({
       holdTabStop(rovedRow);
       return;
     }
-    // The stop is the highest row in view, or with none in view the row nearest the
-    // window, whatever held it before, so the way in follows from the page as it
-    // stands rather than from the widths and scrolls it passed through. A stop kept
-    // where it stood while in view moved for good once a narrower width had shown
-    // another row first. Only a row near the window can be in view, so while one is, a
-    // scroll measures the rows near it (`nearRows`); while none is, every row.
+    // The stop is the highest row a Tab's arrival leaves where it stands
+    // (landing-scroll.js, `alreadyShown`, measured out to the ring's room it wears once
+    // focused), so a Tab into the rail keeps the page still: a row half past the
+    // window's edge is in view, but the browser reveals a focused box it counts out of
+    // view by centring it. With no such row it is the highest row in view, and with
+    // none in view the row nearest the window, whatever held it before, so the way in
+    // follows from the page as it stands rather than from the widths and scrolls it
+    // passed through. A stop kept where it stood while in view moved for good once a
+    // narrower width had shown another row first. Only a row near the window can be in
+    // view, so while one is, a scroll measures the rows near it (`nearRows`); while none
+    // is, every row.
     const visible = seenRows(nearRows);
     const candidates = visible.length ? visible : availableRows();
     if (!candidates.length) {
@@ -820,10 +826,17 @@ export function createMarginProjection({
     };
     /** @param {[number, number, number]} a @param {[number, number, number]} b */
     const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    const placed = candidates.map((row) => ({ row, at: place(row) }));
+    const shown = visible.length
+      ? placed
+          .toSorted((a, b) => before(a.at, b.at))
+          .find(({ row }) => alreadyShown(row, { ringed: true }))
+      : undefined;
     holdTabStop(
-      candidates
-        .map((row) => ({ row, at: place(row) }))
-        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row,
+      (
+        shown ??
+        placed.reduce((best, next) => (before(next.at, best.at) < 0 ? next : best))
+      ).row,
     );
   }
 

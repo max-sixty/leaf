@@ -1547,7 +1547,7 @@ def test_kernel_selectors_name_no_package_tag():
 def test_the_kernel_styles_no_class_a_page_coins():
     """The kernel reaches a page's element by a class only where that class is one of
     Leaf's own names (browser/AGENTS.md, "Leaf's elements wear only Leaf's names"): an
-    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-btn`
+    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-scroll`
     does, or a Layout's. Before this check it styled a page's own `.button`, `.field`,
     `.choice` and `.scroll`, so a plain page's `<label class="choice">` took Leaf's aim
     floor and grew its form (tests/fixtures/plain/form.html). A kernel sheet's selectors and `@scope` preludes, and the
@@ -2599,11 +2599,10 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     face_sheet = schema_model.ASSETS / "styles/control-face.css"
     control_face = (
         ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .lf-btn, "
-        ":is(:root, :host) .lf-field, "
         ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
         ":host :is(button, input, select, textarea) )"
     )
-    control_ink = ":where(.lf-ui-face, .lf-field)"
+    control_ink = ":where(.lf-ui-face)"
     default = [(face_sheet, control_face), (face_sheet, control_ink)]
     assert faces[:2] == default, faces[:2]
     defaults = [

@@ -146,6 +146,26 @@ const soleSubstantiveElement = (owner) => {
   const children = substantiveChildren(owner);
   return children.length === 1 && children[0] instanceof Element ? children[0] : null;
 };
+// A member's face: markup its list shows in place of its `label` and `summary`, where
+// text can't say it, such as a file's name in code type over a coloured diffstat. It
+// opens the member as a <template>, which the page doesn't show, and the list shows one
+// copy of it per template. `label` stays the member's name: the tab's accessible name,
+// and every place that takes only text.
+/** @type {WeakMap<HTMLTemplateElement, HTMLElement>} */
+const faces = new WeakMap();
+/** @param {Element} panel @returns {HTMLElement | null} */
+const face = (panel) => {
+  const template = panel.firstElementChild;
+  if (!(template instanceof HTMLTemplateElement)) return null;
+  let shown = faces.get(template);
+  if (!shown) {
+    shown = document.createElement("span");
+    shown.className = "lf-tab-face";
+    shown.append(template.content.cloneNode(true));
+    faces.set(template, shown);
+  }
+  return shown;
+};
 
 export class TabSet extends LeafElement {
   static lfPatch = "members";
@@ -481,9 +501,9 @@ export class TabSet extends LeafElement {
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
       ><span class="lf-tab-name" ${generated({ says: true })}
-        >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
+        >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
-        this.#down && panel.hasAttribute("summary")
+        this.#down && !face(panel) && panel.hasAttribute("summary")
           ? html`<span class="lf-tab-summary" ${generated({ says: true })}
               >${panel.getAttribute("summary")}</span
             >`

@@ -625,8 +625,18 @@ summary,
  * Leaf's presses look like the library's wa-button, and the radios, sliders and
  * selects Leaf takes from it. The generated rules weigh nothing, so the rules below
  * state only where Leaf departs from the library, and any rule of a component's
- * outranks both. A page writes the same names on its own controls, `lf-btn` and
- * `lf-btn lf-commit`, so they match Leaf's (page-layout.md).
+ * outranks both.
+ *
+ * A page's own controls wear these faces too, where its theme turns on markup's
+ * reading face (reading.css): a button the word's, a submit button the commit's, a
+ * label around a radio or checkbox the choice's and a text field or select the
+ * field's. The build draws them from the regions below marked `Face:`, onto those
+ * elements, into vendor/page-controls.css (build/styles.mjs, `LEAF_ONTO_PAGE`), so each
+ * rule stands here once, and an edit to one of those regions takes
+ * `pnpm run build:browser` to reach a page's controls. The page's copies weigh nothing,
+ * so order alone ranks them: in a region, a rule that refines another, as a pressed
+ * commit refines a selected toggle, follows it. A choice's mark may stand at any
+ * depth in its label, as a page may wrap it.
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
@@ -647,6 +657,7 @@ summary,
  * the user preferred a reasonable design from a UI library to looks of Leaf's own
  * (3 November 2026); before them a word framed on the card ground, a second look
  * for the same press, until the user chose the quiet one on 25 October. */
+/* #region Face: Word */
 :is(.lf-btn, .lf-icon-action) {
   --wa-color-neutral-on-quiet: var(--lf-muted);
 }
@@ -673,13 +684,15 @@ summary,
 :is(.lf-btn, .lf-icon-action):hover {
   box-shadow: none;
 }
+/* #endregion */
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
- * too.
+ * face out by that padding, `--lf-choice-pad`. A page's own label around a radio or
+ * checkbox takes this face too (above), so the label is the box its mark names for
+ * its focus ring (`--lf-focus-box`).
  *
  * Everything in the label after its mark is one run of words, laid out as a
  * paragraph is, however the page marks it up ("Use <code>--fast</code> here"), and
@@ -696,6 +709,7 @@ summary,
  * of the label's children, which made each run of words and each element in them
  * a cell of its own, so a label holding markup wrapped each part apart, and which
  * fought a package's own grid of a choice's parts. */
+/* #region Face: Choice */
 .lf-choice {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
   --lf-choice-hang: calc(var(--wa-form-control-toggle-size) + var(--lf-choice-gap));
@@ -728,11 +742,11 @@ summary,
 .lf-choice {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
-.lf-choice:has(> input:disabled) {
+.lf-choice:has(input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.lf-choice > input {
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
   float: inline-start;
   margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
     calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
@@ -746,16 +760,17 @@ summary,
     appearance: auto;
   }
 }
-.lf-choice > input {
-  --lf-focus-box: .lf-choice;
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
+  --lf-focus-box: label;
 }
-.lf-choice > input[data-lf-focus-visible] {
+.lf-choice input:where([type="checkbox"], [type="radio"])[data-lf-focus-visible] {
   outline: none;
 }
 .lf-choice[data-lf-control-focus-visible] {
   outline: var(--lf-focus-ring);
   --lf-wears-ring: 1;
 }
+/* #endregion */
 
 /* A label whose words change holds one room for all of them, so a count or a result
  * changing moves nothing beside it. Leaf and its packages write `data-lf-room`, which
@@ -842,13 +857,7 @@ wa-copy-button.lf-icon-action {
   background: none;
   color: inherit;
 }
-/* A commit pressed, such as a multiple-choice question's Done once it is answered,
-   is marked settled, as a chosen answer is (below). */
-.lf-btn.lf-commit[aria-pressed="true"] {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
-}
+/* #region Face: Toggle */
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
    shows its state on its disc, such as Dictate listening, keeps its box clear (the
@@ -858,6 +867,14 @@ wa-copy-button.lf-icon-action {
   color: var(--lf-accent);
   background: var(--lf-chip);
 }
+/* A commit pressed, such as a multiple-choice question's Done once it is answered,
+   is marked settled, as a chosen answer is (below). */
+.lf-btn.lf-commit[aria-pressed="true"] {
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
+}
+/* #endregion */
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
    own ink, whose state shows on a disc behind it, a square of the face (its
    `::before`), while its box stays clear: the composer's Send and Dictate, the passage
@@ -1597,20 +1614,18 @@ wa-copy-button.lf-icon-action {
   max-height: 50vh;
   overflow-y: auto;
 }
-/* A single-line field or select, authored as .lf-field or offered by a widget, is Web
-   Awesome's native text field or select, generated onto these elements into
-   vendor/webawesome-native.css: the field's frame a line tall (`--lf-line`), and a
-   select's chevron, so a row of them beside .lf-btn reads as one set of controls. It
-   stands on the card ground Leaf's wa-input takes, at its own width (a select's
-   widest option, a text field's `size`), since it sits in a row beside presses, where
-   the library's fills its form's width, and a line tall wherever a surface sets its
-   line. At a class's weight, so a component rule naming its own field still wins by
-   coming later.
+/* A single-line field or select a widget offers is Web Awesome's native text field or
+   select, generated onto these elements into vendor/webawesome-native.css: the
+   field's frame a line tall (`--lf-line`), and a select's chevron, so a row of them
+   beside .lf-btn reads as one set of controls. It stands on the card ground Leaf's
+   wa-input takes, at its own width (a select's widest option, a text field's `size`),
+   since it sits in a row beside presses, where the library's fills its form's width,
+   and a line tall wherever a surface sets its line. At a class's weight, so a
+   component rule naming its own field still wins by coming later.
    With no face the browser drew its own: a 2px inset border and square corners, 21px
    tall beside 30px buttons; Leaf drew a frame and chevron of its own until the user
-   preferred a reasonable design from a UI library (3 November 2026). An authored
-   textarea.field takes the library's text box; Leaf's own text boxes keep theirs
-   (above). */
+   preferred a reasonable design from a UI library (3 November 2026). */
+/* #region Face: Field */
 :where(
   select,
   input:not(
@@ -1624,7 +1639,7 @@ wa-copy-button.lf-icon-action {
     [type="reset"],
     [type="image"]
   )
-):is(.lf-ui, .lf-field) {
+).lf-ui {
   --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
@@ -1634,18 +1649,10 @@ wa-copy-button.lf-icon-action {
     border-color: transparent;
   }
 }
-textarea.lf-field {
-  --wa-form-control-background-color: var(--lf-card);
-  --wa-form-control-height: var(--lf-line);
-  box-sizing: border-box;
-}
 /* The library places a select's chevron at the right whatever the text's direction.
    In forced colours the platform's own control takes its place, since the chevron is a
    picture the palette can't recolour. */
-:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
-  .lf-ui,
-  .lf-field
-) {
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])).lf-ui {
   &:dir(rtl) {
     background-position: center left var(--wa-form-control-padding-inline);
   }
@@ -1654,8 +1661,13 @@ textarea.lf-field {
     background-image: none;
   }
 }
-.lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
+:is(input, textarea).lf-ui::placeholder {
+  color: var(--lf-quiet);
+  opacity: 1;
+}
+/* #endregion */
+/* A field inside one of Leaf's boxes prompts as one that wears the class does. */
+.lf-ui :is(input, textarea)::placeholder {
   color: var(--lf-quiet);
   opacity: 1;
 }

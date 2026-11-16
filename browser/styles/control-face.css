@@ -1,9 +1,10 @@
 /* The default face of a native control: Leaf's ui font (tokens.css, `--lf-font-ui`) and
  * ink, rather than the document's serif or the browser's 13.33px Arial. `offer()` writes
- * `lf-ui-face` on each native control it builds, and a page may write `lf-btn` or
- * `lf-field` on its own; an `lf-btn` takes its ink from the press's face (controls.css)
- * instead, as Leaf's own do. A native control the page writes with neither class takes
- * the font too, and keeps the browser's ink, which goes with the browser's ground for it.
+ * `lf-ui-face` on each native control it builds; an `lf-btn` takes its ink from the
+ * press's face (controls.css) instead. A native control the page writes takes the font
+ * too, and keeps the browser's ink, which goes with the browser's ground for it, until
+ * its theme gives it a face of Leaf's (controls.css, "The faces of Leaf's control
+ * roles").
  * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
  * host, keeps its component's face.
  *
@@ -26,7 +27,6 @@
 :where(
   :is(:root, :host) .lf-ui-face,
   :is(:root, :host) .lf-btn,
-  :is(:root, :host) .lf-field,
   :root body :is(button, input, select, textarea):not(.lf-chrome *),
   :host :is(button, input, select, textarea)
 ) {
@@ -37,6 +37,6 @@
   word-spacing: normal;
   text-transform: none;
 }
-:where(.lf-ui-face, .lf-field) {
+:where(.lf-ui-face) {
   color: var(--lf-ink);
 }

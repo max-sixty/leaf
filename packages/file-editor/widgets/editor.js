@@ -571,6 +571,17 @@ export function createEditor(
       shownLanguage = undefined;
       showLanguage(languageFor(name));
     },
+    // Put the caret at the start of line `number`, or the last line where the file is
+    // shorter, and bring that line to the middle of the editor's view.
+    /** @param {number} number */
+    goToLine(number) {
+      const doc = reading().doc;
+      const { from } = doc.line(Math.min(Math.max(1, number), doc.lines));
+      dispatch({
+        selection: { anchor: from },
+        effects: EditorView.scrollIntoView(from, { y: "center" }),
+      });
+    },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.
     revealCaret,

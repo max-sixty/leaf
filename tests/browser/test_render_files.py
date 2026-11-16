@@ -246,7 +246,8 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     url = serve(
         leaf_page(
             "Deploy files",
-            '<h1>Deploy files</h1><lf-file-tree id="files" for="config"></lf-file-tree>'
+            '<h1>Deploy files</h1><p><a id="to-line" href="#config:values:3">values</a></p>'
+            '<lf-file-tree id="files" for="config"></lf-file-tree>'
             '<lf-file-editor id="config" binding="values runbook notes">'
             "</lf-file-editor>",
         ),
@@ -318,6 +319,14 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     tree.get_by_role("treeitem", name="values.yaml").click()
     expect(name).to_have_text("deploy/values.yaml")
     expect(editor).to_have_text("replicas: 4autoscaling:  minReplicas: 4")
+
+    # A link naming a line of a file opens it there, ready to type.
+    tree.get_by_role("treeitem", name="runbook.md").click()
+    expect(name).to_have_text("docs/runbook.md")
+    page.locator("#to-line").click()
+    expect(name).to_have_text("deploy/values.yaml")
+    expect(editor).to_be_focused()
+    expect(editor.locator(".cm-activeLine")).to_have_text("autoscaling:")
     consume_browser_errors(page, http_error_console(409))
 
 

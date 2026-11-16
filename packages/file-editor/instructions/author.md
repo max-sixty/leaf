@@ -15,8 +15,9 @@ leaf file bind PAGE notes ./research-notes.md
 Name several bindings to edit several files in one editor, one open at a time; the
 first opens first. Select `file-tree` too and place a navigator whose `for` names the
 editor: it lists the files and opens the one the reader picks. A link to
-`#<editor-id>:<binding>` opens that file as well, so a note can point at the file it
-is about.
+`#<editor-id>:<binding>` opens that file as well, and `#<editor-id>:<binding>:<line>`
+puts the caret at the start of that line, so a note can point at the line it is
+about.
 
 ```bash
 leaf page init --package file-editor --package file-tree PAGE

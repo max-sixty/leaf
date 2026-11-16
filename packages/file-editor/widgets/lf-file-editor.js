@@ -110,7 +110,7 @@ customElements.define(
     #template = null;
     /** @type {(() => void) | null} */
     #drawn = null;
-    /** @type {((binding: string) => Promise<void> | null) | null} */
+    /** @type {((binding: string, line: number | null) => Promise<void> | null) | null} */
     #open = null;
     /** @type {(() => string | null) | null} */
     #shown = null;
@@ -144,21 +144,26 @@ customElements.define(
       this.#placeSelection?.();
     }
 
-    // A binding is a file this editor can show: revealing one opens it, and the
-    // promise settles once its first read has drawn.
+    // A key names a file this editor can show by its binding, and a line of it as
+    // `<binding>:<line>`, as a note's link to `#<editor>:values:12` does: revealing it
+    // opens the file with the caret at the start of that line, and the promise
+    // settles once the file's first read has drawn.
     /** @param {string} key */
     lfRevealDatum(key) {
-      return this.#open?.(key) ?? null;
+      const [binding = "", line] = key.split(":");
+      return this.#open?.(binding, Number(line) || null) ?? null;
     }
 
     /** @param {string} key */
     lfElementsFor(key) {
-      return this.#shown?.() === key ? [this] : [];
+      return this.#shown?.() === key.split(":")[0] ? [this] : [];
     }
 
     /** @param {string} key */
     lfDatumLabel(key) {
-      return this.#label?.(key) ?? null;
+      const [binding = "", line] = key.split(":");
+      const name = this.#label?.(binding);
+      return name && line ? `${name}, line ${line}` : (name ?? null);
     }
 
     initialize() {
@@ -709,9 +714,16 @@ customElements.define(
       let opening = null;
       // Opening another file saves what the one being left holds at once and keeps
       // its place, then shows the other where the reader left it, or read afresh.
-      this.#open = (binding) => {
+      this.#open = (binding, line) => {
         if (!files.has(binding)) return null;
-        if (binding === file.binding) return opening;
+        const ready = binding === file.binding ? opening : show(binding);
+        if (!line) return ready;
+        return (ready ?? Promise.resolve()).then(() => {
+          if (file.binding === binding) editor.goToLine(line);
+        });
+      };
+      /** @param {string} binding */
+      const show = (binding) => {
         const leaving = file;
         leaving.kept = editor.suspend();
         if (comparison) {

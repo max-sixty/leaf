@@ -6,10 +6,10 @@
  * once they are at their narrowest, which is the right order. Rejected: the floor
  * stated as the column's own box (10rem), since a column is mostly not its card's
  * words: 18px of the column's border and inset, then the card's border, its two insets
- * and the column the grip hangs in. At 160px, 70 of them are furniture and the card's
- * prose gets 90 — twelve characters, in which `documented` (92px of Charter at the
- * page's own 17) cannot be set at all, so the board breaks ordinary words across
- * lines. A board is meant to scroll before it squeezes,
+ * and the column the grip hangs in. At 10rem the furniture takes 70px of the column's
+ * 160 and leaves the card's prose 90, in which an ordinary word such as `documented`
+ * cannot be set at all, so the board breaks ordinary words across lines. A board is
+ * meant to scroll before it squeezes,
  * and a floor that does not count what the board spends does not know when to.
  *
  * So the measure is the number chosen and the furniture is derived from the rules that
@@ -210,7 +210,8 @@ lf-card {
    size stands in the card's top corner, so the lines level with the grip (the title's,
    and on a finger's taller grip the first line after it) stop short of it, and what
    runs below takes the card's whole width. Rejected: a column down the card's full
-   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   height, which narrows a card's prose all the way down for a glyph at its top. The
+   float starts
    where the grip does, at its inset from the card's edge rather than the card's padding,
    and its width keeps the card's inset between the words and the grip.
 
@@ -245,9 +246,9 @@ lf-card {
   }
 }
 /* The prose after the title starts on its next line in whatever shape the author wrote
-   it. A title margin was trimmed only where no element followed it (the frame's trim
-   reads a plain sentence's title as the card's last block), and a paragraph's margin
-   set its prose 13px lower than a sentence's. */
+   it. Otherwise a title margin is trimmed only where no element follows it (the
+   frame's trim reads a plain sentence's title as the card's last block), and a
+   paragraph's margin sets its prose lower than a sentence's. */
 lf-card > strong {
   display: block;
   font: var(--lf-font-title);

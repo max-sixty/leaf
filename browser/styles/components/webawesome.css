@@ -114,8 +114,8 @@ wa-slider[range]::part(lf-focus-visible) {
 }
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
-   contour's weight rather than a hover's: at --lf-chip it read as empty paper, and a value
-   of 4 of 6 looked like the limit. */
+   contour's weight rather than a hover's: at --lf-chip it reads as empty paper, and a
+   value short of the end looks like the limit. */
 wa-slider::part(track) {
   background: var(--lf-border);
 }

@@ -43,8 +43,8 @@
 }
 /* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
  * a 15px track under the pointer: a thread's code block, 8px of padding under its last
- * line, lost half that line to the bar the moment the user reached for it. So a box of
- * text that can scroll sideways keeps room below its content for the track. A widget's
+ * line, can lose half that line to the bar the moment the user reaches for it. So a
+ * box of text that can scroll sideways keeps room below its content for the track. A widget's
  * text scroller declares `lf-text-scroller`, as lf-diff's file and lf-call-diff's call
  * group do, on any page. It keeps the whole track, since nothing here knows how close
  * its last line sits to its edge. The face's code block and table are such boxes too
@@ -78,7 +78,8 @@
      * squeezed to a few words a line, and the table runs tall and scrolls sideways for
      * the rest. `anywhere` rather than `break-word` because only `anywhere` counts the
      * break when a box's minimum is measured, and a table's columns are sized from
-     * exactly that: with it the same table scrolls nothing. On code and not on every
+     * exactly that: with it such a table can fit the measure without scrolling. On code
+     * and not on every
      * cell, because a cell's minimum is its longest word, and that is what keeps a
      * column of row names from being squeezed under the prose beside it. The minimum is
      * what every shrinking box is sized from, so a flex item or a grid track holding a
@@ -96,12 +97,12 @@
      *
      * The same rule costs a block in a box that takes its width from its content (a flex
      * item, a grid `auto` track beside an `fr` track, a box sized to fit), which sizes
-     * without it: two short commands in a flex row stood 30px wide each. `page check
-     * --render` reports a block left too narrow to read (`squeezedBoxes`,
+     * without it: the rule can squeeze short commands in a flex row too narrow to read.
+     * `page check --render` reports a block left too narrow to read (`squeezedBoxes`,
      * render-checks/layout.js), and the author gives the block or its holder a width. A
      * one-column grid inside the block would size it by its lines and still let it
-     * shrink, but its text-only lines lost the room after their last character (1px
-     * against a block's 15px), and a block mixing text and tags stood each run in a row
+     * shrink, but its text-only lines lost the room after their last character, and a
+     * block mixing text and tags stood each run in a row
      * of its own. */
     pre {
       overflow: auto hidden;
@@ -177,13 +178,12 @@
      * container so that its width never widened its holder, as `pre`'s containment
      * keeps a code block's. Containment sizes a box as if it were
      * empty, so a holder that takes its width from its content (a flex item, a grid's
-     * `auto` track, a box sized to fit, such as a thread card) gave the table none: two
-     * tables side by side in a flex row stood 0px wide, a headed one beside a note 65px
-     * with a column out of sight, and a thread card stayed at its narrowest, scrolling a
-     * seven-column table it had room for. A table in such a holder widens it to the
-     * columns' width, past the window if the columns need that, and the render check
-     * reports the page scrolling sideways. In the column, a panel or any other block,
-     * the table takes its holder's width and scrolls.
+     * `auto` track, a box sized to fit, such as a thread card) gives the table none: a
+     * table in a flex row can collapse to nothing, and a thread card stays at its
+     * narrowest, scrolling a table it has room for. A table in such a holder widens it
+     * to the columns' width, past the window if the columns need that, and the render
+     * check reports the page scrolling sideways. In the column, a panel or any other
+     * block, the table takes its holder's width and scrolls.
      *
      * Like `pre` it scrolls only sideways, `hidden` down, so a landing on what it
      * holds still counts the sticky headers over the table. Scrolling sideways makes it
@@ -350,18 +350,17 @@ dl.lf-facts dd {
     /* A row's heading keeps the name it holds whole, as an option table in a man page
      * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
      * a table's automatic layout sets every column the same share of the way from its
-     * minimum to its widest, so a column of names beside a column of sentences got
-     * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
-     * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
+     * minimum to its widest, so a column of names beside a column of sentences gets
+     * almost none, and `--output-dir` can break as `--output-` over `dir`. So the name is
+     * a box of
      * its own width, which the column can't go under, up to a third of the reading
      * column, or of the nearest size container where that is narrower (the body, unless
      * a box nearer declares one). A longer name breaks inside its box rather than hold
      * the column open.
      *
      * The rule takes a `<th scope="row">` whose only element is the code, because that
-     * is where the page's author says which cell names the row: page-authoring.md asks
-     * for the heading, and pages written to it write nearly every row that opens on a
-     * code name so. A name in any other column is left to the table's
+     * is where the page's author says which cell names the row, as page-authoring.md
+     * asks. A name in any other column is left to the table's
      * layout. A stylesheet can't find it there: a selector reads no text, and a name, a
      * command and the one code in a sentence are each a `<code>` in a `<td>`. The page's
      * author knows which column holds names, and their own `white-space: nowrap` on
@@ -659,7 +658,7 @@ dl.lf-facts dd {
      * explain where the line went.
      *
      * The serif is left out because it needs nothing: Charter already sets every digit
-     * to one width, so the same four strings measure identically with the property and
+     * to one width, so numbers of one length measure identically with the property and
      * without it, and stating it there would be a declaration that could never be
      * wrong and never do anything. */
     figcaption,
@@ -726,8 +725,7 @@ leaf-text.lf-fab-input,
    a surface whose messages end their words further in says where
    (`--lf-msg-text-end`), as a margin card does. Rejected: ending them short of Send,
    as the field they were typed in does, so a line broke where it broke as they wrote
-   it; every message the user sent then ran up to 86px narrower than the reply under
-   it. */
+   it; every message the user sent would run narrower than the reply under it. */
 .lf-msg:where([data-lf-author="user"]) {
   --lf-msg-text-end: var(--lf-thread-text-inset);
 }
@@ -772,14 +770,14 @@ leaf-text.lf-fab-input,
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the reading face makes it scroll inside itself — so breaking its
      cells to save that room spends the alignment the table was written for:
-     "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
+     "12,000" can break as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
 }
 /* A row heading's name takes a third of the narrowest thread card here. No rule can
    read how wide the card or panel holding a message is, and at the reading column's
-   third a long name in a 320px card stood whole and pushed 135px of its table out of
-   sight. */
+   third a long name in the narrowest card stands whole and pushes part of its table
+   out of sight. */
 .lf-msg-body th[scope="row"] :is(code, samp) {
   max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }

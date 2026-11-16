@@ -337,8 +337,8 @@
   /* The chrome's line box, said once, because one control in the chrome cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
-     rule is written — so the picker stood 3.3px shorter than every button beside
-     it, centred, and read as sunk into the row. Its height is stated instead, from
+     rule is written — so the picker can stand shorter than every button beside it,
+     centred, and read as sunk into the row. Its height is stated instead, from
      this and its own padding (see the picker's rule), which is the same number
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment in
@@ -353,7 +353,8 @@
   --lf-callout-margin-block: 18px;
   --lf-hr-margin-block: 40px;
   /* The ladder, body at --lf-t-4. Prose in Charter at 17px averages about 7.4px a
-     character, and a full line of the 720px column (--lf-col) holds about 93 of them.
+     character in Chromium on macOS, and a full line of the 720px column (--lf-col)
+     holds about 93 of them.
      The numbered rungs are the prose's hierarchy;
      --lf-t-working-label is the shared compact heading between its two smallest rungs, and
      Leaf's interface sets its words in them through its fonts (`--lf-font-*`, below). Every
@@ -431,9 +432,9 @@
      black takes it to 3.0 and no further, and the WCAG ratio is the wrong instrument down
      there (1.11:1 for an edge the eye reads perfectly well).
 
-     Depth is geometry here and nowhere else. The alphas that were spread .12–.24 across
-     the sites are gone, because a shadow's spread and offset already say how high a thing
-     is and a second dial saying the same thing is a second dial to keep in step: a card
+     Depth is geometry here and nowhere else. Rejected: an alpha for each site, because
+     a shadow's spread and offset already say how high a thing is and a second dial
+     saying the same thing is a second dial to keep in step: a card
      in the hand is --lf-raise-2 against its resting --lf-raise-1, which is the whole
      difference and enough of one. */
   --lf-shade: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.55));
@@ -475,7 +476,7 @@
   --lf-tip-r: var(--lf-r-s);
   /* Inline code's ground is a step from the paper it sits on, not the white code
      canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
-     vanished and its side padding read as double spaces around every span. */
+     would vanish and its side padding read as double spaces around every span. */
   --lf-code-bg: light-dark(
     oklab(
       from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.6%) l
@@ -612,8 +613,8 @@
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
-     read back in a calc, and the number was therefore being retyped wherever the
-     room was worked out. --lf-focus-ring is composed from it, --lf-focus-ring-room adds
+     read back in a calc, and without the token the number would be retyped wherever
+     the room is worked out. --lf-focus-ring is composed from it, --lf-focus-ring-room adds
      the gap to it, and --lf-focus-ring-inset negates it, so there is still one place
      the band's thickness is decided. */
   --lf-focus-ring-w: 2px;
@@ -638,10 +639,10 @@
   --lf-focus-region-room: calc(var(--lf-focus-ring-w) + var(--lf-focus-region-gap));
   /* What a landing keeps clear for a ring at a scroller's edge: the widest ring's room,
      a region's, since a landing reads it as focus arrives, before the runtime marks
-     what the box is, and two pixels to spare, because the browser rounds both a box
-     laid out at fractions of a pixel and the whole-pixel offset it scrolls to. A code
-     block Tab brought to a pane's top with the room alone stood 3.5px under the edge,
-     short of the ring's 5px. */
+     what the box is, and two pixels to spare for the browser rounding both a box laid
+     out at fractions of a pixel and the whole-pixel offset it scrolls to: with the room
+     alone, a code block Tab brings to a pane's top can stand 1.5px short of the ring's
+     5px. */
   --lf-focus-ring-landing: calc(var(--lf-focus-region-room) + 2px);
   --lf-focus-surface: color-mix(in srgb, var(--lf-accent) 4%, var(--lf-card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
@@ -691,9 +692,9 @@
      A light status tint is darker than every ground it stands on. A dark one is
      lighter than the paper, as a card and the panel are, so it takes its distance
      from them in colour. Each stands at least 5 apart (OKLab, ΔE × 100) from the
-     paper, a card and the panel, about as far as the light tints stand. Tuned on the
-     paper alone, the dark tints stood 3 apart on the panel, where a tag's tint all
-     but vanished. */
+     paper, a card and the panel, about as far as the light tints stand. Rejected:
+     tuning them on the paper alone, which can leave a dark tint close to the panel,
+     where a tag's tint all but vanishes. */
   --lf-ok-tint: color-mix(
     in oklab,
     var(--lf-paper) 70%,

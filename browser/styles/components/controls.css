@@ -147,8 +147,8 @@
    first pixels; nothing re-lays out or moves. The room's margin takes back the head's
    gap before it, since a control's face stands inside its box. Neither takes height,
    so a control taller than the head's line stands over its edges rather than growing
-   it. Holding the room whole for controls nobody could see cut a queued message's
-   receipt to "Qu…". Rejected (the user's choice): the words giving
+   it. Holding the room whole for controls nobody could see would cut a queued
+   message's receipt short. Rejected (the user's choice): the words giving
    the room back, cut with their ellipsis, while the controls show, which kept every
    word clear of them but changed the words' size under the pointer. */
 .lf-msg-control-room {
@@ -464,8 +464,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * scroller fades only where it is cut itself, and one rule intersects the two gradients,
  * so a box cut both ways fades on both. Focus within removes the mask so the scroller's
  * complete ring and controls painted outside its box remain visible, and so does a
- * control focused at the edge: Tab left a playground's radio 3px past its region's end
- * in Firefox, faded to nothing. The user there already has the platform's
+ * control focused at the edge: Tab in Firefox can leave a control just past its
+ * region's end, faded to nothing. The user there already has the platform's
  * scroll affordance. The focus-within mark reads it, since it follows focus out of a
  * vendor control's tree, which `:has()` can't see into.
  *
@@ -692,8 +692,8 @@ summary,
  * through `--lf-choice-pad` and `--lf-choice-gap` (tokens.css), since the start
  * padding also holds the mark. In a taller target, as under a finger, the label centres its
  * content. Rejected: a flex row of mark and words, which took the mark's baseline
- * for the choice's, so its words stood about 4px above those beside them and a
- * choice dropped 1px as it was checked; and a grid
+ * for the choice's, so its words stood above those beside them and a choice dropped
+ * as it was checked; and a grid
  * of the label's children, which made each run of words and each element in them
  * a cell of its own, so a label holding markup wrapped each part apart, and which
  * fought a package's own grid of a choice's parts. */
@@ -718,7 +718,7 @@ summary,
  * tokens (webawesome.css). The mark is 1.25em of the label's own type, as the library
  * sizes it beside its value text, and `--lf-choice-gap` spaces it from its words. Its outline is the
  * library's default control border, since Leaf's field border, which the token takes
- * elsewhere, left an unchosen mark under 1.5:1 against a card. A disabled choice
+ * elsewhere, leaves an unchosen mark too faint against a card. A disabled choice
  * fades as a whole, as the library's own label does. In forced colours the platform
  * draws the control, whose checked state the library paints as a background those
  * modes replace. Rejected (the user's direction): the browser's own mark, small, filled
@@ -1579,11 +1579,11 @@ wa-copy-button.lf-icon-action {
    property wins. The compact response field is excluded because it shares its complete
    control geometry with the response buttons (chrome.css). The box grows with its
    words — a textarea through field-sizing, a text field through its own content — so
-   no script measures one: a script has to reset height to auto to re-measure, which
-   makes the box briefly too small for its own text on every keystroke — and a
+   no script measures one. Rejected: a script that reset height to auto to re-measure,
+   which made the box briefly too small for its own text on every keystroke — and a
    box that overflows, however briefly, flashes a scrollbar. Past max-height the
    scrollbar is real and stays — and the ceiling is the viewport's share, not a count
-   of lines: 200px stops a long comment at ten lines with the screen mostly empty.
+   of lines: a fixed height can stop a long comment with the screen mostly empty.
    Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
    class itself. */
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
@@ -1607,8 +1607,9 @@ wa-copy-button.lf-icon-action {
    the library's fills its form's width, and a line tall wherever a surface sets its
    line. At a class's weight, so a component rule naming its own field still wins by
    coming later.
-   With no face the browser draws its own: a 2px inset border and square corners, 21px
-   tall beside 30px buttons. Rejected: a frame and chevron of Leaf's own, since the
+   With no face the browser draws its own, which can be an inset border and square
+   corners, shorter than the buttons beside it. Rejected: a frame and chevron of
+   Leaf's own, since the
    user preferred a reasonable design from a UI library. An authored
    textarea.field takes the library's text box; Leaf's own text boxes keep theirs
    (above). */

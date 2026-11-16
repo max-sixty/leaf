@@ -59,12 +59,12 @@
  * Beside the exhibit is how far the bar runs as well as where it starts, and the cell is
  * what made that a rule to write rather than something that happens. A block reserves
  * room against the neighbours it expects; a table cell is a margin barrier, so the room
- * the exhibit's outermost blocks reserve cannot collapse out of the marking and is
- * painted as bar instead. Sixteen pixels of it over the first card and under the last
- * are held for neighbours that are not there — and the user read the top as the loose
- * end, because the note is 4px off the bar and so appears to open it, leaving a
- * marking that begins at a line and then waits twenty pixels for the thing it is
- * marking. So the sample states no padding of its
+ * the exhibit's outermost blocks reserve cannot collapse out of the marking and would
+ * be painted as bar instead, over the first card and under the last, held for
+ * neighbours that are not there — and the user read the top as the loose end, because
+ * the note is 4px off the bar and so appears to open it, leaving a marking that begins
+ * at a line and then waits for the thing it is marking. So the sample states no
+ * padding of its
  * own and declares the frame, which drops those margins where they abut the marking:
  * what separates a sample from the prose around it is its own 18px, stated once.
  *

@@ -355,8 +355,8 @@ span.lf-diff-line-number {
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
-   start. At forty-six files over thirty-two thousand pixels, opening one file and reading
-   down it left nothing on screen saying which file it was.
+   start. In a long diff, opening one file and reading down it would otherwise leave
+   nothing on screen saying which file it was.
    The slot is `--lf-top`, inherited through this boundary: below the head room and any
    sticky header under it where the window scrolls, and the pane's own top edge where a workspace
    pane does (layouts.css), so the header stops where the box holding it starts showing
@@ -547,8 +547,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    press, Tab or `c`, opens it as the field it is, and it rests again once the user
    leaves it holding nothing: no words or picture, no dictation, no error. The field
    stays the one control, so every route to the reply reaches it. The user chose that
-   over a Reply field open under every conversation,
-   which took about a third of the height of two conversations under one file. */
+   over a Reply field open under every conversation, which takes much of the height of
+   the conversations under a file. */
 .lf-diff-thread-outlet
   .lf-thread-reply:not(
     :focus-within,

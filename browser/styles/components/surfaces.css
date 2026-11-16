@@ -15,22 +15,23 @@
 
    And out of the selection, which the clip does not do on its own: a word standing
    among the page's own words is inside any selection drawn across them, so the
-   runtime's reading skipped it and the user's clipboard did not — a copied task line
-   came away carrying the word "done", and a copied code block would carry
-   "highlighted" into whatever editor it was bound for.
+   runtime's reading would skip it and the user's clipboard would not — a copied task
+   line would carry the word "done", and a copied code block "highlighted" into
+   whatever editor it was bound for.
 
    No offsets, so the box keeps the static position its holder gives it. That place is
    read: shownBox reads it for a wrapper that draws no box of its own, and everything
    asking where such an element is asks through that. What the box must not do is
-   escape the box it sits in, which it did — an out-of-flow box with no positioned
-   ancestor is positioned against the page, so a word on a cell of a table scrolling
-   inside itself stood three hundred pixels past the window with the page scrolling
-   sideways to reach it. The scroll surface contains it: the shared scroll-surface
+   escape the box it sits in: an out-of-flow box with no positioned ancestor is
+   positioned against the page, so a word on a cell of a table scrolling inside itself
+   can stand past the window with the page scrolling sideways to reach it. The scroll
+   surface contains it: the shared scroll-surface
    primitive positions the surface without moving it.
 
    Here and not in runtime/chrome.css, because content widgets write it into the page
    and into declared trees, and the chrome's sheet is the one an exported page never
-   adopts: every quiet word stood on screen in a file `leaf page export` wrote. */
+   adopts, so there every quiet word would stand on screen in a file `leaf page
+   export` writes. */
 .lf-quiet {
   position: absolute;
   width: 1px;
@@ -459,25 +460,25 @@ a[data-lf-external]::after,
 }
 /* Where the user is wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
-   room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
-   with it, the top of its ring cut off under the pane's header rule. On every side,
-   since the ring is: a link Tab brought in from a wide table's end stood flush with it.
+   room at the scroller's edge: without it, an item landed at the top of a scrolling
+   pane stands flush with it, the top of its ring cut off under the pane's header rule.
+   On every side, since the ring is: a link Tab brings in from a wide table's end would
+   stand flush with it too.
    `:focus` makes that room available to the landing before the focus mark paints
    after the script. At no weight, like the ring. A vendor control holds focus on a node
    in its own tree, which those selectors don't reach, so the mark's part (focus.js,
-   `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
-   stood past its pane's foot, and a code block's Copy past its top. */
+   `markFocus`) brings it there, at a pseudo-element's weight; without it a diff's file
+   filter could stand past its pane's foot, and a code block's Copy past its top. */
 :where(:focus, [data-lf-focus]),
 ::part(lf-focus) {
   scroll-margin: var(--lf-focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
    scroller's landing band can count as covered: the root's band starts
-   `--lf-landing-room` below where headers stick. The browser then
-   scrolled toward the control on every focus, and a stuck header never comes out from
-   under the band, so each Tab crept the page: 17px under a diff's file header, 14px
-   under a trace's toolbar, and a page tab strip, which stands wholly inside the band,
-   was centred, 313px a key.
+   `--lf-landing-room` below where headers stick. The browser would then scroll
+   toward the control on every focus, and a stuck header never comes out from under
+   the band, so each Tab would creep the page, and a page tab strip, which stands
+   wholly inside the band, would be centred at each key.
    So the margin is read from the slot. `--lf-top` less what the band covers whole
    (`--lf-top-covered`, tokens.css) is the headers stacked over the focused box that the
    band does not count, so a landing clears them. A box in a header that sticks at its
@@ -510,9 +511,8 @@ a[data-lf-external]::after,
   opacity: 0.5;
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
-   than left to whatever each control's type and padding happened to add up to, which
-   leaves presses a user has to land on with a mouse at sizes nobody chose, some only a
-   few pixels across.
+   than left to whatever each control's type and padding happen to add up to, which can
+   leave a press a user has to land on with a mouse at a size nobody chose.
 
    --lf-aim-floor is the length, and tokens.css asks the pointer query that sets it once,
    so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
@@ -530,8 +530,8 @@ a[data-lf-external]::after,
 
    The block floor never takes away a control's content minimum. A min-height on a flex
    or grid item stands in for the automatic one, the item's own content, so a menu
-   capped at the window's height crushed its 30px .lf-btn rows to the 24px floor rather
-   than scrolling. A control that stands in such a container states its block floor as
+   capped at the window's height would crush its .lf-btn rows to the floor rather than
+   scrolling. A control that stands in such a container states its block floor as
    padding instead, max(its padding, (the floor - 1lh) / 2), less its border, in the
    rule that gives it its padding, as the version menu's rows and Compare do
    (floating-panel.css), or meets it with a reach (below), as a button does. A one-line
@@ -548,9 +548,10 @@ a[data-lf-external]::after,
    Whether the face or a reach meets the block floor is one fact about a control: its
    place in the reach's list (below), which sets --lf-face-floor to auto for the floor
    to read. A pressable offer therefore stands a floor tall unless it hangs a reach, and
-   never does both. When this rule kept a list of its own for the block axis, a control
-   missing from it did both: message controls are offers, and stood 44px tall in a
-   28px head, over the message's words. The inline floor holds for a reach too, since
+   never does both. Rejected: a list of this rule's own for the block axis, where a
+   control missing from it does both, as message controls, which are offers, would
+   stand taller than their head, over the message's words. The inline floor holds for a
+   reach too, since
    a reach sizes its sideways room from a floor-wide face. */
 [data-lf-offer]:where(
   :not(

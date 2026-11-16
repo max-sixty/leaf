@@ -483,7 +483,7 @@ attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reach
 only the root's subtree, never its later siblings.
 
 No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
-writes: each makes every focus move restyle much of the page
+writes: each can make every focus move restyle much of the page
 (`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
 `data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`

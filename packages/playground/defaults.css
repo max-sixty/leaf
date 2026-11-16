@@ -126,8 +126,8 @@ lf-playground:has(> .lf-playground-split) {
  * controls inline, the stage is what the reader came to set, so it keeps at least half
  * the window and the bar keeps its whole height below it: where both don't fit, the
  * workspace scrolls to the bar rather than squeezing the stage. Rejected (the user's
- * decision): a 12rem stage floor, which kept the actions in view down to a 500px
- * window but left a 192px stage at 900x700. */
+ * decision): a 12rem stage floor, which kept the actions in view in a shorter window
+ * but left the stage at that floor in an ordinary one. */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
@@ -294,8 +294,8 @@ lf-playground-control > input[type="range"] {
  * leaves no empty room beside one, and no label breaks while its line has room.
  * Rejected: a row that wraps between whole labels. A row that
  * wraps stays as wide as the room it was offered rather than its longest line, so in
- * a page's row of three controls it left a 230px empty column, and it broke five
- * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
+ * a page's row of controls it leaves an empty column beside one, and it breaks a short
+ * list of choices across uneven rows.
  * Rejected too: equal grid cells, which wrapped every label longer than its
  * share. Columns the author sets replace the list (below). A focused face draws its
  * ring inside its own padding (`.lf-choice`, controls.css), so lines of faces need no
@@ -329,8 +329,8 @@ lf-playground-choice {
 }
 /* `--playground-choice-columns`, set on a choice control or its parent, arranges its
  * choices, plain or rich, in the author's grid columns. Authors set it on a row of
- * threshold choices, and where that changes nothing they write rules against the
- * generated class instead. A plain face's label wraps
+ * threshold choices, the controls' parent, so a value there counts, rather than leaving
+ * them to write rules against the generated class. A plain face's label wraps
  * only where the column is narrower than its words. No `var()` fallback can turn the
  * plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is

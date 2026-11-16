@@ -9,19 +9,19 @@
  * at about 16% amber, which reads as a banded slab around the box. So Pixels paints an
  * edit of under 10 levels below 10% amber, faint enough to miss, and the reading
  * describes a pair whose changes are all that small as "only slight changes".
- * Rejected too: BlazeDiff, which with its threshold at 0 marks the same pixels as a
- * plain comparison.
+ * Rejected too: BlazeDiff, which with its threshold at 0 marked the same pixels as a
+ * plain comparison wherever the two were compared.
  *
  * Region outlines are experimental. Block detection and movement matching are our
  * own; final changed outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
  * BlazeDiff core and looks-same compare pixels in place. BlazeDiff's separate
- * interpret-wasm package now classifies regions and detects shifts; it returns
+ * interpret-wasm package classifies regions and detects shifts; it returns
  * heuristic region labels, not per-pixel ownership or paired before/after regions.
  * It is a candidate replacement for this experimental analysis. lcs-image-diff aligns rows, so it
  * follows content pushed down but not a move across columns, and returns an image
- * rather than regions; x-img-diff-js, the one built for moved regions, was slow on a
- * 1440x900 pair, outlined page-wide bands and crashed on the next pair, and has not
- * been released since 2017. Tools that do read moves, such as Percy's and SmartUI's
+ * rather than regions; x-img-diff-js, the one built for moved regions, can be slow on
+ * a screenshot pair, outline page-wide bands and crash, and has not been released
+ * since 2017. Tools that do read moves, such as Percy's and SmartUI's
  * layout modes, compare the DOM rather than the pixels, which an arbitrary pair of
  * images does not carry.
  *

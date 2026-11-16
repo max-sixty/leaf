@@ -343,11 +343,11 @@
      The panel widens to 61 of the field's ems, where the window holds it
      (`--lf-fp-width`): a line of about 120 characters beside the leaf and Send, against
      73 at rest. The measure is in the field's em rather than `ch`, the width of a 0,
-     since the system sans sets a 0 a third wider than its average letter, so 120ch held
-     157 characters; in ems it follows the face, as under a finger, where it grows. The
-     user found 760px barely more room; 1100px, 157 characters a line, too wide to
-     write in; and a writing measure's 88 stingy beside the 73 at rest. The window's
-     whole width ran past 200.
+     since the system sans sets a 0 a third wider than its average letter, so a width in
+     `ch` holds about a third more characters than it names; in ems it follows the face,
+     as under a finger, where it grows. The user found 760px barely more room; 1100px,
+     157 characters a line, too wide to write in; and a writing measure's 88 stingy
+     beside the 73 at rest. The window's whole width is wider still.
      The user found that the field standing half the window tall however little it
      held left a thread's message above it too little room.
      The mark stands in its corner whether or not it shows, and fades in and out on the
@@ -774,8 +774,7 @@
   /* The count stands on the baseline of the field's words beside it, as a message
      head's name stands on its time's (surfaces.css): its box is a line of the field's
      face, from a strut, so both engines place the two baselines alike. Centred on a
-     line of its own, the smaller count stood higher, under a finger by a pixel and a
-     half. */
+     line of its own, the smaller count stood higher. */
   .lf-fp-on-user .lf-fp-num {
     line-height: 0;
     &::before {

@@ -924,13 +924,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     earlier send becomes a thread behind it.
 
     Held rather than raced: the window is one request's flight, and a machine quick
-    enough closes it before the next gesture. A loaded CI runner is not, and it said so
-    as a 💬 that never came up for the passage picked out after a send.
+    enough closes it before the next gesture. A loaded one leaves it open, where the 💬
+    for the passage picked out after a send would never come up.
 
     The next passage is the one above the first, because the sent comment's card stands
     under its passage, over whatever follows it. The card is placed and revealed some
-    frames after the send, so a passage below was reachable only on a machine quick
-    enough to press it before the card arrived."""
+    frames after the send, so a passage below would be reachable only on a machine
+    quick enough to press it before the card arrived."""
     browser, held = held_events
     page = open_page(browser, serve(NOTED_PAGE))
     select_words(page, "#p2")

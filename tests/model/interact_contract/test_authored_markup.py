@@ -492,7 +492,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     asks that reader of every sheet delivery rewrites, a template's and a shadow
     root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
-    and once passed every check only for delivery to refuse it with no reason."""
+    and unasked would pass every check only for delivery to refuse it with no reason."""
     from leaf.revision_artifact import ArtifactError
     from leaf.revision_delivery import DeliveryAddress, rebase_document
 

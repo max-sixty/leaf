@@ -169,7 +169,7 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
 
 
 def test_options_holding_pictures_stand_apart(browser, serve):
-    """Joined into one control, a hairline was the only boundary between one option's
+    """Joined into one control, a hairline would be the only boundary between one option's
     picture and the next option's title, so a live group whose options hold a picture
     draws them as standalone cards a gap apart, each framed, bare rows and the add field
     as well as titled cards, while a group of words stays one control with hairlines
@@ -463,7 +463,7 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     one authored answer, a live question, a change nobody has decided, and two explicit
     questions nested in tasks.
 
-    The rest of the page is every way of not being one, and each was a way of getting
+    The rest of the page is every way of not being one, and each is a way of getting
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
@@ -500,10 +500,10 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     on from the first.
 
     The landing is marked on the obligation and stands the user on it, which is the same
-    element the scroll has just brought to the top of the window — a walk that landed the
-    control instead put them on whatever the decision's context and evidence had pushed
-    off the bottom of the screen. Its contributed actions are directly addressable there;
-    the controls themselves remain the next Tab stops."""
+    element the scroll has just brought to the top of the window — a walk that landed
+    the control instead would put them on whatever the decision's context and evidence
+    had pushed off the bottom of the screen. Its contributed actions are directly
+    addressable there; the controls themselves remain the next Tab stops."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     expect_obligations_answered(page, "1/5")
 
@@ -512,9 +512,9 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
         # installed binary, blurs the obligation the user is located on but leaves it the
         # document's focused area, and the browser puts them back on it when the window
         # returns. The tab stop the walk lent the obligation is held through that blur.
-        # Taking it back made the obligation unfocusable while focused, the browser
-        # dropped the user to the body, and the window returned without preserving their
-        # current location.
+        # Taking it back would make the obligation unfocusable while focused, the browser
+        # would drop the user to the body, and the window would return without preserving
+        # their current location.
         #
         # Headless Playwright cannot take system focus from its window, so the test
         # delivers the platform's blur at the obligation while it stays the focused area,
@@ -1494,16 +1494,16 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
 
 def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
-    and t/T from the focused thread. It kept an id of its own instead, so every walk
-    the user had not made with this key started at the top of the page: scroll
-    halfway down and press `d` and you were taken back past everything you had read,
-    and so was anyone who had just selected a paragraph to comment on.
+    and t/T from the focused thread. A walk that kept an id of its own would start every
+    walk the user had not made with this key at the top of the page: scroll halfway
+    down and press `d` and you would be taken back past everything you had read, and so
+    would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
     there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
-    passage now enters its comment field immediately; while that field stands, letters
+    passage enters its comment field immediately; while that field stands, letters
     are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
@@ -1565,10 +1565,10 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
     #
-    # Said that way rather than as "the change was off screen before the press": that was
-    # true by a few dozen pixels, which made it a fact about how tall the blocks above the
-    # change happened to be. Giving the question above it a label set one more line and
-    # the precondition stopped holding, with nothing wrong anywhere.
+    # Said that way rather than as "the change was off screen before the press": that
+    # would be true by only a few dozen pixels, a fact about how tall the blocks above the
+    # change happen to be, so one more line above it would stop the precondition holding,
+    # with nothing wrong anywhere.
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"

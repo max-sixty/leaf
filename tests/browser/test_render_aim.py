@@ -555,10 +555,10 @@ def test_a_comment_on_a_scrolled_away_paragraph_returns_with_resume(browser, ser
 def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     """Margin controls may be overlaid; they are not placement obstacles.
 
-    This is the reported release-notes geometry: the comment begins beside Console,
-    with its target's margin actions immediately below it. Treating those actions as
-    hard obstacles first moved a growing draft above its text, then capped it at one
-    line. Removing the peers must have no effect on the response rectangle at all.
+    On the release-notes geometry, the comment begins beside Console, with its target's
+    margin actions immediately below it. Treating those actions as hard obstacles would
+    move a growing draft above its text, or cap it at one line. Removing the peers must
+    have no effect on the response rectangle at all.
     """
     page = open_page(
         browser,
@@ -1295,7 +1295,7 @@ def point_a_comment(page, text, x=60):
 def test_a_pointed_cards_reply_brings_the_pointed_row_back(browser, serve):
     """Typing in a card scrolled away brings it back, and for a pointed comment what it
     stands by is its row: the section around it still overlaps the window, so bringing
-    the section into view moved nothing and left the reply below the window."""
+    the section into view would move nothing and leave the reply below the window."""
     page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
     expect(page.locator("#whole p")).to_have_count(80)
@@ -2135,9 +2135,10 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
 
     `aiming` is armed by an Alt keydown, and a page reloaded under a held key — the
     poll following a new version does exactly this — never hears one, while claimPress
-    reads live modifier state: every press on the new page was claimed and none could
-    be promised. Mouse events carry that same live state, so the first move re-derives
-    the arm; this drives that move rather than a keydown the reload already ate."""
+    reads live modifier state: every press on the new page would be claimed and none
+    could be promised. Mouse events carry that same live state, so the first move
+    re-derives the arm; this drives that move rather than a keydown the reload already
+    ate."""
     page = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -3071,8 +3072,9 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
     """The legend follows the page's markup, not the runtime's own paint on it.
 
     A mark rewrites its element's classes on every repaint, and a legend that heard those
-    writes as the page moving started the repaint that wrote them again, so a page with a
-    reaction or a comment on an element never stopped rendering while the mode stood."""
+    writes as the page moving would start the repaint that wrote them again, so a page
+    with a reaction or a comment on an element would never stop rendering while the mode
+    stood."""
     url = serve(
         leaf_page(
             "marked elements",
@@ -3179,8 +3181,8 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
 def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
     """A legend box takes the corners of what it names, read once the element shows.
     Chromium answers a style read inside a closed tab by styling everything the tab
-    holds, and on a page of thirty text documents in closed tabs entering Design mode
-    the first time took 38 s (design.js, `paintLegend`). The box of what the tab holds
+    holds, so on a page of text documents in closed tabs entering Design mode could
+    take seconds (design.js, `paintLegend`). The box of what the tab holds
     takes its corners once the tab opens."""
     page = open_page(
         browser,
@@ -3816,14 +3818,15 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
 
 def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests):
     """A field's ring replaces its border, so it stands on the field's edge, and the aim
-    the field draws stands there too. It stood a control's gap outside, because the
-    field's edge, 0, read as no place stated: 0 is also where the outline of a box that
-    states nothing stands.
+    the field draws stands there too. Reading the field's edge, 0, as no place stated
+    would stand the aim a control's gap outside: 0 is also where the outline of a box
+    that states nothing stands.
 
     A joined choice clips its cells, so a cell leaves no room for a mark outside it and
     states its marks one band inside its edge (options.css). The aim and the comment's
-    mark both stand there: the aim stood outside, across the frame and the next cell,
-    while the comment's stood inside, so going from one to the other moved the frame 7px."""
+    mark both stand there: an aim standing outside, across the frame and the next cell,
+    while the comment's stood inside, would move the frame going from one to the
+    other."""
     page = open_page(
         browser,
         serve(
@@ -4464,11 +4467,11 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
     changes, the map's members and a chip the window's head holds in, is read once it
-    settles, and a legend's tags step inside their boxes as they cross a cut. The
-    design legend, its boxes and tags placed and written on every scroll, trailed a
-    pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
-    an obligation's binding digits, each written on every frame of the gesture. Saved ink
-    stands the same way."""
+    settles, and a legend's tags step inside their boxes as they cross a cut. A design
+    legend whose boxes and tags were placed and written on every scroll would trail a
+    pane by a frame, and so would the picker's and Go-to's chips, the search's mark and
+    an obligation's binding digits, were each written on every frame of the gesture.
+    Saved ink stands the same way."""
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
@@ -4535,8 +4538,8 @@ def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, ser
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
     (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
-    chrome at the foot shared its column, such a chip stood still mid-page through a
-    scroll and jumped once it settled."""
+    chrome at the foot shared its column, such a chip would stand still mid-page
+    through a scroll and jump once it settled."""
     source = LONG_PAGE.replace(
         "<p id='p10'>",
         "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"

@@ -151,7 +151,7 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
 def test_a_board_says_which_column_each_card_is_in(browser, serve):
     """Which column a card sits in is the one fact about it that isn't in its own
     text, and columns are three boxes side by side — geometry, which the
-    accessibility tree doesn't carry. Flat, this board was six text runs and two
+    accessibility tree doesn't carry. Flat, this board would be six text runs and two
     Move buttons in a row: no boundary between the columns, and no button saying
     where its card was.
 
@@ -313,11 +313,11 @@ def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
         # A board lays its columns into whatever width it is given and scrolls once they
         # are as narrow as they go, which is the right order, but the floor has to know
         # what a column costs before it can say where narrow enough stops. Stated as the
-        # column's own box (10rem), 70 of those 160 pixels were the column's inset and
+        # column's own box, the floor would spend much of it on the column's inset and
         # border, the card's inset and border, and the column the drag grip hangs in,
-        # and the card's prose got 90: `documented` is 92px of the page's own serif, so
-        # the shipped board broke ordinary words across lines the moment the thread strip
-        # took its margin.
+        # leaving the card's prose narrower than an ordinary word of the page's own
+        # serif, so the board would break ordinary words across lines the moment the
+        # thread strip took its margin.
         #
         # The reading is the visible failure and not the number behind it. A word set
         # across two lines with no hyphen is what the user sees, and it is what the
@@ -704,9 +704,9 @@ def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
     browser, serve
 ):
     """The grip, a symbol's face tall, reaches past a one-line title. A block after the
-    title that lays itself out on its own (a pre) was set beside the grip's room for its
-    whole height, narrower than the card; a block after the title now clears the grip
-    and takes the card's width, and nothing stands under the grip's box."""
+    title that lays itself out on its own (a pre), set beside the grip's room for its
+    whole height, would be narrower than the card; a block after the title clears the
+    grip and takes the card's width, and nothing stands under the grip's box."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )

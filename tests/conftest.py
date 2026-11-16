@@ -134,8 +134,8 @@ def pytest_runtest_teardown(item):
 
 
 # `wait_for_function` takes an async predicate's promise as a truthy answer and returns
-# at once, so a wait written that way passes without waiting; about twenty did. Refuse
-# one where it is written, and wait on a synchronous predicate instead
+# at once, so a wait written that way passes without waiting. Refuse one where it is
+# written, and wait on a synchronous predicate instead
 # (render_harness.wait_for_check_api).
 def _refusing_async_predicates(wait_for_function):
     def wait(self, expression, *args, **kwargs):

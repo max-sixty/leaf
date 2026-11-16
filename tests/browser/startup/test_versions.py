@@ -235,8 +235,8 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
-    """A pure state change has no text of its own, so the content diff was blind
-    to it: a card in a new column read as nothing changed. The state half
+    """A pure state change has no text of its own, so the content diff is blind
+    to it: a card in a new column would read as nothing changed. The state half
     compares declared state, so the author moving a card between versions —
     with no user action behind it — marks the card itself. The card alone:
     an id'd element nested inside it rode along rather than changing columns,

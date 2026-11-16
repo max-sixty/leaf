@@ -87,7 +87,7 @@ from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
-# The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
+# The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
 # The skill contains agent instructions; application resources belong to the plugin.
@@ -95,9 +95,8 @@ SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
 # Read from examples/layer.json rather than listed here, because a floor that names its
-# own packages stops covering the next one: lf-diagram and lf-diff left the default
-# package for `diagram` and `diff` and would have dropped out of every sweep silently,
-# and pr-review's two widgets had never been in one.
+# own packages stops covering the next one, and a widget that moves to another package
+# drops out of every sweep silently.
 SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,

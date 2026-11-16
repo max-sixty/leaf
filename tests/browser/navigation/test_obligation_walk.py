@@ -475,14 +475,13 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
 def test_an_obligations_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
-    Every earlier placement borrowed that room instead, and each borrow showed. On the
-    cell's outer corner the chip was half outside a group that clips itself, so no
-    binding badge the product drew had ever been whole — seven of its seventeen pixels gone,
-    and in a bare-label group the first digit was a sliver.
-    Out in the page margin beside the group it was whole and it was in the neighbouring
-    card's prose, because a middle column's margin is another cell. Neither showed up
-    as a failure: a clipped element still reports its whole box and still answers
-    `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
+    A placement that borrows that room instead shows it. On the cell's outer corner the
+    chip would be half outside a group that clips itself, and in a bare-label group the
+    first digit a sliver. Out in the page margin beside the group it would be whole and
+    in the neighbouring card's prose, because a middle column's margin is another cell.
+    Neither shows up as a failure: a clipped element still reports its whole box and
+    still answers `to_be_visible`, and a chip drawn over words breaks no rule anybody
+    had written.
 
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
@@ -1480,9 +1479,9 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
 def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
     """An obligation walk lands the decision at the start of the pane that scrolls it, and the
     obligation wears the ring outside its box. The landing keeps the ring's room at the pane's
-    edge, as the browser's own landing does for a box asking for it: the obligation stood
-    flush with the pane's top, the top of its ring cut off under the pane's header
-    rule."""
+    edge, as the browser's own landing does for a box asking for it, where otherwise the
+    obligation would stand flush with the pane's top, the top of its ring cut off under
+    the pane's header rule."""
     page = open_page(browser, serve(OBLIGATION_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-detail"), "bounded")
@@ -1514,8 +1513,8 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     obligation's does, so it does not run over the first letter of each line. A
     question that is a full-height workspace's body has only the workspace's gutter
     round it, so its ring stands at a control's gap (layouts.css), inside the window
-    on top and at the sides: inside the question it ran over the heading's first letter
-    and under the panes the question holds."""
+    on top and at the sides: inside the question it would run over the heading's first
+    letter and under the panes the question holds."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"

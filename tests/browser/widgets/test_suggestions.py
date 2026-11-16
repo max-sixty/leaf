@@ -106,7 +106,7 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
                 "?.dataset.lfMarginFor"
             )
         )
-        # Each row has two decision controls, and the roving semantic marker now joins
+        # Each row has two decision controls, and the roving semantic marker joins
         # them in the same item. Walk past whichever row currently owns that one stop.
         page.keyboard.press("Tab")
         page.keyboard.press("Tab")
@@ -198,10 +198,11 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
     for whoever is listening, so it stays clipped. Paper has no row, so each pending
     slot needs visible words distinguishing a proposal from ordinary settled content.
 
-    The word also had to change to be worth showing. Pendingness was carried by the
-    word's mere presence, which no user can perceive — nothing sits alongside to
-    compare it against — and `deletion` is ARIA's own name for the completed act, so
-    a listener heard the change announced as made while the page was still asking."""
+    The word has to say more than its presence to be worth showing. Pendingness carried
+    by the word's mere presence is something no user can perceive — nothing sits
+    alongside to compare it against — and `deletion` is ARIA's own name for the
+    completed act, so a listener would hear the change announced as made while the page
+    was still asking."""
     url = serve(PROPOSED_PAGE)
     page = open_page(browser, url)
 
@@ -340,10 +341,10 @@ def test_the_obligation_walk_lands_on_a_suggestion_the_reveal_just_opened(
 ):
     """Stepping the obligations opens the closed <details> a change waits inside, and does
     it in the same task as the arrival. The row un-waits as the arrival lands rather than
-    at the observer's next frame: settled asynchronously, the arrival landed
-    on a display:none element and the user stayed where they were — at the previous
-    decision — while the announce said otherwise, so Enter was aimed at a decision they
-    had already seen."""
+    at the observer's next frame: settled asynchronously, the arrival would land on a
+    display:none element and the user would stay where they were — at the previous
+    decision — while the announce said otherwise, so Enter would be aimed at a decision
+    they had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#sug-now[data-lf-obligation]")).to_have_count(1)
@@ -403,7 +404,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     )
 
     # A strike and two tints say which words are going and which are proposed, and say
-    # it in no text at all: a user listening got the sentence twice, the two readings
+    # it in no text at all: a user listening would get the sentence twice, the two readings
     # contradicting each other, with nothing to say either was a change.
     assert "deletion" in page.locator("#sug-refill lf-old").aria_snapshot()
     assert "insertion" in page.locator("#sug-refill lf-new").aria_snapshot()
@@ -449,10 +450,10 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect_accept_all(page, 2)
 
     # The boundary before reading the shared log: what the press sent has to have a
-    # definitive outcome first. The fetch this replaced proved nothing —
+    # definitive outcome first. A fetch in a predicate would prove nothing —
     # `wait_for_function` awaits the promise a predicate returns, but a falsy
-    # resolution ends the wait instead of polling again, so it came back `False` on
-    # the first poll and the read below ran unguarded.
+    # resolution ends the wait instead of polling again, so it would come back `False`
+    # on the first poll and leave the read below unguarded.
     round_trip(page)
     logged = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -574,7 +575,7 @@ def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
 
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve):
     """The line saying a block carries a comment goes in the block, and a block inside a
-    widget is still a block — so `textContent` on a widget's own slot now returns the
+    widget is still a block — so `textContent` on a widget's own slot returns the
     author's words with the runtime's appended. A suggestion labelling itself from that
     slot's `textContent` would offer to accept “Retry three times. 1 comment”. It reads
     the slot the way the page is read instead, which is what `says` is for — read before

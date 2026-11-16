@@ -94,8 +94,8 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     words = face.get_by_text("Full detail")
     words.tap() if touch else words.click()
     expect(full).to_be_checked()
-    # A mark has no words, so a choice that took its baseline from its mark stood its
-    # words above the group's label, and dropped by the mark's border when checked.
+    # A mark has no words, so a choice that took its baseline from its mark would stand
+    # its words above the group's label, and drop by the mark's border when checked.
     assert face.bounding_box() == before
     baselines = page.get_by_role("group", name="Detail").evaluate("""group =>
       lfUnwatched(() => [...group.querySelectorAll('span')].map(words => {
@@ -506,9 +506,9 @@ CONTRAST = """([selector, property]) => {
 def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
     """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
     the neutral colours Leaf draws in step from the one toward the other
-    (styles/tokens.css), with a theme or without one. While each neutral was a colour
-    stated for the reading theme's paper, a dark page kept them: a control's quiet
-    words read 2.3:1 on it and a field's edge 1.2:1."""
+    (styles/tokens.css), with a theme or without one. Were each neutral a colour stated
+    for the reading theme's paper, a dark page would keep them, and a control's quiet
+    words and a field's edge would lose their contrast on it."""
     page = open_page(
         browser,
         serve(
@@ -539,10 +539,9 @@ RESET = (
 def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     """A page that brings its own framework takes no theme, and its reset in a layer
     named `reset` clears the page's own elements and leaves what Leaf draws as it was
-    (layer.py, `PAGE_RESET_LAYER`). The layer ranked
-    above every tier of Leaf's, as any layer a page names does, and the reset took the
-    padding, border and ground from Leaf's buttons and fields and the frame from a
-    choice group."""
+    (layer.py, `PAGE_RESET_LAYER`). Left to rank above every tier of Leaf's, as any
+    layer a page names does, the reset would take the padding, border and ground from
+    Leaf's buttons and fields and the frame from a choice group."""
     body = (
         '<h1>Retention</h1><p id="own">Words.</p>'
         '<p><button class="lf-btn" id="press" type="button">Recompute</button>'

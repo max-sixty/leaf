@@ -242,10 +242,11 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     a user who reached one by Tab or by pointer is owed no return to it.
 
     A margin marker stands in the document beside the words it marks, outside
-    `.lf-chrome`, so a floor reading that container wore the let-go of an obligation or a
-    heading on a marker reached by Tab. It asks `inUi`, the one reading of which layer a
-    node is in, and a marker backs out onto the page as the toggle does. A folded cluster
-    is the case: an unfolded one has the Page Map's own rung over it.
+    `.lf-chrome`, so a floor reading that container would wear the let-go of an
+    obligation or a heading on a marker reached by Tab. It asks `inUi`, the one reading
+    of which layer a node is in, and a marker backs out onto the page as the toggle
+    does. A folded cluster is the case: an unfolded one has the Page Map's own rung over
+    it.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -573,9 +574,9 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     )
     told(page)
     # Opened, because the current location is where focus is and a shut panel has nowhere to
-    # stand: without this the summary took no focus, the user was still on the page's own
-    # row, and the line went on describing that one — an assertion that would have passed
-    # for the wrong reason had the two been in the same state.
+    # stand: without this the summary would take no focus, the user would still be on the
+    # page's own row, and the line would go on describing that one — an assertion that
+    # would pass for the wrong reason had the two been in the same state.
     open_panel_thread(page, "c-diff")
     staged = page.locator("#msg-diff summary").first
     expect(staged).to_be_visible()
@@ -713,7 +714,7 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
     source moves no one. Either way the control's `aria-expanded` follows the popover.
 
     Safari and Firefox on macOS leave a pressed button unfocused, so the platform's
-    return went wherever focus stood before the press. `click()` presses the control
+    return goes wherever focus stood before the press. `click()` presses the control
     without focusing it, as those browsers do."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
@@ -1497,10 +1498,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — t
     down threads, q down obligations, arrows down a panel view — and a press that toggles or
-    navigates does not: a held `]` was a page navigation per repeat, and a held pick a
-    `choose` per repeat, each of them one decision the user made once. So a row says
-    whether it repeats and the default is no, where before only `offer`'s own listener
-    had thought about it and the global table had not.
+    navigates does not: a held `]` would be a page navigation per repeat, and a held
+    pick a `choose` per repeat, each of them one decision the user made once. So a row
+    says whether it repeats and the default is no.
 
     No gesture Playwright makes carries the repeat flag, so the press is dispatched with
     it set. That is the event a held key sends and the handler under test is the one the
@@ -2193,10 +2193,10 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
 
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
-    Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
-    Each control kept that by hand once and the stack keeps it now, so this is the test
-    that says the structure holds. The editor's Esc cancels the edit and nothing else,
+    Escape, and the dispatcher runs that one and no other. Otherwise the draft editor's
+    Esc would be two — the edit cancelled and the runtime's ladder closing the panel
+    behind it. The stack keeps that, so this is the test that says the structure
+    holds. The editor's Esc cancels the edit and nothing else,
     and a grabbed card's Esc cancels the move and leaves the open view standing."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
@@ -2272,9 +2272,9 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, subtests)
 def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
     browser, serve
 ):
-    """A document names its `<form name="host">` as `document.host`. The climb that
-    measures how far a scope's root stands above the focused control took any `host` it
-    met for a shadow host, so past the document it walked back into the page and around
+    """A document names its `<form name="host">` as `document.host`. A climb that
+    measures how far a scope's root stands above the focused control, taking any `host`
+    it met for a shadow host, would walk past the document back into the page and around
     again, for good, as soon as the open panel's Escape step stood outside the focus."""
     page = open_page(
         browser,

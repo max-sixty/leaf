@@ -60,8 +60,8 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
 ):
     """A box under or over its passage that outgrows the room on its side moves inside
     the window, across the passage if it must, and the page stays where the user put it.
-    The user reported the page scrolling under their keys as the box grew (the box then
-    asked the page to make room for each new line)."""
+    A box that asked the page to make room for each new line would scroll the page under
+    the user's keys as it grew."""
     words = "The reviewer weighs each claim against the evidence offered so far. " * 3
     paragraphs = "".join(f'<p id="p{n}">{words}</p>' for n in range(30))
     page = open_page(browser, serve(leaf_page("Typing room", paragraphs)))

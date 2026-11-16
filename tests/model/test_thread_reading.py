@@ -521,7 +521,7 @@ def test_summary_hint_folds_completed_progress_and_stops_at_pending(page_dir):
 
 
 def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
-    """Progress completed mid-thread splits the earlier discussion into runs, and
+    """Were progress completed mid-thread to split the earlier discussion into runs,
     a hint that took the longest would leave the older run in full above the
     summary."""
     root = append_carried_log_record(

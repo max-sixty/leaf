@@ -309,7 +309,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 
     One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
     widget's own thread seat collects, so a remark made here lands in that seat's
-    thread rather than beside it. Reaching for the seat directly instead was five
+    thread rather than beside it. Reaching for the seat directly instead would be five
     questions — escaping an author's id, whether the box can take focus, which box when
     the seat holds several, what design mode files, where the user already stood — for
     a focus landing.
@@ -552,12 +552,12 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
-    Read off the user's list, both the ring and `c` went with the count: the moment the
-    remark was sent the ring left from under the user, and `c` fell through from the
-    thread they had started to whichever item their focus happened to rest in. That
-    starts a second thread rather than continuing the first, so the next line of a
-    remark landed somewhere the first line was not. The agent's reply moved both back.
-    Nothing the user did moved either, which is the whole of the complaint; the reply
+    Read off the user's list, both the ring and `c` would go with the count: the moment
+    the remark was sent the ring would leave from under the user, and `c` would fall
+    through from the thread they had started to whichever item their focus happened to
+    rest in. That starts a second thread rather than continuing the first, so the next
+    line of a remark would land somewhere the first line was not. The agent's reply
+    would move both back, though nothing the user did had moved either; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
     tracking it late. `c` names the user's own thread throughout, because its target,
     the widget, lies within the obligation the user holds (`commentDestination`), and the
@@ -867,10 +867,10 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
 
     # And Esc hands back the press that got them there, which is the keyboard-is-a-stack
-    # rule read on the page rather than in the panel. The box asked for `.lf-thread` and
-    # the panel alone, so out here the rung fell through to the page's own "let go": one
-    # press in from the thread, one press out to body, with the thread they had been
-    # located in two feet away and no key back to it. Both ends read one climb now, so
+    # rule read on the page rather than in the panel. A box asking for `.lf-thread` and
+    # the panel alone would let the rung out here fall through to the page's own "let
+    # go": one press in from the thread, one press out to body, with the thread they had
+    # been located in two feet away and no key back to it. Both ends read one climb, so
     # the word going in ("comment on the thread") and the word coming out are about the
     # same element.
     page.keyboard.press("Escape")

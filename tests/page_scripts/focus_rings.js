@@ -63,8 +63,9 @@
   // Read back through an outline so a comparison is between values of one kind: read
   // straight off an element, a custom property serializes as it was written while
   // `outline-color` serializes as it resolved, and the two agree for `#2f5480` and for
-  // nothing more exotic. `color-mix()` or `light-dark()` in a package's accent left every
-  // rule in the layer uncredited and the gate red on a page drawing every ring correctly.
+  // nothing more exotic. Read straight, `color-mix()` or `light-dark()` in a package's
+  // accent would leave every rule in the layer uncredited and the gate red on a page
+  // drawing every ring correctly.
   //
   // `mixed` is the srgb triple a `color-mix()` resolves the accent into, which is a
   // different serialization of the same colour, so a shadow written that way is read on the
@@ -107,15 +108,15 @@
   // control holding focus — a decision wears it for whichever of its controls the user
   // reached, a joined option group wears the one its picks give up, and an element
   // a focused thread is anchored to wears it with no focus of its own — and a reading that
-  // asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
-  // cut planted on one of those carriers passed the entire example corpus.
+  // asks only `getComputedStyle(activeElement)` returns `no ring here` for every one, so a
+  // cut planted on one of those carriers would pass the entire example corpus.
   //
   // The focused element is a candidate too, whatever paints its outline, so a ring the
   // platform draws and the layer never drew is still measured.
   //
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
-  // two cast it as a shadow instead, and a reading that knew only the outline reported the
-  // response bar and the browsed target hint as boxes with no ring on them at all.
+  // two cast it as a shadow instead, and a reading that knew only the outline would report
+  // the response bar and the browsed target hint as boxes with no ring on them at all.
   // A box drawing the ring for the focused element as its own mark (surfaces.css,
   // "Every mark on a box is drawn by the box itself"): the target painter's focus state,
   // the proxy ring round what a focused stop stands for, or the location ring on a
@@ -145,8 +146,9 @@
     //
     // Or the same band cast as a shadow, which is the same ring to the user and so the
     // same ring here: the anchored response bar and the browsed target hint draw it that
-    // way. Left out, the bar's own controls came back drawn by the floor rule whose
-    // outline this one takes away, and the hint's band went unmeasured wherever it stood.
+    // way. Left out, the bar's own controls would come back drawn by the floor rule whose
+    // outline this one takes away, and the hint's band would go unmeasured wherever it
+    // stood.
     const focused = deepFocus();
     const isFocusRing = (cs) =>
       (cs.outlineStyle === "solid" &&
@@ -221,13 +223,12 @@
   // A pseudo-element need not share its originating element's border box: anchored
   // frames and frames moving with scrolled contents both depend on its actual layout.
   async function ringsDrawn(rectangles) {
-    // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+    // shownBand, rather than another reading of what a box clips to. Its own comment
     // carries why: page check --render imports it so the band a handover is refused
-    // against and the band the page paints to are one reading, and written twice they
-    // disagreed twice. This was the third copy and it was wrong in both of the ways that
-    // comment names — it asked only about overflow, so paint containment and
-    // content-visibility clipped a ring away with nothing said, and it measured the
-    // padding box with the scrollbar's gutter still in it.
+    // against and the band the page paints to are one reading, and a copy can go wrong in
+    // both of the ways that comment names — asking only about overflow, so paint
+    // containment and content-visibility clip a ring away with nothing said, and
+    // measuring the padding box with the scrollbar's gutter still in it.
     const { shownBand, ringBox } = await window.__lfCheckApi();
     const holds = (a, b) => {
       for (let n = b; n; n = flatParent(n)) if (n === a) return true;
@@ -256,10 +257,10 @@
       // Straight off the computed style, which holds because no ring in this layer
       // moves. A ring on its way somewhere reads as wherever it has got to —
       // mid-transition the platform reports the animated value, which early on is the
-      // value the property is leaving. The theme's reduced-motion guard removes
-      // transitions rather than shortening them (base.css): `transition-property` is
-      // `all`, so a shortened one makes a ring arriving a ring in transit for two
-      // frames on every page. A layer that deliberately animates a ring owes this
+      // value the property is leaving. The reduced-motion guard (state.css) removes
+      // transitions rather than shortening them: `transition-property` is `all`, so a
+      // shortened one would make a ring arriving a ring in transit for two frames on
+      // every page. A layer that deliberately animates a ring owes this
       // reading a wait on `getAnimations()`; one written here would wait on nothing, in
       // front of the reading it is meant to protect.
       //
@@ -386,14 +387,14 @@
       // scroller. Not a claim that nothing else could clip a fixed box — a containing block
       // established by transform, filter or containment is a real case, and a chrome
       // surface's backdrop-filter is one such generator — but the walk covers that case
-      // now by asking every box on the way up instead of branching on the focused one's
-      // own position.
+      // by asking every box on the way up instead of branching on the focused one's own
+      // position.
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
       // Whether a box paints at a ring sample: its fill anywhere, or its border where the
       // sample lies on it. A face drawn by its border alone, such as a playground choice,
-      // covered 1px of its neighbour's ring unseen while this read only fills.
+      // can cover a pixel of its neighbour's ring, which a reading of fills alone misses.
       const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
       const paints = (n, x, y) => {
         const s = getComputedStyle(n);
@@ -440,8 +441,8 @@
       // scroll-padding is for — so a fixed bar over the focused control's ring is a
       // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
       // box, and where its top edge comes to rest a pixel under the bar is the user's
-      // scroll position rather than the layer's doing. An option group 2261px tall, whose
-      // pick the walk had landed on, is the case.
+      // scroll position rather than the layer's doing. A tall option group whose pick the
+      // walk has landed on is such a case.
       const fixedOver = (n) => {
         for (let a = n; a; a = above(a))
           if (getComputedStyle(a).position === "fixed") return true;
@@ -451,10 +452,10 @@
       // Whether a box inside the control paints after the ring. The control's own outline
       // paints with its in-flow content, so a descendant standing on it paints beneath it
       // unless a positioned box, itself or one between it and the control, lifts it into
-      // the positioned layer painted afterwards. The margin card's reply row was the case:
-      // pinned to the transcript's foot and painting the thread's surface, it took the
-      // bottom run of the thread's inset ring while this reading excused everything inside
-      // the control as the control itself. A ring carried by a positioned `::after` is in
+      // the positioned layer painted afterwards. A reply row pinned to a transcript's foot
+      // and painting the thread's surface can take the bottom run of the thread's inset
+      // ring, which a reading excusing everything inside the control as the control itself
+      // would miss. A ring carried by a positioned `::after` is in
       // that layer already, at its own z-index and after every descendant in tree order,
       // so only a descendant lifted to a higher z-index stands over it.
       //
@@ -478,9 +479,9 @@
       };
       // Each run sampled in the middle of the part of it that is on screen, rather than in
       // the middle of the whole run. They differ for anything taller or wider than the
-      // window, and then the plain midpoint is a point the user cannot see: an option
-      // group 1791px tall was sampled 22px down the window, which is inside the chrome
-      // fixed there, and its status dot came back as standing over its ring.
+      // window, and then the plain midpoint is a point the user cannot see: a tall option
+      // group would be sampled near the window's top, inside the chrome fixed there, and
+      // its status dot would come back as standing over its ring.
       const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
       const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
       const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
@@ -489,7 +490,7 @@
       // fraction of a pixel of the control, and hit testing rounds a subpixel edge to the
       // device pixel it shares with the next box. Butted cells are where that shows: an
       // options group's rows meet on a fractional line, so the ring on the row the
-      // keyboard is on reported the row below as painting over its bottom edge — the
+      // keyboard is on would report the row below as painting over its bottom edge — the
       // seam's rounding, not anything drawn there. Floored at half a pixel so a hairline
       // ring still samples inside itself.
       const into = Math.max(w / 2, 0.5);
@@ -552,8 +553,8 @@
           // front of cannot stand over the ring around it — and the sample lands on one of
           // those whenever a control floats above content its own holder scrolls, which
           // the coarse-pointer edge grip does over the panel's threads. Left unasked, the
-          // grip's ring read as covered by whichever line of a thread its band happened to
-          // cross, and a two-pixel change to the card's own padding was enough to move one
+          // grip's ring would read as covered by whichever line of a thread its band
+          // happened to cross, and a small change to the card's own padding could move one
           // under it.
           //
           // Read off the stepped-in point already taken, whose stack is the paint order
@@ -584,9 +585,9 @@
             }
             return false;
           };
-          // Ending the walk at the first z-index left the grip's ring reported under a
-          // thread's sticky title, whose z-index lifts it inside the list and no further,
-          // while every pixel of the ring's run was the ring's. The context paints as one
+          // Ending the walk at the first z-index would leave the grip's ring reported under
+          // a thread's sticky title, whose z-index lifts it inside the list and no further,
+          // while every pixel of the ring's run is the ring's. The context paints as one
           // unit, so its own rank answers for everything in it; a static holder above a
           // static context answers through `clears`, as above a positioned box.
           const forms = (n) => {
@@ -652,9 +653,9 @@
           // the control it reaches. The depth test above cannot tell that from a band laid
           // across the ring, because both are a box overlapping the control, and only the
           // order says which — and the depth it asks for is more than a shallow overlap
-          // has: the comment panel's touch grip stands 44px over a scrolling list, a
-          // thread's receipt reached the last two pixels of it, and the ring's bottom run
-          // came back reported while every pixel of it was the accent's own. Asked where
+          // has: a control standing over a scrolling list can have a thread's receipt reach
+          // its last two pixels, and its ring's bottom run would come back reported while
+          // every pixel of it is the accent's own. Asked where
           // the two boxes meet, since that is the only place hit testing can order them,
           // and only when both answer there — a point some third box owns says nothing
           // about these two. Hit testing answers a control inside a shadow root with its
@@ -822,8 +823,8 @@
   // its focused states take the outline off so the field and its choices keep one
   // silhouette — and to a user that is the same ring. It is the sweep's own reading
   // (shadowBand), so the paint and keyboard-stop readings agree on an accent shadow ring
-  // rather than each keeping a spelling of it: the earlier one here took any shadow
-  // carrying the accent, which a wash or a tinted lift would have satisfied. Read on the
+  // rather than each keeping a spelling of it: taking any shadow carrying the accent
+  // would accept a wash or a tinted lift. Read on the
   // stop itself and never on an ancestor, since a card's decorative drop shadow is no
   // answer to where the keyboard is and accepting one from any ancestor would pass every
   // stop on a page with one shadowed box above it.

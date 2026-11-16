@@ -583,7 +583,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     rather than teleports.
 
     Both windows are load-shaped — a busy server, a few hundred milliseconds — which
-    is how this page passed at a desk and reported words drawn over words under a
+    is how this page can pass at a desk and report words drawn over words under a
     full suite. Holding the action back until the page's first read has answered, and
     the gate's own read until the action is in, makes the window the same every run:
     the page reads as broken for about three seconds, and the gate must have nothing
@@ -1051,7 +1051,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-live")).to_have_text("Marked answered")
-    # Said once, by the log's answer. An `answered` attribute on the group said it
+    # Said once, by the log's answer. An `answered` attribute on the group would say it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every
     # consumer but shallowSigs, which reads what no version can assert as state one

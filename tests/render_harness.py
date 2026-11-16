@@ -11,8 +11,8 @@ asserts such failures as:
     with a class the runtime's chrome claims for its visually-hidden live region;
   - the document and the thread panel scrolling in one region, which stacks two
     scrollbars in the same few pixels at the window's right edge;
-  - a text box sized by script, which has to shrink itself to re-measure and so
-    flashes a scrollbar on every keystroke;
+  - a text box sized by script that shrinks itself to re-measure, and so flashes a
+    scrollbar on every keystroke;
   - the passage under the open composer going unmarked, because focusing the box
     drops the browser's own selection and nothing draws it back.
 
@@ -741,14 +741,14 @@ def post_event(page, url, **kwargs):
 
 
 # What the page has sent and how much of it has come back, read off the ledger the
-# runtime paints for exactly this user. The suite once counted the same numbers from
-# outside, on the browser's own request and response events, so that nothing was put
-# inside the thing under test; that watcher was a second representation of the outbox's
-# lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
-# that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states its readiness for this user
-# (`lfReadiness`); delivery is one more fact it states rather than one the harness
-# infers, and nothing is injected to obtain it.
+# runtime paints for exactly this user. Counting the same numbers from outside, on the
+# browser's own request and response events, so that nothing is put inside the thing
+# under test, would make a second representation of the outbox's lifecycle, needing a
+# protocol of its own to keep step — a post a reload killed that no event reported, a
+# waiter woken before the listeners that counted, a body read with no deadline. The
+# runtime already states its readiness for this user (`lfReadiness`); delivery is one
+# more fact it states rather than one the harness infers, and nothing is injected to
+# obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
@@ -2051,7 +2051,7 @@ def fresh_taps():
     back to back near one spot are a double tap wherever the page answers fast
     enough, and the floating panel presses nothing for a run's later press on a
     control its first press drew there (floating-panel.js, `runOfClicks`): a test that
-    tapped the menu open and then the row that opened under the finger passed only on
+    taps the menu open and then the row that opened under the finger would pass only on
     a host slow enough to space them. So each tap through `Locator.tap` or
     `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
     passed since the page's previous tap, however far apart they land: Playwright
@@ -2557,7 +2557,7 @@ def opened_tab(page, destination, press):
 # unintercepted, and Playwright reports no request for it either. A test holding a
 # gesture's POST then watches the send land and the answer settle the draft while
 # its own counters read nothing — the trip it is waiting for never happened on this
-# side. It is the escape `held_events` was written around, and why that fixture
+# side. It is the escape `held_events` guards against, and why that fixture
 # routes from navigation onward.
 #
 # Interception is not free, though. While any route is set, Playwright pauses every
@@ -2691,9 +2691,9 @@ class WatchedContext:
 
     Every page here is one this asks for. A page the browser opens by itself — a
     popup, a `target=_blank` — arrives on the context's `page` event instead, and
-    that is not a place these readings can be installed from: measured, a
-    `page.route` inside that handler leaves the `add_init_script` after it without
-    effect and says nothing, which is a page whose listeners are installed and whose
+    that is not a place these readings can be installed from: a `page.route` inside
+    that handler can leave the `add_init_script` after it without effect and say
+    nothing, which is a page whose listeners are installed and whose
     init scripts are missing. `opened_tab` is how the suite meets a tab Chromium
     opened.
     """
@@ -2811,7 +2811,7 @@ def one_user(browser):
     """A browser context two pages can share, which is what makes them tabs.
 
     `Browser.new_page` opens each page in a context of its own, so two of them are two
-    users with no storage between them — and a draft lives in the user's store now,
+    users with no storage between them — and a draft lives in the user's store,
     which is the whole of what these tests are about."""
     return browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
@@ -3318,8 +3318,7 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
     lands, and `getSelection()` comes back empty. It reads as the widget under the
     pointer refusing the gesture, and it is neither that nor Playwright's
     interpolation — plain prose in a bare document does it, and ten separate moves do
-    it identically. Sixty start points along one line came back empty at exactly the
-    points where the two disagree, and correct at every other.
+    it identically.
 
     So the press is floored. Where the two agree, which is everywhere a drag works at
     all, that changes nothing; where they disagree it is the whole of the fix. The end

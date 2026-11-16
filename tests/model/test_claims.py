@@ -45,14 +45,13 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     tmp_path, under_codex, codex_env
 ):
     """The claim's pid is the one two reapers read as the session's life, and
-    `$PPID` is not it: it is a fact about the shape of the command. Measured
-    through `codex exec`, a bare command and an `&&` chain reported the codex
-    process because the wrapping shell exec'd leaf in place, and a pipeline
-        reported that shell — which exits with the command, so ownership would go
-        inactive and its server would stop a second later. Here the
-    shell is between the session and the command and has exited by the time this
-    reads what was written, so a pid it could have recorded is one this cannot
-    match."""
+    `$PPID` is not it: it is a fact about the shape of the command. Through
+    `codex exec`, a bare command and an `&&` chain can report the codex process,
+    because the wrapping shell execs leaf in place, and a pipeline can report that
+    shell — which exits with the command, so ownership would go inactive and its
+    server would stop a second later. Here the shell is between the session and the
+    command and has exited by the time this reads what was written, so a pid it could
+    have recorded is one this cannot match."""
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "thread-shape"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
@@ -768,7 +767,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
-    # The reported failure: the watcher walks every page the session holds, and
+    # The failure this guards: the watcher walks every page the session holds, and
     # the record it cannot read belongs to a page the user is not on.
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exception is None, repr(waited.exception)

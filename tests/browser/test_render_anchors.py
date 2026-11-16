@@ -1016,8 +1016,9 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
         f"the composer quotes something the document does not hold: {quote!r}"
     )
     # The three readings of one passage: what the box says it is about, what the page
-    # paints, and what the field is called. A capture that ran past the document moved
-    # all three together, so any one of them alone would pass on a page it had ruined.
+    # paints, and what the field is called. A capture that ran past the document would
+    # move all three together, so any one of them alone would pass on a page it had
+    # ruined.
     assert pending_text(page).replace(" ", "") == quote.replace(" ", ""), (
         f"the mark and the quote disagree: {pending_text(page)!r} against {quote!r}"
     )
@@ -1143,11 +1144,12 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
 
 def test_a_click_on_a_mark_decides_once(browser, serve):
     """Opening a thread surface rewrites page-attached chrome, so anything that hit-tests
-    the page afterward is testing geometry that may already have moved. When two handlers
-    each asked where the pointer was, the second missed the mark the first had just opened and
-    raised the response bar on top of it — and the element anchor that left behind reads
-    as composition in progress, which is what stops a page following new versions. The
-    panel starts shut here because a panel already open is the case with no reflow."""
+    the page afterward is testing geometry that may already have moved. Were two handlers
+    each to ask where the pointer was, the second would miss the mark the first had just
+    opened and raise the response bar on top of it — and the element anchor that leaves
+    behind reads as composition in progress, which is what stops a page following new
+    versions. The panel starts shut here because a panel already open is the case with
+    no reflow."""
     version_url = serve(INLINE_PAGE)
     url = live_url(version_url)
     page = open_page(browser, url)
@@ -2571,9 +2573,9 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     summary's arrow does. A row consuming a press it does not make would be the same lie
     from the other side.
 
-    The staged control is the one the register could not reach at all.
-    `document.activeElement` retargets to the host, so the scope walk started at the
-    widget and never saw the control the user was located on."""
+    The staged control is the hard case: `document.activeElement` retargets to the
+    host, so a scope walk starting there would start at the widget and never see the
+    control the user is located on."""
     url = serve(
         NATIVE_CONTROL_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -2794,10 +2796,10 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, subtes
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
-    """A figure can carry more than one thread. When the page's record of what it drew was
-    keyed by the mark, the second comment overwrote the first, and the thread told the
-    user the first one's passage wasn't in this version — while it sat outlined on
-    screen for the second."""
+    """A figure can carry more than one thread. Were the page's record of what it drew
+    keyed by the mark, the second comment would overwrite the first, and the thread
+    would tell the user the first one's passage wasn't in this version — while it sat
+    outlined on screen for the second."""
     url = serve(INLINE_PAGE)
     page = open_page(browser, url)
     for text in ("first on the figure", "second on the figure"):
@@ -2855,13 +2857,12 @@ def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     """The thread the pointer is over and the thread a press opens are one reading of one
     point.
 
-    They came from two doors, though. The hover hit-tests the pointer record the runtime
-    keeps, and the click read its own clientX and clientY — a `click` is a legacy mouse
-    event, so those arrive rounded to a whole pixel, while markAt measures against
-    getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
-    answer different threads: a quote lights up under the hand and the press on it opens
-    the neighbour's thread, which is the same disagreement the aim carried and this
-    is the surface it was left on.
+    From two doors, they would disagree. The hover hit-tests the pointer record the
+    runtime keeps, and a click reading its own clientX and clientY — a `click` is a
+    legacy mouse event, so those arrive rounded to a whole pixel, while markAt measures
+    against getClientRects, whose edges are floats — would, within a pixel of a mark's
+    edge, answer a different thread: a quote lights up under the hand and the press on
+    it opens the neighbour's thread.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
     different items, and a comment on each makes the disagreement a pair of cards rather
@@ -3956,9 +3957,9 @@ def test_a_failed_comparison_clears_its_pending_choice_and_can_retry(browser, se
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
-    question: what they want marked is everything since they last looked. The base was
-    the previous version for exactly as long as it was a control's own label — one
-    button can name one version — so the menu is where it stops being one, and every row
+    question: what they want marked is everything since they last looked. A base that
+    is a control's own label can only be the previous version — one button can name
+    one version — so the menu is where it stops being one, and every row
     older than this one offers itself.
 
     The rest is what the user can tell afterwards: reopening says which comparison
@@ -4605,9 +4606,10 @@ def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     """Every question the runtime asks by id goes through one lookup, and a widget that
-    stages its authored children carries their ids into its shadow tree with them. While
-    that lookup was the document's alone the answer came back null and each caller quietly
-    did nothing — here, an anchor stored and a mark never painted, with no error to find.
+    stages its authored children carries their ids into its shadow tree with them. Were
+    that lookup the document's alone the answer would come back null and each caller
+    would quietly do nothing — here, an anchor stored and a mark never painted, with no
+    error to find.
 
     Staged by hand because the one shipped x-shadow widget builds its tree out of parsed
     data and mints no ids, so nothing reaches this yet; what the next one does is exactly
@@ -4624,7 +4626,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     )
     # Through a locator: the paint lands on the poll that follows the write rather than
     # with it, so a read taken straight after passes on a quiet machine and fails on a
-    # busy one. `#row` reaches into the open tree the way the runtime now has to.
+    # busy one. `#row` reaches into the open tree the way the runtime has to.
     row = page.locator("#row")
     marked = re.compile(r"\blf-mark-el\b")
     d = serve.page_dir

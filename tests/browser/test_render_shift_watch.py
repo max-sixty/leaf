@@ -3005,7 +3005,7 @@ def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
     parts, begins its motion in the ResizeObserver delivery of the frame the press
     draws in, after that frame's tick. The motion is the press's though news lands
     before the next tick, as a send's answer can within a long frame, where the panel's
-    head jumped the rest of its carry in one frame and read as moved by news. A box
+    head could jump the rest of its carry in one frame and read as moved by news. A box
     following the news's own layout begins its motion in a later delivery, and still
     moves by news."""
     page = news_page(browser, motion, translation="carry")
@@ -3340,8 +3340,8 @@ def test_a_scroll_during_a_gesture_may_not_carry_its_control(browser, how, gestu
     """Only a gesture that takes the user somewhere, by a command that declares it or
     the history entry it adds, may scroll the control it was made on across the screen
     (`shift_watch.js`, "Scrolls a gesture makes"). Layout coordinates remove scrolling,
-    so before this the watch compared the scrolled control's page position with itself
-    and found nothing."""
+    so a watch comparing the scrolled control's page position with itself would find
+    nothing."""
     page = browser.new_page()
     # Served from an origin, which a data: URL lacks, so it has a history to write.
     page.route(

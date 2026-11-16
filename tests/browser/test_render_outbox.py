@@ -487,8 +487,9 @@ def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     browser, serve
 ):
     """A choice in front of the user, made in another tab, is taken back by one press,
-    as before. `z` doesn't show it first if the agent has picked it up, which would have
-    the same press do two things depending on a delivery the user never saw happen."""
+    whether or not the agent has picked it up. `z` doesn't show it first if the agent
+    has, which would have the same press do two things depending on a delivery the user
+    never saw happen."""
     url = serve(UNDO_PAGE)
     choice = append_command(
         serve.page_dir,

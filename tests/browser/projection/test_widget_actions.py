@@ -671,7 +671,7 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
 
     An element anchor asks whether its section is still on the user's page, and for a
     suggestion that settles to nothing — an insertion refused — the markup's presence is
-    the wrong answer: the thread read as attached while its outline drew nothing.
+    the wrong answer: the thread would read as attached while its outline drew nothing.
     Pending, the wrapper is a thing to point at; refused, the thread detaches like any
     passage the decision removed.
 
@@ -700,10 +700,10 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     # Pending, the outline hangs on a box the user can see, and it is read as a box
-    # rather than as a class: the class sat on the wrapper while the wrapper was
-    # display: contents and painted no outline, so the half of this docstring about
-    # drawing nothing was true of the attached case too. The wrapper draws its own box
-    # now, so the mark is the wrapper itself rather than the slot it showed through.
+    # rather than as a class: a class on a wrapper that was display: contents would
+    # paint no outline, so the half of this docstring about drawing nothing would be
+    # true of the attached case too. The wrapper draws its own box, so the mark is the
+    # wrapper itself rather than the slot.
     shown = page.locator("#sug-thistle.lf-mark-el")
     expect(shown).to_have_count(1)
     box = shown.evaluate("el => el.getBoundingClientRect().toJSON()")

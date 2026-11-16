@@ -458,7 +458,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     thread, focused on its view, so a second `r` resolves that one, while the row says
     which thread was resolved, by name, beside the press that matters most next: the
     next open thread, with `t`, while one stands open, and once none does, the Undo
-    that takes the Resolve back. The field's "Resolved the thread" read as the thread
+    that takes the Resolve back. A bare "Resolved the thread" would read as the thread
     now open. `z` returns the user to the thread they resolved; with none left, the
     user is back at Threads and the field says that every thread is resolved. Escape
     there puts the view away and returns the user to the page."""
@@ -1422,8 +1422,8 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
 def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
     """Page search, Threads' search and a thread's reply take turns with the page's
     comment field in one seat, so each stands in the one line the theme reserves for
-    the row rather than sizing it. Page search's box once brought its vendor's own
-    control height and stood the row 6px taller than the comment field it replaced."""
+    the row rather than sizing it. A page search box that brought its vendor's own
+    control height would stand the row taller than the comment field it replaced."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     context = browser.new_context(
@@ -4835,8 +4835,8 @@ def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
 ):
     """The theme reserves the panel's row at the window's foot, with the gap it stands
     above the window's edge again above it, so the page's last line scrolls clear of the
-    row and no further. The reserve was a number of its own, 4px taller than the row
-    under a mouse and under a finger alike."""
+    row and no further. A reserve stated as a number of its own can stand taller than
+    the row, under a mouse and under a finger alike."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
@@ -4858,8 +4858,8 @@ def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
 def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, touch):
     """A line of answers holding only words is already a press tall, so the Undo a
     reading brings later moves nothing beside it. Under a finger the panel's presses
-    are the row's 34px line, and the line kept the mouse's 28px, so a press arriving
-    grew it by 6px."""
+    are the row's 34px line, so a line keeping the mouse's 28px would grow as a press
+    arrived."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Should the rollout wait?")
     thread_model.post_reply(

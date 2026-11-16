@@ -193,8 +193,8 @@
 // an off-screen `content-visibility: auto` box. Nothing there can move on screen, and
 // asking any box there for its style or rect makes the browser style and lay out the
 // whole skipped subtree first. So a complete reading leaves skipped content out, as
-// the runtime's own readings do. On the feature gallery, whose shut tabs hold most of
-// its nodes, reading them was more than half of the sensor's work. A node the last
+// the runtime's own readings do. On a page whose shut tabs hold most of its nodes,
+// reading them would be most of the sensor's work. A node the last
 // reading read while it was drawn gets one more reading, the one that sees it go, so
 // a fold that shrinks and moves into closed history in one task still credits the
 // boxes its shrinking carried. A node is read again from the frame it is drawn again:

@@ -386,7 +386,7 @@ PANE_BAND_PAGE = leaf_page(
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
     """A pane's body trims the margin at its top edge, and a declared section wrapping its
     content passes its first child's margin to that edge. A title group with an eyebrow
-    carries its heading's 48px, which stood as an empty band at the top of the pane;
+    carries its heading's 48px, which would stand as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
     page = open_page(browser, serve(PANE_BAND_PAGE))
     resized(page, 1440, 900)
@@ -1063,17 +1063,16 @@ STREAMED_LOG_PAGE = leaf_page(
 def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, serve):
     """u, PageUp or a wheel aimed up a log following its end takes the reader up while
     entries stream in, and a wheel across its long lines takes them across, at its end.
-    u starts a glide whose first frame can leave the box where it stands, and the log's
-    own follower, which read only the box's offset, took the next entry for a reader
-    still at the end, put the log back there and stopped the glide, so the press did
-    nothing: one press in eight in Chromium, four in Firefox. The end keeper every box
-    shares lets a box a glide heads back from go (scrolling.js, `followEnd`). Firefox
-    applies a wheel's or PageUp's scroll a frame or more after the input, and the
-    keeper's write of the end meanwhile cancelled it, every time, a wheel across as
-    well; the scroll is the reader's from the input (scrolling.js, `aimScroll`). PageUp
-    on a link in the log was read as a key the link took, which left it to the keeper
-    (scrolling.js, `scrollsFor`). Each trial aims once in the middle of a stream of an
-    entry every 4ms."""
+    u starts a glide whose first frame can leave the box where it stands, and a log
+    follower that read only the box's offset would take the next entry for a reader
+    still at the end, put the log back there and stop the glide, so the press would do
+    nothing. The end keeper every box shares lets a box a glide heads back from go
+    (scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
+    more after the input, and a keeper's write of the end meanwhile would cancel it, a
+    wheel across as well; the scroll is the reader's from the input (scrolling.js,
+    `aimScroll`). PageUp on a link in the log, read as a key the link took, would be
+    left to the keeper (scrolling.js, `scrollsFor`). Each trial aims once in the middle
+    of a stream of an entry every 4ms."""
     if engine == "firefox_browser" and aim != "u":
         # A Firefox starved of CPU applies a key's or wheel's scroll as late as 800ms
         # after the input, after the 80ms the reader's scroll waits for it to move the

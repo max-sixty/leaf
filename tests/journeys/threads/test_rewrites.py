@@ -82,10 +82,11 @@ def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser,
 
 
 def test_a_rewrite_saves_the_pictures_it_keeps(browser, serve):
-    """A rewrite read its words alone: saving a message with a picture unchanged sent it
-    again, and taking a picture off a message of pictures closed the box as no change,
-    the picture coming back. The rewrite now reads its words and pictures together. A
-    picture's removal mark stands out past its top right corner, as on a draft's."""
+    """A rewrite reads its words and pictures together. One that read its words alone
+    would send a message with a picture unchanged again on save, and taking a picture
+    off a message of pictures would close the box as no change, the picture coming
+    back. A picture's removal mark stands out past its top right corner, as on a
+    draft's."""
     page, _, message = _rewrite_surface(browser, serve, "panel", text=PICTURED)
     editor = message.locator(".lf-msg-editor leaf-text")
     message.locator(".lf-msg-text").dblclick()

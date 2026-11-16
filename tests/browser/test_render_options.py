@@ -140,11 +140,11 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
     """A titled option is a full-width card and the cards stack, terse or
-    substantial alike. The grid this replaced laid terse options across at
-    ~13rem, and its geometry moved with the count — a fourth option orphaned
-    under the first row, every cell as tall as the row's longest argument —
-    where a page whose options held real argument grew a comparison table and
-    an "in detail" section outside the widget it decides in. Stacked, the
+    substantial alike. A grid laying terse options across would move its
+    geometry with the count — a fourth option orphaned under the first row,
+    every cell as tall as the row's longest argument — and a page whose options
+    held real argument would grow a comparison table and an "in detail" section
+    outside the widget it decides in. Stacked, the
     comparison stays inside the group: every option's `.facts` list docks right
     at one fixed width, so scalars align down the page like that table's column.
 
@@ -239,8 +239,8 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         assert separate, "the pick's check covers an authored chip"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
-    # The pair this replaced could not: each was an absolutely-positioned box sized to
-    # room the theme had reserved by knowing both words in advance. A full-width card
+    # A pair of absolutely-positioned boxes, sized to room the theme reserved by knowing
+    # both words in advance, could not. A full-width card
     # outgrows the band at the desktop column, so the narrow window is where the wrap
     # is still reachable. Last, because the width moves every box read above.
     page.set_viewport_size({"width": 400, "height": 900})
@@ -575,8 +575,8 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     waiting. Each card's generated mark stands in the state slot at its opening edge
     as an empty ring — the same slot the pick turns it into a compact header state
     in — because a user who has not hovered sees none of the frame's other
-    promises: a blind drive read three cards, found nothing that looked like a
-    control, and chose only after a hover happened to shade one. Selection also
+    promises: a blind drive can read the cards, find nothing that looks like a
+    control, and choose only after a hover happens to shade one. Selection also
     keeps the quiet cell tint.
 
     Pinned because the rules making the group one control are ranked against the ones
@@ -826,14 +826,13 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                 f"{bare}"
             )
 
-            # And they open at one column, which is the half a user sees first: the question
-            # hung a whole binding column left of the words it was a question about. Every cell,
+            # And they open at one column, which is the half a user sees first: a question can
+            # hang a whole binding column left of the words it is a question about. Every cell,
             # the user's own among them: that cell holds the option they write when none of the
-            # authored ones is the answer, so a cell drawn short of the column starts the one box
-            # the group takes words in outside the run of boxes the group is. Its own 12px did
-            # exactly that, and this line excused it as apparatus. What is compared is the cell,
-            # not the caret: a text box holds its words off its own frame, which is the box's and
-            # no business of the group's.
+            # authored ones is the answer, so a cell drawn short of the column starts the one
+            # box the group takes words in outside the run of boxes the group is. What is
+            # compared is the cell, not the caret: a text box holds its words off its own frame,
+            # which is the box's and no business of the group's.
             words = {c["opens"] for c in option_cells}
             assert len(words) == 1, (
                 f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
@@ -1040,10 +1039,10 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
     """A joined group's frame, dividers and marks belong to its options, so on a page
     wider than the column every cell reaches the frame, however wide the box the page
-    stands the group in. Declared a group of members instead, it passed the measure
-    through: the frame took the grid cell's or the page's whole width while each option
-    stopped at the measure, so every mark and every hairline between options ended
-    100px and more short of the frame's right edge, over an empty strip.
+    stands the group in. Declared a group of members instead, it would pass the measure
+    through: the frame would take the grid cell's or the page's whole width while each
+    option stopped at the measure, so every mark and every hairline between options
+    would end short of the frame's right edge, over an empty strip.
 
     In a grid cell and straight on a wide page, and in both forms: the frame is what
     differs between a grid cell and the page, and a row has the hairline without the
@@ -1893,10 +1892,10 @@ def test_one_chip_holds_every_short_fact(browser, serve):
     """Three uses of a chip, on one page: an author's inline label, a facet of a
     decision, and a value in a native facts list.
 
-    They stated the chip three times and agreed on every number but one, which is the
-    kind of agreement nobody is keeping: the inline label alone padded itself top and
-    bottom, so it stood four pixels taller than the chips in a band while matching them
-    everywhere else. One rule states the chip now and each wearer adds only where it
+    Stating the chip three times, they would agree on every number but one, which is
+    the kind of agreement nobody is keeping: an inline label that alone padded itself
+    top and bottom would stand taller than the chips in a band while matching them
+    everywhere else. One rule states the chip and each wearer adds only where it
     sits, which is why this reads the rendered box rather than the declarations — a
     wearer is free to restate, and the box is what a user compares."""
     page = open_page(browser, serve(CHIP_PAGE))
@@ -2091,9 +2090,9 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     page is of the log it left.
 
     Two clicks three lines apart can land reversed on a loaded runner, while runs of
-    that same sequence in the dockerised Linux suite don't reproduce it. So the race is
-    stated rather than run for. The first send is stopped in the wire and the second
-    click made while it is still there, which is the whole of a loaded machine's
+    that same sequence in the dockerised Linux suite rarely if ever reproduce it. So the
+    race is stated rather than run for. The first send is stopped in the wire and the
+    second click made while it is still there, which is the whole of a loaded machine's
     contribution; what the page does about that click is the instrument, since it paints
     a pick before it sends and so has already done whatever it was going to do about
     sending by the time the paint is readable.
@@ -2307,8 +2306,8 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     What the options go behind is `hidden="until-found"`, which is find-in-page's to
     reopen and so collapses the box with content-visibility rather than by removing it.
     That is containment, and containment passes over a table box without a word — a
-    question row states its layout as a table, so a settled group of them stayed on
-    screen under a shut disclosure, reading as one that had never collapsed."""
+    question row states its layout as a table, so a settled group of them would stay
+    on screen under a shut disclosure, reading as one that had never collapsed."""
     page = open_page(browser, serve(SETTLED_OBLIGATION_PAGE))
 
     box = page.locator("#jobs .lf-another")
@@ -2572,10 +2571,9 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     """A titled card's pick mark and the digit the obligation walk puts in its place share one
     seat in the card's corner, and a margin pin standing in that corner steps below the
-    controls it finds there. It found the 11px mark alone, so once an answer brought the
-    pin it stood over the lower edge of the first card's digit, which then gave way to a
-    chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
-    now takes the digit's box, and every card wears its own digit. A chosen card is filled
+    controls it finds there. Finding the mark alone, once an answer brought the pin it
+    would stand over the lower edge of the first card's digit. The mark takes the
+    digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
     page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
@@ -2614,8 +2612,8 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
 def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve):
     """The walk hangs an obligation control's digit off the control's upper-left corner. In
     the notification playground at 1024px its Create button wraps under Reset and Copy,
-    8px below them, and a digit hung on that corner stood over Reset's; it now takes the
-    first corner that stands over no other control."""
+    8px below them, and a digit hung on that corner would stand over Reset's, so it
+    takes the first corner that stands over no other control."""
     page = open_page(browser, serve(named_source("notification-playground")))
     resized(page, 1024, 768)
     page.keyboard.press("m")
@@ -2703,8 +2701,8 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
 ):
     """Authors write a card's consequence after its title as a plain sentence, as one
     holding an inline element, or as a paragraph, and each reads as one card: the
-    paragraph's own margin had set it three times as far under the title, and the
-    title's margin set the sentence with an element 4px lower than a plain one."""
+    paragraph's own margin would set it further under the title, and the title's
+    margin would set the sentence with an element lower than a plain one."""
     page = open_page(
         browser,
         serve(

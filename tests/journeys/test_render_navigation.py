@@ -1823,8 +1823,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A press a widget built joins the same namespace, declared by the constructor that
     # made it rather than by an entry here. A pick spends no page letter of its own — the
-    # register holds capabilities, and a control is a route to one — so before this the
-    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    # register holds capabilities, and a control is a route to one — so without that
+    # declaration the only keyboard way to it would be Tab. The arrival is the press, so
+    # the option is chosen.
     page.evaluate(
         """() => document.scrollingElement.scrollTo(
              0, document.getElementById('opts-decision').offsetTop - 80)"""

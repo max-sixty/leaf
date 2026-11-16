@@ -12,11 +12,11 @@ that lands while the last one's motion runs. Hypothesis draws those cases, and
 same on every run, so a run's verdict is the code's; to look further, run it with
 `derandomize` off.
 
-Two jerks it caught stand as explicit examples: a margin card held at the window's foot
-by a new line drawn part of a line lower for a frame as the line went, which also has
-its own test in `browser/margin/test_card_reply.py`;
-and a comment box scrolled to the window's foot drawn where it stood before the scroll,
-hundreds of pixels away, for a frame as a line went."""
+Two explicit examples hold jerks it can catch: a margin card held at the window's foot
+by a new line drawn part of a line lower for a frame as the line goes, which also has
+its own test in `browser/margin/test_card_reply.py`; and a comment box scrolled to the
+window's foot drawn where it stood before the scroll, hundreds of pixels away, for a
+frame as a line goes."""
 
 from itertools import pairwise
 

@@ -3411,8 +3411,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     """A connection that waits before speaking is a browser preconnecting, not a
     socket that will never speak.
 
-    The close was once bounded by a one-second read deadline every connection
-    carried, which cannot tell those two apart. Chromium opens sockets ahead of need
+    A one-second read deadline on every connection, bounding the close, cannot tell
+    those two apart. Chromium opens sockets ahead of need
     and writes real requests onto them later, and a request written onto a connection
     the server had already closed is dropped with no response, no console entry and no
     error: in a page that reads as a subresource which never arrives and a load event
@@ -3421,8 +3421,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
     client = socket.create_connection(("127.0.0.1", server.port))
     try:
-        # Longer than any per-connection read deadline of the order the close was
-        # once bounded by, so a server still carrying one has closed this already.
+        # Longer than a one-second per-connection read deadline, so a server still
+        # carrying one has closed this already.
         time.sleep(2)
         client.sendall(f"GET /?t={TOKEN} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode())
         client.settimeout(STATED_TIMEOUT)

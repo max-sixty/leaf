@@ -1075,8 +1075,8 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve):
     """r settles the thread holding focus, not only a focused card.
 
-    A click on a thread's words focuses the message, so a card-only reach left the
-    user's most common way in pressing a letter that did nothing. The Resolve button,
+    A click on a thread's words focuses the message, so a card-only reach would leave
+    the user's most common way in pressing a letter that did nothing. The Resolve button,
     a link in a reply, and the message each reach it; the reply box keeps the letter."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir

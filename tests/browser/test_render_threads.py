@@ -47,8 +47,8 @@ def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
     log will take that reply's answer, so the log accepting it moves nothing, and the
     stream's growth in the same readings is its arrival, not an edit.
 
-    The panel drew the user's pending message below the streaming reply, and the
-    accepted reading, whose live reply stands after every logged message, moved the
+    A panel drawing the user's pending message below the streaming reply would see the
+    accepted reading, whose live reply stands after every logged message, move the
     reply below it.
     """
     url = serve(PANEL_PAGE)

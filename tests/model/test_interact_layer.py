@@ -1832,15 +1832,15 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
     `::after` and `::marker` stand for their element. A subject such as `> .q`, `> p`
     or `> :where(p, li)` names one. The same holds for a `:has()` alone in its
     compound: `@scope (:has(> lf-toc))`, even under a container query that a page
-    without a sidebar never meets, makes each style recalc in a Tab restyle the whole
+    without a sidebar never meets, can make each style recalc in a Tab restyle the whole
     page.
 
     A scope's root names its element by a class, id or attribute, not by a type alone.
     Chromium tests the root's `:has()` on every element of that type, and adding or
-    removing a node inside any of them restyles the page: with `@scope (div:has(>
-    lf-toc))`, a heading's link moving into the chrome restyles most of the asks page
-    of `leaf-dev bench`, where toc.css's rule for the block after the map, which asks
-    no `:has()` at all, restyles almost none."""
+    removing a node inside any of them can restyle the page: with
+    `@scope (div:has(> lf-toc))`, a heading's link moving into the chrome can restyle
+    most of the asks page of `leaf-dev bench`, where toc.css's rule for the block after
+    the map, which asks no `:has()` at all, restyles far fewer."""
     found = []
 
     def keyed(compound):
@@ -1911,7 +1911,8 @@ def test_no_has_reads_where_focus_is():
     move restyle what lies under every element whose `:has()` the move might change, and
     the whole page wherever any rule, an author's included, puts a `:has()` before a
     subject naming no element, as an authored `.zz:has(> .yy) > *` does. Without such
-    reads, a focus move restyles a few elements, with that rule or without it."""
+    reads, a focus move between two links in `pr-walkthrough`'s main restyles a few
+    elements, with that rule or without it."""
     reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
     found = []
     for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
@@ -2514,10 +2515,9 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     other says — and nothing catches it, because no test and no browser gate can read a
     rule that never applied.
 
-    The chip and the thread mark's note were written that way on purpose, restated in
-    base.css for the shadow roots the adopted sheet cannot reach, and the two copies
-    had drifted: base.css's chip cleared the platform's button face and chrome.css's
-    did not, so in the light DOM that reset had never once run.
+    A selector restated in base.css on purpose, for the shadow roots the adopted sheet
+    cannot reach, still drifts: a reset base.css's copy states and chrome.css's does not
+    never runs in the light DOM.
 
     Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
     unlayered choice whatever its specificity, and a rule inside its `@scope` wins

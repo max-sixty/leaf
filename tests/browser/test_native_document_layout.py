@@ -178,7 +178,8 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, s
     scrolled past, so the line read in a sidebar page's body stays put, as a thread's
     new reply above the screen relies on (held-news.js). The aside stands first in the
     tree and stretches along the body, holding only a sticky track, so anchoring must
-    pass over it to the body: anchored on the aside, the line moved by the growth."""
+    pass over it to the body: anchored on the aside, the line would move by the
+    growth."""
     paragraphs = "".join(
         f'<p id="p{number}">Paragraph {number} of the evidence.</p>'
         for number in range(80)
@@ -214,9 +215,9 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
 ):
     """A sticky track scrolls its own blocks, and the browser's scroll anchoring holds
     the line read there while a block above it grows, as a widget drawing late does.
-    The track set `overflow-anchor: none` on itself, and the line moved by the growth,
-    200px in both engines. The aside before the body keeps the property, which keeps
-    the page's anchoring off the track."""
+    A track that set `overflow-anchor: none` on itself would see the line move by the
+    growth. The aside before the body keeps the property, which keeps the page's
+    anchoring off the track."""
     follow_ups = "".join(f'<p id="f{n}">Follow-up {n} to check.</p>' for n in range(60))
     body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
     source = leaf_page(

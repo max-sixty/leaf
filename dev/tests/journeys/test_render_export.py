@@ -740,12 +740,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
 ):
     """A `--user` preview's update leaves the session's wait watching.
 
-    Were the update to disable the page's service for its whole length, a wait watching
-    the page would read that as a page it had lost: with no other page to carry, it
-    would end on every save. A source edit leaves the server up, and a runtime edit's
-    re-vendor restarts it, which a wait watches through as it watches any stopped
-    server. The comment after the update is the proof: only a wait still watching
-    delivers it.
+    A source edit leaves the server up, and a runtime edit's re-vendor restarts it,
+    which a wait watches through as it watches any stopped server. The comment after the
+    update is the proof: only a wait still watching delivers it.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"

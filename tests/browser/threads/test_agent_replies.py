@@ -210,12 +210,10 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
 ):
     """The answer the log holds is what the panel draws, not the draft it replaced.
 
-    `publish-site` failed on a deployed turn that published its revision and replied:
-    the container held the answer, every server reading returned it, and the user's
-    panel showed one agent bubble with no words in it. The provisional reply was
-    retired only by the response address it was sent to, so an answer that named only
-    the attempt it was reserved under stood beside its own placeholder and the draft
-    is what got drawn. A logged event naming either identity retires the draft.
+    A provisional reply retired only by the response address it was sent to would let
+    an answer that named only the attempt it was reserved under stand beside its own
+    placeholder, and the draft would be what got drawn: one agent bubble with no words
+    in it. A logged event naming either identity retires the draft.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
@@ -343,12 +341,11 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
     """The agent's opening streams into the open card the user is reading, and the
     explicit answer completes that same message.
 
-    On a real Codex App Server turn the card drew an empty agent bubble as the turn
-    started, held the opening's first words as an edit of it behind "1 new reply", and
-    the answer, written by `leaf thread reply` under a retry key of its own, took the
-    bubble away and appended itself. The provisional reply now joins the thread with
-    its first words, its words join it as they come, and the answer to the same input
-    is the same message.
+    The card must not draw an empty agent bubble as the turn starts, hold the opening's
+    first words as an edit of it behind "1 new reply", and let the answer, written by
+    `leaf thread reply` under a retry key of its own, take the bubble away and append
+    itself. The provisional reply joins the thread with its first words, its words join
+    it as they come, and the answer to the same input is the same message.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
@@ -760,9 +757,9 @@ def test_held_news_says_one_count_of_all_it_holds(browser, serve):
     """A seat's notice says one count of what waits, "1 new" and then "2 new", at the
     width it first stood at, while the user reads beside the thread. Its name is the
     count it shows, so a voice user saying it finds it, and its description says each
-    fact. It said the facts and, past its room, dropped the later ones behind a "+1", so
-    one piece of news read three ways on three surfaces; then its name said only the
-    facts, which the words shown never said."""
+    fact. Saying the facts and, past its room, dropping the later ones behind a "+1"
+    would read one piece of news three ways on three surfaces, and a name saying only
+    the facts would say what the words shown never say."""
     url = serve(SEATED_OBLIGATION_PAGE)
     # An agent's opening message has no delivery receipt competing with the news.
     root = panel_comment(
@@ -961,7 +958,7 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     under the thread's own agent name, in the same bubble as a real answer, and its
     prose is the only other difference. So a user skimming a thread reads an
     apology from the agent rather than a notice that their message went nowhere, and
-    the page's own record of the failure — `failure` — went unread. The mark belongs
+    the page's own record of the failure — `failure` — goes unread. The mark belongs
     in the head because that is the part of a message a user takes on trust.
     """
     url = serve(THREAD_DIFF_PAGE)
@@ -1066,8 +1063,9 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     browser, serve
 ):
     """A reply's markup is painted where the thread draws it, not by the page's install,
-    so a log bounded at its end in a reply was neither held at its end nor the box
-    scrolling its lines until some later revision swept the page."""
+    so a log bounded at its end in a reply, left to the install, would be neither held
+    at its end nor the box scrolling its lines until some later revision swept the
+    page."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What did the deploy do?")
     markup = (

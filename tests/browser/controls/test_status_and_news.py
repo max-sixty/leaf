@@ -166,11 +166,11 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     the news rewrote may grow or shrink into free room, as the status press does when the
     sentence it carries changes; nothing else may move for it.
 
-    The panel's row is where all of it lands. On the banner `Threads: 9` becoming
-    `Threads: 10` — a comment posted from the terminal while the user reads — slid
-    the version picker 6px left, and the Accept all a second tab's decision put away
-    took the New-version chip with it; the row's notice for a new version takes its
-    room from the field, so the marks keep their seats.
+    The panel's row is where all of it lands. `Threads: 9` becoming `Threads: 10` — a
+    comment posted from the terminal while the user reads — would slide the version
+    picker left, and the Accept all a second tab's decision puts away would take the
+    New-version chip with it; the row's notice for a new version takes its room from
+    the field, so the marks keep their seats.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the

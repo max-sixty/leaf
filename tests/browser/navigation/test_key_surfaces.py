@@ -100,14 +100,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
-    """One declaration per binding, and every surface is a projection of it. The d/u
-    reading-page pair is the case that named this: a runtime key must be visible wherever
-    the keyboard vocabulary is projected.
+    """One declaration per binding, and every surface is a projection of it. A runtime
+    key must be visible wherever the keyboard vocabulary is projected.
 
     Where it is projected is the reference, which is read for the words — a key named on
     no surface at all is what this refuses.
 
-    It is refused now, where a scope is declared, so the next binding written without a
+    It is refused where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
     it. A row that presses nothing needs none — F7 is the browser's caret browsing, real
     and worth knowing and not what the next press does."""

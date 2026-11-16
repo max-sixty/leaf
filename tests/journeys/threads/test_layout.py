@@ -22,9 +22,9 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
 ):
     """Wherever the card's transcript is scrolled, its stuck head stands on the line
     of the card's actions, and the focus-ring room above that line shows no words,
-    in forced colours too, which drop shadows. Firefox stuck a head at its subgrid
-    scroller's edge, past the room, so the name stood 6px above the actions and words
-    showed over Resolve; in Chromium they showed above the name. Nor do words show
+    in forced colours too, which drop shadows. Firefox can stick a head at its subgrid
+    scroller's edge, past the room, so the name stands above the actions and words
+    show over Resolve; in Chromium they can show above the name. Nor do words show
     beneath the actions, a summary's included, and the head row holding the line
     lends them its ground: an arriving message's tint runs behind them rather than
     being cut by the actions' own paper box whenever the card is scrolled."""

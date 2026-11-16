@@ -772,7 +772,7 @@ def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
     """A reader waiting on a rendering turn sees what that turn's IntersectionObserver
     callbacks did, such as a Copy control leaving layout once a resize and a scroll
     put its code block more than a screen away. Chrome runs those callbacks in a task
-    after one the animation frame queues, so a turn marked from that task let
+    after one the animation frame queues, so a turn marked from that task would let
     `rendered` read the page before those callbacks ran."""
     page = open_page(browser, serve(LONG_PAGE))
     rendered(page)
@@ -2518,8 +2518,8 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     out of the widget floor: generated from the others, it can only repeat them.
 
     Every key is put to the engine, so a key that is not a selector fails here too.
-    `pre > code.language-*` was one for as long as nothing asked — readable, matching
-    nothing, and the only member of the catalog with no way to be checked."""
+    `pre > code.language-*` would be one: readable, matching nothing, and with no
+    other way to be checked."""
     registry = validation_model.incoming_registry(
         [
             schema_model.ASSETS,
@@ -2790,8 +2790,8 @@ def short_aim_findings_in_every_tab(page):
 
     A page's own CSS can shrink a control under a narrow window's rules, and a tab's
     content stands in the layout only while that tab is open, so a reading of the first
-    tab at desktop width never met the three examples whose controls fell below the
-    floor at 390px. Each tab, and each tab inside it, is opened once, and what that
+    tab at desktop width would never meet a control that falls below the floor at a
+    phone's width. Each tab, and each tab inside it, is opened once, and what that
     shows, its panel and the chrome, is read; the rest of the page was read before the
     first tab opened."""
     return _short_aims(page, every_tab=True)
@@ -2888,18 +2888,17 @@ def under_a_finger(page):
 def pressable_paper_findings(page):
     """Nothing on a sheet is interactive, so nothing on it should look as though it is.
 
-    Injected controls go on paper, which the layer has always done — but the ones whose
-    label is the page speaking stay, because their words are the page's only statement of
-    what they say, and twenty of the corpus's 236 came through still dressed as controls:
-    the command hub's counts as filled pills with a pointer hand, its worktree heads with
-    a disclosure marker, a decision's links underlined. The words are what data-lf-said
+    Injected controls go on paper — but the ones whose label is the page speaking stay,
+    because their words are the page's only statement of what they say, and they can
+    come through still dressed as controls: the command hub's counts as filled pills
+    with a pointer hand, its worktree heads with a disclosure marker, a decision's
+    links underlined. The words are what data-lf-said
     keeps; the shape was never part of that bargain.
 
     A shut disclosure is the same fault from the other side — the words are in the
     document, nothing on the sheet says so, and there is no press to open it with. The
-    layer already prints a settled group's cards and an inactive tab's panel open;
-    <details> was the one way of putting content behind a gesture that was missed. Six of
-    them printed as stubs, one holding 3270px of an exact source.
+    layer prints a settled group's cards and an inactive tab's panel open; <details>
+    puts content behind a gesture too, and printed shut it is a stub.
 
     Both readings are taken on screen first, and that half is what makes the print half
     mean anything: a corpus whose controls were bare and whose disclosures were open
@@ -2973,12 +2972,12 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
 ):
     """macOS draws an overlay scrollbar over a scroller's own block end and widens it to
     a 15px track under the pointer, so a thread's code block, 8px of padding under its
-    last line, lost half that line to the bar the moment the user reached for it. A code
-    block or table that scrolls sideways keeps 15px clear under its last line, and the
-    room costs it none of its width: a block child dropped the code block's inline-end
-    padding from what it scrolls, enough to stop a block that overflowed by less than
-    that and loop. One that fits keeps the same clearance, so becoming scrollable
-    never moves the following content a frame after layout."""
+    last line, would lose half that line to the bar the moment the user reached for it.
+    A code block or table that scrolls sideways keeps 15px clear under its last line,
+    and the room costs it none of its width: a block child would drop the code block's
+    inline-end padding from what it scrolls, enough to stop a block that overflowed by
+    less than that and loop. One that fits keeps the same clearance, so becoming
+    scrollable never moves the following content a frame after layout."""
     url = serve(WIDE_TABLE_PAGE)
     wide = "word " * 60
     root = panel_comment(
@@ -3444,8 +3443,8 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     browser, serve, subtests
 ):
     """The theme contains a code block, so it asks what holds it for no width, and a box
-    sized to its content sizes without it: two short commands in a flex row stood 30px
-    wide each, showing none of their lines, and `page check --render` said nothing. The
+    sized to its content sizes without it: two short commands in a flex row would
+    show none of their lines, and `page check --render` would say nothing. The
     gate's reading names each block left a few characters, at a phone's widths: in a
     flex row, in an `auto` track beside an `fr` track, beside a heading that sets its
     flex item's width, in a box sized to fit, in one of four `1fr` tracks, and in a
@@ -3453,9 +3452,9 @@ def test_a_code_block_its_holder_sizes_without_is_reported_squeezed(
     width for the block can't help the tracks, so the words also offer letting them wrap
     or stack, and cite the `page-layout.md` sections that give `layout-tiles` and a grid
     that stacks below a width. A heading or a cell's label gives its holder the width
-    its font draws, so those holders' labels are three letters, which left their blocks
-    13–22px inside in every font tried, against the 54px floor; under "Before" a Linux
-    runner's serif left 59px.
+    its font draws, so those holders' labels are three letters, which leaves their
+    blocks inside the floor in every font tried, where "Before" can leave more than the
+    floor under a Linux runner's serif.
 
     The controls scroll long lines and read well, so the reading leaves them alone: a
     block in the column, `flex: 1` halves, `1fr` halves, `flex: auto` halves under
@@ -3552,9 +3551,9 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve, subt
     columns hold what is in them, so it takes the measure only when it needs to
     and wraps its cells past that; when even wrapping can't fit it scrolls inside
     itself — like pre, like lf-board — rather than out into the margin
-    where a suggestion's controls hang. `width: 100%` had no third case: the
-    table spilled, and at this viewport the window is wide enough that nothing
-    scrolled to say so.
+    where a suggestion's controls hang. `width: 100%` has no third case: the
+    table would spill, and at this viewport the window is wide enough that nothing
+    would scroll to say so.
 
     A widget hangs a word clipped to nothing among the page's own words (.lf-quiet),
     out of flow so it holds no room. Out of flow with no positioned ancestor is
@@ -3800,9 +3799,9 @@ def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
     """A width the sweep steps to is read as it settles, not partway through a
     transition the step started, which no load at that width shows. A sidebar's
     contents map, once the window is wide enough to lay it in the margin, fades its
-    labels out at the places they take over the column; the sweep up from a phone's
-    window read them mid-fade and failed the page for words they covered for a fifth
-    of a second."""
+    labels out at the places they take over the column; a sweep up from a phone's
+    window that read them mid-fade would fail the page for words they cover for a
+    moment."""
     source = leaf_page(
         "Settling",
         """<div id="stage"><p id="prose">Words a fading label passes over.</p>
@@ -4530,11 +4529,11 @@ def test_a_breakout_table_without_the_reading_face_keeps_its_columns_width(
 
 def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, serve):
     """On a page that takes no theme, a table keeps the browser's layout, so on a
-    phone's window its last column stands past the right edge. The page scrolls
-    sideways to it, as on the open web: a wheel over the table brings that column
-    into view. While the live root clipped sideways overflow, the wheel moved the page
-    0px and the column could not be reached. `page check --render` still refuses
-    such a page (`page-scrolls`)."""
+    phone's window its last column stands past the right edge. The page scrolls sideways
+    to it, as on the open web: a wheel over the table brings that column into view. Were
+    the live root to clip sideways overflow, the wheel would move the page nowhere and
+    the column could not be reached. `page check --render` still refuses such a page
+    (`page-scrolls`)."""
     page = open_page(
         browser,
         serve(

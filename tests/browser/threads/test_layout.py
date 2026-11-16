@@ -121,7 +121,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):
     """A margin card's heads end short of its edge, where the first message's head
     leaves the thread's actions their room, so Copy at a later message's head end
-    stood mid-card. It stands at the card's edge, in the actions' column, and copies
+    would stand mid-card. It stands at the card's edge, in the actions' column, and copies
     the message's Markdown source; with nothing selected, the copy key in the thread
     presses the Copy of the message whose words the user clicked."""
     url = serve(PANEL_PAGE)
@@ -386,9 +386,9 @@ WORDS_END = """message => {
 def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
     """The user's own message runs to the thread's column, as the agent's under it
     does, keeping at its end only the inset its words start with, where its rewrite's
-    frame stands. In the panel the user's lines stopped 86px short of the agent's, and
-    41px in a thread on the page, the room Send takes in the field they were typed in,
-    so every message the user sent wrapped narrower than the reply under it."""
+    frame stands. Keeping the room Send takes in the field they were typed in, the
+    user's lines would stop short of the agent's, so every message the user sent would
+    wrap narrower than the reply under it."""
     words = (
         "Check that these balance robust interfaces with code simplicity, deferring "
         "to standards and the browser wherever they can, and keeping the code simple."
@@ -663,7 +663,8 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     """Every declared shadow tree receives the layer's composed shadow sheet in every
     engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
     span`, dresses that widget's tree and not another package's. Each engine reads the
-    composed sheet itself."""
+    composed sheet itself: Firefox can apply none of a generated `:host` scope, which
+    Leaf doesn't write."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"

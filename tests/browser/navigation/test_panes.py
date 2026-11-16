@@ -489,7 +489,7 @@ def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     browser, serve, shape
 ):
     """A log that follows its newest entry stands at its end. On a long page, `k` at the
-    top moved it with no region named, and the log stopped following; the page keeps that
+    top moves it with no region named, and the log stops following; the page keeps that
     step, as it keeps every step it can take, and so does a short `main` that a site
     header pushes past the window's foot. The window holds all of a workspace's `main`,
     so there `k` moves the log back from its newest entry, even with a site footer after
@@ -595,9 +595,10 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
 
 def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
     """A closed `<details>` keeps its contents' boxes where they would stand open, as an
-    inactive tab's panel does, so where the fold sat just above the window the let-go
-    took a paragraph inside it for what the user was reading. Focus cannot land in a
-    closed fold, so closing Threads left the user on its toggle instead of the page."""
+    inactive tab's panel does, so where the fold sat just above the window a let-go
+    reading those boxes would take a paragraph inside it for what the user was reading.
+    Focus cannot land in a closed fold, so closing Threads would leave the user on its
+    toggle instead of the page."""
     page = open_page(
         browser,
         serve(
@@ -1004,10 +1005,10 @@ def test_a_tall_local_comment_survives_its_panes_scroll_behavior_and_return(
 def test_a_key_pressed_with_nothing_focused_keeps_the_place_read_in_a_pane(
     browser, serve
 ):
-    """Focus on the body stands on nothing, so a key pressed there records no place. A
-    place recorded for the page outranked the one the reader made in the pane, and a
-    narrower window, which hands the pane to the page, left them at the top of the page
-    rather than on the passage they had read."""
+    """Focus on the body stands on nothing, so a key pressed there records no place.
+    Were a place recorded for the page to outrank the one the reader made in the pane, a
+    narrower window, which hands the pane to the page, would leave them at the top of the
+    page rather than on the passage they had read."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     resized(page, 1200, 900)
     pane_scroll_behavior(page, page.locator("#left-reading"), "bounded")
@@ -1566,8 +1567,8 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
     browser, serve
 ):
     """An obligation inside a block that bounds its height arrives at the top of that block,
-    which is the box scrolling it. The walk measured its run-up against the window and
-    moved the page to put it at the window's top, sliding a log the user could
+    which is the box scrolling it. A walk that measured its run-up against the window
+    would move the page to put it at the window's top, sliding a log the user could
     already see."""
     early = "".join(f"<p>Early {n}: a line before the question.</p>" for n in range(8))
     entries = "".join(

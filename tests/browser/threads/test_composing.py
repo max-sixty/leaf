@@ -535,8 +535,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
 def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve):
     """A press on Send while an input method holds unfinished words takes the focus, as
     leaving the box is what finishes them: the send carries the finished words, and the
-    box it empties stays empty. Held in the box, the words went out unfinished and the
-    input method's commit afterwards wrote them back into the emptied box."""
+    box it empties stays empty. Held in the box, the words would go out unfinished and
+    the input method's commit afterwards would write them back into the emptied box."""
     page, box, send, after, _ = pressed_send_surface(browser, serve, "general")
     ended = box.evaluate_handle(
         """box => {
@@ -606,8 +606,8 @@ def shown_in(page, node, scroller):
 def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
     browser, serve, bound
 ):
-    """A block that bounds its own height scrolls a seat inside it, so each send
-    landed its thread by scrolling the page too, and the block went out of the window
+    """A block that bounds its own height scrolls a seat inside it, so a send that
+    landed its thread by scrolling the page too would take the block out of the window
     after two sends: the comment that starts the thread, then a reply in it. The block
     is the reading region the seat stands in."""
     page = open_page(browser, serve(bounded_seat_page(6, bound)))
@@ -654,8 +654,8 @@ def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
 
 
 def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_panel(browser, serve):
-    """The comment box a widget seats grew under the window's foot chrome, CodeMirror's
-    caret scrolling knowing nothing of it."""
+    """The comment box a widget seats would otherwise grow under the window's foot
+    chrome, CodeMirror's caret scrolling knowing nothing of it."""
     url, host = seated_page(serve, "verdict")
     page = open_page(browser, url)
     page.locator(f"{host} > .lf-test-comment").scroll_into_view_if_needed()

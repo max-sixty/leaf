@@ -1825,7 +1825,8 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     },
   };
   const app = capture([[declared.id, declared]]);
-  // An earlier Leaf's recorded definition carried the verb flag as `update`.
+  // A recorded definition carrying a field this Leaf's definition lacks: the verb flag
+  // as `update`.
   const accepted = {
     ...action("decided"),
     id: "e1",

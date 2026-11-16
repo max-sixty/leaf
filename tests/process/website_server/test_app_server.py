@@ -201,7 +201,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "--listen",
         harness.endpoint,
     ]
-    # Adding a "declare each step" instruction here makes the turn run a closing
+    # Adding a "declare each step" instruction here can make the turn run a closing
     # `resolve` and never reply, which `leaf-dev journey run website-adapter` catches.
     # The hosted page's sentence comes from the steps App Server watches
     # instead, which the activity fold prefers over Leaf's own claim wording for

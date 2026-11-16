@@ -354,8 +354,8 @@ def test_a_state_read_waits_while_news_answers_and_ends_when_a_look_fails(
     """A state read waits for its answer while the server answers the page's news
     looks, and ends as offline once a look goes unanswered.
 
-    A container that has just run a turn answers its next state read in seconds rather
-    than milliseconds. A bound inside that spread does not delay such a read, it
+    A container that has just run a turn can answer its next state read in seconds
+    rather than milliseconds. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
     for gone while the answer it asked for is still on its way. A slow container still
     answers news, so the looks, not a deadline on the read, say when the server is gone.
@@ -517,7 +517,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. A freshness answer says when the
     page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
-    spacing a failed exchange has always had. Without that a page would sit under
+    spacing a failed exchange has. Without that a page would sit under
     an offline status until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     open_threads(page)
@@ -662,8 +662,8 @@ def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
 ):
     """A module can fail on its way from a server that is still there, as when the
     machine's network changes under the request (`net::ERR_NETWORK_CHANGED`). The page
-    then lacks it however long it waits, and it waited only for another server, so a
-    page whose server kept answering never started. Once that server answers, the page
+    then lacks it however long it waits, and a page that waited only for another server
+    would never start while its server kept answering. Once that server answers, the page
     asks it for the document once more, and starts. A page that lost only its theme
     upgrades without it, and asks too, though the network change took the first probe
     with it and the page upgraded before a probe answered. A module the server fails

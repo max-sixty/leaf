@@ -797,7 +797,7 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # for the same reason. A space where a wrapped line breaks hangs past the box, as
 # `pre-wrap` lets it, and draws nothing, so a range over the whole row counts it cut.
 # Reading the row's own box instead gives every row in a file the file's overhang, so
-# every row counts cut where one line overflows, and `widest` names a trailing-context
+# rows count cut where one line overflows, and `widest` can name a trailing-context
 # line the user can see whole. Text wider than the
 # room is text the user cannot reach without scrolling the file sideways, and on paper,
 # text that is simply gone. `worst` and `widest` are for the failure to say which line and

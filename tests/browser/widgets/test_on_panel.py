@@ -965,9 +965,9 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
     """While On Me stands open, a margin card opening on the thread that asks a choice
     takes the choice from On Me's card, and closing it may leave the choice there. The
     card shows the choice once throughout: the options themselves while its drawing of
-    the message holds them, else its choices, never both and never neither. Firefox
-    kept the choices hidden after the choice left the card under a rule asking where the
-    choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
+    the message holds them, else its choices, never both and never neither. Firefox can
+    keep the choices hidden after the choice leaves the card under a rule asking where
+    the choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
     its match moves out, in Firefox")."""
     url = serve(
         leaf_page(

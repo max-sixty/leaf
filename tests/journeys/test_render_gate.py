@@ -758,7 +758,7 @@ def test_the_runtime_holds_a_declared_scroll_surface(browser, serve):
 
     Asked three ways. The containing block itself, through offsetParent, which for
     an out-of-flow box is the positioned ancestor it is laid out against: the
-    scroller now, `main` before. The symptom: the page's width, and the word's
+    scroller, not `main`. The symptom: the page's width, and the word's
     distance from its row's end edge before and after the box scrolls, which a word
     laid out against the page keeps only while the row stands still — at rest that
     word sits at the row's end too, on the page's own account. And the two boxes the
@@ -845,7 +845,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     viewport still belongs to page flow, and offered controls still lose presses
     when clipped, beside a clean control the viewport shows completely.
 
-    A note in an option now wraps inside its native row rather than being pulled
+    A note in an option wraps inside its native row rather than being pulled
     into the page's margin. It remains readable inside the group's clip and must not
     be reported alongside the genuinely lost boxes.
 
@@ -1961,8 +1961,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     of them does: the waiting surface is what the page shows when the first poll has
     not answered yet, so on a load quick enough to present without painting a frame it
     never runs at all. Comparing two loads then compares two guesses about how busy
-    the machine was — the first visit came up too quickly to show it, the return did
-    not, and the return was reported as having moved a surface neither of them owns.
+    the machine was — the first visit can come up too quickly to show it while the
+    return does not, and the return would then read as having moved a surface neither
+    of them owns.
     So the poll is held on every load and let go once the surface is up, which is this
     suite's answer to a race wherever it finds one, and the reading it waits for is the
     page's own. The window that opens is also the one this test is about: it is where a

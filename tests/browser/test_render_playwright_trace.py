@@ -870,9 +870,9 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
 
 def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, serve):
     """The recording the chooser shows stands where the one it replaced stood, and the
-    workspace ends at its foot. A hidden wrapper kept its margins, so choosing After
-    moved the recording down by them and the sticky chooser hung over a blank band
-    below the workspace."""
+    workspace ends at its foot. A hidden wrapper that kept its margins would move the
+    recording down by them as After is chosen, and the sticky chooser would hang over a
+    blank band below the workspace."""
     url = serve(
         named_source("playwright-paired-results"),
         packages=("playwright",),

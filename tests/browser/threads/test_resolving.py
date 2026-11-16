@@ -575,9 +575,10 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: `z` by each of its three ways,
     the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose chose for the thread as it stood at the way back: it put a thread resolved
-    in its card in the panel, where resolved threads open, one resolved in the panel's
-    view in a card, and one resolved in a seat in the panel, then a card."""
+    choose would choose for the thread as it stood at the way back: it would put a
+    thread resolved in its card in the panel, where resolved threads open, one resolved
+    in the panel's view in a card, and one resolved in a seat in the panel, then a
+    card."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)

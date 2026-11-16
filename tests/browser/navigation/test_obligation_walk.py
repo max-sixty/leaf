@@ -1339,7 +1339,7 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
     page.keyboard.press("m")
     expect(page.locator("#count-ask")).to_be_focused()
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("question · Show the card count?")
+    expect(composer).to_contain_text("section · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
@@ -1348,7 +1348,7 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
     option.click()
     expect(option).to_have_attribute("chosen", "")
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("question · Show the card count?")
+    expect(composer).to_contain_text("section · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 

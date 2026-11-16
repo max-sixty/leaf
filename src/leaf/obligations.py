@@ -108,11 +108,12 @@ def framed_widgets(content: list, registry: dict):
     nearest element around it, short of the page's column, whose leading title
     (`gesture_words.leading_title_node`) is a heading standing before the widget, as a
     `<section>` opened by the question's heading is, or None. The frame's heading is the
-    widget's prompt, and going to the widget starts at the frame where both fit the
-    window, so the frame needs an id: a titled element without one frames nothing, and
-    the widget in it reads as untitled rather than taking a heading further out. A
-    widget set among words (`x-inline`), such as a suggestion, has none: its sentence and
-    its own words name it.
+    widget's prompt, and the frame is where the obligation stands and going to it starts
+    while it frames no other (`obligations/place.js` in the browser), so the frame needs
+    an id: a titled element without one frames nothing, and the widget in it reads as
+    untitled rather than taking a heading further out. A widget set among words
+    (`x-inline`), such as a suggestion, has none: its sentence and its own words name
+    it.
 
     Plain HTML says the frame, so no widget declares one. `lf-ask` did until 16
     November 2026, when the user chose the section, which already says what the tag

@@ -2315,7 +2315,7 @@ def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
     ask, so the location ring stands round it inside the card's transcript."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview section")).to_be_focused()
+    expect(page.locator(".lf-margin-preview [data-lf-obligation]")).to_be_focused()
     settle(page)
 
 

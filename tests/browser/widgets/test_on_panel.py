@@ -1080,7 +1080,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    for decision, at in [("timeline", 1), ("ship-ask", 2), ("timeline", 1)]:
+    for decision, at in [("timeline-ask", 1), ("ship-ask", 2), ("timeline-ask", 1)]:
         page.keyboard.press("m")
         expect_walk_position(page, f"{at} of 2 waiting on me · Options")
         expect(page.locator(f"#{decision}")).to_be_focused()

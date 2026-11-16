@@ -456,9 +456,10 @@
     --lf-views-flow: page;
   }
   /* A flow shares the room of the column's flow it stands in, at any depth; one in
-   * any other box has none to share. Only a block standing directly in a column or flow reads the room, so every other
-   * box sets it back to zero, and a flow inside a plain wrapper stays within the
-   * wrapper rather than breaking out as one standing in the column does. */
+   * any other box has none to share. Only a block standing directly in a column or
+   * flow reads the room, so every other box sets it back to zero, and a flow inside a
+   * plain wrapper stays within the wrapper rather than breaking out as one standing in
+   * the column does. */
   :not(.layout-column, .layout-flow) > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
@@ -1105,8 +1106,8 @@
      * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
      * on purpose (`--lf-holds-height`, base.css). The workspace leaves it only its
      * gutter's room on top and at the sides, too little for a region's gap, so its
-     * marks stand at a control's gap (base.css, "Where it stands"), as a comment's
-     * brackets round a question filling the workspace do; the run along its foot falls
+     * marks stand at a control's gap (base.css, "Where it stands"), as the location
+     * ring round a question filling the workspace does; the run along its foot falls
      * below the window, which the body meets. Inside it, a mark ran over its first
      * words and under the panes it holds, which paint over their holder's outline. */
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace

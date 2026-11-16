@@ -226,9 +226,9 @@ flowchart TD
           <p id="path-record">
             Keeping a message back is a turn's pickup in the log, as every hold is: the
             line turn's, which admission records with the message. That pickup is
-            <code>held</code>: it holds the thread as any pickup does, but no reader
-            of delivery counts it, so the message reads as sent to the session until a
-            turn opens it, the working fork's take or the main thread's. The session's
+            <code>held</code>: it holds the thread as any pickup does, but no reader of
+            delivery counts it, so the message reads as sent to the session until a turn
+            opens it, the working fork's take or the main thread's. The session's
             agent-turns record marks the turn a line turn as admission opens it, and a
             take passes it to the working fork, so every reader, the
             <code>holder</code> in <code>leaf page state</code> among them, tells a line

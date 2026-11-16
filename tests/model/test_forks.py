@@ -150,6 +150,7 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     working line, and it reads On it from the start. The line goes in as the agent's
     progress without taking the message in hand, and the thread goes to the session
     at once, still owing its answer and still reading On it until that answer."""
+
     def delivered() -> tuple:
         """Where the message's delivery stands, and what the page's status reads."""
         activity = reading(claimed)["activity"]

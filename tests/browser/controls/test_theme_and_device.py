@@ -515,6 +515,53 @@ LEAF_CONTROLS = """async () => {
     document.getElementById('controls').append(press, ' ', field);
 }"""
 
+# What a control's face draws, as `getComputedStyle` names it.
+FACE = (
+    "el => Object.fromEntries(['paddingTop', 'paddingLeft', 'height', 'borderTopWidth',"
+    " 'borderTopColor', 'borderTopLeftRadius', 'backgroundColor', 'color']"
+    ".map(p => [p, getComputedStyle(el)[p]]))"
+)
+
+
+@pytest.mark.parametrize("theme", [None, False])
+def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme):
+    """Where the page's theme turns on markup's reading face, a bare button, a submit
+    button and a text field the page writes wear the faces of Leaf's own word, commit
+    and field (controls.css, "The faces of Leaf's control roles"), so the page's
+    controls and Leaf's read as one set; a page that takes no theme keeps the
+    browser's. Until 16 November 2026 a page took these faces only by writing Leaf's
+    class names, `lf-btn`, `lf-btn lf-commit` and `lf-field`."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own controls",
+                '<h1>Own controls</h1><p id="controls"></p>'
+                '<p><button id="own" type="button">Run all</button>'
+                ' <button id="own-submit" type="submit">Generate</button>'
+                ' <input id="own-field" type="text" aria-label="Name"></p>',
+            ),
+            theme=theme,
+        ),
+    )
+    page.evaluate(LEAF_CONTROLS)
+    page.evaluate("""async () => {
+      const {offerAction} = await window.__lfWidgetApi();
+      const commit = offerAction('commit', '', 'Commit');
+      commit.id = 'commit';
+      document.getElementById('controls').append(commit);
+    }""")
+    pairs = {"#own": "#press", "#own-submit": "#commit", "#own-field": "#field"}
+    faces = {
+        own: (page.locator(own).evaluate(FACE), page.locator(leaf).evaluate(FACE))
+        for own, leaf in pairs.items()
+    }
+    for own, (drawn, leaf) in faces.items():
+        if theme is False:
+            assert drawn["paddingLeft"] != leaf["paddingLeft"], (own, drawn)
+        else:
+            assert drawn == leaf, own
+
 
 @pytest.mark.parametrize("theme", [None, False])
 def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):

@@ -57,7 +57,7 @@ state (“Lost the connection — reconnecting”) or an error. Leaf's words are
 a past participle, never an elided “I” (“Got it”, “Couldn't answer”, “Need your
 approval”). Where the agent hasn't said what it is doing, Leaf doesn't guess its words:
 a working page shows its leaf in the working tone and no words until the agent writes
-a line. Rejected, on 28 and 30 October 2026: Leaf's inferences set in the agent's voice
+a line. Rejected: Leaf's inferences set in the agent's voice
 (“Got your comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth.
 
 An empty box's words are Leaf's too, since the agent didn't write them, and each ends

@@ -377,11 +377,11 @@ def open_as_user(run: Run, url: str) -> None:
 
     The author's `page check --render` reads the desktop at the window a browser last
     reported for the page (`render_gate.command.desktop_viewport`), so in use it
-    checks the user's window. Here the browser user first opens the page in the
-    comment phase, and until then every render check read the fixed laptop window
-    while the user's stated window was 1600×1000: authors hunted for a way to
-    change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
-    in 8 of 12 width revisions on 2026-10-24."""
+    checks the user's window. Without this view the browser user first opens the
+    page in the comment phase, and until then every render check reads the fixed
+    laptop window while the user's stated window is 1600×1000: authors hunt for a
+    way to change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's
+    source."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
         load(view, url)
         deadline = time.monotonic() + 20

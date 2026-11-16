@@ -75,10 +75,7 @@ profiled run and durations from one without.
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
 thread's as the OS counts it (`ContentClock`), the clock Chromium's thread ticks read.
-Over the same windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per
-input above the ticks. Driven alike through geckodriver that day, the Firefox 159 on
-this Mac read about 10% below Playwright's build, Firefox 157, with the same functions
-on top. To name what took Firefox's time, run under the Gecko profiler's variables;
+To name what took Firefox's time, run under the Gecko profiler's variables;
 the browser writes a profile of the whole run as it closes, which
 <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to the
 OS's count:
@@ -89,10 +86,9 @@ OS's count:
 
 CPU time spreads less than elapsed time on a loaded host, and each exponent compares
 sizes within one run. `event`, `painted`, `answered` and `shown` are elapsed time, which
-a busy host stretches, and so does a run held to the efficiency cores: on 2026-11-05
-`taskpolicy -c utility` read a click's `shown` at 110 to 170 ms on pages the default
-policy showed in 30 to 35. The daily CI run measures the generated pages and charts
-their readings (`.github/workflows/ci.yaml`, `bench`).
+a busy host stretches, and so does a run held to the efficiency cores, as
+`taskpolicy -c utility` holds it. The daily CI run measures the generated pages and
+charts their readings (`.github/workflows/ci.yaml`, `bench`).
 """
 
 import ctypes
@@ -199,8 +195,7 @@ COUNT_FLOORS = {"KB": 10, "requests": 1}
 # path's is its own (`server_paths.floors`), and a held count's is at least one. A
 # keystroke's CPU is a few ms, less than the load's share, so a floor from the load
 # would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
-# fixed 10 KB. In the daily runs of 2026-11-12 to 14, an input's CPU differed between
-# two rounds by a median of 4%, and by 18% at the 90th percentile.
+# fixed 10 KB.
 HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
@@ -233,9 +228,8 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
 # The steps each of `side_documents`' sources holds, two lines a step: a few percent of
-# one of #4781's 4 MB documents, long enough that a walk of every document's rows on
-# each tab opened (#5996) shows at 256, and short enough to keep the daily run to
-# minutes.
+# a 4 MB document, long enough that a walk of every document's rows on each tab
+# opened shows at 256, and short enough to keep the daily run to minutes.
 DOCUMENT_STEPS = 1024
 # A word every line of `steps` holds, which `matches` searches for.
 WORD = "value"
@@ -490,12 +484,12 @@ def document_lines(n: int) -> str:
 def documents(n: int) -> int:
     """How many documents `side_documents(n)` holds: the one shown, one in a closed
     tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
-    `reveal` opens and 256 holds about #4781's thirty."""
+    `reveal` opens and 256 holds about thirty."""
     return 2 + n // 8
 
 
 def side_documents(n: int) -> str:
-    """#4781's page: a side list of tabs, each holding a text document bound to a
+    """A page of a side list of tabs, each holding a text document bound to a
     source of its own (`document_sources`), the first tab's shown and the rest closed.
     The documents grow in number and each stays as long, so a cost that grows with
     the documents the page holds, such as every source sent on a write to one
@@ -1879,8 +1873,8 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: on 2026-11-05 a profile started before it held no
-    # samples in the window the trace's marks bound.
+    # The trace starts first: a profile started before it holds no samples in the
+    # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:
         with cpu_profile(page, profile):

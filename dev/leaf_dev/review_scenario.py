@@ -62,8 +62,8 @@ COMMENTS = {
     ),
     # A question a fork takes, whose rest the user leaves as work for later, which
     # the fork answers with a to-do on the thread for the session. Asking for the
-    # change itself, even after the session's current work, the line fork judged
-    # the session's on 11 Nov, as a change to the page is.
+    # change itself, even after the session's current work, the line fork judges
+    # the session's, as a change to the page is.
     "fork-todo": (
         "triage-lede",
         "Which cards on this page mention customers or partners? List them here. "

@@ -20,12 +20,8 @@ requirement.
 
 ## Score an instruction change
 
-Score an instruction change when you can't be sure how an agent will read it: a new or
-reworded rule, a goal that competes with another, or a cut that may have carried a
-behavior. Deleting a description of an input that can no longer arrive, or correcting
-a fact, needs no score.
-
-Choose the eval by what the instruction is for:
+Root `AGENTS.md`, "Working on the repository", says which changes to score. Choose the
+eval by what the instruction is for:
 
 - General agent behavior: personal-skill evals (`/improving-instructions`, "Validate
   with evals").

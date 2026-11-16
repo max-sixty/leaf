@@ -709,7 +709,8 @@ def apply_answer(
     turn has opened since, queueing a line for each for the agent's next step. A
     finding Leaf changed nothing for is work the agent owes before the user next
     reads the page, so its line wakes an idle session (`waking`), and a session no
-    watch follows is nudged for it; a record Leaf wrote or a fix it made only tells.
+    watch follows is nudged for it, once, if no turn has opened since; a record Leaf
+    wrote or a fix it made only tells.
     Returns what it wrote, changed and told, and why it wrote no records if it
     didn't. Each page's diagnostics note what the fork named there and what came of
     it, with `run`."""
@@ -721,6 +722,7 @@ def apply_answer(
     changed: list[dict] = []
     told: list[str] = []
     dropped = None
+    nudged = False
     for page_dir in owned_pages(session_id):
         path = str(page_dir)
         mine = {
@@ -782,9 +784,13 @@ def apply_answer(
                     told.extend([*lines, *owed])
                     here["told"] = len(lines) + len(owed)
                     _note(page_dir, session_id, asked, {**mine, **here, **(run or {})})
-                # After the lines are queued, so the turn a nudge starts hears them.
-                if owed:
+                # After the lines are queued, so the turn a nudge starts hears them;
+                # once, since that turn hears every page's lines; and only for the
+                # turn the fork read, which ended on its answer, so a later turn the
+                # user stopped with Escape waits for their next prompt.
+                if owed and current and not nudged:
                     nudge_unwatched(page)
+                    nudged = True
         except FileNotFoundError:
             continue
     return {

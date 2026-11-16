@@ -320,6 +320,14 @@ def test_a_finding_only_the_agent_can_act_on_wakes_the_idle_session(
     hook(capsys, "UserPromptSubmit", "p2")
     assert clerk_model.queued("s1") == []
 
+    # A fork that read a turn before the latest one still tells the agent, but nudges
+    # nothing: that later turn ended on its own terms, Escape perhaps, and waits for
+    # the user's next prompt.
+    state_model.close_session_turn("s1")
+    clerk_model.take_answer("s1", json.dumps(answer), question["basis"])
+    assert len(clerk_model.waking("s1")) == 1
+    assert nudged == [[owed]]
+
 
 def _stale(page, words: str, replacement: str) -> str:
     return json.dumps(

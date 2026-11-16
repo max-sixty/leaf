@@ -32,6 +32,7 @@ from leaf.render_checks import wait_until_ready
 from leaf_dev.arms import PageClient, served_page
 from leaf_dev.browser import (
     PANEL,
+    QUOTE_RANGE,
     WINDOWS,
     Window,
     go_to_threads,
@@ -40,7 +41,7 @@ from leaf_dev.browser import (
     scroll_settled,
     settle,
 )
-from leaf_dev.commands.corpus import sources as corpus_sources
+from leaf_dev.commands.generate.corpus import sources as corpus_sources
 
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
@@ -389,6 +390,27 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
+def panel_errors(page: Page) -> None:
+    """The leaf's menu opened by its error dot, over an error the user edited past in
+    the field, so it waits unseen in the Errors list."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError, passErrors} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        passErrors([raiseError('That writing place is unavailable').id]);
+    }""")
+    expect(page.locator(".lf-fp-error-dot[data-lf-shown]")).to_be_attached()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator('.lf-fp-item[data-lf-row="errors"]')).to_be_visible()
+
+
+def panel_errors_list(page: Page) -> None:
+    """The Errors list the menu's Errors row opens, each error with its presses."""
+    panel_errors(page)
+    page.locator('.lf-fp-item[data-lf-row="errors"]').click()
+    expect(page.locator(".lf-fp-error").first).to_be_visible()
+
+
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
     go_to_threads(page)
@@ -611,22 +633,15 @@ PREVIEW_DWELL_MS = 400
 
 
 def word_lines(page: Page, words: str) -> list[dict]:
-    """The boxes of the first `words` the page's text holds within one text node, one
-    for each line they lie on, with their paragraph scrolled to the window's middle."""
+    """The boxes of the first `words` the page's text holds, one for each line they
+    lie on, with the element their first word is in scrolled to the window's middle."""
     return page.evaluate(
-        """(words) => {
-          const walker = document.createTreeWalker(document.querySelector('main'),
-            NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            const at = node.data.indexOf(words);
-            if (at < 0) continue;
-            node.parentElement.scrollIntoView({block: 'center', behavior: 'instant'});
-            const range = document.createRange();
-            range.setStart(node, at);
-            range.setEnd(node, at + words.length);
-            return [...range.getClientRects()].map((box) => box.toJSON());
-          }
-        }""",
+        f"""(words) => {{
+          const range = ({QUOTE_RANGE})(document.querySelector('main'), words);
+          range.startContainer.parentElement.scrollIntoView(
+            {{block: 'center', behavior: 'instant'}});
+          return [...range.getClientRects()].map((box) => box.toJSON());
+        }}""",
         words,
     )
 
@@ -1291,6 +1306,31 @@ def on_me_question(page: Page) -> None:
     page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
+def on_me_thread_choice(page: Page) -> None:
+    """On Me opened on the card of a choice the agent asked in a thread with
+    `--markup`, drawn nowhere else, the card focused so its options wear their
+    digits."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-context",
+        "--text",
+        "Open the pull request now, or hold it?",
+        "--markup",
+        '<lf-options id="pr-timing" choose>'
+        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>'
+        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>'
+        "</lf-options>",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-lf-obligation-id="widget:pr-timing"]')
+    card.scroll_into_view_if_needed()
+    card.focus()
+
+
 def on_me_choice(page: Page) -> None:
     """A described choice card in On Me, before answering."""
     on_me(page)
@@ -1323,6 +1363,29 @@ def threads_scrolled(page: Page) -> None:
     """Threads scrolled in a short window, with Open's band stuck over its rows."""
     go_to_threads(page)
     page.locator(panel_view("threads")).evaluate("view => { view.scrollTop = 36; }")
+    settle(page)
+
+
+def threads_drafts(page: Page) -> None:
+    """Threads while the user has left comments on two passages and a reply unsent:
+    Drafts lists each by its words and what it is about, over the threads."""
+    field = page.locator(".lf-fab-input")
+    page.locator("#off-lede").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    page.keyboard.type("Lead with the decision, then the evidence.")
+    page.locator("#off-facts").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    page.keyboard.type("Cite the telemetry window here.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type("And the support macro, before Friday.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    go_to_threads(page)
     settle(page)
 
 
@@ -2474,16 +2537,13 @@ def draft_long_edit(page: Page) -> None:
     expect(page.locator("#rn-cli .lf-draft-edit")).to_have_count(0)
     body = page.locator("#rn-cli .lf-draft-body")
     expect(body).to_contain_text("Line 59:")
-    word = """el => {
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-      let node;
-      while ((node = walker.nextNode()) && !node.data.includes('Line 30:')) {}
-      const at = node.data.indexOf('Line 30:');
-      const range = document.createRange();
-      range.setStart(node, at + 3); range.setEnd(node, at + 4);
+    word = f"""el => {{
+      const range = ({QUOTE_RANGE})(el, 'Line 30:');
+      range.setStart(range.startContainer, range.startOffset + 3);
+      range.setEnd(range.startContainer, range.startOffset + 1);
       const box = range.getBoundingClientRect();
       return [box.x + box.width / 2, box.y + box.height / 2];
-    }"""
+    }}"""
     point = body.evaluate(word)
     page.evaluate("y => window.scrollBy(0, y - 350)", point[1])
     scroll_settled(page)
@@ -2746,6 +2806,13 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
+    State(
+        "panel-errors-list",
+        "review-a-plan",
+        panel_errors_list,
+        region=".lf-floating-panel",
+    ),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "detached-thread", "feature-gallery", detached_thread, region=".lf-fp-opened"
@@ -2785,6 +2852,7 @@ STATES = (
     State(
         "threads-returning", "ship-review", threads_returning, region=".lf-fp-opened"
     ),
+    State("threads-drafts", "ship-review", threads_drafts, region=".lf-fp-opened"),
     State(
         "floating-thread-retitled",
         "ship-review",
@@ -3457,6 +3525,7 @@ STATES = (
         window=Window((1440, 480)),
     ),
     State("on-me-question", "review-a-plan", on_me_question),
+    State("on-me-thread-choice", "review-a-plan", on_me_thread_choice),
     State("on-me", "corpus", on_me),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),

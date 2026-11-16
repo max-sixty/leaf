@@ -22,7 +22,7 @@ vars:
     harness; the user expects to comment a few hours from now. The plan is complete,
     no answer or approval is required, and any later comments are optional.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out, in
+    Only Skill and Read run here, so write out, in
     order, each command you would run before your closing message, then give the
     closing message itself.
 assert:
@@ -52,7 +52,7 @@ variants:
         notes. I haven't shared that budget yet. Ask me in a new page thread and
         keep the report unchanged until I answer."
 
-        Read whatever instructions you need. The page and services are unreachable
+        The page and services are unreachable
         here, so write the commands you would run and your short closing reply.
     assert:
       - type: llm-rubric
@@ -75,7 +75,7 @@ variants:
         "We're finished with this report. End the conversation and stop watching
         for comments, but keep the report available at its URL."
 
-        Read whatever instructions you need. The page and services are unreachable
+        The page and services are unreachable
         here, so write the commands you would run and your short closing reply.
     assert:
       - type: llm-rubric

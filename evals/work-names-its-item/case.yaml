@@ -34,7 +34,7 @@ vars:
     You will tighten the rollout section, push that fix to PR #812 (its head is now
     9c41d2ab) and wait for its CI run 18233 to pass, and answer the comment; then write
     the glossary, then hand the page back asking the user which glossary terms to cut.
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page from now until the end of the
     turn: before you start editing for the comment, while CI runs, before you start
     writing the glossary, and once the glossary is written.

@@ -17,7 +17,7 @@
    with it in the page's plane would be carried by each scroll frame and placed back.
    `column` is the passage's inline start when it quotes words;
    without one, the card's width ends at `clear`'s right edge. Under or over, a card's
-   start keeps room for the measure (`--thread-card`), or the boundary's width where
+   start keeps room for the measure (`--lf-thread-card`), or the boundary's width where
    that is narrower, so where that start would carry it past the boundary's right edge
    it starts further left rather than narrowing (`place-under-or-over`), a slim card
    widens without moving its start, and the comment box starts where its card will. `margin` is where
@@ -427,8 +427,8 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
 /** @param {string} name */
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
-export const cardMinimum = () => rootLength("--thread-card-min");
-export const cardMeasure = () => rootLength("--thread-card");
+export const cardMinimum = () => rootLength("--lf-thread-card-min");
+export const cardMeasure = () => rootLength("--lf-thread-card");
 // A card by its text stands at the least width while each message it shows is no
 // taller than it is wide there, and at the measure from the first that stands taller
 // (`size-width`). A block of words wider than it is tall reads at a glance in the slim
@@ -452,11 +452,11 @@ export const standsTall = (texts) => {
   return false;
 };
 // How far a surface stands from what it is about (`place-clear`): the room a mark on a
-// region takes (`--focus-region-room`), then the gap it keeps from the edge of its room,
+// region takes (`--lf-focus-region-room`), then the gap it keeps from the edge of its room,
 // so the mark's line and the surface's edge have that gap between them too. It holds
 // whether or not a mark shows, since one comes and goes under the pointer and the
 // surface stays where it stands.
-export const subjectGap = () => rootLength("--focus-region-room") + COMMENT_GAP;
+export const subjectGap = () => rootLength("--lf-focus-region-room") + COMMENT_GAP;
 
 // The block edge a surface on `side` is attached by, which it holds as it grows unless
 // asked to hold another (`edge`): its foot above what it is about, its top elsewhere.

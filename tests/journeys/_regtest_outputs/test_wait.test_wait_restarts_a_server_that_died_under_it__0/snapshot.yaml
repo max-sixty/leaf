@@ -3,7 +3,7 @@
 
 exit: 0
 
-stderr:
+findings:
   - code: server-restarted
     severity: advice
     values:

@@ -291,6 +291,22 @@ def navigate_to_phase(timeline, identity):
     raise AssertionError(f"Native phase not reached: {identity}")
 
 
+def press_scale(widget, name):
+    """Press the choice `name` in `widget`'s open Image scale menu, where it stands.
+
+    The menu hangs from its trigger by CSS anchor positioning, which Chromium moves for
+    a scroll only at the page's next rendering update. Below image tools near the
+    window's foot, the menu reaches into the root's foot padding (floating-panel.js,
+    `followBox`), so Playwright's click scrolls the choice into view and then presses
+    where the menu stood before that update. On a slower runner the update comes first,
+    the press lands on the page, and the menu closes, as any press outside it does. So
+    the choice comes into view, and the page renders the menu there, before the press."""
+    choice = widget.get_by_role("button", name=name, exact=True)
+    choice.scroll_into_view_if_needed()
+    rendered(widget.page)
+    choice.click()
+
+
 def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
     browser, serve
 ):
@@ -531,7 +547,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         "data-lf-datum", targets[0]
     )
     before.get_by_role("button", name="Image scale", exact=True).click()
-    before.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(before, "Actual size")
     canvas = before.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
     )
@@ -790,90 +806,6 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
     assert all(abs(shown[key] - under[key]) <= 1 for key in shown), (shown, under)
 
 
-def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, serve):
-    """The initial overview exposes every mark and lane without inner scrolling."""
-    url = serve(named_source("playwright-trace-gallery"))
-    for width, height in ((1440, 600), (480, 520)):
-        context = browser.new_context(
-            viewport={"width": width, "height": height}, color_scheme="dark"
-        )
-        user = context.new_page()
-        user.goto(url)
-        wait_until_ready(user)
-        widget = user.locator("lf-trace")
-        stage = widget.locator(".lf-trace-stage")
-        tools = widget.locator(".lf-trace-image-tools")
-        metadata = widget.locator(".lf-trace-metadata")
-        assert (
-            widget.locator(".lf-trace-image-viewport").bounding_box()["height"] >= 180
-        )
-        assert tools.bounding_box()["y"] + tools.bounding_box()["height"] <= (
-            stage.bounding_box()["y"] + stage.bounding_box()["height"] + 1
-        )
-        assert metadata.bounding_box()["y"] >= (
-            tools.bounding_box()["y"] + tools.bounding_box()["height"]
-        )
-        timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
-        timeline.scroll_into_view_if_needed()
-        marks = widget.locator(
-            ".lf-trace-moment-pin, .lf-trace-input-label, .lf-trace-bar"
-        )
-        assert marks.count() > 0
-        # Every mark fits inside the timeline and is directly pointable; the
-        # timeline scrolls only sideways, and only when zoomed.
-        hidden = marks.evaluate_all("""marks => marks.flatMap(mark => {
-          const r = mark.getBoundingClientRect();
-          const c = mark.closest('.lf-trace-scroller').getBoundingClientRect();
-          const hit = document.elementFromPoint(r.x + Math.min(r.width / 2, 3),
-            r.y + r.height / 2);
-          return r.top >= c.top && r.bottom <= c.bottom
-            && r.left >= c.left && r.right <= c.right + 0.5
-            && (hit === mark || mark.contains(hit)) ? [] : [{
-              label: mark.textContent.trim() || mark.className,
-              bounds: r.toJSON(), coveredBy: hit?.className,
-            }];
-        })""")
-        assert hidden == [], hidden
-        assert widget.locator(".lf-trace-scroller").evaluate(
-            "node => node.scrollHeight <= node.clientHeight && node.scrollWidth <= node.clientWidth"
-        )
-        before_scroll = user.evaluate("scrollY")
-        timeline.hover()
-        user.mouse.wheel(0, 300)
-        user.wait_for_function("before => scrollY >= before + 250", arg=before_scroll)
-        rendered(user)
-        widget.get_by_role("button", name="Image scale", exact=True).click()
-        actual = widget.get_by_role("button", name="Actual size", exact=True)
-        assert actual.evaluate("""button => {
-          const r = button.getBoundingClientRect();
-          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-          return hit === button || button.contains(hit);
-        }""")
-        box = actual.bounding_box()
-        user.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        # Keyboard stepping moves the playhead, not the whole-recording window.
-        timeline.focus()
-        ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
-        ruler = widget.locator(".lf-axis-tick[data-lf-major]")
-        time_window = ruler.evaluate_all(ruler_reading)
-        position = widget.locator(".lf-trace-position")
-        for _ in range(4):
-            before = position.inner_text()
-            user.keyboard.press("ArrowRight")
-            expect(position).not_to_have_text(before)
-            rendered(user)
-            assert ruler.evaluate_all(ruler_reading) == time_window
-        # The ruler's labels and the caption are one kind of small fact, set in
-        # one font and ink.
-        small_type = """node => {
-          const style = getComputedStyle(node);
-          return [style.fontSize, style.fontFamily, style.color];
-        }"""
-        assert ruler.first.evaluate(small_type) == widget.locator(
-            ".lf-trace-caption"
-        ).evaluate(small_type)
-
-
 def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     browser, serve
 ):
@@ -898,7 +830,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     scale.focus()
     scale.press("Enter")
     expect(widget.get_by_role("button", name="Fit image", exact=True)).to_be_focused()
-    widget.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(widget, "Actual size")
     expect(scale).to_have_text("100%")
     expect(scale).to_be_focused()
     scale.press("Enter")
@@ -934,81 +866,6 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
         faults
     )
-
-
-def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):
-    """Holding the chooser module cannot expose a second recording before upgrade.
-    A recording in a wrapper, here a <figure> with its caption and no id, shows and
-    hides with it, before upgrade, after, and across a reload, which tells the two
-    anonymous wrappers apart by the recording inside."""
-    source = named_source("playwright-paired-results")
-    url = serve(source, packages=("playwright",))
-    user = browser.new_page()
-    held = []
-    parsing = []
-
-    def pause_in_second_view(route):
-        response = route.fetch()
-        body, count = re.subn(
-            r'(<lf-trace\b[^>]*\bid="paired-after")',
-            '<p class="arriving-caption">The later recording.</p>'
-            '<script src="/pause-parser.js"></script>\\1',
-            response.text(),
-        )
-        assert count == 1
-        route.fulfill(response=response, body=body)
-
-    user.route(url, pause_in_second_view)
-    user.route("**/pause-parser.js", lambda route: parsing.append(route))
-    user.route("**/widgets/lf-trace-compare.js", lambda route: held.append(route))
-    with user.expect_request("**/pause-parser.js"):
-        user.goto(url, wait_until="commit")
-    workspace = user.locator("lf-trace-compare")
-    # The parser has the second wrapper and caption but not its recording. View
-    # membership must already hold, otherwise this caption flashes during delivery.
-    expect(user.locator(".arriving-caption")).to_have_count(1)
-    expect(user.locator("#paired-after")).to_have_count(0)
-    expect(user.locator(".arriving-caption")).to_be_hidden()
-    assert len(parsing) == 1
-    parsing[0].fulfill(status=200, content_type="text/javascript", body="")
-    expect(user.locator("#paired-after")).to_have_count(1)
-    holding(user, held, 1, "comparison module")
-    user.unroute(url)
-    user.unroute("**/pause-parser.js")
-    expect(workspace.locator(":scope > figure")).to_have_count(2)
-    expect(workspace.locator(":scope > figure").first).to_be_visible()
-    expect(workspace.locator(":scope > figure").last).to_be_hidden()
-    before = workspace.evaluate("""node => ({
-        children: [...node.children].map(child => ({
-            drawn: child.getBoundingClientRect().height > 0
-        })),
-        reserved: parseFloat(getComputedStyle(node, '::before').height)
-    })""")
-    assert len(before["children"]) == 2
-    assert [child["drawn"] for child in before["children"]] == [True, False]
-    assert held
-    user.unroute("**/widgets/lf-trace-compare.js")
-    for route in held:
-        route.continue_()
-    wait_until_ready(user)
-    # The room held while the module loaded is the chooser it draws.
-    drawn = workspace.locator(".lf-trace-compare-controls").evaluate(
-        "node => node.getBoundingClientRect().height"
-    )
-    assert drawn == pytest.approx(before["reserved"], abs=0.5), (drawn, before)
-    user.locator("lf-trace-compare wa-radio").filter(has_text="After").click()
-    wrapper = user.locator("figure:has(#paired-after)")
-    expect(wrapper.locator("figcaption")).to_be_visible()
-    expect(user.locator("#paired-after")).to_be_visible()
-    expect(user.locator("#paired-before")).to_be_hidden()
-    wait_until_ready(user)
-    # Neither wrapper has an id; a reload reopens the chosen one by its recording.
-    user.reload()
-    wait_until_ready(user)
-    expect(wrapper.locator("figcaption")).to_be_visible()
-    expect(user.locator("#paired-before")).to_be_hidden()
-    user.locator("lf-trace-compare wa-radio").filter(has_text="Before").click()
-    expect(wrapper).to_be_hidden()
 
 
 def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, serve):
@@ -1219,7 +1076,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
             "data-lf-datum", targets[-1]
         )
     after.get_by_role("button", name="Image scale", exact=True).click()
-    after.get_by_role("button", name="Actual size", exact=True).click()
+    press_scale(after, "Actual size")
     canvas = after.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
     )

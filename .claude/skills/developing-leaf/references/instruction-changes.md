@@ -48,10 +48,10 @@ money on each later run, and keep only cases that cover distinct failures or nec
 controls. Give the subject the task, context, tools and handoff it would receive in
 normal use, with only the fixture facts the case needs, and keep grading criteria and
 harness bookkeeping out of its input. Let the installed instructions teach the
-workflow rather than repeating their procedure or directing the subject to the rule
-being measured; a replay preserves what the recorded session had read. A diagnostic
-that deliberately supplies a skill or rule measures behavior with that context, not
-whether ordinary use discovers it, so name that limit when reading its result. A
-case that states the situation plainly usually passes on both arms, so paste in the
-earlier turns or competing instruction that pulled the failing session the other way.
+workflow and route the subject to their references, rather than telling it what to
+read or repeating their procedure; a replay preserves what the recorded session had
+read. Where an author reaches the rule through a command, the case authors the page
+(`evals/README.md`, "Case format"). A case that states the situation plainly usually
+passes on both arms, so paste in the earlier turns or competing instruction that
+pulled the failing session the other way.
 A rule that fails only late in a long session needs a replay of that session.

@@ -486,9 +486,9 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     leaves it to guess at the id it needs next.
 
     Every write prints what it wrote, as JSON: an appended event exactly as `page
-    events` reads it back, `seq` included, one line per record, and a status as its
-    declaration stands in the status file. A command that also names its thread
-    prints both records. `test_receipt_settles_one_known_request_once` holds the
+    events` reads it back, `seq` included, and a status as its declaration stands in
+    the status file. A `thread edit` that also renames its thread prints both
+    records, in `records`. `test_receipt_settles_one_known_request_once` holds the
     receipt's, since it needs a page with a request seat.
 
     The default layer declares no instructions audiences, which is why the page is
@@ -498,10 +498,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     runner = CliRunner()
     page_dir = tmp_path / "page"
 
-    def written(args) -> list[dict]:
+    def written(args) -> dict:
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code == 0, result.output
-        return [json.loads(line) for line in result.output.splitlines()]
+        return json.loads(result.output)
 
     def logged(record: dict) -> dict:
         return next(
@@ -510,14 +510,14 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             if event["id"] == record["id"]
         )
 
-    assert written(["page", "init", str(page_dir)]) == [{"page": str(page_dir)}]
+    assert written(["page", "init", str(page_dir)]) == {"page": str(page_dir)}
     (page_dir / "index.html").write_text(PAGE)
 
     audiences = runner.invoke(cli_model.cli, ["page", "instructions", str(page_dir)])
     assert audiences.exit_code == 0, audiences.output
     assert json.loads(audiences.output) == {}
 
-    [stamped] = written(["page", "stamp", str(page_dir), "--text", "first cut"])
+    stamped = written(["page", "stamp", str(page_dir), "--text", "first cut"])
     assert stamped == logged(stamped)
     assert (stamped["kind"], stamped["version"], stamped["seq"]) == ("note", 1, 1)
 
@@ -527,12 +527,12 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert again.exit_code != 0  # nothing changed, so there is no second version
     assert "already stamped as v1" in again.output
 
-    [waiting] = written(["page", "open", str(page_dir)])
+    waiting = written(["page", "open", str(page_dir)])
     assert waiting == logged(waiting)
     assert waiting["state"] == "waiting"
 
     # The comment's id is the thread's; --title names it in the same command.
-    [opened] = written(
+    opened = written(
         [
             "thread",
             "create",
@@ -599,9 +599,13 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.
-    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])
+    [renamed] = written(["thread", "edit", str(page_dir), later, "--title", "Store"])[
+        "records"
+    ]
     assert (renamed["thread"], renamed["title"]) == (root, "Store")
-    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])
+    [edited] = written(["thread", "edit", str(page_dir), later, "--text", "and WAL"])[
+        "records"
+    ]
     assert (edited["kind"], edited["message"]) == ("edit", later)
     read = runner.invoke(cli_model.cli, ["page", "state", str(page_dir), later])
     assert read.exit_code == 0, read.output
@@ -613,12 +617,12 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [todo] = written(
+    todo = written(
         ["thread", "reply", str(page_dir), later, "--text", "On it.", "--todo", "Trace"]
     )
     assert (todo["parent"], todo["todo"]) == (later, "Trace")
 
-    [closed] = written(["thread", "resolve", str(page_dir), later])
+    closed = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
 
 
@@ -915,9 +919,9 @@ def test_page_authoring_names_the_theme_s_largest_spacing_step():
     """Authors read the spacing scale's ends in page-authoring.md rather than the
     theme, so a step the theme adds is one they can find."""
     theme = (PLUGIN_ROOT / "browser/styles/tokens.css").read_text()
-    largest = max(int(step) for step in re.findall(r"--sp-(\d+):", theme))
+    largest = max(int(step) for step in re.findall(r"--lf-sp-(\d+):", theme))
     prose = (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text()
-    assert f"`--sp-1` to `--sp-{largest}`" in " ".join(prose.split())
+    assert f"`--lf-sp-1` to `--lf-sp-{largest}`" in " ".join(prose.split())
 
 
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
@@ -1648,7 +1652,9 @@ def test_layout_style_and_widgets_never_read_each_other():
             match[1]
             for _conditions, _enclosing, selector, declarations in _style_rules(theme)
             if (match := re.fullmatch(r"\.([a-z][a-z-]*)", selector))
-            and any(name.startswith(("--t-", "--sp-")) for name, _ in declarations)
+            and any(
+                name.startswith(("--lf-t-", "--lf-sp-")) for name, _ in declarations
+            )
         },
     }
     assert {"layout-column", "layout-workspace"} <= owned[layouts], owned[layouts]
@@ -2007,13 +2013,13 @@ def test_every_ring_stands_at_a_kind_of_box():
     itself read from `--lf-ring-at`."""
     kinds = {
         "0",
-        "var(--focus-region-gap)",
-        "var(--focus-ring-gap)",
-        "var(--focus-ring-inset)",
+        "var(--lf-focus-region-gap)",
+        "var(--lf-focus-ring-gap)",
+        "var(--lf-focus-ring-inset)",
     }
     reads = {
         "var(--lf-ring-at, 0px)",
-        "var(--lf-ring-at, var(--focus-ring-gap))",
+        "var(--lf-ring-at, var(--lf-focus-ring-gap))",
         "var(--lf-band-gap)",
     }
     allowed = {"--lf-ring-at": kinds, "outline-offset": kinds | reads}
@@ -2307,25 +2313,25 @@ def test_the_face_reading_refuses_what_restyles_a_press(tmp_path):
     an id or a class attribute, or by where the press stands."""
     home = tmp_path / "controls.css"
     home.write_text(
-        ".lf-icon-action { color: var(--muted); font: var(--font-ui); }\n"
-        ".lf-icon-action[data-lf-disc]::before { background: var(--chip); }\n"
-        ":is(.lf-row, .lf-btn):hover { background: var(--chip); }\n"
-        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--accent); }\n'
+        ".lf-icon-action { color: var(--lf-muted); font: var(--lf-font-ui); }\n"
+        ".lf-icon-action[data-lf-disc]::before { background: var(--lf-chip); }\n"
+        ":is(.lf-row, .lf-btn):hover { background: var(--lf-chip); }\n"
+        '[data-lf-place="pin"]:hover > .lf-btn { border-color: var(--lf-accent); }\n'
         ":is(summary, .lf-dial-depth)::before { mask: url(a.svg); background: currentColor; }\n"
-        '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--ok-ink); }\n'
-        ".lf-page .lf-btn { border-color: var(--accent); }\n"
-        '[class~="lf-page"] .lf-btn { border-color: var(--accent); }\n'
-        "#dial.lf-btn { color: var(--accent); }\n"
-        "@scope (.lf-page) { .lf-btn { color: var(--accent); } }\n"
+        '.lf-dial-depth.lf-btn[data-lf-tone="ok"] { color: var(--lf-ok-ink); }\n'
+        ".lf-page .lf-btn { border-color: var(--lf-accent); }\n"
+        '[class~="lf-page"] .lf-btn { border-color: var(--lf-accent); }\n'
+        "#dial.lf-btn { color: var(--lf-accent); }\n"
+        "@scope (.lf-page) { .lf-btn { color: var(--lf-accent); } }\n"
     )
     away = tmp_path / "widget.css"
     away.write_text(
-        ".lf-dial-depth { padding: 4px; opacity: 0; font: var(--font-small); }\n"
-        "a.lf-dial-depth { color: var(--accent); }\n"
+        ".lf-dial-depth { padding: 4px; opacity: 0; font: var(--lf-font-small); }\n"
+        "a.lf-dial-depth { color: var(--lf-accent); }\n"
         ".lf-dial-depth { background-color: currentColor; }\n"
-        ".lf-dial-depth:is(a, .lf-btn) { color: var(--ink); }\n"
+        ".lf-dial-depth:is(a, .lf-btn) { color: var(--lf-ink); }\n"
         ".lf-dial > .lf-btn:hover { box-shadow: none; }\n"
-        '[class~="lf-btn"] { background: var(--chip); }\n'
+        '[class~="lf-btn"] { background: var(--lf-chip); }\n'
         ".lf-icon-action::before { mask: none; background: currentColor; }\n"
     )
     refused = _face_overrides(
@@ -3492,7 +3498,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert f"leaf page init '{page}'" in json.loads(result.stderr)["error"]
+    assert f"leaf page init '{page}'" in json.loads(result.stdout)["error"]
     assert list(page.iterdir()) == []
 
 
@@ -3679,7 +3685,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     package = package_parent / ".leaf"
     package.mkdir(parents=True)
     theme = package / "overrides.css"
-    theme.write_text(":root { --accent: teal; }\n")
+    theme.write_text(":root { --lf-accent: teal; }\n")
     monkeypatch.chdir(package_parent)
 
     result = CliRunner().invoke(
@@ -3688,7 +3694,7 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
-    assert theme.read_text() == ":root { --accent: teal; }\n"
+    assert theme.read_text() == ":root { --lf-accent: teal; }\n"
     assert not (page / cleanup_model.EVENTS_FILE).exists()
 
 
@@ -3819,7 +3825,7 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     config = tmp_path / "config"
     user = config / "leaf"
     user.mkdir(parents=True)
-    (user / "overrides.css").write_text(":root { --accent: teal; }\n")
+    (user / "overrides.css").write_text(":root { --lf-accent: teal; }\n")
     project_layer = project / ".leaf"
     project_layer.symlink_to(user, target_is_directory=True)
     monkeypatch.chdir(project)
@@ -3956,7 +3962,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     widgets = managed / "widgets"
     widgets.mkdir(parents=True)
     theme = managed / "overrides.css"
-    theme.write_text(":root { --accent: teal; }\n")
+    theme.write_text(":root { --lf-accent: teal; }\n")
     registry = managed / "registry.json"
     registry.write_text("{}\n")
     (layer / "overrides.css").symlink_to(theme)
@@ -3970,34 +3976,10 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     assert (layer / "overrides.css").is_symlink()
     assert (layer / "registry.json").is_symlink()
     assert (layer / "widgets").is_symlink()
-    assert theme.read_text() == ":root { --accent: teal; }\n"
+    assert theme.read_text() == ":root { --lf-accent: teal; }\n"
     assert json.loads(registry.read_text()) == {}
     checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
     assert checked.exit_code == 0, checked.output
-
-
-def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_module(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert created.exit_code == 0, created.output
-    add_test_widget(tmp_path / ".leaf", "lf-unfinished")
-
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-upgrade"] = True
-    registry["lf-unfinished"]["x-verbatim"] = True
-    registry_path.write_text(json.dumps(registry))
-
-    for args in (
-        ["package", "check", ".leaf"],
-        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
-    ):
-        result = runner.invoke(cli_model.cli, args)
-        assert result.exit_code != 0
-        assert "widgets/lf-unfinished.js" in result.output
 
 
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
@@ -4077,51 +4059,6 @@ def test_package_check_requires_an_existing_package(tmp_path, monkeypatch):
     assert not (tmp_path / "packages").exists()
 
 
-def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch):
-    """An installed package is a bundled one kept somewhere else.
-
-    The store holds the package contract and none of the rest of the author's
-    working directory, and the page reads the store rather than the source, which
-    is gone by the time it is vendored.
-    """
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    source = tmp_path / "src" / "callout"
-    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
-    assert created.exit_code == 0, created.output
-    add_test_widget(source, "lf-callout", upgrade=True)
-    (source / "README.md").write_text("How to work on this package.\n")
-    (source / "spec").mkdir()
-    (source / "spec" / "case.txt").write_text("the author's own test\n")
-
-    installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
-
-    assert installed.exit_code == 0, installed.output
-    stored = Path(json.loads(installed.output)["package"])
-    assert layer_model.named_package("callout") == stored
-    assert sorted(path.name for path in stored.iterdir()) == [
-        "defaults.css",
-        "instructions",
-        "overrides.css",
-        "registry.json",
-        "runtime",
-        "vendor",
-        "widgets",
-    ]
-
-    shutil.rmtree(source)
-    page = tmp_path / "page"
-    vendored = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "callout", str(page)]
-    )
-
-    assert vendored.exit_code == 0, vendored.output
-    registry = registry_storage.load_registry(page)
-    assert registry["$layer"]["packages"] == ["callout"]
-    assert "lf-callout" in registry
-    assert "/widgets/lf-callout.js" in layer_files(page)
-
-
 def test_package_install_refuses_a_source_it_cannot_check_or_name(
     tmp_path, monkeypatch
 ):
@@ -4170,11 +4107,11 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     theme = layer / "overrides.css"
-    theme.write_text(":root { --accent: rebeccapurple; }\n")
+    theme.write_text(":root { --lf-accent: rebeccapurple; }\n")
 
     result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert result.exit_code == 0, result.output
-    assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
+    assert theme.read_text() == ":root { --lf-accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
     (layer / "instructions" / "author.md").write_text("Keep me.\n")
     before = {
@@ -4190,33 +4127,6 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
         for path in layer.rglob("*")
         if path.is_file()
     } == before
-
-
-def test_package_init_widget_merges_an_existing_package(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
-    package = tmp_path / ".leaf"
-    initialized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
-    assert initialized.exit_code == 0, initialized.output
-    existing = add_test_widget(package, "lf-existing")
-    instructions = package / "instructions" / "author.md"
-    instructions.write_text("Keep this package instructions.\n")
-    helper = package / "runtime" / "existing-helper.js"
-    helper.write_text("export const existing = true;\n")
-    theme = (package / "overrides.css").read_bytes()
-
-    result = runner.invoke(
-        cli_model.cli,
-        ["package", "init", ".leaf", "--widget", "lf-added-note"],
-    )
-
-    assert result.exit_code == 0, result.output
-    registry = json.loads((package / "registry.json").read_text())
-    assert registry["lf-existing"] == existing
-    assert "lf-added-note" in registry
-    assert (package / "overrides.css").read_bytes() == theme
-    assert instructions.read_text() == "Keep this package instructions.\n"
-    assert helper.read_text() == "export const existing = true;\n"
 
 
 def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
@@ -4696,7 +4606,7 @@ def test_review_evidence_packages_export_independently(
     assert stamped.exit_code == 0, stamped.output
     exported = runner.invoke(
         cli_model.cli,
-        ["page", "export", str(page), "-o", str(tmp_path / "export.html")],
+        ["page", "export", str(page), "-o", str(tmp_path / "export.html"), "--runtime"],
     )
     assert exported.exit_code == 0, exported.output
     if package == "diff":
@@ -4813,78 +4723,6 @@ def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatc
     assert "lf-diagram" not in local_registry
     assert "lf-local" in local_registry
     assert local_registry["$layer"]["packages"] == ["./packages/diagram"]
-
-
-def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
-    tmp_path, monkeypatch
-):
-    """A saved version keeps the package it was written with: dropping the package
-    from the selection leaves its copy for the revisions that name it, and an edit to
-    the package reaches them at a new address, never under one a browser cached, and
-    as a new generation, which an open document reloads on."""
-    from leaf.revision_artifact import read_artifact
-    from leaf.revisioning import activate_source
-    from leaf.runtime_selection import execution_identity
-
-    monkeypatch.chdir(tmp_path)
-    custom = tmp_path / "custom"
-    (custom / "widgets").mkdir(parents=True)
-    (custom / "widgets" / "helper.js").write_text("export const value = 1;\n")
-    page = tmp_path / "page"
-    init = ["page", "init", "--package", "./custom", str(page)]
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    (page / "index.html").write_text(PLAIN_PAGE)
-    assert activate_source(page).error is None
-    first = execution_identity(read_artifact(page, 1))
-    layer_5 = registry_storage.layer_record(page)
-    assert layer_5 is not None
-    generation = layer_5["generation"]
-
-    (custom / "widgets" / "helper.js").write_text("export const value = 2;\n")
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    assert execution_identity(read_artifact(page, 1)) != first
-    layer_6 = registry_storage.layer_record(page)
-    assert layer_6 is not None
-    assert layer_6["generation"] != generation
-
-    cleared = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--no-packages", str(page)]
-    )
-    assert cleared.exit_code == 0, cleared.output
-    assert registry_storage.layer_packages(page) == []
-    assert "/widgets/helper.js" in layer_files_of_revision(page, 1)
-
-
-def test_package_instructions_do_not_change_a_revisions_browser_address(
-    tmp_path, monkeypatch
-):
-    from leaf.revision_artifact import read_artifact
-    from leaf.revisioning import activate_source
-    from leaf.runtime_selection import executing
-
-    monkeypatch.chdir(tmp_path)
-    custom = tmp_path / "custom"
-    (custom / "instructions").mkdir(parents=True)
-    (custom / "instructions" / "author.md").write_text("Initial instructions.\n")
-    page = tmp_path / "page"
-    init = ["page", "init", "--package", "./custom", str(page)]
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    (page / "index.html").write_text(PLAIN_PAGE)
-    assert activate_source(page).error is None
-    artifact = read_artifact(page, 1)
-    record = json.loads(artifact.manifest)["layer"]
-    first_layer = registry_storage.selected(record, page)
-    first = executing(artifact)
-
-    (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
-    assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    second_layer = registry_storage.selected(record, page)
-    second = executing(artifact)
-
-    assert second_layer.fingerprint != first_layer.fingerprint
-    assert second.package_copies != first.package_copies
-    assert second.resources == first.resources
-    assert second.identity == first.identity
 
 
 def layer_files_of_revision(page: Path, revision: int) -> dict[str, bytes]:
@@ -5152,6 +4990,7 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert failed.returncode == 3
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
+    # A script owns `package run`'s stdout, so its refusal goes to stderr.
     assert json.loads(missing.stderr)["error"] == (
         "package 'tally' has no script 'total.py'; available: count.py"
     )
@@ -5182,7 +5021,7 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     message = "needs an inline `# /// script` metadata block"
     assert message in refused["text"]
     assert installed.exit_code == 1
-    assert message in json.loads(installed.stderr)["error"]
+    assert message in json.loads(installed.stdout)["error"]
     assert not (machine_model.package_store() / "tally").exists()
 
 

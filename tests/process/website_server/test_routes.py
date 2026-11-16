@@ -29,7 +29,8 @@ from leaf.runtime_selection import executing, serving_runtime
 from leaf.schema import LAYER_FILE
 from leaf.served_state import page as served_page
 from leaf.structure import SourceDocument
-from leaf_dev.commands import journey, verify_site
+from leaf_dev.commands.journey import run as journey
+from leaf_dev.commands.site import verify as verify_site
 from leaf_dev.page_fixtures import example_media
 from process.website_server import (
     FakeCodexHarness,
@@ -721,7 +722,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
         assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
         current, _ = get(f"{root}/examples/decision/")
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
+            f'data-lf-entry="/examples/decision{revision_root(published, 2)}/'.encode()
             in current
         )
         runtime = serving_runtime().resources({}, {})

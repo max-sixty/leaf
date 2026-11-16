@@ -469,8 +469,8 @@ test("the scopes inside a widget are found once each, however deep its slots nes
   }
   document.body.append(outer);
   const slotReads = { count: 0 };
-  const read = window.HTMLSlotElement.prototype.assignedElements;
-  window.HTMLSlotElement.prototype.assignedElements = function (...args) {
+  const read = window.HTMLSlotElement.prototype.assignedNodes;
+  window.HTMLSlotElement.prototype.assignedNodes = function (...args) {
     slotReads.count++;
     return read.apply(this, args);
   };
@@ -482,7 +482,7 @@ test("the scopes inside a widget are found once each, however deep its slots nes
     // At most one reading of each slot's assignment.
     assert.ok(slotReads.count <= depth + 1, `${slotReads.count} slot readings`);
   } finally {
-    window.HTMLSlotElement.prototype.assignedElements = read;
+    window.HTMLSlotElement.prototype.assignedNodes = read;
     outer.remove();
   }
 });
@@ -1964,7 +1964,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   ]);
   reflectFirstScopes();
   control.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
@@ -2053,7 +2053,7 @@ test("an earlier route keeps its face under a later route's face in another shad
   ]);
   reflectFirstScopes();
   first.focus();
-  const hints = createCommandHints({ presentedControl: () => null });
+  const hints = createCommandHints({ presentedControl: (control) => control });
   try {
     hints.paint();
     assert.deepEqual(

@@ -60,7 +60,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf_dev.commands.response_times import page_timings
+from leaf_dev.commands.logs.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -572,7 +572,7 @@ def test_app_server_events_report_semantic_codex_progress():
     restored.restore_turn({"items": snapshot})
     assert restored.said_opening() == opening["text"]
     assert restored.said_opening() == ""
-    assert events.reply_so_far({"items": snapshot}) == ""
+    assert events.final_text({"items": snapshot}) == ""
     # Narration after a tool call is never the opening, even with no message before it.
     tool = {"type": "commandExecution", "command": "pytest"}
     assert events.final_text({"items": [tool, narration, final]}) == (
@@ -1440,6 +1440,25 @@ def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
     assert codex_model.recv_notification(socket, long_ago, None) is None
     with pytest.raises(TimeoutError):
         codex_model.recv_notification(socket, long_ago, 120.0)
+
+
+def test_a_request_waits_for_its_answer_however_long_it_takes():
+    """A full-history resume of a long task takes tens of seconds on a loaded
+    machine, so a request sets no bound of its own on its answer."""
+
+    class Slow:
+        """Answers later than any bound a reader could set."""
+
+        def send(self, _data):
+            pass
+
+        def recv(self, timeout=None):
+            if timeout is not None:
+                raise TimeoutError
+            return json.dumps({"id": 1, "result": {"thread": {"id": "codex-thread"}}})
+
+    answer = codex_model.app_server_request(Slow(), "thread/resume", 1, {})
+    assert answer == {"thread": {"id": "codex-thread"}}
 
 
 def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):

@@ -1,7 +1,7 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple, Never
@@ -493,6 +493,11 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
+    ``claimed_session`` names the session Leaf writes for, as a line fork's working
+    message or a harness's failure receipt: Leaf's own write, which goes in as the
+    claimant's and says nothing beside it. A command's own write says which fork or
+    line fork holds the thread it writes in (`holding.authorize`).
+
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
@@ -531,6 +536,28 @@ def post_reply(
                 for event in page.events
             ):
                 raise ReceiptRefused("response no longer matches its page log")
+        from .forks import page_holding
+        from .holding import authorize, owed_by
+
+        # A fork may answer only what its turn holds, and write in no thread
+        # another turn took, and an ended one nothing; it asks first, so a refused
+        # fork is never handed another turn's answer as the repeat of its own. The
+        # main thread writes anywhere, and hears of a fork it writes beside. Only an
+        # answer, which responds to a message, takes the thread.
+        holding = page_holding(page)
+        responds = address.get("responds")
+        thread = (
+            holding.found.names.get(address["parent"])
+            if address.get("parent")
+            else None
+        )
+        beside = authorize(
+            page,
+            holding,
+            posting_identity.get("session"),
+            [responds] if responds else [],
+            thread,
+        )
         if attempt is not None and (
             repeated := _repeated_reply(
                 page.events,
@@ -572,6 +599,14 @@ def post_reply(
             detach=detach,
             title=title,
         )
+        if beside is not None and responds is not None and not ephemeral:
+            # Whether the answer took the thread, by the reading once it is in: one to
+            # an older message, or to a widget frozen there, leaves a message the fork
+            # picked up waiting, and the thread with the fork.
+            took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
+            beside = replace(beside, values={**beside.values, "answers": took})
+    if beside is not None and claimed_session is None:
+        note(beside)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -912,16 +947,14 @@ def _compose_and_append(
     if ephemeral:
         event["ephemeral"] = True
     if in_hand is not None:
-        claim = page.claim
-        turn = (
-            claim["turn"]
-            if claim and claim["id"] == posting_identity.get("session")
-            else None
-        )
-        event["start"] = {
-            "item": in_hand,
-            **({"turn": turn} if turn else {}),
-        }
+        event["start"] = {"item": in_hand}
+    from .state import acting_turn
+
+    # The turn the reply's command acts in, which names the start it carries
+    # (`todos.start_reading`) and holds the messages it answers
+    # (`holding.refuse_unheld`).
+    if turn := acting_turn(page.claim, posting_identity.get("session")):
+        event["turn"] = turn
     if explicit_obligation:
         event["obligation"] = explicit_obligation
     if todo is not None:

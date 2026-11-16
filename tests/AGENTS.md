@@ -21,7 +21,7 @@ is not a regression requirement.
 The suite's cost is CPU time, which every run pays and CI bills. Extra workers fill a
 test's waiting only while CPU is spare, so remove a fixed delay rather than relying on
 parallelism. Each CI `test` job's summary says where its CPU and time went, and
-`leaf-dev suite-profile` reads the same from the job's `pytest-results-*`
+`leaf-dev suite profile` reads the same from the job's `pytest-results-*`
 artifact. When a browser test is slow, or fails on timing or geometry outside its
 contract, repair its setup or move its contract to a lower boundary.
 
@@ -68,7 +68,7 @@ runs it (`TIERS` in `conftest.py`):
   sweeps, multi-page journeys and the site build. The daily run and manual dispatch.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite/profile.py`). Put a new test in
 the directory of the boundary it crosses, or in `journeys/` when it is over budget or
 needs the external network, which it also marks `network`. To move a test to an earlier
 tier, make it cheaper.
@@ -206,8 +206,16 @@ browser says drew it (`ring_rules`, `render_cases_layout.py`).
 ## Fixtures
 
 Every test runs under `isolated_session` (its docstring says what it isolates); don't
-move `HOME`. Declare other process conditions through fixtures (`sessionless`,
-`codex_env`) rather than editing the environment in a test body.
+move `HOME`. A test changes the process it runs in, such as an environment variable,
+the working directory or a module's attribute, only through `monkeypatch` or a fixture
+built on it (`sessionless`), and `monkeypatch` puts it back when the test ends. A
+subprocess that needs another environment gets it as its `env` (`codex_env`). Code a
+test calls in process changes nothing process-wide. Only an entry point does, such as a
+container's `main` or the suite's `pytest_configure`, and where a test runs a command's
+entry point in process, a fixture keeps its change out of the worker
+(`commands_leave_the_workers_signals`). Nothing resets the process between tests, and
+`pytest_runtest_teardown` (`conftest.py`) fails a test that leaves the environment, the
+working directory or a signal handler changed.
 
 Choose the page fixture by boundary: `serve` for a complete page over real HTTP,
 `page_dir` for command-level files, and `ModelPage` with `model_folds.py` for markup and
@@ -271,7 +279,13 @@ one user share `one_user`.
 
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
-effect on scroll is the subject, scroll first and read the baseline after.
+effect on scroll is the subject, scroll first and read the baseline after. After a
+scroll, Chromium moves a box that CSS anchor positioning places, such as a popover hung
+from its trigger or a margin card, only at the page's next rendering update. A click
+whose target it first scrolls into view, as it does a target in the root's foot
+padding, can then press where the box stood before the scroll. Scroll the target into
+view and wait for `rendered` before the click (`press_scale` in
+`browser/test_render_playwright_trace.py`).
 Each Playwright tap waits out the page's previous one, so two taps never make a
 double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 
@@ -361,15 +375,17 @@ Control or advance the clock that decides an age, lease, grace period or timer; 
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
 each operation that could hang with a real deadline at least ten times the longest that
 operation takes on CI's runner, where a `test` job's junit results record each test's
-time (`leaf-dev suite-profile`), and on expiry report which completion is still missing.
+time (`leaf-dev suite profile`), and on expiry report which completion is still missing.
 A time limit must never turn unfinished work into a pass. To test a race,
 hold and release the request, callback, frame or lock explicitly, check that the
 outcome holds with completion delayed tenfold, and keep a control that still fails.
 
 Wait for the operation's own completion signal. Elapsed time, matching samples, a fixed
 number of frames and network quiet look the same for an effect that hasn't started as
-for one that has finished, and a sleep doesn't prove that another process took a lock
-(`interact_support.lock_contention` reports that a second taker is waiting). Count
+for one that has finished, so no assertion reads what a sleep left
+(`test_no_assertion_rests_on_a_sleep`), and a sleep doesn't prove that another process
+took a lock (`interact_support.lock_contention` reports that a second taker is
+waiting). Count
 frames (`one_frame` in `leaf.render_checks`) only where
 one rendering update is itself the claim. A computed style under a transition reports
 the animated value, so check `getAnimations()` where the subject may be moving.
@@ -396,7 +412,9 @@ matching frame even if the gesture goes on to another result. The helpers in
 `render_harness.py`:
 
 - `sending` wraps a gesture whose own event the next read needs;
-- `round_trip` waits until everything sent has been delivered, not applied;
+- `round_trip` waits until everything sent has come back and the page has applied
+  the server's reading of it, and `delivered` only until it has come back, for a test
+  that holds that application on purpose;
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
@@ -418,7 +436,7 @@ scroll started.
 ## Races
 
 If a race appears only under load, order it with `page.route` rather than repeating the
-test. `leaf-dev flake` reproduces it, prints each failing copy's message, and then
+test. `leaf-dev suite flake` reproduces it, prints each failing copy's message, and then
 confirms the route holds. Register the
 route before the gesture it catches, or through `primed` or `held_events` for the first
 navigation; raw and `browser.unwatched` pages aren't set up for later routes. Where
@@ -428,10 +446,11 @@ browser's record (`opened_tab`).
 A watch finding that CI reports and this machine doesn't is usually a frame that lands
 later on CI's slower runner, after the input window that credits it has closed. Load
 alone rarely shows it; a slower CPU does. `--cpu-throttle RATE`, given to pytest or
-`leaf-dev flake`, slows every Chromium page the `browser` fixture watches. Past findings
+`leaf-dev suite flake`, slows every Chromium page the `browser` fixture watches. Past findings
 reproduced at rates from 6 to 20, and one rate can miss a finding another reproduces,
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
-server and every engine on the efficiency cores: it reproduced ten of the nightly macOS
+server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
+copy: it reproduced ten of the nightly macOS
 job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
 base under the same condition to learn whether the change caused it. A test whose subject
 is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.

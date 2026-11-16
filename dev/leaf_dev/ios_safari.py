@@ -118,11 +118,14 @@ def evaluate(driver, expression: str, arg=None):
 
 
 # Finite motion has run its course and the fonts have loaded: what a reading after
-# `settle` relies on, short of the render driver, which only Playwright installs.
+# `settle` relies on, short of the render driver, which only Playwright installs. A
+# scroll-driven animation, such as lf-trace's overview window, follows the scroll
+# rather than the clock and never ends, so only the document timeline's count.
 SETTLED = """async () => {
   await document.fonts.ready;
   const finite = document.getAnimations()
-    .filter(played => played.effect?.getComputedTiming().endTime !== Infinity);
+    .filter(played => played.timeline === document.timeline
+      && played.effect?.getComputedTiming().endTime !== Infinity);
   await Promise.all(finite.map(played => played.finished.catch(() => {})));
 }"""
 

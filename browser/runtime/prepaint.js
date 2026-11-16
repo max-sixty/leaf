@@ -164,33 +164,20 @@
   );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.
-  // Two leaf pages on one origin is what needs it: web storage is the origin's, so the
-  // reading position a user left on one example was handed back on the next, at an
-  // offset that meant nothing there. Read off the root the server declares in the
-  // canonical link, a draft typed on the live root is the draft on each of its version
-  // addresses. "" where that root is the origin's own, so a server serving one page
-  // keeps every key unprefixed; an export, which has no server and no link, is its own
-  // address. The runtime's stores read it from here (storage.js).
+  // Web storage is the origin's, and an origin holds more than one page: the reading
+  // position a user left on one example was handed back on the next, at an offset that
+  // meant nothing there. A local server, whose port another page's server takes once it
+  // stops, declares its page on the root (http.py, `_delivery`). Elsewhere it is read
+  // off the root the server declares in the canonical link, so a draft typed on the
+  // live root is the draft on each of its version addresses; "" where that root is the
+  // origin's own. An export, which has no server and no link, is its own address. The
+  // runtime's stores read it from here (storage.js).
   const canonical = /** @type {HTMLLinkElement | null} */ (
     document.querySelector('link[rel="canonical"][data-lf-runtime]')
   );
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
-  const scope = rootPath === "/" ? "" : rootPath;
-  root.dataset.lfPageScope = scope;
-
-  // Whether a highlight style given to the root reaches the elements below it, as
-  // css-pseudo-4's highlight inheritance has it. The answer decides which elements the
-  // comment marks' rules match (stylesheets.js, `markSheet`). It is asked here, before
-  // the body has parsed, because the style read then computes only the head; read from
-  // a module once the page has parsed, it would make the browser style the whole page.
-  const probe = new CSSStyleSheet();
-  probe.replaceSync(":root::highlight(lf-probe) { background-color: red }");
-  const adopted = [...document.adoptedStyleSheets];
-  document.adoptedStyleSheets = [...adopted, probe];
-  window.lfHighlightsInherit =
-    getComputedStyle(document.head, "::highlight(lf-probe)").backgroundColor ===
-    "rgb(255, 0, 0)";
-  document.adoptedStyleSheets = adopted;
+  root.dataset.lfPageScope ??= rootPath === "/" ? "" : rootPath;
+  const scope = root.dataset.lfPageScope;
 
   // Tab memory has one storage policy, including before the module graph starts.
   // Widgets and later controllers read the same values.

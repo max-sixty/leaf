@@ -1941,10 +1941,10 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
     # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
-    # on nothing where there is none (claimPress), so the hand and the arrow are those two
-    # states, read where the user's pointer is, since the aim declares the cursor on body
-    # and the promise is only kept if it arrives at the glyphs. `auto` is the resting
-    # state: unarmed, the browser draws an I-beam over words.
+    # on nothing where there is none (claimPress), so the hand says it takes one, read
+    # where the user's pointer is, since the promise is only kept if it arrives at the
+    # glyphs. Where a press takes nothing the page keeps its own cursor (chrome.css).
+    # `auto` is the resting state: unarmed, the browser draws an I-beam over words.
     with subtests.test(case="the cursor says whether a press would take anything"):
         at_pointer = """([x, y]) =>
             getComputedStyle(document.elementFromPoint(x, y)).cursor"""
@@ -1969,7 +1969,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
 
         page.mouse.move(*in_gap)
         expect(page.locator("[data-lf-aimed]")).to_have_count(0)
-        assert page.evaluate(at_pointer, in_gap) == "default", (
+        assert page.evaluate(at_pointer, in_gap) == "auto", (
             "the aim had nothing to take and the hand promised a press anyway"
         )
 
@@ -2011,6 +2011,27 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         }""",
             arg=first,
         )
+        page.keyboard.up("Alt")
+
+    # A mouse that leaves the window stands over nothing a press could take, though the
+    # key is still down, so the box and the hand come off with it.
+    with subtests.test(case="a pointer leaving the window takes the promise with it"):
+        on_item = page.locator("#p2").evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            " return [r.left + 20, r.top + r.height / 2]; }"
+        )
+        page.mouse.move(*on_item)
+        page.keyboard.down("Alt")
+        expect(page.locator("[data-lf-aimed]")).to_have_id("p2")
+        expect(page.locator("[data-lf-over-item]")).to_have_count(1)
+        page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("
+            "'pointerout', {bubbles: true, composed: true, pointerType: 'mouse',"
+            " relatedTarget: null}))",
+            on_item,
+        )
+        expect(page.locator("[data-lf-aimed]")).to_have_count(0)
+        expect(page.locator("[data-lf-over-item]")).to_have_count(0)
         page.keyboard.up("Alt")
 
     # What ⌥ arms is the page. An aim that reached into the chrome would take the panel
@@ -3141,6 +3162,93 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     _label_stands_on_the_aim(page, p)
 
 
+def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
+    """A legend box takes the corners of what it names, read once the element shows.
+    Chromium answers a style read inside a closed tab by styling everything the tab
+    holds, and on a page of thirty text documents in closed tabs entering Design mode
+    the first time took 38 s (design.js, `paintLegend`). The box of what the tab holds
+    takes its corners once the tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two"><p id="closed-words" '
+                'style="border-radius: 6px">Words in the closed tab.</p></lf-tab>'
+                "</lf-tabs>",
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      window.closedStyles = [];
+      const read = window.getComputedStyle;
+      window.getComputedStyle = function (element, ...rest) {
+        if (element?.parentElement?.closest('lf-tab[hidden]'))
+          closedStyles.push(element.localName);
+        return read.call(this, element, ...rest);
+      };
+    }""")
+    page.keyboard.press("l")
+    expect(page.locator('.lf-legend-box[data-lf-for="open-words"]')).to_be_visible()
+    assert page.evaluate("closedStyles") == []
+
+    # Design mode takes presses on the page, and the keyboard still opens the tab.
+    page.get_by_role("tab", name="Two", exact=True).focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#closed-words")).to_be_visible()
+    expect(page.locator('.lf-legend-box[data-lf-for="closed-words"]')).to_have_css(
+        "border-radius", "6px"
+    )
+
+
+def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
+    """The name the picker speaks for a part in Design mode says its block's words on
+    each side of it, so a control far into a long paragraph is told apart by the words
+    beside it, and a control's own words after its name, said once. A picture says none
+    of its own words, since its name describes it: over a text document Design mode
+    aims at its view, a picture of the whole document, whose name once read all of it
+    twice at each move of the pointer, 0.3 to 1.7 s on a document of 50,000 lines
+    (anchor-resolution.js, `controlContext`)."""
+    filler = " ".join(f"word{n}" for n in range(400))
+    lines = "".join(f"line {n} of the document\n" for n in range(3000))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Parts",
+                f'<section id="prose"><p>{filler} beside the <button type="button">'
+                "Keep</button> after it.</p></section>"
+                '<section id="checks"><p><button type="button" aria-label="Canary check">'
+                "Canary check 0 of 47 real</button></p></section>"
+                '<lf-text-document id="doc" label="notes.txt">'
+                f"<pre>{lines}</pre></lf-text-document>",
+            )
+        ),
+    )
+    expect(page.locator("#doc .lf-text-document-run > div").first).to_be_visible()
+    labels = page.evaluate(
+        """async () => {
+          const {aimTargetAt} = await window.__lfCheckApi();
+          const label = (selector) =>
+            aimTargetAt(document.querySelector(selector), {design: true}).label;
+          return {
+            button: label('#prose button'),
+            count: label('#checks button'),
+            document: label('#doc .lf-text-document-run > div'),
+          };
+        }"""
+    )
+    button, document = labels["button"], labels["document"]
+    assert "beside the Keep after it" in button, button
+    count = labels["count"]
+    assert count.startswith("Canary check · 0 of 47 real ·"), count
+    assert len(button) < 300, f"the name said {len(button)} characters"
+    assert "line 0 of the document" not in document, document[:200]
+    assert len(document) < 300, f"the name said {len(document)} characters"
+
+
 def _label_stands_on_the_aim(page, target):
     """The design name stands on the aim's top-left corner, touching the outer edge of
     the outline `target` draws it as, so this still checks attachment when its gap
@@ -3270,7 +3378,7 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.down("Alt")
     # The outer part's surface draws its aim, leaving out its decorative line.
     expect(page.locator("[data-lf-aimed]")).to_have_id("outer-surface")
-    accent = token_colour(page, "--accent")
+    accent = token_colour(page, "--lf-accent")
     assert_drawn_in(page.locator("#outer-surface"), accent, 2)
     assert (
         page.locator("#outer-decoration").evaluate(
@@ -3320,7 +3428,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     expect(page.locator("#visual")).not_to_have_attribute(
         "data-lf-mark", re.compile(".*")
     )
-    assert_drawn_in(inner, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(inner, token_colour(page, "--lf-mark-contour-ink"), 1.5)
 
 
 def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
@@ -3492,13 +3600,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
 
     surface.click(position={"x": 20, "y": 20})
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
-    assert_drawn_in(surface, token_colour(page, "--mark-contour-ink"), 1.5)
+    assert_drawn_in(surface, token_colour(page, "--lf-mark-contour-ink"), 1.5)
     page.keyboard.up("Alt")
 
 
@@ -3517,7 +3625,7 @@ def test_a_rounded_diagram_part_aim_follows_its_rounded_edge(browser, serve):
     page.keyboard.down("Alt")
     aimed = page.locator("[data-lf-aimed]")
     expect(aimed).to_have_count(1)
-    assert_drawn_in(aimed, token_colour(page, "--accent"), 2)
+    assert_drawn_in(aimed, token_colour(page, "--lf-accent"), 2)
     assert (
         rounded.locator("text").first.evaluate("text => getComputedStyle(text).stroke")
         == "none"
@@ -3646,7 +3754,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
   #square { display:table; border-collapse:collapse; width:400px; }
   #square :is(th,td) { border:1px solid; }
   #rounded { border:1px solid; border-radius:12px; margin:12px; padding:12px; }
-  .authored-contour { outline:1px dashed var(--ink-2); }
+  .authored-contour { outline:1px dashed var(--lf-ink-2); }
   </style>""",
             )
         ),
@@ -3654,7 +3762,7 @@ def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, su
     resized(page, 1100, 900)
     region = page.evaluate(
         "() => parseFloat(getComputedStyle(document.documentElement)"
-        ".getPropertyValue('--focus-region-gap'))"
+        ".getPropertyValue('--lf-focus-region-gap'))"
     )
 
     def boundary(node, brackets):
@@ -3774,7 +3882,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     page.locator("#component").evaluate(
         """host => {
           host.attachShadow({mode:'open'}).innerHTML = `<style>
-            button:focus-visible { outline:var(--focus-ring); outline-offset:3px; }
+            button:focus-visible { outline:var(--lf-focus-ring); outline-offset:3px; }
           </style><button id="private">Private control</button>`;
         }"""
     )
@@ -4265,7 +4373,7 @@ HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
     "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
     "<h2 id='head' style='position: sticky; top: var(--lf-safe-top); height: 40px;"
-    " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
+    " margin: 0; background: var(--lf-paper)'>Head</h2><p id='p0'>",
 ).replace("</p>\n</main>", "</p></section>\n</main>", 1)
 
 
@@ -4520,9 +4628,9 @@ OFF_FLOW_PAGE = leaf_page(
     "off flow",
     "<h1 id='t'>Off flow</h1>"
     "<nav id='nav' style='position: sticky; top: var(--lf-top);"
-    " background: var(--paper)'>Contents</nav>"
+    " background: var(--lf-paper)'>Contents</nav>"
     "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
-    " background: var(--paper)'>A fixed bar.</div>"
+    " background: var(--lf-paper)'>A fixed bar.</div>"
     "<div id='pop' popover='manual' style='top: 120px; left: 40px; margin: 0'>"
     "<p id='inpop'>Inside the popover.</p></div>"
     + "".join(

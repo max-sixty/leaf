@@ -50,8 +50,8 @@ function arrival(nodes, alternative, time) {
       nodes.pin,
       "fill",
       active
-        ? `color-mix(in srgb, var(--accent) ${18 * (1 - progress)}%, var(--paper))`
-        : "var(--paper)",
+        ? `color-mix(in srgb, var(--lf-accent) ${18 * (1 - progress)}%, var(--lf-paper))`
+        : "var(--lf-paper)",
     );
     return;
   }

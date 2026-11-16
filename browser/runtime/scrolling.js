@@ -36,6 +36,7 @@ import {
   browserScrolls,
   holdScroll,
   readerScrolls,
+  scrollDrawn,
   setScroll,
   startReaderScroll,
   stopWhereItStands,
@@ -83,7 +84,8 @@ inputs.observe((event) => {
   if (event instanceof KeyboardEvent) {
     if (SCROLL_KEYS.has(event.key)) scrollKeyLast = true;
   } else if (event.type !== "input" && event.type !== "blur") scrollKeyLast = false;
-  if (!glideIn.size || !aimsScroll(event)) return;
+  // A key is the keyboard controller's to stand a glide down for (`landForKey`).
+  if (!glideIn.size || event instanceof KeyboardEvent || !aimsScroll(event)) return;
   const path = event.composedPath();
   for (const box of glideIn.keys()) if (path.includes(box)) stopGlide(box);
 });
@@ -190,23 +192,21 @@ function watchLayout(box) {
 watchLayout(pageScroller);
 ended.set(pageScroller, pageScroller.scrollTop);
 
-// A new landing or return takes over a glide at once, even if its target is already
-// visible, and a scroll the browser drives, such as a wheel's or PageDown's, with the
-// write that stops it (arrivals.js, `stopWhereItStands`).
-// Chromium can deliver one last compositor scroll after that cancellation, so its
-// rendering update must finish before the caller reads geometry and places the new
-// destination. Two callbacks enclose that whole update.
+// A new landing or return takes the boxes from a scroll the browser drives, such as a
+// wheel's or PageDown's, with the write that stops it (arrivals.js,
+// `stopWhereItStands`), since no script can say where that scroll goes. A glide of
+// Leaf's goes on: a landing measures from where it is headed and takes it over
+// (landing-scroll.js, `readingBandMoves`), so `t` pressed again while the walk still
+// moves lands as typed slowly, where stopping the glide left the page where it stood
+// whenever the destination was already in view there; a return stops it itself.
+// Chromium can deliver one last compositor scroll after that cancellation, so the
+// caller reads geometry and places the new destination once the stop is drawn
+// (arrivals.js, `scrollDrawn`).
 /** @param {Iterable<Element>} boxes */
-export function stopScroll(boxes) {
-  const all = [...boxes];
-  const stopped = all.filter(browserScrolls);
-  for (const box of all) stopGlide(box);
-  if (!stopped.length) return null;
+export function stopBrowserScroll(boxes) {
+  const stopped = [...boxes].filter(browserScrolls);
   for (const box of stopped) stopWhereItStands(box);
-  return new Promise(
-    /** @param {(value?: void) => void} resolve */ (resolve) =>
-      nextFrame(() => nextFrame(() => resolve(undefined))),
-  );
+  return stopped.length ? scrollDrawn() : null;
 }
 
 let choices = 0;
@@ -356,6 +356,18 @@ export function aimScroll(box, event) {
 // takes a reader heading down where they were going.
 /** @param {Element} box */
 export const readerScroll = (box) => (readerScrolls(box) && asked.get(box)) || null;
+// Whether `box` has moved toward its lower end (`down`) or its upper one since its last
+// scroll sequence ended, layout aside. A wheel's sequence ends only when its gesture
+// does, and the browser may scroll before the page hears the wheel, as it does for
+// macOS's precise wheels, so the event that takes a box to its end finds it there.
+/** @param {Element} box @param {boolean} down */
+export function carriedToward(box, down) {
+  const from = ended.get(box);
+  if (from === undefined || layoutMoved.has(box)) return false;
+  return down
+    ? box.scrollTop > from + SCROLL_SLACK
+    : box.scrollTop < from - SCROLL_SLACK;
+}
 /** @param {Element[]} boxes */
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
@@ -479,11 +491,11 @@ export const aimedTop = (box) => {
   return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
 };
 
-// How much of a move a box can make from where it stands: a box at its end moves no
-// further, whatever it is asked.
-/** @param {Element} box @param {number} top */
-export const reachable = (box, top) =>
-  Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
+// How much of a move a box can make from where it stands, or from `from`: a box at its
+// end moves no further, whatever it is asked.
+/** @param {Element} box @param {number} top @param {number} [from] */
+export const reachable = (box, top, from = box.scrollTop) =>
+  Math.max(-from, Math.min(scrollLimit(box) - from, top));
 
 // A glide moves a box to a goal at the pace of the browser's own paging keys, and every
 // smooth vertical motion Leaf makes is one: the reading-page keys (navigation.js,
@@ -512,10 +524,13 @@ export const reachable = (box, top) =>
 // from it at once, as the browser's own keys do, and so does a landing, whose
 // destination is a place rather than a distance; either moves on from wherever that
 // motion has brought the box. A glide stands down when the reader aims a scroll at its
-// box (`aimsScroll`), even one that moves nothing, as Home does at the top: the glide
-// would otherwise carry the page away from where the reader asked it to stay. It stands
-// down too the moment the box moves under any other hand, such as a scrollbar's drag,
-// and a return takes the box from it (`stopScroll`).
+// box (`aimsScroll`), even one that moves nothing: a wheel or a touch takes the box
+// where it stands, and a key the browser scrolls for lands the glide first
+// (`landForKey`), so PageDown pressed as `d` sets off pages on from where `d` lands, as
+// typed slowly, and Home takes the page back to the top though `d` hasn't moved it.
+// Stopped where it stood, the glide left PageDown paging from the page mid-way. It
+// stands down too the moment the box moves under any other hand, such as a scrollbar's
+// drag, and a return takes the box from it (history.js).
 const SCROLL_MS = 140;
 /** @typedef {{goal: number, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: () => void}} Glide */
 // The glide under way in each box, which holds the box's scroll sequence open from its
@@ -523,6 +538,47 @@ const SCROLL_MS = 140;
 // `holdScroll`).
 /** @type {Map<Element, Glide>} */
 const glideIn = new Map();
+// Land every glide under way at its goal at once, for a key's work that measures the
+// page where it stands and can't ask where the glides are headed: the browser's scroll
+// for a key such as PageDown and its focus navigation for Tab (`landForKey`), a
+// placement Floating UI solves, as the comment box's beside its target
+// (composing/surface.js), and the Go-to map, which labels only a still scene
+// (keyboard/go-to-sequence.js). Landed first, that work reads the page as the same keys
+// typed slowly leave it. What Leaf reads and moves itself asks where the glides land
+// instead, the user's place (scroll-containers.js, `seenAhead`) and its reveals
+// (landing-scroll.js, `readingBandMoves`), because a box the page carries by anchoring,
+// as a thread card, takes a scroll only at the next frame: with every key landing the
+// glides first, the card a walk had focused read as off screen, and `c` or `d` pressed
+// as `t` set off let go of it. A glide a hand has taken the box from leaves it where the
+// hand did.
+export const landGlides = () => {
+  for (const box of [...glideIn.keys()]) landGlide(box);
+};
+// The glides a key the browser answers would act on, landed before it does: every one
+// for Tab, and those on its path for a key the browser scrolls for (`scrollsFor`). The
+// keyboard controller asks once its let-go has read where they were headed, since
+// landed first, a card a walk had focused would read as off screen (above).
+/** @param {KeyboardEvent} event */
+export function landForKey(event) {
+  if (!glideIn.size) return;
+  if (event.key === "Tab") return landGlides();
+  if (!scrollsFor(event)) return;
+  const path = event.composedPath();
+  for (const box of [...glideIn.keys()]) {
+    if (!path.includes(box)) continue;
+    landGlide(box);
+    // The landing's write reads as the box placed, which hid the scroll the key has
+    // just asked the browser for (`aimScroll`) from the next step, so `d` pressed after
+    // PageDown glided against it rather than waiting for it (`afterBrowserScroll`).
+    if (readerScrolls(box)) startReaderScroll(box);
+  }
+}
+/** @param {Element} box */
+function landGlide(box) {
+  const glide = holding(box);
+  if (glide) setScroll(box, { top: glide.goal, behavior: "instant" });
+  stopGlide(box);
+}
 // A spatial command takes the page where it is now, so it stops a glide in the box even
 // where it moves nothing itself.
 /** @param {Element} box */

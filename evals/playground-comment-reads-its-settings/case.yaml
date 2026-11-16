@@ -44,7 +44,6 @@ vars:
       "tune": {"action": "e7d2", "value": "tune",
                "detail": {"values": {"tone": "urgent", "radius": 4}}}
 
-    Use the leaf skill and read the instructions that own this workflow.
     Only Skill and Read run here. Say which tone and radius the comment is about,
     and write the reply you would post in the comment's thread.
 assert:

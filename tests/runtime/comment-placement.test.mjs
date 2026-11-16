@@ -16,9 +16,9 @@ import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
 // The card's widths and the room a mark takes, as tokens.css declares them, which the
 // placement reads off the root.
-document.documentElement.style.setProperty("--thread-card-min", "320px");
-document.documentElement.style.setProperty("--thread-card", "592px");
-document.documentElement.style.setProperty("--focus-region-room", "8px");
+document.documentElement.style.setProperty("--lf-thread-card-min", "320px");
+document.documentElement.style.setProperty("--lf-thread-card", "592px");
+document.documentElement.style.setProperty("--lf-focus-region-room", "8px");
 
 // A window boundary, keyed by its edges as commentBoundary keys one, with no chrome
 // beside any columns, so its room across them is itself.

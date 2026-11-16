@@ -24,7 +24,7 @@ import { seatRoot, threadKey } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
 import { registry } from "../registry.js";
-import { loadDraft } from "../drafts.js";
+import { loadDraft, seatContext } from "../drafts.js";
 import { HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
@@ -361,7 +361,7 @@ class ThreadSeat {
 
 /** @param {Element} host @param {ThreadCommands} commands
  * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
-function seatFor(host, commands, response = () => null, outlets = {}) {
+function seatFor(host, commands, response, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
     seat = new ThreadSeat(host, commands);
@@ -423,7 +423,7 @@ export function renderSeats(threads, commands) {
     const owner = host.lfThreadSeatOwner;
     const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
     const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
-    const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
+    const response = !owned.length || hold || loadDraft(seatContext(owner.id)) !== null;
     seatFor(host, commands, () => host.lfFirstMessage ?? null).present(
       seatReading(owned, "page", commands, response),
     );

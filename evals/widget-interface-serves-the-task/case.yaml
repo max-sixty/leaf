@@ -22,7 +22,7 @@ vars:
     supplied CSS giving the widget its own type scale, colors and button styles.
     The release author has asked us to implement the comparison and discussion.
 
-    Read the package and module references. Propose the first version's default
+    Propose the first version's default
     interface and show short CSS and JavaScript excerpts for its presentation and
     discussion controls. You can assume the value rendering and anchor creation
     already exist; no running renderer is available.

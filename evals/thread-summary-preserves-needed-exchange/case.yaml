@@ -26,8 +26,8 @@ vars:
     Its answer is {kind: reply, to: ttl-thread, for: ttl-seven,
     ref: "70c41e9a:0:ttl-seven", writer: agent}.
 
-    Work out the next turn. Nothing here can execute writes: read the relevant
-    Leaf instructions, then give the CLI commands you would run, in order,
+    Work out the next turn. Nothing here can execute writes, so give the
+    CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
   - type: llm-rubric

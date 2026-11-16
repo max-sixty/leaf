@@ -41,7 +41,7 @@ test("capture keeps authored values and parentage when rendering moves members",
   const outer = document.getElementById("outer");
   const inner = document.getElementById("inner");
   rememberAuthoredParents(root);
-  const states = stageAuthoredStates(root, new Map());
+  const states = stageAuthoredStates(root);
   const descriptors = stageWidgetDescriptors(root, { kind: "page", revision: 1 });
   outer.setAttribute("status", "drawing");
   document.getElementById("right").append(inner);
@@ -127,7 +127,7 @@ test("member state owns each physical slot independently across a hierarchy", ()
     },
   };
   adoptRegistry(declarations);
-  const states = stageAuthoredStates(root, new Map());
+  const states = stageAuthoredStates(root);
   assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);

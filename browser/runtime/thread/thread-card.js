@@ -68,7 +68,8 @@
    and a user who stood at the end keeps their turn wholly in sight above the press, its
    head included. A user whose wheel or key has the box scrolling as the answer arrives
    stands wherever that scroll takes them, though the browser has yet to move the box
-   (arrivals.js, `readerScrolls`). Until then the answer is this thread's to place
+   (arrivals.js, `readerScrolls`), or has moved it before the page heard the input, as
+   it does for macOS's precise wheels. Until then the answer is this thread's to place
    (`answering`), and a box that follows its end, as a card's transcript does
    (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
    loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
@@ -76,7 +77,7 @@
    (floating-panel.js, which records it); the margin card gained it on 4 November, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
-import { REOPEN_HINT, REPLY_HINT } from "../words.js";
+import { labelWords, REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -98,6 +99,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
+  HOLDS,
   anchorPlace,
   messageReading,
   threadPassage,
@@ -127,6 +129,7 @@ import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
+import { obligationEnding } from "../obligations/answer.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
@@ -134,7 +137,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { agentSays, leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
@@ -355,7 +358,24 @@ export function threadReading(thread, surface, commands) {
   const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
-  // thread.
+  // thread. Once the agent ends a question it asked (`task end`), because the user
+  // answered it elsewhere or it no longer applies, a line under the question says how
+  // it ended, in the words On Me's Done uses (`obligationEnding`), followed by the
+  // agent's note on where or why (`end.detail`), one line for each question the message
+  // asked. The thread then no longer reads as asking.
+  /** @type {Map<string | null, import("../voice.js").Words[]>} */
+  const ended = new Map();
+  for (const item of thread.obligations)
+    if (item.end && answeredInWords(item)) {
+      const lines = ended.get(item.message) ?? [];
+      ended.set(item.message, lines);
+      lines.push(
+        [
+          obligationEnding(item),
+          ...(item.end.detail ? [" · ", agentSays(labelWords(item.end.detail))] : []),
+        ].flat(),
+      );
+    }
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -380,10 +400,12 @@ export function threadReading(thread, surface, commands) {
     .map((message) =>
       messageReading(message, {
         // Where a message's widgets stand when several drawings show it (messages.js,
-        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        // `HOLDS`).
+        authoredRank:
+          commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
+        endings: ended.get(message.id) ?? [],
       }),
     );
   const summary = threadSummary(thread);
@@ -1031,9 +1053,11 @@ export class ThreadView {
     // A reader whose wheel or key has the box scrolling stands where it takes them
     // (header), though the box hasn't moved yet: the browser applies that scroll a frame
     // or more after the input, and a write of the box meanwhile cancels it. The delayed
-    // write below asks again, for an input made since.
-    const atEnd =
-      !readerScrolls(scroller) && before.limit - scroller.scrollTop <= SCROLL_SLACK;
+    // write below asks again, for an input made since, and stands back where the box no
+    // longer stands where this read it: the browser can apply a wheel's scroll before the
+    // page hears the wheel or the scroll, as it does for macOS's precise wheels.
+    const stood = scroller.scrollTop;
+    const atEnd = !readerScrolls(scroller) && before.limit - stood <= SCROLL_SLACK;
     const pad = Number.parseFloat(getComputedStyle(scroller).paddingTop);
     const from = () =>
       turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top - pad;
@@ -1060,7 +1084,14 @@ export class ThreadView {
     nextRender(() => {
       if (this.#waiting !== next) return;
       this.repaint();
-      if (waiting || !atEnd || !turn.isConnected || readerScrolls(scroller)) return;
+      if (
+        waiting ||
+        !atEnd ||
+        !turn.isConnected ||
+        readerScrolls(scroller) ||
+        scroller.scrollTop !== stood
+      )
+        return;
       // The user's turn stands wholly in sight, between the box's top edge and New
       // reply's ground, its head first where it is taller than that.
       const foot = this.node.querySelector(".lf-awaited")?.getBoundingClientRect();

@@ -1,6 +1,6 @@
 # The turn-end check (`src/leaf/clerk.py`), replayed on a short conversation written
 # for each decision its prompt asks about, each with a guardrail whose right answer
-# names nothing. Run every case with `uv run leaf-dev eval 'turn-end-check*'
+# names nothing. Run every case with `uv run leaf-dev eval run 'turn-end-check*'
 # --harness claude-code`; inputs, labels and rubrics are in
 # workflows/fork_eval.yaml.
 description: Turn-end check
@@ -68,3 +68,15 @@ variants:
     metadata:
       scenario: unshown-shown
       purpose: Background work the page shows started, and a watcher serving the agent's own check, are left out.
+  overtaken-correction:
+    metadata:
+      scenario: overtaken-correction
+      purpose: A reply correcting the agent's own unanswered reply, rather than edited into it, is named overtaken.
+  overtaken-news:
+    metadata:
+      scenario: overtaken-news
+      purpose: A reply bringing the result the agent's earlier reply promised overtakes nothing.
+  overtaken-question:
+    metadata:
+      scenario: overtaken-question
+      purpose: A thread question answered in chat, whose subject later work completed with no reply there, is named overtaken.

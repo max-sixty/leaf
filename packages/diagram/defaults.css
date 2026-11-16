@@ -7,16 +7,16 @@
  * scheme without redrawing its nodes or replacing Comment coordinates. */
 lf-diagram {
   box-sizing: border-box;
-  --pele-bg: var(--paper);
-  --pele-fg: var(--ink);
-  --pele-muted: var(--muted);
-  --pele-line: var(--muted);
-  --pele-surface: color-mix(in srgb, var(--accent) 10%, var(--paper));
-  --pele-surface-alt: var(--paper);
-  --pele-border: var(--accent);
-  --pele-accent: var(--accent);
-  --pele-font: var(--sans);
-  --pele-font-mono: var(--mono);
+  --pele-bg: var(--lf-paper);
+  --pele-fg: var(--lf-ink);
+  --pele-muted: var(--lf-muted);
+  --pele-line: var(--lf-muted);
+  --pele-surface: color-mix(in srgb, var(--lf-accent) 10%, var(--lf-paper));
+  --pele-surface-alt: var(--lf-paper);
+  --pele-border: var(--lf-accent);
+  --pele-accent: var(--lf-accent);
+  --pele-font: var(--lf-sans);
+  --pele-font-mono: var(--lf-mono);
 }
 /* The drawing is laid out for the box the page grants it (lf-diagram.js) and
  * centered there. One that still does not fit keeps its size, and safe alignment

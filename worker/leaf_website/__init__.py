@@ -1362,7 +1362,7 @@ PageRoute = tuple[str, Path, str]
 def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
     """Read the build's page manifest into routes, longest root first.
 
-    `leaf-dev site` writes each directory relative to the build it describes and
+    `leaf-dev site build` writes each directory relative to the build it describes and
     derives each kind itself, so both are read as given.
     """
     return tuple(
@@ -1632,7 +1632,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
+    `leaf-dev journey run website-adapter` runs this adapter on a developer's machine and
     stops it exactly this way, where an unreaped App Server would outlive the run
     that started it and keep its memory.
 
@@ -1660,9 +1660,10 @@ def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
-    from leaf_website.storage import restore
+    from leaf_website.storage import PUBLISHER, restore
 
-    restore(site_root)
+    if restore(site_root):
+        os.environ["LEAF_PAGE_COMMIT"] = PUBLISHER
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])

@@ -1606,7 +1606,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
         for sample in document.samples:
             read(sample["document"])
 
-    from leaf_dev.commands.corpus import sources
+    from leaf_dev.commands.generate.corpus import sources
 
     for path in sources():
         read(structure_model.SourceDocument(path.read_text()))
@@ -1930,7 +1930,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
     )
 
     assert result.exit_code != 0
-    assert refused_on(result.stderr).values["operation"] == "reply"
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert events_model.read_events(page_dir) == before
     assert files_model.list_revisions(page_dir) == revisions
     assert "c1" in delivery_model.current_responses(page_dir, before)
@@ -2250,11 +2250,8 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "</lf-options></lf-ask>",
         ).output.splitlines()
     ]
-    [renamed] = [
-        json.loads(line)
-        for line in run(
-            "thread", "edit", "t-ask", "--title", "Store"
-        ).output.splitlines()
+    [renamed] = json.loads(run("thread", "edit", "t-ask", "--title", "Store").output)[
+        "records"
     ]
     picked = append_command(
         page_dir,
@@ -2286,7 +2283,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
-    assert refused_on(not_a_thread.stderr).code == "widget-not-thread"
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()
@@ -2719,7 +2716,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
             input=encoded,
         )
         assert rejected.exit_code != 0
-        error = json.loads(rejected.stderr)["error"]
+        error = json.loads(rejected.stdout)["error"]
         assert "source 'deployments' value is invalid" in error
         assert repr(invalid[0] if isinstance(invalid, list) else invalid) in error
         assert read_page_data(page_dir) == first
@@ -3164,6 +3161,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
                 "reason": "workflow",
                 "workflow": opened["id"],
             },
+            "holder": {"kind": "main"},
         }
     ]
     history = CliRunner().invoke(
@@ -3773,14 +3771,15 @@ def _apart(a, b, vision=None):
     return math.dist(seen(a), seen(b)) * 100
 
 
-def _palette(theme, half):
-    """The series steps and the paper they sit on: `half` 0 or 1 of each `light-dark()`."""
+def _palette(theme, look, half):
+    """The series steps and the paper they sit on, which the reading look states:
+    `half` 0 or 1 of each `light-dark()`."""
     pair = r"light-dark\(\s*(#[0-9a-f]{6})\s*,\s*(#[0-9a-f]{6})\s*\)"
     steps = {
         number: colours[half]
-        for number, *colours in re.findall(rf"--series-(\d+):\s*{pair}", theme)
+        for number, *colours in re.findall(rf"--lf-series-(\d+):\s*{pair}", theme)
     }
-    match = re.search(rf"--paper:\s*{pair}", theme)
+    match = re.search(rf"--lf-paper:\s*{pair}", look)
     assert match is not None
     paper = match[half + 1]
     assert steps, "no series tokens in the theme"
@@ -3802,12 +3801,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
     told a chart can colour apart, and a palette one step longer than the number it
     publishes would hold a colour nobody is told to use."""
     theme = (schema_model.ASSETS / "styles/tokens.css").read_text()
+    look = (schema_model.BUNDLED_PACKAGES / "reading/defaults.css").read_text()
     declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$series"
     ]["steps"]
 
     for scheme, half in (("light", 0), ("dark", 1)):
-        steps, paper = _palette(theme, half)
+        steps, paper = _palette(theme, look, half)
         assert len(steps) == declared, (
             f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         )

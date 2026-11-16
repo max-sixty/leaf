@@ -586,7 +586,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 
     out, err = waiter.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert waiter.returncode == 2, f"{out}{err}"
-    assert "this session no longer owns it" in err
+    assert "this session no longer owns it" in out
     assert not service_model.claim_is_active(service_model.page_claim(page))
     assert server_model.running_server(page) is None
     # SessionEnd releases ownership only: lifecycle code declares nothing for the
@@ -603,17 +603,17 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
     serving(page_dir, 1)
     declare_idle(page_dir)
     service_model.claim_page(page_dir)
-    assert session_model.cmd_wait(page_dir) == 2
+    served = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert served.exit_code == 2, served.output
     assert server_model.running_server(page_dir)
-    served = capsys.readouterr()
 
     # And where SessionEnd idled the page and stopped its server both, a watcher
     # still winding down must not put it straight back up. Dropping the lease is
     # what makes the server read as dead.
     leases_model.release_lease(HELD_LEASES.pop())
-    assert session_model.cmd_wait(page_dir) == 2
+    stopped = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert stopped.exit_code == 2, stopped.output
     assert server_model.running_server(page_dir) is None
-    stopped = capsys.readouterr()
     snapshot.check(
         yaml_document(
             "An idle page ends its wait whether the server is still running or stopped.",
@@ -622,13 +622,11 @@ def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):
                 {
                     "still served": {
                         "exit": 2,
-                        "stdout": served.out,
-                        "stderr": said(served.err),
+                        "stdout": said(served.stdout),
                     },
                     "server stopped": {
                         "exit": 2,
-                        "stdout": stopped.out,
-                        "stderr": said(stopped.err),
+                        "stdout": said(stopped.stdout),
                     },
                 },
             ),
@@ -1240,18 +1238,18 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     assert first["page"] == str(page_dir)
 
 
-def test_wait_with_nothing_to_watch_says_so(monkeypatch, capsys, snapshot):
+def test_wait_with_nothing_to_watch_says_so(monkeypatch, snapshot):
     """A no-argument wait in a session that holds no pages has nothing to hold
     open — exit rather than sleep forever on an empty set."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-empty")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert session_model.cmd_wait() == 2
-    printed = capsys.readouterr()
-    assert "nothing to watch" in printed.err
+    result = CliRunner().invoke(cli_model.cli, ["wait"])
+    assert result.exit_code == 2, result.output
+    assert "nothing to watch" in result.stdout
     snapshot.check(
         yaml_document(
             "An unnamed wait exits when the session owns no page.",
-            {"exit": 2, "stdout": printed.out, "stderr": said(printed.err)},
+            {"exit": 2, "stdout": said(result.stdout)},
         )
     )
 

@@ -141,7 +141,8 @@ class Harness:
     def escape_sandbox(self) -> None:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
-        before a command naming `leaf` calls it, outside the sandbox. A harness
+        before a command naming `leaf` calls it, outside the sandbox, in the Leaf
+        the harness ran and in any it hands itself to (`hooks.main`). A harness
         whose sandbox leaves no road out, as Codex's does, opens none; Codex's
         agent runs a confined command through Leaf's MCP server instead
         (`codex_tool.py`)."""
@@ -390,7 +391,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
     A subagent the session spawns runs its shell commands in the session's own
     environment, with nothing that names the subagent (measured at 2.1.317), so a
     command it runs acts for the session; only a hook's payload names it
-    (`agent_id`, `state.worker_tool_batch`)."""
+    (`agent_id`, `state.worker_tool_batch`). A fork Leaf gave a thread's work names
+    its own turn in its `leaf` commands, as Leaf's prompt tells it, so they act in
+    that turn (`state.acting_agent_turn`)."""
 
     job: str | None = None
 
@@ -787,9 +790,10 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. Stop offers only where no adapter
         will start a turn of its own for the input over App Server
         (`later_turn_takes_input`), and the turn would continue for it
-        (`hook_transport.stop_continues`). The tool hook offers only input the
-        cursor has not passed, and Stop also an update the session holds no usable
-        reference for (`delivery.deliverable`). The tool hook also carries the
+        (`hook_transport.stop_continues`). The tool hook offers input the cursor
+        has not passed, and input the cursor passed that no pickup names, which a
+        Codex session's receipts never leave, and Stop also an update the session
+        holds no usable reference for (`delivery.deliverable`). The tool hook also carries the
         reminder of a status line left standing (`hook_transport.status_reminders`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
@@ -957,7 +961,7 @@ HARNESSES: dict[str, type[Harness]] = {
 AGENT_VARIABLE = "LEAF_AGENT"
 # Every variable that makes a process a harness session: each harness's identity and
 # the display name. A process that must not act as the session it was started from
-# scrubs the set: a build that publishes pages (`leaf-dev site`), an eval's child
+# scrubs the set: a build that publishes pages (`leaf-dev site build`), an eval's child
 # (`dev/leaf_dev/arms.py`), the test suite (`tests/conftest.py`).
 IDENTITY_VARIABLES = (
     *(

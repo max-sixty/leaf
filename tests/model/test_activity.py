@@ -38,6 +38,7 @@ from leaf import cli as cli_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import harness as harness_model
+from leaf import holding as holding_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -46,6 +47,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.events import build_threads
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
 
@@ -417,6 +419,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_opened": old,
         "turn_closed": None,
         "turn_takes_input": False,
+        "agent_turns": {},
+        "fork_lane": None,
+        "handed": [],
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [
@@ -449,6 +454,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "awaiting_approval"},
         updates=nothing,
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (waiting["kind"], waiting["observed_kind"]) == (
         "working",
@@ -461,6 +469,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         {**stream, "kind": "thinking"},
         updates=nothing,
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )
     assert (thinking["kind"], thinking["observed_kind"]) == ("stalled", None)
 
@@ -498,6 +509,9 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([owed]),
+        holding=holding_model.reading_of(
+            events, present, now.isoformat(), build_threads(events, {})
+        ),
     )["workflows"]
     assert ended["condition"] == {"kind": "ended", "operation": "response"}
 
@@ -924,7 +938,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     early = CliRunner().invoke(cli_model.cli, waiting)
     assert early.exit_code == 0, early.output
     assert json.loads(early.stdout)["state"] == "waiting"
-    [owed] = said(early.stderr)
+    [owed] = said(early.stdout)["findings"]
     assert owed["code"] == "page-open-owes"
     assert owed["text"] == (
         "1 user update with no answer (`leaf thread reply <answer.ref>` with "
@@ -955,13 +969,13 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
                 {
                     moment: {
                         "exit": result.exit_code,
-                        # The status as written, less the instant it was written at.
+                        # The status as written, less the instant it was written at,
+                        # with what the command noted beside it.
                         "status": {
                             key: value
-                            for key, value in json.loads(result.stdout).items()
+                            for key, value in said(result.stdout).items()
                             if key != "ts"
                         },
-                        "note": said(result.stderr),
                     }
                     for moment, result in (
                         ("before reply", early),
@@ -1363,13 +1377,18 @@ def test_a_claim_closed_before_its_first_turn_still_names_what_it_owes():
         "answer": {"kind": "reply", "ref": "t1"},
         "response": None,
         "delivery_seq": 1,
+        "delivery_session": "s1",
+        "delivery_turn": None,
+        "holder": {"kind": "main"},
         "started_by": [],
     }
     state = {
         "activity": {"obligations": [obligation]},
         "cursor": 1,
         "claim_session": "s1",
+        "session_alive": True,
         "turn": None,
         "turn_closed": "2026-10-28T12:00:00+00:00",
+        "agent_turns": {},
     }
     assert activity_model.left_owed(state, lambda _: False) == [obligation]

@@ -76,7 +76,7 @@ from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -1259,7 +1259,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:

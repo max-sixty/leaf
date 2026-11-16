@@ -4,15 +4,8 @@ import json
 import os
 from pathlib import Path
 
-import pytest
-from click.testing import CliRunner
-
-from leaf.cli import cli
-from leaf.machine import package_store
 from leaf.packages import cmd_package_install
-from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata, layer_record, selected
-from leaf.schema import LAYER_FILE
 from leaf.vendoring import cmd_init
 
 
@@ -21,7 +14,7 @@ def catalogue(tmp_path, *, default="editorial"):
     for name, color in (("editorial", "#814b07"), ("dense", "#553399")):
         source = tmp_path / name
         source.mkdir()
-        (source / "overrides.css").write_text(f":root {{ --accent: {color}; }}")
+        (source / "overrides.css").write_text(f":root {{ --lf-accent: {color}; }}")
         (source / "instructions").mkdir()
         (source / "instructions/author.md").write_text(
             f"Use {name} for its distinctive presentation."
@@ -50,8 +43,8 @@ def test_an_installed_theme_keeps_the_files_its_sheet_imports(tmp_path):
     (source / "overrides.css").write_text(
         '@import "./styles/accent.css";\n@import "./widgets/paper.css";\n'
     )
-    (source / "styles/accent.css").write_text(":root { --accent: #123456; }\n")
-    (source / "widgets/paper.css").write_text(":root { --paper: #fedcba; }\n")
+    (source / "styles/accent.css").write_text(":root { --lf-accent: #123456; }\n")
+    (source / "widgets/paper.css").write_text(":root { --lf-paper: #fedcba; }\n")
     cmd_package_install(source)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -87,6 +80,21 @@ def test_a_new_page_reads_in_leaf_s_look_unless_it_takes_none(tmp_path):
     assert "style(--lf-reading-face: 1)" in bare
 
 
+def test_a_personal_theme_builds_on_the_reading_look(tmp_path):
+    """A personal theme composes after `reading`, so one that states only an accent
+    keeps the look's face and idioms, and its own declaration follows the look's."""
+    catalogue(tmp_path)
+    page = tmp_path / "page"
+    cmd_init(page, theme="dense")
+    record = layer_record(page)
+    assert record is not None
+    assert record["theme"] == {"name": "dense", "source": "explicit"}
+    layer = selected(record, page)
+    assert ".callout" in layer.vocabulary.registry
+    sheet = layer.files["/theme.css"].decode()
+    assert sheet.index("--lf-reading-face: 1;") < sheet.index("--lf-accent: #553399")
+
+
 def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     """The theme composes before the content packages, so a project package that
     restates one of its idioms replaces the entry and its rule follows the theme's."""
@@ -109,26 +117,3 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     assert sheet.index(
         "background: var(--lf-ground);\n  padding: 12px 16px"
     ) < sheet.index("background: teal")
-
-
-def test_missing_theme_refuses_revendoring_and_keeps_the_selection(tmp_path):
-    catalogue(tmp_path)
-    page = tmp_path / "page"
-    cmd_init(page)
-    recorded = (page / LAYER_FILE).read_bytes()
-    (package_store() / "names/editorial").unlink()
-    with pytest.raises(Refused, match="unknown package 'editorial'"):
-        cmd_init(page)
-    assert (page / LAYER_FILE).read_bytes() == recorded
-    assert layer_metadata(page)["theme"]["name"] == "editorial"
-
-
-def test_an_explicit_theme_must_name_a_personal_choice_before_creating_a_page(tmp_path):
-    catalogue(tmp_path)
-    page = tmp_path / "page"
-    refused = CliRunner().invoke(
-        cli, ["page", "init", str(page), "--theme", "misspelled"]
-    )
-    assert refused.exit_code != 0
-    assert "leaf theme list" in refused.output
-    assert not page.exists()

@@ -216,7 +216,7 @@ lf-code[data-lf-notes="hidden"] lf-note {
 }
 lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
   color: var(--lf-accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 /* Where the runtime runs, the source stands in the frame its numbered lines will, wrapping where
    they will, and each note stands under it inside the frame's side rules, so the block

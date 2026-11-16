@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
+from playwright.sync_api import expect
 from render_harness import (
     ROOT,
     TOKEN,
@@ -207,12 +208,10 @@ mornings last winter.</p></section>
 )
 
 
-# The other place a question lives: a widget that seats its own thread
-# (`x-thread-seat`), where the answer is words rather than a pick. The durable-draft
-# tests stand on one because a seat is where a single draft has two views at once — the
-# cell in the page and the row in the panel — which is the whole of what those tests
-# compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
-# `{section: "jobs"}` are the one coordinate the panel and the page share.
+# The other place a question lives: a widget that seats the threads about it in an
+# outlet of its own (`threadOutlets`), where the answer is words rather than a pick.
+# `jobs` names the widget, so a comment anchored to `{section: "jobs"}` is the one
+# coordinate the panel and the page share.
 SEATED_OBLIGATION_PAGE = leaf_page(
     "seated question",
     """
@@ -224,6 +223,18 @@ SEATED_OBLIGATION_PAGE = leaf_page(
 </lf-test-plan>
 """,
 )
+# The outlet a fixture widget (`lf-test-task`, `lf-verdict`) seats its threads in.
+SEAT = ".lf-test-threads"
+
+
+def open_seat_box(page, host):
+    """Press the Comment control of the fixture widget `host` selects, and return its
+    outlet and the comment box now standing in it."""
+    seat = page.locator(f"{host} > {SEAT}")
+    page.locator(f"{host} > .lf-test-comment").click()
+    box = seat.locator(".lf-fab-input")
+    expect(box).to_be_focused()
+    return seat, box
 
 
 NESTED_OBLIGATION_PAGE = leaf_page(
@@ -1326,10 +1337,10 @@ THREAD_OBLIGATIONS = [
 # from the unanswered decisions while the agent has the next word, taking the obligation off
 # the list without answering it (`obligations.anchors_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
-# user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
+# user's cell an add form and dropped its seat, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading
 # under test is the layer's, and the tag it runs on is the layer's business rather than
-# the test's.
+# the test's. Its module seats the threads (`widgets/seated-ask.js`).
 SEATED_OBLIGATION_TAG = "lf-verdict"
 SEATED_OBLIGATION_ENTRY = {
     "description": (
@@ -1362,7 +1373,7 @@ SEATED_OBLIGATION_ENTRY = {
         "when": {"asks": [True]},
         "answered": {"settle": {}},
     },
-    "x-thread-seat": {"when": {"asks": [True]}},
+    "x-thread-surface": True,
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

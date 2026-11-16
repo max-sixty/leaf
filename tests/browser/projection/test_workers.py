@@ -1,7 +1,6 @@
 """Worker reports, rosters, worktree evidence, version comparisons and the command hub's
 goals and tasks, as the live page shows them."""
 
-import json
 import re
 from datetime import datetime, timedelta
 from itertools import pairwise
@@ -9,7 +8,6 @@ from itertools import pairwise
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     append_carried_log_record,
     append_command,
 )
@@ -619,16 +617,19 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     goal = page.locator("#goal-parser")
-    seat = goal.locator(":scope > .lf-thread-seat")
-    first = seat.locator(":scope > .lf-say")
-    write(first.get_by_role("textbox"), "Keep parsing; this is only a note.")
+    comment = goal.locator(":scope > .atlas-task-comment")
+    seat = goal.locator(":scope > .atlas-task-threads")
+    box = seat.locator(".lf-fab-input")
+    comment.click()
+    write(box, "Keep parsing; this is only a note.")
     with sending(page, "the note"):
-        first.get_by_role("button", name="Send", exact=True).click()
+        page.keyboard.press("Enter")
 
-    expect(first).to_be_visible()
-    write(first.get_by_role("textbox"), "Finish the hunk, then park.")
+    # The box gave way to the note's thread, and the row offers it again.
+    comment.click()
+    write(box, "Finish the hunk, then park.")
     with sending(page, "the held send"):
-        first.get_by_role("button", name="Send & pause", exact=True).click()
+        seat.get_by_role("button", name="Send & pause", exact=True).click()
 
     expect(goal).to_have_attribute("data-lf-held")
     roots = [
@@ -638,30 +639,6 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
         ("Keep parsing; this is only a note.", None),
         ("Finish the hunk, then park.", "goal-parser"),
     ]
-
-
-def test_command_goal_thread_follows_its_declaration_not_talk(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    registry = json.loads((COMMAND_HUB_PACKAGE / "registry.json").read_text())
-    task = registry["lf-test-task"]
-    task["properties"]["consult"] = {"type": "boolean"}
-    task["x-thread-seat"] = {
-        "when": {"consult": [True]},
-        "hold": "pause",
-    }
-    command = leaf_page(
-        "custom goal",
-        """<lf-test-plan id="hub">
-  <lf-test-task id="goal" status="active" consult><strong>Custom goal</strong></lf-test-task>
-</lf-test-plan>""",
-    )
-    url = serve(command, layer_registry={"lf-test-task": task})
-    page = open_page(browser, url)
-    seat = page.locator("#goal > .lf-thread-seat")
-    expect(seat.get_by_role("textbox", name="Say something here")).to_be_visible()
-    expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
 def test_task_hierarchy_is_accessible_through_reports_and_revisions(browser, serve):

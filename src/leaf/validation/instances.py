@@ -522,22 +522,20 @@ def reference_errors(
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Conditional obligations and thread seats need an id when they are live.
+    """A conditional obligation needs an id when it is live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
     """
     errors = []
     for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        for role in ("x-awaits", "x-thread-seat"):
-            declaration = entry.get(role)
-            if (
-                declaration is not None
-                and matches_when(rec["attrs"], declaration.get("when"))
-                and not rec["attrs"].get("id")
-            ):
-                errors.append(found_at("needs-id", rec, role=role))
+        declaration = registry.get(rec["tag"], {}).get("x-awaits")
+        if (
+            declaration is not None
+            and matches_when(rec["attrs"], declaration.get("when"))
+            and not rec["attrs"].get("id")
+        ):
+            errors.append(found_at("needs-id", rec, role="x-awaits"))
     return errors
 
 

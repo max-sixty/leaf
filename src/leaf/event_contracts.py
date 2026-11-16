@@ -44,7 +44,6 @@ from leaf.registry.contract import (
     created_child,
     detail_schema,
     event_spec,
-    matches_when,
     state_specs,
     verb_writer,
     visual_parts,
@@ -267,17 +266,20 @@ def position_record_error(
 
 
 def held_comment_error(event: dict, page_by_id: dict, registry: dict):
-    """Why one comment cannot hold the exact command goal it names."""
+    """Why one comment cannot hold the widget it names.
+
+    A comment holds the widget it is about and nothing inside it: a widget on the
+    page, which its anchor names with no passage, datum or part. Which widgets offer
+    a hold is their modules' to say, on the outlet each returns for itself
+    (`module-annotations.md`, "Widget-local Thread placement"), so the page's
+    vocabulary declares nothing here for admission to read."""
     target = event.get("holds")
     if not target:
         return None
     rec = page_by_id.get(target)
-    thread = (registry.get(rec["tag"]) or {}).get("x-thread-seat") if rec else None
     if (
         rec is None
-        or not thread
-        or not thread.get("hold")
-        or not matches_when(rec["attrs"], thread.get("when"))
+        or not registry.get(rec["tag"])
         or event.get("anchor") != {"section": target}
     ):
         return Finding("hold-target", values={"holds": target})

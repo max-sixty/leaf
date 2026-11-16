@@ -136,7 +136,6 @@ const applicationOwners = [
 // them and must stay above them.
 const forbiddenClosures = Object.fromEntries([
   ...[
-    "thread/box.js",
     "thread/folding.js",
     "thread/inline.js",
     "thread/landing.js",

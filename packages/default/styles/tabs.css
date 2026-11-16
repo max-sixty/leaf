@@ -442,7 +442,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * choosing nor undoing borrows room from the name or its context. The answer
      * contains its inline size; exceptional long values ellipsize and remain whole
      * in the tab's accessible description. */
-    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer {
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-answer {
       container-type: inline-size;
       grid-column: 1 / -1;
       grid-row: 3;
@@ -453,12 +453,14 @@ lf-tabs[data-lf-views] > lf-tab {
       font: var(--lf-font-heading);
       color: var(--lf-ink-2);
     }
-    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer::before {
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
+      > .lf-tabstrip
+      .lf-tab-answer::before {
       content: "✓" / "";
       flex: none;
       color: var(--lf-settled-ink);
     }
-    lf-tabs[list="side"][data-lf-views]
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
       > .lf-tabstrip
       .lf-tab-answer[data-lf-obligations="open"] {
       font: var(--lf-font-small);
@@ -468,12 +470,14 @@ lf-tabs[data-lf-views] > lf-tab {
         color: inherit;
       }
     }
-    lf-tabs[list="side"][data-lf-views]
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
       > .lf-tabstrip
       .lf-tab-answer:not([data-lf-obligations]) {
       visibility: hidden;
     }
-    lf-tabs[list="side"][data-lf-views] > .lf-tabstrip .lf-tab-answer-words {
+    :is(lf-tabs[list="side"], lf-parts)[data-lf-views]
+      > .lf-tabstrip
+      .lf-tab-answer-words {
       min-inline-size: 0;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -829,7 +833,8 @@ lf-tabs[data-lf-views] > lf-tab {
       /* On a phone the list is a row that sticks over the open part as the page tabs'
      * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
      * reaches another part from anywhere in this one, and what sticks inside the part
-     * stacks under it. */
+     * stacks under it. Its tabs are names alone, as theirs are, so it stays one line
+     * high over the part. */
       @container lf-shell (width < 640px) {
         :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
           content: "";
@@ -857,7 +862,9 @@ lf-tabs[data-lf-views] > lf-tab {
           overflow-y: hidden;
           border-bottom: 1px solid var(--lf-border);
         }
-        :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip .lf-tab-summary {
+        :scope:is(lf-parts)[data-lf-views]
+          > .lf-tabstrip
+          :is(.lf-tab-summary, .lf-tab-answer) {
           display: none;
         }
         :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {

@@ -79,7 +79,8 @@ child carrying that part's Layout:
 
 The page's `header` is the only element in `main` besides the parts. It appears at the
 top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
-under its label. Each part takes the rest of the width from the top of the window, so
+under its label and the state of the obligations it holds under that, as a queue's list
+marks them. Each part takes the rest of the width from the top of the window, so
 a workspace part fills the window. Keep the header to the page's title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.

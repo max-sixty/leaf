@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
+from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
     displayed,
@@ -18,6 +18,7 @@ from render_harness import (
     resized,
     root_overflow,
     scroll_settled,
+    sending,
     stamp_page,
     undo,
     wait_for_revision,
@@ -1566,6 +1567,85 @@ def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtes
         row = strip.bounding_box()
         heading = page.locator("#part-plan-rollback h2").bounding_box()
         assert heading["y"] >= row["y"] + row["height"] - 1, (heading, row)
+
+
+def test_each_part_s_row_says_where_its_question_stands(browser, serve):
+    """A page of parts' list marks each part's obligations as a queue's rows do, so the
+    reader sees from the list which parts they have answered: an open mark while one
+    waits on them, whose turn it is once they comment on it, a check with the answer's
+    words once they answer it through its widget, and the open mark again when an undo
+    reopens it. A part that asks nothing reserves no line, one that asks keeps its line
+    either way, so an answer moves no row, and on a phone the row over the open part
+    names each part alone."""
+
+    def part(key):
+        return (
+            f'<lf-part id="part-{key}" label="{key.title()}">'
+            f'<article class="layout-column"><lf-ask id="{key}-ask">'
+            f'<h2>Pick the {key} route</h2><lf-options id="{key}" choose>'
+            f'<lf-option id="{key}-alpha">Alpha</lf-option>'
+            f'<lf-option id="{key}-beta">Beta</lf-option></lf-options></lf-ask>'
+            "</article></lf-part>"
+        )
+
+    source = leaf_page(
+        "Parts to answer",
+        '<header><h1>Route review</h1></header><lf-parts id="parts">'
+        + "".join(part(key) for key in ("untouched", "answered", "sent", "reopened"))
+        + '<lf-part id="part-notes" label="Notes"><article class="layout-column">'
+        "<p>Nothing to decide here.</p></article></lf-part></lf-parts>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+
+    def row(key):
+        return page.locator("#parts").get_by_role("tab", name=key.title(), exact=True)
+
+    def mark(key):
+        return row(key).locator(".lf-tab-answer")
+
+    def own_line(key):
+        name = row(key).locator(".lf-tab-name").bounding_box()
+        line = mark(key).bounding_box()
+        return line["y"] >= name["y"] + name["height"] - 0.5
+
+    for key in ("untouched", "answered", "sent", "reopened"):
+        expect(mark(key)).to_have_attribute("data-lf-obligations", "open")
+        expect(mark(key)).to_have_text("")
+        assert own_line(key), key
+    expect(row("untouched")).to_have_accessible_description("To answer")
+    expect(mark("notes")).to_have_count(0)
+    height = row("untouched").bounding_box()["height"]
+    assert row("notes").bounding_box()["height"] < height
+
+    row("answered").click()
+    with sending(page, "the answered part's pick"):
+        page.locator("#answered .lf-pick").first.click()
+    expect(mark("answered")).to_have_attribute("data-lf-obligations", "answered")
+    expect(mark("answered")).to_have_text("Alpha")
+    expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    assert row("answered").bounding_box()["height"] == height
+
+    # A comment on the open question hands it to the agent until a reply.
+    panel_comment(serve.page_dir, "Why only two routes?", {"section": "sent-ask"})
+    expect(mark("sent")).to_have_text("On Claude")
+    expect(mark("sent")).to_have_attribute("data-lf-obligations", "open")
+    expect(row("sent")).to_have_accessible_description("On Claude")
+
+    row("reopened").click()
+    with sending(page, "the reopened part's pick"):
+        page.locator("#reopened .lf-pick").first.click()
+    expect(mark("reopened")).to_have_text("Alpha")
+    undo(page)
+    expect(mark("reopened")).to_have_attribute("data-lf-obligations", "open")
+    expect(mark("reopened")).to_have_text("")
+    assert row("reopened").bounding_box()["height"] == height
+
+    resized(page, 390, 800)
+    expect(page.locator("#parts > .lf-tabstrip")).to_have_css("flex-direction", "row")
+    for key in ("untouched", "answered", "sent", "reopened"):
+        expect(mark(key)).to_be_hidden()
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard", "touch"])

@@ -46,11 +46,12 @@
  * has a place of its own,
  * and its id is the URL fragment, as a page tab's is. Their list runs down the window's
  * left edge, under the page's title, walked up and down as well as across, each row
- * with its part's `summary` as a side list's has; the parts beside it start at the
- * window's top, so the list is no header over them. Where the window is too narrow for
- * the column, as on a phone, the list is a row sticking over the open part, a header
- * as the page tabs' row is. Parts placed anywhere else, as when the corpus embeds a
- * page, are no page's navigation, and list their names in a row.
+ * drawn as a side list's is (below), with its part's `summary` and its obligations'
+ * state under the name; the parts beside it start at the window's top, so the list is
+ * no header over them. Where the window is too narrow for the column, as on a phone,
+ * the list is a row of names sticking over the open part, a header as the page tabs'
+ * row is. Parts placed anywhere else, as when the corpus embeds a page, are no page's
+ * navigation, and list their names in a row.
  *
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
@@ -376,8 +377,8 @@ export class TabSet extends LeafElement {
   }
 
   // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a side list its obligations' state, with the answer
-  // once they are all answered.
+  // version diff's marked passages, and in a list down beside the panels its obligations'
+  // state, with the answer once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
     return html`${this.#edge("start")}${
@@ -420,7 +421,7 @@ export class TabSet extends LeafElement {
   /** @param {Element} panel */
   #tab(panel) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
+    const hasAnswer = this.#down && elementsDeclaring(panel, "x-awaits").length > 0;
     const items = hasAnswer ? obligationsIn(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");

@@ -145,7 +145,8 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
-import { threadPreview } from "../thread/messages.js";
+import { draftPreview, threadPreview } from "../thread/messages.js";
+import { draftsReading } from "../drafts.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
@@ -1063,7 +1064,16 @@ export function createMarginProjection({
                     ? spokenContext(choice)
                     : null,
                 )
-            : null,
+            : // A draft's entry previews its words as they stand now, as its row of
+              // Threads does.
+              choice?.kind === "draft"
+              ? () => {
+                  const contexts = new Set(choice.items.map(({ draft }) => draft));
+                  return draftPreview(
+                    draftsReading().filter(({ context }) => contexts.has(context)),
+                  );
+                }
+              : null,
       },
     );
     presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));

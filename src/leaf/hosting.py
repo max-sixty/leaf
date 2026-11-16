@@ -602,6 +602,7 @@ def cmd_serve(
     private preparation cannot advertise a retained service or neighbor row.
     A revival takes no acquisition.
     """
+    from .delivery import retire_gone_deliveries
     from .http import page_endpoint
     from .layer import payload_provenance
     from .render_gate.handover_pass import HandoverPass
@@ -699,6 +700,7 @@ def cmd_serve(
             return
         threading.Thread(target=rows.run, daemon=True).start()
         threading.Thread(target=HandoverPass(page_dir).run, daemon=True).start()
+        threading.Thread(target=retire_gone_deliveries, daemon=True).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),

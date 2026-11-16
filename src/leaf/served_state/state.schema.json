@@ -25,51 +25,8 @@
       },
       "required": ["generation", "fingerprint"]
     },
-    "others": {
-      "description": "The machine's other live pages, each its compact row (`server_rows.py`), named by `page_key` and linked by `url` (`presence.other_leaves`). A row is open: a neighbor's Leaf may publish fields this one ignores. An export holds none.",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "page_key": { "type": "string" },
-          "url": { "type": "string" },
-          "title": { "type": "string" },
-          "session_cwd": { "type": ["string", "null"] },
-          "activity": {
-            "type": "object",
-            "properties": {
-              "kind": { "$ref": "#/$defs/Activity/properties/kind" },
-              "held": { "$ref": "#/$defs/Activity/properties/held" },
-              "dropped": { "$ref": "#/$defs/Activity/properties/dropped" },
-              "detail": { "$ref": "#/$defs/Activity/properties/detail" },
-              "observed": { "$ref": "#/$defs/Activity/properties/observed" },
-              "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
-              "awaiting": { "$ref": "#/$defs/Activity/properties/awaiting" },
-              "counts": { "$ref": "#/$defs/Activity/properties/counts" },
-              "ts": { "$ref": "#/$defs/Activity/properties/ts" },
-              "next_transition_at": {
-                "$ref": "#/$defs/Activity/properties/next_transition_at"
-              }
-            },
-            "required": [
-              "kind",
-              "held",
-              "dropped",
-              "detail",
-              "observed",
-              "observed_kind",
-              "awaiting",
-              "counts",
-              "ts",
-              "next_transition_at"
-            ]
-          }
-        },
-        "required": ["page_key", "url", "title", "session_cwd", "activity"]
-      }
-    },
     "reading": {
-      "description": "The news token of the facts this answer read (`served_state.reading`), which the tab's freshness reads compare.",
+      "description": "The token of the page's own facts this answer read (`served_state.reading`), which the `reading` a news answer names is compared with. No other page moves it.",
       "type": "string"
     },
     "release": {
@@ -77,11 +34,11 @@
       "type": "string"
     }
   },
-  "required": ["layer", "others", "reading"],
+  "required": ["layer", "reading"],
   "unevaluatedProperties": false,
   "$defs": {
     "Reading": {
-      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds the layer it serves under, its neighbors and token. Before the page has an active revision, `active` and `browser` are null.",
+      "description": "One page's state as `served_state.page.read_served_page` composes it from one transaction, before the serving route adds the layer it serves under and its token. Before the page has an active revision, `active` and `browser` are null.",
       "type": "object",
       "properties": {
         "now": {
@@ -1901,6 +1858,61 @@
       },
       "required": ["error", "current"],
       "additionalProperties": false
+    },
+    "LivePage": {
+      "description": "One of the machine's other live pages, as its own server publishes its compact row (`server_rows.py`), named by `page_key` and linked by `url` (`presence.other_leaves`). A row is open: a neighbor's Leaf may publish fields this one ignores.",
+      "type": "object",
+      "properties": {
+        "page_key": { "type": "string" },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "session_cwd": { "type": ["string", "null"] },
+        "activity": {
+          "type": "object",
+          "properties": {
+            "kind": { "$ref": "#/$defs/Activity/properties/kind" },
+            "held": { "$ref": "#/$defs/Activity/properties/held" },
+            "dropped": { "$ref": "#/$defs/Activity/properties/dropped" },
+            "detail": { "$ref": "#/$defs/Activity/properties/detail" },
+            "observed": { "$ref": "#/$defs/Activity/properties/observed" },
+            "observed_kind": { "$ref": "#/$defs/Activity/properties/observed_kind" },
+            "awaiting": { "$ref": "#/$defs/Activity/properties/awaiting" },
+            "counts": { "$ref": "#/$defs/Activity/properties/counts" },
+            "ts": { "$ref": "#/$defs/Activity/properties/ts" },
+            "next_transition_at": {
+              "$ref": "#/$defs/Activity/properties/next_transition_at"
+            }
+          },
+          "required": [
+            "kind",
+            "held",
+            "dropped",
+            "detail",
+            "observed",
+            "observed_kind",
+            "awaiting",
+            "counts",
+            "ts",
+            "next_transition_at"
+          ]
+        }
+      },
+      "required": ["page_key", "url", "title", "session_cwd", "activity"]
+    },
+    "NewsAnswer": {
+      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): two readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again.",
+      "type": "object",
+      "properties": {
+        "reading": { "type": "string" },
+        "pages": { "type": ["string", "null"] }
+      },
+      "required": ["reading", "pages"],
+      "additionalProperties": false
+    },
+    "PagesAnswer": {
+      "description": "The answer `GET /api/pages` gives: the machine's other live pages, in title order (`presence.neighbor_reading`). It holds no consistency with the page's own reading. A capture, such as an export or a render check's, lists none.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/LivePage" }
     },
     "Refusal": {
       "description": "Any route's refusal of a request (`http.PageEndpoint._refuse`): the words the page shows.",

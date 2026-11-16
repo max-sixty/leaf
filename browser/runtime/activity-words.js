@@ -69,7 +69,7 @@ const phrased = (counts, kinds) =>
 //   nothing on the page does.
 // - `waiting` phrases the queued and pending updates, in that order, and `owed` the
 //   other counts, for a seat with room to say them beside `waiting`.
-/** @param {{activity: import("../types/contract.js").ServedState["others"][number]["activity"]}} reading */
+/** @param {{activity: import("../types/contract.js").ServedLivePage["activity"]}} reading */
 export function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
@@ -480,7 +480,7 @@ export function statusModel(status, queues, agent) {
 // A row's whole account of a page: the dot's tone and one line of words, from an
 // canonical activity computed by each serving page, as its `line` and as `parts`,
 // each in the `voice` of whoever said it. The wording is the seat's.
-/** @param {{activity: import("../types/contract.js").ServedState["others"][number]["activity"]}} entry */
+/** @param {{activity: import("../types/contract.js").ServedLivePage["activity"]}} entry */
 export function leafRow(entry) {
   const { kind, counts, detail } = entry.activity;
   const facts = activityFacts(entry);

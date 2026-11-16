@@ -526,11 +526,14 @@ FACE = (
 @pytest.mark.parametrize("theme", [None, False])
 def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme):
     """Where the page's theme turns on markup's reading face, a bare button, a submit
-    button and a text field the page writes wear the faces of Leaf's own word, commit
-    and field (controls.css, "The faces of Leaf's control roles"), so the page's
-    controls and Leaf's read as one set; a page that takes no theme keeps the
-    browser's. Until 16 November 2026 a page took these faces only by writing Leaf's
-    class names, `lf-btn`, `lf-btn lf-commit` and `lf-field`."""
+    button, a pressed submit button and a text field the page writes wear the faces of
+    Leaf's own word, commit, pressed commit and field (controls.css, "The faces of
+    Leaf's control roles"), so the page's controls and Leaf's read as one set, and a
+    label holding a checkbox at any depth is a choice whose ring stands on the label;
+    a page that takes no theme keeps the browser's. Until 16 November 2026 a page took
+    these faces only by writing Leaf's class names, `lf-btn`, `lf-btn lf-commit`,
+    `lf-field` and `lf-choice`; a pressed submit button then took the selected
+    toggle's accent, and a mark wrapped in a span took no face."""
     page = open_page(
         browser,
         serve(
@@ -539,7 +542,11 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
                 '<h1>Own controls</h1><p id="controls"></p>'
                 '<p><button id="own" type="button">Run all</button>'
                 ' <button id="own-submit" type="submit">Generate</button>'
-                ' <input id="own-field" type="text" aria-label="Name"></p>',
+                ' <button id="own-done" type="submit" aria-pressed="true">Done</button>'
+                ' <input id="own-field" type="text" aria-label="Name"></p>'
+                '<p><label id="own-direct"><input type="checkbox">Include notes</label>'
+                ' <label id="own-nested"><span><input id="own-mark" type="checkbox">'
+                "</span>Include images</label></p>",
             ),
             theme=theme,
         ),
@@ -549,9 +556,17 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
       const {offerAction} = await window.__lfWidgetApi();
       const commit = offerAction('commit', '', 'Commit');
       commit.id = 'commit';
-      document.getElementById('controls').append(commit);
+      const done = offerAction('commit', '', 'Done');
+      done.id = 'done';
+      done.setAttribute('aria-pressed', 'true');
+      document.getElementById('controls').append(commit, done);
     }""")
-    pairs = {"#own": "#press", "#own-submit": "#commit", "#own-field": "#field"}
+    pairs = {
+        "#own": "#press",
+        "#own-submit": "#commit",
+        "#own-done": "#done",
+        "#own-field": "#field",
+    }
     faces = {
         own: (page.locator(own).evaluate(FACE), page.locator(leaf).evaluate(FACE))
         for own, leaf in pairs.items()
@@ -561,6 +576,21 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
             assert drawn["paddingLeft"] != leaf["paddingLeft"], (own, drawn)
         else:
             assert drawn == leaf, own
+    mark = page.locator("#own-mark")
+    style = "(el, p) => getComputedStyle(el)[p]"
+    if theme is False:
+        assert mark.evaluate(style, "appearance") == "auto"
+        return
+    assert mark.evaluate(style, "appearance") == "none"
+    nested, direct = page.locator("#own-nested"), page.locator("#own-direct")
+    assert nested.evaluate(style, "paddingLeft") == direct.evaluate(
+        style, "paddingLeft"
+    )
+    mark.click()
+    page.keyboard.press("Space")
+    rendered(page)
+    assert nested.evaluate(style, "outlineStyle") == "solid"
+    assert mark.evaluate(style, "outlineStyle") == "none"
 
 
 @pytest.mark.parametrize("theme", [None, False])

@@ -633,7 +633,10 @@ summary,
  * field's. The build draws them from the regions below marked `Face:`, onto those
  * elements, into vendor/page-controls.css (build/styles.mjs, `LEAF_ONTO_PAGE`), so each
  * rule stands here once, and an edit to one of those regions takes
- * `pnpm run build:browser` to reach a page's controls.
+ * `pnpm run build:browser` to reach a page's controls. The page's copies weigh nothing,
+ * so order alone ranks them: in a region, a rule that refines another, as a pressed
+ * commit refines a selected toggle, follows it. A choice's mark may stand at any
+ * depth in its label, as a page may wrap it.
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
@@ -739,11 +742,11 @@ summary,
 .lf-choice {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
-.lf-choice:has(> input:disabled) {
+.lf-choice:has(input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.lf-choice > input {
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
   float: inline-start;
   margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
     calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
@@ -757,10 +760,10 @@ summary,
     appearance: auto;
   }
 }
-.lf-choice > input {
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
   --lf-focus-box: label;
 }
-.lf-choice > input[data-lf-focus-visible] {
+.lf-choice input:where([type="checkbox"], [type="radio"])[data-lf-focus-visible] {
   outline: none;
 }
 .lf-choice[data-lf-control-focus-visible] {
@@ -855,13 +858,6 @@ wa-copy-button.lf-icon-action {
   color: inherit;
 }
 /* #region Face: Toggle */
-/* A commit pressed, such as a multiple-choice question's Done once it is answered,
-   is marked settled, as a chosen answer is (below). */
-.lf-btn.lf-commit[aria-pressed="true"] {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
-}
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
    shows its state on its disc, such as Dictate listening, keeps its box clear (the
@@ -870,6 +866,13 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-accent);
   color: var(--lf-accent);
   background: var(--lf-chip);
+}
+/* A commit pressed, such as a multiple-choice question's Done once it is answered,
+   is marked settled, as a chosen answer is (below). */
+.lf-btn.lf-commit[aria-pressed="true"] {
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
 }
 /* #endregion */
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's

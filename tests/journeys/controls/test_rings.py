@@ -36,7 +36,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
-<lf-shadow-focus id="focus-shadow"><button type="button">Shadow button</button></lf-shadow-focus>
+<lf-shadow-focus id="focus-shadow"></lf-shadow-focus>
 <lf-ask id="focus-open-decision"><h2>Which other option?</h2>
 <lf-options id="focus-open-options" choose>
   <lf-option id="focus-open-choice">Keep this one.</lf-option>
@@ -47,7 +47,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {once, shadowStage} from '/runtime/widget-api.js';
+import {offerAction, once, shadowStage} from '/runtime/widget-api.js';
 import '/vendor/webawesome.esm.js';
 customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {
@@ -62,7 +62,8 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
       option.textContent = label;
       select.append(option);
     }
-    shadowStage(this, [...this.childNodes, select]);
+    // A widget's own control in its shadow tree, built by role as a widget builds one.
+    shadowStage(this, [offerAction('word', '', 'Shadow button'), select]);
   }
 });
 """

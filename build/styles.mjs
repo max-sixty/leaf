@@ -36,7 +36,7 @@ const LEAF_ONTO_PAGE = {
   ".lf-btn": `button${PAGE_CONTROL}`,
   ".lf-icon-action": null,
   ".lf-commit": '[type="submit"]',
-  ".lf-choice": `label${PAGE_CONTROL}:has(> input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))`,
+  ".lf-choice": `label${PAGE_CONTROL}:has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))`,
   ".lf-ui": PAGE_CONTROL,
   input: "input",
   select: "select",
@@ -93,7 +93,7 @@ export const styleEntries = [
       {
         drops: LEAF_OWNS,
         faces: {
-          "Checkboxes + Radios": { input: `label > input${PAGE_CONTROL}` },
+          "Checkboxes + Radios": { input: `label input${PAGE_CONTROL}` },
           Buttons: {
             button: `button${PAGE_CONTROL}`,
             ".wa-plain": ':not([type="submit"])',

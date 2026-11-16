@@ -2,7 +2,7 @@
 
 @container style(--lf-reading-face: 1) {
 /* Region "Checkboxes + Radios" */
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]), :where(label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]), :where(label input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
   width: fit-content;
   color: var(--wa-form-control-value-color);
   -webkit-user-select: none;
@@ -10,16 +10,16 @@
   display: inline-flex;
 }
 
-:where(:is(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label > input:not([data-lf-offer], .lf-chrome *)[type="radio"])) {
+:where(:is(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label input:not([data-lf-offer], .lf-chrome *)[type="radio"])) {
   cursor: pointer;
 }
 
-:where(:is(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]):disabled), :where(:is(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]):has(:disabled)) {
+:where(:is(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label input:not([data-lf-offer], .lf-chrome *)[type="radio"]):disabled), :where(:is(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"], label input:not([data-lf-offer], .lf-chrome *)[type="radio"]):has(:disabled)) {
   opacity: .5;
   cursor: not-allowed;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]), :where(label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]), :where(label input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
   appearance: none;
   width: var(--wa-form-control-toggle-size);
   height: var(--wa-form-control-toggle-size);
@@ -34,20 +34,20 @@
   margin-inline-end: .5em;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]) {
   --checked-icon-color: var(--wa-color-brand-on-loud);
   --checked-icon-scale: .8;
   border-radius: min(calc(var(--wa-form-control-toggle-size) * .375),
       var(--wa-border-radius-s));
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked), :where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked), :where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate) {
   color: var(--checked-icon-color);
   background-color: var(--wa-form-control-activated-color);
   border-color: var(--wa-form-control-activated-color);
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked):after, :where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate):after {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked):after, :where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate):after {
   content: "";
   width: var(--wa-form-control-toggle-size);
   height: var(--wa-form-control-toggle-size);
@@ -55,27 +55,27 @@
   background-color: currentColor;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked):after {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:checked):after {
   mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\"><!--! Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc. --><path fill=\"currentColor\" d=\"M434.8 70.1c14.3 10.4 17.5 30.4 7.1 44.7l-256 352c-5.5 7.6-14 12.3-23.4 13.1s-18.5-2.7-25.1-9.3l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l101.5 101.5 234-321.7c10.4-14.3 30.4-17.5 44.7-7.1z\"/></svg>") center / 1em 1em no-repeat;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate):after {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="checkbox"]:indeterminate):after {
   mask: url("data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"16\" width=\"14\" viewBox=\"0 0 448 512\"><path d=\"M431 256c0 17.7-14.3 32-32 32H49c-17.7 0-32-14.3-32-32s14.3-32 32-32h350c17.7 0 32 14.3 32 32z\"/></svg>") center no-repeat;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="radio"]) {
   --checked-icon-color: var(--wa-form-control-activated-color);
   --checked-icon-scale: .7;
   color: #0000;
   border-radius: 50%;
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]:checked) {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="radio"]:checked) {
   color: var(--checked-icon-color);
   border-color: var(--wa-form-control-activated-color);
 }
 
-:where(label > input:not([data-lf-offer], .lf-chrome *)[type="radio"]:checked):after {
+:where(label input:not([data-lf-offer], .lf-chrome *)[type="radio"]:checked):after {
   content: "";
   aspect-ratio: 1;
   width: 100%;
@@ -265,7 +265,7 @@
 }
 
 /* Region "Face: Choice" */
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))) {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
   --lf-choice-hang: calc(var(--wa-form-control-toggle-size) + var(--lf-choice-gap));
   padding: var(--lf-choice-pad);
@@ -282,12 +282,12 @@
   display: inline-block;
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])):has( > input:disabled)) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])):has(input:disabled)) {
   opacity: .5;
   cursor: not-allowed;
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) > input) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) input:where([type="checkbox"], [type="radio"])) {
   float: inline-start;
   margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
     calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
@@ -296,40 +296,40 @@
   line-height: inherit;
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) > input:disabled) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) input:where([type="checkbox"], [type="radio"]):disabled) {
   opacity: 1;
 }
 
 @media (forced-colors: active) {
-  :where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) > input) {
+  :where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) input:where([type="checkbox"], [type="radio"])) {
     appearance: auto;
   }
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) > input) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) input:where([type="checkbox"], [type="radio"])) {
   --lf-focus-box: label;
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) > input[data-lf-focus-visible]) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer])) input:where([type="checkbox"], [type="radio"])[data-lf-focus-visible]) {
   outline: none;
 }
 
-:where(label:not([data-lf-offer], .lf-chrome *):has( > input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))[data-lf-control-focus-visible]) {
+:where(label:not([data-lf-offer], .lf-chrome *):has(input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))[data-lf-control-focus-visible]) {
   outline: var(--lf-focus-ring);
   --lf-wears-ring: 1;
 }
 
 /* Region "Face: Toggle" */
-:where(button:not([data-lf-offer], .lf-chrome *)[type="submit"][aria-pressed="true"]) {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
-}
-
 :where(:is(button:not([data-lf-offer], .lf-chrome *)):is([aria-pressed="true"], [aria-checked="true"])) {
   border-color: var(--lf-accent);
   color: var(--lf-accent);
   background: var(--lf-chip);
+}
+
+:where(button:not([data-lf-offer], .lf-chrome *)[type="submit"][aria-pressed="true"]) {
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
 }
 
 /* Region "Face: Field" */

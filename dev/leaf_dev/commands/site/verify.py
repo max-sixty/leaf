@@ -27,6 +27,7 @@ import base64
 import gzip
 import hashlib
 import json
+import select
 import shutil
 import subprocess
 import sys
@@ -1056,32 +1057,39 @@ class LocalWorker:
         )
         stopping = int(time.time())
         docker_command("stop", "--time", "1", container)
-        if container in self.containers():
-            # `docker stop` returned after the container exited, so a listed
-            # container is either still exiting or was started again under the
-            # same id. Its state and lifecycle events since the stop tell which.
-            state = docker_command(
-                "inspect",
-                "--format",
-                "{{json .State}} restarts={{.RestartCount}}"
-                " policy={{json .HostConfig.RestartPolicy}}",
-                container,
-            )
-            events = docker_command(
+        # `docker stop` returns once the container stops running, which can precede
+        # the `die` event and the update to the list `docker ps` reads. Wait for
+        # that event, so the listing below and the verifier's later readings of
+        # it see the container gone.
+        with subprocess.Popen(
+            [
+                "docker",
                 "events",
                 "--since",
                 str(stopping),
-                "--until",
-                str(int(time.time()) + 1),
                 "--filter",
                 f"container={container}",
+                "--filter",
+                "event=die",
                 "--format",
-                "{{.TimeNano}} {{.Action}}",
-            )
-            raise RuntimeError(
-                f"the page container did not stop (stop requested at {stopping}):\n"
-                f"{state.strip()}\nevents since the stop:\n{events.strip() or 'none'}"
-            )
+                "{{.Action}}",
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+        ) as events:
+            try:
+                assert events.stdout is not None
+                ready, _, _ = select.select([events.stdout], [], [], 30)
+                check(
+                    bool(ready) and bool(events.stdout.readline()),
+                    "the page container did not report its exit",
+                )
+            finally:
+                events.kill()
+        check(
+            container not in self.containers(),
+            "the page container started again after it stopped",
+        )
         wait_for_host_network()
 
 

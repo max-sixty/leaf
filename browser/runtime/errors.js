@@ -29,10 +29,13 @@
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one.
 
-   Each error keeps the stack it was raised from (`stack`), so whoever is handed a
-   copy of it starts from the code that raised it (floating-panel.js, `errorReport`).
+   Each error keeps the revision the page showed and the stack it was raised from
+   (`revision`, `stack`), so whoever is handed a copy of it starts from the source and
+   the code that raised it, however the page has moved on since (floating-panel.js,
+   `errorReport`).
    The tab's trace records it among the gestures that led to it (interaction-log.js). */
-import { signal } from "/runtime/framework.js";
+import { signal, untracked } from "/runtime/framework.js";
+import { runtime } from "./context.js";
 import { recordInteraction } from "./interaction-log.js";
 import { announce, gesture } from "./notifications.js";
 
@@ -42,6 +45,7 @@ import { announce, gesture } from "./notifications.js";
  *   message: string,
  *   subject: Element | null,
  *   at: number,
+ *   revision: number | null,
  *   stack: string,
  *   passed: boolean,
  *   seen: boolean,
@@ -96,6 +100,7 @@ function raise(message, subject, speak, replaced) {
       message,
       subject,
       at: Date.now(),
+      revision: untracked(() => runtime.currentRevision ?? null),
       stack,
       passed: false,
       seen: false,

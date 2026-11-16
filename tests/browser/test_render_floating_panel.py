@@ -57,6 +57,7 @@ from render_harness import (
     stamp_page,
     told,
     undo,
+    wait_for_revision,
     watched,
     write,
 )
@@ -3307,7 +3308,9 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(listed.first).to_be_hidden()
     assert reading.bounding_box() == before
     assert reading.evaluate("node => node === document.activeElement")
-    # Clearing the focused error also hands focus to the next live Dismiss.
+    # Clearing the focused error also hands focus to the next live Dismiss, from its
+    # copy press too, whose button stands in the copy control's own tree.
+    listed.nth(1).get_by_role("button", name=re.compile(r"^Copy with page")).focus()
     page.evaluate("() => window.fieldError.clear()")
     expect(listed.nth(1)).to_be_hidden()
     expect(listed.nth(2).get_by_role("button", name=DISMISS)).to_be_focused()
@@ -3330,9 +3333,11 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
 
 def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, serve):
     """Each error in the menu's Errors list copies itself with what a person or an
-    agent needs to look into it: its words, when and from which code it was raised,
-    and which Leaf ran the page, but never the page's link, which grants access."""
-    page = floating(browser, serve(LONG_PAGE))
+    agent needs to look into it: its words, when, on which revision and from which
+    code it was raised, however the page has moved on since, and which Leaf runs the
+    page, but never the page's link, which grants access."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, live_url(url))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate(
         """async () => {
@@ -3343,18 +3348,23 @@ def test_an_error_copies_with_where_it_was_raised_and_which_leaf_ran(browser, se
     )
     field(page).click()
     page.keyboard.type("x")
+    stamp_page(
+        serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "2"
+    )
+    wait_for_revision(page, 2)
     panel_menu(page).locator('[data-lf-row="errors"]').click()
     listed = page.locator(panel_view("errors")).locator(".lf-fp-error")
     listed.get_by_role(
-        "button",
-        name=re.compile(r"^Copy with page details: That writing place is unavailable"),
+        "button", name=re.compile(r"^Copy with page details: That writing place")
     ).click()
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Error copied"))
-    copied = page.evaluate("navigator.clipboard.readText()")
-    assert copied.startswith("Leaf error: That writing place is unavailable\nraised: ")
-    assert "raisedFrom" in copied
-    assert "Leaf layer\ncommit: " in copied
-    assert not re.search(r"[?&]t=", copied)
+    raised, *details = page.evaluate("navigator.clipboard.readText()").split("\n\n")
+    assert raised.startswith("Leaf error: That writing place is unavailable\nraised: ")
+    assert "\nrevision: 1\n" in raised
+    assert "raisedFrom" in raised
+    layer = next(block for block in details if block.startswith("Leaf layer\n"))
+    assert "\nrevision: 2\n" in layer
+    assert not any(re.search(r"[?&]t=", block) for block in [raised, *details])
 
 
 def test_a_walk_says_its_position_in_the_panel(browser, serve):

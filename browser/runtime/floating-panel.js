@@ -2789,14 +2789,19 @@ export function createFloatingPanel({
   }
 
   // What a copied error says, for whoever the user hands it to, a person or an agent:
-  // the error and the stack it was raised from (errors.js), then what About this page
-  // copies to say which page, Leaf and agent session it happened on (page-about.js).
-  // Read as it is pressed, so it says what holds then. The page's link stays out, since
-  // it grants access to every page on this machine.
+  // the error, when, on which revision and from which stack it was raised (errors.js),
+  // then what About this page copies to say which page, Leaf and agent session the page
+  // runs as it is pressed (page-about.js). The page's link stays out, since it grants
+  // access to every page on this machine.
   /** @param {import("./errors.js").RaisedError} error */
   const errorReport = (error) =>
     [
-      `Leaf error: ${error.message}\nraised: ${new Date(error.at).toISOString()}\n${error.stack}`,
+      [
+        `Leaf error: ${error.message}`,
+        `raised: ${new Date(error.at).toISOString()}`,
+        ...(error.revision === null ? [] : [`revision: ${error.revision}`]),
+        error.stack,
+      ].join("\n"),
       ...pageControls()
         .filter((entry) => entry.group === "about" && entry.copies)
         .map((entry) => entry.copies),
@@ -2829,7 +2834,7 @@ export function createFloatingPanel({
       if (target) focusDestination(target, "move");
     };
     // An error clearing itself also hands focus off before its control disappears.
-    const currentLocation = focused()?.closest(".lf-fp-error");
+    const currentLocation = focused(document)?.closest(".lf-fp-error");
     const currentLocationId = Number(currentLocation?.getAttribute("data-lf-key"));
     if (currentLocation && !live.has(currentLocationId)) movePast(currentLocationId);
     // The user moves on before the list repaints, so its roving stop lands once.

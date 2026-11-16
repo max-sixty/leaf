@@ -340,7 +340,9 @@ drawn nowhere on the page, and a route to it, such as `t`, Show on page in Leaf'
 or `threadActions.open`, calls `reveal(key)`. Record the thread as open and return; Leaf
 runs `render` again, fills the outlet it now returns, and lands the user in it. Return
 `false` to leave the thread to Leaf's panel. `reveal` is asked only for a thread among
-the targets.
+the targets. One that takes a thread and then returns no outlet for it has failed: Leaf
+reports it as it reports a failed `render`, shows the thread in its panel, and doesn't
+ask for that thread again until the element calls `update()`.
 
 Leaf seats the comment box in its outlet unless Leaf's panel covers where the outlet
 stands, where the user couldn't see what they type; the box then stays in the panel's

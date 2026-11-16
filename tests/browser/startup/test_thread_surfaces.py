@@ -550,7 +550,10 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     and the panel stays shut. Awaiting the handle's `update()` waits for the placement.
     A presentation that declines leaves the thread to Leaf's panel, and one that draws
     nothing over the page leaves the command that hides annotations disabled. A thread
-    with no place is never handed over, so no route asks the page for it."""
+    with no place is never handed over, so no route asks the page for it. A reveal the
+    presentation takes and then returns no outlet for is reported as its failure, and
+    the thread is not asked for again until the presentation asks for a pass itself,
+    when it goes back to the page."""
     events = [
         {
             "id": f"{i:032x}",
@@ -608,8 +611,10 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
         });
       }, {reveal: (key) => {
         window.asked.push(key);
-        if (window.declines) return false;
-        window.shown = key;
+        // The cap ends a route that keeps asking, so the counts below fail it by an
+        // assertion rather than the page running until the test's deadline.
+        if (window.declines || window.asked.length > 8) return false;
+        if (!window.ignores) window.shown = key;
       }});
       await pageSurface.update();
     }""")
@@ -693,7 +698,33 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
       await threadActions.open(lost.key, {part: 'thread'});
     }""")
     expect(page.locator(PANEL_THREAD)).to_contain_text("Lost words")
+    rendered(page)
     assert page.evaluate("asked") == []
+
+    # A presentation that takes a thread and then returns no outlet for it has failed.
+    # The page says so once and the panel takes the thread. Each pass after would ask
+    # the page to take it back, and each such ask ran a pass of its own, so the page is
+    # not asked again until it asks for a pass itself, which then brings the thread back.
+    page.evaluate("""async () => {
+      const {readThreads, threadActions} = await window.__lfWidgetApi();
+      window.asked = [];
+      window.ignores = true;
+      const passage = readThreads().threads.find(
+        (thread) => thread.root.body.text.trim() === 'About the passage');
+      await threadActions.open(passage.key, {part: 'thread'});
+    }""")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("About the passage")
+    consume_browser_errors(page, "render returned no outlet for it")
+    rendered(page)
+    assert page.evaluate("asked.length") == 1
+    expect(drawn).to_have_count(0)
+    page.evaluate("""async () => {
+      window.ignores = false;
+      await pageSurface.update();
+    }""")
+    expect(drawn).to_contain_text("About the passage")
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    assert page.evaluate("asked.length") == 2
 
 
 def test_a_page_presentation_s_update_places_its_threads_while_state_is_applied(

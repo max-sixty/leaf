@@ -30,8 +30,13 @@
    target's `placement.status` says which it is. It may draw a thread only once the
    thread is asked for, as a margin draws a card: a route to a thread no outlet holds
    asks its `reveal(key)` (`revealOnPage`), and the pass that follows places the outlet
-   it then returns. Only a thread it was handed as a target is asked for, since it has
-   no outlet to return for any other, and each ask costs a pass.
+   it then returns. Each ask costs a pass, and a thread the page doesn't draw goes to
+   the primary reader, from which every pass asks the page to take it back
+   (thread/destination.js, `returnToPage`). So an ask that could draw nothing is not
+   made: for a thread the presentation was never handed as a target, which it has no
+   outlet to return for, or one it accepted and then returned no outlet for, which is
+   reported as its failure and not asked for again until it draws the thread or asks
+   for a pass of its own (`undrawn`).
 
    Which threads a widget has claimed is a reading other paints follow (`claimed`):
    the margin lists a thread no widget seats, so a commit that changes the answer
@@ -82,7 +87,7 @@ import { registrations, setRegistration, updateSurface } from "./surface-handles
 /** @typedef {{invalidate: () => unknown, composition: CompositionSurface}} SurfaceServices */
 /** @typedef {(key: string) => unknown} RevealThread */
 /** @typedef {SurfaceServices & {owner: Element, render: OutletRender, kind: "widget" | "page",
- * reveal: RevealThread | null,
+ * reveal: RevealThread | null, undrawn: Set<string>,
  * outlets: Set<Element>, placements: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement> | null,
  * updating: Promise<unknown> | null, cancelRender: () => void, stopSide: () => void,
  * handle: {read: typeof readThreads, open: (node: Element) => boolean,
@@ -163,12 +168,18 @@ const pageRegistration = () =>
 // shown. A presentation that declines (`false`) or fails leaves the thread to the next
 // reader the route asks.
 //
-// It is asked only for a thread it is handed as a target (`pageTarget`). One with no
-// place, as a quote the page no longer holds, has no outlet a presentation could return,
-// so the ask would draw nothing and the thread would go to the primary reader as the
-// last resort. Every pass then asks whether the page can take it back
-// (thread/destination.js, `returnToPage`), and each ask ran a pass of its own: 41 asks
-// in 800 ms on a page whose presentation did what its reference says.
+// An ask the page draws nothing for must not be made again by the pass it ran. The
+// thread goes to the primary reader as the last resort, every pass then asks whether
+// the page can take it back (thread/destination.js, `returnToPage`), and each ask
+// accepted runs a pass of its own: 41 asks in 800 ms, and no end to them. Two rules
+// keep the ask from being made:
+// - A thread the presentation is not handed as a target (`pageTarget`), as one whose
+//   quote the page no longer holds, is never asked for. The presentation has no outlet
+//   to return for it, and did nothing wrong by recording it open.
+// - A thread it accepted and then returned no outlet for is its failure, reported where
+//   a failed `render` is, and is not asked for again (`undrawn`) until the presentation
+//   draws it or asks for a pass of its own (`update`), which says that what it would
+//   draw has changed.
 /** @param {string} name */
 export function revealOnPage(name) {
   const registration = pageRegistration();
@@ -176,6 +187,7 @@ export function revealOnPage(name) {
   if (!registration?.reveal || !thread) return null;
   const placement = registration.placements?.placedAt(thread.id);
   if (!pageTarget({ anchor: thread.anchor, placement, thread })) return null;
+  if (registration.undrawn.has(thread.key)) return null;
   const { reveal } = registration;
   return (async () => {
     try {
@@ -187,7 +199,20 @@ export function revealOnPage(name) {
     if (registrations.get(registration.owner) !== registration) return false;
     // A pass that failed drew no outlet, and the presentation coordinator reported it.
     return updateSurface(registration).then(
-      () => true,
+      () => {
+        if (registrations.get(registration.owner) !== registration) return false;
+        // A widget's own outlet may have taken the thread in the same pass.
+        if (surfaceFocusTarget(thread.id, { part: "thread" })) return true;
+        registration.undrawn.add(thread.key);
+        reportFailure(
+          registration,
+          new Error(
+            `reveal took the thread ${thread.key} and render returned no outlet for it; ` +
+              "return false from reveal to leave a thread to Leaf's panel",
+          ),
+        );
+        return false;
+      },
       () => false,
     );
   })();
@@ -233,7 +258,12 @@ function register(owner, render, { invalidate, composition }, kind, reveal = nul
       composition.open(target);
       return true;
     },
-    update: () => updateSurface(registration),
+    // The presentation's own ask says what it would draw has changed, so a thread it
+    // failed to draw may be asked for again (`revealOnPage`).
+    update() {
+      registration.undrawn.clear();
+      return updateSurface(registration);
+    },
     unregister() {
       if (registrations.get(owner) !== registration) return;
       setRegistration(owner, null);
@@ -245,6 +275,7 @@ function register(owner, render, { invalidate, composition }, kind, reveal = nul
   const registration = {
     render,
     reveal,
+    undrawn: new Set(),
     stopSide,
     handle,
     owner,
@@ -563,7 +594,10 @@ export function renderSurfaces(collection, placements, commands) {
               ? commands.composition.node()
               : null;
           renderThreadSurface(outlet, threads, commands, response);
-          for (const thread of threads) nextClaimed.add(thread.id);
+          for (const thread of threads) {
+            nextClaimed.add(thread.id);
+            registration.undrawn.delete(thread.key);
+          }
         }
       }
       // Commit mechanical ownership after all fallible seat preparation. If a required

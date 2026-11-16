@@ -68,15 +68,19 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     """Outside a text block, two elements' words that meet show a space, as a chip beside
     its title or a title above its description is drawn, but none before a closing mark
     or after an opening one, so `leaf page state` reads an inline title's sentence as its
-    author punctuated it. The runtime's `says` shows the same words."""
+    author punctuated it. A straight quote opening a title is no closing mark, so the
+    chip before it still reads apart. The runtime's `says` shows the same words."""
     document = structure_model.SourceDocument(
         '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
-        "(<code>beta</code>).</lf-option>"
+        "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
         '<lf-option id="chipped"><small class="tag">recommended</small>'
-        "<strong>Apply</strong>Ship it.</lf-option></main>"
+        "<strong>Apply</strong>Ship it.</lf-option>"
+        '<lf-option id="quoted"><small class="tag">recommended</small>'
+        '<strong>"Update" for mixed input</strong></lf-option></main>'
     )
     assert passages_model.page_passages(document).text == (
-        "Leave it; the send keeps (beta). recommended Apply Ship it."
+        "Leave it; the send keeps Foo's place (beta). recommended Apply Ship it. "
+        'recommended "Update" for mixed input'
     )
 
 

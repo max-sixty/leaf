@@ -85,7 +85,7 @@ WRAPPERS = {
     "workspace": (
         (
             "<main class='layout-workspace density-working'>"
-            "<lf-pane id='worked-examples' label='Worked examples'><div>"
+            "<lf-pane id='worked-examples' aria-label='Worked examples'><div>"
         ),
         "</div></lf-pane></main>",
     ),

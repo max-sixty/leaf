@@ -366,7 +366,8 @@
       </p>
 
       <lf-tabs id="bg-gallery-tabs" class="layout-flow">
-        <lf-tab id="bg-view-decisions" label="Decisions" class="layout-flow">
+        <lf-tab id="bg-view-decisions" class="layout-flow">
+          <strong>Decisions</strong>
           <section id="bg-core-surfaces" class="layout-flow">
             <hgroup>
               <p class="bg-feature-elements">lf-ask · lf-options · lf-option</p>
@@ -473,7 +474,8 @@
                 panel's outline. Press <kbd>.</kbd> twice quickly to reverse it in
                 flight. With reduced motion, both take their final place at once.
               </p>
-              <lf-sample id="bg-chrome-floating" label="floating panel" window>
+              <lf-sample id="bg-chrome-floating" window>
+                <strong>floating panel</strong>
                 <template id="bg-chrome-floating-page" data-sample>
                   <h1>Trail notes</h1>
                   <p>The covered terrace is a short walk from the shelter.</p>
@@ -1079,23 +1081,30 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-options>
             </section>
             <lf-board id="bg-board-plan">
-              <lf-column id="bg-board-open" label="Undecided">
+              <lf-column id="bg-board-open">
+                <strong>Undecided</strong>
                 <lf-card id="bg-board-flask-card" shows="bg-board-flask-choice"
                   ><strong>Second flask</strong></lf-card
                 >
               </lf-column>
-              <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
-              <lf-column id="bg-board-later" label="Later" value="later">
+              <lf-column id="bg-board-next" value="next"
+                ><strong>Next</strong></lf-column
+              >
+              <lf-column id="bg-board-later" value="later">
+                <strong>Later</strong>
                 <lf-card id="bg-board-stove-card" shows="bg-board-stove-choice"
                   ><strong>New stove</strong></lf-card
                 >
               </lf-column>
-              <lf-column id="bg-board-drop" label="Drop" value="drop"></lf-column>
+              <lf-column id="bg-board-drop" value="drop"
+                ><strong>Drop</strong></lf-column
+              >
             </lf-board>
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-threads" label="Threads" class="layout-flow">
+        <lf-tab id="bg-view-threads" class="layout-flow">
+          <strong>Threads</strong>
           <section id="bg-panel-views" class="layout-flow">
             <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
@@ -1163,7 +1172,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               cue encloses the label, while pointer selection keeps the native radio
               mark. Text-entry fields retain their focus cue.
             </p>
-            <lf-sample id="bg-panel-sample" label="workshop threads" window>
+            <lf-sample id="bg-panel-sample" window>
+              <strong>workshop threads</strong>
               <template
                 id="bg-panel-sample-page"
                 data-sample
@@ -1315,11 +1325,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   }
                 ]
               </script>
-              <lf-sample
-                id="bg-thread-api-sample"
-                label="package conversation reader"
-                window
-              >
+              <lf-sample id="bg-thread-api-sample" window>
+                <strong>package conversation reader</strong>
                 <template
                   id="bg-thread-api-page"
                   data-sample
@@ -1357,11 +1364,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   }
                 ]
               </script>
-              <lf-sample
-                id="bg-native-reply-sample"
-                label="Native reply evidence"
-                window
-              >
+              <lf-sample id="bg-native-reply-sample" window>
+                <strong>Native reply evidence</strong>
                 <template
                   id="bg-native-reply-page"
                   data-sample
@@ -1408,11 +1412,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 question leaves On Me. Its entry opens the page thread. Reset restores
                 the question.
               </p>
-              <lf-sample
-                id="bg-message-obligation-sample"
-                label="Message obligation"
-                window
-              >
+              <lf-sample id="bg-message-obligation-sample" window>
+                <strong>Message obligation</strong>
                 <template
                   id="bg-message-obligation-page"
                   data-sample
@@ -1543,11 +1544,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <button id="bg-title-sheen-show" class="lf-btn" type="button">
                   Open sample thread
                 </button>
-                <lf-sample
-                  id="bg-title-sheen-sample"
-                  label="Pending thread title"
-                  window
-                >
+                <lf-sample id="bg-title-sheen-sample" window>
+                  <strong>Pending thread title</strong>
                   <template
                     id="bg-title-sheen-page"
                     data-sample
@@ -1625,11 +1623,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 here; press it again to return to the compact preview. The control stays
                 above the words while they expand.
               </p>
-              <lf-sample
-                id="bg-retained-quote-sample"
-                label="Retained quotation"
-                window
-              >
+              <lf-sample id="bg-retained-quote-sample" window>
+                <strong>Retained quotation</strong>
                 <template
                   id="bg-retained-quote-page"
                   data-sample
@@ -1690,7 +1685,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-page" label="Page & layout" class="layout-flow">
+        <lf-tab id="bg-view-page" class="layout-flow">
+          <strong>Page & layout</strong>
           <section id="bg-theme-hierarchy" class="layout-flow">
             <h2>
               <strong>Callouts carry emphasis; disclosures hold support</strong>
@@ -1957,12 +1953,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <lf-tally id="bg-side-tally" for="bg-side-queue" next></lf-tally>
             </p>
             <lf-tabs id="bg-side-queue" list="side">
-              <lf-tab
-                id="bg-side-4107"
-                group="Act today"
-                label="ESC-4107 · Northwind Labs"
-                summary="sev 1 · 9 h · suggested fix"
-              >
+              <lf-tab id="bg-side-4107" group="Act today">
+                <header>
+                  <strong>ESC-4107 · Northwind Labs</strong>
+                  <p>sev 1 · 9 h · suggested fix</p>
+                </header>
                 <lf-ask id="bg-side-4107-ask">
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
                   <p id="bg-side-4107-what">
@@ -1983,22 +1978,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </lf-options>
                 </lf-ask>
               </lf-tab>
-              <lf-tab
-                id="bg-side-4114"
-                group="Act today"
-                label="ESC-4114 · Vela Analytics"
-                summary="sev 1 · 1 h · suggested escalate"
-              >
+              <lf-tab id="bg-side-4114" group="Act today">
+                <header>
+                  <strong>ESC-4114 · Vela Analytics</strong>
+                  <p>sev 1 · 1 h · suggested escalate</p>
+                </header>
                 <p id="bg-side-4114-what">
                   Vela sees another customer's project names in a listing.
                 </p>
               </lf-tab>
-              <lf-tab
-                id="bg-side-4108"
-                group="This week"
-                label="ESC-4108 · Hale &amp; Sons"
-                summary="sev 3 · 8 h · suggested close"
-              >
+              <lf-tab id="bg-side-4108" group="This week">
+                <header>
+                  <strong>ESC-4108 · Hale &amp; Sons</strong>
+                  <p>sev 3 · 8 h · suggested close</p>
+                </header>
                 <p id="bg-side-4108-what">
                   Charged twice for September; one charge was already refunded.
                 </p>
@@ -2153,7 +2146,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               beside the proposed wording. Choose either, then use “Undo” to restore the
               suggestion. These annotations work without a thread or an obligation.
             </p>
-            <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
+            <lf-sample id="bg-margin-layer-actions">
+              <strong>suggestion without a rail</strong>
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
                 <p id="bg-margin-layer-actions-copy">
                   The sample workshop will meet
@@ -2173,10 +2167,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               same placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
-            <lf-sample
-              id="bg-margin-layer-status"
-              label="delivery status without a rail"
-            >
+            <lf-sample id="bg-margin-layer-status">
+              <strong>delivery status without a rail</strong>
               <template
                 id="bg-margin-layer-status-page"
                 data-sample
@@ -2184,7 +2176,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 data-sample-events="bg-margin-layer-status-history"
               >
                 <lf-board id="bg-margin-layer-packing">
-                  <lf-column id="bg-margin-layer-ready" label="Ready">
+                  <lf-column id="bg-margin-layer-ready">
+                    <strong>Ready</strong>
                     <lf-card id="bg-margin-layer-map"
                       ><strong>Print the workshop map</strong></lf-card
                     >
@@ -2684,12 +2677,14 @@ gallery/
                 </li>
               </ul>
               <lf-tabs id="bg-tabs">
-                <lf-tab id="bg-tab-current" label="Current">
+                <lf-tab id="bg-tab-current">
+                  <strong>Current</strong>
                   <p id="bg-tab-current-text">
                     The current sample route is under review.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-tab-context" label="Context">
+                <lf-tab id="bg-tab-context">
+                  <strong>Context</strong>
                   <p id="bg-tab-context-text">
                     The earlier route crossed the courtyard.
                   </p>
@@ -2704,15 +2699,13 @@ gallery/
                 map, with labels on hover or focus. Narrow the window to bring the index
                 back below the tabs.
               </p>
-              <lf-sample id="bg-topic-contents" label="topic contents" window>
+              <lf-sample id="bg-topic-contents" window>
+                <strong>topic contents</strong>
                 <template id="bg-topic-contents-page" data-sample class="layout-column">
                   <h1>Release field guide</h1>
                   <lf-tabs id="bg-guide-topics" data-width="available">
-                    <lf-tab
-                      id="bg-guide-prepare"
-                      label="Prepare"
-                      class="layout-sidebar"
-                    >
+                    <lf-tab id="bg-guide-prepare" class="layout-sidebar">
+                      <strong>Prepare</strong>
                       <aside class="">
                         <div class="layout-track">
                           <lf-toc
@@ -2738,11 +2731,8 @@ gallery/
                         </details>
                       </div>
                     </lf-tab>
-                    <lf-tab
-                      id="bg-guide-operate"
-                      label="Operate"
-                      class="layout-sidebar"
-                    >
+                    <lf-tab id="bg-guide-operate" class="layout-sidebar">
+                      <strong>Operate</strong>
                       <aside class="">
                         <div class="layout-track">
                           <lf-toc
@@ -2788,37 +2778,43 @@ gallery/
                 </li>
               </ul>
               <lf-tabs id="bg-rollout-tabs">
-                <lf-tab id="bg-rollout-summary" label="Summary">
+                <lf-tab id="bg-rollout-summary">
+                  <strong>Summary</strong>
                   <p id="bg-rollout-summary-text">
                     Ship the revised search index to the internal team first, then
                     expand after one healthy working day.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-rollout-scope" label="Release scope">
+                <lf-tab id="bg-rollout-scope">
+                  <strong>Release scope</strong>
                   <p id="bg-rollout-scope-text">
                     This release changes ranking and query suggestions. Saved searches
                     keep their current filters.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-rollout-stages" label="Rollout stages">
+                <lf-tab id="bg-rollout-stages">
+                  <strong>Rollout stages</strong>
                   <p id="bg-rollout-stages-text">
                     Begin with the search team, continue with a small customer cohort,
                     then open access to everyone.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-rollout-health" label="Health checks">
+                <lf-tab id="bg-rollout-health">
+                  <strong>Health checks</strong>
                   <p id="bg-rollout-health-text">
                     Compare query latency, empty results, and user reports with the
                     previous index before expanding access.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-rollout-recovery" label="Recovery plan">
+                <lf-tab id="bg-rollout-recovery">
+                  <strong>Recovery plan</strong>
                   <p id="bg-rollout-recovery-text">
                     Return traffic to the previous index if searches become slow or
                     relevant results disappear.
                   </p>
                 </lf-tab>
-                <lf-tab id="bg-rollout-handoff" label="Owner handoff">
+                <lf-tab id="bg-rollout-handoff">
+                  <strong>Owner handoff</strong>
                   <p id="bg-rollout-handoff-text">
                     The search team owns the rollout. Support collects reports and the
                     on-call engineer can restore the previous index.
@@ -2848,15 +2844,33 @@ gallery/
                   and the workspace each take the room beside the list, which stays put.
                 </li>
                 <li>
+                  Read the last row: a part's name and summary are the header it opens
+                  with, so the list sets <code>README.md</code> in code type and colours
+                  its diffstat.
+                </li>
+                <li>
                   Narrow the window to a phone's width: the title scrolls away and the
                   list becomes a row that sticks over the part.
                 </li>
               </ul>
-              <lf-sample id="bg-parts-sample" label="page of parts" window>
+              <lf-sample id="bg-parts-sample" window>
+                <strong>page of parts</strong>
                 <template id="bg-parts-page" data-sample class="bg-parts-sample">
+                  <style>
+                    .bg-parts-added {
+                      color: var(--lf-ok-ink);
+                    }
+                    .bg-parts-removed {
+                      color: var(--lf-danger-ink);
+                    }
+                  </style>
                   <header><h1>Trail planner</h1></header>
                   <lf-parts id="bg-parts-list">
-                    <lf-part id="bg-part-try" label="Try" summary="Pick a route">
+                    <lf-part id="bg-part-try">
+                      <header>
+                        <strong>Try</strong>
+                        <p>Pick a route</p>
+                      </header>
                       <div class="layout-workspace">
                         <header><h2>Routes</h2></header>
                         <div>
@@ -2864,11 +2878,11 @@ gallery/
                         </div>
                       </div>
                     </lf-part>
-                    <lf-part
-                      id="bg-part-notes"
-                      label="Notes"
-                      summary="Why these routes"
-                    >
+                    <lf-part id="bg-part-notes">
+                      <header>
+                        <strong>Notes</strong>
+                        <p>Why these routes</p>
+                      </header>
                       <article class="layout-column">
                         <h2>Notes</h2>
                         <p>
@@ -2876,6 +2890,19 @@ gallery/
                         </p>
                         <p>The valley route stays below the snow line all year.</p>
                         <p>Both start at the shelter and end at the covered terrace.</p>
+                      </article>
+                    </lf-part>
+                    <lf-part id="bg-part-readme">
+                      <header>
+                        <strong><code>README.md</code></strong>
+                        <p>
+                          <span class="bg-parts-added">+120</span>
+                          <span class="bg-parts-removed">−45</span> lines
+                        </p>
+                      </header>
+                      <article class="layout-column">
+                        <h2>README.md</h2>
+                        <p>The route list moves from the README into the planner.</p>
                       </article>
                     </lf-part>
                   </lf-parts>
@@ -3000,7 +3027,8 @@ gallery/
                   >
                 </h3>
               </hgroup>
-              <lf-sample id="bg-sample" label="an inert multiple-pick decision">
+              <lf-sample id="bg-sample">
+                <strong>an inert multiple-pick decision</strong>
                 <lf-options id="bg-sample-options" choose multiple>
                   <lf-option id="bg-sample-paper">
                     <strong>Paper signs</strong> Nothing to charge.
@@ -3019,7 +3047,8 @@ gallery/
                   to use the whole window, then “Return to page”; your choices and
                   drafts stay. “Reset” clears the practice page.
                 </p>
-                <lf-sample id="bg-live-sample" label="practice release note">
+                <lf-sample id="bg-live-sample">
+                  <strong>practice release note</strong>
                   <template id="bg-live-sample-page" data-sample>
                     <hgroup>
                       <p>practice page</p>
@@ -3073,11 +3102,8 @@ gallery/
                   button to see its authored conversation. Add a reply, then Reset: the
                   original conversation returns, and this gallery gets no thread.
                 </p>
-                <lf-sample
-                  id="bg-window-sample"
-                  label="practice release note, windowed"
-                  window
-                >
+                <lf-sample id="bg-window-sample" window>
+                  <strong>practice release note, windowed</strong>
                   <template
                     id="bg-window-sample-page"
                     data-sample
@@ -3244,7 +3270,8 @@ gallery/
               the panes, each takes its content's height and the page scrolls, and on a
               phone they stack.
             </p>
-            <lf-sample id="bg-layout-sample" label="workspace" window data-width="wide">
+            <lf-sample id="bg-layout-sample" window data-width="wide">
+              <strong>workspace</strong>
               <template
                 id="bg-layout-page"
                 data-sample
@@ -3279,10 +3306,11 @@ gallery/
                 </style>
                 <header><h1>Release candidate review</h1></header>
                 <div id="bg-layout-regions">
-                  <lf-pane id="bg-layout-list" label="Changes">
+                  <lf-pane id="bg-layout-list">
                     <header><h2>Changes</h2></header>
                     <lf-tabs id="bg-layout-tabs">
-                      <lf-tab id="bg-layout-summary" label="Summary">
+                      <lf-tab id="bg-layout-summary">
+                        <strong>Summary</strong>
                         <p>
                           The candidate changes cache keys, receipts, and settlement
                           jobs.
@@ -3293,7 +3321,8 @@ gallery/
                           <li>Invalid jobs leave the shared queue for review.</li>
                         </ul>
                       </lf-tab>
-                      <lf-tab id="bg-layout-risk" label="Risk">
+                      <lf-tab id="bg-layout-risk">
+                        <strong>Risk</strong>
                         <p>
                           The cache migration is the only change that rewrites stored
                           data.
@@ -3302,7 +3331,7 @@ gallery/
                     </lf-tabs>
                   </lf-pane>
 
-                  <lf-pane id="bg-layout-evidence" label="Evidence">
+                  <lf-pane id="bg-layout-evidence">
                     <header><h2>Evidence</h2></header>
                     <article id="bg-layout-article">
                       <header><strong>Migration rehearsal</strong></header>
@@ -3319,22 +3348,24 @@ switch --readers checkout-api,orders-api</code></pre>
                     </article>
                   </lf-pane>
 
-                  <lf-pane id="bg-layout-tasks" label="Follow-ups">
+                  <lf-pane id="bg-layout-tasks">
                     <header><h2>Follow-ups</h2></header>
                     <lf-board id="bg-layout-board">
-                      <lf-column id="bg-layout-ready" label="Ready">
+                      <lf-column id="bg-layout-ready">
+                        <strong>Ready</strong>
                         <lf-card id="bg-layout-cache-card"
                           ><strong>Verify cache expiry</strong> Confirm old keys leave
                           after the rollback window.</lf-card
                         >
                       </lf-column>
-                      <lf-column id="bg-layout-running" label="Running">
+                      <lf-column id="bg-layout-running">
+                        <strong>Running</strong>
                         <lf-card id="bg-layout-receipt-card"
                           ><strong>Sample refund receipts</strong> Compare three
                           settlement currencies.</lf-card
                         >
                       </lf-column>
-                      <lf-column id="bg-layout-done" label="Done"></lf-column>
+                      <lf-column id="bg-layout-done"><strong>Done</strong></lf-column>
                     </lf-board>
                     <footer>
                       <lf-ask id="bg-layout-ask">
@@ -3354,7 +3385,8 @@ switch --readers checkout-api,orders-api</code></pre>
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-data" label="Data & work" class="layout-flow">
+        <lf-tab id="bg-view-data" class="layout-flow">
+          <strong>Data & work</strong>
           <section id="bg-http" class="layout-flow">
             <h2>Authenticated HTTP</h2>
             <p>
@@ -3409,9 +3441,11 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-text-document
                 id="bg-source-live"
                 source="gallery-source"
-                label="feature-gallery-source.toml · lines 1–4"
                 class="language-toml"
-              ></lf-text-document>
+                ><strong
+                  >feature-gallery-source.toml · lines 1–4</strong
+                ></lf-text-document
+              >
             </section>
 
             <section id="bg-document-previews" class="layout-flow">
@@ -3428,15 +3462,15 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-text-document
                 id="bg-markdown-preview"
                 source="gallery-markdown"
-                label="release-note.md"
                 preview="markdown"
-              ></lf-text-document>
+                ><strong>release-note.md</strong></lf-text-document
+              >
               <lf-text-document
                 id="bg-html-preview"
                 source="gallery-html"
-                label="release-card.html"
                 preview="html"
-              ></lf-text-document>
+                ><strong>release-card.html</strong></lf-text-document
+              >
             </section>
 
             <section id="bg-written-document" class="layout-flow">
@@ -3449,11 +3483,8 @@ switch --readers checkout-api,orders-api</code></pre>
                 reads it rendered; Source shows its exact Markdown. Select words in the
                 preview and comment on them.
               </p>
-              <lf-text-document
-                id="bg-written-quote"
-                label="CONTRIBUTING.md · Changelog"
-                preview="markdown"
-              >
+              <lf-text-document id="bg-written-quote" preview="markdown">
+                <strong>CONTRIBUTING.md · Changelog</strong>
                 <pre>
 Add a line under **Unreleased** for every change a user can see, and name the
 flag or command it touches, such as `--config`.
@@ -3474,9 +3505,9 @@ flag or command it touches, such as `--config`.
               <lf-text-document
                 id="bg-produced-document"
                 for="bg-document-producer"
-                label="live-release-note.md"
                 preview="markdown"
-              ></lf-text-document>
+                ><strong>live-release-note.md</strong></lf-text-document
+              >
             </section>
 
             <section id="bg-measurement-lag" class="layout-flow">
@@ -3537,24 +3568,28 @@ flag or command it touches, such as `--config`.
               hold everything they have and show no fade.
             </p>
             <lf-board id="bg-work-board">
-              <lf-column id="bg-work-ready" label="Ready">
+              <lf-column id="bg-work-ready">
+                <strong>Ready</strong>
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
                   An open to-do on this card puts a Working indicator here because the
                   card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
-              <lf-column id="bg-work-tried" label="Tried"></lf-column>
-              <lf-column id="bg-work-reviewing" label="Reviewing"></lf-column>
-              <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
-              <lf-column id="bg-work-handed" label="Handed back">
+              <lf-column id="bg-work-tried"><strong>Tried</strong></lf-column>
+              <lf-column id="bg-work-reviewing"><strong>Reviewing</strong></lf-column>
+              <lf-column id="bg-work-waiting"
+                ><strong>Waiting on a person</strong></lf-column
+              >
+              <lf-column id="bg-work-handed">
+                <strong>Handed back</strong>
                 <lf-card id="bg-work-handed-card"
                   ><strong>Redraw the sample legend</strong>
                   One of the cards the edge fade stands for: scroll the board across to
                   reach it.
                 </lf-card>
               </lf-column>
-              <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>
+              <lf-column id="bg-work-done" tone="ok"><strong>Done</strong></lf-column>
             </lf-board>
             <p id="bg-feedback">
               To ask for a refinement, comment on the sample that shows it and say what
@@ -3576,7 +3611,8 @@ flag or command it touches, such as `--config`.
           </section>
         </lf-tab>
 
-        <lf-tab id="bg-view-interactions" label="Interactions" class="layout-flow">
+        <lf-tab id="bg-view-interactions" class="layout-flow">
+          <strong>Interactions</strong>
           <section
             id="bg-interactions"
             aria-labelledby="bg-interactions-title"
@@ -3606,7 +3642,8 @@ flag or command it touches, such as `--config`.
                 folds away the retired wording and leaves the sentence in its settled
                 state.
               </p>
-              <lf-sample id="bg-motion-accept-sample" label="proposed release note">
+              <lf-sample id="bg-motion-accept-sample">
+                <strong>proposed release note</strong>
                 <template id="bg-motion-accept-page" data-sample>
                   <p>proposed release note</p>
                   <p id="bg-motion-accept-copy">
@@ -3629,7 +3666,8 @@ flag or command it touches, such as `--config`.
                 <kbd>Enter</kbd>: the field becomes an inline thread whose controls grow
                 around your words in their original place.
               </p>
-              <lf-sample id="bg-motion-comment-sample" label="agenda review note">
+              <lf-sample id="bg-motion-comment-sample">
+                <strong>agenda review note</strong>
                 <template id="bg-motion-comment-page" data-sample>
                   <hgroup>
                     <p>review note</p>
@@ -3649,11 +3687,8 @@ flag or command it touches, such as `--config`.
                 open its conversation, then put the view away with its Close button or
                 <kbd>Escape</kbd>.
               </p>
-              <lf-sample
-                id="bg-motion-threads-sample"
-                label="release notes review"
-                window
-              >
+              <lf-sample id="bg-motion-threads-sample" window>
+                <strong>release notes review</strong>
                 <template
                   id="bg-motion-threads-page"
                   data-sample
@@ -3675,7 +3710,8 @@ flag or command it touches, such as `--config`.
       <section id="bg-inline-sample-section" class="layout-flow">
         <h2>Interactive sample on this page</h2>
         <p>These choices use this page's state and Undo.</p>
-        <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
+        <lf-sample id="bg-inline-sample" interactive>
+          <strong>Delivery choices</strong>
           <lf-options id="bg-delivery-choice" choose>
             <lf-option id="bg-delivery-standard">Standard delivery</lf-option>
             <lf-option id="bg-delivery-express">Express delivery</lf-option>

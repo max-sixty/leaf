@@ -2,6 +2,7 @@
  * stopped tasks and assignments consistent with the recorded decisions. */
 import { html, noChange, render, repeat } from "/vendor/lit.js";
 import {
+  addressableName,
   authoredScope,
   generatedElement,
   keeps,
@@ -15,7 +16,7 @@ customElements.define(
   class extends LeafElement {
     setup() {
       keeps(this, "role", "group");
-      keeps(this, "aria-label", this.getAttribute("label") ?? "Plan");
+      keeps(this, "aria-label", addressableName(this) || "Plan");
       this.overview = authoredScope(this).querySelector(
         `#${CSS.escape(this.getAttribute("overview"))}`,
       );

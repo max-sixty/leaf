@@ -42,7 +42,8 @@ def test_a_press_survives_a_frame_return_but_ends_when_its_document_loses_input(
                 """
 <label>Parent editor<input id="parent-editor"></label>
 <button id="handoff">Return to the preview</button>
-<lf-sample id="preview" label="Preview">
+<lf-sample id="preview">
+  <strong>Preview</strong>
   <template id="preview-document" data-sample>
     <input id="child-editor" value="Preview input">
   </template>

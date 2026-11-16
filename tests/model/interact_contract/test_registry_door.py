@@ -730,7 +730,7 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         (
             "lf-gloss",
             "x-says",
-            {"tip": "after", "colour": "after"},
+            ["tip", "colour"],
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),

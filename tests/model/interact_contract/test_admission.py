@@ -50,7 +50,8 @@ STATED_KIT = """<!doctype html>
 </head>
 <body>
 <main>
-<lf-sample id="last-year" label="the kit we took last year">
+<lf-sample id="last-year">
+  <strong>the kit we took last year</strong>
   <lf-options id="quoted-pick" choose>
     <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
@@ -242,7 +243,7 @@ def test_instance_contracts_validate_complete_values_at_admission(
     unknown = structure_model.SourceDocument(
         '<lf-input-box id="unknown" shape="missing"></lf-input-box>'
     )
-    [finding] = widget_errors(unknown.lf_elements, registry)
+    [finding] = widget_errors(unknown, registry)
     assert finding.code == "instance-contract"
     assert finding.values["contract"] == "missing"
 
@@ -364,11 +365,12 @@ STATED_QUEUE = """<!doctype html>
 <lf-ask id="triage-decision">
   <h2>Which follow-ups should we keep?</h2>
   <lf-board id="triage">
-    <lf-column id="queue" label="Queued">
+    <lf-column id="queue">
+      <strong>Queued</strong>
       <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
       <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
     </lf-column>
-    <lf-column id="keep" label="Kept"></lf-column>
+    <lf-column id="keep"><strong>Kept</strong></lf-column>
   </lf-board>
 </lf-ask>
 </main>

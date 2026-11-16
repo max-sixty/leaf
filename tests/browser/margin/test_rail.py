@@ -430,7 +430,7 @@ def test_a_workspace_page_keeps_no_rail_even_when_asked(browser, serve):
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
-        '<lf-pane id="pane" label="Queue"><div><p id="p">A paragraph.</p></div>'
+        '<lf-pane id="pane" aria-label="Queue"><div><p id="p">A paragraph.</p></div>'
         "</lf-pane>",
         layout="workspace",
     ).replace("<body>", '<body data-rail="right">')

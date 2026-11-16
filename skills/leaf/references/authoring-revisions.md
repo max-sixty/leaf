@@ -83,9 +83,11 @@ A work list shows unfinished items. When an item of a plan, backlog or list of
 problems is done, cut it down to its outcome and move it to the finished work,
 collapsed after the open work, such as a `<details>` at the bottom or a separate tab.
 A widget that tracks completion itself, such as a board or task list, keeps its
-members. Remove material the current state replaces, such as a concluded run or a
-superseded section; keep older material, collapsed, only where current work needs its
-context. Keep deferred work in the list with enough context to resume it.
+members. Remove material the reader no longer needs for the current work, however true
+it remains, such as a concluded run, a superseded section or material about something
+since removed, and show each result on something that still exists. Keep older
+material, collapsed, only where current work needs its context. Keep deferred work in
+the list with enough context to resume it.
 
 A decision the user answered and you have acted on becomes a record. Present it as
 the widget's instructions describe, and say beside it what you did about the choice.

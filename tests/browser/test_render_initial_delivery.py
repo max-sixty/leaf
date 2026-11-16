@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    asked_again,
     consume_browser_errors,
     leaf_page,
     open_page,
@@ -83,12 +84,12 @@ def test_a_required_startup_failure_releases_every_authored_tab(
         source = _source().replace(
             "</main>",
             '<lf-tabs id="fallback-views">'
-            '<lf-tab id="first-panel" label="First"><p>First authored panel.</p></lf-tab>'
-            '<lf-tab id="second-panel" label="Second"><p>Second authored panel.</p></lf-tab>'
+            '<lf-tab id="first-panel"><strong>First</strong><p>First authored panel.</p></lf-tab>'
+            '<lf-tab id="second-panel"><strong>Second</strong><p>Second authored panel.</p></lf-tab>'
             "</lf-tabs></main>",
         )
         with page.expect_request("**/" + failed_file):
-            page.goto(serve(source), wait_until="commit")
+            page.goto(asked_again(serve(source)), wait_until="commit")
         expect(page.locator("main")).to_be_visible()
         assert held, "the required widget must still be waiting"
         held.pop().abort()

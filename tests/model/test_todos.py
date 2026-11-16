@@ -872,7 +872,7 @@ def test_delayed_completion_keeps_its_session_authority_after_claim_and_turn_cha
 
 WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
-    '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+    '<lf-board id="rollout"><lf-column id="rollout-now">\n<strong>Now</strong>\n'
     '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
     "Check the fallback before cutover.</lf-card>\n"
     '</lf-column></lf-board>\n<lf-diagram id="flow">',
@@ -1711,7 +1711,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     """
     work_page = PAGE.replace(
         "</section>",
-        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+        '<lf-board id="rollout"><lf-column id="rollout-now">\n<strong>Now</strong>\n'
         '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
         "</lf-column></lf-board>\n</section>",
     )

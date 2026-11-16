@@ -692,7 +692,8 @@ def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     review.write_text(
         f"""<h1 id="title">Keeping the “change”</h1>
 <lf-tabs id="review-views">
-  <lf-tab id="report-introduction" label="Introduction">
+  <lf-tab id="report-introduction">
+    <strong>Introduction</strong>
     <p>A review’s own words.</p>
     <lf-eval-cite before="saved/document-base-0" after="saved/document-head-1@3"
       before-label="Base" aligned></lf-eval-cite>

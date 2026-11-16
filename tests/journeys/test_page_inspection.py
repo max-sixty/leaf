@@ -13,7 +13,7 @@ def test_diagnostics_arrival_inside_sample_stays_in_child_document(browser, serv
     source = leaf_page(
         "Nested location",
         '<h1 id="arrangement">Parent</h1>'
-        '<lf-sample id="practice" label="Nested page"><template id="practice-source" data-sample>'
+        '<lf-sample id="practice"><strong>Nested page</strong><template id="practice-source" data-sample>'
         '<h1>Child</h1><div id="arrangement" style="display:grid;grid-template-columns:1fr 1fr">'
         f"<p>First</p><p>Second</p></div>{MENU_ROOM}</template></lf-sample>",
     )
@@ -38,7 +38,7 @@ def test_sample_diagnostics_copy_failure_keeps_a_visible_manual_copy_route(
     source = leaf_page(
         "Copy host",
         "<h1>Parent</h1>"
-        '<lf-sample id="practice" label="Nested page"><template id="practice-source" data-sample>'
+        '<lf-sample id="practice"><strong>Nested page</strong><template id="practice-source" data-sample>'
         "<h1>Child</h1><p>Clipboard access is restricted here.</p>"
         f"{MENU_ROOM}</template></lf-sample>",
     )

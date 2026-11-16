@@ -131,7 +131,7 @@ def tab_group(anchor: str, items: list[tuple[str, str, str]]) -> str:
     return (
         f'<lf-tabs id="{anchor}" data-width="available">'
         + "".join(
-            f'<lf-tab id="{item}" label="{escape(label)}">{content}</lf-tab>'
+            f'<lf-tab id="{item}"><strong>{escape(label)}</strong>{content}</lf-tab>'
             for item, label, content in items
         )
         + "</lf-tabs>"
@@ -1345,7 +1345,7 @@ def judge_preferences(
         )
         chart = f'<lf-chart id="format-preferences" data-height="{max(300, len(plotted_subjects) * 44 + 100)}"><pre>{escape(options)}</pre></lf-chart>'
     return (
-        '<lf-tab id="judge-preferences" label="Judge preferences" group="Overview"><section id="preference-overview"><h2>Leaf and Plain HTML: judge preferences</h2>'
+        '<lf-tab id="judge-preferences" group="Overview"><strong>Judge preferences</strong><section id="preference-overview"><h2>Leaf and Plain HTML: judge preferences</h2>'
         '<p>The five categories are ordinal judgments, not continuous quality scores. Each dot is one completed presentation-order judgment; two orders are not two author replications. Only Plain HTML/Leaf pairs appear on this axis, and the comparisons are unordered. Absolute quality grades remain in the <a href="#scores">output index</a>.</p>'
         + chart
         + '<details open><summary>Exact native outcomes and sources</summary><table id="preference-outcomes"><thead><tr><th scope="col">Task</th><th scope="col">Saved samples</th><th scope="col">Order 1</th><th scope="col">Order 2</th><th scope="col">Source</th></tr></thead><tbody>'
@@ -1633,7 +1633,7 @@ def eval_report(
     browser = (
         '<lf-tabs id="report-views" data-width="available">'
         + (judge_preferences(page, records, found, output_url) if records else "")
-        + '<lf-tab id="scores" label="Output index" group="Overview">'
+        + '<lf-tab id="scores" group="Overview"><strong>Output index</strong>'
         + f'<p class="report-meta">{len(found)} cases · {count} saved result records</p>'
         + overview(found)
         + f"<details><summary>Runs and score definitions</summary>{runs_text}"
@@ -1642,13 +1642,13 @@ def eval_report(
         "Pairwise preferences and exploratory observations "
         "are shown separately. Author time sums recorded phases; unavailable is not zero.</p></details></lf-tab>"
         + "".join(
-            f'<lf-tab id="{task_anchor(subject)}-view" label="{escape(task_title(columns))}" group="Saved outputs">'
+            f'<lf-tab id="{task_anchor(subject)}-view" group="Saved outputs"><strong>{escape(task_title(columns))}</strong>'
             + task_section(page, subject, columns, pairs, output_url)
             + "</lf-tab>"
             for subject, columns in found.items()
         )
         + (
-            f'<lf-tab id="observations" label="Exploration" group="Further evidence">{discovery}</lf-tab>'
+            f'<lf-tab id="observations" group="Further evidence"><strong>Exploration</strong>{discovery}</lf-tab>'
             if discovery
             else ""
         )
@@ -1665,7 +1665,7 @@ def eval_report(
         at = views.source_location.start_tag.start_offset
         close = views.source_location.end_tag
         end = close.start_offset if close else end
-        browser = f'<lf-tab id="all-results" label="Outputs">{browser}</lf-tab>'
+        browser = f'<lf-tab id="all-results"><strong>Outputs</strong>{browser}</lf-tab>'
     (page / "index.html").write_text(
         gallery.page(
             heading.text,

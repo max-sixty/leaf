@@ -33,9 +33,37 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
-an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute holds it in `label`, as a column does, which names
-its element on every widget that takes it (the registry's `$attributes`).
+an empty label, and `addressableWord(element)` gives the word for its kind instead.
+
+An element's name is markup it opens with: a section's heading, a disclosure's
+`<summary>`, or a `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.
+A widget is named that way, as a column by its leading `<strong>`, so give your widget's
+authors the same instruction rather than a name attribute. `openingTitle(element)` is
+the name the element opens with, `{title, holder}`, or null: `title` is the element
+whose words name it, and `holder`, the element's first element, is that title or the
+`<header>` or `<hgroup>` holding it, the name to draw, move or hide. The theme's
+selector for the holder is
+`:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`. `page check`
+lets any widget open with its name before its members or its data, so a module that
+draws its own content keeps the holder where it draws, as a code block keeps its name
+over its lines: one that replaces its children puts the holder back first, and
+`shadowStage` slots it at the top of its stage. `page check --render` reports a name
+a module drew over (`dropped-name`).
+`addressableName(element)` is the name's words, for a place that takes only text, such
+as an `aria-label`, a native `<option>` or an announcement.
+
+To show the name away from its element, as a tab strip shows each panel's, draw
+`echoCopy(title)`, a copy of its markup without ids or generated words.
+`echoCopy(header, title)` copies only what a header holds after its title, as a tab
+copies its panel's summary. The name stays in its element, so every reading of it finds
+it there. Where the element still shows it, draw the copy inside a box marked
+`generated({ says: "echo" })`, so a comment on the words anchors where the page says
+them. Where the copy stands in for it, as a side list's does for each panel's, hide the
+name in its element and mark the copy's box `generated({ says: true })`, so search and
+comments find the words where the user reads them. A copy inside a control nests
+whatever the name holds in it, so a widget that draws one there refuses a name holding
+a link, a control or a widget, as the playground does; `page check` refuses one in a
+view's header, which its tab copies.
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`
@@ -44,8 +72,8 @@ wrapping that question; where it titles no element, the heading itself. A `secti
 wrapper; any other element only where every other heading inside ranks below it, no
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
-An element its `label` attribute names, such as a tab, is not titled by a heading
-inside it. Every element between the two is titled by the heading too. `lf-toc` links
+An element named by a `<strong>` it opens with, such as a tab, is not titled by a
+heading after it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
 them. The headings that count are those the reading of its document lists, the page's
 or a message's, Leaf's chrome aside, and "first" means first in reading order, which

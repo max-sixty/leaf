@@ -471,7 +471,7 @@ FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",
     """
 <h1 id="h">Roadmap</h1>
-<lf-sample id="gate-milestone" label="active · week-1 · wood · solar"><strong>Build feeders</strong> Two classic models.</lf-sample>
+<p id="gate-milestone"><strong>Build feeders</strong> Two classic <lf-gloss tip="active · week-1 · wood · solar">models</lf-gloss> to start.</p>
 <p id="after-milestone">Ready next.</p>
 <lf-options id="fence-options">
   <lf-option id="fence-option"><small class="tag">effort: low</small><small class="tag">risk: high</small>
@@ -480,21 +480,22 @@ FENCED_CAPTURE_PAGE = leaf_page(
 </lf-options>
 """,
 )
-# A label a widget renders into a control it also built. The tab strip is the case with
-# nowhere else to say it: once the strip exists the panel heading stands down, so the
-# button is the panel's only name. Every word here is distinct, so a quote can only
+# A name a widget shows in a control it built, a copy of the markup the panel opens
+# with, which stays at the panel's top. Every word here is distinct, so a quote can only
 # anchor where it was picked, and the panels are long enough that a drag across one of
-# these labels is an ordinary drag.
+# these names is an ordinary drag.
 CONTROL_LABEL_PAGE = leaf_page(
     "labels",
     """
 <h1 id="h">Aviary projects</h1>
 <p id="lede">Two views, one page.</p>
 <lf-tabs id="projects">
-  <lf-tab id="tab-feeders" label="Winter feeders">
+  <lf-tab id="tab-feeders">
+    <strong>Winter feeders</strong>
     <p id="p-feeders">Two of the four feeders are mounted; the south pair waits on brackets.</p>
   </lf-tab>
-  <lf-tab id="tab-bath" label="Heated bird bath">
+  <lf-tab id="tab-bath">
+    <strong>Heated bird bath</strong>
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
   </lf-tab>
 </lf-tabs>
@@ -750,10 +751,11 @@ JOURNEY_SCAFFOLD = leaf_page(
 <h1 id="t">Journey</h1>
 {before}
 <lf-board id="board">
-  <lf-column id="col-todo" label="Todo">
+  <lf-column id="col-todo">
+    <strong>Todo</strong>
     <lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>
   </lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
+  <lf-column id="col-done"><strong>Done</strong></lf-column>
 </lf-board>
 <lf-draft id="draft-ops"><pre>Run the migration before deploying.
 It is online.</pre></lf-draft>
@@ -889,8 +891,8 @@ def _card_done(html):
     """The journey page with its card written in Done — the honoring of a
     recorded drag, or the author's own relocation."""
     return html.replace(
-        f'    {_CARD}\n  </lf-column>\n  <lf-column id="col-done" label="Done"></lf-column>',
-        f'  </lf-column>\n  <lf-column id="col-done" label="Done">{_CARD}</lf-column>',
+        f'    {_CARD}\n  </lf-column>\n  <lf-column id="col-done"><strong>Done</strong></lf-column>',
+        f'  </lf-column>\n  <lf-column id="col-done"><strong>Done</strong>{_CARD}</lf-column>',
     )
 
 

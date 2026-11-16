@@ -293,7 +293,8 @@ max-sixty/worktrunk #3865
             exact patch; unchanged lines outside its hunks stay in this call view.
           </p>
           <lf-tabs id="pr-impact-views">
-            <lf-tab id="pr-flow-tab" label="Behavior diff">
+            <lf-tab id="pr-flow-tab">
+              <strong>Behavior diff</strong>
               <h3>One picker path, changes in place</h3>
               <p class="pr-change-key">
                 <span class="pr-removed">− old default</span>
@@ -320,7 +321,8 @@ flowchart TB
 </pre>
               </lf-diagram>
             </lf-tab>
-            <lf-tab id="pr-call-tab" label="CallDiff">
+            <lf-tab id="pr-call-tab">
+              <strong>CallDiff</strong>
               <h3>One unchanged root, replacement calls in context</h3>
               <p>
                 This is the exact semantic output of
@@ -569,9 +571,11 @@ index b856171b57..cfa4f0448e 100644
             <lf-text-document
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
-              label="src/git/repository/diff.rs at 9ca8f78b · lines 1–169"
               class="language-rust"
-            ></lf-text-document>
+              ><strong
+                >src/git/repository/diff.rs at 9ca8f78b · lines 1–169</strong
+              ></lf-text-document
+            >
           </details>
         </section>
 

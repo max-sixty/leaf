@@ -1,9 +1,19 @@
 /* One native disclosure from delivery through live updates. Authored evidence stays
- * in the host's light DOM and the browser distributes it through the slot. */
+ * in the host's light DOM and the browser distributes it through the slots: the
+ * <strong> the host opens with, which names the worktree, into the row's name, and the
+ * rest into the body. So the name the row shows is the one the page wrote, which page
+ * search finds and a comment anchors on.
+ *
+ * Rejected: drawing a copy of the name in the row and hiding the authored one, as a
+ * tab strip copies its panels' names. A tab's name still stands in its panel; hidden
+ * here, the name stood nowhere search or a comment could reach. */
 import { html, nothing } from "/vendor/lit.js";
+import { keeps, openingTitle } from "/runtime/widget-api.js";
 
 /** @param {HTMLElement} host */
 export function render(host) {
+  const name = openingTitle(host)?.holder;
+  if (name) keeps(name, "slot", "lf-worktree-name");
   const branch = host.getAttribute("branch");
   const head = host.getAttribute("head");
   const identity = [branch || (head ? "Detached HEAD" : null), head?.slice(0, 8)]
@@ -26,7 +36,9 @@ export function render(host) {
       data-lf-said
     >
       <span class="lf-worktree-identity"
-        ><strong class="lf-worktree-label">${host.getAttribute("label")}</strong>
+        ><strong class="lf-worktree-label"
+          ><slot name="lf-worktree-name"></slot
+        ></strong>
         <span class="lf-worktree-ref">${identity}</span></span
       >
       ${word ? html`<span class="lf-worktree-status">${word}</span>` : nothing}

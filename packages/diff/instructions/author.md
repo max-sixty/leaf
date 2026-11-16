@@ -38,11 +38,12 @@ follows a source and when it keeps a snapshot.
 
 Use `lf-worktree-diffs` when the reader needs to inspect a supplied set of worktrees.
 Give it one `lf-worktree` per snapshot, in review order. There is no limit on how many.
-Write each member’s evidence directly inside it. Leaf makes each member an expandable
-row and writes its summary from the member's attributes; set `open` on the first useful
+Open each member with a `<strong>` naming the worktree, then write its evidence
+directly inside it. Leaf makes each member an expandable row whose summary shows that
+name beside what it writes from the member's attributes; set `open` on the first useful
 snapshot.
 
-Each member supplies `label`, `path`, `status`, and the known snapshot's `files`,
+Each member supplies `path`, `status`, and the known snapshot's `files`,
 `additions`, and `deletions`. Use `branch` when attached and `head` for the full current
 commit hash. The row shows a shortened hash; put the full hash in the authored
 snapshot details too, where the reader can select it. Optional `binary-files` counts
@@ -64,7 +65,6 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
 <lf-worktree-diffs id="worktrees">
   <lf-worktree
     id="draft-worktree"
-    label="retain-drafts"
     path="/workspace/leaf.retain-drafts"
     branch="fix/retain-drafts"
     head="c8ebd603f87d4c9db1ce17bf134b76567d8a409c"
@@ -74,6 +74,7 @@ Inside each member, use ordinary authored markup followed by the real `lf-diff`:
     deletions="1"
     open
   >
+    <strong>retain-drafts</strong>
     <p>Preserve a composer draft while switching threads.</p>
     <details>
       <summary>Snapshot details</summary>

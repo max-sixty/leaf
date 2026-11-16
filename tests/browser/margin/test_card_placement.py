@@ -822,7 +822,7 @@ PANE_FILLER = "".join(
 PANE_PAGE = leaf_page(
     "Release pane",
     f"""<div><h1>Release</h1>
-<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+<lf-pane id="evidence" aria-label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
 </section>
@@ -883,7 +883,7 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
 NESTED_PANE_PAGE = leaf_page(
     "Nested panes",
     f"""<div><h1>Release</h1>
-<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+<lf-pane id="evidence" aria-label="Evidence"><div id="pane-body">
 {PANE_FILLER}
 <div id="inner" data-bound="start" style="height: 700px">
 {PANE_FILLER}

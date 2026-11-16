@@ -15,8 +15,9 @@ DOCUMENT = """
     <h2>Evidence</h2>
     <div class="layout-note"><p id="prose">The passage keeps its reading measure.</p>
       <aside class="note" id="note">A short qualification.</aside></div>
-    <lf-worktree-diffs id="wide"><lf-worktree id="tree" label="Changes" path="/work/leaf"
+    <lf-worktree-diffs id="wide"><lf-worktree id="tree" path="/work/leaf"
       status="clean" files="0" additions="0" deletions="0" open>
+      <strong>Changes</strong>
       <p>Readable before JavaScript.</p>
     </lf-worktree></lf-worktree-diffs>
   </section>

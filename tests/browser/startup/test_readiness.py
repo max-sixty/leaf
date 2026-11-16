@@ -18,6 +18,7 @@ from render_cases_widgets import (
 )
 from render_harness import (
     LONG_PAGE,
+    asked_again,
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
@@ -437,7 +438,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
     with page.expect_console_message(
         predicate=lambda message: "page failed to start" in message.text
     ):
-        page.goto(url, wait_until="load")
+        page.goto(asked_again(url), wait_until="load")
     expect(page.get_by_role("status")).to_contain_text("Leaf couldn't start")
     expect(page.get_by_role("status")).to_be_visible()
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
@@ -626,7 +627,7 @@ def test_the_first_startup_fault_names_the_page(browser, serve):
             " window.faulted = true; });",
         ),
     )
-    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.goto(asked_again(serve(SHORT_SUGGESTION)), wait_until="load")
     page.wait_for_function("() => window.faulted")
     root = page.locator("html")
     expect(root).to_have_attribute("data-lf-startup-error", re.compile("first fault"))
@@ -644,7 +645,7 @@ def test_a_boot_that_fails_after_it_waits_names_the_startup_fault(browser, serve
     waits for, is refused here."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route(re.compile(r"annotation-overlay(/index)?\.js$"), refuse)
-    page.goto(serve(SHORT_SUGGESTION), wait_until="load")
+    page.goto(asked_again(serve(SHORT_SUGGESTION)), wait_until="load")
     root = page.locator("html")
     expect(root).to_have_attribute(
         "data-lf-startup-error", re.compile("dynamically imported module")

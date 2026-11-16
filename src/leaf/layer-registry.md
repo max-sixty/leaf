@@ -68,9 +68,10 @@ as its `producer` (`registry.storage.served_layer`), which the panel's menu (Cop
 version) shows.
 
 A served page's bootstrap (`runtime/bootstrap.js`) reloads the tab when the server
-incarnation (`Leaf-Server`), the layer generation or the website release changes. A
-rejected or unchanged `page init` keeps the server and the generation, so open tabs
-don't reload.
+incarnation (`Leaf-Server`), the layer generation or the website release changes, and
+once, marked, when a page that could not start for lack of something it needs finds
+its own server answering. A rejected or unchanged `page init` keeps the server and
+the generation, so open tabs don't reload.
 
 ## Page protocol
 

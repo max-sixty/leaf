@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from leaf.findings import Finding, element_at
+from leaf.gesture_words import leading_title, leading_title_holder
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
@@ -281,6 +282,20 @@ def _unreduced_motion(page) -> list[Finding]:
     return found
 
 
+def _opening_names(markup: str) -> list[dict]:
+    """Each widget with an id whose name opens it (`leading_title_holder`), and the
+    name's words, which the rendered widget must still open with (`droppedNames`)."""
+    document = SourceDocument(markup)
+    names = []
+    for rec in document.lf_elements:
+        node = document.authoring.node_of(rec)
+        if node is None or not rec["attrs"].get("id"):
+            continue
+        if leading_title_holder(node) is not None:
+            names.append({"id": rec["attrs"]["id"], "name": leading_title(node)})
+    return names
+
+
 def _widget_findings(context: _PageContext) -> list[Finding]:
     """The readings of what widgets render, wherever they are drawn: the page, and an
     open thread's messages (`thread_findings`)."""
@@ -301,6 +316,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     silent = []
+    dropped = []
     undeclared_attrs = []
     relative = []
     # Behind the caught-up wait: a report moves a declared attribute, so a reading
@@ -308,6 +324,9 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     # page that never caught up is already reported there and read no further.
     if replayed:
         silent = evaluate_probe(page, "silentWords", declarations)
+        # Behind the same wait: a module draws its content, and so takes a name it
+        # drops with it, once its data has arrived.
+        dropped = evaluate_probe(page, "droppedNames", _opening_names(context.markup))
         # Behind the same wait, because reconciliation is one of the two writers: a
         # widget's render states one declared fact whole, and a record form is
         # exactly the attribute it may state that fact in.
@@ -327,6 +346,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)
+    found += map(Finding.read, dropped)
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
     found += map(Finding.read, relative)

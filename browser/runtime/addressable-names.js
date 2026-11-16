@@ -1,17 +1,19 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
  * contract gives it (`addressableName`), the element a heading titles by that contract
- * (`titledElement`), the label every surface shows for it away from the page
+ * (`titledElement`), a copy of the name's markup for a surface that draws it elsewhere
+ * (`echoCopy`), the label every surface shows for it away from the page
  * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
  * Each reads authored words through the passage reader, so generated chrome never
  * names anything. */
+import { leadingTitle } from "./leading-title.js";
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import {
   authoredScope,
   documentOutline,
   elementReading,
-  HEADING,
+  GENERATED,
   keptAnswer,
   keptWithReading,
 } from "./passages.js";
@@ -77,40 +79,58 @@ export function addressableSays(addressable) {
   return addressable.lfSays?.() || elementReading(addressable);
 }
 
-// What names an element, where the authoring contract gives it a name
-// (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
-// attribute (the registry's `$attributes`), else a leading disclosure summary, heading,
-// or titled member's <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
-// before it; elements may, as a titled member's comparison chips stand in the band
-// above its title and an eyebrow above a header's heading. The words are the ones the
-// author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase
-// is no part of a heading's name, and generated chrome names nothing: chrome inside
-// the element, asked about the element's own insides, since a widget an agent sent in
-// a reply stands inside the floating panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names an obligation's
-// element by the same rule off the document (`gesture_words.element_name`), and
-// `tests/name_cases.json` holds both to the same cases.
-const TITLES = `summary, ${HEADING}, strong`;
-/** The element whose words name `container` by that rule, or null. Finding it reads the
- * container's children, so the answer is kept as long as the page reading stands
- * (`keptAnswer`), as an element's words are: a label asked again on every pass, or a
- * preview climbing past a long run of paragraphs, reads them once.
- * @param {Element} container @returns {Element | null} */
-export const leadingTitle = (container) =>
-  keptAnswer(container, "leading title", () => readLeadingTitle(container));
-/** @param {Element} container @returns {Element | null} */
-function readLeadingTitle(container) {
-  for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
-    if (!(node instanceof Element) || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return node;
-    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
-  }
-  return null;
-}
-// The element a heading titles: the outermost element whose first heading it is, short
-// of one its own `label` attribute names; or the heading itself where it
-// titles no element. A sectioning element (`section`, `article`, `aside`, `nav`) takes
+// What names an element, where the authoring contract gives it a name: its leading
+// title, by the rule leading-title.js states, in the words the author wrote (the `wrote`
+// reading), so a gloss's tip the page draws beside its phrase is no part of a heading's
+// name, and generated chrome names nothing. A surface that shows the name away from its
+// element draws a copy of its markup (`echoCopy`). An element the contract gives no name
+// answers "".
+// A copy of an element's markup, for a surface that shows a name away from the element
+// it names, as a tab strip shows each panel's title (`openingTitle`, `echoCopy`):
+// the element's child nodes cloned, leaving out what a widget generated in them, so the
+// copy is the markup the author wrote, and without ids, so the page keeps one of each.
+// The caller draws it in a box marked as a copy (`generated({ says: "echo" })`), so a
+// comment anchors on the words where the page says them (passages.js). A drawing asked
+// again on every pass keeps the same nodes, so Lit moves none: the copy is kept as long
+// as the page reading stands (`keptAnswer`), and a copy taken afresh after a change
+// elsewhere on the page, equal to the last, is the last. An edit to the element copies
+// afresh. With `after`, it copies only the children after the one holding `after`, as
+// a tab copies what its header says after the title naming it.
+/** @type {WeakMap<Element, Map<Element | null, Node[]>>} */
+const copies = new WeakMap();
+/** @param {Element | null | undefined} element @param {Element | null} [after]
+ * @returns {Node[]} */
+export const echoCopy = (element, after = null) =>
+  element
+    ? keptAnswer(element, after ? "echo copy after" : "echo copy", () => {
+        const copy = [...element.childNodes].flatMap((node, at, nodes) => {
+          if (after && !nodes.slice(0, at).some((before) => before.contains(after)))
+            return [];
+          if (node instanceof Element && node.matches(GENERATED)) return [];
+          const copied = node.cloneNode(true);
+          if (copied instanceof Element) {
+            copied.removeAttribute("id");
+            for (const inner of copied.querySelectorAll("[id]"))
+              inner.removeAttribute("id");
+            for (const inner of copied.querySelectorAll(GENERATED)) inner.remove();
+          }
+          return [copied];
+        });
+        /** @type {Map<Element | null, Node[]>} */
+        const kept = copies.get(element) ?? new Map();
+        copies.set(element, kept);
+        const last = kept.get(after);
+        if (
+          last?.length === copy.length &&
+          last.every((node, at) => node.isEqualNode(copy[at] ?? null))
+        )
+          return last;
+        kept.set(after, copy);
+        return copy;
+      })
+    : [];
+// The element a heading titles: the outermost element whose first heading it is; or the
+// heading itself where it titles no element. A sectioning element (`section`, `article`, `aside`, `nav`) takes
 // its first heading whatever else it holds, past any wrapper between them. Any other
 // takes it only where every other heading inside ranks below it, outside a title group
 // (`header`, `hgroup`) no words stand before the heading's branch, and each element
@@ -121,8 +141,8 @@ function readLeadingTitle(container) {
 // inside it; a heading after the question in that section titles only
 // itself; a `div` holding a lede and several sections is none's; a heading deep in a
 // task list, a disclosure under its summary, or a playground's preview titles only
-// what it opens, short of a section around it; and a tab, pane or sample is named by
-// its label. The contents start each row's
+// what it opens, short of a section around it; and a tab whose name leads it is
+// titled by that name, so a heading after it titles only itself. The contents start each row's
 // stretch of the page at the element its heading titles, and a heading's link preview
 // counts the conversations about it (thread/placement.js, `conversationsAbout`).
 // `titlingHeading` reads it the other way round.
@@ -153,7 +173,7 @@ function readTitledElement(heading) {
   let chained = true;
   for (
     let branch = heading, at = heading.parentElement;
-    at && !declaredName(at) && headingsIn(at).first === heading;
+    at && headingsIn(at).first === heading;
     branch = at, at = at.parentElement
   ) {
     if (at.matches(SECTIONING)) [titled, chained] = [at, true];
@@ -220,15 +240,6 @@ function headingsIn(element) {
   });
   return held.get(element) ?? NO_HEADINGS;
 }
-// The title a widget's `label` attribute holds, such as a tab's: the one attribute
-// that names its element on every widget that takes it (`$attributes`, Python's
-// `registry.contract.NAME_ATTRIBUTE`).
-/** @param {Element} element */
-function declaredName(element) {
-  const widget =
-    isElementName(element.localName) && Object.hasOwn(registry, element.localName);
-  return (widget && element.getAttribute("label")?.trim()) || "";
-}
 // Where a name comes from: an attribute's words, or an element whose words are the name,
 // read by the reading the rule names. A reader that reads names as something else draws
 // them, as a preview reads them as the page draws them, reads the same source.
@@ -240,13 +251,13 @@ const namingWords = (naming) =>
     : "words" in naming
       ? naming.words
       : elementReading(naming.by, naming.reading);
-// What `addressableName` reads, by the rule above: its declared attribute, else its
-// leading title.
+// What `addressableName` reads, by the rule above: its leading title. Finding it reads
+// the element's children, so the answer is kept as long as the page reading stands
+// (`keptAnswer`), as an element's words are: a label climbing to the nearest named
+// element, asked again on every pass, reads them once.
 /** @param {Element} element @returns {Naming | null} */
 function addressableNaming(element) {
-  const declared = declaredName(element);
-  if (declared) return { words: declared };
-  const title = leadingTitle(element);
+  const title = keptAnswer(element, "leading title", () => leadingTitle(element));
   return title && elementReading(title, "wrote")
     ? { by: title, reading: "wrote" }
     : null;

@@ -74,7 +74,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
         f"""
 <h1>Review page</h1><button id="outer-control">Choose a conversation</button>
 <div style="height:800px"></div>
-<lf-sample id="isolated-practice" label="Isolated practice" window>
+<lf-sample id="isolated-practice" window>
+  <strong>Isolated practice</strong>
   <template id="isolated-source" data-sample>
     <h1>Practice page</h1><button id="child-control">Practice action</button>
     {filler}

@@ -20,10 +20,11 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: a widget's `label`
-attribute (the registry's `$attributes`), else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
-the live page, read here off the document the gesture was made in.
+`name` is what the authoring contract calls it away from itself: a leading `<summary>`,
+heading, or `<strong>`, inside a leading `<header>` or `<hgroup>` too — the rule the
+browser's `addressableName` reads off the live page, read here off the document the
+gesture was made in. A widget is named that way too, as a column by its leading
+`<strong>`.
 """
 
 from collections.abc import Callable
@@ -38,7 +39,7 @@ from .projection import (
     markup_value,
     state_projection,
 )
-from .registry.contract import NAME_ATTRIBUTE, event_spec, is_element_name
+from .registry.contract import event_spec
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -72,19 +73,28 @@ def leading_title_node(node: dict) -> dict | None:
     return None
 
 
+def leading_title_holder(node: dict) -> dict | None:
+    """The element that opens `node` and holds its leading title, the title itself or
+    the <header> or <hgroup> around it, which a widget draws, moves or hides as its
+    name; None where the title doesn't open `node`. It is the `holder` the browser's
+    `openingTitle` returns (leading-title.js)."""
+    title = leading_title_node(node)
+    first = next(
+        (child for child in node["content"] if not isinstance(child, str)), None
+    )
+    if title is None or first is None:
+        return None
+    holds = first is title or any(inner is title for inner in _nodes(first["content"]))
+    return first if holds else None
+
+
 def leading_title(node: dict) -> str:
+    """What the authoring contract calls an element away from itself: its leading
+    title, in the words the author wrote. The browser's `addressableName` reads the
+    same rule off the live page; `tests/name_cases.json` holds both to the same
+    cases."""
     title = leading_title_node(node)
     return collapse(_text(title)) if title else ""
-
-
-def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: a widget's
-    `label` attribute (`contract.NAME_ATTRIBUTE`), else its leading title, in the
-    words the author wrote. The browser's `addressableName` reads the same rule off
-    the live page; `tests/name_cases.json` holds both to the same cases."""
-    widget = is_element_name(node["tag"]) and node["tag"] in registry
-    declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip() if widget else ""
-    return declared or leading_title(node)
 
 
 def _nodes(content: list):
@@ -119,7 +129,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        return element_name(node, self.registry)
+        return leading_title(node)
 
     @cached_property
     def marks(self) -> dict:

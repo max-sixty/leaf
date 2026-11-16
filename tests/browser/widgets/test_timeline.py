@@ -10,20 +10,23 @@ from leaf.render_checks import wait_until_ready
 
 RACE = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race">
-  <lf-lane label="Job A">
-    <lf-event id="a-read" at="0" label="Reads balance: 100"></lf-event>
-    <lf-event id="a-work" at="200" end="4200" label="Adds 50"></lf-event>
-    <lf-event id="a-write" at="4200" label="Writes 150"></lf-event>
+  <lf-lane>
+    <strong>Job A</strong>
+    <lf-event id="a-read" at="0"><strong>Reads balance: 100</strong></lf-event>
+    <lf-event id="a-work" at="200" end="4200"><strong>Adds 50</strong></lf-event>
+    <lf-event id="a-write" at="4200"><strong>Writes 150</strong></lf-event>
   </lf-lane>
-  <lf-lane label="Job B">
-    <lf-event id="b-read" at="1000" label="Reads balance: 100"></lf-event>
-    <lf-event id="b-work" at="1200" end="5200" label="Subtracts 30 from the stale 100"></lf-event>
-    <lf-event id="b-write" at="5200" label="Writes 70"></lf-event>
+  <lf-lane>
+    <strong>Job B</strong>
+    <lf-event id="b-read" at="1000"><strong>Reads balance: 100</strong></lf-event>
+    <lf-event id="b-work" at="1200" end="5200"><strong>Subtracts 30 from the stale 100</strong></lf-event>
+    <lf-event id="b-write" at="5200"><strong>Writes 70</strong></lf-event>
   </lf-lane>
-  <lf-lane label="Balance">
-    <lf-event id="balance-start" at="0" label="100"></lf-event>
-    <lf-event id="balance-a" at="4200" label="150"></lf-event>
-    <lf-event id="balance-b" at="5200" label="70: A's deposit is lost"></lf-event>
+  <lf-lane>
+    <strong>Balance</strong>
+    <lf-event id="balance-start" at="0"><strong>100</strong></lf-event>
+    <lf-event id="balance-a" at="4200"><strong>150</strong></lf-event>
+    <lf-event id="balance-b" at="5200"><strong>70: A's deposit is lost</strong></lf-event>
   </lf-lane>
 </lf-timeline>"""
 
@@ -31,15 +34,16 @@ RACE = """<h1>Race</h1>
 # whole in a desktop's.
 HANDOVER = """<h1>Handover</h1>
 <lf-timeline id="handover" aria-label="A handover">
-  <lf-lane label="Leaf">
-    <lf-event id="hold" at="0" end="12600" label="Holds your question back"></lf-event>
-    <lf-event id="post" at="12600" label="Posts the fork's answer"></lf-event>
-    <lf-event id="carry" at="25000" label="Hook hands over the exchange"></lf-event>
+  <lf-lane>
+    <strong>Leaf</strong>
+    <lf-event id="hold" at="0" end="12600"><strong>Holds your question back</strong></lf-event>
+    <lf-event id="post" at="12600"><strong>Posts the fork's answer</strong></lf-event>
+    <lf-event id="carry" at="25000"><strong>Hook hands over the exchange</strong></lf-event>
   </lf-lane>
-  <lf-lane label="Session">
-    <lf-event id="command" at="0" end="25000"
-      label="Runs the command your question waits behind, start to finish"></lf-event>
-    <lf-event id="reply" at="45900" label="Reply posted"></lf-event>
+  <lf-lane>
+    <strong>Session</strong>
+    <lf-event id="command" at="0" end="25000"><strong>Runs the command your question waits behind, start to finish</strong></lf-event>
+    <lf-event id="reply" at="45900"><strong>Reply posted</strong></lf-event>
   </lf-lane>
 </lf-timeline>"""
 
@@ -218,22 +222,28 @@ def test_a_label_with_no_room_beside_its_mark_keeps_its_stroke_there(browser, se
 
 RUNS = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race before and after the fix">
-  <lf-run label="Before the fix">
-    <lf-lane label="Job A">
-      <lf-event id="before-a-work" at="0" end="4200" label="Adds 50"></lf-event>
-      <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
+  <lf-run>
+    <strong>Before the fix</strong>
+    <lf-lane>
+      <strong>Job A</strong>
+      <lf-event id="before-a-work" at="0" end="4200"><strong>Adds 50</strong></lf-event>
+      <lf-event id="before-a-write" at="4200"><strong>Writes 150</strong></lf-event>
     </lf-lane>
-    <lf-lane label="Job B">
-      <lf-event id="before-b-write" at="5200" label="Writes 70"></lf-event>
+    <lf-lane>
+      <strong>Job B</strong>
+      <lf-event id="before-b-write" at="5200"><strong>Writes 70</strong></lf-event>
     </lf-lane>
   </lf-run>
-  <lf-run label="After the fix">
-    <lf-lane label="Job A">
-      <lf-event id="after-a-work" at="0" end="4200" label="Adds 50"></lf-event>
-      <lf-event id="after-a-write" at="4200" label="Writes 150, unlocks"></lf-event>
+  <lf-run>
+    <strong>After the fix</strong>
+    <lf-lane>
+      <strong>Job A</strong>
+      <lf-event id="after-a-work" at="0" end="4200"><strong>Adds 50</strong></lf-event>
+      <lf-event id="after-a-write" at="4200"><strong>Writes 150, unlocks</strong></lf-event>
     </lf-lane>
-    <lf-lane label="Job B">
-      <lf-event id="after-b-write" at="8500" label="Writes 120, unlocks"></lf-event>
+    <lf-lane>
+      <strong>Job B</strong>
+      <lf-event id="after-b-write" at="8500"><strong>Writes 120, unlocks</strong></lf-event>
     </lf-lane>
   </lf-run>
 </lf-timeline>"""
@@ -243,8 +253,8 @@ def test_a_tall_timeline_s_gridlines_reach_its_last_lane(browser, serve):
     """Each major time's line runs from the ruler's foot to the chart's, however many
     lanes the chart holds, as its playhead does."""
     lanes = "".join(
-        f'<lf-lane label="Worker {n}"><lf-event id="w{n}" at="{n * 100}" '
-        f'end="{n * 100 + 2000}" label="Job {n}"></lf-event></lf-lane>'
+        f'<lf-lane><strong>Worker {n}</strong><lf-event id="w{n}" at="{n * 100}" '
+        f'end="{n * 100 + 2000}"><strong>Job {n}</strong></lf-event></lf-lane>'
         for n in range(60)
     )
     source = leaf_page(
@@ -330,7 +340,9 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
     page.get_by_role("button", name="Next", exact=True).click()
     source = serve.page_dir / "index.html"
     before = page.locator("#race .lf-timeline-next").bounding_box()
-    source.write_text(source.read_text().replace('label="Adds 50"', 'label="Adds 75"'))
+    source.write_text(
+        source.read_text().replace("<strong>Adds 50<", "<strong>Adds 75<")
+    )
     told(page)
     expect(
         page.locator('#race [data-lf-event="a-work"] .lf-timeline-label')
@@ -341,11 +353,11 @@ def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(
         source.read_text()
         .replace(
             '<lf-event id="a-write"',
-            '<lf-event id="a-check" at="300" label="Checks the amount"></lf-event><lf-event id="a-write"',
+            '<lf-event id="a-check" at="300"><strong>Checks the amount</strong></lf-event><lf-event id="a-write"',
         )
         .replace(
             "</main>",
-            '<lf-timeline id="arriving" aria-label="Arriving timeline"><lf-lane label="Arrival"><lf-event id="arriving-event" at="0" label="Arrives in revision"></lf-event></lf-lane></lf-timeline></main>',
+            '<lf-timeline id="arriving" aria-label="Arriving timeline"><lf-lane><strong>Arrival</strong><lf-event id="arriving-event" at="0"><strong>Arrives in revision</strong></lf-event></lf-lane></lf-timeline></main>',
         )
     )
     told(page)
@@ -380,9 +392,10 @@ def test_a_timeline_s_unavailable_arrow_reaches_no_command_around_it(browser, se
   <section id="card-one">
     <h2>First card</h2>
     <lf-timeline id="tl" aria-label="Two steps">
-      <lf-lane label="Build">
-        <lf-event id="e1" at="0" label="Compile"></lf-event>
-        <lf-event id="e2" at="1000" label="Ship"></lf-event>
+      <lf-lane>
+        <strong>Build</strong>
+        <lf-event id="e1" at="0"><strong>Compile</strong></lf-event>
+        <lf-event id="e2" at="1000"><strong>Ship</strong></lf-event>
       </lf-lane>
     </lf-timeline>
   </section>

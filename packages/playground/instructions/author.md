@@ -106,12 +106,16 @@ such as hovering a card to show the raised style under review, can be wired on a
 
 ## Controls, samples, and output
 
-A choice control shows radio buttons by default, keeping its option labels visible.
+A choice control shows radio buttons by default, keeping its options' names visible.
 `appearance="select"` saves space when scanning current settings across many items, at
-the cost of opening a menu to read the other labels. Choose the control within the
+the cost of opening a menu to read the other names. Choose the control within the
 comparison composed under “Placement and space.” The same `lf-playground-choice`
-children provide the select's values and labels; presets, Reset and the submitted
-values work the same.
+children provide the select's values and the words of their names; presets, Reset and
+the submitted values work the same.
+
+Name each control, choice and preset with the `<strong>` it opens with. The playground
+shows a copy of that markup beside the field, as the radio's label or on the preset's
+button, so a name may set a value in `<code>`; a select's option shows only its words.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
@@ -130,12 +134,12 @@ rework or drop any you would not ship.
 Name a preset for its outcome: `Status strip`, not `Preset 2`.
 
 In this comparison, `format` names which candidate to build. Each choice contains its
-preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
+preview. Pressing its name or noninteractive body selects it; buttons, editors and media remain
 operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid, and plain label choices stand one per line. When
-the comparison needs a particular arrangement of either, such as short labels in a row,
-set `--playground-choice-columns` on the authored choice control or its parent to a
-grid's columns, such as `repeat(2, minmax(0, 1fr))`.
+Rich choices form a responsive grid, and choices holding only a name stand one per
+line. When the comparison needs a particular arrangement of either, such as short names
+in a row, set `--playground-choice-columns` on the authored choice control or its parent
+to a grid's columns, such as `repeat(2, minmax(0, 1fr))`.
 
 Give each control, choice and preset an `id` that names it, such as `format-banner`.
 When the user comments on one of them, the comment records its id, which tells you
@@ -152,44 +156,35 @@ which one they mean.
     <lf-playground-control
       id="radius"
       name="radius"
-      label="Corner radius"
       kind="range"
       value="10"
       min="0"
       max="24"
       step="1"
       unit="px"
-    ></lf-playground-control>
-    <lf-playground-control
-      id="compact"
-      name="compact"
-      label="Compact spacing"
-      kind="toggle"
-      value="false"
-    ></lf-playground-control>
-    <lf-playground-preset id="preset-compact" label="Compact">
+    >
+      <strong>Corner radius</strong>
+    </lf-playground-control>
+    <lf-playground-control id="compact" name="compact" kind="toggle" value="false">
+      <strong>Compact spacing</strong>
+    </lf-playground-control>
+    <lf-playground-preset id="preset-compact">
+      <strong>Compact</strong>
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
     <lf-playground-preview>
-      <lf-playground-control
-        id="format"
-        name="format"
-        label="Notification"
-        kind="choice"
-        value="banner"
-      >
-        <lf-playground-choice id="format-banner" value="banner" label="Banner">
+      <lf-playground-control id="format" name="format" kind="choice" value="banner">
+        <strong>Notification</strong>
+        <lf-playground-choice id="format-banner" value="banner">
+          <strong>Banner</strong>
           <article class="notification-candidate">
             <h3>Checkout deployed</h3>
             <p>Review the deployment run.</p>
           </article>
         </lf-playground-choice>
-        <lf-playground-choice
-          id="format-status-strip"
-          value="status strip"
-          label="Status strip"
-        >
+        <lf-playground-choice id="format-status-strip" value="status strip">
+          <strong>Status strip</strong>
           <article class="notification-candidate">
             Checkout · deployed · 18 checks passed
           </article>

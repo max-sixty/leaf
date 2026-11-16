@@ -68,24 +68,21 @@
  * without taking focus from an unrelated place. A refused save reopens the retained
  * source with Retry, and takes the focus only from this draft or from nowhere. Print keeps the saved reading and omits controls.
  */
+import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableWord,
   commandScope,
   motion,
   returnDuration,
-  html,
-  render,
   offered,
   offeredAction,
-  nothing,
   LeafElement,
   offer,
   TEXT_FIELD,
   quoted,
   sendDraft,
   raiseError,
-  copyBlock,
   saveDraft,
   loadDraft,
   clearDraft,
@@ -172,8 +169,6 @@ customElements.define(
     #failed = false;
     /** @type {HTMLDivElement | null} */
     #tools = null;
-    /** @type {ReturnType<typeof copyBlock> | null} */
-    #copy = null;
     /** @type {ReturnType<typeof commandScope> | null} */
     #commandScope = null;
     /** @type {(() => void) | null} */
@@ -313,14 +308,11 @@ customElements.define(
       this.#tools = offer("div", "lf-draft-tools lf-mark-bar");
       this.#tools.dataset.lfRuntime = "";
       this.append(this.#tools);
-      // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
-      this.#copy = copyBlock(
-        this,
-        () => this.#editor?.value ?? this.#savedText,
-        "Markdown",
-      );
-      // Among the toolbar's marks, Copy is one of them rather than a toolbar of its own.
-      this.#copy.toggleAttribute("data-lf-bar", false);
+      // Leaf stands Copy last in the toolbar (`lfBar`), so Tab from the editor reaches
+      // Save first. It copies the source the box shows, the editor's while it is open.
+      this.lfCopy = () => this.#editor?.value ?? this.#savedText;
+      this.lfBar = this.#tools;
+      this.dataset.lfCopy = "Markdown";
       this.#paintTools();
       this.#ensureCommands();
     }
@@ -389,8 +381,7 @@ customElements.define(
                 ?hidden=${key === "edit" ? editing : !editing}
                 aria-expanded=${key === "edit" ? String(editing) : nothing}
               ></button>`,
-          )}
-          ${this.#copy}`,
+          )}`,
         this.#tools,
       );
       commandsChanged(this);

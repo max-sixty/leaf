@@ -253,8 +253,8 @@ flowchart TD
               changes. Each reading applies the events still in force. Undo records
               which gesture it withdraws, leaving the original event in history. Focus,
               scroll, selection, and open disclosures remain
-              <a href="#browser-local">browser-local interaction</a>; an unsent draft
-              can be recovered from browser storage.
+              <a href="#browser-local">browser-local interaction</a>; the page’s server
+              keeps an unsent draft outside the log, for every tab and device.
             </p>
             <p id="architecture-current-leaf">
               The Leaf serving, checking, or exporting a page supplies its current
@@ -1418,6 +1418,14 @@ flowchart TD
                   <td>The latest value of one external feed, replaced whole.</td>
                   <td>its name</td>
                 </tr>
+                <tr id="ontology-draft">
+                  <td>Draft</td>
+                  <td>
+                    Words the user typed and hasn’t sent, the latest generation of each,
+                    outside the log. Every tab and device reads it; the agent doesn’t.
+                  </td>
+                  <td>what it is about, such as a passage or a thread</td>
+                </tr>
               </tbody>
               <tbody id="ontology-folded">
                 <tr>
@@ -1512,11 +1520,11 @@ flowchart TD
                 <tr id="ontology-local">
                   <td>Browser-owned state</td>
                   <td>
-                    Focus, scroll, navigation position, open disclosures and unsent
-                    drafts. They stay outside shared state; browser stores preserve some
-                    across reloads (<a href="#data-survives">Data lifetime</a>).
+                    Focus, scroll, navigation position and open disclosures. They stay
+                    outside shared state; browser stores preserve some across reloads
+                    (<a href="#data-survives">Data lifetime</a>).
                   </td>
-                  <td>the element, or the draft's thread</td>
+                  <td>the element</td>
                 </tr>
               </tbody>
             </table>
@@ -1610,8 +1618,9 @@ flowchart TD
                 validates gestures and commands at the same entry point before appending
                 them to <code>events.jsonl</code>. Any process can publish whole values
                 with <code>leaf data set</code>. These stores travel with the page
-                directory. View state and drafts remain in the browser; session claims
-                and delivery coordination remain in the machine’s state home.
+                directory, and so do the user’s unsent drafts, outside the log. View
+                state remains in the browser; session claims and delivery coordination
+                remain in the machine’s state home.
               </figcaption>
             </figure>
             <p id="data-bookkeeping-lede">
@@ -1661,9 +1670,9 @@ flowchart TD
           <section id="data-survives">
             <h2>Data lifetime</h2>
             <p id="data-survives-lede">
-              Accepted events and external data survive closing a tab or restarting the
-              server. Browser stores preserve drafts and interface arrangements with the
-              scopes shown below. An update the server has not yet accepted has not
+              Accepted events, external data and unsent drafts survive closing a tab or
+              restarting the server. Browser stores preserve interface arrangements with
+              the scopes shown below. An update the server has not yet accepted has not
               reached durable storage; while the status says the connection is lost or
               the update is not through yet, keep its tab open until it is.
             </p>
@@ -1697,7 +1706,7 @@ flowchart TD
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
-                  <td class="lost">✗</td>
+                  <td class="kept">✓</td>
                 </tr>
                 <tr id="survives-chrome">
                   <td>Arrangements of Leaf controls</td>
@@ -1716,11 +1725,12 @@ flowchart TD
               </tbody>
             </table>
             <p id="data-browser-lede">
-              Draft text is shared between tabs showing the same page; arranged controls
-              are shared across pages in that browser. Reading position, the active tab
-              or panel, and design mode belong to one browser tab. Comment text awaiting
-              acceptance remains in the draft store; pending widget actions have no
-              durable browser queue.
+              Draft text is shared between every tab and device showing the page, since
+              the page’s server keeps it; words typed while the server is out of reach
+              stay in their tab until it answers. Arranged controls are shared across
+              pages in that browser. Reading position, the active tab or panel, and
+              design mode belong to one browser tab. Comment text awaiting acceptance
+              remains a draft; pending widget actions have no durable browser queue.
             </p>
           </section></lf-tab
         ><lf-tab id="event-log" label="Event log" class="layout-flow"
@@ -4137,9 +4147,10 @@ flowchart TD
             <h2>Browser-owned state</h2>
             <p id="browser-local-owned">
               Focus, scroll, selection, open disclosures, unsent text and active drags
-              live outside shared state and the log. DOM nodes hold them;
+              live outside shared state and the log. DOM nodes hold them, and the page’s
+              server keeps the unsent text too;
               <a href="#data-survives">Data lifetime</a> names browser stores preserving
-              some across reloads.
+              some of the rest across reloads.
             </p>
             <table id="browser-local-handoff" class="runtime-table">
               <thead>

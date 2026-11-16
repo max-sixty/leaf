@@ -55,20 +55,20 @@
     "name": "Migration"
   },
   {
-    "id": "the x-name attribute names its element",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "id": "a widget's label names its element",
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
     "name": "Ready"
   },
   {
-    "id": "the x-name attribute comes before a heading",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "id": "a widget's label comes before a heading",
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><h3>Later</h3></lf-column>",
     "name": "Ready"
   },
   {
     "id": "without its attribute an element takes its heading",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
     "name": "Later"
   },

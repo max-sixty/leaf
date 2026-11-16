@@ -1743,9 +1743,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -2264,7 +2264,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
@@ -2458,7 +2458,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -3761,7 +3762,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
@@ -5015,7 +5015,6 @@ LATE_STAGE = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-shadow": True,
     "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
@@ -6125,7 +6124,6 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": False,
                 "x-says": {"label": "before"},
                 "x-example": '<lf-said-label id="example" label="Head">Words.'
                 "</lf-said-label>",

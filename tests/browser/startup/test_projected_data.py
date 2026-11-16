@@ -159,7 +159,6 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
     }
     contract = {
@@ -186,7 +185,8 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     setChildren(this, (this.value?.rows ?? []).map(row => {
@@ -455,12 +455,12 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
-import {LeafElement, nothing, offer, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { LeafElement, offer, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-derived', class extends LeafElement {
   render() { return nothing; }
   firstUpdated() {
@@ -937,7 +937,6 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "required": ["id", "source"],
             "additionalProperties": False,
             "x-content": "empty",
-            "x-upgrade": True,
             "x-data": {
                 "data": {"contract": contract, "source": "source", "property": "value"}
             },
@@ -945,7 +944,8 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         }
 
     def module(tag):
-        return """import {LeafElement, nothing} from '/runtime/widget-api.js';
+        return """import { nothing } from '/vendor/lit.js';
+        import { LeafElement } from '/runtime/widget-api.js';
 customElements.define(TAG, class extends LeafElement {
   render() {
     window.dataDeliveries ??= [];
@@ -1057,11 +1057,12 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           customElements.define('lf-projection-probe', class extends api.LeafElement {
             render() {
               this.work = undefined;
-              return this.paint?.() ?? api.noChange;
+              return this.paint?.() ?? noChange;
             }
             async getUpdateComplete() {
               const result = await super.getUpdateComplete();
@@ -1092,7 +1093,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
               if (name === 'rejecting') {
                 owner.work = Promise.reject(new Error(`${name} paint failed`));
                 owner.work.catch(() => {});
-                return api.noChange;
+                return noChange;
               }
               throw new Error(`${name} paint failed`);
             });
@@ -1107,7 +1108,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
             paints += 1;
             api.readObligations();
             owner.work = finished;
-            return api.noChange;
+            return noChange;
           });
           owners.push(owner);
           await settle();
@@ -1141,11 +1142,12 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           customElements.define('lf-held-probe', class extends api.LeafElement {
             render() {
               shown = held.hold(current);
-              return api.noChange;
+              return noChange;
             }
           });
           const owner = document.createElement('lf-held-probe');
@@ -1184,7 +1186,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {nothing} = await window.__lfWidgetApi();
+      const {nothing} = await window.__lfVendorImport('lit.js');
       const widget = document.querySelector('lf-feed');
       window.beforeDataVersion = document.body.dataset.lfDataVersion;
       window.mountDeliveries = 0;
@@ -1215,7 +1217,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     def deliver(value, failure):
         page.evaluate(
             """async (failure) => {
-              const {nothing} = await window.__lfWidgetApi();
+              const {nothing} = await window.__lfVendorImport('lit.js');
               const widget = document.querySelector('lf-feed');
               window.afterMountDataVersion ??= document.body.dataset.lfDataVersion;
               window.draws ??= {};

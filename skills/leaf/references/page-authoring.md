@@ -323,7 +323,7 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
 also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+content. A `<pre>` asks its
 container for no width, so a box that takes its width from its content can leave it
 too narrow to read, which `page check --render` reports. A table scrolls inside a box
 that sets its own width, such as the column, a panel or any
@@ -335,7 +335,8 @@ that can outgrow a narrow window in a box of its own that scrolls sideways, as a
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,
-a `<th scope="row">`, so the names stay in view while the other columns scroll. Keep
+a `<th scope="row">`: a `<code>` name that is all the heading holds stays whole, up to
+a third of the column, and the names stay in view while the other columns scroll. Keep
 the columns to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors

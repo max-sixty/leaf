@@ -345,7 +345,8 @@ test("a frame refuses to paint after removal even before departure delivery", as
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {
   const { reportCarried } = await import("/runtime/layer-client.js");
-  const { LeafElement, html } = await import("/runtime/widget-api.js");
+  const { LeafElement } = await import("/runtime/widget-api.js");
+  const { html } = await import("/vendor/lit.js");
   const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
   setPresentationFailureReporter(reportCarried);
   let clock = 0;

@@ -2,11 +2,9 @@
  * creates no obligation. An explicit question starts agent work. GitHub ids
  * keep comments attached across refreshes; HeldReading protects reading place.
  */
+import { html, nothing, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   LeafElement,
-  html,
-  nothing,
-  repeat,
   offered,
   whileConnected,
   tabStore,
@@ -19,7 +17,6 @@ import {
   loadMarkdown,
   markdownReady,
   renderMarkdown,
-  unsafeHTML,
 } from "/runtime/widget-api.js";
 
 import { GitHubFeed } from "../github-feed.js";

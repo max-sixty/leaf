@@ -404,14 +404,15 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
     resized(page, 390, 844)
     widget = page.locator("#visual-review-run")
     case = widget.locator(".lf-vr-case:not([hidden])")
-    case.get_by_role("button", name="Add feedback").click()
+    comment = case.get_by_role("button", name="Comment on this case")
+    comment.click()
     field = case.locator(".lf-fab-input")
     expect(field).to_be_focused()
     page.keyboard.type("Keep the return route")
     page.keyboard.press("Escape")
     widget.locator(".lf-vr-case-button").nth(1).click()
     widget.locator(".lf-vr-case-button").first.click()
-    case.get_by_role("button", name="Add feedback").click()
+    comment.click()
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Keep the return route")
     expect(field).to_be_in_viewport(ratio=1)
@@ -422,7 +423,7 @@ def test_visual_review_returns_to_case_feedback_on_phone(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment" and event["text"] == "Keep the return route"
     )
-    case.get_by_role("button", name="Add feedback").click()
+    comment.click()
     page.keyboard.type("Keep destination names visible")
     with sending(page, "post another conversation on the case"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -464,3 +465,99 @@ def test_visual_review_approvals_survive_reload_and_undo(browser, serve):
     case.get_by_role("button", name="Next unchecked").click()
     expect(case).to_have_attribute("data-lf-datum", ids[-1])
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
+
+
+def test_a_case_the_user_comments_on_says_whose_turn_it_is_in_the_queue(browser, serve):
+    """A comment hands its case to the agent, and the queue says so, as an `lf-tabs`
+    side list does: the row ends in the comment symbol, worded On Claude, the header
+    counts it, and Next unchecked passes over it. Before, a case sent back looked like
+    one nobody had opened."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1366, 900)
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    commented = case.get_attribute("data-lf-datum")
+    row = widget.locator(f'.lf-vr-case-button[aria-controls$="-{commented}"]')
+    status = row.locator(".lf-vr-case-status")
+    expect(status).to_be_hidden()
+    case.get_by_role("button", name="Comment on this case").click()
+    page.keyboard.type("Keep the return route")
+    with sending(page, "hand the case to the agent"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(status).to_have_attribute("data-lf-state", "agent")
+    expect(status).to_be_visible()
+    expect(status).to_have_text("On Claude")
+    expect(widget.locator(".lf-vr-progress")).to_have_text(
+        "0 of 3 look right · 1 on Claude"
+    )
+    # From the last case, Next unchecked comes round past the case the agent holds, the
+    # first, to the second.
+    run = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())
+    first, second, third = (each["id"] for each in run["gallery-visual-run"]["cases"])
+    assert commented == first
+    widget.locator(f'.lf-vr-case-button[aria-controls$="-{third}"]').click()
+    expect(case).to_have_attribute("data-lf-datum", third)
+    case.get_by_role("button", name="Next unchecked").click()
+    expect(case).to_have_attribute("data-lf-datum", second)
+    with sending(page, "approve another case"):
+        case.get_by_role("checkbox", name="Looks right").check()
+    # Approving the case the agent holds answers it, as a check.
+    widget.locator(f'.lf-vr-case-button[aria-controls$="-{commented}"]').click()
+    with sending(page, "approve the commented case"):
+        case.get_by_role("checkbox", name="Looks right").check()
+    expect(status).to_have_attribute("data-lf-state", "approved")
+    expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 look right")
+
+
+def test_writing_about_a_case_at_a_wide_desk_leaves_its_capture_its_height(
+    browser, serve
+):
+    """The comment box and the case's threads stand beside the capture on a wide desk,
+    so the capture being written about keeps its size. Under it, they took up to 30% of
+    the window from the capture."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1440, 900)
+    case = page.locator("#visual-review-run .lf-vr-case:not([hidden])")
+    shot = case.locator("lf-shot")
+    rendered(page)
+    height = shot.bounding_box()["height"]
+    case.get_by_role("button", name="Comment on this case").click()
+    page.keyboard.type("Keep the return route")
+    with sending(page, "post a comment beside the capture"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    discussion = case.locator(".lf-vr-discussion")
+    expect(discussion).to_be_visible()
+    rendered(page)
+    assert shot.bounding_box()["height"] == height
+    beside = discussion.bounding_box()
+    evidence = case.locator(".lf-vr-evidence").bounding_box()
+    assert beside["x"] >= evidence["x"] + evidence["width"]
+    assert beside["y"] < evidence["y"] + evidence["height"]
+
+
+def test_a_short_window_scrolls_the_review_until_its_end_clears_the_panel(
+    browser, serve
+):
+    """Where the desk's floor needs more than the window, the review scrolls, and its
+    last line ends the panel's room above the window's foot. Before, the desk was held
+    to the review's height and overflowed past the room the review pads for the panel,
+    so its last line stood under the panel however far the review scrolled."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 720, 560)
+    review = page.locator("#visual-review-run")
+    rendered(page)
+    review.evaluate("node => { node.scrollTop = node.scrollHeight; }")
+    scroll_settled(page)
+    last = review.locator(".lf-vr-case:not([hidden]) .lf-vr-action")
+    room = page.evaluate(
+        """() => {
+          const probe = document.createElement('div');
+          probe.style.blockSize = 'var(--lf-foot-room)';
+          document.body.append(probe);
+          const room = probe.getBoundingClientRect().height;
+          probe.remove();
+          return room;
+        }"""
+    )
+    assert room > 0
+    assert last.bounding_box()["y"] + last.bounding_box()["height"] <= 560 - room + 1

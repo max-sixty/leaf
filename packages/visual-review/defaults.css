@@ -86,11 +86,13 @@ lf-visual-review {
   container-type: normal;
 }
 /* A case is a row (controls.css, `.lf-row`), the case shown its current row: its
- * number, its title, and a check in the ok ink at its end once it looks right. A
- * case not yet checked shows nothing there, since the header's count and the case's
- * own Looks right box say so, and the check keeps its room, so checking a case moves
- * no word. The check stood as the words Looks right on a line of their own under the
- * title, which left every unchecked case a blank line taller than its words. */
+ * number, its title, and its state at its end: a check in the ok ink once it looks
+ * right, and the comment symbol in the muted ink while the user's comment has handed
+ * it to the agent. A case waiting on the user shows nothing there, since the header's
+ * count and the case's own Looks right box say so, and each symbol keeps the same
+ * room, so a state's change moves no word. The check stood as the words Looks right on
+ * a line of their own under the title, which left every unchecked case a blank line
+ * taller than its words. */
 .lf-vr-case-button {
   cursor: pointer;
 }
@@ -102,7 +104,10 @@ lf-visual-review {
 .lf-vr-case-status {
   color: var(--lf-ok-ink);
 }
-.lf-vr-case-status[data-lf-approved="false"] {
+.lf-vr-case-status[data-lf-state="agent"] {
+  color: var(--muted);
+}
+.lf-vr-case-status[data-lf-state="user"] {
   visibility: hidden;
 }
 .lf-vr-detail {
@@ -319,10 +324,13 @@ lf-visual-review {
     gap: 8px;
   }
 }
+/* A desk that fills the window is at least the review's height and grows past it where
+   its floor needs more, so the review scrolls and its end keeps the room the review
+   pads for Leaf's panel. A desk held to the review's height let its floor overflow
+   into that room unscrolled: at 720 × 700 a case's last line stood under the panel. */
 @container style(--lf-full-height:1) {
   .lf-vr-dashboard {
-    block-size: 100%;
-    min-block-size: 0;
+    min-block-size: 100%;
   }
 }
 @media print {
@@ -378,5 +386,41 @@ lf-visual-review {
   /* Hold the native scrollbar clearance before the strip is measured or scrolls. */
   .lf-vr-case-list {
     padding-block-end: 16px;
+  }
+}
+
+/* A wide desk stands the shown case's discussion beside its capture rather than under
+   it, so writing about a case leaves the capture its height: under it, a thread took up
+   to 30% of the window from the capture being written about, a phone capture falling
+   from 0.56 to 0.39 of its size at 1440 × 900. Most captures are held by the desk's
+   height, so the narrower column costs them nothing. The column stands only while the
+   shown case holds an open thread, an opened resolved list or its comment box; a closed
+   list of resolved threads stays a line under the capture. The discussion takes no
+   height of its own and scrolls within the capture's. */
+@container visual-review (min-width:64rem) {
+  .lf-vr-detail:has(
+    > .lf-vr-case:not([hidden]) .lf-vr-threads > :not(.lf-resolved-threads:not([open]))
+  ) {
+    grid-template-columns: minmax(0, 1fr) min(24rem, 36%);
+    column-gap: 16px;
+    & > .lf-vr-case {
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+    }
+    & > .lf-vr-case > :is(.lf-vr-caption, .lf-vr-decision) {
+      grid-column: 1 / -1;
+    }
+    & > .lf-vr-case > .lf-vr-evidence {
+      grid-area: 3 / 1;
+    }
+    & > .lf-vr-case > .lf-vr-discussion {
+      grid-area: 3 / 2;
+      max-block-size: none;
+      contain: size;
+      overflow: clip;
+    }
+    & .lf-vr-discussion > .lf-vr-threads {
+      overflow: auto;
+    }
   }
 }

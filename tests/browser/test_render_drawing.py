@@ -35,6 +35,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1607,3 +1608,57 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert event["anchor"] == {"section": target}
     assert page.locator("#map-street").get_attribute("chosen") is None
     assert page.locator("#map-trail").get_attribute("chosen") is None
+
+
+def test_a_drawing_on_a_view_the_page_hides_stands_only_while_it_shows(browser, serve):
+    """A visual review keeps its unchosen cases laid out under the chosen one, so ink on
+    one case's capture would stand over another's. Ink stands only over a picture the
+    page shows: it leaves with its case and comes back with it."""
+    page = open_page(browser, serve(named_source("visual-review-gallery")))
+    resized(page, 1440, 900)
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    drawn = case.get_attribute("data-lf-datum")
+    draw_over(
+        page,
+        case.locator("lf-shot .lf-shotstage"),
+        points=((0.6, 0.5), (0.7, 0.3), (0.8, 0.5)),
+    )
+    page.keyboard.type("This edge")
+    with sending(page, "send a drawing on a case"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Escape")
+    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+    ink = page.locator(".lf-drawing-mark")
+    expect(ink).to_have_count(1)
+    widget.locator(".lf-vr-case-button").nth(2).click()
+    expect(case).not_to_have_attribute("data-lf-datum", drawn)
+    expect(ink).to_have_count(0)
+    widget.locator(f'.lf-vr-case-button[aria-controls$="-{drawn}"]').click()
+    expect(ink).to_have_count(1)
+
+
+BOXLESS_PAGE = leaf_page(
+    "boxless drawing target",
+    '<h1 id="title">Notes</h1>'
+    '<div id="boxless" style="display: contents"><p>Words a wrapper with no box of'
+    " its own holds, laid out by the paragraph inside it.</p></div>",
+)
+
+
+def test_a_drawing_on_a_boxless_target_stands_over_its_shown_parts(browser, serve):
+    """A target with no box of its own, as `display: contents` leaves one, shows
+    through its parts, so ink on it stands while they show, as drawn, sent and saved."""
+    page = open_page(browser, serve(BOXLESS_PAGE))
+    resized(page, 1200, 800)
+    draw_over(page, page.locator("#boxless > p"))
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    page.keyboard.type("This line")
+    with sending(page, "send a drawing on a boxless target"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"]["section"] == "boxless"
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    page.reload()
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)

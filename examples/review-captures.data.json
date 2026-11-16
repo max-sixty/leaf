@@ -1,0 +1,181 @@
+{
+  "status-column-run": {
+    "title": "Six console screens, main against the branch",
+    "base": {
+      "revision": "3f9a0c1e"
+    },
+    "candidate": {
+      "revision": "b72d4e85"
+    },
+    "cases": [
+      {
+        "id": "run-list-status",
+        "title": "Run list: a Status column after Run",
+        "path": "/runs",
+        "action": "Read each badge against its run, and check that the other columns kept their order.",
+        "result": "A Status column after Run shows running, failed, passed and cancelled badges. Trigger, Started and Duration keep their order and alignment.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:08-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 256,
+          "y": 120,
+          "width": 1000,
+          "height": 540
+        },
+        "before": "/media/a376980e3d9f4b13.png",
+        "after": "/media/177ff887342a17b9.png"
+      },
+      {
+        "id": "run-list-dark",
+        "title": "Run list, dark scheme: badges on dark tints",
+        "path": "/runs",
+        "action": "In the dark scheme, read each badge's word against its fill.",
+        "result": "The badges take the dark palette's tints, and each word stays readable on its fill. The other columns keep their order, as in the light scheme.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:12-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "dark",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 256,
+          "y": 120,
+          "width": 1000,
+          "height": 540
+        },
+        "before": "/media/6d4bae3bc6c69859.png",
+        "after": "/media/c5a3984ae0b13965.png"
+      },
+      {
+        "id": "run-page-status",
+        "title": "Run page: a failed badge beside the title",
+        "path": "/runs/4812",
+        "action": "Compare the header of failed run #4812.",
+        "result": "A failed badge follows the run number, centred on the title's line since the re-capture. The metadata line and the Re-run failed jobs button stay where they were.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T16:05:37-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 256,
+          "y": 64,
+          "width": 1000,
+          "height": 180
+        },
+        "before": "/media/397a7fe5f3060f39.png",
+        "after": "/media/cac6b6f1bb294e36.png"
+      },
+      {
+        "id": "run-list-phone",
+        "title": "Run list at 390 px: Duration cut off",
+        "path": "/runs",
+        "action": "At 390 px, read each run's duration.",
+        "result": "Duration is cut off at the right edge. The Status column keeps its 124 px desktop minimum, and the table clips rather than scrolls.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:15-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 0,
+          "y": 104,
+          "width": 390,
+          "height": 476
+        },
+        "before": "/media/3e43890fae6949be.png",
+        "after": "/media/d198a13400556edb.png"
+      },
+      {
+        "id": "overview-recent-runs",
+        "title": "Overview: recent-run rows 4 px taller",
+        "path": "/",
+        "action": "Compare the Recent runs card with the Schedules card beside it.",
+        "result": "Each row is 4 px taller, because the shared table now leaves room for a badge in every row. The card grows 20 px and View all runs moves down with it; the Schedules card doesn't move.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:19-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 256,
+          "y": 256,
+          "width": 1000,
+          "height": 380
+        },
+        "before": "/media/782258c8cf91d32d.png",
+        "after": "/media/d25c3181e51c6af3.png"
+      },
+      {
+        "id": "notification-settings",
+        "title": "Notification settings: unchanged",
+        "path": "/settings/notifications",
+        "action": "Compare the notification form, whose rows share the table's row styles.",
+        "result": "The two captures are identical: the form's rows don't take the table's new badge spacing.",
+        "classification": "clean",
+        "capture": {
+          "observedAt": "2026-11-13T15:42:22-08:00",
+          "browser": "Chromium",
+          "browserVersion": "158.0.8127.18",
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "before": "/media/eaca2930029c0685.png",
+        "after": "/media/eaca2930029c0685.png"
+      }
+    ]
+  }
+}

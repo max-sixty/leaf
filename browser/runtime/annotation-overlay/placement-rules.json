@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule so Send moves nothing. comment-placement.js and thread-preview.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
+  "$comment": "Where a comment's surfaces stand, as a reader sees them: the comment box the user types in and the thread card Send turns it into, which stand by one rule, so the card Send opens starts where the box did. comment-placement.js and thread-preview.js keep these rules and say how, and which designs they rejected. A rule's `swept` names the findings by which the placement sweep (tests/journeys/margin/test_card_placement.py) reports it broken, each finding under one rule; the sweep refuses a finding no rule names, and a rule naming one it never reports.",
   "sections": [
     {
       "id": "room",
@@ -91,7 +91,7 @@
       "rules": [
         {
           "id": "size-width",
-          "says": "As wide as the measure (`--lf-thread-card`), or the room's width where that is narrower, whatever its messages hold, so it neither narrows to its words nor widens as they arrive. The comment box opens as wide, and the card its Send opens keeps the box's width, as a carried card keeps the width it was carried at."
+          "says": "Beside its text: at its least width (`--lf-thread-card-min`) until a message it shows stands taller than it is wide there, then at the measure (`--lf-thread-card`) until another selection, widening once, from its start; the room's width caps either. The comment box keeps the least width however many lines are typed in it, so Send opens the card of a comment that tall at the measure. A long answer widens a slim card as it arrives, carrying its controls, or, held while the user writes a reply, as they send it. Left of its text, and under or over where the measure starts it elsewhere, the box and card take the measure at once, since their start there is the far end of that width from the text. A box with no text to stand by keeps the least width. A carried card keeps the width it was carried at."
         },
         {
           "id": "size-grows-away",

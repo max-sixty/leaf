@@ -89,7 +89,9 @@ or the colour scheme, the reader should be able to tell each capture's value on 
 axis from where it stands rather than from prose away from the images, with each axis
 labelled once. The default is a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's. Captures of an option's outcome go inside that option, in such a table where
+row's. Give each capture's `<img>` an `id`, so the user can point at one capture and
+comment on it alone (`page-authoring.md`, "Stable anchors"). Captures of an option's
+outcome go inside that option, in such a table where
 there are several (`authoring-on-me.md`). Place captures the reader compares side by
 side or one above the other, so whatever moved shows as a misalignment.
 

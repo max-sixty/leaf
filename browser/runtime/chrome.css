@@ -88,13 +88,16 @@
 /* Holding ⌥ changes what a click means. The aim's mark (`[data-lf-aimed]`, surfaces.css)
    answers which item a press takes, and the hand over it that a press takes one.
    Derived at the paint from what refreshAim resolved, so cursor and mark cannot
-   disagree. The hand stands on the element under the pointer (page-geometry.js), so
-   arming and a crossing restyle only what that element holds. Elsewhere a press takes
-   nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
-   holds: an arrow declared on the body for them restyled every element each time the
-   page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty 4 MB text
-   documents. A control keeps its own cursor while armed. */
-body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
+   disagree. The hand and ⌥'s arm both stand on the element under the pointer
+   (page-geometry.js), so arming and a crossing restyle only what that element holds.
+   Elsewhere a press takes nothing (claimPress) and the page keeps its own cursor, the
+   I-beam over words no item holds: an arrow declared on the body for them restyled
+   every element each time the page armed or disarmed, 1.0 to 1.2 s in Firefox on a
+   page of thirty 4 MB text documents. A control keeps its own cursor while armed. The
+   hand's weight, two attributes and `body`, is what lets it stand over a mark's own
+   cursor, a drafted comment's included (annotation-chrome.css). */
+body[data-lf-design-mode] [data-lf-over-item],
+body [data-lf-armed][data-lf-over-item] {
   cursor: pointer;
 }
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user

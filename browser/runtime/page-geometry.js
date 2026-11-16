@@ -20,10 +20,12 @@ import { keepsOnOne, keepsText } from "./keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { closestAcross, elementFromPointAcross, leafSurface } from "./passages.js";
 import { WORKS } from "./control-selectors.js";
+import { hostIn } from "./shadow.js";
 
 /** @typedef {ReturnType<typeof import("./design.js").createDesignMode>} DesignMode */
 /** @param {{refreshAnchorHover?: (() => unknown) | undefined,
- * aim: {isOn: ReturnType<typeof import("./composing/aim.js").createAim>["aimIsOn"],
+ * aim: Pick<ReturnType<typeof import("./composing/aim.js").createAim>, "armed"> & {
+ * isOn: ReturnType<typeof import("./composing/aim.js").createAim>["aimIsOn"],
  * target: ReturnType<typeof import("./composing/aim.js").createAim>["aimedTarget"]},
  * pointer: typeof import("./pointer.js").pointerAt,
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
@@ -62,9 +64,14 @@ export function createPageGeometry({
 
   // Aim paint is synchronous: the keydown that arms the page and the press that follows
   // may be one gesture, so a scheduled frame could leave the visible promise behind it.
-  // The hand where an armed press takes an item stands on the element under the pointer
-  // (chrome.css), as a mark's does (anchor-paint.js), so a crossing restyles what that
-  // element holds rather than all `body` does; a control keeps its own cursor.
+  // The aim's arm (aim.js, `armed`) and the hand where an armed press takes an item
+  // stand on the element under the pointer (chrome.css, annotation-chrome.css), as a
+  // mark's hand does (anchor-paint.js), so ⌥ and a crossing restyle what that element
+  // holds rather than all `body` does; a control keeps its own cursor. Design mode,
+  // entered for a batch of remarks rather than held, stays on `body` (design.js): a
+  // `:has()` reading the arm costs Chromium about 1.5 ms each time the paint moves, which
+  // would be every crossing of Design mode's pointer.
+  const paintArmed = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.armed);
   const paintItemHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overItem);
   // The crosshair of a mode that takes presses on the whole plane, Draw mode or Capture
   // area, stands there too (integration.css), on the element inside a widget's tree
@@ -83,15 +90,19 @@ export function createPageGeometry({
     const target = aimTarget();
     const aimed = target?.element ?? null;
     const at = pointer();
-    const takes = aimed && !closestAcross(elementFromPointAcross(at.x, at.y), WORKS);
-    paintItemHand(takes ? document.elementFromPoint(at.x, at.y) : null);
+    // An aimed target arms the page, so one hit test answers both: what the pointer is
+    // over, and the element of the document holding it, whose cursor shows.
+    const over =
+      aim.armed() || designMode.active() ? elementFromPointAcross(at.x, at.y) : null;
+    const under = over && hostIn(over, document);
+    const takes = aimed && !closestAcross(over, WORKS);
     const shown = target && targetPaint.paintAim(target.element, target.surface);
-    if (!shown) {
-      targetPaint.clearAim();
-      paintInspect(null);
-      return;
-    }
-    paintInspect(designMode.active() ? target : null);
+    if (!shown) targetPaint.clearAim();
+    paintInspect(shown && designMode.active() ? target : null);
+    // The cursor's paints come last: written before the box and the name read their
+    // geometry, they made that read restyle and lay out the page first.
+    paintArmed(aim.armed() ? under : null);
+    paintItemHand(takes ? under : null);
   }
 
   // The design name stands at the aim box's corner, in its planes (target-paint.js,

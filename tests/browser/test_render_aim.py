@@ -2406,6 +2406,40 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     )
 
 
+def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, serve):
+    """A part's name is its owner's own: a control inside an item the owner holds is
+    that item's part, so a twin there leaves the owner's control unrepeated, and its
+    name says no more than a lone control's would. Naming a part reads only what its
+    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    stand beside every document its panels hold, which the press and the picker's
+    announcement each read in full (#4781)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own parts",
+                '<section id="lone"><h2>Lone</h2><p>Words, then <button>Open</button>'
+                ' and more.</p><p id="held">A held item with <button>Open</button> of'
+                " its own.</p></section>"
+                '<section id="twins"><h2>Twins</h2><p>Words, then <button>Open</button>'
+                " and more.</p><p>Other words, then <button>Open</button> again.</p>"
+                "</section>",
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    labels = page.evaluate("""async () => {
+      const {aimTargets, captured} = await window.__lfCheckApi();
+      return aimTargets({design: true})
+        .filter((t) => t.anchor.part === 'Open')
+        .map((t) => [t.anchor.section, captured(t).label]);
+    }""")
+    repeats = {section: [] for section, _ in labels}
+    for section, label in labels:
+        repeats[section].append("after …" in label or " before " in label)
+    assert repeats == {"lone": [False], "held": [False], "twins": [True, True]}, labels
+
+
 @pytest.mark.parametrize(
     ("generated", "route"), [(False, "keyboard"), (True, "pointer")]
 )

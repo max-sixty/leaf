@@ -10,7 +10,9 @@ from playwright.sync_api import expect
 from render_cases_interaction import LIST_ORDER, PANEL_PAGE, live_url, panel_comment
 from render_harness import (
     EXAMPLE_PACKAGES,
+    RELEASE_FOCUS,
     any_owner_entry,
+    cursor_at,
     leaf_page,
     open_page,
     open_threads,
@@ -288,6 +290,132 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     assert not page.locator(f'{PANEL_THREAD}[data-lf-thread="tv-on-it"]').count(), (
         "a press on a mark in the layer reached its thread after all"
     )
+
+
+ARMED_PAGE = leaf_page(
+    "Armed cursors",
+    '<section id="items"><p id="item">Words in an item.</p>'
+    '<p id="marked">Words in a marked item.</p>'
+    '<p id="stops">A marked item holding <span id="stop" tabindex="0">a tab stop'
+    "</span> beside its words.</p>"
+    '<p id="passage">Words around <span class="quoted">a marked passage</span> in an'
+    " item.</p>"
+    '<p id="drafted">Words a draft will stand on.</p>'
+    '<p id="links"><a id="link" href="#items">A link in an item</a></p></section>',
+)
+# The cursor the user sees at each place, at rest, holding ⌥, and in Design mode. Each
+# rule that answers there reads the armed page (chrome.css, annotation-chrome.css).
+ARMED_CURSORS = {
+    "words in an item": ("auto", "pointer", "pointer"),
+    "beside the column": ("auto", "auto", "auto"),
+    "words in a marked item": ("pointer", "pointer", "pointer"),
+    "a tab stop in a marked item": ("pointer", "auto", "auto"),
+    "a marked passage": ("pointer", "pointer", "pointer"),
+    "a link in an item": ("pointer", "pointer", "pointer"),
+}
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
+    request, serve, engine
+):
+    """Holding ⌥ or in Design mode, a press is the aim's: the hand stands where it takes
+    an item, a mark's hand ("this opens its thread") stands down, and a control or the
+    words no item holds keep their own cursor. Over a draft's item the aim's hand stands
+    over the draft's own cursor, and a mark in the chrome, whose element the aim never
+    takes, draws the arrow while the page is armed. Each place's cursor is read where
+    the pointer is, since the armed page is painted on the element under it
+    (page-geometry.js): on `body`, arming made Firefox visit every element of the page."""
+    url = serve(
+        ARMED_PAGE,
+        events=[
+            {
+                "kind": "comment",
+                "id": f"on-{section}",
+                "author": "user",
+                "revision": 1,
+                "text": "About this.",
+                "anchor": anchor,
+            }
+            for section, anchor in (
+                ("marked", {"section": "marked"}),
+                ("stops", {"section": "stops"}),
+                ("passage", {"section": "passage", "quote": "a marked passage"}),
+            )
+        ],
+    )
+    seed_reply(
+        serve.page_dir,
+        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-options id="tv-decision" choose>'
+        '<lf-option id="tv-redis">Redis</lf-option>'
+        "</lf-options></lf-ask>",
+        "tv-decision-region",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1280, 900)
+    rendered(page)
+
+    def middle(selector, x=None):
+        box = page.locator(selector).first.bounding_box()
+        return (
+            box["x"] + (box["width"] / 2 if x is None else x),
+            box["y"] + box["height"] / 2,
+        )
+
+    places = {
+        "words in an item": middle("#item", 20),
+        "beside the column": (40, middle("#item")[1]),
+        "words in a marked item": middle("#marked", 20),
+        "a tab stop in a marked item": middle("#stop"),
+        "a marked passage": middle("#passage .quoted"),
+        "a link in an item": middle("#link"),
+    }
+
+    def seen(point):
+        page.mouse.move(*point)
+        rendered(page)
+        return cursor_at(page, *point)
+
+    found = {name: [seen(point)] for name, point in places.items()}
+    for name, point in places.items():
+        page.mouse.move(*point)
+        page.keyboard.down("Alt")
+        found[name].append(seen(point))
+        page.keyboard.up("Alt")
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("l")
+    for name, point in places.items():
+        found[name].append(seen(point))
+    page.keyboard.press("Escape")
+    assert {name: tuple(each) for name, each in found.items()} == ARMED_CURSORS
+
+    # A draft's item: the draft's own cursor at rest, and the aim's hand armed.
+    drafted = middle("#drafted", 20)
+    page.mouse.move(*drafted)
+    page.keyboard.down("Alt")
+    page.mouse.click(*drafted)
+    page.keyboard.up("Alt")
+    expect(page.locator("#drafted")).to_have_class(re.compile(r"\blf-pending\b"))
+    draft = [seen(drafted)]
+    page.keyboard.down("Alt")
+    draft.append(seen(drafted))
+    page.keyboard.up("Alt")
+    assert draft == ["auto", "pointer"], draft
+    page.keyboard.press("Escape")
+
+    # A mark in the chrome: whatever its own cursor at rest, the arrow armed.
+    open_panel_thread(page, "tv-decisioned")
+    rendered(page)
+    expect(page.locator(".lf-fp-view #tv-decision-region")).to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    heading = middle(".lf-fp-view #tv-decision-region h3", 20)
+    chrome = [seen(heading)]
+    page.keyboard.down("Alt")
+    chrome.append(seen(heading))
+    page.keyboard.up("Alt")
+    assert chrome == ["auto", "default"], chrome
 
 
 def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):

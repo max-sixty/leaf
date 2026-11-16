@@ -10,17 +10,17 @@ import {
 } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt, captured } from "../anchor-resolution.js";
-import { setRuntimeRootAttribute } from "../root-state.js";
 import { legendRoot } from "../design.js";
-import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the modifier's state and `data-lf-aiming` on body is a rendering of the
-// page being armed, an attribute the margin's observer of classes does not hear
-// (page-paint.js); nothing reads it back.
+// `aiming` is the modifier's state. Whether the page is armed (`armed`) is painted on
+// the element under the pointer (page-geometry.js, `refreshAim`), the one element whose
+// cursor the user sees. Painted on `body`, each change of it made Firefox visit every
+// element of the page: about 55 ms for ⌥ down and again for ⌥ up on #4781's 1.5
+// million elements.
 //
 // The target picker (`s`) arms the page the same way for as long as it stands: its hints
 // name targets for the keyboard, and the pointer takes any of them, or one between them,
@@ -55,11 +55,12 @@ export function createAim({
     !drawModeActive() && (!designMode.active() || targetPicker.active());
   // Whether the page is armed, given whether the modifier is held: the one reading the
   // box and the press claim both derive from, so the box cannot promise what the press
-  // does not do. The cursor class (armChanged) reads the two sources without the mode
-  // gate, since Design and Draw state cursors of their own and a gated class would go
-  // stale when Design ends under a held key.
+  // does not do. The cursor's paint reads the two sources without the mode gate
+  // (`armed`), since Design and Draw state cursors of their own and a gated paint would
+  // go stale when Design ends under a held key.
   /** @param {boolean} held */
   const armedBy = (held) => aimIsAvailable() && (held || targetPicker.active());
+  const armed = () => aiming || targetPicker.active();
   // The picker's promise under the pointer waits for a pointer that hovers: a finger's
   // last tap, on the menu entry that opened the picker, is not where it stands.
   const aimIsOn = () => armedBy(aiming) && (aiming || !coarsePointer.matches);
@@ -110,13 +111,8 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
-  // The armed page's one writer, called when either source of the arm changes.
+  // Called when either source of the arm changes, so the paint follows (refreshAim).
   function armChanged() {
-    setRuntimeRootAttribute(
-      document.body,
-      RUNTIME_PAINT_ATTRIBUTE.aiming,
-      aiming || targetPicker.active() ? "" : null,
-    );
     // Picker keys name the Design legend's corners while the picker owns the choice, so
     // the legend's tags step aside (chrome.css). The mark stands on the legend, which
     // holds every box and tag, since a custom property changing on the root restyles
@@ -276,5 +272,5 @@ export function createAim({
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armChanged, mount };
+  return { aimIsOn, aimedTarget, armed, armChanged, mount };
 }

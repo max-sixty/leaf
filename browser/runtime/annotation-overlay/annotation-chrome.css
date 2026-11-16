@@ -6,8 +6,12 @@
 
 /* The hand over a mark stands on the element under the pointer (anchor-paint.js,
    `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
-   mark states its own (below), at a weight this rule doesn't pass. */
-:where(body:not([data-lf-aiming], [data-lf-design-mode])) [data-lf-over-mark] {
+   mark states its own (below), at a weight this rule doesn't pass. ⌥'s arm is
+   painted on the element under the pointer too (page-geometry.js), whose cursor is
+   the one that shows, so a rule here reads it on that element, or, for a mark holding
+   that element, through `:has()`; Design mode's stands on `body`. */
+:where(body:not([data-lf-design-mode]))
+  [data-lf-over-mark]:where(:not([data-lf-armed])) {
   cursor: pointer;
 }
 /* An element holding threads draws no contour at rest: its margin entry says so, and a
@@ -17,7 +21,8 @@
    its thread. Armed, a press on it is the aim's, not the thread's, so the hand here
    is the aim's answer (chrome.css) or a control's own cursor, and not the mark's own
    "open this thread". */
-:where(body:not([data-lf-aiming], [data-lf-design-mode])) .lf-mark-el {
+:where(body:not([data-lf-design-mode]))
+  .lf-mark-el:where(:not([data-lf-armed], :has([data-lf-armed]))) {
   cursor: pointer;
 }
 /* The annotation layer hidden (`o`): the element's threads are out of reach, so the
@@ -29,9 +34,10 @@
 .lf-mark-el.lf-pending {
   cursor: auto;
 }
-/* The chrome stands after the body, which carries the arm, so a mark in the chrome
-   reads it as a sibling's and draws the arrow while the page is armed. */
-body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
+/* A mark in the chrome, which stands after the body, draws the arrow while the page
+   is armed. */
+body[data-lf-design-mode] ~ .lf-chrome .lf-mark-el,
+body ~ .lf-chrome .lf-mark-el:is([data-lf-armed], :has([data-lf-armed])) {
   cursor: default;
 }
 

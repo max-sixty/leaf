@@ -1813,17 +1813,21 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const line = document.querySelector('#walk-code .lf-code-line');
       const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
+      const card = getComputedStyle(note, '::before');
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();
       return {
         page: channels(getComputedStyle(document.body).backgroundColor),
         block: channels(getComputedStyle(block).backgroundColor),
+        blockImage: getComputedStyle(block).backgroundImage,
+        gutterColor: getComputedStyle(line, '::before').backgroundColor,
         gutter: channels(getComputedStyle(line, '::before').backgroundColor),
-        note: channels(noteStyle.backgroundColor),
-        noteBorderBlock: noteStyle.borderBlock,
-        noteBorderLeftWidth: noteStyle.borderLeftWidth,
-        noteRadius: noteStyle.borderRadius,
+        card: channels(card.backgroundColor),
+        cardBorder: card.borderTopWidth,
+        cardRadius: card.borderTopLeftRadius,
         noteFont: noteStyle.fontFamily,
+        noteSize: parseFloat(noteStyle.fontSize),
+        codeSize: parseFloat(getComputedStyle(line).fontSize),
         sansFont: getComputedStyle(document.documentElement)
           .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
@@ -1840,12 +1844,18 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
-    assert appearance["note"] == appearance["block"], appearance
-    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
-    assert appearance["noteBorderLeftWidth"] == "0px", appearance
-    assert appearance["noteRadius"] == "0px", appearance
+    # The gutter's ground runs the block's whole height, past the note beside it.
+    assert appearance["gutterColor"] in appearance["blockImage"], appearance
+    # The note is a card in the block's own chrome, the gutter's ground, with its words
+    # in the interface face a size below the code's.
+    assert appearance["card"] == appearance["gutter"], appearance
+    assert appearance["cardBorder"] == "1px", appearance
+    assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
-    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+    assert appearance["noteSize"] < appearance["codeSize"], appearance
+    # The card stands inside the frame, sized to its words.
+    assert appearance["noteInset"]["left"] == 1, appearance
+    assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
     post_event(

@@ -6,7 +6,8 @@
    boundary, so pressing Copy neither dismisses the surface nor falls behind it.
    A declared block carries `data-lf-copy`, naming what it holds, and its `lfCopy()`
    returns its text, the source the widget drew line numbers, annotations or other words
-   over; its control stands right after it, in the widget's tree. A widget declaring
+   over; its control stands right after it, in the widget's tree, or last in the
+   toolbar the widget draws over the block (`lfBar`). A widget declaring
    one imports nothing from Leaf to do it, so a page without Leaf, which reads no
    declaration, shows no control. Sources read their current text on activation. CSS
    anchors keep the control at the block's right edge (block-controls.js). Widgets
@@ -150,12 +151,38 @@ export function copyBlock(block, source, noun) {
 
 // A declared block's control stands after it, in the widget's tree, until the block
 // leaves or stops declaring. Standing it there is a sibling arriving beside the block,
-// which asks again, so a block whose control already stands is passed by.
+// which asks again, so a block whose control already stands is passed by. A block
+// whose widget draws a toolbar of its own marks over it (`lfBar`, a `.lf-mark-bar`
+// the widget places and shows) takes Copy as that toolbar's last mark instead, as
+// lf-code's notes mark and Copy share one corner.
 const DECLARED = "[data-lf-copy]";
+/** @param {Element} block @param {Element | undefined} copy */
+const standing = (block, copy) =>
+  block instanceof HTMLElement && block.lfBar
+    ? copy?.parentNode === block.lfBar
+    : copy?.previousSibling === block;
+// A tap that stands the user on the block shows its toolbar under the finger; only a
+// press that began on the toolbar presses one of its marks, as with a lone Copy.
+const guardedBars = new WeakSet();
+/** @param {HTMLElement} bar */
+function guardBar(bar) {
+  if (guardedBars.has(bar)) return;
+  guardedBars.add(bar);
+  bar.addEventListener(
+    "click",
+    (event) => {
+      if (pressedElsewhere(event, bar)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    },
+    { capture: true },
+  );
+}
 /** @param {Element[]} blocks */
 function prepareDeclaredBlocks(blocks) {
   const prepared = blocks
-    .filter((block) => controls.get(block)?.previousSibling !== block)
+    .filter((block) => !standing(block, controls.get(block)))
     .map((block) => {
       const noun = block.getAttribute("data-lf-copy");
       if (noun === null) throw new Error("A declared copy block needs data-lf-copy");
@@ -174,9 +201,16 @@ function prepareDeclaredBlocks(blocks) {
     });
   for (const { block, noun, pending } of prepared) {
     const copy = aimControl(pending);
-    const parent = block.parentNode;
-    if (!parent) continue;
-    move(parent, copy, block.nextSibling);
+    const bar = block instanceof HTMLElement ? block.lfBar : undefined;
+    if (bar) {
+      copy.toggleAttribute("data-lf-bar", false);
+      guardBar(bar);
+      move(bar, copy, null);
+    } else {
+      const parent = block.parentNode;
+      if (!parent) continue;
+      move(parent, copy, block.nextSibling);
+    }
     declareCopy(block, copy, noun);
   }
 }

@@ -35,8 +35,8 @@
    `openingPart`). A refusal gives back what the send took: its turn goes, and its words
    return under the refusal's cover (errors.js), which shows no line being typed either,
    so the card holds its top through the refusal too, and its foot once the user comes
-   back to the words. The user chose this on 16 November 2026 over letting the card
-   drop, which moved both its edges and slid it out from under the pointer. A user who
+   back to the words. The user chose this over letting the card drop, which moves both
+   its edges and slides it out from under the pointer. A user who
    empties the box themselves, as Select All and Backspace do, sees it rise to where
    the empty box stands, a rare path SOUL.md lets move, since to the card that looks
    the same as a send. A message's rewrite, whose field stands in the transcript, holds

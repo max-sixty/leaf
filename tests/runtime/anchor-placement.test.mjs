@@ -206,3 +206,47 @@ test("placement stands where a fresh resolution does, after every change", async
   }
   document.body.replaceChildren();
 });
+
+test("placement keeps a range over a passage's words, a thread's and the draft's", () => {
+  // Whoever paints or measures a passage reads `ranges`: Leaf's passage marks, and a
+  // page that tints its own (module-annotations.md, "Page annotation presentation"). A
+  // reading that moves nothing keeps the ranges it had, so their readers keep theirs. A
+  // browser also moves a live range with words written ahead of it, which this
+  // document doesn't (tests/browser/startup/test_thread_surfaces.py holds that).
+  document.body.innerHTML =
+    '<main><p id="a">The nightly export keeps one file per tenant.</p>' +
+    '<p id="b">Both exports run side by side each morning.</p></main>';
+  setAnchoringReady(true);
+  const placement = createAnchorPlacement();
+  const thread = {
+    id: "t",
+    key: "t",
+    anchor: { section: "a", quote: "one file per tenant" },
+    msgs: [],
+    resolved: false,
+    root: {},
+  };
+  const read = () =>
+    placement.read({
+      threads: [thread],
+      draft: {
+        open: true,
+        anchor: { section: "b", quote: "side by side" },
+        about: null,
+        drawing: null,
+      },
+      actionAnchor: null,
+    });
+  read();
+  const [placed] = placement.placedAt("t").ranges;
+  const [drafted] = placement.pendingAt().ranges;
+  assert.equal(String(placed), "one file per tenant");
+  assert.equal(String(drafted), "side by side");
+  read();
+  assert.equal(placement.placedAt("t").ranges[0], placed);
+  assert.equal(placement.pendingAt().ranges[0], drafted);
+  // Words taken out of the passage itself leave nothing to place.
+  /** @type {Text} */ (document.getElementById("b")?.firstChild).data = "Both exports run.";
+  assert.equal(placement.pendingAt(), null);
+  document.body.replaceChildren();
+});

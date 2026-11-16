@@ -18,12 +18,7 @@ import {
   targetSegments,
   targetSurface,
 } from "../resolved-target.js";
-import {
-  closestAcross,
-  elementFromPointAcross,
-  pageWords,
-  rangeOf,
-} from "../passages.js";
+import { closestAcross, elementFromPointAcross, pageWords } from "../passages.js";
 import { presentDocument } from "../semantic-state.js";
 import { WORKS } from "../control-selectors.js";
 import { bareReaction } from "../thread/model.js";
@@ -504,12 +499,9 @@ export function createAnchorPaint({
   function paintPending(resolved) {
     const marked = Boolean(resolved && resolved.status !== "outdated") && !draftDraws;
     pendingOutline = marked && targetElement(resolved) ? targetParts(resolved) : [];
-    const ranges = marked
-      ? targetSegments(resolved).map(
-          /** @param {Parameters<typeof rangeOf>[0][number]} segment */ (segment) =>
-            rangeOf([segment]),
-        )
-      : [];
+    // The live ranges placement keeps of the draft's passage, as of a thread's.
+    const ranges =
+      marked && resolved?.kind === "passage" ? (resolved.ranges ?? []) : [];
     if (resolved) rememberVisual(resolved);
     holdWords(ranges);
     CSS.highlights.set(

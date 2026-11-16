@@ -585,8 +585,9 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     """With forks that do the work, a thread the line fork judges `take` goes to a
     fork the module spawns with Leaf's task, unnamed, so its agent id is the one
     address the main thread has for it, and Leaf hears which agent runs the turn it
-    opened for it. As that agent's run ends its turn closes, and the main thread
-    hears what came of the thread."""
+    opened for it, which the task names for the fork's `leaf` commands. As that
+    agent's run ends its turn closes, and the main thread hears what came of the
+    thread."""
     driven = ClaudeCode(
         spawn,
         "cc-work",
@@ -613,11 +614,13 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
     assert spawned["subagentType"] == "fork" and "name" not in spawned, spawned
     assert spawned["prompt"].startswith("<leaf-fork-work>"), spawned["prompt"]
-    wait_for(
+    turn = wait_for(
         lambda: state_model.agent_turn_of("cc-work", "agent-1"),
         bool,
         failure="Leaf never heard which agent runs the fork's turn",
     )
+    # The fork's task names the turn its `leaf` commands act in.
+    assert f"`leaf --turn {turn} thread reply …`" in spawned["prompt"]
 
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
@@ -691,7 +694,7 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
     """A fork the module spawned whose agent Leaf couldn't record, as when Leaf's
     process fails, ends the turn Leaf opened for it, so the main thread gets the
     thread back at once rather than once the turn lapses; the end names the agent,
-    which runs on, so its later `leaf` commands are refused as an ended fork's."""
+    which runs on, so the main thread hears the id that reaches it."""
     driven = ClaudeCode(
         spawn,
         "cc-unrecorded",
@@ -719,13 +722,14 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
     driven.spawned.get(timeout=STATED_TIMEOUT)
     wait_for(
         lambda: clerk_model.queued("cc-unrecorded"),
-        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
+        lambda lines: any(
+            f"Your fork agent-1 gave thread {asked['id']}" in line for line in lines
+        ),
         failure=lambda: (
             f"the main thread never heard: {clerk_model.queued('cc-unrecorded')}"
         ),
     )
     assert state_model.open_agent_turns("cc-unrecorded") == {}
-    assert state_model.agent_known("cc-unrecorded", "agent-1")
     [gave] = [
         note
         for note in read_interactions(page_dir, types=("fork_outcome",))
@@ -780,9 +784,9 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "pickup"
     )
-    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
+    monkeypatch.setenv(state_model.TURN_VARIABLE, first)
     assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
-    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    monkeypatch.delenv(state_model.TURN_VARIABLE)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
     wait_for(

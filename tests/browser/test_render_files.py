@@ -261,6 +261,18 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     name = widget.locator(".lf-file-editor-name")
     expect(editor).to_contain_text("replicas: 3")
+    # A YAML key wears the theme's colour for a key, as a code block's does.
+    key = editor.locator("span", has_text="replicas").first
+    expect(key).to_have_css(
+        "color",
+        page.evaluate("""() => {
+          const probe = document.body.appendChild(document.createElement("span"));
+          probe.style.color = "var(--syn-type)";
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""),
+    )
     expect(name).to_have_text("deploy/values.yaml")
     expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
         "aria-selected", "true"

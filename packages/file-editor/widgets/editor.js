@@ -103,6 +103,9 @@ const theme = EditorView.theme({
   ".cm-deletedLineGutter": { backgroundColor: "var(--danger)" },
 });
 
+// The theme's code tokens, as code blocks and diffs colour the same names (Leaf's
+// token theme, build/entries/syntax/entry.mjs): a key, a type or a tag in
+// `--syn-type`, a comment in italic `--syn-comment`.
 const highlighting = HighlightStyle.define([
   { tag: tags.heading, color: "var(--accent)", fontWeight: "650" },
   { tag: tags.strong, fontWeight: "650" },
@@ -111,15 +114,61 @@ const highlighting = HighlightStyle.define([
   { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
   { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
   { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
-  { tag: tags.comment, color: "var(--syn-comment)" },
+  { tag: tags.comment, color: "var(--syn-comment)", fontStyle: "italic" },
   { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
+  {
+    tag: [tags.propertyName, tags.typeName, tags.labelName],
+    color: "var(--syn-type)",
+  },
 ]);
+
+// Each language the editor highlights, by the name a file's path selects
+// (`langForPath`). Markdown comes with the editor core; every other language is a
+// module of the file-editor package, loaded the first time a file of it opens
+// (build/vendor.mjs, "file-editor"). A file in any other language reads as plain text.
+/** @type {Record<string, () => Promise<import("@codemirror/state").Extension>>} */
+const languages = {
+  markdown: async () => new LanguageSupport(markdownLanguage),
+  yaml: async () => {
+    const { yaml } = await import("/vendor/codemirror-yaml.esm.js");
+    const support = yaml();
+    // Code blocks colour YAML's plain values as strings. The YAML grammar calls them
+    // content, which Markdown's prose is too, so the colour is scoped to YAML.
+    return [
+      support,
+      syntaxHighlighting(
+        HighlightStyle.define([{ tag: tags.content, color: "var(--syn-string)" }], {
+          scope: support.language,
+        }),
+      ),
+    ];
+  },
+};
+/** @type {Map<string, Promise<import("@codemirror/state").Extension>>} */
+const loading = new Map();
+/** @type {Map<string, import("@codemirror/state").Extension>} */
+const loaded = new Map();
+// The language a file's name selects among those the editor highlights, or null.
+/** @param {string} filename */
+const languageFor = (filename) => {
+  const name = langForPath(filename);
+  return name && name in languages ? name : null;
+};
+/** @param {string} name */
+const loadLanguage = (name) => {
+  let pending = loading.get(name);
+  if (!pending) {
+    pending = /** @type {() => Promise<import("@codemirror/state").Extension>} */ (
+      languages[name]
+    )();
+    loading.set(name, pending);
+    void pending.then((extension) => loaded.set(name, extension));
+  }
+  return pending;
+};
 /** What the editor holds of one file while another is open (`suspend`).
  * @typedef {{state: import("@codemirror/state").EditorState,
  *   scroll: {top: number, left: number}}} KeptFile */
-
-/** @param {string} filename */
-const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** The changes that fold `theirs`, a version of `base` written elsewhere, into
  * `ours`, the reader's edit of `base`, where the two changed lines apart from each
@@ -194,7 +243,8 @@ export function createEditor(
     undoHistory = new Compartment();
   let shownHint = "";
   let readonly = readOnly,
-    markdown = isMarkdown(filename),
+    /** @type {string | null | undefined} */
+    shownLanguage = null,
     conflict = original,
     replacing = false;
   const readonlyExtension = () => [
@@ -212,7 +262,7 @@ export function createEditor(
         undoHistory.of(history()),
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        language.of(markdown ? new LanguageSupport(markdownLanguage) : []),
+        language.of([]),
         hint.of([]),
         syntaxHighlighting(highlighting),
         theme,
@@ -269,6 +319,20 @@ export function createEditor(
         }),
       ],
     });
+  // Highlight in `name`'s language: at once where it has loaded, else plain until it
+  // has, unless the editor has moved on to another file's language by then.
+  /** @param {string | null} name */
+  const showLanguage = (name) => {
+    if (name === shownLanguage) return;
+    shownLanguage = name;
+    const ready = name && loaded.get(name);
+    dispatch({ effects: language.reconfigure(ready || []) });
+    if (!name || ready) return;
+    void loadLanguage(name).then((extension) => {
+      if (shownLanguage === name)
+        dispatch({ effects: language.reconfigure(extension) });
+    });
+  };
   let retained = state(text);
   /** @type {InstanceType<typeof LeafEditorView> | null} */
   let view = new LeafEditorView({ state: retained, parent });
@@ -280,6 +344,7 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
+  showLanguage(languageFor(filename));
   const revealCaret = () =>
     dispatch({
       effects: EditorView.scrollIntoView(reading().selection.main.head, {
@@ -364,14 +429,7 @@ export function createEditor(
     },
     /** @param {string} label */
     setLabel(label) {
-      const next = isMarkdown(label);
-      if (next === markdown) return;
-      markdown = next;
-      dispatch({
-        effects: language.reconfigure(
-          markdown ? new LanguageSupport(markdownLanguage) : [],
-        ),
-      });
+      showLanguage(languageFor(label));
     },
     /** @param {string} value */
     setConflict(value) {
@@ -400,12 +458,10 @@ export function createEditor(
      * @param {string} text @param {string} name */
     resume(kept, text, name) {
       const next = kept?.state ?? state(text);
-      markdown = isMarkdown(name);
       scroll = kept?.scroll ?? { top: 0, left: 0 };
       const settings = next.update({
         effects: [
           editable.reconfigure(readonlyExtension()),
-          language.reconfigure(markdown ? new LanguageSupport(markdownLanguage) : []),
           hint.reconfigure(shownHint ? placeholder(shownHint) : []),
         ],
       }).state;
@@ -414,6 +470,9 @@ export function createEditor(
         view.setState(settings);
         setScroll(view.scrollDOM, scroll);
       }
+      // The state shown may hold another file's language, or none yet.
+      shownLanguage = undefined;
+      showLanguage(languageFor(name));
     },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.

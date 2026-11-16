@@ -429,17 +429,24 @@ const bundles = {
   }),
 
   // File editing extensions sharing the runtime's CodeMirror implementation. Merge
-  // and autocomplete live in this optional package; their state/view/language
+  // and autocomplete live in this optional package, and each language the editor
+  // highlights beyond the core's Markdown in a module of its own, loaded when a file
+  // of it opens (file-editor's editor.js). Their state/view/language and Lezer
   // imports bind to the core Leaf's composers use, so extensions never mix
-  // CodeMirror identities.
+  // CodeMirror identities: a second Lezer tree would read none of the core's node
+  // props, and a language parsed with it would highlight nothing.
   "file-editor": () => ({
     out: `${packageVendor("file-editor")}/extensions.esm.js`,
-    entryPoints: [input("entries/file-editor/entry.mjs")],
+    entryPoints: {
+      "extensions.esm": input("entries/file-editor/entry.mjs"),
+      "codemirror-yaml.esm": input("entries/file-editor/yaml.mjs"),
+    },
+    outdir: packageVendor("file-editor"),
     platform: "browser",
     target: "es2022",
     plugins: [
       bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/highlight)$/,
+        /^(?:@codemirror\/(?:state|view|language)|@lezer\/(?:highlight|common))$/,
         "/vendor/codemirror.esm.js",
       ),
     ],

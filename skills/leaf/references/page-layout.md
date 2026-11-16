@@ -392,22 +392,6 @@ counter, an invisible representative widest value can share the cell with the
 changing value; `font-variant-numeric: tabular-nums` equalizes digit widths but does
 not reserve space for additional digits.
 
-For concise, one-line text, Leaf's `data-room` shorthand holds representative widest
-strings, separated by newlines; its only child holds the current text. Its CSS reserves
-that space from first paint:
-
-```html
-<span role="status" data-room="Ready&#10;Saving changes…&#10;Saved"
-  ><span>Ready</span></span
->
-```
-
-Change the child's text, keeping the wrapper. The wrapper fits its container; text
-past that width is ellipsized, while its DOM text and accessible name stay whole.
-Use this for short feedback, with longer results and error details in readable content
-outside the controls' changing labels. Such content can grow; arrange it so the controls
-the reader needs next remain reachable.
-
 ## Activity from several contributors
 
 When several workers report to one orchestrator, write a page-owned adapter that declares their report verbs and

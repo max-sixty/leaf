@@ -530,11 +530,9 @@ custom property changes on `html`.
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
   own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
   face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
-  declares and `page check` therefore lets it write. Where a Leaf control looks like an
-  attribute idiom, `data-room`, it wears the idiom's `lf-` twin (`data-lf-room`), and
-  one theme rule selects both. The kernel's other classes for authors are the Layouts'
-  (`layout-column`, `density-working`), and a theme's idioms, such as the reading
-  theme's `.tag`, come with the theme a page takes. A library's names on an element
+  declares and `page check` therefore lets it write. The kernel's other classes for
+  authors are the Layouts' (`layout-column`, `density-working`), and a theme's idioms,
+  such as the reading theme's `.tag`, come with the theme a page takes. A library's names on an element
   Leaf draws for that library, such as Pierre's row attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.

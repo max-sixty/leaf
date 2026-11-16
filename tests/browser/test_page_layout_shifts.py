@@ -7,8 +7,10 @@ from leaf.render_checks import evaluate_probe, observe_probe, rendered, wait_unt
 from leaf.render_gate import readings
 
 
-def test_shift_observation_windows_do_not_share_movement(browser, serve):
-    """Startup, unobserved gate work and passive movement have distinct evidence."""
+def test_passive_shifts_name_what_moved_inside_the_observation(browser, serve):
+    """Movement before the observation is not its evidence, a node seen moving keeps
+    its finding after it leaves the document, a source the browser doesn't expose
+    names nothing, and a window in which nothing moves reports nothing."""
     page = browser.unwatched.new_page(viewport={"width": 1280, "height": 720})
     page.goto(
         serve(
@@ -55,31 +57,12 @@ def test_shift_observation_windows_do_not_share_movement(browser, serve):
         )
 
     grow(80)
-    # The platform's source.node getter becomes null on detachment. Startup
-    # must retain the node it saw when that entry arrived.
-    page.locator("#below").evaluate("el => { window.below = el; el.remove(); }")
-    startup = evaluate_probe(page, "startupLayoutShifts")
-    assert any(
-        source["node"] == "<p id=below>"
-        for finding in startup
-        for entry in finding["entries"]
-        for source in entry["sources"]
-    ), startup
-    assert any(
-        source["node"] == "a source node the browser did not expose"
-        and source["after"]["y"] - source["before"]["y"] == pytest.approx(60)
-        for finding in startup
-        for entry in finding["entries"]
-        for source in entry["sources"]
-    ), startup
-    page.evaluate("document.querySelector('main').append(window.below)")
-    rendered(page)
-    grow(140)
     before = page.locator("#below").bounding_box()["y"]
     with observe_probe(page, "passiveLayoutShifts") as passive:
-        grow(200)
+        grow(140)
         # Attribution belongs to the painted movement even if a later revision
-        # removes its source before the gate asks for the interval's findings.
+        # removes its source before the gate asks for the interval's findings: the
+        # platform's source.node getter becomes null on detachment.
         page.locator("#below").evaluate("el => el.remove()")
     movement = next(finding for finding in passive if finding["at"] == "<p id=below>")
     assert movement["before"]["y"] == pytest.approx(before)

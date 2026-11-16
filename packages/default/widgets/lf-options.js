@@ -99,8 +99,8 @@
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
- * Authored element children stay in place. The layer formats declared Markdown
- * before this module upgrades the options; generated children use that parser too. */
+ * Authored children stay in place, as their author wrote them. An option the user
+ * adds shows its words as inline Markdown (`OptionAddition`). */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
@@ -155,7 +155,7 @@ const consequence = (option) => {
     else if (!(node instanceof Element)) continue;
     else if (getComputedStyle(node).display === "inline") {
       // `wrote` trims the element's own edges, which may be the spaces between words,
-      // as where Markdown emphasis splits a sentence.
+      // as where emphasis splits a sentence.
       const text = node.textContent;
       words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
     } else {

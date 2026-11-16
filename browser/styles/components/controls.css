@@ -679,14 +679,31 @@ summary,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
  * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
- * too. */
+ * too.
+ *
+ * Everything in the label after its mark is one run of words, laid out as a
+ * paragraph is, however the page marks it up ("Use <code>--fast</code> here"), and
+ * the mark hangs beside its first line: floated into the label's start padding,
+ * centred on the line, and taking none of the words' room, so a wrapped line starts
+ * under the first. The words give the choice its baseline, so a choice stands on the
+ * line of the words beside it, a legend's, a sentence's or another choice's,
+ * whichever mark is checked. A page or package changes the room around the mark
+ * through `--lf-choice-pad` and `--lf-choice-gap` (tokens.css), since the start
+ * padding also holds the mark. In a taller target, as under a finger, the label centres its
+ * content. Rejected: a flex row of mark and words (21 October to 15 November 2026),
+ * which took the mark's baseline for the choice's, so its words stood about 4px
+ * above those beside them and a choice dropped 1px as it was checked; then a grid
+ * of the label's children, which made each run of words and each element in them
+ * a cell of its own, so a label holding markup wrapped each part apart, and which
+ * fought a package's own grid of a choice's parts. */
 .lf-choice {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
-  display: inline-flex;
-  align-items: center;
+  --lf-choice-hang: calc(var(--wa-form-control-toggle-size) + var(--lf-choice-gap));
+  display: inline-block;
+  align-content: center;
   justify-self: start;
-  gap: var(--lf-sp-1);
   padding: var(--lf-choice-pad);
+  padding-inline-start: calc(var(--lf-choice-pad) + var(--lf-choice-hang));
   min-block-size: var(--lf-aim-floor);
   min-inline-size: var(--lf-aim-floor);
   box-sizing: border-box;
@@ -698,7 +715,7 @@ summary,
  * generated onto the face's input into vendor/webawesome-native.css, so a choice
  * looks like the library's wa-radio and wa-checkbox and follows Leaf's mapping of its
  * tokens (webawesome.css). The mark is 1.25em of the label's own type, as the library
- * sizes it beside its value text, and the label's gap spaces it. Its outline is the
+ * sizes it beside its value text, and `--lf-choice-gap` spaces it from its words. Its outline is the
  * library's default control border, since Leaf's field border, which the token takes
  * elsewhere, left an unchosen mark under 1.5:1 against a card. A disabled choice
  * fades as a whole, as the library's own label does. In forced colours the platform
@@ -716,9 +733,12 @@ summary,
   cursor: not-allowed;
 }
 .lf-choice > input {
-  flex: none;
-  margin: 0;
+  float: inline-start;
+  margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
+    calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
+  margin-inline: calc(-1 * var(--lf-choice-hang)) var(--lf-choice-gap);
   font-size: inherit;
+  line-height: inherit;
   &:disabled {
     opacity: 1;
   }
@@ -1395,10 +1415,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-border);
 }
 /* A draft's entry, words the user wrote here and hasn't sent (the `draft` kind,
-   contribution-model.js), wears its contour dashed, as a draft does, in the rail and
-   as a pin. */
+   contribution-model.js), wears the muted grey the On Me mark's dot wears for a draft
+   (`.lf-unread-dot[data-lf-drafts]`), in the rail and as a pin, so it reads apart from
+   a thread's entry in the thread's colour. The user chose the grey on 16 November 2026
+   over the dashed contour the entry first wore (#6091). */
 .lf-margin-face[data-lf-kinds="draft"] {
-  border-style: dashed;
+  --lf-entry-ink: var(--lf-muted);
 }
 /* An entry in force, such as a reaction the user left, stands on the chip, a pin's
    included, so it follows the pin. */

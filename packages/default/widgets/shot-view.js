@@ -449,7 +449,10 @@ export class ShotView {
                     </button>`,
                 )}
               </div>
-              <label ${offered("choice lf-shotchoice")} ?hidden=${!this.metadata.focus}>
+              <label
+                ${offered("lf-choice lf-shotchoice")}
+                ?hidden=${!this.metadata.focus}
+              >
                 <input
                   ${offered("")}
                   type="checkbox"
@@ -458,7 +461,7 @@ export class ShotView {
                 />
                 <span ${offered("")}>Full frame</span>
               </label>
-              <label ${offered("choice lf-shotchoice")}>
+              <label ${offered("lf-choice lf-shotchoice")}>
                 <input
                   ${offered("lf-shot-outline")}
                   type="checkbox"

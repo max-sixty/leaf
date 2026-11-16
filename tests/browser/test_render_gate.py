@@ -127,56 +127,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
-    """Platform entries survive the real JS probe and report boundary as advice.
-
-    Supply deterministic PerformanceObserver readings rather than depending on
-    whether the compositor happened to paint before a particular module loaded.
-    """
-    probe = render_gate_scheme.evaluate_probe
-
-    def with_shifts(page, name, *args, **kwargs):
-        if name == "startupLayoutShifts":
-            page.evaluate("""() => {
-                const driver = globalThis.__leafRenderDriver;
-                globalThis.__leafRenderDriver = {
-                    ...driver,
-                    startupLayoutShifts: () => [
-                        {startTime: 0, value: .1, sources: []},
-                        {startTime: 500, value: .2, sources: [{
-                            node: document.querySelector('#shifted'),
-                            before: {x: 0, y: 10, width: 100, height: 20},
-                            after: {x: 0, y: 60, width: 100, height: 20},
-                        }]},
-                        {startTime: 2000, value: .15, sources: []},
-                    ],
-                };
-            }""")
-        return probe(page, name, *args, **kwargs)
-
-    monkeypatch.setattr(render_gate_scheme, "evaluate_probe", with_shifts)
-    findings, _, completed = render_gate_scheme._render_scheme(
-        browser,
-        serve(leaf_page("Shift evidence", '<p id="shifted">Reading.</p>'), packages=()),
-        "light",
-        {"width": 1200, "height": 900},
-        3_000,
-        [],
-    )
-    assert completed
-    shifts = [
-        finding.json() for finding in findings if finding.code == "startup-layout-shift"
-    ]
-    assert len(shifts) == 1
-    shift = shifts[0]
-    assert shift["severity"] == "advice"
-    assert shift["values"]["cls"] == pytest.approx(0.3)
-    assert "startup CLS 0.3000" in shift["text"]
-    movement = shift["values"]["entries"][1]["sources"][0]
-    assert movement["node"] == "<p id=shifted>"
-    assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
-
-
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.

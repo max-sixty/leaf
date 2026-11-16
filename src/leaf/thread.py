@@ -361,13 +361,17 @@ def open_thread(
     return append_admitted(page, event)[0]
 
 
-def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -> dict:
+def ask_again(
+    page: PageTransaction, question: str, body: str, identity: dict, markup: str = ""
+) -> dict:
     """The agent's message asking `question`, a question an agent message asked in
     words (`message:<id>`, or the bare id), again in its thread in `page`, an open
     transaction, as `leaf thread reply <page> <message> --obligation <question>`
     posts it: the question stands open on this message under its own id, and like
-    any spoken reply it reopens the thread if it was resolved. Refused where the
-    thread owes the user a reply, or `question` names no question asked there."""
+    any spoken reply it reopens the thread if it was resolved. With `markup`, a
+    widget that asks, the message asks it with that widget instead, as `leaf thread
+    reply <page> <message> --markup` does. Refused where the thread owes the user a
+    reply, or `question` names no question asked there."""
     message = question.removeprefix("message:")
     addressed = _resolve_obligation(
         page, {"parent": message}, REFUSE, identity["session"], False, None
@@ -378,13 +382,13 @@ def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -
         addressed,
         identity,
         body,
-        "",
+        markup,
         attempt=None,
         failure=None,
         validate_source=False,
         todo=None,
         asks_back=False,
-        explicit_obligation=[f"message:{message}"],
+        explicit_obligation=False if markup else [f"message:{message}"],
         ephemeral=False,
         quote="",
         section="",

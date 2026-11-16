@@ -185,7 +185,7 @@ in the thread, and the group waits on them until they do, so the message takes n
 `--obligation`, which the command refuses beside it. The message's text asks the
 question and gives your reason, so the group needs no `lf-ask`. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds"):
+question holds").
 
 ```bash
 leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'

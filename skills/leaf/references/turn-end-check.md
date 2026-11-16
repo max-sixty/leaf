@@ -19,11 +19,12 @@ list is a complete answer.
 
 Leaf's guidance for asking and for threads, the agent's own, comes after this
 check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
-reads in a thread, and how the agent keeps a thread current.
+reads in a thread, when it asks with a choice, and how the agent keeps a thread
+current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
-message in a thread, and the agent takes the user's reply or withdraws the ask. For
+message in a thread, and the agent takes the user's answer or withdraws the ask. For
 each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
@@ -43,6 +44,12 @@ each, give:
   question's id from the page state below. Leaf asks it again in its thread, under
   its id, and reopens the thread if it was closed, so the user meets it with what
   came before. Otherwise empty, and Leaf opens a new thread for it.
+- `options`: where that guidance asks with a choice, the answers the agent offered,
+  in its order, each with a `title` saying what choosing it does, a `detail` line on
+  what it leads to or costs, or empty, and `recommended` true on the one the agent
+  advised. Leaf puts them in the message as the choice, so `text` asks the question
+  and gives the reasons they share. Otherwise an empty list, and the message asks in
+  words, as for a step the user takes.
 - `quote`: the agent's words that leave it to the user.
 
 ## Findings for the agent

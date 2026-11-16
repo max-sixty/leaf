@@ -16,7 +16,7 @@ vars:
     a new Leaf page at ~/.local/state/leaf/pages/retry-flag-name, and nothing else
     will use it once they've picked.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run through handing the page over, then the
     page's HTML.
 assert:

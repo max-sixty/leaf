@@ -22,7 +22,7 @@ vars:
     to follow those steps on their own phone and tell you it worked; you cannot do it
     yourself, and there is nothing for them to choose between.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page to hand it back.
 assert:
   - type: llm-rubric

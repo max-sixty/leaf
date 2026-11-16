@@ -83,7 +83,7 @@ vars:
     }
     ```
 
-    Read whatever instructions you need. Only Skill and Read run here, so write the
+    Only Skill and Read run here, so write the
     reply you would give the user in the terminal now.
 assert:
   - type: llm-rubric

@@ -19,8 +19,7 @@ vars:
     final answer later arrives in the same thread, this interim message should
     automatically fold away as a progress message, without summary prose.
 
-    Nothing here can execute writes. Read the relevant Leaf instructions, then
-    reply with the exact one-line CLI command you would run now.
+    Nothing here can execute writes, so reply with the exact one-line CLI command you would run now.
 assert:
   - type: llm-rubric
     metric: declares-progress-without-answering

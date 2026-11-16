@@ -21,7 +21,7 @@ vars:
     and will end your turn while it runs. Its result will wake a later turn, in which
     you will stamp version 4 with the quieter banner.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page in this turn, and then each one
     you would run in the later turn after stamping version 4.
 assert:

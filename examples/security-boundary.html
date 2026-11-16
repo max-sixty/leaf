@@ -18,8 +18,10 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow">implemented security case study · 7 September 2026</p>
-      <h1>Make the agent workspace disposable</h1>
+      <hgroup>
+        <p>implemented security case study · 7 September 2026</p>
+        <h1>Make the agent workspace disposable</h1>
+      </hgroup>
       <p class="lede" id="security-decision">
         Tend keeps GitHub Actions’ workspace runner-owned and gives the agent a
         disposable checkout under <code>/tmp</code>. Setup and the complete Claude or
@@ -78,7 +80,7 @@ flowchart TD
 
       <section id="security-contract-summary" class="layout-flow">
         <h2>Four contracts define the boundary</h2>
-        <ol class="steps" id="security-contract-list">
+        <ol id="security-contract-list">
           <li>
             <strong>Content enters once.</strong> A clean agent checkout receives the
             target commit and non-secret startup state, with no link back to runner Git
@@ -536,7 +538,7 @@ stateDiagram-v2
 
         <section id="security-implementation">
           <h2 id="security-implementation-heading">Implementation steps</h2>
-          <ol class="steps" id="security-implementation-steps">
+          <ol id="security-implementation-steps">
             <li>
               <strong>Prove one shared outer adapter.</strong> On
               <code>ubuntu-24.04</code>, invoke SRT’s library API from a runner-owned

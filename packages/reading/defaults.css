@@ -77,7 +77,7 @@ html {
   }
 }
 /* The apparatus face (`reading.css`, beside `summary`) for the theme's idioms. */
-.eyebrow,
+hgroup > p:first-child,
 .tag,
 dl.facts dt {
   font-family: var(--lf-sans);
@@ -104,9 +104,16 @@ dl.facts dt {
   color: var(--lf-ink-2);
 }
 
-/* ---------- class idioms ---------- */
-
-.eyebrow {
+/* An eyebrow is the short label above a heading, which HTML writes as a `<p>` before
+   the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and keeps the
+   body's face. Rejected: an `.eyebrow` class, a name of Leaf's for what the group
+   already says (the user's decision, 2026-11-15). An eyebrow and its heading are one
+   title: the heading level's large top margin belongs before the group, while the
+   eyebrow's bottom margin owns the small gap inside it. Each rule ends at the group or
+   at a heading's place in it, not at a sibling combinator over every heading, which
+   Gecko answers by restyling every later sibling of an insertion
+   (notes/browser-support.md, "Styling content Firefox skips"). */
+hgroup > p:first-child {
   font-size: var(--lf-t-6);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -114,18 +121,18 @@ dl.facts dt {
   font-weight: 500;
   margin: 0 0 10px;
 }
-/* An eyebrow and the heading below it are one title: the heading level's large top
-   margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
-   inside it. */
-.eyebrow:has(+ h2) {
+hgroup:has(> p:first-child + h2) {
   margin-top: var(--lf-h2-start);
 }
-.eyebrow:has(+ h3) {
+hgroup:has(> p:first-child + h3) {
   margin-top: var(--lf-h3-start);
 }
-.eyebrow + :is(h1, h2, h3) {
+hgroup > :is(h1, h2, h3):not(:first-child) {
   margin-top: 10px;
 }
+
+/* ---------- class idioms ---------- */
+
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 h1 + .lede {
@@ -278,13 +285,6 @@ dl.metric dd small {
 th.num,
 td.num {
   text-align: right;
-}
-/* Steps keep native list numbers and add space between entries. */
-ol.steps {
-  margin-block-start: 0;
-}
-ol.steps > li {
-  margin: 10px 0;
 }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the

@@ -136,8 +136,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">How it works</p>
-        <h1>How Leaf works</h1>
+        <hgroup>
+          <p>How it works</p>
+          <h1>How Leaf works</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent builds a page around the work. The user comments, explores, and makes
           choices. The agent responds by revising the same page.
@@ -272,7 +274,7 @@ flowchart TD
               the page as a whole. To make this choice yourself, try the
               <a href="#practice-caption">queue policy practice</a> in Workflow.
             </p>
-            <ol class="steps" id="exchange-steps">
+            <ol id="exchange-steps">
               <li id="exchange-author">
                 <strong>The agent prepares the page.</strong> It writes the
                 alternatives, checks the page, and opens its link.
@@ -1070,7 +1072,7 @@ flowchart TD
               App Server client. Pi’s experimental extension runs inside Pi. Each route
               supplies the same delivery format and says who confirms receipt.
             </p>
-            <ol id="wait-ack" class="steps">
+            <ol id="wait-ack">
               <li>
                 <strong>Confirm receipt separately from transport.</strong> Leaf counts
                 an update as received only when the agent or harness confirms it. A

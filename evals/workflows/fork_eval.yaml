@@ -7,9 +7,10 @@
 #
 # Turn-end labels: `expect` items the answer must name, and `absent` items it must
 # leave out, each by `kind` and the `words` (any of them) it rests on; a guardrail
-# shares its words with its positive case. A stale label's `edit` is the words its
-# fix must remove, or null where the turn-end check's prompt asks for no edit
-# (skills/leaf/references/turn-end-check.md). A reply case judges the working line
+# shares its words with its positive case. A question label's `choice` says whether
+# the ask is a widget in its text, such as a choice (true), or in words (false). A
+# stale label's `edit` is the words its fix must remove, or null where the turn-end
+# check's prompt asks for no edit (skills/leaf/references/turn-end-check.md). A reply case judges the working line
 # the fork posted as it handed the message to the session, and its label `work`
 # says who should do the work: `take` where a fork of the session could do it
 # beside the session without touching or awaiting what the session is doing.
@@ -35,7 +36,10 @@ rubrics:
       subject and its text asks what the conversation leaves to the user, correctly,
       in a way the user can answer from the card alone, with each point in a short
       paragraph or item of its own and the question on its own line rather than one
-      unbroken block; for a step the user takes,
+      unbroken block. An ask whose text holds an `lf-options` group is a choice the
+      user presses: its words and options ask it together, each option titled by what
+      choosing it does, and an option marked recommended only where the agent
+      advised it. For a step the user takes,
       it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
       on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
@@ -311,6 +315,35 @@ cases:
       expect:
         - kind: question
           words: *cache-question
+          choice: true
+    assert:
+      - *items
+  ask-choice:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    conversation:
+      - from: reindex
+      - user: Good. Is production ready for the rebuild?
+      - tool: Bash
+        input:
+          command: ./ops/reindex preflight --env prod
+          description: Check both production regions can take the rebuild
+        result: |-
+          eu-west: ready (disk 61% free)
+          us-east: ready (disk 58% free)
+      - assistant: >-
+          Production is ready: both regions pass the preflight with about 60% of disk
+          free. When should I run the rebuild? Tonight at 22:00, when traffic is a
+          fifth of daytime, it takes about 40 minutes a region and needs nobody
+          awake. Now, in daytime traffic, it puts p95 search latency up by about 30%
+          while it runs. Saturday morning the on-call team is around, but that's two
+          days away. I'd go tonight.
+    labels:
+      expect:
+        - kind: question
+          words: [tonight, saturday, production rebuild, rebuild production]
+          thread: null
+          choice: true
     assert:
       - *items
   ask-on-me:
@@ -392,6 +425,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: null
+          choice: false
     assert:
       - *items
   ask-follow-up:
@@ -471,6 +505,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: q1
+          choice: false
     assert:
       - *items
   ask-step-done:

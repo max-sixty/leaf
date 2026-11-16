@@ -26,7 +26,7 @@ from leaf.findings import Finding
 from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
 from leaf.obligations import (
-    question_ids,
+    questions_in_words,
     quoted_in,
     response_address,
 )
@@ -608,19 +608,13 @@ def _parent_error(event: dict, events: list) -> Finding | None:
 
 
 def _named_question_error(event: dict, events: list) -> Finding | None:
-    """A message's `obligation` names questions its own thread asks in words, each by
-    the id it keeps (`obligations.question_ids`). An event naming any other would put
-    nothing back on On Me."""
+    """A message's `obligation` names questions its own thread asks in words
+    (`obligations.questions_in_words`). An event naming any other would put nothing
+    back on On Me."""
     if not isinstance(event.get("obligation"), list):
         return None
     threads = thread_names(events)
-    thread = threads[event["parent"]]
-    asked = {
-        question
-        for logged in events
-        if logged.get("obligation") and threads[logged["id"]] == thread
-        for question in question_ids(logged)
-    }
+    asked = questions_in_words(events, threads, threads[event["parent"]])
     for question in event["obligation"]:
         if question not in asked:
             return Finding("unasked-obligation", values={"question": question})

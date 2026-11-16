@@ -19,17 +19,19 @@ list is a complete answer.
 
 Leaf's guidance for asking and for threads, the agent's own, comes after this
 check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
-reads in a thread, and how the agent keeps a thread current.
+reads in a thread, when it asks with a choice, and how the agent keeps a thread
+current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
-message in a thread, and the agent takes the user's reply or withdraws the ask. For
+message in a thread, and the agent takes the user's answer or withdraws the ask. For
 each, give:
 
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
   "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
-  one. For a step the user takes, such as running a command or trying a build, say
+  one, a choice included, which Leaf posts as the agent's `leaf thread` command
+  would. For a step the user takes, such as running a command or trying a build, say
   what to do. Ask for a reply only for what the user alone can report, such as what
   the build showed them, or where the agent's next step waits on it, such as a merge
   waiting on the user's approval, since the reply is what tells the agent to go on.

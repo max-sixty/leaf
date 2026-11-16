@@ -9,6 +9,10 @@
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */
+lf-diff,
+lf-call-diff {
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
+}
 lf-diff {
   contain: inline-size;
 }

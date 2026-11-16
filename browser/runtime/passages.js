@@ -133,6 +133,7 @@ import {
 import {
   alongClimb,
   composedParentNode,
+  drawn,
   eachRenderedElement,
   isElement,
   isShadowRoot,
@@ -3466,6 +3467,21 @@ export function findQuote(text, quote, anchor, within) {
 // the shared reading: stored quote resolution and file comparisons do not read styles.
 // display: contents has no box of its own yet still speaks through its children, and
 // visibility may be restored by a descendant, so neither is an ancestor veto.
+//
+// A style read inside content the browser skips makes Chromium style everything the
+// skipping box holds to answer it. So a word in a `content-visibility: auto` box that
+// is skipping what it holds, off screen, is asked of that box where the box is
+// `visibility: visible`, after the `hidden` attributes over the word. A long text
+// document's rows stand in such runs (lf-text-document.js, `run`), and each run's
+// forced style also recounted the line numbers of every run styled before it: over the
+// 616 runs of an 80,000-line document, from 6 ms a run to 32, 11.6 s in all. CSS
+// inside an off-screen `auto` box goes unread until the box draws, in either
+// direction: a word it hides counts, and a word it shows under a `hidden` element
+// doesn't. Leaf's own `auto` boxes are those runs, whose rows hold only text. A word in a fold (a closed tab's `hidden="until-found"` panel, a
+// shut details) is still asked of its own element, though the fold is styled whole the
+// first time a search reads inside it, since widgets hide words there by CSS: asking
+// the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
+// 2,595), from widgets such as lf-visual-review, lf-playground and lf-chart.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();
@@ -3489,9 +3505,44 @@ function searchableWords() {
     reachable.set(el, result);
     return result;
   };
+  // Whether an `auto` box is skipping what it holds: none of its children is drawn.
+  /** @type {Map<Element, boolean>} */
+  const skipping = new Map();
+  /** @param {Element} box */
+  const skips = (box) => {
+    let value = skipping.get(box);
+    if (value === undefined)
+      skipping.set(
+        box,
+        (value =
+          style(box).contentVisibility === "auto" && ![...box.children].some(drawn)),
+      );
+    return value;
+  };
+  // The element a word under `parent` is asked of: the off-screen `auto` box that skips
+  // it (`skipper`), where that box is `visibility: visible` and no `hidden` element
+  // stands over the word, which leaves nothing to ask (null); else `parent` itself.
+  /** @type {Map<Element, Element | null>} */
+  const askedFor = new Map();
+  /** @param {Element} parent */
+  const asking = (parent) => {
+    let asked = askedFor.get(parent);
+    if (asked === undefined) {
+      const box = skipper(parent);
+      asked =
+        box && skips(box) && style(box).visibility === "visible"
+          ? closestAcross(parent, '[hidden]:not([hidden="until-found"])')
+            ? null
+            : box
+          : parent;
+      askedFor.set(parent, asked);
+    }
+    return asked;
+  };
   return (/** @type {Segment} */ { node }) => {
     const parent = renderedParent(node);
-    return parent && style(parent).visibility === "visible" && canReveal(parent);
+    const asked = parent && asking(parent);
+    return !!asked && style(asked).visibility === "visible" && canReveal(asked);
   };
 }
 

@@ -1518,9 +1518,15 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
     "matches": Input(
-        search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
     ),
     "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }

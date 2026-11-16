@@ -1968,20 +1968,21 @@ _TEXT = {
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task create` gave you"
     ),
-    "widget-obligation": lambda at, v: (
-        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "ended-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} is already {v['status']}"
+    "obligation-end": lambda at, v: (
+        f"{v['todo']!r} is the user's to answer, not a to-do; "
+        + (
+            "once they answer it elsewhere or it no longer applies, resolve its thread"
+            f" with `leaf thread resolve <page> {v['message']}`, after a reply saying"
+            " how if the thread should record it"
+            if v["message"]
+            else "record their answer in the widget's state, or withdraw the widget, in"
+            " a revision"
+        )
     ),
     "unasked-obligation": lambda at, v: (
         f"no message in this thread asks the question {v['question']!r}; --obligation"
         " takes an id from the delivery's `settled` or `leaf page state`, and without"
         " an id it asks a new question"
-    ),
-    "failed-question": lambda at, v: (
-        "a question asked in words ends `done` when the user answered it elsewhere,"
-        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (

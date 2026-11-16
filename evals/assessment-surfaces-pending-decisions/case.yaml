@@ -419,6 +419,8 @@ variants:
   # both `dropped` as its instructions said; head 3/3, all `done` with the
   # chat answer as the detail. The two base passes ignored that instruction.
   # Protocol 9 renamed these rows' kind to `"widget"`; that change is unscored.
+  # Protocol 45 made resolving the thread how the agent retires them; the rubric
+  # asked for `leaf task end … done` before.
   settled-review:
     metadata:
       purpose: "On Me: settled chat decisions stay settled while an authorized external wait remains agent work."
@@ -448,12 +450,12 @@ variants:
       - type: llm-rubric
         metric: settled-queue
         value: |
-          Pass only if the agent retires both existing questions with leaf
-          task end on their obligation IDs (widget:event-log-q and widget:registry-q)
-          with outcome done, since the user answered them in chat, and inspects
-          the canonical queues with leaf page state afterward. Ending either
-          dropped or failed fails: that records the question withdrawn though
-          the user answered it. A thread reply alone does not retire them.
+          Pass only if the agent retires both existing questions by resolving
+          their threads with leaf thread resolve, naming event-log-thread and
+          registry-thread or the widgets event-log-q and registry-q that stand in
+          them, since the user answered them in chat, and inspects the canonical
+          queues with leaf page state afterward. A thread reply alone does not
+          retire them.
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment

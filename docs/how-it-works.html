@@ -1274,8 +1274,8 @@ flowchart TD
                 the words from the conversation it rests on, which lead the agent to the
                 original message even after a compaction. At its next prompt or tool
                 call, the agent reads these and each record and change Leaf made, and
-                withdraws a question it disagrees with, with <code>leaf task end</code>,
-                as it would its own.
+                withdraws a question it disagrees with by resolving its thread, as it
+                would its own.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -2827,8 +2827,8 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. The agent can end it with
-                <code>leaf task end</code> as answered elsewhere or withdrawn.
+                such as trying a build, is asked the same way. Once the user answers
+                elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">
                 <strong

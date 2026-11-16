@@ -453,8 +453,8 @@ export function sayQuietFacts(elements) {
   for (const el of elements) quietWord(el, quietFacts(el));
 }
 
-// Say the provenance of every element under `root` that wears a mark, as a message's
-// markup arrives.
+// Say the provenance of every element under `root` that wears a mark, as markup arrives:
+// the page at upgrade, a revision's roots, a message.
 /** @param {Scope} root */
 export function renderQuiet(root) {
   // One query a mark: a single attribute's query is answered far faster than one for the

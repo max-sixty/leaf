@@ -2371,7 +2371,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
             assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
 
     # A theme or page sets the code inputs apart from the scheme (package-themes.md,
-    # "Theme colors"), as dark code on a light page does. The rows take their lightness
+    # "Theme tokens"), as dark code on a light page does. The rows take their lightness
     # from the code canvas rather than the scheme, so they stand a step from it and the
     # code on them reads as it does on the canvas.
     dark_code = {

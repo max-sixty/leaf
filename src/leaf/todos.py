@@ -28,10 +28,9 @@ answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
-A `todo_end` can also close an open question an agent message asks, with
-`--obligation` or by a widget frozen in it, by its obligation id: `done` when the user
-answered it elsewhere, `dropped` when it no longer applies, never `failed`. Neither
-records an answer from the user (`obligations.end_question`).
+A `todo_end` names only a to-do. A question the agent asked in a thread, which the
+user answered elsewhere or which no longer applies, ends when the agent resolves the
+thread (`obligations`).
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
 stamped version that answers it (`workflows.handed_over`). It names the turn
@@ -71,7 +70,6 @@ from pathlib import Path
 
 from .events import note_settlements, taken_back, unshown
 from .findings import Finding, Rejected
-from .obligations import asked_in_a_message
 from .thread_context import thread_ids, thread_names
 
 # What `task create` takes for the page as a whole; any other id names a widget or an
@@ -174,8 +172,7 @@ class TodoReading:
 
     @cached_property
     def ends(self) -> dict:
-        """The `todo_end` in force on each id it names, by that id: a to-do's, or an
-        obligation's the agent ended unanswered (`obligations.settle_by_words`)."""
+        """The `todo_end` in force on each to-do it names, by the to-do's id."""
         return {
             event["todo"]: {
                 "state": event["outcome"],
@@ -276,9 +273,7 @@ def todo_error(
     A to-do stands on an admitted thread, widget, page element or page. Replies can
     also open work on their own thread (`todo_reading`). A start names an open to-do or
     an owed update. Both completion carriers share `TodoReading.completion_error`. An
-    end may also end an open question an agent message asks
-    (`obligations.asked_in_a_message`) by its id, while a page widget's obligation
-    stays owned by its state.
+    end naming one of the user's obligations is refused with how that obligation ends.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -311,20 +306,12 @@ def todo_error(
     named = {"todo": identity}
     todo = next((todo for todo in log.todos if todo["id"] == identity), None)
     if todo is None:
-        item = next(
-            (item for item in items() if identity == item["id"]),
-            None,
-        )
+        item = next((item for item in items() if identity == item["id"]), None)
         if item is not None:
-            if not asked_in_a_message(item):
-                return Finding("widget-obligation", values=named)
-            if item["status"] != "open":
-                return Finding(
-                    "ended-obligation", values={**named, "status": item["status"]}
-                )
-            if event["outcome"] == "failed":
-                return Finding("failed-question", values=named)
-            return None
+            return Finding(
+                "obligation-end",
+                values={**named, "message": item["message"]},
+            )
         if ended := log.ends.get(identity):
             return Finding("ended-todo", values={**named, "state": ended["state"]})
         return Finding("unknown-todo", values=named)

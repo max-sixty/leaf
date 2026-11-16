@@ -482,16 +482,12 @@ def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
     assert item["answer"]["value"] == {"text": "Weekly"}
 
 
-def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
-    """An end retires the question it names as it then stood, so a later reopening
-    stands, and the agent can end the question again."""
-    ended = {
-        "kind": "todo_end",
-        "id": "first-end",
-        "author": "agent",
-        "todo": "message:asking",
-        "outcome": "dropped",
-    }
+def test_a_question_asked_again_after_a_resolve_stands_until_the_next():
+    """A resolve ends a question asked before it: the user's later message, which
+    reopens the thread, neither answers nor restores it, while asking it again in a
+    reply stands until the thread is resolved again."""
+    resolved = {"kind": "resolve", "id": "first", "author": "agent", "parent": "t"}
+    later = {"kind": "reply", "id": "later", "author": "user", "parent": "t"}
     again = {
         "kind": "reply",
         "id": "again",
@@ -500,16 +496,15 @@ def test_a_reopening_outlasts_an_end_before_it_and_can_be_ended_again():
         "text": "Weekly or daily, after all?",
         "obligation": ["message:asking"],
     }
-    state = model.reading(page(""), answered_in_words(ended, again))
-    [item] = served_obligations(state)["all"]
-    assert (item["status"], item["end"]) == ("open", None)
-    state = model.reading(
-        page(""),
-        answered_in_words(ended, again, {**ended, "id": "second-end"}),
-    )
-    [item] = served_obligations(state)["all"]
-    assert item["status"] == "withdrawn"
-    assert item["end"]["event"]["id"] == "second-end"
+    for events, actor in (
+        ((resolved,), None),
+        ((resolved, {**later, "text": "Fix the heading's typo too."}), None),
+        ((resolved, again), "user"),
+        ((resolved, again, {**resolved, "id": "second"}), None),
+    ):
+        state = model.reading(page(""), answered_in_words(*events))
+        [item] = served_obligations(state)["all"]
+        assert (item["status"], item["next_actor"]) == ("open", actor)
 
 
 def test_a_frame_around_a_decision_widget_stays_one_obligation():
@@ -965,7 +960,9 @@ def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
     assert item["answer"]["event"]["id"] == "e2"
 
 
-def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_source():
+def test_a_todo_end_names_only_a_todo():
+    """`todo_end` refuses a question's obligation id with how the question ends, and
+    an id that names neither a to-do nor an obligation as unknown."""
     from interact_support import ModelPage
 
     from leaf.event_contracts import EventRefused, admitted_event
@@ -995,13 +992,15 @@ def test_todo_validation_does_not_rewrite_obligation_identity_and_refuses_bare_s
         "id": "end",
         "author": "agent",
         "todo": "message:prompt",
-        "outcome": "dropped",
+        "outcome": "done",
     }
-    admitted = admitted_event(door, events, command)
-    assert command["todo"] == admitted["todo"] == "message:prompt"
-    with pytest.raises(EventRefused) as refused:
-        admitted_event(door, events, {**command, "todo": "prompt"})
-    assert refused_on(refused.value).code == "unknown-todo"
+    for todo, code in (
+        ("message:prompt", "obligation-end"),
+        ("prompt", "unknown-todo"),
+    ):
+        with pytest.raises(EventRefused) as refused:
+            admitted_event(door, events, {**command, "todo": todo})
+        assert refused_on(refused.value).code == code
 
 
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():

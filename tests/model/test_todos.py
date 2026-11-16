@@ -310,13 +310,13 @@ def test_a_plan_arranges_todos_obligations_and_plain_steps_without_owning_them(
     assert cut["item"] == {"kind": "todo", "id": todo["id"]}
     assert cut["since"] == cut["running"]["ts"]
 
-    # A question answered elsewhere reads done, and a rewrite that leaves the to-do
-    # out leaves it owed.
+    # A question whose thread the agent resolved, as it does once the user answers
+    # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
     question = written(
         leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
     )
     asked = f"message:{question['id']}"
-    written(leaf("task", "end", page_dir, asked, "done", "--text", "In chat"))
+    written(leaf("thread", "resolve", page_dir, question["id"]))
     written(
         plan(
             [
@@ -1172,103 +1172,53 @@ def test_the_browser_ends_no_todo_or_obligation_outright(page_dir):
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_dir):
-    """A decision widget's obligation follows its state. The agent ends a question `done`
-    when the user answered it elsewhere and `dropped` when it no longer applies;
-    neither invents the user's answer, and `failed` says nothing about an obligation."""
+def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_dir):
+    """A decision widget's obligation follows its state, and a question asked in a
+    thread leaves On Me when the agent resolves its thread, as it does once the user
+    answered elsewhere, without inventing their answer or listing it under Done, and
+    a later reply in the thread doesn't bring it back. `task end` names only to-dos,
+    and refuses either obligation with how it ends."""
     asking(page_dir)
     [item] = obligations_on_user(state_json(page_dir))
-    asked = []
-    for text, words in (("Which colour?", "Warm or cool?"), ("Which font?", "Serif?")):
-        comment = append_carried_log_record(
-            page_dir,
-            {"kind": "comment", "author": "user", "revision": 1, "text": text},
-        )
-        question = written(
-            leaf(
-                "thread",
-                "reply",
-                response_reference(page_dir, comment["id"]),
-                "--text",
-                words,
-                "--obligation",
-            )
-        )
-        asked.append(f"message:{question['id']}")
-    answered_elsewhere, dropped = asked
-    [refused] = command_findings(
-        "task", "end", page_dir, item["id"], "dropped", "--text", "Decided in chat"
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
     )
-    assert refused.code == "widget-obligation"
-    [refused] = command_findings(
-        "task", "end", page_dir, answered_elsewhere, "failed", "--text", "No reply"
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "Warm or cool?",
+            "--obligation",
+        )
     )
-    assert refused.code == "failed-question"
-    assert [item["id"] for item in state_json(page_dir)["queues"]["on_user"]] == [
-        item["id"],
-        *asked,
+    asked = f"message:{question['id']}"
+    for identity, message in ((item["id"], None), (asked, question["id"])):
+        [refused] = command_findings(
+            "task", "end", page_dir, identity, "done", "--text", "In chat"
+        )
+        assert (refused.code, refused.values["message"]) == ("obligation-end", message)
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [
+        ("widget", item["id"]),
+        ("message", asked),
     ]
 
-    written(
-        leaf(
-            "task",
-            "end",
-            page_dir,
-            answered_elsewhere,
-            "done",
-            "--text",
-            "Warm, in chat",
-        )
-    )
-    written(
-        leaf("task", "end", page_dir, dropped, "dropped", "--text", "Font is fixed")
-    )
+    written(leaf("thread", "resolve", page_dir, question["id"]))
+    # A later reply reopens the thread and brings back nothing the resolve ended.
+    written(leaf("thread", "reply", page_dir, question["id"], "--text", "Warm it is."))
     state = state_json(page_dir)
-    assert [item["id"] for item in state["queues"]["on_user"]] == [item["id"]]
-    assert [thread["attention"] for thread in state["threads"]] == [None, None]
-    refused = leaf("task", "end", page_dir, dropped, "done", "--text", "Asked again")
-    assert refused.exit_code != 0
-    assert f"obligation {dropped!r} is already withdrawn" in refused.output
-
-    served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served["browser"]["todos"] == []
-    ended = {
-        record["id"]: (
-            record["status"],
-            record["answer"],
-            record["end"]["detail"],
-            record["end"]["event"]["author"],
-        )
-        for record in served_obligations(served["browser"])["all"]
-    }
-    assert ended == {
-        answered_elsewhere: ("answered_elsewhere", None, "Warm, in chat", "agent"),
-        dropped: ("withdrawn", None, "Font is fixed", "agent"),
-    }
-    [view] = served["browser"]["views"].values()
-    done = {
-        item["id"]: (item["state"], item["detail"], item["ended"] is not None)
-        for item in view["queues"]["done"]
-        if item["kind"] == "message"
-    }
-    assert done == {
-        answered_elsewhere: ("done", "Warm, in chat", True),
-        dropped: ("dropped", "Font is fixed", True),
-    }
-
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "choice",
-            "action": "choose",
-            "detail": {"value": ["flag-first"]},
-        },
+    assert kinds(state["queues"]["on_user"]) == [("widget", item["id"])]
+    [record] = [record for record in state["obligations"] if record["id"] == asked]
+    assert (record["status"], record["answer"], record["next_actor"]) == (
+        "open",
+        None,
+        None,
     )
-    [answered] = command_findings("task", "end", page_dir, item["id"], "done")
-    assert answered.code == "widget-obligation"
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    [view] = served["browser"]["views"].values()
+    assert asked not in [row["id"] for row in view["queues"]["done"]]
 
 
 def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
@@ -1497,7 +1447,7 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     """A choice sent in a reply stays the user's after they answer it in words, since
     no revision can write a frozen widget's state. The delivery of their words names
-    the choice in `waiting`, and the agent's `done` end takes it off On Me."""
+    the choice in `waiting`, and the agent's resolve of the thread takes it off On Me."""
     asking(page_dir)
     asked = append_command(
         page_dir,
@@ -1538,11 +1488,18 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     on_user = [item["id"] for item in state_json(page_dir)["queues"]["on_user"]]
     assert "widget:store" in on_user
 
-    written(leaf("task", "end", page_dir, "widget:store", "done", "--text", "In words"))
+    written(leaf("thread", "resolve", page_dir, "store"))
     state = state_json(page_dir)
     assert "widget:store" not in [item["id"] for item in state["queues"]["on_user"]]
     [record] = [item for item in state["obligations"] if item["id"] == "widget:store"]
-    assert (record["status"], record["answer"]) == ("answered_elsewhere", None)
+    assert (record["status"], record["answer"]) == ("open", None)
+    # The user's next words there are delivered with no question waiting on them.
+    later = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Thanks."},
+    )
+    [delivered_later] = freeze_events(page_dir, [later])["batches"][0]["events"]
+    assert not delivered_later.get("waiting")
 
 
 def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):

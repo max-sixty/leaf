@@ -321,9 +321,9 @@ to-do keeps that obligation the agent's even after the thread is resolved
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
-a `resolve` by either side takes every question in the thread off the user's list
-until it reopens (`obligations`), which is how the agent ends one the user answered
-elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
+a `resolve` by either side ends every question asked before it, however the thread
+reopens later, until the resolve is taken back or a message asks one again
+(`obligations`), which is how the agent ends one the user answered elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
 message that first asked it set, opens each again whatever ended it: each keeps its id
 and words and stands on the reply until the user's next message or a settling reaction
 answers it (`obligations.question_ids`).

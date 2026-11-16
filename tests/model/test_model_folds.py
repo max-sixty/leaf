@@ -723,8 +723,8 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
 
 def test_questions_settle_one_by_one():
     """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it, and leaves their list while the thread is
-    resolved; the thread's head marks the latest."""
+    reaction after it answers it, or a resolve after it ends it; the thread's head
+    marks the latest."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
@@ -755,11 +755,15 @@ def test_questions_settle_one_by_one():
         "answered",
         "reaction",
     )
+    # A resolve ends the questions asked before it, and a reopening brings back
+    # none of them; taking the resolve back does.
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
+    assert served_obligations(state)["user"] == []
+    state = add("undo", "back", "user", undoes="close")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:third"
     ]

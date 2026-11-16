@@ -228,8 +228,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     retracting it (`InForce`) leaves the one before deciding, at the place where
     that happened. ``closures`` holds each time the thread stood closed, in log order:
     the seq it ``closed`` at and the seq it ``reopened`` at, or null while it stands,
-    so what a closure ended stayed ended until then (`provenance.saved_after`);
-    only the server reads it. ``resolved`` is the closing that stands at the end of
+    so what a closure ended stayed ended until then (`provenance.saved_after`).
+    ``closings`` holds each closing still in force, in log order, however the thread
+    reopened since, which ends every question asked before it (`obligations`). Only
+    the server reads either. ``resolved`` is the closing that stands at the end of
     the log, or null.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
@@ -340,6 +342,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "revisions": [],
                 "turns": [],
                 "closures": [],
+                "closings": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
@@ -392,6 +395,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["rewritten_from"] = None
     for thread in threads.values():
         thread["resolved"] = closures.standing(thread)
+        thread["closings"] = closures.closings(thread)
     return threads
 
 
@@ -419,6 +423,12 @@ class _ClosureHistory:
         """The closing that decides the thread now, or None while it is open."""
         held = self._held.get(thread["id"])
         return held[-1][3] if held and held[-1][2] else None
+
+    def closings(self, thread: dict) -> list[dict]:
+        """The thread's closings in force, in log order."""
+        return [
+            event for _, _, closes, event in self._held.get(thread["id"], []) if closes
+        ]
 
     def step(self, at: float | None, put: list, out: list) -> None:
         """Take out of force each event `out` names, put each `(thread, event,

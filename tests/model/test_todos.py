@@ -1175,8 +1175,9 @@ def test_the_browser_ends_no_todo_or_obligation_outright(page_dir):
 def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_dir):
     """A decision widget's obligation follows its state, and a question asked in a
     thread leaves On Me when the agent resolves its thread, as it does once the user
-    answered elsewhere, without inventing their answer or listing it under Done.
-    `task end` names only to-dos, and refuses either obligation with how it ends."""
+    answered elsewhere, without inventing their answer or listing it under Done, and
+    a later reply in the thread doesn't bring it back. `task end` names only to-dos,
+    and refuses either obligation with how it ends."""
     asking(page_dir)
     [item] = obligations_on_user(state_json(page_dir))
     comment = append_carried_log_record(
@@ -1208,6 +1209,8 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
     ]
 
     written(leaf("thread", "resolve", page_dir, question["id"]))
+    # A later reply reopens the thread and brings back nothing the resolve ended.
+    written(leaf("thread", "reply", page_dir, question["id"], "--text", "Warm it is."))
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_user"]) == [("widget", item["id"])]
     [record] = [record for record in state["obligations"] if record["id"] == asked]

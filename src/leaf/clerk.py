@@ -35,7 +35,7 @@ Four principles, the user's, bound what the fork may do, the first three set on
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
   wrote. Leaf opens no thread whose title a thread the agent opened on the page to
   ask something already has. It shows the fork the questions On Me no longer holds,
-  answered or closed unanswered, each with its id, so the fork doesn't
+  answered or closed, each with its id, so the fork doesn't
   word one anew and asks one again under its id. It writes no record once a turn
   has opened since the fork read the conversation (`basis`), since that turn's
   agent, or the user who opened it, has the newer reading. A finding still
@@ -413,7 +413,7 @@ def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
     it and the page's `events`: its On Me; the questions asked in words that On Me no
     longer holds, each with its id, its thread and how it ended (answered, or its
-    thread closed unanswered), which the fork words anew only to ask one again
+    thread closed), which the fork words anew only to ask one again
     under its id; and each item the agent has started with the line its start gives
     it (`todos.item_starts`)."""
     from .todos import item_starts
@@ -454,12 +454,15 @@ def page_facts(state: dict, events: list) -> dict:
             on_me.append(f"decision: {words(record)}")
 
     def ended(record: dict) -> str | None:
-        """How a question On Me no longer holds ended, or None while it stands."""
+        """How a question On Me no longer holds ended, or None while it stands: the
+        user's answer, or a resolve of its thread (`obligations`), by whoever the
+        thread stands resolved by where it still does."""
         if record["status"] != "open":
             return "answered"
-        if closer := (threads.get(record["thread"]) or {}).get("resolved"):
-            return f"closed by the {closer} unanswered"
-        return None
+        if record["next_actor"] is not None:
+            return None
+        closer = (threads.get(record["thread"]) or {}).get("resolved")
+        return f"closed by the {closer}" if closer else "closed"
 
     asked = [
         f"{record['id']}, in {thread_named(record['thread'])}, {how}: " + words(record)

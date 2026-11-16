@@ -43,10 +43,11 @@ asking is, an `obligation` naming the questions, rather than a second one beside
 A record's `status` is one of three, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; and `withdrawn`, an obligation the
 document no longer makes. A question asked in a thread message, in words or by a
-widget frozen in it, also stops waiting on the user when either side resolves its
-thread: it stays `open` with nobody's move until the thread reopens. That is how the
-agent ends one the user answered on another surface, or that no longer applies, so
-the thread reads as settled wherever it shows. The user asked for this on 15 November
+widget frozen in it, also ends when either side resolves its thread after the message
+now asking it: it stays `open` with nobody's move, though a later reply reopens the
+thread, until a message asks it again under its id (`question_ids`) or the resolve is
+taken back. That is how the agent ends one the user answered on another surface, or
+that no longer applies, so the thread reads as settled wherever it shows. The user asked for this on 15 November
 2026 over an agent end of its own (`todo_end` on the question's id, read as
 `answered_elsewhere` or `withdrawn` with the agent's note), which added a status, a
 line under the question and a Done row, and left half of the threads it ended open. A
@@ -1105,7 +1106,9 @@ def thread_obligation_readings(
         if record["next_actor"] is None:
             continue
         owed = answers.owed
-        if thread["resolved"]:
+        # A closing in force after the message now asking ends the question, however
+        # the thread reopened since, so a later reply brings back nothing it ended.
+        if any(closing.get("seq", inf) > asked for closing in thread["closings"]):
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.

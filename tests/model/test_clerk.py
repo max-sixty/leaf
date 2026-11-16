@@ -133,8 +133,8 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     )
     question = asked()
     assert (
-        f'- message:{wrote[1]["id"]}, in "A PR for this branch", closed by the agent '
-        "unanswered: A PR for this branch: which would you like?" in question["prompt"]
+        f'- message:{wrote[1]["id"]}, in "A PR for this branch", closed by the agent: '
+        "A PR for this branch: which would you like?" in question["prompt"]
     )
     reasked = clerk_model.take_answer(
         "s1", reply(page, "A PR for this branch"), question["basis"]
@@ -162,7 +162,7 @@ def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys)
 
     basis = asked()
     assert (
-        f'- {question}, in "Reloading the plugin", closed by the user unanswered: '
+        f'- {question}, in "Reloading the plugin", closed by the user: '
         "Reloading the plugin: which would you like?" in basis["prompt"]
     )
     again = clerk_model.take_answer(

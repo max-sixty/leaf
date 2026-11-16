@@ -254,8 +254,9 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. While
-  its thread is resolved, it stays `open` with no `next_actor`.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,

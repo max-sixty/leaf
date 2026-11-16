@@ -362,7 +362,8 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     stands: neither landing previews, since the place a command lands on is what the
     user asked it for, and a preview would cover it. Tab, the keyboard's pointing,
     reads what it reaches. Every element focus reaches previews here, so a preview
-    either landing showed would show."""
+    either landing showed would show. The stand-in is set on the window's capture, which
+    runs before the document's, where the runtime reads the element focus reached."""
     url = serve(PANEL_PAGE)
     panel_comment(
         serve.page_dir,
@@ -373,7 +374,7 @@ def test_a_walk_s_landing_previews_nothing_and_tab_reads_it(browser, serve):
     )
     page = open_page(browser, url)
     page.evaluate(
-        """() => document.addEventListener('focusin', (event) => {
+        """() => window.addEventListener('focusin', (event) => {
           const el = event.composedPath()[0];
           if (el instanceof Element && !el.lfPreview)
             el.lfPreview = () => ({name: 'Placed here'});

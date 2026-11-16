@@ -98,12 +98,25 @@ lf-playground:has(> .lf-playground-split) {
     --lf-track-scroll-behavior: inherit;
   }
 
+  /* Bounded to the window as a track, which then holds its height
+     (`--lf-holds-height`, layouts.css), the rail gives up the controls' height first:
+     they scroll in their pane and the bar of actions stays whole under them, as in a
+     full-height workspace (below). The `fr` row shrinks to the rail's bound, where a
+     row sized to its content ran the bar past it, cut off behind the rail's scroll. */
   .lf-playground-rail:has(> .lf-playground-controls-region) {
+    container-name: lf-playground-rail;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     align-content: start;
     align-self: start;
     gap: var(--lf-sp-4);
+  }
+  @container lf-playground-rail style(--lf-holds-height: 1) {
+    .lf-playground-controls {
+      overflow: auto;
+      --lf-holds-height: 1;
+    }
   }
 }
 

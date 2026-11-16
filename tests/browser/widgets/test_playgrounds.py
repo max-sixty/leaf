@@ -1610,6 +1610,55 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     expect(budget).to_have_value("12")
 
 
+def test_a_rail_taller_than_the_window_keeps_its_bar_whole_under_its_controls(
+    browser, serve
+):
+    """A rail holding more controls than the window shows keeps its bar of actions
+    whole at its foot and scrolls the controls in their pane, as a full-height
+    workspace does. Scrolling as a whole, it cut the bar off at the window's foot
+    behind a second scroll."""
+    controls = "".join(
+        f'<lf-playground-control id="setting-{n}" name="setting-{n}" '
+        f'label="Setting {n}" kind="choice" value="a">'
+        + "".join(
+            f'<lf-playground-choice id="setting-{n}-{value}" value="{value}" '
+            f'label="Choice {value}"></lf-playground-choice>'
+            for value in "abcd"
+        )
+        + "</lf-playground-control>"
+        for n in range(6)
+    )
+    source = leaf_page(
+        "Tall rail",
+        '<h1>Tall rail</h1><lf-playground id="tall-rail" data-width="available">'
+        + controls
+        + "<lf-playground-preview>"
+        + "<p>The stage runs past the window.</p>" * 60
+        + "</lf-playground-preview>"
+        "<lf-playground-output>Use these settings.</lf-playground-output></lf-playground>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 700)
+    rail = page.locator("#tall-rail .lf-playground-rail")
+    reading = rail.evaluate("""rail => {
+      const controls = rail.querySelector('.lf-playground-controls');
+      const bar = rail.querySelector('.lf-playground-instruction-region');
+      return {
+        bounded: getComputedStyle(rail).maxBlockSize !== 'none',
+        railScrolls: rail.scrollHeight > rail.clientHeight,
+        controlsScroll: controls.scrollHeight > controls.clientHeight,
+        barWhole: bar.getBoundingClientRect().bottom
+          <= rail.getBoundingClientRect().bottom + 0.5,
+      };
+    }""")
+    assert reading == {
+        "bounded": True,
+        "railScrolls": False,
+        "controlsScroll": True,
+        "barWhole": True,
+    }
+
+
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):

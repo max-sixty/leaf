@@ -549,6 +549,7 @@ html[data-lf-draw-mode] {
   .lf-command-reference-preference {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr);
+    grid-auto-flow: row;
     align-items: baseline;
     column-gap: 8px;
     row-gap: 2px;

@@ -679,11 +679,25 @@ summary,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
  * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
- * too. */
+ * too.
+ *
+ * Its words give the choice its baseline, so a choice stands on the line of the
+ * words beside it, a legend's, a sentence's or another choice's, whichever mark is
+ * checked. The mark is centred on the words and takes no part in baseline
+ * alignment: a mark has no words, so a browser gives it the baseline of its box's
+ * foot, and a checked mark that of its dot's, a border higher. A grid, not a flex
+ * row, so words and mark still centre in a taller target, as under a finger: a flex
+ * row's one line fills the target and holds baseline-aligned words at its top.
+ * Rejected: a flex row centring both (21 October to 15 November 2026), which took
+ * the mark's baseline for the choice's, so its words stood about 4px above those
+ * beside them and a choice dropped 1px as it was checked. */
 .lf-choice {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
-  display: inline-flex;
-  align-items: center;
+  display: inline-grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-content: center;
+  align-items: baseline;
   justify-self: start;
   gap: var(--lf-sp-1);
   padding: var(--lf-choice-pad);
@@ -716,7 +730,7 @@ summary,
   cursor: not-allowed;
 }
 .lf-choice > input {
-  flex: none;
+  align-self: center;
   margin: 0;
   font-size: inherit;
   &:disabled {

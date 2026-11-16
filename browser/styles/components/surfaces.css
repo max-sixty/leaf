@@ -629,9 +629,11 @@ summary {
    computed size, so the floor outranks every face a field is given — the layer's own
    13px find box and 14px response field among them — and 1em keeps a field no smaller
    than the type around it. The query gates the rule rather than leaving it to the token,
-   because at a zero floor the rule would still pull every field to its surroundings. */
+   because at a zero floor the rule would still pull every field to its surroundings.
+   A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
+   the size of its label's type (controls.css, `.lf-choice`). */
 @media (pointer: coarse) {
-  :is(input, textarea, leaf-text, select) {
+  :is(input:not([type="radio"], [type="checkbox"]), textarea, leaf-text, select) {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }

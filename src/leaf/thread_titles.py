@@ -97,9 +97,9 @@ INSTRUCTIONS = (
     "one."
 )
 # Last, after the thread's words. On Haiku without thinking, with neither this line nor
-# the schema, many answers came back as prose, answering a message that asked for work
-# or asking for more context; with the schema and the line first, a few still weren't
-# titles; with the line last, every one sampled was.
+# the schema, many answers come back as prose, answering a message that asks for work
+# or asking for more context; with the schema and the line first, a few still aren't
+# titles; with the line last, they are.
 ASK = "Write the title of this thread."
 OUTPUT_SCHEMA = {
     "type": "object",

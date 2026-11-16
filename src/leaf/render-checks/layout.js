@@ -738,7 +738,7 @@ export function misplacedBoxes() {
 // descendants too, because a widget's own rule beats an inherited value — a draft's
 // body is `pre-wrap` by the default package's sheet; and not on a text box, whose value
 // wraps inside a box the table never sized. The gate reads its own page, so the probe
-// changes nothing a user sees, and readings before and after it measured the same.
+// changes nothing a user sees, and readings with and without it measure the same.
 //
 // The column and not a row or a cell's glyphs: a reading of line boxes, of which glyphs
 // are on the page, or of row height each falls to a counterexample: an inline <code> is

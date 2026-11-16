@@ -23,7 +23,7 @@ version no reading has read: an older page, its first time served by this Leaf, 
 once. A reading runs in a process of its own at low priority, away from the server that
 answers the user's gestures, and a server waits for its reading before it looks again.
 Readings of different pages run side by side, with no lock across the state home to run
-one at a time: on real pages such a lock rarely held anything back, and a reading that
+one at a time: on a real page such a lock rarely holds anything back, and a reading that
 never ends would stop every page's. A server started again while its predecessor's
 reading still runs may read that version a second time. The first of the two to tell,
 inside the page's transaction, tells the version, and the other tells nothing and leaves
@@ -34,10 +34,10 @@ the page costs the deadline once. Until the alarm, its server reads no later ver
 the page. A handover right after the last save waits 10 to 15 s for the version to stand
 and the next look, then for the reading.
 
-**What it costs.** On copies of real pages on a shared machine, a reading cost a little
-less than `page check --render`, which also saves the screens, and more on larger pages;
-on a page that fails plain check it stops at the markup check, as the check does. Under
-load a reading took as long at this niceness as at 0. A look that finds nothing new,
+**What it costs.** A reading costs a little less than `page check --render`, which also
+saves the screens, and more on larger pages; on a page that fails plain check it stops
+at the markup check, as the check does. Under load a reading takes as long at this
+niceness as at 0. A look that finds nothing new,
 every `LOOK_S`, costs about 0.16 ms of CPU. A session saving 100 times in one turn pays
 one reading.
 
@@ -47,11 +47,11 @@ only once the agent has heard every finding in it: an agent's own `page check --
 reports them all, and the server keeps its reading once it has told the agent what was
 new in it. A reading whose version a save has replaced since the check froze the source
 tells nothing and leaves the page's reading as it was, so the next reading tells its
-findings. Under the `error` event's clause agents changed the page for advice; this
-clause kept every failure fixed and had Claude Code mostly leave the advice. A failure
-wakes the agent: on real pages failures were rare, and those found were real. Advice
-alone wakes nobody and goes with the agent's next delivery (`delivery.deliverable`),
-since real pages often held only advice, and a wake for it would mostly spend a turn
+findings. Under the `error` event's clause agents change the page for advice; this
+clause keeps failures fixed and has agents mostly leave the advice. A failure wakes the
+agent: failures are rare on real pages, and those found are real. Advice alone wakes
+nobody and goes with the agent's next delivery (`delivery.deliverable`), since real
+pages often hold only advice, and a wake for it would mostly spend a turn
 deciding to leave the page alone. A finding keeps its place by the element it names
 (`_place`), so an edit that moves a measurement doesn't tell it again and a fault fixed
 and reintroduced is told again. A failure told once isn't told again while it stands, so

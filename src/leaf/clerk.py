@@ -7,7 +7,7 @@ It is experimental, and runs only in Claude Code.
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
 sessions the bookkeeping slips: sessions holding live pages leave the decisions waiting
 on the user only in their chat replies, so On Me reads empty, and rewording the skill
-left that unchanged in replays of such a session. A fork of the whole conversation reads
+doesn't reliably change that. A fork of the whole conversation reads
 what the agent said, so Leaf asks one. The user chose this shape over a digest of the
 final reply, an advisor that prompts the agent, and a clerk agent that also rewrites the
 page. They split its results by who can act on them: Leaf writes a result only where the
@@ -57,7 +57,7 @@ the guidance for how a question reads in a thread, as the agent does (`guidance`
 the user chose that the fork apply Leaf's standard policy rather than a wording of its
 own, so a question such as whether a suggested follow-up goes On Me is settled once, by
 that rule. They chose the same for how a question reads, since a wording of the
-reference's own gave recorded questions as one unbroken paragraph each, so the agent's
+reference's own can give each question as one unbroken paragraph, so the agent's
 guidance shapes both. Findings for the agent: a page that still says what the work or
 the conversation has since changed, an On Me item already settled elsewhere, work
 promised or set running that no page shows, for which the fork sees the items the page
@@ -70,9 +70,9 @@ What the page state alone settles, such as input not yet delivered, is code's to
 rather than a model's.
 
 The user left status lines out until a session shows a started item's line going stale
-while its work runs in the background. The fork is good at them: in replays it restated
-started lines the conversation showed were over and left current lines alone. But the
-recorded turn ends held no stale line, and Leaf can't yet write one truthfully: a start
+while its work runs in the background. The fork can restate a started line the
+conversation shows is over and leave current lines alone, but Leaf can't yet write one
+truthfully: a start
 written after the turn closed keeps the page reading working for the working grace after
 the background work stops, since `activity._start_age` dates a start's hold by when it
 was written rather than by the turn it names. Restating lines needs that changed first.
@@ -84,9 +84,9 @@ it, and the fork takes no longer. `overtaken` applies the agent's own guidance f
 threads (`GUIDANCE`) to two: a correction posted as a new reply to the agent's
 unanswered one rather than edited into it, and a thread question or state later
 work overtook. Leaf asks for no finding of a section reporting a finding without the
-material it rests on: tried, that question missed the case it was for, and on other
-turns asked for the run or script behind a count far more often than the user asks
-for material.
+material it rests on: that question misses the case it is for, and on other turns
+asks for the run or script behind a count far more often than the user asks for
+material.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
@@ -180,8 +180,8 @@ The fork thinks at the session's own effort, and the check's reference asks it t
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. Asking for `low` effort instead can cost
 a rewrite of the conversation to the cache (`runFork` in `hooks/claude-code.ts` says
-when), and a fork at xhigh asked to answer straight away passed the turn-end cases
-as the low fork did. The fork runs off the turn's path, but the sooner it answers, the
+when), and a fork at xhigh asked to answer straight away does as well as a low fork
+on the turn-end cases. The fork runs off the turn's path, but the sooner it answers, the
 less often a turn opened meanwhile drops its asks (`basis`).
 
 `leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to

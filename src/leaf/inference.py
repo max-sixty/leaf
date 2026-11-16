@@ -109,8 +109,8 @@ def answered(text: str, schema: dict, host: str) -> object:
 
 
 # The model Claude Code is asked on, whatever model the session runs. The request names
-# no effort, and Haiku thought over none of the titles it was measured on; thinking made
-# its titles slower without better results.
+# no effort: Haiku writes a title without thinking it over, and thinking makes its
+# titles slower without better results.
 CLAUDE_CODE_MODEL = "haiku"
 # The most one reply can hold, claude-haiku-5-5's limit and `$.model.complete`'s
 # (Claude Code 2.1.322), so the time limit ends a long answer, such as a widget's
@@ -124,10 +124,9 @@ def claude_code_generator(session_id: str) -> Callable[..., dict]:
     makes (`completions`), with no tools, history or system prompt beyond Claude
     Code's identity block and the one given.
 
-    Told the schema in the system prompt (`answering`), Haiku answered every thread
-    title it was measured on with JSON matching it; asked for the title as plain text,
-    it sometimes prefaced it with its reasoning about the request (Claude Code
-    2.1.322)."""
+    Told the schema in the system prompt (`answering`), Haiku answers a thread title
+    with JSON matching it; asked for the title as plain text, it can preface it with
+    its reasoning about the request (Claude Code 2.1.322)."""
 
     def generate(
         request: str,

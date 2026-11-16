@@ -128,7 +128,8 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
    small card under its line, its left edge under the line's first character
    (`--lf-code-indent`, which the module copies from the line), with a caret pointing up
    at that character, so a note about a nested key stands in the key's place in the
-   code's structure. The gutter runs on beside it, so the block reads as one piece. Its
+   code's structure. It wears the gutter's ground and the frame's line, the code block's
+   own chrome, rather than a colour of its own. The gutter runs on beside it, so the block reads as one piece. Its
    words are a size smaller than the code's, so the code leads. The maintainer chose
    this from a side-by-side comparison over a full-width row between rules across the
    frame, which copied a code review's inline comment and cut a block into as many
@@ -174,9 +175,9 @@ lf-code > pre > lf-note::before {
   position: absolute;
   z-index: -1;
   inset: 5px var(--lf-code-inset-inline) 9px var(--lf-code-note-at);
-  border: 1px solid var(--lf-code-note-border);
+  border: 1px solid var(--lf-code-border);
   border-radius: var(--lf-r);
-  background: var(--lf-code-note-bg);
+  background: var(--lf-code-chrome);
 }
 lf-code > pre > lf-note::after {
   content: "";
@@ -185,9 +186,9 @@ lf-code > pre > lf-note::after {
   inset-inline-start: calc(var(--lf-code-note-at) + 0.5 * var(--lf-code-ch) - 4px);
   inline-size: 8px;
   block-size: 8px;
-  border-inline-start: 1px solid var(--lf-code-note-border);
-  border-block-start: 1px solid var(--lf-code-note-border);
-  background: var(--lf-code-note-bg);
+  border-inline-start: 1px solid var(--lf-code-border);
+  border-block-start: 1px solid var(--lf-code-border);
+  background: var(--lf-code-chrome);
   transform: rotate(45deg);
 }
 /* Inline code in a note keeps the code canvas's ground and ink, which stand apart from
@@ -198,18 +199,26 @@ lf-code > lf-note code {
   background: var(--lf-pre-bg);
   color: var(--lf-code-ink);
 }
-/* The toggle stands above the block's top right, in room the block keeps from
-   its first paint wherever Leaf runs, so the code doesn't move down when the toggle
-   arrives. Hidden, the notes leave the code whole and each annotated line keeps its
-   number in the accent, so the reader can see where they were. */
-html[data-lf-interactive] lf-code:has(lf-note) {
+/* A block with notes draws its notes mark and Copy on one toolbar (integration.css,
+   `.lf-mark-bar`) in the seat a lone Copy takes, inside the block's top-right corner,
+   taking no room, and shows it as Copy shows: while the pointer or focus is on the
+   block, or after a tap stands the user there. Hidden, the notes leave the code whole
+   and each annotated line keeps its number in the accent, so the reader can see where
+   they were. */
+lf-code:has(> .lf-code-bar) {
   position: relative;
-  padding-block-start: 30px;
 }
-lf-code > .lf-code-notes-toggle {
+lf-code > .lf-code-bar {
   position: absolute;
-  inset-block-start: 0;
-  inset-inline-end: 0;
+  z-index: 1;
+  inset-block-start: var(--lf-block-control-inset);
+  inset-inline-end: var(--lf-block-control-inset);
+  opacity: 0;
+  pointer-events: none;
+}
+lf-code:is(:hover, [data-lf-focus-within]) > .lf-code-bar {
+  opacity: 1;
+  pointer-events: auto;
 }
 lf-code[data-lf-notes="hidden"] lf-note {
   display: none;
@@ -261,8 +270,5 @@ lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
   }
   lf-code[data-lf-notes="hidden"] lf-note {
     display: block;
-  }
-  html[data-lf-interactive] lf-code:has(lf-note) {
-    padding-block-start: 0;
   }
 }

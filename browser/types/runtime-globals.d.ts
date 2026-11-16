@@ -150,6 +150,9 @@ interface Element {
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
   lfCopy?: () => string;
+  /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
+   * the block's Copy as the last mark (`code-copy.js`). */
+  lfBar?: HTMLElement;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;

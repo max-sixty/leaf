@@ -1846,10 +1846,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["gutter"] != appearance["block"], appearance
     # The gutter's ground runs the block's whole height, past the note beside it.
     assert appearance["gutterColor"] in appearance["blockImage"], appearance
-    # The note is a card on the canvas, tinted toward the accent's blue rather than
-    # grey, with its words in the interface face a size below the code's.
-    red, _, blue = appearance["card"]
-    assert appearance["card"] != appearance["block"] and blue > red, appearance
+    # The note is a card in the block's own chrome, the gutter's ground, with its words
+    # in the interface face a size below the code's.
+    assert appearance["card"] == appearance["gutter"], appearance
     assert appearance["cardBorder"] == "1px", appearance
     assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance

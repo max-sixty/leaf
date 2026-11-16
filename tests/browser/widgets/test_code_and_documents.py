@@ -1702,12 +1702,13 @@ def ceiling(limit):
 
 
 def test_a_reader_hides_a_blocks_notes_to_read_its_code_whole(browser, serve):
-    """A block with notes offers Hide notes above its top right, and `n` while the
+    """A block with notes offers a mark beside Copy in its toolbar, and `n` while the
     reader is on the block, so they can read the code without the cards between its
-    lines. A hidden note's line keeps its number in the accent, so the reader still
-    sees where the notes were. The choice is the tab's reading state, as wrapping is:
-    it holds across a reload, and paper shows the notes whatever the screen chose. A
-    block without notes offers no toggle."""
+    lines. The toolbar takes no room and shows only while the pointer is on the block.
+    A hidden note's line keeps its number in the accent, so the reader still sees where
+    the notes were. The choice is the tab's reading state, as wrapping is: it holds
+    across a reload, and paper shows the notes whatever the screen chose. A block
+    without notes keeps Copy alone."""
     url = serve(
         leaf_page(
             "notes",
@@ -1728,29 +1729,41 @@ print("no notes")
         ),
     )
     page = open_page(browser, url)
-    toggle = page.locator("#walk .lf-code-notes-toggle")
+    bar = page.locator("#walk > .lf-code-bar")
+    toggle = bar.locator(".lf-code-notes-toggle")
     note = page.locator("#freeze")
     number = page.locator('#walk [data-lf-line="2"]')
-    expect(toggle).to_have_text("Hide notes")
+    # Notes first, Copy last, on one toolbar; a block without notes keeps Copy alone.
+    expect(bar.locator(":scope > *")).to_have_count(2)
+    assert bar.locator(":scope > *").evaluate_all(
+        "marks => marks.map(m => m.getAttribute('aria-label'))"
+    ) == ["Hide notes", "Copy"]
+    expect(page.locator("#plain .lf-code-bar")).to_have_count(0)
+    expect(page.locator("#plain .lf-code-copy")).to_have_count(1)
     expect(note).to_be_visible()
-    expect(page.locator("#plain .lf-code-notes-toggle")).to_have_count(0)
+    page.mouse.move(0, 0)
+    expect(bar).to_have_css("opacity", "0")
     shown = number.evaluate("line => getComputedStyle(line, '::before').color")
 
+    page.locator("#walk pre").hover()
+    expect(bar).to_have_css("opacity", "1")
     toggle.click()
-    expect(toggle).to_have_text("Show 1 note")
+    expect(toggle).to_have_attribute("aria-label", "Show 1 note")
     expect(note).to_be_hidden()
     assert number.evaluate("line => getComputedStyle(line, '::before').color") != shown
 
     page.locator("#walk pre").focus()
     page.keyboard.press("n")
-    expect(toggle).to_have_text("Hide notes")
+    expect(toggle).to_have_attribute("aria-label", "Hide notes")
     expect(note).to_be_visible()
 
     page.keyboard.press("n")
     expect(note).to_be_hidden()
     page.reload()
     wait_until_ready(page)
-    expect(page.locator("#walk .lf-code-notes-toggle")).to_have_text("Show 1 note")
+    expect(page.locator("#walk .lf-code-notes-toggle")).to_have_attribute(
+        "aria-label", "Show 1 note"
+    )
     expect(page.locator("#freeze")).to_be_hidden()
     page.emulate_media(media="print")
     expect(page.locator("#freeze")).to_be_visible()

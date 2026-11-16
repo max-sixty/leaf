@@ -37,9 +37,9 @@ lf-diff-note::after {
   position: absolute;
   z-index: -1;
   inset: 5px 10px 9px var(--lf-diff-code-at);
-  border: 1px solid var(--lf-code-note-border);
+  border: 1px solid var(--lf-code-border);
   border-radius: var(--lf-r);
-  background: var(--lf-code-note-bg);
+  background: var(--lf-code-chrome);
 }
 lf-diff-note:not([data-lf-unmatched])::before {
   content: "";
@@ -48,9 +48,9 @@ lf-diff-note:not([data-lf-unmatched])::before {
   inset-inline-start: calc(var(--lf-diff-code-at) + 4px);
   inline-size: 8px;
   block-size: 8px;
-  border-inline-start: 1px solid var(--lf-code-note-border);
-  border-block-start: 1px solid var(--lf-code-note-border);
-  background: var(--lf-code-note-bg);
+  border-inline-start: 1px solid var(--lf-code-border);
+  border-block-start: 1px solid var(--lf-code-border);
+  background: var(--lf-code-chrome);
   transform: rotate(45deg);
 }
 lf-diff-note code {

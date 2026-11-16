@@ -129,9 +129,9 @@ type Leaf = {
 // (`completions.pending`).
 type Listing = { pages: Leaf[]; completions: Completion[] };
 
-// A thread whose waiting messages Leaf keeps back for a line fork, as the follower prints
-// it.
-type KeptBack = { page: string; thread: string; inputs: string[] };
+// A thread whose waiting messages a line turn holds for a line fork, as the follower
+// prints it.
+type KeptBack = { page: string; thread: string; inputs: string[]; turn: string };
 
 // A completion a page server asks of the session, as the follower prints it.
 type Completion = { id: string; request: ModelCompleteRequest };
@@ -492,8 +492,7 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 // The arguments of a call a fork's prompt names, each cut to a line's worth.
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
-// The kept-back threads a line fork has been made for, by page, thread and newest
-// message.
+// The line turns a line fork has been made for.
 const asked = new Set<string>();
 
 /** Fork the conversation for the agent's working line on a kept-back thread's waiting
@@ -506,9 +505,8 @@ const asked = new Set<string>();
  * its fork decides, so each is made once. Its outcomes go to the debug log and the
  * page's diagnostics, since the user meets the line only as the agent's. */
 function lineFork($: EngineInterface, session: string, kept: KeptBack) {
-  const key = `${kept.page} ${kept.thread} ${kept.inputs.at(-1)}`;
-  if (asked.has(key)) return;
-  asked.add(key);
+  if (asked.has(kept.turn)) return;
+  asked.add(kept.turn);
   void (async () => {
     try {
       const calls = [...running.values()];
@@ -528,7 +526,7 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
     } catch (error) {
       // Leaf's own step failed. Telling Leaf hands the thread to the session now and
       // notes why in the page, which a session without a debug log keeps nowhere
-      // else; where Leaf can't be told either, the bound runs out.
+      // else; where Leaf can't be told either, the line turn lapses.
       $.ui.log(`Leaf: the line fork for thread ${kept.thread} failed: ${error}`, {
         to: "debug",
       });

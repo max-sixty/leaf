@@ -57,7 +57,6 @@ UNCLAIMED = {
     "status": {"state": "waiting"},
     "listening": False,
     "cursor": 0,
-    "handed": [],
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
@@ -70,7 +69,6 @@ UNCLAIMED = {
     "turn_takes_input": False,
     "agent_turns": {},
     "input_wakes": False,
-    "fork_lane": None,
     "session_cwd": None,
 }
 

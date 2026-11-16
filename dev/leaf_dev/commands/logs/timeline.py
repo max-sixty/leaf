@@ -161,7 +161,7 @@ def page_entries(
                     else f"{row['event']} not kept back: "
                     + (
                         without_lane(row, followers)
-                        if row["lane"] is None
+                        if not row["lane"]
                         else "with the session"
                     ),
                     thread=threads.get(row["event"]),
@@ -716,7 +716,7 @@ def message_line(row: dict, kept: dict, followers: list[dict]) -> str:
         else f"held by turn {note['held_by'][:8]} · "
         if note["held_by"]
         else f"not kept back ({without_lane(note, followers)}) · "
-        if note["lane"] is None
+        if not note["lane"]
         else "not kept back (with the session) · "
     )
     if (fork := row["fork"]) is not None:

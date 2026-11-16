@@ -1,4 +1,5 @@
 /* A seated obligation whose press paints optimistically before dispatching settlement. */
+import { nothing } from "/vendor/lit.js";
 import {
   keeps,
   keepsHidden,
@@ -7,7 +8,6 @@ import {
   offerAction,
   threadSurface,
   LeafElement,
-  nothing,
 } from "/runtime/widget-api.js";
 
 export function defineSeatedObligation() {

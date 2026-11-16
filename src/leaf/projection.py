@@ -113,10 +113,10 @@ def enclosing_slot(rec: dict, registry: dict):
 
 def retirement_holders(parser: SourceDocument, registry: dict) -> list:
     """Every widget the page carries that a decision can settle, and what each
-    outcome would retire: {"id", "tag", "retires": {outcome → ids},
-    "withdrawn_as"}. An id belongs to a slot when the slot stands anywhere
-    around it, found by walking out of the id rather than down from the widget,
-    so a paragraph three elements deep in a slot is read like the slot's own.
+    outcome would retire: {"id", "tag", "retires": {outcome → ids}}. An id
+    belongs to a slot when the slot stands anywhere around it, found by walking
+    out of the id rather than down from the widget, so a paragraph three
+    elements deep in a slot is read like the slot's own.
 
     Every outcome the registry declares gets a set, carried in the markup or
     not: a suggestion that only inserts still retires its wrapper when accepted,
@@ -131,7 +131,6 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
                 "id": wid,
                 "tag": rec["tag"],
                 "retires": {outcome: set() for outcome in declared[rec["tag"]]},
-                "withdrawn_as": registry[rec["tag"]].get("x-withdrawn-as"),
             }
     for wid, rec in parser.holders.items():
         pair = enclosing_slot(rec, registry) if rec else None
@@ -910,8 +909,8 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
     The registry explicitly marks the deciding verb (`decides`), whose `outcome`
-    value `x-retired-when` and
-    `x-withdrawn-as` name, so nothing here knows a widget or verb by name."""
+    values a member's `x-retired-when` and the verb's own `withdraws` name, so
+    nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]
         for (widget, _unit, _verb), (e, spec) in actions.items()

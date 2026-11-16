@@ -15,7 +15,12 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
-from leaf.registry.contract import deciding_verb, matches_when, state_definition
+from leaf.registry.contract import (
+    deciding_verb,
+    matches_when,
+    state_definition,
+    withdrawing_outcome,
+)
 from leaf.thread_context import thread_structure
 
 
@@ -119,7 +124,7 @@ def answer_meaning(
     condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
-    whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
+    whose outcome is the one its verb `withdraws` leaves the page as if nothing had
     been proposed, so it answers the obligation and closes no thread: turning a fix down
     leaves the question it was written for open. A registered source may retain
     answer provenance after its request is withdrawn; only a source currently
@@ -128,7 +133,7 @@ def answer_meaning(
     entry = registry[record["tag"]]
     if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
         return False, None
-    withdrawn = entry.get("x-withdrawn-as")
+    withdrawn = withdrawing_outcome(entry)
     declined = (
         event["action"] == deciding_verb(entry)
         and withdrawn is not None

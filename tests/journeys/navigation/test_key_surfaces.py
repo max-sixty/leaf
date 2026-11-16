@@ -33,7 +33,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
             childList: true,
             subtree: true,
           });
-          const {notice} = await window.__lfWidgetApi();
+          const {notice} = await window.__lfCheckApi();
           notice('Agent replied — open Threads', {background: true});
         }"""
     )
@@ -52,7 +52,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
         )"""
     ), "a shared repaint replaced the retained live region"
 
-    page.evaluate("async () => (await window.__lfWidgetApi()).notice('Saved')")
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved')")
     expect(live).to_have_text("Saved")
     expect(notice).to_have_attribute(
         "placeholder", re.compile(r"^Saved · Comment…( c)?$")

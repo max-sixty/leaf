@@ -18,7 +18,16 @@
  * The canvas loses its chroma and hue first, so the mix keeps the token's hue rather
  * than turning toward a tinted canvas's. Mixing in oklab instead leaves the mix's hue
  * powerless at its low chroma in Chromium, so the tripled colour read hue 0, a pink. A
- * grey token mixes to a grey row. */
+ * grey token mixes to a grey row.
+ *
+ * The inks, for a changed row's line numbers and sign, a call's marker and a file's
+ * change counts, are the status ink's chroma and hue at a lightness three quarters of
+ * the way from the code canvas to --lf-code-ink, so they follow the canvas a theme
+ * sets. The page's --lf-ok-ink and --lf-danger-ink follow the page's scheme instead,
+ * and read 2.2–2.5:1 on dark code under the light scheme. These read 5.7–7.4:1 there
+ * and in either scheme, where the page's inks read 5.3–8.7:1 on code of their own
+ * scheme. Each colour in an ink's mix supplies the channels the other leaves `none`,
+ * so the mix is those three channels at any share. */
 :where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
   --lf-code-canvas: oklch(from var(--lf-pre-bg) l 0 none);
   --lf-code-add-fill: oklch(
@@ -36,5 +45,18 @@
   --lf-code-del-mark: oklch(
     from color-mix(in oklch, var(--lf-danger) 30%, var(--lf-code-canvas)) l
       min(c * 3, 0.065) h
+  );
+  --lf-code-ink-lightness: oklch(
+    from color-mix(in oklch, var(--lf-code-ink) 75%, var(--lf-code-canvas)) l none none
+  );
+  --lf-code-add-ink: color-mix(
+    in oklch,
+    var(--lf-code-ink-lightness),
+    oklch(from var(--lf-ok-ink) none c h)
+  );
+  --lf-code-del-ink: color-mix(
+    in oklch,
+    var(--lf-code-ink-lightness),
+    oklch(from var(--lf-danger-ink) none c h)
   );
 }

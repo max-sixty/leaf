@@ -283,11 +283,11 @@
 }
 .lf-diff-line > [data-line-type="change-addition"]::before {
   content: "+";
-  color: var(--lf-ok-ink);
+  color: var(--lf-code-add-ink);
 }
 .lf-diff-line > [data-line-type="change-deletion"]::before {
   content: "-";
-  color: var(--lf-danger-ink);
+  color: var(--lf-code-del-ink);
 }
 /* A line's numbers, old then new in a cell each, stand over the gutter's width on
    its line, set against the code in the code's muted ink, a press or not. Where they
@@ -397,10 +397,10 @@ span.lf-diff-line-number {
   overflow-wrap: anywhere;
 }
 .lf-diff-additions {
-  color: var(--lf-ok-ink);
+  color: var(--lf-code-add-ink);
 }
 .lf-diff-deletions {
-  color: var(--lf-danger-ink);
+  color: var(--lf-code-del-ink);
 }
 .lf-diff-metadata > .lf-diff-stat {
   white-space: normal;
@@ -466,10 +466,10 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   background: var(--lf-code-add-fill);
 }
 .lf-diff-line[data-line-type="change-deletion"] > button {
-  color: var(--lf-danger-ink);
+  color: var(--lf-code-del-ink);
 }
 .lf-diff-line[data-line-type="change-addition"] > button {
-  color: var(--lf-ok-ink);
+  color: var(--lf-code-add-ink);
 }
 :where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {
   background: var(--lf-code-del-mark);

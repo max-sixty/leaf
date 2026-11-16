@@ -194,11 +194,11 @@ lf-call-diff {
 }
 
 .lf-call-line[data-lf-status="added"] .lf-call-marker {
-  color: var(--lf-ok-ink);
+  color: var(--lf-code-add-ink);
 }
 
 .lf-call-line[data-lf-status="removed"] .lf-call-marker {
-  color: var(--lf-danger-ink);
+  color: var(--lf-code-del-ink);
 }
 
 .lf-call-location {

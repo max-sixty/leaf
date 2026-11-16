@@ -24,10 +24,10 @@ conversation that took a thread's work (`forks.py`). Each run of one is a turn o
 own (`AGENT_TURNS`), opened as the agent is given its work, before its harness
 starts or resumes it, named with the agent's harness id once the harness has started
 it, and closed as its harness says the run ended; it ends with its session's
-generation or instance too (`agent_turn_open`). A command the agent runs acts in that
-turn (`acting_turn`), so a pickup, start or reply it writes names the agent's turn: a
-pickup or start lapses with the agent's run rather than the main thread's, and a
-reply keeps saying which turn answered (`holding.py`).
+generation or instance too (`agent_turn_open`). A command the agent runs names that
+turn, as Leaf tells it to, and acts in it (`acting_turn`), so a pickup, start or reply
+it writes names the agent's turn: a pickup or start lapses with the agent's run rather
+than the main thread's, and a reply keeps saying which turn answered (`holding.py`).
 
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
@@ -794,17 +794,41 @@ AGENT_TURNS = Record(
     ),
     since=44,
 )
-# Where a `leaf` command names the agent of the session that runs it, by its harness's
-# agent id: `leaf --agent-id ID`, which Leaf's PreToolUse hook adds to the `leaf`
-# commands of an agent running a turn of the session's own (`hooks.agent_command`),
-# sets it in the command's process (`cli`), so the command acts in that turn
-# (`acting_turn`). A subagent's commands otherwise run in the session's own
-# environment, with nothing that names it (`harness.ClaudeCodeHarness`).
-AGENT_ID_VARIABLE = "LEAF_AGENT_ID"
+# The agent turn the running `leaf` command names with `leaf --turn ID`, which Leaf's
+# prompt to a fork tells it to begin each `leaf` command with (`forks.work_prompt`),
+# so the command acts in that turn (`acting_turn`). It is set for that command alone
+# (`acting_in`) and lives in its process rather than its environment, so a process the
+# command starts, such as a page server, names no turn. A subagent's commands
+# otherwise run in the session's own environment, with nothing that names it
+# (`harness.ClaudeCodeHarness`).
+_named_turn: str | None = None
+
+
+@contextlib.contextmanager
+def acting_in(turn: str):
+    """Act in the agent turn `turn` inside the block, as a command run with `leaf
+    --turn` does, then restore the turn named before, so a command run in the same
+    process, as a test's are, acts in whichever turn it names."""
+    global _named_turn
+    before, _named_turn = _named_turn, turn
+    try:
+        yield
+    finally:
+        _named_turn = before
+
+
 # How often at most an agent's tool boundary renews its turn (`renew_agent_turn`), well
 # inside the working grace a reader believes an unrenewed turn for
 # (`activity.running_agent_turns`).
 AGENT_RENEWAL = timedelta(minutes=1)
+
+
+def leaf_invocation() -> str:
+    """How a `leaf` command that this one prints for its reader to run next begins:
+    with the turn this one names (`acting_in`), so a fork that runs it as printed
+    acts in its own turn, as an acknowledgement must; plain `leaf` for a command
+    that names none."""
+    return f"leaf --turn {_named_turn}" if _named_turn else "leaf"
 
 
 def agent_turns(session_id: str) -> dict[str, dict]:
@@ -884,14 +908,6 @@ def agent_turn_of(session_id: str, agent: str) -> str | None:
     )
 
 
-def agent_known(session_id: str, agent: str) -> bool:
-    """Whether the session has run a turn for the agent its harness names `agent`,
-    open or closed: the agents whose `leaf` commands are marked as theirs
-    (`hooks.agent_command`), so an ended one's are refused (`acting_agent_turn`)
-    rather than run as the main thread's."""
-    return any(entry["agent"] == agent for entry in agent_turns(session_id).values())
-
-
 def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
@@ -900,9 +916,9 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
     """Open a turn for an agent the session is about to start or resume, and return
     its id; None for a session that has ended. A resumed agent, whose id Leaf
     already knows, runs the turn from its opening (`agent`); a new one's turn is
-    named once the harness has started it (`name_agent_turn`), and until then no
-    agent's `leaf` command can act in it or as the main thread
-    (`hooks.agent_command`). Each opening mints a new id, so a closed turn never
+    named once the harness has started it (`name_agent_turn`). The agent's `leaf`
+    commands name the turn rather than the agent, so they act in it from its start
+    (`acting_agent_turn`). Each opening mints a new id, so a closed turn never
     reopens. The turns of the session's earlier generations go as it opens one,
     since their agents ended with them and no reading of its pages asks for them
     (`agent_turn_stamps`)."""
@@ -949,17 +965,6 @@ def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
     )
 
 
-def unnamed_agent_turns(session_id: str) -> dict[str, dict]:
-    """The session's open agent turns that no agent runs yet, by id: each opened for
-    an agent its harness is starting or resuming, until the harness says which agent
-    that is (`name_agent_turn`)."""
-    return {
-        turn: entry
-        for turn, entry in open_agent_turns(session_id).items()
-        if entry["agent"] is None
-    }
-
-
 def renew_agent_turn(session_id: str, agent: str) -> str | None:
     """Renew the open turn of `agent`, as its tool boundary does, and return its id;
     None where the agent runs no open turn. A renewal within `AGENT_RENEWAL` of the
@@ -989,9 +994,8 @@ def close_agent_turns(
     started; the ids it closed. An end that names its turn closes only that one, so
     a late end of an agent's earlier turn leaves the turn a resume opened for it
     since. A turn no agent was named for yet, as when Leaf failed to record the
-    start of an agent that runs on, is named for `agent` as it closes, so the
-    agent's later `leaf` commands are refused as an ended agent's
-    (`acting_agent_turn`) rather than run as the main thread's."""
+    start of an agent that runs on, is named for `agent` as it closes, so the main
+    session hears which agent ran it, by the id that reaches it (`forks.ended`)."""
     closed: list[str] = []
     stamp = now_iso()
 
@@ -1026,32 +1030,33 @@ def _update_agent_turns(session_id: str, change) -> bool:
         return bool(changed)
 
 
-def acting_agent_turn(session: str) -> str | None:
-    """The turn a command of `session` acts in as one of its agents: the open turn
-    of the agent the command names (`AGENT_ID_VARIABLE`); None for a command of the
-    main thread, which names none. A command that names an agent running no open
-    turn of the session's, as one marked while its turn was open may run after it
-    closed, is refused (`refusals.Refused`): it acts neither in a closed turn nor
-    with the main thread's authority."""
-    agent = os.environ.get(AGENT_ID_VARIABLE)
-    if not agent:
+def acting_agent_turn(session: str | None) -> str | None:
+    """The agent turn of `session` a command acts in: the one it names
+    (`acting_in`); None for a command that names none, which acts as the main
+    thread. A command naming a turn that isn't one of the session's open agent
+    turns, as a fork's command run after its turn closed does, or one naming the
+    main thread's turn, an id the session never opened, or any turn where no
+    session runs the command, is refused (`refusals.Refused`): it acts neither in a
+    closed turn nor with the main thread's authority."""
+    turn = _named_turn
+    if not turn:
         return None
-    turn = agent_turn_of(session, agent)
-    if turn is None:
+    if session is None or turn not in open_agent_turns(session):
         from .refusals import Refused
 
         raise Refused(
-            f"agent {agent}'s turn has ended, so it no longer acts on this "
-            "session's pages; end your turn"
+            f"turn {turn} is not an open agent turn of this session, so this command "
+            "can't act in it; name the turn Leaf gave you last, or end your turn if "
+            "that one has ended"
         )
     return turn
 
 
 def acting_turn(claim: dict | None, session: str | None) -> str | None:
     """The turn a command of `session` acts in on a page held by `claim`: its agent's
-    (`acting_agent_turn`, which refuses an agent whose turn has ended), and otherwise
-    the claim's turn; None for a command of a session that doesn't hold the page. A
-    command no agent id marks acts as the main thread, whoever ran it, which
+    (`acting_agent_turn`, which refuses a turn that has ended), and otherwise the
+    claim's turn; None for a command of a session that doesn't hold the page. A
+    command that names no turn acts as the main thread, whoever ran it, which
     `holding.authorize` says the user chose."""
     if claim is None or session is None or claim["id"] != session:
         return None

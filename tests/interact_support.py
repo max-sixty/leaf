@@ -864,6 +864,8 @@ def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str
 # (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
 # the schema the browser and the Worker are typed from.
 ROUTE_ANSWERS = {
+    r"/api/news": ("NewsAnswer",),
+    r"/api/pages": ("PagesAnswer",),
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
@@ -3066,7 +3068,7 @@ def _interaction_prompt_evidence(page, value):
         if isinstance(item, str):
             item = item.replace(str(page), "<page>")
             item = re.sub(
-                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r'(<leaf-delivery id=")[0-9a-f]{16}(" operation="delivery read" />)',
                 r"\1<delivery>\2",
                 item,
             )

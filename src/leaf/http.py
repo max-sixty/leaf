@@ -51,7 +51,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .page_memory import memo, once
 from .passages import SourceReading
-from .presence import live_servers
+from .presence import live_servers, pages_reading
 from .refusals import Refused
 from .registry.storage import layer_metadata, layer_record
 from .revision_artifact import (
@@ -616,21 +616,27 @@ class PageEndpoint:
         return _query_int(raw, "view sequence", 0)
 
     def _news(self) -> Response:
-        """A finite reading of the files and presence a visible page is watching.
+        """A finite reading of what a visible page is watching: the page's own files
+        and presence (`reading`), and the machine's other live pages (`pages`).
 
-        The browser compares this cheap token with the reading it has in hand, then
-        asks for state only when they differ. Each request releases its HTTP slot,
-        so live child pages cannot hold the origin's connections away from modules,
-        gestures or revisions. Presence caches its process and lease observations;
-        page files are read anew, including external data and authored dependencies.
-        A look that finds a saved source activates it first, holding the page's
-        transaction through the source check, so its token names the revision the
-        state read it prompts will answer with (`LivePage._activated`), in the order
-        `page_state` explains.
+        The browser compares each cheap token with the one it has in hand, and asks
+        `/api/state` only when the page's own reading differs, and `/api/pages` only
+        when the pages reading does, so another page's change never makes this one
+        read its state again. Each request releases its HTTP slot, so live child
+        pages cannot hold the origin's connections away from modules, gestures or
+        revisions. Presence caches its process and lease observations; page files
+        are read anew, including external data and authored dependencies. A look
+        that finds a saved source activates it first, holding the page's transaction
+        through the source check, so its token names the revision the state read it
+        prompts will answer with (`LivePage._activated`), in the order `page_state`
+        explains.
         """
         self.housekeeping = True
-        return self._content(
-            200, "text/plain; charset=utf-8", self.source.news().encode()
+        return self._json_body(
+            {
+                "reading": self.source.news(),
+                "pages": pages_reading(self.source.other_pages()),
+            }
         )
 
     @property
@@ -1194,6 +1200,8 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
+        if path == "/api/pages":
+            return self._json_body(self.source.other_pages())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.

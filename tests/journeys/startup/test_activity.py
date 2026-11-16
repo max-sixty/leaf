@@ -24,6 +24,7 @@ from playwright.sync_api import expect
 from render_cases_layout import token_colour
 from render_harness import (
     LONG_PAGE,
+    all_pages_offered,
     expect_preview_words,
     open_page,
     panel_settled,
@@ -321,6 +322,7 @@ def test_the_leaf_and_all_pages_say_the_served_activity(browser, serve, other_le
     expect(page.locator(LEAF)).to_have_attribute("data-lf-tone", "working")
 
     page.locator("body").focus()
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     this_page = page.locator(f"{panel_view('leaves')} .lf-fp-page").first

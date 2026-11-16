@@ -4014,14 +4014,15 @@ flowchart TD
               >
                 <pre>
 flowchart TD
-  accTitle: A changed freshness token triggers a state read
-  accDescr: A finite news request checks freshness. A changed token triggers a state request; an unchanged token keeps the current reading without another state request.
-  News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|token changed| Read["Read current state&lt;br/&gt;GET /api/state"]
+  accTitle: Each changed freshness token triggers a read of what it names
+  accDescr: A finite news request names two readings. A changed page reading triggers a state request; a changed pages reading triggers a request for the list of other live pages alone. An unchanged reading asks for nothing.
+  News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|page reading changed| Read["Read current state&lt;br/&gt;GET /api/state"]
+  News --&gt;|pages reading changed| Pages["Read other live pages&lt;br/&gt;GET /api/pages"]
 </pre>
               </lf-diagram>
               <figcaption>
-                An unchanged token keeps the current reading. These are finite requests,
-                with no long-lived connection.
+                An unchanged reading asks for nothing. These are finite requests, with
+                no long-lived connection.
               </figcaption>
             </figure>
             <table class="runtime-table" id="runtime-read-policy">
@@ -4035,10 +4036,12 @@ flowchart TD
                 <tr id="browser-news">
                   <th scope="row">Visible tab</th>
                   <td>
-                    Freshness checks run roughly four times a second. The token covers
-                    page-file stamps, session and watcher presence, and neighboring
-                    pages in All pages. The request also records that someone is viewing
-                    the page. Hidden tabs pause checks and catch up when shown.
+                    Freshness checks run roughly four times a second. The page's reading
+                    covers its file stamps and its session and watcher presence. Beside
+                    it, a reading of the other live pages All pages lists moves on its
+                    own, so another page's change re-reads only that list. The request
+                    also records that someone is viewing the page. Hidden tabs pause
+                    checks and catch up when shown.
                   </td>
                 </tr>
                 <tr id="browser-reads">

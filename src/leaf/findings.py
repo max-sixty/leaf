@@ -220,8 +220,8 @@ def _fork_holds_thread(holder: dict, answers: bool) -> str:
         else f"{fork} holds this thread; this command acted as the main session"
         " beside it"
     ) + (
-        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
-        " that begins with `leaf`)"
+        " (a fork's `leaf` command acts as the fork only where it begins with"
+        " `leaf --turn` and the turn Leaf gave the fork)"
     )
 
 
@@ -650,6 +650,11 @@ _TEXT = {
     "probe-failed": lambda at, v: (
         f"the browser probe module failed: {v['error']}"
         + (" — " + _explained(v["console"]) if v.get("console") else "")
+    ),
+    "reading-overran": lambda at, v: (
+        f"the render check gave up on this version after {v['seconds'] // 60} minutes"
+        " without finishing a reading of it; a page script that never stops, such as"
+        " a loop that starts after load, keeps a reading running"
     ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "

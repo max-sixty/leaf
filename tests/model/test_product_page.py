@@ -402,11 +402,25 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk from the root Click group."""
+        """The subcommand path these tokens walk from the root Click group, past a
+        group's own options, as `leaf --turn <turn> thread reply` passes `--turn`."""
         command, path = cli_model.cli, []
+        tokens = iter(tokens)
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
+            option = next(
+                (
+                    p
+                    for p in command.params
+                    if isinstance(p, click.Option) and token in p.opts
+                ),
+                None,
+            )
+            if option is not None:
+                if not option.is_flag:
+                    next(tokens, None)
+                continue
             sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break

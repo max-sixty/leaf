@@ -508,8 +508,9 @@ match the complete-task executors: Codex allows native tools without approval;
 on macOS, Claude Code's sandbox prevents writes to shared temporary paths while
 allowing its owned directories, as described under **Isolation**.
 
-Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
-"Score an instruction change", owns when to use one. They declare
+Internal instruction cases exercise developing Leaf itself;
+`.claude/skills/developing-leaf/references/instruction-changes.md`, "Score an
+instruction change", owns when to use one. They declare
 `metadata.instructions`, a source path in
 that arm. The agent receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;

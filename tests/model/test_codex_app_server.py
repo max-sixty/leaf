@@ -247,11 +247,11 @@ def codex_app_server(app_server):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaa")
+    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaaaaaaaaaa")
     invalid_pointer = delivery_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY.format,
-        "id": "bbbbbbbb",
+        "id": "bbbbbbbbbbbbbbbb",
         "batches": [],
     }
 
@@ -288,12 +288,20 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
         "name": "leaf_delivery",
         "output": json.dumps(payload),
     }
-    assert codex_model.app_server_delivery_id(started_turn(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(started_item(said(invalid_pointer))) is None
     )
-    assert codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbb"
-    assert codex_model.app_server_delivery_id(started_item(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbbbbbbbbbb"
+    )
+    assert (
+        codex_model.app_server_delivery_id(started_item(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(
             started_turn(said(pointer + "\nPlease do this."))

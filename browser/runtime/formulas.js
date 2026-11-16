@@ -69,13 +69,15 @@ const temml = () =>
     },
   ));
 
-/** @type {WeakSet<Element>} */
-const typeset = new WeakSet();
-// A formula is current while the host it was typeset into is all it holds: a live
-// revision that rewrites its source replaces that, and the pass typesets it again.
+// The source each host was typeset from. A formula is current while its host is all
+// it holds and holds that source still: a live revision that rewrites the source
+// replaces the host or its words, and the pass typesets it again.
+/** @type {WeakMap<Node, string>} */
+const typeset = new WeakMap();
 /** @param {Element} code */
 const current = (code) =>
-  code.childNodes.length === 1 && typeset.has(/** @type {Element} */ (code.firstChild));
+  code.childNodes.length === 1 &&
+  typeset.get(/** @type {Node} */ (code.firstChild)) === code.textContent;
 
 /** @param {Document | DocumentFragment | Element} root */
 export async function typesetFormulas(root) {
@@ -112,8 +114,13 @@ export async function typesetFormulas(root) {
     const stage = host.attachShadow({ mode: "open" });
     stage.adoptedStyleSheets = [sheet];
     stage.append(...into.childNodes);
-    host.append(...code.childNodes);
-    code.append(host);
-    typeset.add(host);
+    // Words edited inside an earlier host leave it for the new one.
+    host.append(
+      ...[...code.childNodes].flatMap((node) =>
+        typeset.has(node) ? [...node.childNodes] : [node],
+      ),
+    );
+    code.replaceChildren(host);
+    typeset.set(host, host.textContent);
   }
 }

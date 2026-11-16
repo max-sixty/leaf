@@ -129,9 +129,10 @@ reads one off the `language-…` class a block of code names it by, on a `<code>
 `<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
 language Leaf doesn't colour, and undefined where no class names one, so only the
 latter takes a default; `langForPath(path)` derives one from a file name, and
-`ensureSyntaxLanguage(lang)` loads one ahead of time. `highlightBlocks(root)` colours
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
 each `pre > code` in `root` whose `language-…` class names a language and that wears
-the reading face, leaving a widget's data body to its module
+the reading face, and typesets each formula, a `<code class="language-math">`
+(`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than

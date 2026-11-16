@@ -51,8 +51,7 @@ import { isElement } from "./shadow-tree.js";
 import { markViews } from "./storage.js";
 import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
-import { highlightBlocks } from "./syntax.js";
-import { typesetFormulas } from "./formulas.js";
+import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
@@ -284,7 +283,7 @@ export function watchNativeContent() {
 export function paintDeclaredWords(root) {
   renderSaid(root);
   renderQuiet(root);
-  return Promise.all([highlightBlocks(root), typesetFormulas(root)]);
+  return dressCode(root);
 }
 
 // The declarations a stylesheet has to read and cannot. Three of them first: one about

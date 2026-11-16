@@ -82,22 +82,22 @@ function patches(...files) {
 /**
  * An esbuild plugin editing upstream modules as they load. Each adaptation names
  * the modules it edits by path, one adaptation to a module; one that edits nothing in
- * a build fails it. An adaptation of anything but JavaScript, such as a stylesheet
- * bundled as text, names its esbuild `loader`.
+ * a build fails it. An edited module loads as the build's `loader` option says for its
+ * extension, as a stylesheet bundled as text does.
  */
 export function adapt(adaptations) {
   const used = new Set();
   return {
     name: "leaf-adapt",
     setup(builder) {
-      adaptations.forEach(({ file, edit, loader }, index) =>
+      adaptations.forEach(({ file, edit }, index) =>
         builder.onLoad({ filter: file }, async ({ path: at }) => {
           used.add(index);
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
             // esbuild reads what a plugin returns as JavaScript unless told otherwise.
-            ...(loader && { loader }),
+            loader: builder.initialOptions.loader?.[path.extname(at)],
           };
         }),
       );
@@ -502,7 +502,6 @@ const bundles = {
     adapt: [
       {
         file: /temml\/dist\/Temml-Local\.css$/,
-        loader: "text",
         edit: (source, at) =>
           seam(
             source,

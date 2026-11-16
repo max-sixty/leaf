@@ -1440,9 +1440,26 @@ export function rangeOf(segments) {
   if (!first || !last)
     throw new RangeError("A passage range needs at least one segment");
   const range = document.createRange();
-  range.setStart(first.node, first.start);
-  range.setEnd(last.node, last.end);
+  const [startNode, startOffset] = segmentBounds(first);
+  const [, , endNode, endOffset] = segmentBounds(last);
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
   return range;
+}
+// Where a segment's range starts and ends: around its characters in their text node,
+// unless what draws them is another tree. A host whose shadow root no entry declares is
+// read by its light children (`walk`), and its tree may draw words it slots nowhere as
+// something else, as a typeset formula draws its LaTeX as MathML (formulas.js); words
+// drawn so have no box of their own, so their range stands at the host's edges, and
+// holds the drawing that shows them.
+/** @param {Segment} segment @returns {[Node, number, Node, number]} */
+export function segmentBounds({ node, start, end }) {
+  const host = node.parentElement;
+  const parent = host?.parentNode;
+  if (!host?.shadowRoot || !parent || node.assignedSlot || declaredRoot(host))
+    return [node, start, node, end];
+  const at = Array.prototype.indexOf.call(parent.childNodes, host);
+  return [parent, at, parent, at + 1];
 }
 // A passage's pieces in order: each segment, the block holding its words
 // (`segmentBlock`) and the lines it is drawn in, wherever it stands, in the page's tree
@@ -1454,20 +1471,8 @@ export const segmentPieces = (segments) =>
   segments.map((segment) => ({
     segment,
     block: segmentBlock(segment),
-    lines: drawnLines(segment),
+    lines: [...rangeOf([segment]).getClientRects()],
   }));
-// A host whose shadow root no entry declares is read by its light children (`walk`), and
-// its tree may draw words it slots nowhere as something else, as a typeset formula draws
-// its LaTeX as MathML (formulas.js): those words have no lines of their own and stand in
-// the host's drawing.
-/** @param {Segment} segment */
-function drawnLines(segment) {
-  const lines = [...rangeOf([segment]).getClientRects()];
-  const host = segment.node.parentElement;
-  if (lines.length || segment.node.assignedSlot || !host?.shadowRoot) return lines;
-  if (declaredRoot(host)) return lines;
-  return [...host.shadowRoot.children].flatMap((drawn) => [...drawn.getClientRects()]);
-}
 // Whether a character's box stands on a line after `line`, as lines follow one another
 // along the block axis of the writing mode they are set in: down the page, or across
 // it from the right or from the left.

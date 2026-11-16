@@ -9,6 +9,7 @@ import { dataBody } from "./widget-upgrade.js";
 import { generatedElement } from "./element-markers.js";
 import { isElement } from "./shadow-tree.js";
 import { offerContentElement } from "./element-markers.js";
+import { dressCode } from "./code-dressing.js";
 
 /** @typedef {import("markdown-it").Token} NativeToken
  * @typedef {import("markdown-it").MarkdownIt} MarkdownIt
@@ -184,7 +185,9 @@ export function paintMarkdown(element, source) {
   const markup = renderMarkdown(source, false);
   if (element.getAttribute("data-lf-source-words") !== source)
     element.setAttribute("data-lf-source-words", source);
-  if (element.innerHTML !== markup) element.innerHTML = markup;
+  if (element.innerHTML === markup) return;
+  element.innerHTML = markup;
+  dressCode(element);
 }
 
 const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });

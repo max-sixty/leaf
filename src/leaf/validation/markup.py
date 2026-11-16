@@ -53,7 +53,7 @@ COLOURED_LANGUAGES: dict[str, str] = next(
 )
 # The language a formula's LaTeX is written in, as GitHub's and remark-math's Markdown
 # name it: the browser typesets a `<code>` naming it rather than colouring it
-# (runtime/formulas.js).
+# (runtime/formulas.js), and leaves a widget naming it uncoloured.
 FORMULA_LANGUAGE = "math"
 
 
@@ -74,7 +74,8 @@ def language_advice(parser) -> list[Finding]:
             severity="advice",
         )
         for tag, line, name in parser.authoring.code_languages
-        if name not in COLOURED_LANGUAGES and name != FORMULA_LANGUAGE
+        if name not in COLOURED_LANGUAGES
+        and (name != FORMULA_LANGUAGE or tag != "code")
     ]
 
 

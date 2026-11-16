@@ -357,7 +357,7 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
     [root] = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "comment" and e["text"] == "And settled in here."
+        if e["kind"] == "comment" and e["text"].startswith("And settled in here.")
     ]
     page = open_page(browser, live_url(url))
     open_panel_thread(page, root)

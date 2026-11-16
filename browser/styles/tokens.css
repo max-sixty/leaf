@@ -158,7 +158,7 @@
   /* A step dimmer than --lf-muted, for words that stand in for what isn't there yet: an
      empty box's prompt and its keys, and the floating panel's status. Ink at 62% is
      as dim as WCAG AA's 4.5:1 lets text be on the page's paper in the light scheme,
-     where it reads 4.8:1; the 48% the panel's status first wore read 3.1:1. */
+     where it reads 4.8:1; 48% reads 3.1:1. */
   --lf-quiet: color-mix(in srgb, var(--lf-ink) 62%, transparent);
   --lf-rule: light-dark(
     oklab(
@@ -353,9 +353,8 @@
   --lf-callout-margin-block: 18px;
   --lf-hr-margin-block: 40px;
   /* The ladder, body at --lf-t-4. Prose in Charter at 17px averages about 7.4px a
-     character, and a full line of the 720px column (--lf-col) holds about 93 of them,
-     89 to 97 in nine lines of ten (measured in Chromium on macOS over the docs' and
-     examples' paragraphs). The numbered rungs are the prose's hierarchy;
+     character, and a full line of the 720px column (--lf-col) holds about 93 of them.
+     The numbered rungs are the prose's hierarchy;
      --lf-t-working-label is the shared compact heading between its two smallest rungs, and
      Leaf's interface sets its words in them through its fonts (`--lf-font-*`, below). Every
      font size in Leaf's sheets names a token declared in this file or scales the size it
@@ -427,8 +426,8 @@
      grounds want opposite amounts of it and a shadow written once as rgba(0,0,0,α) can
      only be right about one of them: at .12 over the light paper a menu lifts 10 L*, and
      the same declaration over the dark paper lifts 1.4 — which is a drop shadow that is
-     in the stylesheet and not on the screen. Nine of the layer's twelve were written that
-     way. The dark value is as far as the medium goes: the paper is already at L* 8.3, so
+     in the stylesheet and not on the screen. The dark value is as far as the medium
+     goes: the paper is already at L* 8.3, so
      black takes it to 3.0 and no further, and the WCAG ratio is the wrong instrument down
      there (1.11:1 for an edge the eye reads perfectly well).
 
@@ -622,7 +621,7 @@
   /* A forced palette replaces the accent with its own ink for every outline, so the
      ring would read as one more edge. Naming the platform's Highlight here gives every
      rule that draws with the token the system's focus colour, inside the chrome and
-     out, where each surface once restated it for itself. A forced palette drops box
+     out. A forced palette drops box
      shadows outright, so --lf-focus-shadow has no such answer: the browsed key hint that
      wears it is told apart there only by its bold face. */
   @media (forced-colors: active) {
@@ -633,8 +632,8 @@
   --lf-focus-ring-inset: calc(-1 * var(--lf-focus-ring-w));
   /* A region's gap is wider than a control's: a control's label already has its
      padding inside the ring, while prose has none, so at the control's 3px the band
-     stood 3px from the first letter of every line (the user's choice, 29 October
-     2026). Past 6px a bracket meets a heading's link, which shows 9px left of it. */
+     stood 3px from the first letter of every line (the user's choice). Past 6px a
+     bracket meets a heading's link, which shows 9px left of it. */
   --lf-focus-region-gap: 6px;
   --lf-focus-region-room: calc(var(--lf-focus-ring-w) + var(--lf-focus-region-gap));
   /* What a landing keeps clear for a ring at a scroller's edge: the widest ring's room,
@@ -650,9 +649,9 @@
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
      nothing can focus. A spread with no offsets and no blur draws exactly what the
      outline draws, in the same ink and through the same width, so there is still one
-     place the band's thickness and colour are decided. The bar once cast it at a
-     quarter of the accent, beside a border already tinted with it, and in dark that
-     ring all but vanished where every other control wore the solid band.
+     place the band's thickness and colour are decided. Rejected: the bar casting it at
+     a quarter of the accent, beside a border already tinted with it, where in dark that
+     ring all but vanished while every other control wore the solid band.
 
      A rule draws the ring with this token or --lf-focus-ring and gives it no name of its
      own: the suite asks the browser which rule drew a ring it sees, and the token is
@@ -731,7 +730,7 @@
      size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
      most four colours at a 7px dot, and those four are a neon magenta, a near-black
      navy, a bright green and a brick red. So a mark's other meanings are carried by its
-     shape, place and motion, and changed and settled marks no longer wear the turn's
+     shape, place and motion, and changed and settled marks don't wear the turn's
      green. */
   --lf-turn: var(--lf-ok);
   --lf-turn-ink: var(--lf-ok-ink);
@@ -798,9 +797,9 @@
      --lf-accent, --lf-ok, --lf-warn and --lf-danger reused, because those four say something on this
      page — a decision's link, a passing check, a warning — and a bar wearing one would
      be making that claim about a number.
-     Not chosen by eye. The first attempt at this line was, and its blue and its plum
-     came out 0.3 apart under deuteranopia — the same color, to a user who has no way
-     to tell us. So the steps are stepped to clear the measurable floors: every pair
+     Not chosen by eye: a line chosen by eye can set a blue and a plum 0.3 apart under
+     deuteranopia — the same color, to a user who has no way to tell us. So the steps
+     are stepped to clear the measurable floors: every pair
      (not merely the neighbors, since a stacked bar puts any two of them edge to edge)
      at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
      least 15 apart under ordinary vision, chroma above the point where a hue reads as

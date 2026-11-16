@@ -779,8 +779,8 @@ img {
  * It points; it never supplies the row's words. It names the block by the name the
  * chrome gives it, without the kind word a thread's § coordinate adds, with a "Jump to"
  * title, and rides at the words' end, out of the way of what the row says (the package
- * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
- * id on 23 October 2026, reversing the earlier choice to show the id as "what it is". */
+ * theme drops it under the words where both don't fit on a line). The user chose the
+ * block's name over showing its raw id as "what it is". */
 .lf-ref {
   font: var(--lf-font-small);
   color: var(--lf-muted);
@@ -814,15 +814,13 @@ img {
  * visually: the settled slot loses every mark and reads as ordinary prose, and a
  * suggestion with nothing left to show disappears.
  *
- * It generated no box at all once (display: contents), which is this same reading of
+ * Rejected: no box at all (display: contents), which is this same reading of
  * "follow the content" with the box left out — and a box is what anything asking where
  * the change is has to have. An element generating none measures (0,0) at the document's
- * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
- * Four consumers met that separately and each worked around it where it stood: the ring
- * had nothing to hang on, the obligation walk's travel centred the document, a container's edge
- * rule reached past the wrapper to the slots, and the widget prepends a span to itself
- * for its controls to anchor from. None of the first three arises here now. The fourth
- * outlived the reason it was written for and earns its place on another: what a widget
+ * origin, which is not a degenerate answer but a wrong one, naming the top of the page:
+ * the ring has nothing to hang on, the obligation walk's travel centres the document,
+ * and a container's edge rule reaches past the wrapper to the slots. The widget still
+ * prepends a span to itself for its controls to anchor from, since what a widget
  * builds for itself is what it can rely on, and which form this wrapper takes is a
  * stylesheet's to say — a layer restyling it boxless would take the controls off the
  * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
@@ -842,7 +840,7 @@ lf-new {
 }
 /* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
- * every user-facing word to. The corpus's first inline delete is what surfaced it. */
+ * every user-facing word to. */
 lf-old {
   background: var(--lf-del-tint);
   color: var(--lf-ink-2);
@@ -867,20 +865,19 @@ lf-new *::highlight(lf-sug-ins) {
 }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any
  * child that is not phrasing content makes the slot a block. Enumerating the block
- * side named every shipped widget in the integrated layer — the closed list the norms
- * forbid, silently inline for the first project-layer widget staged in a slot, whose
- * fold then dropped it in the frame of the press. Phrasing is the list that cannot
+ * side would name every shipped widget in the integrated layer — the closed list the
+ * norms forbid, silently inline for a project-layer widget staged in a slot, whose
+ * fold then drops it in the frame of the press. Phrasing is the list that cannot
  * grow: a custom element is never in it, so a block widget from any layer is covered
  * unnamed. The marker at the end is the other direction's residue, and the inversion's
  * one wrong answer: an inline widget is a custom element too. Which widgets those are is
  * the registry's to say (x-inline) and a stylesheet cannot read it, so delivery paints
  * the declaration where a selector can reach it (data-lf-inline, `mark_declared`).
- * Four widget names stood here instead, one of them a standard chip's — a shipped tag in
- * the integrated theme, and the layer that most needed the answer, a project's own, was
- * the one layer it could never be given for. What the tag list bought that the marker
- * does not is the page that never runs the runtime: unpainted, an inline widget in a
- * slot reads as block there. No shipped script-free page stages one, and the price of
- * keeping that case was the closed list itself.
+ * Rejected: a list of widget names here, which the layer that most needs the answer,
+ * a project's own, could never be given. What a tag list buys that the marker does
+ * not is the page that never runs the runtime: unpainted, an inline widget in a slot
+ * reads as block there. No shipped script-free page stages one, and the price of
+ * keeping that case is the closed list itself.
  *
  * The content-shape test stays in :where() so this default is as easy to override
  * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
@@ -893,26 +890,18 @@ lf-new *::highlight(lf-sug-ins) {
  * exercise the marker half through an inline Gloss in a suggestion slot.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
- * reads as a stack. That was once the only room the slots could ask for: while the
- * wrapper was boxless they were the flow's own boxes, their outer margins were what a
- * container read at its own edge, and a quoted change stood 10px inside the gutter
- * marking it with nothing able to reach it — a rule for the sample's last child found
- * the suggestion, and the suggestion had no box. The wrapper is that box now, and the
- * room stays on one side because it is the better answer anyway: it costs the pair
- * nothing, the gap between two slots and between two suggestions being the second one's
- * either way. Nor does it cost the prose around a change: collapsing already took the
- * larger of this 10px and the 13px a paragraph reserves, so the side that went was one
- * no user ever saw.
+ * reads as a stack. Room on one side costs the pair nothing, the gap between two slots
+ * and between two suggestions being the second one's either way. Nor does it cost the
+ * prose around a change: collapsing takes the larger of this 10px and the 13px a
+ * paragraph reserves, so room on the other side would be room no user sees.
  *
  * Both slots take the block form together, the wrapper being what asks the question:
- * what the user is deciding is one change, not two halves with their own layouts. A
- * paragraph replaced by a phrase used to render as a full-width struck field with a
- * three-word pill under it, which is what a suggestion looks like when each slot
- * answers for itself.
+ * what the user is deciding is one change, not two halves with their own layouts.
+ * Where each slot answers for itself, a paragraph replaced by a phrase renders as a
+ * full-width struck field with a three-word pill under it.
  *
  * The padding then frames what the slot holds, so the slot says so: a block change is a
- * whole paragraph in a tinted field, and the 2px it states came out 15 at each end on
- * every one in the corpus. */
+ * whole paragraph in a tinted field. */
 lf-suggestion:has(
   > :is(lf-old, lf-new)
     > :not(

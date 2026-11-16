@@ -295,9 +295,8 @@ function refill(code, after, shown, firsts) {
 // the rewrite `touched` folds onto the end of the run before it where the two fit in
 // `RUN` rows, or where it fell under a quarter of `RUN`, and one it filled to twice
 // `RUN` splits into runs of `RUN`. So the runs a session's rewrites leave are bounded by
-// the text's size rather than the session's length: unfolded, 40 cycles of adding 200
-// lines and removing them took a 3,002-line text from 24 runs to 75, and folded, 120
-// cycles took it to 40. Both move rows (`setChildLists`, which keeps a selection in a
+// the text's size rather than the session's length. Both move rows (`setChildLists`,
+// which keeps a selection in a
 // row it moves), and a moved row lands only at a run's end or in a run the split has
 // just made, never at the head of a run the page holds: Chromium drops the line number
 // of a row `moveBefore` puts first in a run it skips, and numbers the rows after it

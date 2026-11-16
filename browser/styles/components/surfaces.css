@@ -152,14 +152,14 @@ a[data-lf-external]::after,
   user-select: none;
   -webkit-user-select: none;
 }
-/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against. A
- * chip that opens a section and a badge that counts something were the same object at
- * rest — one ground, one ink, one corner, one size — and the only page that said which
- * was which said it in prose. The user had to press one to find out.
+/* Pressable, said once per layer, and .tag (the reading theme's) is what it is said against.
+ * Without it, a chip that opens a section and a badge that counts something are the
+ * same object at rest — one ground, one ink, one corner, one size — and the user has
+ * to press one to find out.
  *
  * The marker is the runtime's own, not a new one: `offer` and `selectableOffer` write
- * data-lf-offer on everything a widget builds to be worked, and three passes already
- * asked it before this one (print, the drag guard, the render gate). So the hand, the ground under the
+ * data-lf-offer on everything a widget builds to be worked, and three other passes
+ * ask it (print, the drag guard, the render gate). So the hand, the ground under the
  * aim, and the focus ring are stated once against that attribute rather than restated by
  * each widget's rules — which is what makes them a layer fact. A widget family that
  * joins tomorrow wears all three with its entry and its module, having written no CSS,
@@ -189,9 +189,9 @@ a[data-lf-external]::after,
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
- * the two cannot come apart: a press that had been used up once still wore the
- * full-strength border of a live one and differed only in ink, which greyscale drops and
- * a user scanning a column of eight of them never sees. The pair is Web Awesome's, half
+ * the two cannot come apart. Rejected: a spent press keeping the full-strength border
+ * of a live one and differing only in ink, which greyscale drops and a user scanning a
+ * column of eight of them never sees. The pair is Web Awesome's, half
  * the opacity and the not-allowed hand, which Leaf's presses, fields and choices take
  * from the library (controls.css), so an offered control says it as theirs do.
  *
@@ -510,11 +510,9 @@ a[data-lf-external]::after,
   opacity: 0.5;
 }
 /* The floor under every aim the layer offers, stated once for all of them rather
-   than left to whatever each control's type and padding happened to add up to.
-   Measured before it existed: a thread's Reopen and the panel's reaction chips stood
-   at 20 and 22 pixels, a version's Compare and a command in the reference at about seven —
-   all of them presses a user has to land on with a mouse, and none of them a
-   control anybody chose the size of.
+   than left to whatever each control's type and padding happened to add up to, which
+   leaves presses a user has to land on with a mouse at sizes nobody chose, some only a
+   few pixels across.
 
    --lf-aim-floor is the length, and tokens.css asks the pointer query that sets it once,
    so a control cannot reach one floor without reaching the other. It is stated in this file because a button, a chip, a
@@ -801,7 +799,7 @@ summary {
    first to last: its controls' room while they hide (controls.css), the annotations
    after its time, such as a receipt, then its time, then its author's name. Each part
    with words is cut with an ellipsis, so a short name stays whole until everything
-   before it is gone (the user's choice, 28 October 2026). Flex takes room from each
+   before it is gone (the user's choice). Flex takes room from each
    part in proportion to its shrink weight times its width. Each weight here is a
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which

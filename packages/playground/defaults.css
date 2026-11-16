@@ -125,9 +125,9 @@ lf-playground:has(> .lf-playground-split) {
  * up height and scroll while the bar of actions stays whole under them. With all
  * controls inline, the stage is what the reader came to set, so it keeps at least half
  * the window and the bar keeps its whole height below it: where both don't fit, the
- * workspace scrolls to the bar rather than squeezing the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
- * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
- * 2026-10-22). */
+ * workspace scrolls to the bar rather than squeezing the stage. Rejected (the user's
+ * decision): a 12rem stage floor, which kept the actions in view down to a 500px
+ * window but left a 192px stage at 900x700. */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
@@ -292,11 +292,11 @@ lf-playground-control > input[type="range"] {
 /* Label choices stand one per line, so a choice control is as wide as its longest
  * label wherever it stands: a page's own row of controls sized to their content
  * leaves no empty room beside one, and no label breaks while its line has room.
- * Rejected: a row that wraps between whole labels (2026-10-24 to 10-31). A row that
+ * Rejected: a row that wraps between whole labels. A row that
  * wraps stays as wide as the room it was offered rather than its longest line, so in
  * a page's row of three controls it left a 230px empty column, and it broke five
  * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
- * Rejected before it: equal grid cells, which wrapped every label longer than its
+ * Rejected too: equal grid cells, which wrapped every label longer than its
  * share. Columns the author sets replace the list (below). A focused face draws its
  * ring inside its own padding (`.lf-choice`, controls.css), so lines of faces need no
  * gap between them. Where the control is wider than its longest label, as in the rail,
@@ -329,8 +329,8 @@ lf-playground-choice {
 }
 /* `--playground-choice-columns`, set on a choice control or its parent, arranges its
  * choices, plain or rich, in the author's grid columns. Authors set it on a row of
- * threshold choices, saw nothing change, and wrote rules against the generated class
- * instead (13 of 78 pages in 24 configuration samples). A plain face's label wraps
+ * threshold choices, and where that changes nothing they write rules against the
+ * generated class instead. A plain face's label wraps
  * only where the column is narrower than its words. No `var()` fallback can turn the
  * plain list's flex box into a
  * grid, so a style query asks the group's parent, the control, whether the property is

@@ -1,19 +1,16 @@
 /* Pixel highlights and experimental region outlines for a before/after pair.
  *
  * Pixel highlights mark each pixel that differs, more opaque the farther its channels
- * moved (`changedPixels` states the rule). #3820 adopted BlazeDiff with no threshold
- * and anti-aliased pixels kept, so that subtle deliberate edits stayed visible, and
- * kept a floor that painted every changed pixel at least 16% amber. That floor made
- * the theme's soft shadows (`--lf-raise-1`, `--lf-raise-2`) look like changes. A box that
- * moves redraws its shadow's gradient a level or two at a time, and the floor painted
- * each of those pixels at about 16% amber, which read as a banded slab around the box.
- * On a triage-board card moved 3 px, the pixels at 10% amber or more were 7,681 with
- * no shadow, 11,049 under `--lf-raise-1` and 17,075 under `--lf-raise-2`; with no floor they
- * are 6,964, 6,792 and 6,766, and the 3,137 opaque pixels of the card's text and edges
- * are unchanged. So Pixels now paints an edit of under 10 levels below 10% amber,
- * faint enough to miss, and the reading describes a pair whose changes are all that
- * small as "only slight changes". With its threshold at 0, BlazeDiff marked the same
- * pixels as a plain comparison on every pair measured, so the comparison replaced it.
+ * moved (`changedPixels` states the rule), with no threshold and anti-aliased pixels
+ * kept, so that subtle deliberate edits stay visible. Rejected: a floor that paints
+ * every changed pixel at least 16% amber. It makes the theme's soft shadows
+ * (`--lf-raise-1`, `--lf-raise-2`) look like changes: a box that moves redraws its
+ * shadow's gradient a level or two at a time, and the floor paints each of those pixels
+ * at about 16% amber, which reads as a banded slab around the box. So Pixels paints an
+ * edit of under 10 levels below 10% amber, faint enough to miss, and the reading
+ * describes a pair whose changes are all that small as "only slight changes".
+ * Rejected too: BlazeDiff, which with its threshold at 0 marks the same pixels as a
+ * plain comparison.
  *
  * Region outlines are experimental. Block detection and movement matching are our
  * own; final changed outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
@@ -22,7 +19,7 @@
  * heuristic region labels, not per-pixel ownership or paired before/after regions.
  * It is a candidate replacement for this experimental analysis. lcs-image-diff aligns rows, so it
  * follows content pushed down but not a move across columns, and returns an image
- * rather than regions; x-img-diff-js, the one built for moved regions, took 7 s on a
+ * rather than regions; x-img-diff-js, the one built for moved regions, was slow on a
  * 1440x900 pair, outlined page-wide bands and crashed on the next pair, and has not
  * been released since 2017. Tools that do read moves, such as Percy's and SmartUI's
  * layout modes, compare the DOM rather than the pixels, which an arbitrary pair of
@@ -34,9 +31,7 @@
  *
  * Not every differing pixel is a place to look. A redrawn shadow edge, a contrast shift,
  * or a re-encoded file moves many pixels a little, while content that appears, moves or
- * changes colour moves some pixel far. Measured on a thread card pair: its redrawn
- * shadows moved at most 20 levels in any channel, most of them by 1, an 8% contrast
- * change 17, palette quantization 35, and the card that grew 227. So only a pixel that
+ * changes colour moves some pixel far. So only a pixel that
  * moved SLIGHT levels changed a pair's content, and a pair whose pixels all moved less
  * reads "only slight changes". That also hides a small deliberate edit, text from #333
  * to #555 (34 levels).

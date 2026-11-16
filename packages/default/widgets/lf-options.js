@@ -17,7 +17,7 @@
  * the keyboard path and the state — a toggle reading "choose one" or "choose any" as the
  * group takes one option or several. Once picked, the same mark becomes a check while
  * the option's cell takes a quiet tint. Cards and rows mark a pick alike, tint plus
- * check: on 2026-10-26 the user chose this over a "✓ selected" chip in a live titled
+ * check: the user chose this over a "✓ selected" chip in a live titled
  * card's corner, a word only cards wore, crowding the author's own chips. The checkbox state carries the same fact for a user
  * listening. Outside a `choose` group
  * the mark renders as an image-like span, so authored state keeps the check and an
@@ -407,8 +407,8 @@ customElements.define(
 
     // The one statement a live channel can't derive: the set is whole. Done is a
     // reversible gesture; its pressed state is the answer action in force. It records
-    // the user's answer, so it wears the commit face, which the user chose on 26
-    // October over the quiet word face every other worded press wears. Its digit
+    // the user's answer, so it wears the commit face, which the user chose over the
+    // quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -624,8 +624,8 @@ customElements.define(
       // Pointing at the mark reads nothing: its round or square corner says whether the
       // group takes one option or any, the option's words stand beside it, and the digit
       // drawn on its option while focus is in the group says its key. Its name stays a
-      // listener's. Until 15 November 2026 it previewed "choose one", the word its shape
-      // stands for.
+      // listener's, rather than a preview of "choose one", the word its shape stands
+      // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card

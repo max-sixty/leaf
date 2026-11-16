@@ -86,7 +86,7 @@ export class SettledOptions {
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
     // The row names only the outcome: its disclosure marker already says the
-    // alternatives are inside. The user chose this on 2026-10-26 over a right-aligned
+    // alternatives are inside. The user chose this over a right-aligned
     // count of the options.
     render(
       html`<span ${generated({ says: true })}

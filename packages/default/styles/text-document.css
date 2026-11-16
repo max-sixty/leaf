@@ -137,8 +137,8 @@ lf-text-document .lf-text-document-run:only-child {
      drawn as the fold opens (notes/browser-support.md, "An `auto` box under a fold in
      Firefox").
    - Its rows count no numbers. Firefox styles and builds the generated content of
-     rows it doesn't draw: in a folded document of 70,000 lines the numbers took about
-     120 of the 150 ms its styling cost. */
+     rows it doesn't draw, and in a long folded document the numbers are most of its
+     styling cost. */
 :where([hidden="until-found"], details:not([open]))
   lf-text-document
   .lf-text-document-run {

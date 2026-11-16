@@ -546,8 +546,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    the words, with no frame and no microphone, one control high. Going into it, by a
    press, Tab or `c`, opens it as the field it is, and it rests again once the user
    leaves it holding nothing: no words or picture, no dictation, no error. The field
-   stays the one control, so every route to the reply reaches it as before. The user
-   chose that on 26 October 2026 over a Reply field open under every conversation,
+   stays the one control, so every route to the reply reaches it. The user chose that
+   over a Reply field open under every conversation,
    which took about a third of the height of two conversations under one file. */
 .lf-diff-thread-outlet
   .lf-thread-reply:not(

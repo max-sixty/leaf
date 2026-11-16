@@ -2942,8 +2942,7 @@ export function createFloatingPanel({
   // The rows read in the page's order, the one the `t` walk steps through
   // (thread/placement.js), so each thread stands among its passage's neighbours: the
   // open threads, then the resolved ones folded under Resolved (`settledHeading`), as
-  // what left On Me stands under Done, each unread row marked and a drafted one saying
-  // Draft. The user chose this on 25
+  // what left On Me stands under Done, each unread row marked. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
   // every thread's name, its messages and summaries as they read, and the words it is

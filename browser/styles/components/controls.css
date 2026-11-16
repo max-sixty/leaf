@@ -1579,8 +1579,8 @@ wa-copy-button.lf-icon-action {
    property wins. The compact response field is excluded because it shares its complete
    control geometry with the response buttons (chrome.css). The box grows with its
    words — a textarea through field-sizing, a text field through its own content — so
-   no script measures one. Rejected: a script that reset height to auto to re-measure,
-   which made the box briefly too small for its own text on every keystroke — and a
+   no script measures one. Rejected: a script that resets height to auto to re-measure,
+   which makes the box briefly too small for its own text on every keystroke — and a
    box that overflows, however briefly, flashes a scrollbar. Past max-height the
    scrollbar is real and stays — and the ceiling is the viewport's share, not a count
    of lines: a fixed height can stop a long comment with the screen mostly empty.

@@ -9,8 +9,8 @@
  * at about 16% amber, which reads as a banded slab around the box. So Pixels paints an
  * edit of under 10 levels below 10% amber, faint enough to miss, and the reading
  * describes a pair whose changes are all that small as "only slight changes".
- * Rejected too: BlazeDiff, which with its threshold at 0 marked the same pixels as a
- * plain comparison wherever the two were compared.
+ * Rejected too: BlazeDiff, which with its threshold at 0 marks the same pixels as a
+ * plain comparison.
  *
  * Region outlines are experimental. Block detection and movement matching are our
  * own; final changed outlines use density-clustering's DBSCAN. Pixelmatch, odiff,

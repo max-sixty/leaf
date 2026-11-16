@@ -589,10 +589,10 @@ html[data-lf-draw-mode] {
     min-width: 0;
   }
   /* The results are the one part of the column that gives up height when the window is
-     short; the head, the search and this line keep their own. As a shrinkable flex item
-     the line would be squeezed to its 1.2em floor, under its own line height, and the
-     results would start on its last pixel, so a scrolled row would run into the words.
-     One line is its floor, empty or not, and the results start a step below it. */
+     short; the head, the search and this line keep their own. Squeezed as a shrinkable
+     flex item below its own line height, the line would let the results start on its
+     last pixel, so a scrolled row would run into the words. One line is its floor, empty
+     or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
   .lf-command-reference-meta {

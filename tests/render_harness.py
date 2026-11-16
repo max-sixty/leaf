@@ -107,9 +107,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
-from leaf_dev.thread_snapshot_plugin import (
-    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
-)
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")

@@ -29,10 +29,14 @@ lf-draft {
 lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
+:where(.lf-draft-body):is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child,
+:where(.lf-markdown-body):is(.lf-draft-body, lf-draft > .lf-markdown-body)
+  > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
+:where(.lf-draft-body):is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child,
+:where(.lf-markdown-body):is(.lf-draft-body, lf-draft > .lf-markdown-body)
+  > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source

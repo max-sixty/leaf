@@ -129,7 +129,8 @@
 /* Leaf's own surfaces wear markup's reading face (styles/components/reading.css) on
    every page, whatever look the page takes: the chrome, and each control Leaf builds
    into a page. */
-:where(.lf-chrome, .lf-ui) {
+:where(.lf-chrome),
+:where(.lf-ui) {
   --lf-reading-face: 1;
 }
 /* ---------- elements ---------- */
@@ -688,7 +689,19 @@ main {
  * margin, so a widget's own arrangement still places the box. Package captions may span
  * their own frame, so these rules share their base layer at zero specificity. */
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, lf-suggestion) {
+  :where(p),
+  :where(li),
+  :where(dt),
+  :where(dd),
+  :where(blockquote),
+  :where(figcaption),
+  :where(h1),
+  :where(h2),
+  :where(h3),
+  :where(h4),
+  :where(h5),
+  :where(h6),
+  :where(lf-suggestion) {
     max-inline-size: var(--lf-measure);
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to

@@ -2009,6 +2009,98 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
     )
 
 
+def _strip_arguments(selector):
+    """The selector with what stands inside parentheses, brackets and strings left
+    out, so only its own combinators remain."""
+    out, depth, quote = [], 0, None
+    for char in selector.strip():
+        if quote:
+            quote = None if char == quote else quote
+        elif char in "\"'":
+            quote = char
+        elif char in "([":
+            depth += 1
+            out.append("_" if depth == 1 else "")
+        elif char in ")]":
+            depth -= 1
+        elif not depth:
+            out.append(char)
+    return "".join(out)
+
+
+def test_a_rule_s_subject_names_a_key():
+    """No subject in the sheets a page composes is keyed only through a list, as
+    `:is(.a, .b)`, `:where(p, li)` or a nested `&` under two selectors are, unless a
+    compound before it names a key (browser/AGENTS.md, "A rule's subject names a
+    key"). Each such rule cost every element Chromium restyled a match; about 120 of
+    them raised the style of 20,000 plain rows from 20 ms to 76 ms (Chromium 158, 16
+    November 2026). A subject that can name no key, as `*` and a frame's edge trims,
+    has no list to split, so the test leaves it alone."""
+
+    def keys(compound):
+        """The parts of the compound that name a key: a type, class, id or attribute,
+        or an `:is()` or `:where()` of one selector whose subject names one."""
+        return [
+            part
+            for part in _simple_selectors(compound.split("::")[0])
+            if part[0].isalpha()
+            or part[0] in ".#["
+            or (
+                part.startswith((":is(", ":where("))
+                and len(arguments := _arguments(part)) == 1
+                and key(arguments[0][-1])
+            )
+        ]
+
+    def key(compound):
+        return bool(keys(compound))
+
+    def listed(compound):
+        """Whether the compound is keyed only through a list whose every member names
+        a key, which separate selectors would each file under it."""
+        return not key(compound) and any(
+            part.startswith((":is(", ":where("))
+            and len(arguments := _arguments(part)) > 1
+            and all(key(each[-1]) for each in arguments)
+            for part in _simple_selectors(compound.split("::")[0])
+        )
+
+    def ancestors(selector):
+        """The compounds a descendant or child combinator leads to: those the
+        ancestor filter reads, which a sibling's are not."""
+        compounds = _split_top(selector, " >+~")
+        joins = re.findall(r"\s*([>+~])\s*|\s+", _strip_arguments(selector))
+        return [
+            compound
+            for compound, join in zip(compounds[:-1], joins, strict=True)
+            if join not in ("+", "~")
+        ]
+
+    def filtered(compound):
+        """Whether the ancestor filter can reject on the compound: it names a key
+        other than a type every page's elements stand in."""
+        return any(part not in ("html", "body", "main") for part in keys(compound))
+
+    sheets = [
+        *_PAGE_SIDE_SHEETS,
+        schema_model.ASSETS / "layouts.css",
+        schema_model.ASSETS / "state.css",
+    ]
+    found = []
+    for sheet in sheets:
+        where = sheet.relative_to(ROOT)
+        for _conditions, _enclosing, selector, _declarations in _style_rules(
+            sheet, whole=True
+        ):
+            subject = _split_top(selector, " >+~")[-1]
+            if listed(subject) and not any(map(filtered, ancestors(selector))):
+                found.append(f"{where}: {selector}")
+    assert not found, (
+        "write each member of the list as a selector of its own, or name the key at "
+        "no weight first, as `:where(.a):is(.a, .b[x])`:\n" + "\n".join(found)
+    )
+
+
 def test_controls_are_built_by_role_and_never_by_face():
     """Leaf's controls come from a closed set of roles, each with one face, so a widget
     cannot draw two controls of one kind two ways. The classes of a role's face are
@@ -2597,26 +2689,22 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # One sheet gives both delivery trees the default.
     face_sheet = schema_model.ASSETS / "styles/control-face.css"
-    control_face = (
-        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .lf-btn, "
-        ":is(:root, :host) .lf-field, "
-        ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
-        ":host :is(button, input, select, textarea) )"
-    )
-    control_ink = ":where(.lf-ui-face, .lf-field)"
-    default = [(face_sheet, control_face), (face_sheet, control_ink)]
-    assert faces[:2] == default, faces[:2]
+    controls = ("button", "input", "select", "textarea")
+    control_face = [
+        ":where(:is(:root, :host) .lf-ui-face)",
+        ":where(:is(:root, :host) .lf-btn)",
+        ":where(:is(:root, :host) .lf-field)",
+        *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
+        *(f":where(:host {tag})" for tag in controls),
+    ]
+    control_ink = [":where(.lf-ui-face)", ":where(.lf-field)"]
+    default = [(face_sheet, each) for each in (*control_face, *control_ink)]
+    assert faces[: len(default)] == default, faces[: len(default)]
     defaults = [
         face
         for face in faces
         if face[1]
-        in {
-            ".lf-ui-face",
-            ":where(.lf-ui-face)",
-            ":where(:root) .lf-ui-face",
-            control_face,
-            control_ink,
-        }
+        in {".lf-ui-face", ":where(:root) .lf-ui-face", *control_face, *control_ink}
     ]
     assert defaults == default, defaults
 

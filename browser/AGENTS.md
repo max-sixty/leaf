@@ -426,7 +426,11 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
-in Chromium so can a read of the page's selection, such as `rangeCount`.
+in Chromium so can a read of the page's selection, such as `rangeCount`. In Chromium a
+forced style also lays out whatever in `body` is out of date, a closed tab's panel
+included: `body` is a size container, and once any rule under `@container` has matched,
+as Leaf's style queries do on every page, Chromium finishes the style inside a size
+container during layout.
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
@@ -497,6 +501,22 @@ their rules name those. A rule on the root alone would reach other elements only
 where highlight styles inherit, and there it pins every mark to the root's tokens and
 `color-scheme`, and makes Chromium restyle every element when even a non-inheriting
 custom property changes on `html`.
+
+### A rule's subject names a key
+
+Chromium files each style rule under one id, class, attribute or type its subject
+names, alone or in an `:is()` or `:where()` of one selector, or in a nested rule's `&`
+when the rule it stands in has one selector. A rule filed under none is tested against
+every element on every restyle, unless a compound before the subject names one, which
+Chromium's ancestor filter rejects quickly. A list files under none, so `:is(.a, .b)`,
+`:where(p, li)` and `&::after` under two selectors each cost every element a match: on
+16 November 2026, about 120 such rules raised Chromium's style of 20,000 plain rows
+from 20 ms to 76 ms. Write each member as a selector of its own, as `.a, .b`. Where the
+members weigh differently, name the key at no weight before the list, as
+`:where(.a):is(.a, .b[x])`, which keeps the list's weight, and name one in a nested
+rule under a list, as `&:where(.a)::after`. A subject that can name none, such as `*`
+or a frame's edge trims (`reading.css`), costs its share on every element, so write one
+only for what every element needs. Check: `test_a_rule_s_subject_names_a_key`.
 
 ### Layouts, styles and controls
 

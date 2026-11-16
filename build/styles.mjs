@@ -128,6 +128,7 @@ async function regions(source, faces) {
           const selectors = rule.value.selectors
             .map((/** @type {any[]} */ selector) => onFaces(selector, map))
             .filter(Boolean)
+            .flatMap(spread)
             .map(weightless);
           const kept = (/** @type {any[]} */ list) =>
             list.filter((d) => !LEAF_OWNS.test(declared(d)));
@@ -225,13 +226,109 @@ function rewrite(selector, map) {
   return { parts, named };
 }
 
-/** The selector at no weight, its pseudo-element left outside `:where()`.
+/** The selector once for each alternative of an `:is()` or `:where()` that alone could
+ * key its compound, as a face's list of classes does (`:is(.lf-btn, .lf-icon-action)`).
+ * A compound keyed by no class, id, type or attribute files its rule under none, and
+ * Chromium tests such a rule against every element on every restyle
+ * (browser/AGENTS.md, "A rule's subject names a key"); one alternative each keys it.
+ * Every rule here weighs nothing (`weightless`), so the copies rank as the one did.
+ * @param {any[]} written
+ * @returns {any[][]} */
+function spread(written) {
+  const selector = inlined(written);
+  for (const [at, part] of selector.entries()) {
+    if (!isList(part) || part.selectors.length < 2) continue;
+    if (compoundAt(selector, at).some(isKey)) continue;
+    if (!part.selectors.every((/** @type {any[]} */ each) => subject(each).some(isKey)))
+      continue;
+    return part.selectors.flatMap((/** @type {any[]} */ each) =>
+      spread([
+        ...selector.slice(0, at),
+        { ...part, selectors: [each] },
+        ...selector.slice(at + 1),
+      ]),
+    );
+  }
+  return [selector];
+}
+
+/** The selector with each `:is()` or `:where()` of one compound written into the
+ * compound it stands in, as a nested rule's parent comes to stand once a face replaces
+ * the types it named (`:is(:is(.lf-btn, .lf-icon-action))`). Weightless, it matches
+ * as it did.
+ * @param {any[]} selector
+ * @returns {any[]} */
+function inlined(selector) {
+  return selector.flatMap((part, at) => {
+    if (!isList(part) || part.selectors.length !== 1) return [part];
+    const [inner] = part.selectors;
+    const typed = inner.some(
+      (/** @type {any} */ each) => each.type === "type" || each.type === "universal",
+    );
+    // A type stands first in its compound.
+    const first = at === 0 || selector[at - 1].type === "combinator";
+    return inner.some((/** @type {any} */ each) => each.type === "combinator") ||
+      (typed && !first)
+      ? [part]
+      : inlined(inner);
+  });
+}
+
+/** @param {any} part */
+function isList(part) {
+  return part.type === "pseudo-class" && ["is", "where"].includes(part.kind);
+}
+
+/** Whether a simple selector keys its compound: a class, id, type or attribute, or an
+ * `:is()` or `:where()` of one selector whose subject has one.
+ * @param {any} part */
+function isKey(part) {
+  return (
+    ["class", "id", "type", "attribute"].includes(part.type) ||
+    (isList(part) &&
+      part.selectors.length === 1 &&
+      subject(part.selectors[0]).some(isKey))
+  );
+}
+
+/** The compound a selector's part stands in.
+ * @param {any[]} selector
+ * @param {number} at */
+function compoundAt(selector, at) {
+  let start = at;
+  while (start > 0 && selector[start - 1].type !== "combinator") start--;
+  let end = at;
+  while (end < selector.length && selector[end].type !== "combinator") end++;
+  return selector.slice(start, end);
+}
+
+/** A selector's subject compound.
+ * @param {any[]} selector */
+function subject(selector) {
+  return compoundAt(selector, selector.length - 1);
+}
+
+/** The selector at no weight, each compound in a `:where()` of its own, so a compound
+ * that keys the rule or an ancestor's still does (`spread`), and its pseudo-element
+ * left outside.
  * @param {any[]} selector */
 function weightless(selector) {
   const at = selector.findIndex((part) => part.type === "pseudo-element");
   const head = at < 0 ? selector : selector.slice(0, at);
   const tail = at < 0 ? [] : selector.slice(at);
-  return [{ type: "pseudo-class", kind: "where", selectors: [head] }, ...tail];
+  /** @type {any[]} */
+  const out = [];
+  let compound = [];
+  for (const part of [...head, null]) {
+    if (part && part.type !== "combinator") {
+      compound.push(part);
+      continue;
+    }
+    out.push({ type: "pseudo-class", kind: "where", selectors: [compound] });
+    if (part) out.push(part);
+    compound = [];
+  }
+  return [...out, ...tail];
 }
 
 /** A rule handed back to lightningcss 1.33, which hands optional fields over as null

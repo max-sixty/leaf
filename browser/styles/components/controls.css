@@ -79,13 +79,20 @@
 }
 /* A reaction's states, wherever one shows them: a strip's token, and a reaction among
    the response bar's choices, whose role keeps only its own resting ground (the
-   response face, below). The margin draws a reaction as an entry (below). */
-:is(.lf-reaction, .lf-response-face[aria-pressed]) {
+   response face, below). The margin draws a reaction as an entry (below). A reaction
+   is named first at no weight, the key the rule is filed under, and the list after it
+   keeps the rule's weight (browser/AGENTS.md, "A rule's subject names a key"). */
+:where(.lf-reaction):is(.lf-reaction, .lf-response-face[aria-pressed]),
+.lf-response-face[aria-pressed] {
   color: var(--lf-muted);
   border-color: transparent;
   background: transparent;
 }
-:is(.lf-reaction, .lf-response-face[aria-pressed]):is(:hover, [data-lf-focus]) {
+:where(.lf-reaction):is(.lf-reaction, .lf-response-face[aria-pressed]):is(
+    :hover,
+    [data-lf-focus]
+  ),
+.lf-response-face[aria-pressed]:is(:hover, [data-lf-focus]) {
   color: var(--lf-ink-2);
   border-color: var(--lf-border);
   background: var(--lf-chip);
@@ -434,7 +441,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * field holds none: its closed tree lays its words and placeholder in one grid cell
  * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
  * positioned box on every call, would otherwise pay for in each field on the page. */
-:where(:is(.lf-scroll, [data-lf-scroll]):not(leaf-text)) {
+:where(.lf-scroll:not(leaf-text)),
+:where([data-lf-scroll]:not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -523,7 +531,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
     --lf-more-down:
       #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
-  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]) {
+  [data-lf-more-before],
+  [data-lf-more-after],
+  [data-lf-more-below] {
     mask-image:
       linear-gradient(to right, var(--lf-more-across, #000, #000)),
       linear-gradient(var(--lf-more-down, #000, #000));
@@ -548,7 +558,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   [hidden="until-found"] {
     content-visibility: visible;
   }
-  :is(summary, .lf-disclosure-marker)::before {
+  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  .lf-disclosure-marker::before {
     visibility: hidden;
   }
 }
@@ -567,10 +578,12 @@ summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-:is(summary, .lf-disclosure-marker)::-webkit-details-marker {
+:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
+.lf-disclosure-marker::-webkit-details-marker {
   display: none;
 }
-:is(summary, .lf-disclosure-marker)::before {
+:where(summary):is(summary, .lf-disclosure-marker)::before,
+.lf-disclosure-marker::before {
   content: "";
   float: inline-start;
   inline-size: 0.5em;
@@ -582,18 +595,29 @@ summary,
     center / contain no-repeat;
   forced-color-adjust: none;
 }
-:is(summary, .lf-disclosure-marker):dir(rtl)::before {
+:where(summary):is(summary, .lf-disclosure-marker):dir(rtl)::before,
+.lf-disclosure-marker:dir(rtl)::before {
   scale: -1 1;
 }
-:is(
-  details[open] > summary,
-  details[open] > .lf-disclosure-marker,
-  .lf-disclosure-marker[aria-expanded="true"]
-)::before {
+:where(summary):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  )::before,
+:where(.lf-disclosure-marker):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  )::before {
   rotate: 90deg;
 }
 /* Turned after its mirror, so it turns the other way to point down. */
-:is(
+:where(summary):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  ):dir(rtl)::before,
+:where(.lf-disclosure-marker):is(
     details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
@@ -601,7 +625,8 @@ summary,
   rotate: -90deg;
 }
 @media (prefers-reduced-motion: no-preference) {
-  :is(summary, .lf-disclosure-marker)::before {
+  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  .lf-disclosure-marker::before {
     transition: rotate var(--lf-motion-disclosure) ease-out;
   }
 }
@@ -647,7 +672,8 @@ summary,
  * the user preferred a reasonable design from a UI library to looks of Leaf's own
  * (3 November 2026); before them a word framed on the card ground, a second look
  * for the same press, until the user chose the quiet one on 25 October. */
-:is(.lf-btn, .lf-icon-action) {
+.lf-btn,
+.lf-icon-action {
   --wa-color-neutral-on-quiet: var(--lf-muted);
 }
 .lf-btn.lf-commit {
@@ -666,11 +692,13 @@ summary,
   white-space: inherit;
 }
 @media not (hover: hover) {
-  :where(:is(.lf-btn, .lf-icon-action):hover) {
+  :where(.lf-btn:hover),
+  :where(.lf-icon-action:hover) {
     background-color: transparent;
   }
 }
-:is(.lf-btn, .lf-icon-action):hover {
+.lf-btn:hover,
+.lf-icon-action:hover {
   box-shadow: none;
 }
 /* A native radio or checkbox and its label form one compact target. The mark
@@ -853,7 +881,8 @@ wa-copy-button.lf-icon-action {
    ground. It is the faces' own state, so it stands here beside them; a disc, which
    shows its state on its disc, such as Dictate listening, keeps its box clear (the
    disc, below). */
-:is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
+.lf-btn:is([aria-pressed="true"], [aria-checked="true"]),
+.lf-icon-action:is([aria-pressed="true"], [aria-checked="true"]) {
   border-color: var(--lf-accent);
   color: var(--lf-accent);
   background: var(--lf-chip);
@@ -1323,18 +1352,39 @@ wa-copy-button.lf-icon-action {
     .lf-margin-face[data-lf-agent-workflow],
     .lf-page-map-action[data-lf-agent-workflow]
   )
-  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  .lf-margin-entry-icon,
+:where(
+    .lf-margin-face[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow]
+  )
+  .lf-margin-entry-glyph,
+:where(
+    .lf-margin-face[data-lf-agent-workflow],
+    .lf-page-map-action[data-lf-agent-workflow]
+  )
+  .lf-margin-kind {
   color: var(--lf-work);
 }
 :where(
     .lf-margin-face[data-lf-kinds~="comment"],
     .lf-page-map-action[data-lf-map-item^="comment:"]
   )
-  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  .lf-margin-entry-icon,
+:where(
+    .lf-margin-face[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"]
+  )
+  .lf-margin-entry-glyph,
+:where(
+    .lf-margin-face[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"]
+  )
+  .lf-margin-kind {
   color: var(--lf-thread);
 }
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
-  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-entry-icon,
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-entry-glyph,
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-kind {
   color: var(--lf-turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
@@ -1624,7 +1674,21 @@ wa-copy-button.lf-icon-action {
     [type="reset"],
     [type="image"]
   )
-):is(.lf-ui, .lf-field) {
+).lf-ui,
+:where(
+  select,
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="image"]
+  )
+).lf-field {
   --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
@@ -1655,7 +1719,8 @@ textarea.lf-field {
   }
 }
 .lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
+:is(input, textarea).lf-ui::placeholder,
+:is(input, textarea).lf-field::placeholder {
   color: var(--lf-quiet);
   opacity: 1;
 }
@@ -1802,7 +1867,8 @@ textarea.lf-field {
    so names start and are cut on one edge, and rows meet edge to edge. The gaps are the
    parts' margins, so a list without a lead or an end keeps no room for one. Seven lists
    drew seven layouts until they shared this one. */
-:is(.lf-row, .lf-row-plain):where(:has(> .lf-row-main)) {
+.lf-row:where(:has(> .lf-row-main)),
+.lf-row-plain:where(:has(> .lf-row-main)) {
   display: grid;
   grid-template-columns: [lead] auto [main] minmax(0, 1fr) [end] auto;
   align-items: baseline;
@@ -1997,7 +2063,9 @@ textarea.lf-field {
    holds at any width, a printed page's included. The box it stands in is as wide as
    the axis. `--lf-axis-x` is where it stands, measured from the box's start, for a
    widget that fits a label to the room on either side of it. */
-:is(.lf-on-axis, .lf-axis-tick, .lf-axis-gridline) {
+.lf-on-axis,
+.lf-axis-tick,
+.lf-axis-gridline {
   --lf-axis-x: calc(
     var(--lf-axis-edge, 0px) + var(--lf-axis-at, 0) *
       (100% - 2 * var(--lf-axis-edge, 0px))

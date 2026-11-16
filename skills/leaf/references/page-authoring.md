@@ -323,7 +323,7 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
 also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+content. A `<pre>` asks its
 container for no width, so a box that takes its width from its content can leave it
 too narrow to read, which `page check --render` reports. A table scrolls inside a box
 that sets its own width, such as the column, a panel or any

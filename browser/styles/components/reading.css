@@ -365,10 +365,9 @@ dl.lf-facts dd {
      * page-authoring.md asked for the heading (#4091), 659 of the 663 rows that open on
      * a code name are written so. A name in any other column is left to the table's
      * layout. A stylesheet can't find it there: a selector reads no text, and a name, a
-     * command and the one code in a sentence are each a `<code>` in a `<td>`. A page's
-     * own `white-space: nowrap` on those cells keeps it whole, but page-authoring.md
-     * keeps authors from styling a cell's wrapping, since such a rule reused on a column
-     * of prose held that column open (#4110).
+     * command and the one code in a sentence are each a `<code>` in a `<td>`. The page's
+     * author knows which column holds names, and their own `white-space: nowrap` on
+     * those cells keeps them whole.
      *
      * Rejected, each measured in Firefox on 381 tables from real pages:
      * - Delivery and both Markdown renderers marking every cell whose whole text is one

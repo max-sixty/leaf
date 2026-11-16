@@ -112,7 +112,7 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
         "whole," in context
     )
     assert "> The retry limit: which would you like?" in context
-    assert f"leaf task end {page} message:{wrote[1]['id']} dropped" in context
+    assert f"leaf thread resolve {page} {wrote[1]['id']}" in context
     assert hook(capsys, "PostToolBatch") == ""
 
     again = clerk_model.take_answer(
@@ -124,18 +124,17 @@ def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, 
     append_carried_log_record(
         claimed,
         {
-            "kind": "todo_end",
+            "kind": "resolve",
             "author": "agent",
             "agent": "Claude",
             "session": "s1",
-            "todo": f"message:{wrote[1]['id']}",
-            "outcome": "dropped",
+            "parent": wrote[1]["id"],
         },
     )
     question = asked()
     assert (
-        f'- message:{wrote[1]["id"]}, in "A PR for this branch", dropped: A PR for '
-        "this branch: which would you like?" in question["prompt"]
+        f'- message:{wrote[1]["id"]}, in "A PR for this branch", closed by the agent: '
+        "A PR for this branch: which would you like?" in question["prompt"]
     )
     reasked = clerk_model.take_answer(
         "s1", reply(page, "A PR for this branch"), question["basis"]
@@ -163,7 +162,7 @@ def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys)
 
     basis = asked()
     assert (
-        f'- {question}, in "Reloading the plugin", closed by the user unanswered: '
+        f'- {question}, in "Reloading the plugin", closed by the user: '
         "Reloading the plugin: which would you like?" in basis["prompt"]
     )
     again = clerk_model.take_answer(
@@ -191,7 +190,7 @@ def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys)
         f"On Me again, as {question}, with your message {again[0]['id']} in its "
         f"thread on {page}," in context
     )
-    assert f"leaf task end {page} {question} dropped" in context
+    assert f"leaf thread resolve {page} {again[0]['id']}" in context
 
     elsewhere = clerk_model.take_answer(
         "s1", reply(page, "The retry limit", again="message:nowhere"), basis["basis"]

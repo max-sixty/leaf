@@ -498,13 +498,13 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
     quotation islands."""
     content = """<div id="split">
-      <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
+      <lf-pane id="decision-pane" label="Decision"><section id="decision">
         <h2 id="question">Which plan should lead?</h2>
         <lf-options id="plans" choose>
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>
-      </lf-ask></lf-pane>
+      </section></lf-pane>
       <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
     </div>"""
     markup = leaf_page(
@@ -6057,16 +6057,16 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
 def test_page_search_finds_a_shipped_options_chip_and_title_apart(
     engine, request, serve
 ):
-    """The default package's lf-ask example, as shipped, puts a chip and the option's
+    """The default package's lf-options example, as shipped, puts a chip and the option's
     title it stands beside apart, as the theme draws them: page search finds
-    "recommended Drop"."""
+    "recommended Status"."""
     registry = json.loads(
         (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
     )
-    url = serve(leaf_page("Ask", registry["lf-ask"]["x-example"]))
+    url = serve(leaf_page("Ask", registry["lf-options"]["x-example"]))
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("recommended Drop")
+    page.get_by_role("searchbox", name="Search page text").fill("recommended Status")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

@@ -380,7 +380,6 @@ EXTENSION_SCHEMA = {
         },
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
-        "x-encloses": {"const": True},
         "x-language": _ATTRIBUTE_NAME,
         "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
@@ -446,7 +445,6 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-flow": {"const": True},
         "x-spine": {"const": True},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and

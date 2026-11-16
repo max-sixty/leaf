@@ -753,16 +753,16 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
-<lf-ask id="decision"><h3>Patch decision</h3>
+<section id="decision"><h3>Patch decision</h3>
 <lf-options id="decision-options" choose>
   <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="meeting"><h3>Where should the group meet?</h3>
+</lf-options></section>
+<section id="meeting"><h3>Where should the group meet?</h3>
 <lf-options id="meeting-options" choose settled>
   <lf-option id="meeting-door">At the door</lf-option>
   <lf-option id="meeting-desk" chosen>At reception</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <h2 id="support">Support</h2>
 <p id="support-playbook">The playbook covers the spinner.</p>
 <h2 id="first-sibling">First section</h2><p>First words.</p>

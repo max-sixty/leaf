@@ -12,11 +12,11 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def card(name, question):
-    return f"""<lf-ask id="{name}-ask"><h3>{question}</h3>
+    return f"""<section id="{name}-ask"><h3>{question}</h3>
       <lf-options id="{name}-choice" choose>
         <lf-option id="{name}-yes"><strong>Yes</strong></lf-option>
         <lf-option id="{name}-no"><strong>No</strong></lf-option>
-      </lf-options></lf-ask>"""
+      </lf-options></section>"""
 
 
 DECK_PAGE = leaf_page(
@@ -114,12 +114,12 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
 DRAFT_DECK_PAGE = leaf_page(
     "Deck with a draft",
     '<h1>Before the release</h1><lf-deck id="deck">'
-    '<lf-ask id="reply-ask"><h3>Send this reply?</h3>'
+    '<section id="reply-ask"><h3>Send this reply?</h3>'
     '<lf-draft id="reply-draft"><pre>\nThanks for the report.</pre></lf-draft>'
     '<lf-options id="reply-choice" choose>'
     '<lf-option id="reply-send"><strong>Send it</strong></lf-option>'
     '<lf-option id="reply-hold"><strong>Hold it</strong></lf-option>'
-    "</lf-options></lf-ask>" + card("notes", "Post the notes?") + "</lf-deck>",
+    "</lf-options></section>" + card("notes", "Post the notes?") + "</lf-deck>",
 )
 
 
@@ -149,11 +149,11 @@ def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     is left and takes the user back in."""
     page = open_page(browser, serve(DECK_PAGE))
     page.keyboard.press("m")
-    expect(page.locator("#store-ask")).to_be_focused()
+    expect(page.locator("#store-choice")).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
     open_card(page, "beta-ask")
-    expect(page.locator("#beta-ask")).to_be_focused()
+    expect(page.locator("#beta-choice")).to_be_focused()
     page.keyboard.press("ArrowRight")
     open_card(page, "notes-ask")
     page.keyboard.press("2")

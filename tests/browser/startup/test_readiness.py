@@ -126,11 +126,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
-            """<lf-ask id="startup-decision"><h2>Startup choice</h2>
+            """<section id="startup-decision"><h2>Startup choice</h2>
 <lf-options id="startup-choice" choose>
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-draft id="startup-note"><pre>Ship on Tuesday from the blue room.</pre></lf-draft>
 """
             + SHADOWED_DIFF,

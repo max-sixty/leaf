@@ -56,7 +56,7 @@ assert:
   - type: llm-rubric
     metric: links
     value: |
-      Treat each section and each lf-ask as a unit. Pass only if, inside every unit,
+      Treat each section as a unit. Pass only if, inside every unit,
       each pull request or issue number it names (#3931, #3962, #3876, #3857, #3854,
       #4018) is an `<a href>` to its GitHub URL at least once, wherever
       in the unit that link sits. A link elsewhere on the page doesn't count for the

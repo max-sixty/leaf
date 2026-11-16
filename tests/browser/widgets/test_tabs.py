@@ -865,13 +865,13 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "a late queue",
             """<lf-tabs id="queue" list="side">
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
-  <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
+  <section id="ask-a"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a" choose>
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
       <lf-option id="o-a-long"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>
     </lf-options>
-  </lf-ask>
+  </section>
 </lf-tab>
 <lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
 </lf-tabs>""",

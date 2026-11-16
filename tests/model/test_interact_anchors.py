@@ -443,9 +443,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
     frozen = (
-        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
+        '<section id="thread-ask"><h2>Choose one</h2>'
         '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></lf-ask>"
+        "Thread option</lf-option></lf-options></section>"
     )
     answered = CliRunner().invoke(
         cli_model.cli,
@@ -1707,11 +1707,11 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "agent",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
+            "markup": '<section id="gm-decision"><h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -1743,10 +1743,10 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (
-                        f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
+                        f'<section id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></lf-ask>"
+                        "</lf-options></section>"
                     ),
                 },
             )
@@ -1863,8 +1863,8 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<section id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
         widget = '<pre id="native-log">Ready</pre>'
@@ -1908,11 +1908,11 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "--text",
             "Pick one:",
             "--markup",
-            '<lf-ask id="ps-decision"><h3>Which store?</h3>'
+            '<section id="ps-decision"><h3>Which store?</h3>'
             '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         ).exit_code
         == 0
     )
@@ -1943,8 +1943,8 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<section id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
         widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'

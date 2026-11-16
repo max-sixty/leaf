@@ -440,12 +440,12 @@ QUIET = "2026-09-19T11:30:00+00:00"
 
 OBLIGATION_PAGE = leaf_page(
     "Served queues",
-    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
+    '<section id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    "</lf-options></section>"
+    '<section id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></section>",
 )
 
 
@@ -693,12 +693,12 @@ def gesture_sequence() -> dict:
 TAIL_PAGE = leaf_page(
     "Served tails",
     '<p id="p">Two questions.</p>'
-    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" choose multiple>'
+    '<section id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" choose multiple>'
     '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    "</lf-options></section>"
+    '<section id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
     '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></section>",
 )
 # Picks, a comment and its answer, an undo of an older pick, which withdraws a held
 # projection entry and drops it from the undo list, and a pickup, which marks held

@@ -617,13 +617,13 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
         serve(
             leaf_page(
                 "Draft in an Ask",
-                '<h1>Release note</h1><lf-ask id="note-decision">'
+                '<h1>Release note</h1><section id="note-decision">'
                 "<h2>How should the note read?</h2>"
-                f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></lf-ask>',
+                f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></section>',
             )
         ),
     )
-    question = page.locator("#note-decision")
+    question = page.locator("#note")
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
     expect(page.locator("#note .lf-draft-tools")).to_have_css("opacity", "1")

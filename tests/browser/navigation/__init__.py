@@ -44,11 +44,11 @@ def color_cue_markup():
         '<h1>Review</h1><section id="review"><lf-tabs id="views">'
         + "".join(
             f'<lf-tab id="{name}" label="{name}">'
-            f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
+            f'<section id="ask-{name}"><h2>Choose {name}?</h2>'
             f'<lf-options id="choice-{name}" choose>'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
-            "</lf-ask></lf-tab>"
+            "</section></lf-tab>"
             for name in ("first", "second")
         )
         + "</lf-tabs></section>",

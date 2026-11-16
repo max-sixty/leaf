@@ -115,7 +115,7 @@ cart:{user_id}            →  cart:{user_id}:{currency}
           Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
           dual-read migration or a cache warmed before the switch.
         </p>
-        <lf-ask id="detail-fix-ask" class="gist">
+        <section id="detail-fix-ask" class="gist">
           <h3>How should 4.3 change the cache key?</h3>
           <p>
             Both ship multi-currency carts without a cold cache; they differ in risk and
@@ -131,7 +131,7 @@ cart:{user_id}            →  cart:{user_id}:{currency}
               backfill job, but a slow backfill delays the release.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </section>
         <p id="detail-fix-1">
           Either way, the canary alert should compare against the previous release
           rather than a fixed threshold, so a 2× jump fires whatever the absolute

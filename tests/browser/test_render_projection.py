@@ -432,15 +432,15 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an obligation framed by an `lf-ask`.
+    # A draft without `needed` is optional editing, not an obligation framed by a section.
     honoring = honoring.replace(
-        '<lf-ask id="decision-ledger-fixture-region">',
+        '<section id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
     ).replace(
-        "</lf-draft>\n              </lf-ask>",
+        "</lf-draft>\n              </section>",
         "</lf-draft>\n              </div>",
     )
-    assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
+    assert '<section id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable obligation inventory after the source

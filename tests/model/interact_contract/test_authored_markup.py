@@ -133,15 +133,15 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
 def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
     """An allocation means something only where the kernel's `$marks` say it does,
     and delivery paints none elsewhere, so the page would show no sign of it: a width
-    on a question, which draws no box of its own, a width on `main`, which would size
-    the page, and a stated height on a block no module draws into. `page check` names
-    each so the author can move it. A width on the table inside the question, and a
-    height on a chart, mean what they say."""
+    on `main`, which would size the page, and a stated height on a block no module
+    draws into. `page check` names each so the author can move it. A width on the
+    question's section or on the table inside it, and a height on a chart, mean what
+    they say."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main data-width="wide">')
         .replace(
             '<div id="plan-choice-decision">',
-            '<lf-ask id="plan-choice-decision" data-width="available">',
+            '<section id="plan-choice-decision" data-width="available">',
         )
         .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
         .replace(
@@ -150,7 +150,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
             '<div id="sized" data-height="200">box</div>\n'
             '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
-            "</lf-chart>\n  </lf-ask>",
+            "</lf-chart>\n  </section>",
         )
     )
     status, findings = check_findings(page_dir)
@@ -160,7 +160,6 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         for f in found(findings, "inert-allocation")
     ] == [
         ("<main>", "data-width", "content", "advice"),
-        ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
     ]
 
@@ -210,10 +209,10 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-sample><lf-ask id="nested-ask">'
+        '<template id="practice" data-sample><section id="nested-ask">'
         '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
-        "</lf-options></lf-ask></template></main>"
+        "</lf-options></section></template></main>"
     )
     parser = structure_model.SourceDocument(html)
 

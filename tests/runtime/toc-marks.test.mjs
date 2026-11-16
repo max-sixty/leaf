@@ -151,14 +151,14 @@ test("a thread about a whole question or card counts in the row of the heading t
   assert.deepEqual(
     marked(
       `<h1>Plan</h1><p id="lede">Why.</p>
-      <section id="decision"><lf-ask id="ask">
+      <section id="decision"><section id="ask">
         <hgroup id="ask-title"><p>Decision 1</p><h2>Which store?</h2></hgroup>
         <p id="ask-context">Two stores fit.</p>
-      </lf-ask></section>
-      <lf-ask id="bare-ask">
+      </section></section>
+      <section id="bare-ask">
         <hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
         <p>One region fits.</p>
-      </lf-ask>
+      </section>
       <h2>Cards</h2>
       <article id="card"><h3>First card</h3><p>Its words.</p></article>`,
       {
@@ -195,10 +195,10 @@ test("what follows a question before the next heading counts in the question's r
   assert.deepEqual(
     marked(
       `<h1>Plan</h1><h2>Context</h2><p>Why.</p>
-      <lf-ask id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
-        <p>Two fit.</p></lf-ask>
+      <section id="ask"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
+        <p>Two fit.</p></section>
       <p id="after">A note after the question.</p>
-      <section id="s"><lf-ask><h2>Which region?</h2></lf-ask>
+      <section id="s"><section><h2>Which region?</h2></section>
         <h3>Notes</h3><p id="notes">Its words.</p></section>`,
       {
         threads: [{ id: "after" }, { id: "s" }, { id: "notes" }],

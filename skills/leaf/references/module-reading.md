@@ -247,8 +247,10 @@ including those with the agent. Each record looks like this:
 A widget's obligation takes its answer and completion from its `x-awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
-is `null` for authored state. `prompt.target` is where the user goes to answer;
-`prompt.text` is `null` for a widget with no heading and for an update. `thread`
+is `null` for authored state. `prompt.target` is where going to the obligation starts
+reading: the element opened by the heading that names it, such as a question's
+section, or the widget itself; `prompt.text` is that heading's words, empty for a widget
+with no heading over it, and `null` for an update. `thread`
 and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:

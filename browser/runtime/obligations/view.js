@@ -6,10 +6,12 @@
    current nodes for focus, geometry, contextual commands and blanket actions. Questions
    answered in words navigate through their thread owner instead.
 
-   An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
-   the widget itself. The source owns the answer and the explicit context bindings.
-   Adding an enclosing widget changes neither the obligation nor its answer.
+   An obligation keeps its source identity, and stands at its source (obligations/place.js).
+   Its prompt.target names its context, the element whose heading names it, such as the
+   section a question opens with its heading, otherwise the widget itself; an arrival
+   starts reading there where that fits. The source owns the answer and the explicit
+   context bindings. Wrapping a widget in a section changes neither the obligation nor
+   its answer.
 
    Focus, through current-target.js, determines which obligation wears the location
    ring. The m/M work walk visits the user's current queue; an answered obligation can
@@ -21,8 +23,8 @@
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
    are materialized at their exact owning message through the thread owner. A page
-   source arrives at the window's head, at its declared context region or the nearest
-   fitting heading/text block supplied by its document. A destination already readable
+   source arrives at the window's head, at the first of its context, the heading over it
+   or the text block before it whose run down to it fits the window. A destination already readable
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the obligation record.
 
@@ -86,8 +88,6 @@ export function createObligationView({
   repaint,
 }) {
   /** @param {Obligation | null} item */
-  const obligationNode = (item) => obligationPlace(item).node;
-  /** @param {Obligation | null} item */
   const sourceNode = (item) => obligationPlace(item).source;
   // The widget whose commands answer an obligation.
   /** @param {Obligation | null} item */
@@ -116,18 +116,10 @@ export function createObligationView({
   // An obligation a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
   /** @param {Obligation} item */
-  const obligationNodes = (item) => ({
-    target: obligationNode(item),
-    source: sourceNode(item),
-  });
-  /** @param {Obligation} item */
   const reachObligation = (item) => {
-    if (item.thread && !obligationNode(item)) showHeld(item.thread);
-    return obligationNodes(item);
+    if (item.thread && !sourceNode(item)) showHeld(item.thread);
+    return sourceNode(item);
   };
-  /** @param {Obligation} item @param {ReturnType<typeof obligationNodes>} nodes */
-  const unbuiltMessage = (item, { target, source }) =>
-    !target || !source ? item.message : null;
   /** @param {Obligation} item @param {string} message
    * @param {ReturnType<typeof retainUserIntent> | null} intent */
   async function materializeObligation(item, message, intent = null) {
@@ -138,7 +130,7 @@ export function createObligationView({
       travel: false,
       ...(intent && { intent }),
     });
-    return obligationNodes(item);
+    return sourceNode(item);
   }
   /** @type {Set<string>} */
   const answeringAll = new Set();
@@ -158,9 +150,10 @@ export function createObligationView({
           obligationEntry(item)?.all !== outcome
         )
           continue;
-        const nodes = reachObligation(item);
-        const message = unbuiltMessage(item, nodes);
-        const { source } = message ? await materializeObligation(item, message) : nodes;
+        const node = reachObligation(item);
+        const source =
+          node ??
+          (item.message ? await materializeObligation(item, item.message) : null);
         // An obligation answered for all at once is a widget's, which names its tag.
         const decision = decisionFor(item.source.tag);
         if (!source || !decision) continue;
@@ -267,14 +260,14 @@ export function createObligationView({
     // obligation itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
-    const item = obligationNode(answered);
+    const item = sourceNode(answered);
     return held === item ||
       (inChrome(held) && placeOf(held) === item) ||
       hasReviewedFocus()
       ? answered
       : null;
   }
-  const currentLocationIn = () => obligationNode(currentLocationObligation());
+  const currentLocationIn = () => sourceNode(currentLocationObligation());
 
   // Widgets own context aliases. The obligation view selects declarations through the same current location
   // relation that maps a margin entry or thread back to its source; the generic
@@ -368,7 +361,7 @@ export function createObligationView({
   // boxes touching rather than as the one obligation the user is in.
   function markHere() {
     const record = currentLocationObligation();
-    const here = obligationNode(record);
+    const here = sourceNode(record);
     const wearing = new Set(here ? [here, ...shownParts(here)] : []);
     for (const marked of document.querySelectorAll(
       `[${PAGE_PAINT_ATTRIBUTE.obligation}]`,
@@ -387,17 +380,17 @@ export function createObligationView({
   // means being here, including the visible answering control of a boxless obligation.
   /** @param {Obligation} record @param {boolean} [review] */
   function arrivalFocus(record, review = false) {
-    const item = obligationNode(record);
     const source = sourceNode(record);
-    if (!item) return null;
+    if (!source) return null;
     // A boxless decided obligation can retain a zero-height layout rect after its
     // content retires. It has no visible surface to receive the return focus.
-    const target =
-      !source || [...item.getClientRects()].some((rect) => rect.width && rect.height)
-        ? item
-        : (source.querySelector(OBLIGATION_CONTROL) ??
-          actionsOf(record).map(({ control }) => presentedControl(control))[0] ??
-          source);
+    const target = [...source.getClientRects()].some(
+      (rect) => rect.width && rect.height,
+    )
+      ? source
+      : (source.querySelector(OBLIGATION_CONTROL) ??
+        actionsOf(record).map(({ control }) => presentedControl(control))[0] ??
+        source);
     reviewedThrough = review ? target : null;
     return target;
   }
@@ -440,34 +433,28 @@ export function createObligationView({
   }
 
   // Where the user arrives at a page obligation: the region whose start has to be in front
-  // of them for the obligation to make sense. A widget declaring `x-encloses` is its own frame —
-  // one heading, then the context and evidence, then the control — and this walk is handed
-  // that region rather than the widget inside it, so its arrival is simply its start.
+  // of them for the obligation to make sense. A question framed by a section — one heading,
+  // then the context and evidence, then the control — starts at the section, whose start
+  // holds an eyebrow over the heading too.
   //
-  // The kind that most needs a region is the kind that cannot declare one. A suggestion is
-  // an edit to a phrase, and what explains it is the sentence it stands in and the heading
-  // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no enclosing widget can be written round it. Landing on the change alone put
-  // its own top edge under the window's head and took that sentence with it: the user arrived
-  // at ✓ Accept with nothing on screen saying what they were accepting. So where the
-  // author has not declared a region, the document supplies one in the shape a declared
-  // region has.
+  // A suggestion is an edit to a phrase, and what explains it is the sentence it stands in
+  // and the heading over that, so it has no frame of its own. Landing on the change alone
+  // put its own top edge under the window's head and took that sentence with it: the user
+  // arrived at ✓ Accept with nothing on screen saying what they were accepting. So the
+  // document supplies a region in the shape a frame has.
   //
-  // Candidates widest first — the heading titling this part of the document, then the
-  // block the change stands in, or, for a change that is its own block, the block before
-  // it. The first whose start still leaves the obligation's own foot on screen wins, so a
-  // region never grows past what the user takes in at once and an obligation with nothing
-  // that fits keeps the landing this walk always gave it. That bound is what lets the
-  // widest candidate go first: a heading a long way up fails to fit, rather than needing a
-  // rule about how far up is too far.
-  /** @param {Element} item @param {Element | null} context @param {Element} currentLocation */
-  function arrivalRegion(item, context, currentLocation) {
-    // A unique declared context names the region even when taller than the screen:
-    // the reader arrives at its opening and reads down to the answering controls.
-    // Shared context must fit above this source; otherwise use its nearby words.
-    // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-encloses"];
-    if (declared && context === currentLocation) return context;
+  // Candidates widest first — the obligation's context, the heading titling this part of
+  // the document, then the block the change stands in, or, for a change that is its own
+  // block, the block before it. The first whose start still leaves the obligation's own
+  // foot on screen wins, so a region never grows past what the user takes in at once and
+  // an obligation with nothing that fits keeps the landing this walk always gave it. That
+  // bound is what lets the widest candidate go first: a section or heading a long way up
+  // fails to fit, rather than needing a rule about how far up is too far. A question
+  // taller than the window therefore starts at the words just before its answer; while an
+  // `lf-ask` framed questions, until 16 November 2026, the walk landed at its heading
+  // however tall it was.
+  /** @param {Element} item @param {Element | null} context */
+  function arrivalRegion(item, context) {
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -525,11 +512,9 @@ export function createObligationView({
         renderedOrder(block, item) < 0,
     );
     return (
-      [
-        declared ? context : null,
-        partOver(item),
-        closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
-      ].find(fits) ?? item
+      [context, partOver(item), closestAcross(item, TEXT_BLOCK) ?? before.at(-1)].find(
+        fits,
+      ) ?? item
     );
   }
 
@@ -590,11 +575,10 @@ export function createObligationView({
     }
     // A thread obligation uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
-    const { target } = reachObligation(next);
-    if (!mayArrive() || !target) return false;
+    if (!reachObligation(next) || !mayArrive()) return false;
     // A page obligation starts at the window's head so its context comes before its control, and
-    // what counts as its context is arrivalRegion's answer: the region an author declared,
-    // or the one the document supplies for a change that cannot declare one. Whether this
+    // what counts as its context is arrivalRegion's answer: the section framing it, or the
+    // nearest words before it, whichever fits first. Whether this
     // press moves the page is `framed`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
@@ -604,12 +588,12 @@ export function createObligationView({
     // navigation step. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
     const destination = () => {
-      const { node: target, source, context } = obligationPlace(next);
+      const { source: target, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
-      if (!target || !source) return null;
+      if (!target) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source, context, target) }
+        ? { target, box, region: arrivalRegion(target, context) }
         : { target, box: null, region: null };
     };
     const initial = destination();
@@ -630,10 +614,6 @@ export function createObligationView({
         const { target, box, region } = here;
         return {
           where: target,
-          reveal:
-            next.source.id !== next.prompt.target
-              ? [sourceNode(next)].filter((node) => node !== null)
-              : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the obligation through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed obligation requests no motion.

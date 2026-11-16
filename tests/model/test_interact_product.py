@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import copy
 import json
 import os
 import re
@@ -44,6 +43,7 @@ from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import obligations as obligations_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -59,7 +59,7 @@ from leaf.validation.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import reference_errors
+from leaf.validation.instances import question_advice, reference_errors
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -260,117 +260,89 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
-    """An enclosing widget supplies one title without imposing source count or
-    identity."""
+def test_a_question_on_a_page_stands_under_its_heading(page_dir):
+    """A widget that asks on a page is advised to stand under a heading leading the
+    element around it, which names its obligation; a message's widget, a mention in a
+    sample, a widget that asks nothing and one set among words need none. The heading
+    is the obligation's prompt, and the element it opens is where going to the
+    obligation starts."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
         "</lf-options>"
     )
-    second = (
-        '<lf-options id="g-two" choose>'
-        '<lf-option id="o-two"><strong>Two</strong></lf-option>'
-        "</lf-options>"
-    )
+    second = first.replace("one", "two").replace("One", "Two")
 
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
-            registry,
-        )
-        == []
-    )
-    assert fragment_errors(first, registry) == []
+    def untitled(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return [
+            finding.at
+            for finding in question_advice(document, registry)
+            if finding.code == "untitled-question" and finding.severity == "advice"
+        ]
 
-    # Evidence can quote another obligation source without giving this obligation a
-    # second live source. The runtime already excludes x-exhibit descendants from the
-    # obligation list, so the authored boundary must read the same relation.
-    with_evidence = (
-        '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-sample id="quoted-example" label="another question">'
-        f"{second}</lf-sample></lf-ask>"
-    )
-    assert fragment_errors(with_evidence, registry) == []
-    # A sample's widget asks nothing, quoted or interactive, so it can't fill a
-    # question around the sample.
-    for mode in ("", " interactive"):
-        only_shown = (
-            '<lf-ask id="decision-shown"><h2>Choose</h2>'
-            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
-            "</lf-sample></lf-ask>"
-        )
-        codes = [error.code for error in fragment_errors(only_shown, registry)]
-        assert codes == ["empty-question"], mode
+    def prompts(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return obligations_model.obligation_sources(document, registry).prompts
 
-    # The obligation's title is what the shared name rule reads, so a heading in an
-    # hgroup after its eyebrow, a subheading, or context before the heading all
-    # name the obligation. A frame whose leading title is not a heading is refused.
+    # A heading in an hgroup after its eyebrow, a subheading, context before the
+    # heading, and several widgets sharing one context all title their questions.
     for titled in (
-        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
-        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
-        f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
+        f'<section id="d"><h2>Choose</h2><p>Context.</p>{first}</section>',
+        f'<section id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</section>',
+        f'<section id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</section>',
+        f'<section id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></section>',
+        f'<article id="d"><h2>Choose</h2>{first}{second}</article>',
     ):
-        assert fragment_errors(titled, registry) == []
-
-    # A frame around another frame holds what that one holds, so a question with
-    # parts asks through its inner frames.
+        assert untitled(titled) == [], titled
+    assert prompts(f'<section id="d"><h2>Choose</h2>{first}{second}</section>') == {
+        "g-one": {"text": "Choose", "target": "d"},
+        "g-two": {"text": "Choose", "target": "d"},
+    }
+    # The nearest titled element frames a question with parts. One without an id frames
+    # nothing, so its widget reads as untitled rather than taking the heading further
+    # out, and a heading after the widget titles what follows it, not the widget.
     nested = (
-        '<lf-ask id="outer"><h2>Choose</h2>'
-        f'<lf-ask id="inner"><h3>First part</h3>{first}</lf-ask></lf-ask>'
+        '<section id="outer"><h2>Choose</h2>'
+        f'<section id="inner"><h3>First part</h3>{first}</section></section>'
     )
-    assert fragment_errors(nested, registry) == []
-
-    for untitled in (
-        f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
-        f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
+    assert untitled(nested) == []
+    assert prompts(nested)["g-one"] == {"text": "First part", "target": "inner"}
+    for unframed in (
+        nested.replace(' id="inner"', ""),
+        f'<section id="d">{first}<h3>Next part</h3></section>',
     ):
-        assert found(fragment_errors(untitled, registry), "untitled-question")
+        assert prompts(unframed)["g-one"] == {"text": "", "target": "g-one"}, unframed
+        assert untitled(unframed) == ["<lf-options id=g-one>"], unframed
 
-    # A context framing no widget, or only widgets that ask nothing, would show a
-    # question the On Me list never counts; a question answered in words is a
-    # message's obligation instead. A retired source still counts: settling a
-    # decision keeps its context.
-    for empty in (
-        '<lf-ask id="question">Is this enough?</lf-ask>',
-        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+    # A container whose leading title is not a heading frames nothing, nor does the
+    # page's column, whose heading titles the page.
+    for bare in (
+        first,
+        f'<section id="d"><p>Context.</p>{first}</section>',
+        f'<section id="d"><strong>Choose</strong>{first}</section>',
+        f"<h1>The page</h1>{first}",
     ):
-        assert found(fragment_errors(empty, registry), "empty-question", widgets=[])
+        assert untitled(bare) == ["<lf-options id=g-one>"], bare
+    assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
 
-    def lacking(lacks):
-        return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
-
-    unasked = first.replace(" choose", "")
-    assert found(
-        fragment_errors(
-            f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
-            registry,
-        ),
-        "empty-question",
-        widgets=lacking({"choose": [True]}),
-    )
-    settled = first.replace(" choose", " choose settled")
-    settled_obligation = (
-        f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
-    )
-    assert fragment_errors(settled_obligation, registry) == []
-    # The registry's `retired` is what says the flag ended an obligation; a flag
-    # that merely stops a widget asking leaves the context framing nothing.
-    unretired = copy.deepcopy(registry)
-    del unretired["lf-options"]["x-awaits"]["retired"]
-    assert found(
-        fragment_errors(settled_obligation, unretired),
-        "empty-question",
-        widgets=lacking({"settled": [False]}),
-    )
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-crowded"><h2>Two decisions</h2>{first}{second}</lf-ask>',
-            registry,
+    # A widget that asks nothing, a sample's widgets, which ask nothing beyond the
+    # sample, and a suggestion, which its sentence names, need no heading.
+    assert untitled(first.replace(" choose", "")) == []
+    assert untitled(first.replace(" choose", " choose settled")) == []
+    for mode in ("", " interactive"):
+        assert (
+            untitled(f'<lf-sample id="s" label="a question"{mode}>{first}</lf-sample>')
+            == []
         )
-        == []
+    suggestion = (
+        '<lf-suggestion id="s"><lf-old>daily</lf-old><lf-new>weekly</lf-new>'
+        "</lf-suggestion>"
     )
+    assert untitled(f"<p>Refill {suggestion}.</p>") == []
+    # A message's widget is named by the message, so its markup needs no heading.
+    assert fragment_errors(first, registry) == []
 
 
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
@@ -575,13 +547,13 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
 
     def errors(attributes, name="setting"):
         return fragment_errors(
-            '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
+            '<section id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
             f'<lf-playground-control id="{name}" name="{name}" label="Setting" {attributes}>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
-            "</lf-playground></lf-ask>",
+            "</lf-playground></section>",
             registry,
         )
 
@@ -666,7 +638,7 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         return f'<lf-playground-value for="{name}"></lf-playground-value>'
 
     def reply(*playgrounds):
-        markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
+        markup = f'<section id="ask"><h2>Which?</h2>{"".join(playgrounds)}</section>'
         try:
             check_markup(
                 page_dir,
@@ -742,9 +714,9 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         assert found(reply(unnamed), "attribute-schema", tag, keyword="required")
 
     main = (
-        '<lf-ask id="ask"><h2>Which?</h2>'
+        '<section id="ask"><h2>Which?</h2>'
         + playground("a", tone + tone, output=slot("tone"))
-        + "</lf-ask>"
+        + "</section>"
     )
     (page_dir / "index.html").write_text(
         re.sub(r"<main>.*?</main>", f"<main>{main}</main>", PAGE, flags=re.DOTALL)
@@ -771,7 +743,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
 
     def errors(rail, beside_item, before="", in_output=""):
         return fragment_errors(
-            f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
+            f'<section id="placed-ask"><h2>Which tone?</h2>{before}'
             f'<lf-playground id="placed-playground">{rail}'
             '<lf-playground-preset id="preset-bold" label="Bold">'
             '<lf-playground-setting for="item-tone" value="bold">'
@@ -780,7 +752,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
             f'<section class="item-settings">{beside_item}</section></div>'
             "</lf-playground-preview>"
             f"<lf-playground-output>Use these tones.{in_output}</lf-playground-output>"
-            "</lf-playground></lf-ask>",
+            "</lf-playground></section>",
             registry,
         )
 
@@ -925,7 +897,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
 
     def question(decision_id, markup):
-        return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+        return f'<section id="{decision_id}"><h2>Pick?</h2>{markup}</section>'
 
     # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
@@ -1018,10 +990,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "Pick:",
             "--markup",
             (
-                '<lf-ask id="pick-decision"><h2>Pick?</h2>'
+                '<section id="pick-decision"><h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></section>"
             ),
         ],
     )

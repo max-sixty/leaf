@@ -1015,13 +1015,13 @@ ATTACHED_THREAD_PAGE = leaf_page(
     "an element and its thread",
     """<h1>Cache review</h1>
 <p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
-<lf-ask id="cache-ask">
+<section id="cache-ask">
   <h2>Which cache should we keep?</h2>
   <lf-options id="cache" choose>
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
-</lf-ask>""",
+</section>""",
 )
 
 
@@ -1034,7 +1034,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
     the obligation `m` lands on, or on any element the keyboard stands on. The card
     closes and the user stays on the element. Leaf's panel stands at no place, so `r`
     there leaves the card's thread alone though the card stays up."""
-    section = "cache-ask" if arrival == "walk" else "passage"
+    section = "cache" if arrival == "walk" else "passage"
     url = serve(ATTACHED_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": section}

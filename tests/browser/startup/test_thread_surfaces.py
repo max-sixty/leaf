@@ -431,10 +431,10 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             "Page annotation view",
             """
       <h1 id="title">Review</h1>
-      <lf-ask id="choice-question"><h2>Which route?</h2>
+      <section id="choice-question"><h2>Which route?</h2>
         <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
-      </lf-ask>
+      </section>
       <p id="subject">The export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review"></aside>
     """,
@@ -474,7 +474,7 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     )
     expect(question).to_be_visible()
     question.click()
-    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    page.wait_for_function("!!document.activeElement?.closest('#routes')")
     contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
     expect(contributed).to_be_visible()
     contributed.click()

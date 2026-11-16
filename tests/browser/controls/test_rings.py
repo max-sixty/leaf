@@ -1179,19 +1179,19 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
             leaf_page(
                 "Decision",
                 """
-      <lf-ask id="decision"><h2>Ready?</h2>
+      <section id="decision"><h2>Ready?</h2>
         <p>Review the evidence before choosing.</p>
         <lf-options id="answer" choose>
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>
         </lf-options>
-      </lf-ask>
+      </section>
     """,
             )
         ),
     )
     marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
-    decision = page.locator("#decision")
+    decision = page.locator("#answer")
     marker.hover()
     expect(decision).to_have_attribute("data-lf-traced", "")
     page.mouse.move(0, 0)

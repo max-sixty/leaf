@@ -234,10 +234,10 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<section id="tv-decision-region"><h3>Which store should I write up?</h3>'
         '<lf-options id="tv-decision" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
         "tv-decision",
     )
     append_carried_log_record(

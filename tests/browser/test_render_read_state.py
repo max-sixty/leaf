@@ -104,11 +104,11 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         None,
         "Choose the next step.",
-        '<lf-ask id="read-decision"><h3>Which way?</h3>'
+        '<section id="read-decision"><h3>Which way?</h3>'
         '<lf-options id="read-choice" choose>'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )["id"]
     page = open_page(browser, url)
     with sending(page, "the shown body's read"):
@@ -148,10 +148,10 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         None,
         "Choose this answer.",
-        '<lf-ask id="read-refusal"><h3>Choose</h3>'
+        '<section id="read-refusal"><h3>Choose</h3>'
         '<lf-options id="read-refusal-options" choose>'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )["id"]
     page = open_page(browser, url)
     cut = CutOff().hold(page)

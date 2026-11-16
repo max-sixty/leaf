@@ -72,7 +72,7 @@ assert:
     metric: reason-beside-options
     value: |
       Find why the author recommends the detailed wording. Pass only if that reason is
-      prose outside every `lf-option`, such as a paragraph in the `lf-ask` before or
+      prose outside every `lf-option`, such as a paragraph in the question's section before or
       after the `lf-options` group. Inside the cards, each option may state its own
       properties and consequences at a similar depth, such as naming the widget or
       matching the other findings' form. Fail if any `lf-option` holds the author's

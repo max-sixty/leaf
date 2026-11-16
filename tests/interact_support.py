@@ -1199,13 +1199,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-ask id="g1-decision">
+OPTIONS = """<section id="g1-decision">
   <h3>Which migration should lead?</h3>
   <lf-options id="g1" choose>
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
-</lf-ask>"""
+</section>"""
 
 
 def thread_records(page_dir, name: str) -> list[str]:

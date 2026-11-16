@@ -48,7 +48,7 @@ vars:
     spectrum from small tweaks (colour, weight, which marks show, how the gutter sign
     and bar sit together) to an overhaul. Put it in a playground I can play with."
 
-    Write the page's playground: the `lf-ask` with its `lf-playground`, and the
+    Write the page's playground: the section with its `lf-playground`, and the
     candidates' CSS. The preview can be a short static diff of about six lines.
 assert:
   - type: llm-rubric

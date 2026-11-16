@@ -39,13 +39,13 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
 ):
     """Tabs and settled answers count the comparison, including after reconnection."""
     first = SETTLED_PAGE.replace(
-        '<lf-ask id="transport-decision">',
+        '<section id="transport-decision">',
         '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
-        '<lf-ask id="transport-decision">',
+        '<section id="transport-decision">',
         1,
     ).replace(
-        "</lf-ask>",
-        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "</section>",
+        '</section></lf-tab><lf-tab id="notes" label="Notes">'
         "<p>Notes.</p></lf-tab></lf-tabs>",
         1,
     )
@@ -81,13 +81,13 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     """A tab strip whose render throws on its return reports that once
     and still paints the next comparison: the failed reading stands, not the failure."""
     first = SETTLED_PAGE.replace(
-        '<lf-ask id="transport-decision">',
+        '<section id="transport-decision">',
         '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
-        '<lf-ask id="transport-decision">',
+        '<section id="transport-decision">',
         1,
     ).replace(
-        "</lf-ask>",
-        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "</section>",
+        '</section></lf-tab><lf-tab id="notes" label="Notes">'
         "<p>Notes.</p></lf-tab></lf-tabs>",
         1,
     )
@@ -346,11 +346,11 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             "author": "agent",
             "revision": 1,
             "text": "And settled in here.",
-            "markup": '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
+            "markup": '<section id="th-done-decision"><h3>Where, again?</h3>'
             '<lf-options id="th-done" choose settled>'
             '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         },
     )
     [root] = [

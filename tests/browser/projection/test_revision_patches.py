@@ -813,7 +813,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     first = leaf_page(
         "Widgets first",
         """
-<lf-ask id="wd-store-ask"><h2>Which store?</h2>
+<section id="wd-store-ask"><h2>Which store?</h2>
 <lf-options id="wd-store" choose>
   <lf-option id="wd-keep">Keep the store
   <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
@@ -823,26 +823,26 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
   <script>if (false) import("/runtime/widget-api.js");</script>
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="wd-when-ask"><h2>Which schedule?</h2>
+</lf-options></section>
+<section id="wd-when-ask"><h2>Which schedule?</h2>
 <lf-options id="wd-when" choose>
   <lf-option id="wd-now">Start now</lf-option>
   <lf-option id="wd-later">Start later</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
     )
     second = (
         first.replace("Widgets first", "Widgets second")
-        .replace('<lf-ask id="wd-store-ask">', '\n<lf-ask id="wd-store-ask">')
+        .replace('<section id="wd-store-ask">', '\n<section id="wd-store-ask">')
         .replace(
             '<lf-option id="wd-later">Start later</lf-option>',
             '<lf-option id="wd-later">Start later</lf-option>\n'
             '  <lf-option id="wd-never">Do not start at all</lf-option>',
         )
         .replace(
-            '<lf-ask id="wd-when-ask">',
+            '<section id="wd-when-ask">',
             '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
-            '<lf-ask id="wd-when-ask">',
+            '<section id="wd-when-ask">',
         )
     )
     page = open_page(
@@ -899,11 +899,11 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         return f"""<lf-tabs id="tp-views">
   <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
   <lf-tab id="tp-ask-tab" label="Ask">
-    <lf-ask id="tp-store-ask"><h2>Which store?</h2>
+    <section id="tp-store-ask"><h2>Which store?</h2>
     <lf-options id="tp-store" choose>
       <lf-option id="tp-keep">Keep the store</lf-option>
       <lf-option id="tp-drop">Drop the store</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></section>
   </lf-tab>{extra}
 </lf-tabs>"""
 
@@ -958,9 +958,9 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
         '<p id="served-selection">A passage with a saved caret.</p></section>'
         '<div style="height:1600px"></div>'
         '<h2 id="destination">Destination</h2>'
-        '<lf-ask id="question"><h2>A decision?</h2>'
+        '<section id="question"><h2>A decision?</h2>'
         '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
@@ -977,7 +977,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
             == "served-selection"
         )
         page.keyboard.press("m")
-        expect(page.locator("#question")).to_be_focused()
+        expect(page.locator("#answer")).to_be_focused()
     if departure != "focused":
         assert page.evaluate("history.length") == entries + 1
         scroll_settled(page)
@@ -1021,9 +1021,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
     questions = "".join(
-        f'<lf-ask id="question-{i}"><h2>Decision {i}?</h2>'
+        f'<section id="question-{i}"><h2>Decision {i}?</h2>'
         f'<lf-options id="options-{i}" choose>'
-        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-ask>'
+        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></section>'
         for i in range(3)
     )
     second = first.replace(reading, questions + reading)
@@ -1046,7 +1046,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
 
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator("lf-ask")).to_have_count(3)
+    expect(page.locator("lf-options")).to_have_count(3)
     expect(door).to_have_attribute("aria-label", "On Me: 3")
     if subject == "selection":
         assert (
@@ -1061,7 +1061,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     write(editor, "Keep this comment while questions change.")
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
-    expect(page.locator("lf-ask")).to_have_count(0)
+    expect(page.locator("lf-options")).to_have_count(0)
     # With nothing on the user, the door names the comment they are writing.
     expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
     expect(editor).to_be_focused()
@@ -1081,9 +1081,9 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     )
     second = first.replace("</section>", paragraph + "</section>").replace(
         "</main>",
-        '<lf-ask id="question"><h2>Decision?</h2>'
+        '<section id="question"><h2>Decision?</h2>'
         '<lf-options id="options" choose><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></lf-ask></main>",
+        "</lf-options></section></main>",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#subject p").click(click_count=3)
@@ -1143,11 +1143,11 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     owner."""
 
     def question(identity, label):
-        return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
+        return f"""<section id="{identity}-ask"><h2>{label}?</h2>
   <lf-options id="{identity}-options" choose>
     <lf-option id="{identity}-yes">Yes</lf-option>
   </lf-options>
-</lf-ask>"""
+</section>"""
 
     first_question = question("first", "First")
     second_question = question("second", "Second")
@@ -1179,7 +1179,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
             "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
         )
 
-    assert identities("main > lf-ask", "id") == ["first-ask", "second-ask", "gone-ask"]
+    assert identities("main > section", "id") == ["first-ask", "second-ask", "gone-ask"]
     assert asked() == [
         "widget:first-options",
         "widget:second-options",
@@ -1189,7 +1189,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     stamp_page(serve.page_dir, second, "reverse the questions, remove the third")
     wait_for_revision(page, 2)
 
-    assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
+    assert identities("main > section", "id") == ["second-ask", "first-ask"]
     # An open view keeps its cards where they stand while the user reads it; the
     # inventory's new order shows at the next opening.
     expect(page.locator(cards)).to_have_count(2)

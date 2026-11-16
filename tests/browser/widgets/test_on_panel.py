@@ -154,20 +154,20 @@ def test_an_answered_obligations_words_are_its_widgets_semantic_state(browser, s
             "answer words",
             """
 <h1 id="h">Answers</h1>
-<lf-ask id="note-ask"><h2>Is this release note right?</h2>
+<section id="note-ask"><h2>Is this release note right?</h2>
 <lf-draft id="note" needed><pre>
 Adds --dry-run to every mutating command.
-</pre></lf-draft></lf-ask>
-<lf-ask id="cache-ask"><h2>Which cache?</h2>
+</pre></lf-draft></section>
+<section id="cache-ask"><h2>Which cache?</h2>
 <lf-options id="cache" choose>
   <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="tags-ask"><h2>Which tags?</h2>
+</lf-options></section>
+<section id="tags-ask"><h2>Which tags?</h2>
 <lf-options id="tags" choose multiple>
   <lf-option id="tag-alpha" chosen><strong>Alpha</strong></lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="tone-ask"><h2>Which notification?</h2>
+</lf-options></section>
+<section id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
   <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
     <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
@@ -176,7 +176,7 @@ Adds --dry-run to every mutating command.
   <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
   <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
   notification.</lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 """,
         )
     )
@@ -443,9 +443,9 @@ WALKED_PAGE = leaf_page(
     "many asks",
     '<h1 id="title">Kit list</h1>'
     + "".join(
-        f'<lf-ask id="ask-{n}"><h2>Bring item {n}?</h2>'
+        f'<section id="ask-{n}"><h2>Bring item {n}?</h2>'
         f'<lf-options id="pick-{n}" choose><lf-option id="yes-{n}">Yes</lf-option>'
-        f'<lf-option id="no-{n}">No</lf-option></lf-options></lf-ask>'
+        f'<lf-option id="no-{n}">No</lf-option></lf-options></section>'
         for n in range(1, 9)
     ),
 )
@@ -475,7 +475,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     assert not shown(last)
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "8 of 8 waiting on me · Options")
-    expect(page.locator("#ask-8")).to_be_focused()
+    expect(page.locator("#pick-8")).to_be_focused()
     expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
     expect(last).to_have_attribute("data-lf-walked", "")
     assert last.evaluate("card => getComputedStyle(card).outlineStyle") == "solid"
@@ -492,9 +492,9 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
 ORDERED_PAGE = leaf_page(
     "walk order",
     '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
-    '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
+    '<section id="channel-ask"><h2>Which channel first?</h2>'
     '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></section>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
 
@@ -554,14 +554,14 @@ GROUPED_PAGE = leaf_page(
     "grouped asks",
     '<h1 id="title">Release</h1>'
     '<section><h2 id="impl">Implementation</h2>'
-    '<lf-ask id="exit-ask"><h3>Which exit code?</h3>'
+    '<section id="exit-ask"><h3>Which exit code?</h3>'
     '<lf-options id="exit" choose><lf-option id="e75">75</lf-option>'
-    '<lf-option id="e124">124</lf-option></lf-options></lf-ask>'
+    '<lf-option id="e124">124</lf-option></lf-options></section>'
     '<p id="reap">Reap every process under the sandbox user.</p></section>'
     '<section><h2 id="rollout">Rollout</h2>'
-    '<lf-ask id="runner-ask"><h3>Include self-hosted runners?</h3>'
+    '<section id="runner-ask"><h3>Include self-hosted runners?</h3>'
     '<lf-options id="runners" choose><lf-option id="r-yes">Yes</lf-option>'
-    '<lf-option id="r-no">No</lf-option></lf-options></lf-ask></section>',
+    '<lf-option id="r-no">No</lf-option></lf-options></section></section>',
 )
 
 
@@ -648,13 +648,13 @@ TABBED_PAGE = leaf_page(
     '<header><h1 id="first-title">Move the runs into one sandbox</h1></header>'
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
-    '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
+    '<section><section id="first-ask"><h3>Include self-hosted runners?</h3>'
     '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
-    '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
+    '<lf-option id="first-no">No</lf-option></lf-options></section></section></lf-tab>'
     '<lf-tab id="tab-second" label="Second plan">'
-    '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
+    '<section id="second-ask"><h3>Ship on Tuesday?</h3>'
     '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
-    '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'
+    '<lf-option id="second-no">No</lf-option></lf-options></section></lf-tab>'
     "</lf-tabs>",
 )
 
@@ -743,7 +743,7 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
 CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
-<lf-ask id="stick-ask"><h2>How should a long sidebar stick?</h2>
+<section id="stick-ask"><h2>How should a long sidebar stick?</h2>
 <lf-options id="stick" choose>
   <lf-option id="stick-box"><small class="tag">two days</small>
     <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
@@ -754,7 +754,7 @@ CARD_OPTIONS_PAGE = leaf_page(
   <lf-option id="stick-rule"><strong>Keep the one-block rule</strong>
     <p>Authors keep writing one block.</p></lf-option>
   <lf-option id="stick-none">Leave it</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
 )
 
 
@@ -812,11 +812,11 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
             leaf_page(
                 "done on its card",
                 """<h1 id="title">Tags</h1>
-<lf-ask id="tags-ask"><h2>Which tags?</h2>
+<section id="tags-ask"><h2>Which tags?</h2>
 <lf-options id="tags" choose multiple>
   <lf-option id="tag-alpha" chosen><strong>Alpha</strong> The first tag.</lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
             )
         ),
     )
@@ -1032,11 +1032,11 @@ TWO_DECISIONS_PAGE = leaf_page(
   <lf-option id="tl-land">Land it</lf-option>
   <lf-option id="tl-keep">Keep it on its branch</lf-option>
 </lf-options></section>
-<lf-ask id="ship-ask"><h2>Ship on Friday?</h2>
+<section id="ship-ask"><h2>Ship on Friday?</h2>
 <lf-options id="ship" choose>
   <lf-option id="ship-friday">Ship Friday</lf-option>
   <lf-option id="ship-wait">Wait a week</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
 )
 
 
@@ -1077,7 +1077,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    for decision, at in [("timeline", 1), ("ship-ask", 2), ("timeline", 1)]:
+    for decision, at in [("timeline", 1), ("ship", 2), ("timeline", 1)]:
         page.keyboard.press("m")
         expect_walk_position(page, f"{at} of 2 waiting on me · Options")
         expect(page.locator(f"#{decision}")).to_be_focused()
@@ -1137,8 +1137,8 @@ def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
     is answered the server moves it to the second, but the open view keeps it on the
     card the user answered, drawn once."""
     source = TWO_DECISIONS_PAGE.replace(
-        '<lf-ask id="ship-ask">', '<section id="both-asks"><lf-ask id="ship-ask">'
-    ).replace("</lf-ask>", "</lf-ask></section>")
+        '<section id="ship-ask">', '<section id="both-asks"><section id="ship-ask">'
+    ).replace("</section>", "</section></section>")
     source = source.replace(
         '<section id="timeline-ask">',
         '<section id="both-outer"><section id="timeline-ask">',

@@ -97,7 +97,7 @@ STACKED_OPTIONS_PAGE = leaf_page(
     "stacked options",
     """
 <h1 id="h">Clip storage</h1>
-<lf-ask id="stacked-decision"><h2>Where should clips live?</h2>
+<section id="stacked-decision"><h2>Where should clips live?</h2>
 <lf-options id="stacked" choose>
   <lf-option id="st-sd"><small class="tag">effort: low</small><small class="tag danger">risk: high</small>
     <strong>SD card only</strong>
@@ -109,7 +109,7 @@ STACKED_OPTIONS_PAGE = leaf_page(
     <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-options id="terse">
   <lf-option id="t-paper"><small class="tag">effort: low</small><small class="tag">risk: high</small><strong>Paper maps</strong> Nothing
   to charge.</lf-option>
@@ -145,25 +145,25 @@ OBLIGATION_SHAPES_PAGE = leaf_page(
     "asked",
     """
 <h1 id="t">Asked</h1>
-<lf-ask id="cards-decision"><h2>Where should a session live?</h2>
+<section id="cards-decision"><h2>Where should a session live?</h2>
 <lf-options id="cards" choose>
   <lf-option id="c-redis"><strong>Redis</strong>
   <p>A store we already run, keyed by an opaque id.</p></lf-option>
   <lf-option id="c-pg"><strong>Postgres</strong>
   <p>One fewer moving part, at the cost of write load.</p></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+</lf-options></section>
+<section id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="rows" choose multiple>
   <lf-option id="r-drill">A revocation drill</lf-option>
   <lf-option id="r-rotate">Key rotation for the fallback cookie</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="done-decision"><h2>How do parallel sessions merge?</h2>
+</lf-options></section>
+<section id="done-decision"><h2>How do parallel sessions merge?</h2>
 <lf-options id="done" choose settled>
   <lf-option id="d-serial" chosen><strong>A branch each</strong>
   <p>Merged one at a time against current main.</p></lf-option>
   <lf-option id="d-shared"><strong>One shared branch</strong>
   <p>Cheapest to set up, and conflicts are the norm.</p></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 # The other form of a question, on one page beside the first: options that are bare
@@ -180,26 +180,26 @@ OBLIGATION_PAGE = leaf_page(
     "obligation",
     """
 <h1 id="h">Three jobs</h1>
-<lf-ask id="jobs-decision"><h2>Which jobs are worth starting?</h2>
+<section id="jobs-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
   <lf-option id="job-heater" for="sec-heater"><small class="tag ok">reversible</small>Heat the bird bath</lf-option>
   <lf-option id="job-camera">Neither — the camera first</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
 down in January.</p></section>
 <section id="sec-heater"><h2>The bird bath</h2><p id="heater-p">Frozen eleven
 mornings last winter.</p></section>
-<lf-ask id="bracket-decision"><h2>Which bracket should we use?</h2>
+<section id="bracket-decision"><h2>Which bracket should we use?</h2>
 <lf-options id="bracket" choose>
   <lf-option id="br-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="br-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="tools-decision"><h2>Which tools should we bring?</h2>
+</lf-options></section>
+<section id="tools-decision"><h2>Which tools should we bring?</h2>
 <lf-options id="tools" choose multiple>
   <lf-option id="tl-clamp"><strong>Bar clamp</strong> Holds the rail while it sets.</lf-option>
   <lf-option id="tl-torque"><strong>Torque wrench</strong> The mounts are rated.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-options id="ordered">
   <lf-option id="ord-mounts">Mounts, before the frost</lf-option>
   <lf-option id="ord-heater">Heater, after it</lf-option>
@@ -241,20 +241,20 @@ NESTED_OBLIGATION_PAGE = leaf_page(
     "nested",
     """
 <h1 id="h">Two jobs</h1>
-<lf-ask id="outer-decision"><h2>Which jobs should we start?</h2>
+<section id="outer-decision"><h2>Which jobs should we start?</h2>
 <lf-options id="outer" choose multiple>
   <lf-option id="out-drill"><strong>The revocation drill</strong>
     <p id="drill-p">Support wants it run at their own volume.</p>
-    <lf-ask id="inner-decision"><h3>When should the drill run?</h3>
+    <section id="inner-decision"><h3>When should the drill run?</h3>
     <lf-options id="inner" choose>
       <lf-option id="in-now">This sprint</lf-option>
       <lf-option id="in-next">Next sprint</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></section>
   </lf-option>
   <lf-option id="out-keys"><strong>Key rotation</strong>
     <p id="keys-p">Cheap, and overdue since the split.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 # An option arguing its case with the evidence inside it, which is the whole reason the
@@ -269,7 +269,7 @@ INLINE_CASE_PAGE = leaf_page(
     "inline case",
     """
 <h1 id="h">The status column</h1>
-<lf-ask id="rollout-decision"><h2>Should we ship the column?</h2>
+<section id="rollout-decision"><h2>Should we ship the column?</h2>
 <lf-options id="rollout" choose>
   <lf-option id="ro-column"><strong>Ship the column</strong>
     <lf-shot id="ro-shot" alt="the run list, before and after the status column"
@@ -284,7 +284,7 @@ Run status now shows on the run list itself.
   <lf-option id="ro-leave"><strong>Leave it</strong>
     <p id="ro-leave-p">A failure stays one click away.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 CHIP_PAGE = leaf_page(
@@ -292,10 +292,10 @@ CHIP_PAGE = leaf_page(
     """
 <h1 id="h">Short facts</h1>
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
-<lf-ask id="picks-decision"><h2>Should we keep the store?</h2>
+<section id="picks-decision"><h2>Should we keep the store?</h2>
 <lf-options id="picks" choose>
   <lf-option id="p-keep"><small class="tag">reversible</small><strong>Keep the store</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
 )
@@ -493,11 +493,11 @@ OBLIGATIONS_PAGE = leaf_page(
     "obligations",
     """
 <h1 id="h">What is still open</h1>
-<lf-ask id="live-question-decision"><h2>Where should sessions live?</h2>
+<section id="live-question-decision"><h2>Where should sessions live?</h2>
 <lf-options id="live-question" choose>
   <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="lq-token"><strong>Signed tokens</strong> No store at all.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-suggestion id="sug-refill">
   <lf-old><p id="refill-was">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-now">Refill a feeder when its camera says so.</p></lf-new>
@@ -505,32 +505,32 @@ OBLIGATIONS_PAGE = leaf_page(
 <lf-test-tasks id="plan">
   <lf-test-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-test-task>
   <lf-test-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
-    <lf-ask id="t-baffles-decision"><h2>Are the baffles ready?</h2>
+    <section id="t-baffles-decision"><h2>Are the baffles ready?</h2>
       <lf-options id="t-baffles-review" choose>
         <lf-option id="t-baffles-approve"><strong>Approve</strong></lf-option>
         <lf-option id="t-baffles-revise"><strong>Request changes</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
   </lf-test-task>
   <lf-test-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
-    <lf-ask id="t-bath-decision"><h2>How should the bath proceed?</h2>
+    <section id="t-bath-decision"><h2>How should the bath proceed?</h2>
       <lf-options id="t-bath-choice" choose>
         <lf-option id="t-bath-wait"><strong>Wait for the transformer</strong></lf-option>
         <lf-option id="t-bath-skip"><strong>Leave it unheated</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
   </lf-test-task>
   <lf-test-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-test-task>
 </lf-test-tasks>
-<lf-ask id="honored-decision"><h2>Which gate design?</h2>
+<section id="honored-decision"><h2>Which gate design?</h2>
 <lf-options id="honored" choose>
   <lf-option id="hon-tiers" chosen><strong>Two-tier gates</strong></lf-option>
   <lf-option id="hon-one"><strong>One gate</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="retired-decision"><h2>Which cookie policy?</h2>
+</lf-options></section>
+<section id="retired-decision"><h2>Which cookie policy?</h2>
 <lf-options id="retired" choose settled>
   <lf-option id="ret-lax"><strong>Lax cookie</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-options id="exhibited">
   <lf-option id="exh-paper"><strong>Paper maps</strong></lf-option>
 </lf-options>
@@ -547,12 +547,12 @@ OBLIGATIONS_PAGE = leaf_page(
 """,
 )
 OBLIGATIONS_IN_ORDER = [
-    "live-question-decision",
+    "live-question",
     "sug-refill",
-    "t-baffles-decision",
-    "t-bath-decision",
+    "t-baffles-review",
+    "t-bath-choice",
 ]
-ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored-decision"]
+ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored"]
 
 
 OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(
@@ -560,7 +560,7 @@ OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(
     f"""
 <h1 id="h">A decision with context</h1>
 {"".join(f"<p id='lead-{i}'>Earlier finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
-<lf-ask id="storage-decision">
+<section id="storage-decision">
   <h2 id="storage-heading">What should a full store do?</h2>
   <p id="storage-context-1">The beta never reached the cap, so this is the first
   user's experience of it. The observed reopen rate favors eviction.</p>
@@ -573,7 +573,7 @@ OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(
     <lf-option id="storage-stop"><strong>Pause offline editing</strong>
     Nothing leaves, but the editor becomes read-only.</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 {"".join(f"<p id='tail-{i}'>Later finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
 """,
 )
@@ -612,13 +612,13 @@ OBLIGATIONS_IN_A_ROW_PAGE = leaf_page(
     f"""
 <h1 id="ar-h">What is still open</h1>
 {"".join(f"<p id='ar-lead-{i}'>Earlier note {i}. " + "Background. " * 18 + "</p>" for i in range(6))}
-<lf-ask id="ar-other-decision"><h2 id="ar-other-heading">Where should sessions live?</h2>
+<section id="ar-other-decision"><h2 id="ar-other-heading">Where should sessions live?</h2>
   <p id="ar-other-why">The store is the only part of this the beta never exercised.</p>
   <lf-options id="ar-other" choose>
     <lf-option id="ar-other-keep"><strong>Keep the store</strong></lf-option>
     <lf-option id="ar-other-token"><strong>Signed tokens</strong></lf-option>
   </lf-options>
-</lf-ask>
+</section>
 <lf-suggestion id="ar-sug">
   <lf-old><p id="ar-was">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="ar-now">Refill a feeder when its camera says so.</p></lf-new>
@@ -723,11 +723,11 @@ CHANGE_SHAPES_PAGE = leaf_page(
 <lf-suggestion id="sug-delete">
   <lf-old><p id="p-logs">Retries are logged at debug level.</p></lf-old>
 </lf-suggestion>
-<lf-ask id="shapes-decision"><h2>How long should a parked job wait?</h2>
+<section id="shapes-decision"><h2>How long should a parked job wait?</h2>
 <lf-options id="shapes-q" choose>
   <lf-option id="wait-day"><strong>A day</strong></lf-option>
   <lf-option id="wait-week"><strong>A week</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 # A group that takes a pick and a paragraph beside it, so the diff below has one real
@@ -843,11 +843,11 @@ LIVE_KEYS_V1 = leaf_page(
     """
 <h1 id="lk-title">Live keys</h1>
 <p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a> and the sentence that carries it, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
-<lf-ask id="lk-decision"><h2>Which one?</h2>
+<section id="lk-decision"><h2>Which one?</h2>
 <lf-options id="lk-options" choose>
   <lf-option id="lk-one">One</lf-option>
   <lf-option id="lk-two">Two</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <p id="lk-para">A closing paragraph with <a id="lk-link-three" href="#lk-para">a link to itself</a>.</p>
 """,
 )
@@ -871,11 +871,11 @@ LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
 
 # The decision as the same live page states it, so a revision below can be written by
 # taking it out or putting other words in its place.
-LIVE_KEYS_DECISION = """<lf-ask id="lk-decision"><h2>Which one?</h2>
+LIVE_KEYS_DECISION = """<section id="lk-decision"><h2>Which one?</h2>
 <lf-options id="lk-options" choose>
   <lf-option id="lk-one">One</lf-option>
   <lf-option id="lk-two">Two</lf-option>
-</lf-options></lf-ask>"""
+</lf-options></section>"""
 
 # A revision that restates the question the user is answering, which is the revision
 # they most need to stay with. The obligation keeps its id and its options keep theirs, but every
@@ -1049,16 +1049,16 @@ IN_FORCE_PAGE = leaf_page(
     "state in force",
     """
 <h1 id="ab-t">The v1 cutover</h1>
-<lf-ask id="ab-pick-decision"><h2>How should the schema migrate?</h2>
+<section id="ab-pick-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="ab-pick" choose>
   <lf-option id="ab-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="ab-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="ab-scope-decision"><h2>Which callers should migrate?</h2>
+</lf-options></section>
+<section id="ab-scope-decision"><h2>Which callers should migrate?</h2>
 <lf-options id="ab-scope" choose>
   <lf-option id="ab-all"><strong>Every caller</strong> Nobody is left on v1.</lf-option>
   <lf-option id="ab-ten"><strong>The top ten</strong> The rest follow in August.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-board id="ab-work">
   <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
   <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
@@ -1078,12 +1078,12 @@ IN_FORCE_PAGE = leaf_page(
   <lf-old><p id="ab-roll">Access logs roll off after 30 days.</p></lf-old>
   <lf-new><p>Access logs are kept for 90 days.</p></lf-new>
 </lf-suggestion>
-<lf-ask id="ab-triage-decision"><h2>Which edge cases survive?</h2>
+<section id="ab-triage-decision"><h2>Which edge cases survive?</h2>
 <lf-options id="ab-triage" choose multiple>
   <lf-option id="ab-expiry"><strong>Buffer expiry writes</strong></lf-option>
   <lf-option id="ab-capacity"><strong>Partition capacity</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
+</lf-options></section>
+<section id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
   <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
   <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
@@ -1097,7 +1097,7 @@ IN_FORCE_PAGE = leaf_page(
     <lf-playground-value for="radius"></lf-playground-value> corner radius and a
     <lf-playground-value for="tone"></lf-playground-value> tone.
   </lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 <lf-diff id="ab-patch"><pre>
 diff --git a/ab/bracket.py b/ab/bracket.py
 --- a/ab/bracket.py
@@ -1234,10 +1234,10 @@ RETIRED_WIDGET_PAGE = leaf_page(
 <p id="lede">Replacing the whole decision block below.</p>
 <lf-suggestion id="sug-swap">
   <lf-old id="was">
-    <lf-ask id="old-group-decision"><h2>How should sessions travel?</h2>
+    <section id="old-group-decision"><h2>How should sessions travel?</h2>
     <lf-options id="old-group" choose settled>
       <lf-option id="old-lax" chosen><strong>Lax cookie</strong> The way it stands.</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></section>
   </lf-old>
   <lf-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></lf-new>
 </lf-suggestion>
@@ -1312,11 +1312,11 @@ THREAD_OBLIGATIONS = [
         "author": "agent",
         "revision": 1,
         "text": "Which store?",
-        "markup": '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
+        "markup": '<section id="tq-one-decision"><h3>Which store?</h3>'
         '<lf-options id="tq-one" choose>'
         '<lf-option id="tq-redis">Redis</lf-option>'
         '<lf-option id="tq-cookie">Signed cookie</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     },
     {
         "kind": "comment",
@@ -1324,11 +1324,11 @@ THREAD_OBLIGATIONS = [
         "author": "agent",
         "revision": 1,
         "text": "Pick any that apply.",
-        "markup": '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'
+        "markup": '<section id="tq-set-decision"><h3>Which extras apply?</h3>'
         '<lf-options id="tq-set" choose multiple>'
         '<lf-option id="tq-logs">Logs</lf-option>'
         '<lf-option id="tq-metrics">Metrics</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     },
 ]
 
@@ -1398,13 +1398,13 @@ NESTED_PROPOSAL_PAGE = leaf_page(
   <lf-old><p>Keep the practice walk indoors.</p></lf-old>
   <lf-new>
     <p>Take the practice walk outside.</p>
-    <lf-ask id="route-ask">
+    <section id="route-ask">
       <h4>Which route should the walk follow?</h4>
       <lf-options id="route" choose>
         <lf-option id="route-garden">Through the garden</lf-option>
         <lf-option id="route-river">Along the river</lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
   </lf-new>
 </lf-suggestion>
 """,
@@ -1537,7 +1537,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "author": "agent",
             "revision": 1,
             "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "markup": '<section id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></section>',
         },
         {
             "id": "opening",

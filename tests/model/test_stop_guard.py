@@ -1349,8 +1349,8 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
         (page_dir / "index.html").write_text(
             PAGE.replace(
                 "</section>",
-                '<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>'
-                f"{board}</lf-ask></section>",
+                '<section id="triage-decision"><h3>Which follow-ups should we keep?</h3>'
+                f"{board}</section></section>",
             )
         )
         publish(page_dir)

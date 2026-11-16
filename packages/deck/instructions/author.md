@@ -1,7 +1,8 @@
 Use `lf-deck` when the user has several independent things to get through, such as the
 decisions and questions a piece of work is waiting on, and would rather take them one at
-a time than scan a page of them. Each child is a card: write it as a complete `lf-ask`
-or decision widget with the evidence it needs, since the user sees one card at a time.
+a time than scan a page of them. Each child is a card: write it as a section opened by its
+question's heading, holding the decision widget and the evidence it needs, since the user
+sees one card at a time.
 Put context that answers nothing before the deck; a card holding no question is passed
 over, reached only by Back.
 

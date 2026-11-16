@@ -26,9 +26,9 @@ def _source():
         '<section id="evidence"><h2>Evidence</h2><p id="prose">Read the counts.</p>'
         '</section><lf-activity id="feed"></lf-activity>'
         '<p><lf-tally id="left" for="queue" next></lf-tally></p>'
-        '<section id="queue"><lf-ask id="decision"><h2>Ship it?</h2>'
+        '<section id="queue"><section id="decision"><h2>Ship it?</h2>'
         '<lf-options id="choice" choose><lf-option id="yes">Ship it</lf-option>'
-        "</lf-options></lf-ask></section>",
+        "</lf-options></section></section>",
     )
 
 

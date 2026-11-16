@@ -1874,12 +1874,12 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        '<section id="asked"><h2>Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice" choose>'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"

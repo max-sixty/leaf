@@ -304,8 +304,8 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     top-right corner, so the pin stands beside the group instead, however many cards
     it holds."""
     body = (
-        '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
-        f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
+        '<section id="a"><h2>Close #1176 as won\'t-fix?</h2>'
+        f'<lf-options id="o" choose>{options}</lf-options></section>'
     )
     page = open_page(
         browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
@@ -337,7 +337,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
         "</lf-option>"
         for n in range(1, 5)
     )
-    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></lf-ask>'
+    body = f'<section id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></section>'
     comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
     page = open_page(
         browser,
@@ -632,23 +632,23 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
       <div id="ask-body">
         <p>The change, summarised in a paragraph long enough to read as one.</p>
         <div style="height: 1200px"></div>
-        <lf-ask id="body-ask">
+        <section id="body-ask">
           <h3>Which follow-up comes first?</h3>
           <lf-options id="body-choice" choose>
             <lf-option id="body-bench">Benchmark selected-row demand</lf-option>
             <lf-option id="body-dryrun">Close the dry-run gap</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         <div style="height: 1200px"></div>
       </div>
       <footer>
-        <lf-ask id="foot-ask">
+        <section id="foot-ask">
           <h3>Merge this revision?</h3>
           <lf-options id="foot-choice" choose>
             <lf-option id="foot-approve">Approve and merge</lf-option>
             <lf-option id="foot-hold">Hold for the benchmark</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
       </footer>
     </lf-pane>
     <lf-pane id="ask-other" label="Notes"><div><p>Notes.</p></div></lf-pane>
@@ -663,37 +663,37 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     """A pin goes below a control of the page level with it rather than take its
     presses. The controls were read at their whole boxes, so a body obligation's controls
     scrolled behind the pane's footer, where nobody can see or press them, pushed the
-    footer obligation's marker below the heading it stands beside."""
+    footer obligation's marker below the options it stands beside."""
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
     # Scroll the body until its obligation's last control, at the obligation's right edge where a
-    # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
+    # pin stands, is behind the footer obligation's options, with the body obligation's options in
     # view.
     page.evaluate(
         """() => {
           const body = document.getElementById('ask-body');
-          const control = [...document.querySelectorAll('#body-ask button')].at(-1)
+          const control = [...document.querySelectorAll('#body-choice button')].at(-1)
             .getBoundingClientRect();
-          const heading = document.querySelector('#foot-ask > h3').getBoundingClientRect();
-          body.scrollTop += control.top - heading.top - 2;
+          const options = document.getElementById('foot-choice').getBoundingClientRect();
+          body.scrollTop += control.top - options.top - 2;
         }"""
     )
     margins_laid_out(page)
     expect(
-        page.locator('[data-lf-margin-for="body-ask"] .lf-margin-marker')
+        page.locator('[data-lf-margin-for="body-choice"] .lf-margin-marker')
     ).to_be_visible()
-    marker = page.locator('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
+    marker = page.locator('[data-lf-margin-for="foot-choice"] .lf-margin-marker')
     expect(marker).to_be_visible()
     tops = page.evaluate(
         """() => {
-          const hidden = [...document.querySelectorAll('#body-ask button')].at(-1)
+          const hidden = [...document.querySelectorAll('#body-choice button')].at(-1)
             .getBoundingClientRect();
           const foot = document.querySelector('#ask-pane > footer').getBoundingClientRect();
           return {
             hiddenTop: hidden.top, footTop: foot.top,
-            heading: document.querySelector('#foot-ask > h3').getBoundingClientRect().top,
-            marker: document.querySelector('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
+            heading: document.getElementById('foot-choice').getBoundingClientRect().top,
+            marker: document.querySelector('[data-lf-margin-for="foot-choice"] .lf-margin-marker')
               .getBoundingClientRect().top,
           };
         }"""
@@ -708,12 +708,12 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     source = leaf_page(
         "A slotted Ask",
         '<div><h1>Reading region</h1><div id="reader-host">'
-        '<lf-ask id="slotted-ask">'
+        '<section id="slotted-ask">'
         "<h3>Which channel?</h3>"
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
         '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
-        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div></div>',
+        '<lf-option id="chat">Chat</lf-option></lf-options></section></div></div>',
         head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
         layout="sidebar",
     )
@@ -732,12 +732,12 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
       });
     }""")
     margins_laid_out(page)
-    row = page.locator('[data-lf-margin-for="slotted-ask"]')
+    row = page.locator('[data-lf-margin-for="channel"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(row).to_be_visible()
     reading = page.evaluate("""() => {
       const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-      const row = document.querySelector('[data-lf-margin-for="slotted-ask"]');
+      const row = document.querySelector('[data-lf-margin-for="channel"]');
       return {
         controls: [...row.querySelectorAll('.lf-margin-entry')]
           .filter(node => node.checkVisibility()).map(node => edges(node.getBoundingClientRect())),
@@ -964,8 +964,8 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         '<div id="right"><button id="neighbour" style="position:relative">A button'
         "</button></div></div>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
-        '<lf-ask id="q"><h3 id="question">Which one?</h3>'
-        f'<lf-options id="o" choose multiple>{options}</lf-options></lf-ask></section>'
+        '<section id="q"><h3 id="question">Which one?</h3>'
+        f'<lf-options id="o" choose multiple>{options}</lf-options></section></section>'
         + "".join(
             f'<section><h2>Section {n}</h2><p id="far-{n}">Words about section {n},'
             " enough for a line of reading.</p></section>"

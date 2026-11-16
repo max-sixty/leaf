@@ -40,7 +40,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 CONTRIBUTOR_PAGE = leaf_page(
     "query configuration",
     """
-<lf-ask id="query-ask"><h1>Choose the alert query</h1>
+<section id="query-ask"><h1>Choose the alert query</h1>
 <lf-playground id="query-config">
   <lf-playground-control id="stream" name="stream" label="Event stream" kind="choice" value="checkout">
     <lf-playground-choice id="stream-checkout" value="checkout" label="Checkout"></lf-playground-choice>
@@ -56,7 +56,7 @@ CONTRIBUTOR_PAGE = leaf_page(
     </div>
   </lf-playground-preview>
   <lf-playground-output>Implement the selected query.</lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 <script type="module">
 import {PAGE_INTERFACE} from "/runtime/widget-api.js";
 document.addEventListener(PAGE_INTERFACE, event => {
@@ -366,7 +366,7 @@ def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
             leaf_page(
                 "Keyboard during a range press",
                 """
-<lf-ask id="ring-ask"><h1>Choose a ring</h1>
+<section id="ring-ask"><h1>Choose a ring</h1>
 <lf-playground id="ring">
   <lf-playground-control id="width" name="width" label="Width" kind="range"
     value="2" min="1" max="4" step="1"></lf-playground-control>
@@ -374,7 +374,7 @@ def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
     <label>Candidate<input value="Focus treatment"></label>
   </lf-playground-preview>
   <lf-playground-output>Width <lf-playground-value for="width"></lf-playground-value></lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 """,
             )
         ),
@@ -920,7 +920,7 @@ def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser,
     # at 900px.
     source = leaf_page(
         "Alert workspace with a note",
-        '<lf-ask id="noted-ask"><h1>Tune alert policies</h1>'
+        '<section id="noted-ask" class="layout-flow"><h1>Tune alert policies</h1>'
         '<lf-playground id="noted-config" data-width="available">'
         "<lf-playground-preview>"
         + "<p>Checkout latency fired seven times last month.</p>"
@@ -931,7 +931,7 @@ def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser,
         "Apply the chosen latency window.</lf-playground-output></lf-playground>"
         '<details id="tally-note" open><summary>How the tally counts</summary>'
         + "<p>Each firing counts once per alert.</p>" * 6
-        + "</details></lf-ask>",
+        + "</details></section>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
@@ -983,7 +983,7 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
     than what stands on it."""
     source = leaf_page(
         "Stage",
-        '<lf-ask id="stage-ask"><h1>Choose a density</h1>'
+        '<section id="stage-ask"><h1>Choose a density</h1>'
         '<lf-playground id="stage-playground">'
         '<lf-playground-control id="rows" name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
@@ -994,7 +994,7 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
         '<lf-playground-preview><div id="first">First</div>'
         '<div id="artifact" style="height: 200px">Artifact</div></lf-playground-preview>'
         "<lf-playground-output>Use the chosen density.</lf-playground-output>"
-        "</lf-playground></lf-ask>",
+        "</lf-playground></section>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
@@ -1193,7 +1193,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     source = leaf_page(
         "Instruction popover",
         '<button id="outside">Before playground</button>'
-        '<lf-ask id="fold-ask"><h1>Choose a density</h1>'
+        '<section id="fold-ask" class="layout-flow"><h1>Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<lf-playground-control id="rows" name="rows" label="Rows" kind="range" value="4" '
         'min="1" max="8"></lf-playground-control>'
@@ -1202,7 +1202,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
         '<lf-playground-output>Use <lf-playground-value for="rows">'
         "</lf-playground-value> rows in the weekly report and show me its "
         "rendered page.</lf-playground-output>"
-        "</lf-playground></lf-ask>",
+        "</lf-playground></section>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
@@ -1415,11 +1415,11 @@ PAGE_ACTIONS_PAGE = leaf_page(
     "page-drawn playground",
     """
 <style>tile-tool button { font-size: 19px; }</style>
-<lf-ask id="tile-ask"><h1>Choose the tile size</h1>
+<section id="tile-ask"><h1>Choose the tile size</h1>
 <lf-playground id="tile-config" submit-label="Keep this size" actions="page">
   <lf-playground-preview><tile-tool></tile-tool></lf-playground-preview>
   <lf-playground-output>Keep the tile size.</lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 <script type="module">
 import {generatedElement, once, whileInterfaceConnected} from "/runtime/widget-api.js";
 customElements.define("tile-tool", class extends HTMLElement {
@@ -1614,9 +1614,9 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
     source = PLAYGROUND_PAGE.replace(
-        '<lf-ask id="card-playground-ask">',
+        '<section id="card-playground-ask">',
         '<lf-sample id="playground-example" label="card playground">',
-    ).replace("</lf-ask>", "</lf-sample>")
+    ).replace("</section>", "</lf-sample>")
     page = open_page(browser, serve(source))
     playground = page.locator("#card-playground")
 
@@ -1735,7 +1735,7 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
     is its whole candidate. The comment records the id and names the member."""
     source = leaf_page(
         "Pick a word",
-        """<lf-ask id="word-ask"><h2>Which word should a box say?</h2>
+        """<section id="word-ask"><h2>Which word should a box say?</h2>
 <lf-playground id="word-playground">
   <lf-playground-preset id="start-today" label="Start from today">
     <lf-playground-setting for="word" value="today"></lf-playground-setting>
@@ -1759,7 +1759,7 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
   <lf-playground-output>
     Say <lf-playground-value for="word"></lf-playground-value>.
   </lf-playground-output>
-</lf-playground></lf-ask>""",
+</lf-playground></section>""",
     )
     page = open_page(browser, serve(source))
     line = page.locator("#word-verb > .lf-choice")

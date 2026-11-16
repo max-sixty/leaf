@@ -525,11 +525,11 @@ FAR_CHOICE_PAGE = leaf_page(
     """
 <h1 id="h">Far</h1>
 {paras}
-<lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
+<section id="picks-decision"><h2>Should we keep the mounts?</h2>
 <lf-options id="picks" choose>
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 ).format(
     paras="\n".join(

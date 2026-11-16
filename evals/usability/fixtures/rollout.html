@@ -42,23 +42,21 @@
       </section>
 
       <section id="first">
-        <lf-ask id="first-region-decision">
-          <h2>Which region goes first?</h2>
-          <lf-options id="first-region" choose>
-            <lf-option id="opt-eu-west"
-              ><strong>eu-west</strong> Lowest traffic at night, and its on-call team
-              wrote the limiter.</lf-option
-            >
-            <lf-option id="opt-us-east"
-              ><strong>us-east</strong> Most traffic, so the soonest real signal, and
-              the longest-standing alerts.</lf-option
-            >
-            <lf-option id="opt-ap-south"
-              ><strong>ap-south</strong> Highest latency today, where the limiter's
-              smoothing should help most.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
+        <h2>Which region goes first?</h2>
+        <lf-options id="first-region" choose>
+          <lf-option id="opt-eu-west"
+            ><strong>eu-west</strong> Lowest traffic at night, and its on-call team
+            wrote the limiter.</lf-option
+          >
+          <lf-option id="opt-us-east"
+            ><strong>us-east</strong> Most traffic, so the soonest real signal, and the
+            longest-standing alerts.</lf-option
+          >
+          <lf-option id="opt-ap-south"
+            ><strong>ap-south</strong> Highest latency today, where the limiter's
+            smoothing should help most.</lf-option
+          >
+        </lf-options>
       </section>
 
       <section id="schedule">

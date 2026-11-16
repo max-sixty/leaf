@@ -2,8 +2,8 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; an enclosing widget (`x-encloses`) contributes only
-prompt words and arrival. A `records` declaration expands a widget's bound external
+A widget source owns identity; the element framing it contributes only prompt words
+and arrival (`framed_widgets`). A `records` declaration expands a widget's bound external
 input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
@@ -69,7 +69,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name
+from leaf.gesture_words import element_name, leading_title, leading_title_node
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -97,10 +97,61 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
-def encloses(entry: dict) -> bool:
-    """Whether this widget frames the obligations inside it (`x-encloses`): its leading
-    heading gives their prompt, and going to one of them lands on it."""
-    return bool(entry.get("x-encloses"))
+_HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+# The page's column and what holds it: a heading leading them titles the page, not each
+# question in it, as the browser's `holderNaming` stops short of the column.
+_PAGE = frozenset({"html", "body", "main"})
+
+
+def framed_widgets(content: list, registry: dict):
+    """Each widget in `content` that can ask, as its authoring node and its frame: the
+    nearest element around it, short of the page's column, whose leading title
+    (`gesture_words.leading_title_node`) is a heading standing before the widget, as a
+    `<section>` opened by the question's heading is, or None. The frame's heading is the
+    widget's prompt, and going to the widget starts at the frame where both fit the
+    window, so the frame needs an id: a titled element without one frames nothing, and
+    the widget in it reads as untitled rather than taking a heading further out. A
+    widget set among words (`x-inline`), such as a suggestion, has none: its sentence and
+    its own words name it.
+
+    Plain HTML says the frame, so no widget declares one. `lf-ask` did until 16
+    November 2026, when the user chose the section, which already says what the tag
+    said, over a tag of Leaf's around it."""
+
+    def titled_from(node: dict) -> int | None:
+        """The index of the child holding the heading that titles `node`, or None."""
+        title = None if node["tag"] in _PAGE else leading_title_node(node)
+        if not title or title["tag"] not in _HEADINGS:
+            return None
+        return next(
+            index
+            for index, child in enumerate(node["content"])
+            if child is title
+            or (
+                isinstance(child, dict)
+                and child["tag"] in {"header", "hgroup"}
+                and leading_title_node(child) is title
+            )
+        )
+
+    def walk(nodes: list, frame: dict | None):
+        for node in nodes:
+            if isinstance(node, str):
+                continue
+            entry = registry.get(node["tag"]) or {}
+            if local_obligation_entry(entry):
+                yield node, None if entry.get("x-inline") else frame
+            at = titled_from(node)
+            if at is None:
+                yield from walk(node["content"], frame)
+                continue
+            # What stands before the heading is outside what it titles.
+            yield from walk(node["content"][:at], frame)
+            yield from walk(
+                node["content"][at:], node if node["attrs"].get("id") else None
+            )
+
+    yield from walk(content, None)
 
 
 def question_ids(message: dict) -> list[str]:
@@ -401,8 +452,8 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its enclosing widget) is the innermost to
-    enclose it. So a note on one obligation's option, or on a part of a frame holding
+    every obligation whose prompt target (its frame, `framed_widgets`) is the innermost
+    to enclose it. So a note on one obligation's option, or on a part of a frame holding
     one obligation, leaves its framed sibling out, while one on the frame's heading or on
     a section holding the frame is about them all. `within` is the document's
     containment (`Passages.enclosing`). A datum identity narrows an owning widget's
@@ -626,8 +677,9 @@ class ObligationSources(NamedTuple):
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
-    `nodes` maps each id to its authoring node, whose words name an obligation's
-    prompt.
+    `prompts` maps each one's id to its prompt: the words naming it, its frame's heading
+    (`framed_widgets`) or else its own name, and `target`, the id of the element going
+    to it starts at, its frame or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
     of the cost of reading a page's obligations. A stored revision's reading
@@ -636,7 +688,7 @@ class ObligationSources(NamedTuple):
     the log decides."""
 
     asking: tuple[tuple[dict, bool], ...]
-    nodes: dict[str, dict]
+    prompts: dict[str, dict]
 
 
 def obligation_sources(source, registry: dict) -> ObligationSources:
@@ -646,26 +698,23 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         list(source.fragments.values()) if hasattr(source, "fragments") else [source]
     )
 
-    def nodes(content):
-        for node in content:
-            if isinstance(node, dict):
-                yield node
-                yield from nodes(node["content"])
-
     declared = [
         record
         for document in documents
         for record in document.lf_elements
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
+    prompts = {
+        identity: {
+            "text": leading_title(frame) if frame else element_name(node, registry),
+            "target": frame["attrs"]["id"] if frame else identity,
+        }
+        for document in documents
+        for node, frame in framed_widgets(document.authoring.content, registry)
+        if (identity := node["attrs"].get("id"))
+    }
     return ObligationSources(
-        tuple((record, shown_in(record, registry)) for record in declared),
-        {
-            node["attrs"]["id"]: node
-            for document in documents
-            for node in nodes(document.authoring.content)
-            if node["attrs"].get("id")
-        },
+        tuple((record, shown_in(record, registry)) for record in declared), prompts
     )
 
 
@@ -693,7 +742,7 @@ class _ObligationReducer:
         self.revision = revision
         self.events = [] if events is None else events
         self.data = data or {"sources": {}}
-        self.nodes = sources.nodes
+        self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
@@ -716,10 +765,6 @@ class _ObligationReducer:
             self._declaration(record).get("when"),
         )
 
-    def _holder(self, record):
-        unit = record["attrs"].get("id")
-        return self.positioned_holders.get(unit, record.get("holder"))
-
     def _answered(self, record):
         return obligation_answered(
             record,
@@ -730,17 +775,6 @@ class _ObligationReducer:
             self.registry,
             self.positioned_holders,
         )
-
-    def _surface(self, record):
-        """The reading and arrival region the user is sent to for this source: the
-        nearest enclosing widget (`x-encloses`) holding it, or the source
-        itself."""
-        holder = self._holder(record)
-        while holder:
-            if encloses(self.registry.get(holder["tag"]) or {}):
-                return holder
-            holder = self._holder(holder)
-        return record
 
     def _record_inventory(self, record: dict) -> list[dict]:
         """One obligation per current bound record, identified independently of order.
@@ -814,7 +848,7 @@ class _ObligationReducer:
                     "message": None,
                     "prompt": {
                         "text": datum[records["label"]],
-                        "target": self._surface(record)["attrs"]["id"],
+                        "target": self.prompts[owner]["target"],
                     },
                     "answer": {
                         "value": value,
@@ -946,7 +980,6 @@ class _ObligationReducer:
             if record_units:
                 records.extend(self._record_inventory(record))
                 continue
-            surface = self._surface(record)
             entry = self._entry(record)
             status = (
                 "answered"
@@ -984,14 +1017,13 @@ class _ObligationReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry)
             records.append(
                 {
                     "id": "widget:" + unit,
                     "source": {"kind": "widget", "id": unit, "tag": record["tag"]},
                     "thread": None,
                     "message": None,
-                    "prompt": {"text": text, "target": surface["attrs"]["id"]},
+                    "prompt": dict(self.prompts[unit]),
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
                     else None,

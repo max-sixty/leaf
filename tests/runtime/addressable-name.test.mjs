@@ -76,7 +76,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<lf-ask id="it"><h4>How should it page?</h4><lf-options><lf-option><small class="tag">last week: 0</small><strong>Require three</strong> probes.</lf-option></lf-options></lf-ask>',
+      '<section id="it"><h4>How should it page?</h4><lf-options><lf-option><small class="tag">last week: 0</small><strong>Require three</strong> probes.</lf-option></lf-options></section>',
     ),
     "How should it page?",
   );
@@ -105,7 +105,7 @@ test("an element whose words are its members' takes the nearest enclosing name",
   // Options have no title of their own; the question holding them names them.
   assert.equal(
     labelled(
-      '<lf-ask><h4>Which rollout?</h4><lf-options id="it"><lf-option><strong>Now</strong></lf-option></lf-options></lf-ask>',
+      '<section><h4>Which rollout?</h4><lf-options id="it"><lf-option><strong>Now</strong></lf-option></lf-options></section>',
     ),
     "Which rollout?",
   );
@@ -141,25 +141,25 @@ test("past every name, plain markup is its words and a widget is its word", () =
 test("a heading titles the outermost element it is the first heading of, short of a label", () => {
   declare({ "lf-tab": { "x-name": "label" } });
   document.body.innerHTML = `<main><h1>Plan</h1>
-    <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
-      <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>
+    <section id="ask"><header><hgroup id="group"><p>Decision 1</p>
+      <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></section>
     <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
-    <section id="outer"><lf-ask id="inner"><h2 id="region">Which region?</h2></lf-ask>
+    <section id="outer"><section id="inner"><h2 id="region">Which region?</h2></section>
     </section>
-    <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
+    <section id="notes-section"><section><h2 id="store">Which store?</h2></section>
       <h3 id="notes">Notes</h3><p>Words.</p></section>
     <div id="plan"><div><strong>Task one</strong> words</div>
-      <div><strong>Task two</strong> words <lf-ask id="restart">
-        <h3 id="restart-question">Restart it?</h3></lf-ask></div></div>
+      <div><strong>Task two</strong> words <section id="restart">
+        <h3 id="restart-question">Restart it?</h3></section></div></div>
     <div id="more"><details id="details"><summary>More</summary>
       <h4 id="inside">Inside</h4></details></div>
-    <section id="kick"><lf-ask><p>Review record</p><h2 id="ship">Ship it?</h2>
-      </lf-ask></section>
+    <section id="kick"><section><p>Review record</p><h2 id="ship">Ship it?</h2>
+      </section></section>
     <section id="job"><div><span>01</span><h2 id="job-heading">Job</h2></div>
       <p>Its words.</p></section>
     <section id="tools"><p>Developer tools</p><h2 id="inspect">Inspect</h2></section>
     <section id="rollout"><h2 id="rollout-heading">Rollout</h2><p>Plan.</p>
-      <lf-ask><h2>Include runners?</h2></lf-ask></section>
+      <section><h2>Include runners?</h2></section></section>
     <div id="body"><p>Lede.</p><section id="in"><h2 id="inputs">Inputs</h2></section>
       <section><h2>Outputs</h2></section></div>
     <div><h2>Before</h2><hgroup id="pair"><h2 id="first">First title</h2>

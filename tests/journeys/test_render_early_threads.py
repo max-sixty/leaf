@@ -297,10 +297,10 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
 
 COLD_OBLIGATION = leaf_page(
     "Cold decisions",
-    """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
+    """<h1>Cold decisions</h1><section id="cold-ask"><h2>What now?</h2>
 <lf-options id="cold-choice" choose>
 <lf-option id="cold-a">A</lf-option><lf-option id="cold-b">B</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
 )
 
 
@@ -339,7 +339,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         failure="the retained key never appeared",
     )
     if key == "m":
-        expect(page.locator("#cold-ask")).not_to_be_focused()
+        expect(page.locator("#cold-choice")).not_to_be_focused()
     expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
     expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
     _history_outstanding(page)
@@ -349,7 +349,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     _clock_until_ready(page)
     page.clock.resume()
     if key == "m":
-        expect(page.locator("#cold-ask")).to_be_focused()
+        expect(page.locator("#cold-choice")).to_be_focused()
     elif key == "1":
         expect(page.locator("#cold-a")).to_have_attribute("chosen", "")
         round_trip(page)

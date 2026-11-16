@@ -352,7 +352,7 @@ export function threadReading(thread, surface, commands) {
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread, agentName());
-  // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
+  // An answer says what it leaves (a question, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
   // thread.
   const asking = new Set(

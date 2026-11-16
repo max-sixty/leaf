@@ -176,7 +176,7 @@ two ways to proceed or whether to take an action, send the answers as an `lf-opt
 group in `--markup` rather than listing them in words. The user answers with a press
 in the thread, and the group waits on them until they do, so the message takes no
 `--obligation`, which the command refuses beside it. The message's text asks the
-question and gives your reason, so the group needs no `lf-ask`. Title each option by
+question and gives your reason, so the group needs no heading. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
 question holds"):
 

@@ -60,9 +60,9 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate("() => {" + HOLD_MOTION + "}")
     page.keyboard.press("m")
-    expect(page.locator("#ask-first")).to_be_focused()
+    expect(page.locator("#choice-first")).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator("#ask-second")).to_be_focused()
+    expect(page.locator("#choice-second")).to_be_focused()
     cue_target = page.locator('#views [aria-controls="second"] .lf-tab-name')
     colours = cue_target.evaluate(
         """async node => {

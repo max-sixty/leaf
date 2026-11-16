@@ -3,11 +3,7 @@
 import re
 
 from leaf.findings import Finding, element_at
-from leaf.gesture_words import leading_title_node
-from leaf.obligations import (
-    encloses,
-    local_obligation_entry,
-)
+from leaf.obligations import framed_widgets, local_obligation_entry, shown_in
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     exhibits,
@@ -246,81 +242,40 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     ]
 
 
-def unasked(rec: dict, entry: dict) -> dict:
-    """The `x-awaits.when` conditions a widget never met, as attribute and the values
-    it would ask at, or none where it asks, was asked, or can be made to ask.
+def question_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each widget a page asks with stands under a heading that titles its question,
+    leading the element around it (`obligations.framed_widgets`): the heading is the
+    question's words on On Me and in what the agent hears, and its place in the outline
+    and in heading navigation. A widget with words of its own needs none: one set among
+    words (`x-inline`) is named by them, and one asking about each record of its data
+    (`x-awaits.records`) by each record's label. A message's widget needs none either,
+    since the message names what it asks, so only a page's documents are checked.
 
-    The flag `x-awaits.retired` names is how an author ends an obligation already
-    asked, such as a settled decision kept with its context, so failing on it alone
-    leaves the widget counted. A condition a recorded value writes can still be met
-    by a gesture."""
-    awaits = entry["x-awaits"]
-    when = awaits.get("when") or {}
-    recorded = {
-        (spec.get("record") or {}).get("attr")
-        for spec in entry.get("x-state", {}).values()
-        if (spec.get("record") or {}).get("kind") == "value"
+    It is advice rather than a refusal: an untitled question still asks and records its
+    answer, and On Me names it by the words nearest it (`addressableLabel`), so nothing
+    the user relies on breaks."""
+    # A widget inside SVG keeps its exact source rather than a node, and so is no
+    # widget the walk reads.
+    untitled = {
+        id(node)
+        for node, frame in framed_widgets(document.authoring.content, registry)
+        if frame is None
     }
-    return {
-        attr: values
-        for attr, values in when.items()
-        if attr != awaits.get("retired")
-        and attr not in recorded
-        and not matches_when(rec["attrs"], {attr: values})
-    }
-
-
-def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-encloses`) supplies a leading title and
-    arrival region for the obligations inside it.
-
-    It never owns obligation identity or registration. Any number of sources can select
-    it, and each source retains its independent answer and lifecycle. An enclosing
-    widget whose widgets none ask shows a question the On Me list never counts and
-    the user can't answer, so the error names what each enclosed widget lacks to
-    ask (`unasked`), or that it holds none.
-    """
-
-    lf_elements = document.lf_elements
-    regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
-    framed = {id(region): [] for region in regions}
-    # A widget asks inside every frame around it, so a frame holding only a nested frame
-    # is as full as that one; the nearest still gives the obligation its prompt. A
-    # sample's widgets ask nothing beyond it (obligations.py, `shown_in`), so the walk
-    # stops there and a frame inside the sample still counts them.
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        if not local_obligation_entry(entry):
-            continue
-        for holder in enclosing_widgets(rec):
-            holder_entry = registry.get(holder["tag"], {})
-            if holder_entry.get("x-exhibit"):
-                break
-            if encloses(holder_entry):
-                framed[id(holder)].append((rec, unasked(rec, entry)))
-    errors = []
-    for region in regions:
-        held = framed[id(region)]
-        # The obligation's title is what the shared name rule reads, so this asks that rule
-        # rather than restating a shape it accepts. It must be a heading as well, the
-        # question's place in the outline and in heading navigation.
-        node = document.authoring.node_of(region)
-        assert node is not None
-        title = leading_title_node(node)
-        titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
-        if all(lacks for _, lacks in held):
-            widgets = [
-                {
-                    "at": element_at(rec["tag"], rec["attrs"].get("id", "")),
-                    "line": rec["line"],
-                    "lacks": lacks,
-                }
-                for rec, lacks in framed[id(region)]
-            ]
-            errors.append(found_at("empty-question", region, widgets=widgets))
-        if not titled:
-            errors.append(found_at("untitled-question", region))
-    return errors
+    return [
+        Finding(
+            "untitled-question",
+            element_at(rec["tag"], rec["attrs"].get("id", "")),
+            {"line": rec["line"]},
+            severity="advice",
+        )
+        for rec in document.lf_elements
+        if local_obligation_entry(entry := registry.get(rec["tag"]) or {})
+        and not entry.get("x-inline")
+        and "records" not in entry["x-awaits"]
+        and matches_when(rec["attrs"], entry["x-awaits"].get("when"))
+        and not shown_in(rec, registry)
+        and id(document.authoring.node_of(rec)) in untitled
+    ]
 
 
 def relation_mismatch(
@@ -614,7 +569,6 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + layout_errors(lf_elements, registry)
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
     )

@@ -9,37 +9,42 @@ import { obligationAt, obligationHolding } from "/runtime/current-target.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { servedState } from "../served.mjs";
 
-test("shared context keeps placement and containment specific to each obligation", () => {
+test("an obligation stands at its source, and its context gives only its words and arrival", () => {
   document.body.innerHTML =
-    '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
-  const item = (id) => ({
+    '<section id="context"><h2>Pick</h2><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
+  const item = (id, target = "context") => ({
     id: `widget:${id}`,
     thread: null,
     message: null,
     source: { kind: "widget", id },
-    prompt: { target: "context" },
+    prompt: { target },
   });
   const first = item("first");
   const second = item("second");
   const items = [first, second];
   try {
-    assert.equal(obligationPlace(first, [first]).node.id, "context");
     for (const record of items) {
-      const place = obligationPlace(record, items);
+      const place = obligationPlace(record);
       assert.equal(place.source.id, record.source.id);
-      assert.equal(place.node, place.source);
       assert.equal(place.context.id, "context");
       assert.equal(obligationHolding(items, place.source.firstElementChild), record);
     }
+    // The context is plain markup round any number of obligations and more, so being
+    // in it, as on its heading, is being at none, even where it holds only one.
+    const heading = document.querySelector("h2");
+    assert.equal(obligationHolding([first], heading), null);
     assert.equal(obligationHolding(items, document.getElementById("context")), null);
+    // A widget that names itself has no context of its own.
+    assert.equal(obligationPlace(item("first", "first")).context, null);
   } finally {
     document.body.replaceChildren();
   }
 });
 
 test("the innermost obligation holding a node is where the user stands", () => {
-  // A question inside a proposal's new text: the proposal's source holds the question's
-  // enclosing widget, where arrival puts the user on the question.
+  // A question inside a proposal's new text: on the question's widget the user is on the
+  // question, and anywhere else in the proposal, its section and heading included, on
+  // the proposal.
   document.body.innerHTML =
     '<div id="change"><p id="text">Walk outside.</p><section id="ask"><h4>Which route?</h4><div id="route"><button>Garden</button></div></section></div>';
   const item = (source, target) => ({
@@ -57,9 +62,9 @@ test("the innermost obligation holding a node is where the user stands", () => {
       [change, route],
       [route, change],
     ]) {
-      assert.equal(obligationHolding(items, at("ask")), route);
-      assert.equal(obligationHolding(items, at("ask").firstElementChild), route);
+      assert.equal(obligationHolding(items, at("route")), route);
       assert.equal(obligationHolding(items, at("route").firstElementChild), route);
+      assert.equal(obligationHolding(items, at("ask").firstElementChild), change);
       assert.equal(obligationHolding(items, at("text")), change);
     }
   } finally {

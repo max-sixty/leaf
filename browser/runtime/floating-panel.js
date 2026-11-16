@@ -4324,7 +4324,7 @@ export function createFloatingPanel({
         ? closestAcross(node, ON_CARD)?.getAttribute("data-lf-obligation-id")
         : null;
       const record = id ? readObligations().byId.get(id) : null;
-      return record ? obligationPlace(record).node : null;
+      return record ? obligationPlace(record).source : null;
     },
     { beside: true },
   );

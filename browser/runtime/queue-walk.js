@@ -220,7 +220,7 @@ export function createQueueWalk({
     stop.kind === "obligation"
       ? stop.thread !== null
         ? threadPlace(stop.thread)
-        : obligationPlace(stop.obligation).node
+        : obligationPlace(stop.obligation).source
       : stop.thread !== null
         ? threadPlace(stop.thread)
         : subjectPlace(stop.subject);
@@ -243,11 +243,19 @@ export function createQueueWalk({
   const grouping = () =>
     chosenGrouping.read() ??
     ((readPlan()?.steps ?? []).some(givesUser) ? "plan" : "place");
-  // The heading of the part of the page an item stands in, and what it says.
+  // The heading of the part of the page an item stands in, and what it says. A question
+  // stands in the part round the section its heading opens: that heading words the
+  // question, which the item's own title already says, rather than naming a part.
   /** @param {QueueItem} item */
   const itemHeading = (item) => {
-    const at = pagePlace(queueStop(item));
-    return at ? partOver(at) : null;
+    const stop = queueStop(item);
+    const at = pagePlace(stop);
+    if (!at) return null;
+    const framed =
+      stop.kind === "obligation" &&
+      stop.thread === null &&
+      obligationPlace(stop.obligation).context;
+    return partOver(framed || at);
   };
   /** @param {QueueItem} item */
   const itemPlace = (item) => {
@@ -378,7 +386,7 @@ export function createQueueWalk({
       // to send again there, are one stop: the user standing there is on the first of
       // them, and the next press goes on past the place.
       const at =
-        (stop.kind === "obligation" && obligationPlace(stop.obligation).node) ||
+        (stop.kind === "obligation" && obligationPlace(stop.obligation).source) ||
         stop.key;
       if (listed.has(at)) continue;
       listed.add(at);
@@ -442,7 +450,6 @@ export function createQueueWalk({
     const item = obligationHolding(
       listed.map((stop) => stop.obligation),
       placeOf(here),
-      readObligations().all,
     );
     if (item) return listed.find((stop) => stop.id === item.id);
     return (
@@ -462,7 +469,7 @@ export function createQueueWalk({
   /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function step(list, dir, region, origin) {
     // Outside the region nothing the user is on is one of its stops, even where the
-    // press sits inside the lf-ask around an obligation.
+    // press sits inside the section around an obligation.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const currentLocation = currentLocationStop(list, origin);
     if (currentLocation) return cycledRow(list, currentLocation, dir);

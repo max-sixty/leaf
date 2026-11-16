@@ -260,8 +260,8 @@ column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block widens when it is a child of `layout-column`, `layout-flow` or `lf-ask`, whose
-blocks stand in the flow around it, so its words stay on the column beside a wider one.
+A block widens when it is a child of `layout-column` or `layout-flow`, whose blocks
+stand in the flow around it, so its words stay on the column beside a wider one.
 A framed holder, such as a callout, needs its own `data-width` to widen; its children
 use the room inside it. A wide child alone does not widen its holder.
 Under the reading face a table scrolls sideways when needed; a page without the face

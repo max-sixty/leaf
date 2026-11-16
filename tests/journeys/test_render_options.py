@@ -66,7 +66,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     # Enter has no invented meaning on the obligation or an option mark. Tab enters the real
     # controls, while the same obligation-owned numbers and binding badges remain visible there.
     page.keyboard.press("Enter")
-    expect(page.locator("#storage-decision")).to_be_focused()
+    expect(page.locator("#storage-options")).to_be_focused()
     page.keyboard.press("3")
     expect(box).to_be_focused()
     expect(write_hint).to_be_hidden()
@@ -132,7 +132,9 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     # geometrically in the viewport, but neither visible nor operable as the next stop.
     #
     # Short enough that the obligation's own foot is under the panel when the user arrives,
-    # which is the only arrangement in which the claim can be read at all. With the whole
+    # which is the only arrangement in which the claim can be read at all: the options
+    # alone are taller than the room an arrival leaves, since an arrival that fits its
+    # question in the window starts where its answer's foot is still on screen. With the whole
     # obligation on screen a Tab stop is already where the browser would put it, nothing
     # scrolls, and the reading goes green over the travel it is about; the assertion
     # before the presses says so rather than leaving it to the window's height to be
@@ -140,7 +142,7 @@ def test_a_selected_obligation_keeps_one_action_context_while_tab_reaches_its_fi
     # padded band, so the window is one where the arrival leaves the field wholly under
     # the panel.
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
-    resized(page, 390, 600)
+    resized(page, 390, 340)
     clearance = """() => document.querySelector('.lf-fp-card').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""

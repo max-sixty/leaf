@@ -366,10 +366,10 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         serve(
             leaf_page(
                 "stable option numbers",
-                '<h1>Stable numbers</h1><lf-ask id="question"><h2>Which apply?</h2>'
+                '<h1>Stable numbers</h1><section id="question"><h2>Which apply?</h2>'
                 '<lf-options id="choices" choose multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-                "</lf-options></lf-ask>",
+                "</lf-options></section>",
             )
         ),
     )
@@ -377,7 +377,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     field = group.get_by_role("textbox", name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#choices")).to_be_focused()
     write(field, "First addition")
     group.get_by_role("button", name="Add and select option").click()
     round_trip(page)
@@ -385,7 +385,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     first_id = added.get_attribute("id")
     group.get_by_role("button", name=re.compile("^Done:")).focus()
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#choices")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
     )
@@ -414,7 +414,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     assert added.get_attribute("id") != first_id
     group.get_by_role("button", name=re.compile("^Done:")).focus()
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#choices")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )6($| )")
     )
@@ -439,8 +439,8 @@ def test_option_markdown_visible_words_match_file_reading(browser, serve):
         serve(
             leaf_page(
                 "markdown options",
-                '<h1 id="h">Cases</h1><lf-ask id="cases-ask"><h2>Which reads?</h2>'
-                f'<lf-options id="cases" choose multiple>{options}</lf-options></lf-ask>',
+                '<h1 id="h">Cases</h1><section id="cases-ask"><h2>Which reads?</h2>'
+                f'<lf-options id="cases" choose multiple>{options}</lf-options></section>',
             )
         ),
     )
@@ -594,7 +594,7 @@ def test_obligation_addresses_are_screen_only_apparatus(browser, serve):
         }"""
     )
     assert "1" not in selected and "2" not in selected, (
-        f"the lf-ask's binding digits came away with its authored words: {selected!r}"
+        f"the question's binding digits came away with its authored words: {selected!r}"
     )
     assert badges.evaluate_all(
         "els => els.every(el => getComputedStyle(el).userSelect === 'none')"
@@ -677,12 +677,12 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#approach-decision[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#approach[data-lf-obligation]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
                           return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
-                                  drawn(on.closest('lf-ask')), drawn(on), drawn(el),
+                                  drawn(on.closest('lf-options')), drawn(on), drawn(el),
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
     on, held, decision_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
@@ -994,23 +994,23 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         serve(
             leaf_page(
                 "First Ask",
-                """<lf-ask id="page-ask"><h2>Choose the route</h2>
+                """<section id="page-ask"><h2>Choose the route</h2>
 <lf-options id="page-options" choose><lf-option id="page-route">Route A</lf-option></lf-options>
-</lf-ask>
+</section>
 <p id="between-asks">Context before another question.</p>
-<lf-ask id="later-ask"><h2>Choose the backup</h2>
+<section id="later-ask"><h2>Choose the backup</h2>
   <lf-options id="later-options" choose><lf-option id="later-route">Route B</lf-option></lf-options>
-</lf-ask>
+</section>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
-  <lf-ask id="framed-ask"><h2>Choose the route</h2>
+  <section id="framed-ask"><h2>Choose the route</h2>
     <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
-  </lf-ask>
+  </section>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
-    <lf-ask id="sample-ask"><h2>Choose the route</h2>
+    <section id="sample-ask"><h2>Choose the route</h2>
       <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
-    </lf-ask>
+    </section>
   </template>
 </lf-sample>""",
             )
@@ -1020,17 +1020,17 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     for root in (page, page.frame_locator("#sample iframe")):
         gap = root.locator("main").evaluate(
             """main => {
-                const heading = main.querySelector('lf-ask > h2');
+                const heading = main.querySelector('section > h2');
                 return heading.getBoundingClientRect().top
                   - main.getBoundingClientRect().top
                   - parseFloat(getComputedStyle(main).paddingTop);
             }"""
         )
-        assert abs(gap) < 1, f"the first lf-ask leaves {gap}px above its question"
+        assert abs(gap) < 1, f"the first question leaves {gap}px above its heading"
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
-            const heading = frame.querySelector('lf-ask > h2');
+            const heading = frame.querySelector('section > h2');
             const style = getComputedStyle(frame);
             return heading.getBoundingClientRect().top
               - frame.getBoundingClientRect().top
@@ -1039,14 +1039,14 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         }"""
     )
     assert abs(framed_gap) < 1, (
-        f"a framed lf-ask leaves {framed_gap}px above its question"
+        f"a framed question leaves {framed_gap}px above its heading"
     )
     later_gap = page.locator("#later-ask > h2").evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
     )
     assert abs(later_gap - 48) < 1, (
-        f"an lf-ask later in the page keeps {later_gap}px rather than 48px above its question"
+        f"a question later in the page keeps {later_gap}px rather than 48px above its heading"
     )
 
 
@@ -1060,27 +1060,27 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<section id="cell-decision"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" choose data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+</lf-options></section>
+<section id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" choose multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<section id="page-decision"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
-</lf-options></lf-ask></div>
+</lf-options></section></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
     layout="sidebar",
@@ -1107,7 +1107,7 @@ def test_a_choose_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser,
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
           const cells = [...group.children].filter((cell) => cell.checkVisibility());
-          const prose = group.closest('lf-ask').querySelector(':scope > p');
+          const prose = group.closest('section').querySelector(':scope > p');
           return {
             id,
             frame: box.width,
@@ -1341,7 +1341,7 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#storage-decision[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#storage-options[data-lf-obligation]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
     rendered(page)
@@ -1708,9 +1708,9 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
             leaf_page(
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
-                '<lf-ask id="routes-decision"><h2>Which routes survive?</h2>'
+                '<section id="routes-decision"><h2>Which routes survive?</h2>'
                 f'<lf-options id="routes" choose multiple>{options}</lf-options>'
-                "</lf-ask>",
+                "</section>",
             )
         ),
     )
@@ -1769,7 +1769,7 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         # inner question either breaks the key routes or lends its answers to the wrong
         # obligation.
         page.keyboard.press("m")
-        expect(page.locator("#outer-decision")).to_be_focused()
+        expect(page.locator("#outer")).to_be_focused()
         outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
         expect(outer_hints).to_have_text(["1", "2"])
         expect(outer_hints.first).to_be_visible()
@@ -2634,7 +2634,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
     page.keyboard.press("m")
-    expect(page.locator("#ar-canary-decision")).to_be_focused()
+    expect(page.locator("#ar-canary-choice")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.

@@ -3,8 +3,8 @@
 description: record-asks-hold-their-table
 metadata:
   purpose:
-    "Asks: on a record page, an `lf-ask` that turns on a measurement holds the measured table inside
-    the lf-ask, and long backing follows it."
+    "Asks: on a record page, a question section that turns on a measurement holds the measured table inside
+    that section, and long backing follows it."
   tags:
     - asks
 vars:
@@ -25,16 +25,16 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML fragment as a user who presses `m`, which puts the `lf-ask`'s
+      Read the HTML fragment as a user who presses `m`, which puts the question section's
       heading at the top of the screen with everything above it out of view. Pass only
       if all of these hold:
-      1. There is one `lf-ask` whose first child is a heading stating the question.
-      2. Inside that `lf-ask`, before its `lf-options`, stand the measured table (its
+      1. There is one question section whose first child is a heading stating the question.
+      2. Inside that section, before its `lf-options`, stand the measured table (its
          rows by export size) and at least one sentence of premise saying what the
          table shows or why it matters. Its exact content is the author's choice.
       3. The gateway log excerpt and the buffering paragraph come after the
-         `lf-options`, inside the `lf-ask` after its options or after the `lf-ask`,
-         collapsed or not. Fail if either stands before the `lf-ask` or between its
+         `lf-options`, inside the section after its options or after the section,
+         collapsed or not. Fail if either stands before the section or between its
          heading and its options.
-      Fail if the table stands before the `lf-ask`, outside it, with the `lf-ask`
+      Fail if the table stands before the section, outside it, with the section
       holding little more than the question and its options.

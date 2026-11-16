@@ -25,7 +25,7 @@ OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-op
 def page(attrs="choose", context=None):
     content = OPTIONS.format(attrs=attrs)
     if context:
-        content = f'<lf-ask id="{context}"><h2>Which route?</h2>{content}</lf-ask>'
+        content = f'<section id="{context}"><h2>Which route?</h2>{content}</section>'
     return model.leaf_page("Questions", content)
 
 
@@ -593,12 +593,12 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
 FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'
-    '<lf-ask id="frame"><h2 id="head">Two routes</h2><div id="first">'
+    '<section id="frame"><h2 id="head">Two routes</h2><div id="first">'
     + OPTIONS.format(attrs="choose")
     + "</div>"
     + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
     + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
-    + "</lf-ask></section>",
+    + "</section></section>",
 )
 
 
@@ -1248,7 +1248,7 @@ def test_data_record_requests_keep_conditional_registration_and_framed_arrival()
     def document(attrs):
         return model.leaf_page(
             "Review",
-            f'<lf-ask id="frame"><h2>Review this</h2><lf-visual-review id="review" source="gallery-visual-run" {attrs}></lf-visual-review></lf-ask>',
+            f'<section id="frame"><h2>Review this</h2><lf-visual-review id="review" source="gallery-visual-run" {attrs}></lf-visual-review></section>',
         )
 
     assert (

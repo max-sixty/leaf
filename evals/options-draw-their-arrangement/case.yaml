@@ -59,7 +59,7 @@ assert:
     value: |
       Find why the author recommends pinning the reply box at the panel's foot. Pass
       only if that reason is prose outside every `lf-option`, such as a paragraph in
-      the `lf-ask` before or after the `lf-options` group. Inside the cards, each
+      the question's section before or after the `lf-options` group. Inside the cards, each
       option may state its own properties and consequences at a similar depth, such
       as where replies grow or what moves. Fail if any `lf-option` holds the author's
       argument for picking it, such as "My take: …", "I'd pick this", or "recommended

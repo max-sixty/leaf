@@ -86,13 +86,13 @@ MAP_CHOICE_PAGE = leaf_page(
 """
     + FILLER.replace("filler-", "before-")
     + """
-<lf-ask id="map-ask">
+<section id="map-ask">
   <h3>Which map should the sample team carry?</h3>
   <lf-options id="map" choose>
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """
     + FILLER.replace("filler-", "after-"),
 )

@@ -1143,12 +1143,12 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
+    '<h1>Route</h1><section id="way"><h2>Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
     + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
-    '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
+    '<lf-option id="south">South</lf-option></lf-options></section><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
 # measured from the target's, and whether it holds a comment. Rows are read by their
@@ -1169,9 +1169,10 @@ ROWS_ON = """([target]) => {
 @pytest.mark.parametrize("case", ["obligation", "thread"])
 def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. Commenting on an obligation hands it
-    to the agent, so its obligation marker leaves. A comment already on a thread target
-    stays at the target's top, where `t` still lands it."""
+    the rest of the target's margin does not follow it. Commenting in a question's section
+    hands its obligation to the agent, so the obligation's marker, which stands at its
+    answer, leaves. A comment already on a thread target stays at the target's top,
+    where `t` still lands it."""
     if case == "obligation":
         url, target = serve(TALL_OBLIGATION_PAGE), "way"
         row = f"#{target} p >> nth=25"
@@ -1192,9 +1193,16 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     resized(page, 1440, 900)
     rendered(page)
     before = page.evaluate(ROWS_ON, [target])
-    assert before and all(abs(top) <= 8 for _, top in before), (
-        f"the target's own rows must start at its top: {before}"
+    marker = page.locator(
+        '[data-lf-margin-for="route"] .lf-margin-marker[data-lf-kinds~="on-me"]'
     )
+    if case == "obligation":
+        expect(marker).to_have_count(1)
+        assert before == [], before
+    else:
+        assert before and all(abs(top) <= 8 for _, top in before), (
+            f"the target's own rows must start at its top: {before}"
+        )
 
     pointed = page.locator(row)
     pointed.scroll_into_view_if_needed()
@@ -1216,6 +1224,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         expect(
             page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
         ).to_have_attribute("data-lf-kinds", "comment")
+        expect(marker).to_have_count(0)
     else:
         for index, top in before:
             assert abs(after.get(index, 1e9) - top) <= 8, (
@@ -1433,9 +1442,9 @@ POINTED_WITHIN = {
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
     "first line": (
         (
-            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<section id="within"><h2>Which way?</h2><lf-options id="route" choose>'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
-            "</lf-option></lf-options></lf-ask>"
+            "</lf-option></lf-options></section>"
         ),
         ["#within h2"],
         0,

@@ -120,8 +120,8 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
             leaf_page(
                 "command hints",
                 '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
-                '<lf-ask id="question"><h2>Apply the operation?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<section id="question"><h2>Apply the operation?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={
@@ -165,7 +165,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
 
     # The question context forwards the widget's declaration without an obligation allocator.
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
     expect(active_hints).to_have_count(1)
@@ -477,15 +477,16 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     """Forwarding has no nine-action cap and never assigns a missing binding.
 
     A source declaration replacement withdraws its old routes and installs references
-    to the replacement callback; the ordinary widget key never leaks to its question.
+    to the replacement callback. Arriving puts the user on the widget, so its own keys
+    act there as its forwarded ones do.
     """
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "explicit context commands",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><section id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -493,19 +494,18 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     assert offered_routes(page)["probe.action-1"] == ["1"]
     page.keyboard.press("9")
     expect(result).to_have_text("Action 9 applied")
     page.keyboard.press("F10")
     expect(result).to_have_text("Action 10 applied")
     page.keyboard.press("F12")
-    rendered(page)
-    expect(result).to_have_text("Action 10 applied")
+    expect(result).to_have_text("Action 12 applied")
     page.keyboard.press("Tab")
     expect(page.get_by_role("button", name="Action 1", exact=True)).to_be_focused()
-    page.keyboard.press("F12")
-    expect(result).to_have_text("Action 12 applied")
+    page.keyboard.press("F10")
+    expect(result).to_have_text("Action 10 applied")
     page.get_by_role("button", name="Action 11", exact=True).click()
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
@@ -518,7 +518,8 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
 
     page.get_by_role("button", name="Replace declaration").click()
-    page.locator("#question").focus()
+    page.keyboard.press("m")
+    expect(page.locator("#probe")).to_be_focused()
     rendered(page)
     page.keyboard.press("1")
     rendered(page)
@@ -541,8 +542,8 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
             leaf_page(
                 "synchronous context commands",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<section id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -554,7 +555,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
         """async () => {
           const {focusDestination} = await window.__lfWidgetApi();
           const {executeCommand} = await window.__lfCheckApi();
-          focusDestination(document.getElementById('question'), 'move');
+          focusDestination(document.getElementById('probe'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
             output: document.querySelector('#probe output').textContent};
@@ -562,7 +563,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
     )
     assert immediate == {
         "executed": True,
-        "held": "question",
+        "held": "probe",
         "output": "Action 10 applied",
     }
 
@@ -590,8 +591,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual escape",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><section id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -599,7 +600,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
         """async () => {
@@ -610,7 +611,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
               .map(entry => entry.binding));
         }"""
     )
-    assert routes == ["Escape"]
+    assert routes == ["x", "Escape"]
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_be_visible()
@@ -624,7 +625,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(reference_action).to_have_attribute("data-lf-available", "true")
     reference_action.click()
     expect(result).to_have_text("Applied 2")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     page.keyboard.press("Tab")
     expect(
         page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
@@ -665,8 +666,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             leaf_page(
                 "context command identity",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<section id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -686,28 +687,22 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             expect(row).to_have_count(1)
             expect(row).to_contain_text(title)
             expect(row).to_have_attribute(
-                "data-lf-available",
-                str(
-                    current_location == "question" and command_id == "probe.apply"
-                ).lower(),
+                "data-lf-available", str(current_location == "question").lower()
             )
         page.keyboard.press("Escape")
         if current_location == "outside":
             page.keyboard.press("m")
-            expect(page.locator("#question")).to_be_focused()
+            expect(page.locator("#probe")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("F9")
-    rendered(page)
-    expect(result).to_have_text("Applied 1")
+    expect(result).to_have_text("Neighbour applied")
     page.keyboard.press("Tab")
     expect(
         page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
-    page.keyboard.press("F9")
-    expect(result).to_have_text("Neighbour applied")
 
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
@@ -732,8 +727,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual reference policy",
-                '<h1>Explicit bindings</h1><lf-ask id="question"><h2>Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-ask>',
+                '<h1>Explicit bindings</h1><section id="question"><h2>Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -741,7 +736,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
@@ -754,7 +749,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     rendered(page)
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Escape")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
 
@@ -806,8 +801,8 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
         serve(
             leaf_page(
                 "route hint override",
-                '<h1>Inspection</h1><lf-ask id="question"><h2>Inspect this?</h2>'
-                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></lf-ask>',
+                '<h1>Inspection</h1><section id="question"><h2>Inspect this?</h2>'
+                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></section>',
             ),
             layer_registry=registry,
             layer_widgets={"lf-verdict.js": ROUTE_HINT_OVERRIDE_MODULE},
@@ -819,7 +814,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     result = page.locator("#probe output")
 
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#probe")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
     expect(inherited).to_be_hidden()

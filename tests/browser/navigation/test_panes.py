@@ -284,9 +284,9 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
 
     def ask(name):
         return (
-            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<section id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
             f'<lf-option id="{name}-a">Yes</lf-option>'
-            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
+            f'<lf-option id="{name}-b">No</lf-option></lf-options></section>'
         )
 
     words = "".join(
@@ -334,7 +334,7 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     first = page.locator("#first").bounding_box()
     assert first["y"] + first["height"] <= page.locator(detail).bounding_box()["y"]
     page.keyboard.press("m")
-    expect(page.locator("#second")).to_be_focused()
+    expect(page.locator("#second-o")).to_be_focused()
     scroll_settled(page, detail)
 
     page.locator("#rail-words").click()
@@ -359,9 +359,9 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
 
     def ask(name):
         return (
-            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<section id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
             f'<lf-option id="{name}-a">Yes</lf-option>'
-            f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
+            f'<lf-option id="{name}-b">No</lf-option></lf-options></section>'
         )
 
     words = "".join(
@@ -431,7 +431,7 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
     first = page.locator("#first").bounding_box()
     assert first["y"] + first["height"] <= page.locator(long).bounding_box()["y"]
     page.keyboard.press("m")
-    expect(page.locator("#second")).to_be_focused()
+    expect(page.locator("#second-o")).to_be_focused()
 
 
 @pytest.mark.parametrize("pressed", ["loaded", "held"])
@@ -1579,9 +1579,9 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
             leaf_page(
                 "bounded ask",
                 f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
-                f'data-bound="end">{early}<lf-ask id="q"><h3>Which shard next?</h3>'
+                f'data-bound="end">{early}<section id="q"><h3>Which shard next?</h3>'
                 '<lf-options id="o" choose><lf-option id="o1">The first</lf-option>'
-                '<lf-option id="o2">The second</lf-option></lf-options></lf-ask>'
+                '<lf-option id="o2">The second</lf-option></lf-options></section>'
                 f"{entries}</div>{BOUNDED_LOG_FILLER}",
             )
         ),
@@ -1598,7 +1598,7 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("m")
-    expect(page.locator("#q")).to_be_focused()
+    expect(page.locator("#o")).to_be_focused()
     scroll_settled(page, "#log")
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -1611,7 +1611,7 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
             - parseFloat(getComputedStyle(q).scrollMarginTop); }"""
     )
     assert landed == pytest.approx(0, abs=2), (
-        f"the lf-ask landed {landed}px down the log"
+        f"the question landed {landed}px down the log"
     )
 
 
@@ -1633,7 +1633,6 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
         proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
     ]
     assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
-    assert page.locator("lf-ask").count() == 1
     assert page.locator("lf-options[choose]").count() == 1
 
     resized(page, 420, 900)

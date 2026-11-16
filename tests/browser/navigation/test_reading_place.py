@@ -178,9 +178,9 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 <details id="source-fold" open><summary>The source</summary>
 <p id="source">Read this source passage before the question.</p></details>
 <div style="height:1600px"></div>
-<lf-ask id="question"><h2>Where should we build?</h2>
+<section id="question"><h2>Where should we build?</h2>
 <lf-options id="places" choose><lf-option id="here">Here</lf-option>
-<lf-option id="there">There</lf-option></lf-options></lf-ask>
+<lf-option id="there">There</lf-option></lf-options></section>
 """,
             )
         ),
@@ -192,7 +192,7 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     }""")
     assert before["at"] == "source"
     page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
+    expect(page.locator("#places")).to_be_focused()
     if close_source:
         page.locator("#source-fold > summary").click()
     page.go_back()
@@ -1076,17 +1076,17 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
             f"""
 <h1 id="h">Back from an ask</h1>
 <section id="near"><p>A question sits at the top.</p></section>
-<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
+<section id="first-decision"><h2>Where should the feeders go?</h2>
 <lf-options id="first" choose>
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <section id="above">{filler}</section>
-<lf-ask id="second-decision"><h2>Who fills them?</h2>
+<section id="second-decision"><h2>Who fills them?</h2>
 <lf-options id="second" choose>
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <section id="below">{filler}</section>
 """,
         )
@@ -1128,7 +1128,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     thread = page.evaluate("document.scrollingElement.scrollTop")
     assert thread < reading - 1000
     page.keyboard.press("m")
-    expect(page.locator("#second-decision")).to_be_focused()
+    expect(page.locator("#second")).to_be_focused()
     expect(card).to_be_hidden()
     scroll_settled(page)
     assert entry() == start + 2
@@ -1140,7 +1140,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     # From the bottom again, the obligation walk upward.
     start = entry()
     page.keyboard.press("Shift+m")
-    expect(page.locator("#second-decision")).to_be_focused()
+    expect(page.locator("#second")).to_be_focused()
     # Focus precedes the outer scroll, so observe movement before waiting for rest.
     page.wait_for_function(
         "top => document.scrollingElement.scrollTop < top - 1000", arg=reading
@@ -1154,7 +1154,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
-    expect(page.locator("#first-decision")).to_be_focused()
+    expect(page.locator("#first")).to_be_focused()
     page.wait_for_function(
         "top => document.scrollingElement.scrollTop < top - 1000", arg=landed
     )
@@ -1163,7 +1163,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert walked < landed - 1000
     assert entry() == start + 2
     back_to(landed)
-    page.wait_for_function("() => document.activeElement?.closest('#second-decision')")
+    page.wait_for_function("() => document.activeElement?.closest('#second')")
     back_to(reading)
 
 
@@ -1266,9 +1266,9 @@ def _word_point(locator, word):
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
-    '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
+    '<section id="align-ask"><h2>Which plan should we keep?</h2>'
     '<lf-options id="align-options" choose><lf-option id="align-yes">Yes</lf-option>'
-    '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
+    '<lf-option id="align-no">No</lf-option></lf-options></section>'
     '<h2 id="align-heading" tabindex="0">The current heading</h2>'
     '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
     '<textarea id="native" aria-label="Native editor">Editor words</textarea>'
@@ -1299,7 +1299,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
 ):
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
     page.keyboard.press("m")
-    expect(page.locator("#align-ask")).to_be_focused()
+    expect(page.locator("#align-options")).to_be_focused()
     page.locator("#align-yes").get_by_role("checkbox").focus()
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0, -180)")
@@ -1318,12 +1318,12 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     expect(reference).to_be_hidden()
     # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.
-    _expect_aligned(page, "#align-ask", exact_margin=False)
+    _expect_aligned(page, "#align-options", exact_margin=False)
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0, -180)")
     page.keyboard.press("g")
     page.keyboard.press("z")
-    _expect_aligned(page, "#align-ask")
+    _expect_aligned(page, "#align-options")
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     assert (
         page.evaluate("[history.length, navigation.currentEntry.key, location.href]")
@@ -1406,7 +1406,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     # Returning focus from the menu can align before the current-location paint
     # supplies its scroll margin, just as activation from the command reference does.
     # Both landings must clear the pinned band.
-    _expect_aligned(page, "#align-ask", exact_margin=False)
+    _expect_aligned(page, "#align-options", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()
@@ -1487,9 +1487,9 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "parent": roots[4],
             "revision": 1,
             "text": "Choose the follow-up.",
-            "markup": '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            "markup": '<section id="reply-ask"><h3>Which follow-up should be ready?</h3>'
             '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
-            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></section>',
         },
     )
     page = open_page(browser, url)

@@ -203,14 +203,14 @@ def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
     the link's control, which has not drawn its button yet."""
     source = leaf_page(
         "A decision's link",
-        '<lf-ask id="q"><h3>Which store?</h3><lf-options id="c" choose>'
+        '<section id="q"><h3>Which store?</h3><lf-options id="c" choose>'
         '<lf-option id="a">Redis</lf-option><lf-option id="b">Postgres</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )
     url = live_url(serve(source))
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, url, context=context)
     page.keyboard.press("m")
-    expect(page.locator("#q")).to_be_focused()
+    expect(page.locator("#c")).to_be_focused()
     page.keyboard.press("Enter")
-    until_copied(page, page.url.split("#")[0] + "#q")
+    until_copied(page, page.url.split("#")[0] + "#c")

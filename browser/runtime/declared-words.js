@@ -13,9 +13,9 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`x-encloses`) around that source where one exists;
-     neither names a tag.
+   - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation
+     view (obligations/view.js) starts an arrival at the section framing that source
+     where one does; neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
      does and the poll replays it the same way, so the premise that every widget's `render()`

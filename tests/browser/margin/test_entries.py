@@ -341,18 +341,18 @@ OBLIGATION_MARKERS_PAGE = leaf_page(
     "Question markers",
     """
 <h1 id="h">Two open questions</h1>
-<lf-ask id="short-ask"><h2>Where should sessions live?</h2>
+<section id="short-ask"><h2>Where should sessions live?</h2>
 <lf-options id="short-choice" choose>
   <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
   <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <p id="between">Between the two questions, a paragraph of ordinary prose.</p>
-<lf-ask id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
+<section id="long-ask"><h2>Should the nightly export keep writing one file per tenant,
 or roll every tenant into a single partitioned archive?</h2>
 <lf-options id="long-choice" choose>
   <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
   <lf-option id="long-b"><strong>One archive</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 )
 
@@ -377,8 +377,10 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
         )
 
     page.keyboard.press("m")
-    expect(on_me_marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
-    expect(on_me_marker("long-ask")).not_to_have_attribute(
+    expect(on_me_marker("short-choice")).to_have_attribute(
+        "data-lf-target-selected", ""
+    )
+    expect(on_me_marker("long-choice")).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
     rendered(page)
@@ -395,7 +397,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
                   || tip.scrollHeight > tip.clientHeight};
     }"""
     seen = {}
-    for item in ("short-ask", "long-ask"):
+    for item in ("short-choice", "long-choice"):
         marker = on_me_marker(item)
         marker.scroll_into_view_if_needed()
         marker.hover()
@@ -406,12 +408,12 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     question = page.locator("#long-ask h2").evaluate(
         "h => h.textContent.replace(/\\s+/g, ' ').trim()"
     )
-    assert seen["short-ask"]["text"] == "Where should sessions live?", seen
-    assert not seen["short-ask"]["cut"], seen
-    assert seen["long-ask"]["text"] == question, seen
-    assert not seen["long-ask"]["cut"], seen
+    assert seen["short-choice"]["text"] == "Where should sessions live?", seen
+    assert not seen["short-choice"]["cut"], seen
+    assert seen["long-choice"]["text"] == question, seen
+    assert not seen["long-choice"]["cut"], seen
     # The accessible route includes the question's distinguishing alternative.
-    assert "roll every tenant" in seen["long-ask"]["name"], seen
+    assert "roll every tenant" in seen["long-choice"]["name"], seen
 
 
 PREVIEW_INSIDE = """() => {

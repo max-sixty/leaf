@@ -138,7 +138,7 @@ PICK_UNDER_A_CARD = leaf_page(
     "Pick under a card",
     """
 <h1 id="title">Pick under a card</h1>
-<lf-ask id="ask">
+<section id="ask">
   <h3>What should a phone's one-row banner hold?</h3>
   <lf-options id="choice" choose>
     <lf-option id="row"><strong>Status in words</strong> The status keeps its words
@@ -146,7 +146,7 @@ PICK_UNDER_A_CARD = leaf_page(
     <lf-option id="two"><strong>Keep two rows</strong> The status keeps its
     sentence.</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """,
 )
 

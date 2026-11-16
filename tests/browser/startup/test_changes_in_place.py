@@ -299,9 +299,9 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
     [
         '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
         # A widget's own disclosure: the settled group's row controls its options.
-        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" choose settled>'
+        '<section id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" choose settled>'
         '<lf-option id="keep" chosen>Keep it.</lf-option>'
-        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></lf-ask>',
+        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></section>',
     ],
     ids=["details", "settled-options"],
 )

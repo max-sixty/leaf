@@ -5,7 +5,8 @@ rather than a second selector elsewhere. `lf-options` remains useful for a fixed
 that needs no playground controls or composed preview. To critique a document or
 source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
 
-Frame the question with `lf-ask` when its context lives outside the playground. Keep
+Put the playground in a section opened by the heading that asks its question, with any
+context that lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
 package (`references/packages.md`, "Package reach").
@@ -56,8 +57,8 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the playground, in an `lf-ask` or alone
-(`references/page-layout.md`, "Bounds and widths"). A workspace
+column, put `data-width="available"` on the playground and `class="layout-flow"` on
+its section (`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
 `references/authoring-on-me.md` says.
@@ -142,7 +143,7 @@ When the user comments on one of them, the comment records its id, which tells y
 which one they mean.
 
 ```html
-<lf-ask id="notification-ask">
+<section id="notification-ask" class="layout-flow">
   <h2>Which deployment notification should we build?</h2>
   <lf-playground
     id="notification-playground"
@@ -204,7 +205,7 @@ which one they mean.
       test.
     </lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 ```
 
 For animation comparisons, compose an `lf-motion` inside `lf-playground-preview` and

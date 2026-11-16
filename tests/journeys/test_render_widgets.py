@@ -66,12 +66,12 @@ MOTION_SAMPLE_CONTENT = """
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
+    <section id="sample-choice-ask"><h3>Choose a sample</h3>
       <lf-options id="sample-choice" choose>
         <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
         <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
   </template>
 </lf-sample>
@@ -104,12 +104,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
+  <section id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}" choose>
       <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
-  </lf-ask>
+  </section>
 </lf-tab>"""
 
     source = leaf_page(
@@ -291,13 +291,13 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     source = leaf_page(
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
-<lf-ask id="session-triage-decision">
+<section id="session-triage-decision">
   <h2>Which follow-ups should we keep?</h2>
   <lf-options id="session-triage" choose multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))
@@ -329,9 +329,9 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
-    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+        '<section id="session-triage-decision">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<section id="session-triage-decision">',
+    ).replace("</section>\n", "</section>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
@@ -1793,7 +1793,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         """
 <h1>Tone playground</h1>
 <p id="host-note">The page around the playground.</p>
-<lf-ask id="tone-ask">
+<section id="tone-ask">
   <h2>Which tone?</h2>
   <lf-playground id="tone-playground">
     <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
@@ -1813,7 +1813,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
     <lf-playground-output id="tone-instruction">Use the
       <lf-playground-value for="tone"></lf-playground-value> tone.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))
@@ -1895,7 +1895,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
         "focus playground",
         """
 <h1>Ring playground</h1>
-<lf-ask id="ring-ask">
+<section id="ring-ask">
   <h2>Which ring?</h2>
   <lf-playground id="ring-playground">
     <lf-playground-preset id="preset-wide" label="Wide">
@@ -1920,7 +1920,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     <lf-playground-output>Use the
       <lf-playground-value for="ring"></lf-playground-value> ring.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))

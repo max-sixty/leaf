@@ -3369,23 +3369,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-ask id="figure-asked">
+<section id="figure-asked">
 <h2>Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice" choose>
 <lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
 <lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
 </lf-options>
-</lf-ask>
+</section>
 </figure>
-<lf-ask id="asked">
+<section id="asked">
 <h2>Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice" choose>
 <lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
 <lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
-</lf-ask>
+</section>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -3816,8 +3816,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
 ):
     """A text block starts at its holder's edge, so a wrapper reaching before the prose
     moves its words off the column, on a page the rest of which stands on it. A wide
-    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
-    question takes no width at all."""
+    wrapper keeps the prose's start edge, and a caption belongs to its figure."""
     source = leaf_page(
         "Words off the column",
         """<h1>Words off the column</h1><p>Prose sets the column.</p>
@@ -3829,10 +3828,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
           <figcaption>Caption.</figcaption></figure>
-        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
-        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
-          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
-        </lf-ask>""",
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>""",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -3904,15 +3900,15 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
+    """A question's section holding a wide block grows round it. Boxes pulled or
     sized past the actual page edge remain render-gate findings: each is past the
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<lf-ask id="{id}"><h2>Which one?</h2>
+    item = """<section id="{id}" class="layout-flow"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
-</lf-ask>"""
+</section>"""
     source = leaf_page(
         "Reaching past the column",
         f"""
@@ -3938,7 +3934,9 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
+    assert grown > 100, (
+        "the question never spanned its block, so nothing here was tested"
+    )
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),

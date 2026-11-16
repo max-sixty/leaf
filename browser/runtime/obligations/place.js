@@ -1,11 +1,16 @@
 /* Mechanical placement of an obligation in the current document, and the one rule for which
    obligations a region of the page holds.
 
-   A widget's source owns its answer; the context supplies its prompt. A unique context
-   is also its current node. When several obligations share that context each stands at
-   its own source, so focus, rings, markers and arrival all name the same request.
-   A record unit stands at its projected datum, even when it is the widget's only
-   obligation; the owning widget still supplies its commands and answer formatter.
+   A widget's source owns its answer and is where the obligation stands, so focus, rings,
+   markers and arrival all name the same request. Its context, the element whose heading
+   names it (`prompt.target`, `obligations.framed_widgets` in Python) where that is not
+   the widget itself, supplies its prompt and where an arrival starts reading
+   (obligations/view.js). The context is
+   plain HTML, such as a section holding the question with its premise or a whole part
+   of a report, so no obligation stands at it, and being in it is not being at one; until
+   16 November 2026 an `lf-ask` was the context, and the one obligation it held stood at
+   it whole. A record unit stands at its projected datum, even when it is the widget's
+   only obligation; the owning widget still supplies its commands and answer formatter.
    Frozen thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
@@ -26,46 +31,21 @@
    stop work on the user.
    Which obligation holds a node the user is in is the converse question, current location rather
    than membership (`obligationHolding`, current-target.js). It reads every placed
-   obligation, and also falls back to an obligation's unique context. */
+   obligation. */
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
 import { readObligations } from "./model.js";
 
-const NOWHERE = Object.freeze({ source: null, context: null, node: null });
+const NOWHERE = Object.freeze({ source: null, context: null });
 
-/** @param {import("../framework/application.js").ObligationRecord | null | undefined} item
- * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-export function obligationPlace(item, items = readObligations().all) {
+/** @param {import("../framework/application.js").ObligationRecord | null | undefined} item */
+export function obligationPlace(item) {
   if (item?.source.kind !== "widget") return NOWHERE;
   const owner = elementById(item.source.id);
   const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
-  const context = elementById(item.prompt.target);
-  const sharing = contextsOf(items).get(item.prompt.target);
-  const shared = Boolean(
-    sharing && (sharing.size > 1 || (sharing.size === 1 && !sharing.has(item.id))),
-  );
-  return { source, context, node: item.source.unit || shared ? source : context };
-}
-
-// The ids of the widget obligations each context holds, read once per inventory, so
-// placing every obligation of an inventory costs one pass over it rather than one
-// per obligation.
-/** @type {WeakMap<readonly import("../framework/application.js").ObligationRecord[], Map<string | null, Set<string>>>} */
-const contexts = new WeakMap();
-/** @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-function contextsOf(items) {
-  let held = contexts.get(items);
-  if (held) return held;
-  held = new Map();
-  for (const { id, source, prompt } of items) {
-    if (source.kind !== "widget") continue;
-    const ids = held.get(prompt.target);
-    if (ids) ids.add(id);
-    else held.set(prompt.target, new Set([id]));
-  }
-  contexts.set(items, held);
-  return held;
+  const framed = item.prompt.target !== item.source.id;
+  return { source, context: framed ? elementById(item.prompt.target) : null };
 }
 
 // Where a to-do's or an update's subject stands on the page: the element or widget it
@@ -80,7 +60,7 @@ export const subjectPlace = (subject) =>
 export function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.status === "withdrawn") return false;
-    const { source } = obligationPlace(item, items);
+    const { source } = obligationPlace(item);
     return Boolean(source && under(source, region));
   });
 }

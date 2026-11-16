@@ -994,7 +994,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     one = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-which"]')
     expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
-    expect(page.locator("#tq-one-decision")).to_be_focused()
+    expect(page.locator("#tq-one")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     reply = panel_field(page)
@@ -1136,8 +1136,8 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
-        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
+        '<section id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<lf-option id="yes">Yes</lf-option></lf-options></section>'
     )
     second = first.replace("</main>", question + "</main>")
     url = serve(first)
@@ -1294,11 +1294,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
             '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
         ).replace("</head>", executable + "</head>")
 
-    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
+    route = """<section id="route-ask"><h2>Which route?</h2>
       <lf-options id="route" choose>
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>
-      </lf-options></lf-ask>"""
+      </lf-options></section>"""
     url = live_url(serve(source(route)))
     page = open_page(browser, url)
     page.locator("#route-fast .lf-pick").click()

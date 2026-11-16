@@ -51,7 +51,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 ACROSS_OBLIGATION = """
-  <lf-ask id="{id}">
+  <section id="{id}">
     <hgroup><p class="eyebrow">Retention</p><h3>How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
@@ -69,7 +69,7 @@ ACROSS_OBLIGATION = """
       <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
     <p>Whichever you pick, the hot tier keeps a day.</p>
-  </lf-ask>
+  </section>
 """
 
 
@@ -91,7 +91,7 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 
 
 PICTURED_OBLIGATION = """
-  <lf-ask id="{id}">
+  <section id="{id}">
     <h3>Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice" choose{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
@@ -106,7 +106,7 @@ PICTURED_OBLIGATION = """
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
     </lf-options>
-  </lf-ask>
+  </section>
 """
 
 
@@ -150,22 +150,22 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
+    + '<section id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + "</lf-options></section>"
+    + '<section id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + "</lf-options></section>"
+    + '<section id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + "</lf-options></section>"
+    + '<section id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
     + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
     + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
-    + "</lf-options></lf-ask>",
+    + "</lf-options></section>",
 )
 
 
@@ -285,10 +285,10 @@ def chipped_obligation(id, cards):
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
-        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        f'<section id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></section>'
     )
 
 
@@ -423,12 +423,12 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     html = leaf_page(
         "obligation after a cleared pick",
         """
-<lf-ask id="release-decision"><h1>Ship this release?</h1>
+<section id="release-decision"><h1>Ship this release?</h1>
   <lf-options id="release-options" choose>
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(html))
@@ -605,37 +605,31 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     ).click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
-    expect(page.locator("#t-baffles-decision")).to_be_focused()
+    expect(page.locator("#t-baffles-review[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#t-baffles-review")).to_be_focused()
     expect_obligations_answered(page, "2/5")
 
 
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
-    """The decision is the question's whole reading region, not only its answer control.
+    """Going to a question starts at the section its heading opens, so its premise and
+    evidence come before its answer, and stands the user on the answer.
 
     An options group used to be both the state owner and the navigation target. When
     the heading, premise, and evidence stood immediately above it, `d` centred the
-    options and made the user scroll backward before they could answer. `lf-ask`
-    encodes that broader unit while the nested x-awaits widget still owns the action:
-    the walk rings the region, aligns its opening at the window's head, and stands the
-    user on it.
+    options and made the user scroll backward before they could answer. The section
+    round the question names that broader unit while the nested x-awaits widget still
+    owns the action and the ring: the walk aligns the section's opening at the window's
+    head and stands the user on the widget, whose picks are the next Tab stops.
 
-    On it, and not on the control that answers it, which was where the walk landed until
-    the scroll and the focus were measured against each other. The scroll puts the
-    region's opening at the top of the window and the answering control is as far down as
-    the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
-    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the user was
-    told to look at one thing while located on another they could not see, and their next
-    Space would have worked it. The picks are the next Tab stops instead, which is what a
-    stop at `tabindex: -1` on the region buys: it keeps its place in document order and
-    everything inside the decision comes after it.
+    The section is a candidate for the arrival only where the run from its opening to
+    the answer fits the window: in a window shorter than the question, the walk starts
+    at the words just before the answer instead, since starting at the heading would
+    leave the user standing on an answer below the window. While an `lf-ask` framed
+    questions, until 16 November 2026, the walk aligned its opening at the head however
+    tall it was and stood the user on the frame.
     """
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
-    # Short enough that even the pick in the card's compact header falls under the
-    # panel's band at the window's foot once the decision's opening is at its head,
-    # which is the shape the fault has: the walk cannot both show the question and
-    # stand the user on its answer.
-    resized(page, 900, 230)
+    resized(page, 900, 900)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -653,58 +647,37 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     )
     assert before["room"] > 500, "the page has no room to put the decision at its start"
 
+    landing = """() => {
+      const ask = document.getElementById('storage-decision').getBoundingClientRect();
+      const options = document.getElementById('storage-options').getBoundingClientRect();
+      const scroller = getComputedStyle(document.scrollingElement);
+      return {obligation: ask.top, options: options.top, bottom: options.bottom,
+              clear: parseFloat(scroller.scrollPaddingTop),
+              foot: innerHeight - parseFloat(scroller.scrollPaddingBottom)};
+    }"""
     page.keyboard.press("m")
-    expect(page.locator("#storage-decision")).to_be_focused()
-    expect(page.locator("#storage-decision")).to_have_attribute(
+    expect(page.locator("#storage-options")).to_be_focused()
+    expect(page.locator("#storage-options")).to_have_attribute(
         "data-lf-obligation", "1"
     )
-    expect(page.locator("#storage-options")).not_to_have_attribute(
+    expect(page.locator("#storage-decision")).not_to_have_attribute(
         "data-lf-obligation", "1"
     )
     scroll_settled(page)
-    # Where the user was left is on the screen the walk has just arranged, and the pick
-    # the walk used to stand them on is the measurement that says the two cannot both be.
-    position = page.evaluate(
-        """() => {
-          const box = document.activeElement.getBoundingClientRect();
-          const pick = document.querySelector('#storage-options .lf-pick')
-            .getBoundingClientRect();
-          const foot = parseFloat(
-            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
-          return {top: box.top, pick: pick.top, height: innerHeight - foot};
-        }"""
-    )
-    assert position["pick"] > position["height"], (
-        f"the first pick is on screen at this size, so focusing it would have been no "
-        f"worse than focusing the obligation and nothing below is evidence: {position}"
-    )
-    assert 0 <= position["top"] < position["height"], (
-        f"the walk left the user located off the screen it had just scrolled: "
-        f"{position}"
-    )
-    landed = page.evaluate(
-        """() => {
-          const ask = document.getElementById('storage-decision').getBoundingClientRect();
-          const options = document.getElementById('storage-options').getBoundingClientRect();
-          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
-            + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
-              .scrollMarginTop);
-          return {obligation: ask.top, options: options.top, clear};
-        }"""
-    )
+    landed = page.evaluate(landing)
     assert abs(landed["obligation"] - landed["clear"]) <= 2, (
-        f"the obligation starts at {landed['obligation']:.1f}px instead of the landing band's top and its "
-        f"ring's room at {landed['clear']:.1f}px"
+        f"the question starts at {landed['obligation']:.1f}px instead of the landing "
+        f"band's top at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["obligation"] + 100, (
         "the arrival did not leave the obligation's context above its options"
     )
+    assert landed["bottom"] <= landed["foot"], landed
 
-    # Tab remains the complementary route into the widget's controls. Read after the
-    # landing above, because a Tab onto a control below the fold scrolls to it and would
-    # take the arrival's own geometry with it. The obligation action context remains the same;
-    # its key badges may move to the shared chrome when Linux font metrics leave a local
-    # badge clipped, but the controls retain the same semantic routes.
+    # Tab remains the complementary route into the widget's controls. The obligation
+    # action context remains the same; its key badges may move to the shared chrome
+    # when Linux font metrics leave a local badge clipped, but the controls retain the
+    # same semantic routes.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     picks = page.locator("#storage-options .lf-pick")
@@ -718,7 +691,20 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
     page.keyboard.press("Escape")
-    expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
+    expect(page.locator("#storage-options")).not_to_have_attribute("tabindex", "-1")
+
+    # A window shorter than the question starts at the words before the answer, and
+    # leaves the user standing on an answer they can see.
+    page.keyboard.press("Escape")
+    resized(page, 900, 230)
+    page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    page.keyboard.press("m")
+    expect(page.locator("#storage-options")).to_be_focused()
+    scroll_settled(page)
+    landed = page.evaluate(landing)
+    assert landed["obligation"] < landed["clear"], landed
+    assert landed["clear"] - 2 <= landed["options"] < landed["foot"], landed
 
 
 def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
@@ -734,7 +720,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     resized(page, 900, 900)
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision")).to_be_focused()
+    expect(page.locator("#live-question")).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     expect(
         page.locator(
@@ -1175,10 +1161,10 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     # below is measured where the walk began, the scroll it computes is issued there, and
     # the travel then lands on top of it with the badge back above the bar.
     page.keyboard.press("m")
-    expect(page.locator("#cards-decision")).to_be_focused()
+    expect(page.locator("#cards")).to_be_focused()
     scroll_settled(page)
     page.keyboard.press("m")
-    expect(page.locator("#rows-decision")).to_be_focused()
+    expect(page.locator("#rows")).to_be_focused()
     scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
@@ -1247,12 +1233,11 @@ def walked_to(page, key, target):
 def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_there(
     browser, serve, subtests
 ):
-    """A change to a phrase has no region to declare, so the document supplies one.
+    """A change to a phrase has no frame of its own, so the document supplies one.
 
-    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
-    context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
-    name itself without context outside the obligation" and no region can be written round it.
-    Arriving on the change alone put its own top edge at the window's head and took the
+    A question's section frames its arrival: a heading, the context, then the control.
+    A suggestion stands mid-sentence, named by its sentence and the heading over that,
+    so the section round it frames nothing (`x-inline`). Arriving on the change alone put its own top edge at the window's head and took the
     sentence and the heading with it, leaving the user on the change with nothing on
     screen saying what they would be accepting.
 
@@ -1524,7 +1509,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
+    expect(page.locator("#t-baffles-review")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 
@@ -1559,9 +1544,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
+    expect(page.locator("#live-question")).to_have_attribute("data-lf-obligation", "1")
     # Where the user now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
@@ -1659,9 +1642,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-obligation", "1"
-    )
+    expect(page.locator("#live-question")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
@@ -1767,10 +1748,10 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision">'
+            '<h1 id="heading">Choose</h1><section id="pick-decision">'
             "<h2>Cap the retries?</h2>"
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
-            "</lf-ask>",
+            "</section>",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

@@ -1863,7 +1863,7 @@ def tally_after_an_answer(page: Page) -> None:
     page.locator("#ar-canary-consecutive").click()
     expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 left to answer")
     next_on_me.click()
-    expect(page.locator("#ar-latency-decision")).to_be_focused()
+    expect(page.locator("#ar-latency-choice")).to_be_focused()
     settle(page)
 
 
@@ -2009,13 +2009,11 @@ def gallery_drawing(page: Page) -> None:
 
 
 def gallery_ask_figure(page: Page) -> None:
-    """An `lf-ask` enclosing a chart, with its question at the window's top so the chart and
-    every option either share the window or run past it."""
+    """A question's section enclosing a chart, with its question at the window's top so
+    the chart and every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
-    page.locator("#bg-ask-across lf-ask").evaluate(
-        "el => el.scrollIntoView({block: 'start'})"
-    )
+    page.locator("#bg-across-ask").evaluate("el => el.scrollIntoView({block: 'start'})")
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -2309,9 +2307,10 @@ def card_message_by_keyboard(page: Page) -> None:
 
 def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
-    ask, so the location ring stands round it inside the card's transcript."""
+    ask's options, so the location ring stands round them inside the card's
+    transcript."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    expect(page.locator(".lf-margin-preview lf-options")).to_be_focused()
     settle(page)
 
 
@@ -2455,9 +2454,10 @@ def obligation_marker_by_keyboard(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, a question's options, reached with `m`: its ring and its
+    marker in view."""
     page.keyboard.press("m")
-    page.locator("lf-ask").first.wait_for()
+    page.locator("[data-lf-obligation]").first.wait_for()
 
 
 def steps_in_view(page: Page) -> None:
@@ -2529,7 +2529,7 @@ def overflowing_tabs(page: Page) -> None:
 
 
 def widget_inline_hints(page: Page) -> None:
-    """A standalone command scope with an active inline hint, outside an `lf-ask`."""
+    """A standalone command scope with an active inline hint, outside a question."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-local-shortcuts").focus()

@@ -127,9 +127,9 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
-        '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
+        '<section id="work"><h2>Choose</h2><lf-options id="options" choose>'
         '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', item))
     left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
@@ -146,13 +146,13 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator("#work")).to_be_focused()
+    expect(page.locator("#options")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
-    expect(page.locator("#work")).to_be_focused()
+    expect(page.locator("#options")).to_be_focused()
 
 
 def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, serve):
@@ -861,16 +861,16 @@ SEATED_PANE_PAGE = leaf_page(
     '<lf-pane id="seat-pane" label="Left"><div>'
     + _PARAGRAPH
     * 2
-    + '<lf-ask id="seat-ask"><h3>Should the nightly export keep writing one file per'
+    + '<section id="seat-ask"><h3>Should the nightly export keep writing one file per'
     " tenant or roll every tenant up into one archive tonight</h3>"
     '<lf-options id="seat-choice" choose>'
     '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
     '<lf-option id="sb"><strong>One archive</strong></lf-option>'
-    "</lf-options></lf-ask>" + _PARAGRAPH * 8 + "</div></lf-pane>"
+    "</lf-options></section>" + _PARAGRAPH * 8 + "</div></lf-pane>"
     '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",
     head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
-    " gap: var(--lf-sp-4); } lf-ask h3 { text-align: justify; }</style>",
+    " gap: var(--lf-sp-4); } #seat-ask h3 { text-align: justify; }</style>",
     layout="workspace",
 )
 
@@ -886,7 +886,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     resized(page, 1024, 600)
     body = page.locator("#seat-pane > div")
     pane_scroll_behavior(page, page.locator("#seat-pane"), "bounded")
-    row = page.locator('.lf-margin-lane [data-lf-margin-for="seat-ask"]')
+    row = page.locator('.lf-margin-lane [data-lf-margin-for="seat-choice"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
 
     def seat_at(gap):
@@ -894,7 +894,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
         top, and where the pin's top stands against that top."""
         body.evaluate(
             """(body, gap) => {
-              const ask = document.getElementById('seat-ask');
+              const ask = document.getElementById('seat-choice');
               body.scrollTop += ask.getBoundingClientRect().top
                 - body.getBoundingClientRect().top - gap;
             }""",
@@ -906,8 +906,8 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
             """async () => {
               await new Promise((done) =>
                 requestAnimationFrame(() => requestAnimationFrame(done)));
-              const row = document.querySelector('[data-lf-margin-for="seat-ask"]');
-              const ask = document.getElementById('seat-ask').getBoundingClientRect();
+              const row = document.querySelector('[data-lf-margin-for="seat-choice"]');
+              const ask = document.getElementById('seat-choice').getBoundingClientRect();
               const pane = document.querySelector('#seat-pane > div')
                 .getBoundingClientRect();
               const pin = row.getBoundingClientRect();

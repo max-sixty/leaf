@@ -179,17 +179,17 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
+<section id="stable-options-decision"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 
-<lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
+<section id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
   <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
     value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
@@ -204,7 +204,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <lf-playground-value for="radius"></lf-playground-value> corner radius and a
     <lf-playground-value for="tone"></lf-playground-value> tone.
   </lf-playground-output>
-</lf-playground></lf-ask>
+</lf-playground></section>
 <lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -754,12 +754,12 @@ AIM_PAGE = leaf_page(
       </lf-column>
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
-    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
+    <section id="aim-ask"><h2>Which jobs?</h2>
       <lf-options id="aim-jobs" choose multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
     <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
     </lf-suggestion></p>
   </lf-tab>

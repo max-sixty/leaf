@@ -135,7 +135,7 @@ handoff and save it.
         </p>
       </section>
 
-      <lf-ask id="route-ask">
+      <section id="route-ask">
         <h2>How should a card hand its thread to the panel?</h2>
         <p>
           Each candidate starts from the card a <kbd>t</kbd> walk opens. B and C add
@@ -339,7 +339,7 @@ handoff and save it.
             Show me a before/after still and the journey in Firefox.
           </lf-playground-output>
         </lf-playground>
-      </lf-ask>
+      </section>
 
       <section id="considered">
         <h2>What each candidate leaves open</h2>

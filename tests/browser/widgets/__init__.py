@@ -65,7 +65,7 @@ PLAYGROUND_PAGE = leaf_page(
   #card-playground[data-playground-compact="true"] #playground-card { padding: 8px; }
   #card-playground[data-playground-tone="bold"] #playground-card { font-weight: 700; }
 </style>
-<lf-ask id="card-playground-ask">
+<section id="card-playground-ask">
   <h2>How should the card look?</h2>
   <lf-playground id="card-playground">
     <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
@@ -96,7 +96,7 @@ PLAYGROUND_PAGE = leaf_page(
       <lf-playground-value for="title"></lf-playground-value>.
     </lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 """,
 )
 

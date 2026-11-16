@@ -78,16 +78,16 @@ from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 OBLIGATION_PAGE = leaf_page(
     "obligation",
     """<h1 id="t">Ask</h1>
-<lf-ask id="schema-decision"><h3>How should the schema migrate?</h3>
+<section id="schema-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="schema" choose>
   <lf-option id="shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="queue-decision"><h3>Which queue takes the retries?</h3>
+</lf-options></section>
+<section id="queue-decision"><h3>Which queue takes the retries?</h3>
 <lf-options id="queues" choose>
   <lf-option id="fast"><strong>The fast queue</strong> Shared.</lf-option>
   <lf-option id="slow"><strong>The slow queue</strong> Its own.</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
 )
 
 
@@ -1931,9 +1931,9 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.",
-        '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
+        '<section id="crop"><h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
-        '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
+        '<lf-option id="crop-same">As it is</lf-option></lf-options></section>',
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -4866,9 +4866,9 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?",
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<section id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
-        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
@@ -4911,9 +4911,9 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?",
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<section id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
-        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")
@@ -4993,11 +4993,11 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.",
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<section id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )
     page = floating(browser, url)
     page.locator("body").focus()

@@ -370,19 +370,6 @@ def _bearing(at: str, v: dict, value: str) -> str:
     return _line(f"{at[:-1]} {v['attr']}={value}>", v)
 
 
-def _conditions(lacks: dict) -> str:
-    """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
-    return " and ".join(
-        " or ".join(
-            f"`{attr}` is {'set' if value else 'unset'}"
-            if isinstance(value, bool)
-            else f"{attr}={_json(value)}"
-            for value in values
-        )
-        for attr, values in lacks.items()
-    )
-
-
 def _seat(seat: dict) -> str:
     return (
         f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
@@ -405,19 +392,6 @@ def _reference_contract(at: str, v: dict) -> str:
     return (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
         f" where {expected}; {actual}"
-    )
-
-
-def _empty_question(at: str, v: dict) -> str:
-    widgets = "; ".join(
-        f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
-        for w in v["widgets"]
-    )
-    return f"{_line(at, v)}: asks the user nothing, " + (
-        f"since {widgets}"
-        if widgets
-        else "since it holds no widget that asks (one declaring x-awaits); add one,"
-        " or ask a question answered in words in a thread message with --obligation"
     )
 
 
@@ -923,8 +897,6 @@ _TEXT = {
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "
         + {
-            "flow": "the element takes no width of its own, so put it on the block"
-            " inside that needs the room",
             "content": "only a block inside body, other than main, takes it, so put"
             " it on the block that needs it",
             "declared": "only a widget that draws into a box of a stated height"
@@ -1036,10 +1008,10 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question": _empty_question,
     "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
-        " leading its content alone or in an <hgroup> or <header>"
+        f"{_line(at, v)}: asks the user, but no heading titles its question; put the"
+        " question in a <section> with an id, opened by its heading, alone or in an"
+        " <hgroup> or <header>"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
@@ -1299,10 +1271,6 @@ _TEXT = {
             f"{v['key']} instances are addressable, so the element declaration"
             " must declare a string `id` attribute"
         )
-    ),
-    "enclosing-id": _declared(lambda v: "x-encloses must require an id"),
-    "enclosing-prose": _declared(
-        lambda v: "x-encloses must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (

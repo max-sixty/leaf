@@ -335,13 +335,13 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(comment).to_be_focused()
     drop()
 
-    # A decision: the composer opens on the question rather than on the option the
-    # walk happens to stand the user on, and rather than on the page.
+    # A decision: the composer opens on the decision, named by its question, rather
+    # than on the option the walk happens to stand the user on, or on the page.
     page.keyboard.press("m")
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
+    expect(page.locator(".lf-composer")).to_contain_text("options · Which material?")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -402,11 +402,11 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 ROOM_IN_THE_MARGIN = (1440, 900)
 AN_ASK_THEN_READING = leaf_page(
     "An ask, then reading",
-    '<h1>An ask, then reading</h1><lf-ask id="route"><h2>Which route?</h2>'
+    '<h1>An ask, then reading</h1><section id="route"><h2>Which route?</h2>'
     '<lf-options id="routes" choose>'
     '<lf-option id="left">Take the left route</lf-option>'
     '<lf-option id="right">Take the right route</lf-option>'
-    '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
+    '</lf-options></section><div style="height:4000px">Reading on</div>',
 )
 
 
@@ -442,12 +442,12 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box() == resting
 
     page.keyboard.press("Escape")
-    expect(page.locator("#route")).to_be_focused()
+    expect(page.locator("#routes")).to_be_focused()
     expect(rest).to_be_visible()
     assert rest.bounding_box() == resting
 
     page.keyboard.press("Escape")
-    expect(page.locator("#route")).not_to_be_focused()
+    expect(page.locator("#routes")).not_to_be_focused()
     expect(rest).to_be_hidden()
     expect(panel_key).to_have_text("c")
 
@@ -469,7 +469,7 @@ def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, ser
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, 700, 800)
     page.keyboard.press("m")
-    expect(page.locator("#route")).to_be_focused()
+    expect(page.locator("#routes")).to_be_focused()
     expect(page.locator(".lf-fab-bar[data-lf-withheld]")).to_have_count(1)
     expect(page.locator(".lf-fab-rest")).to_be_hidden()
     page.keyboard.press("c")
@@ -486,10 +486,10 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
                 "A sample",
                 '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
-                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
+                '<section id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
-                "</lf-options></lf-ask></template></lf-sample>",
+                "</lf-options></section></template></lf-sample>",
             )
         ),
     )
@@ -524,7 +524,7 @@ def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser,
     expect(rest).to_be_visible()
     scroll(down=True)
     expect(page.locator("#route")).not_to_be_in_viewport()
-    expect(page.locator("#route")).to_be_focused()
+    expect(page.locator("#routes")).to_be_focused()
     expect(rest).to_be_hidden()
     expect(panel_key).to_have_text("c")
 
@@ -572,13 +572,13 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
-<lf-ask id="shape-decision"><h2>Galvanised steel for the frame?</h2>
-<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-ask>
-<lf-ask id="picked-decision"><h2>Should we keep it?</h2>
+<section id="shape-decision"><h2>Galvanised steel for the frame?</h2>
+<lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></section>
+<section id="picked-decision"><h2>Should we keep it?</h2>
 <lf-options id="picked" choose>
   <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>
@@ -628,7 +628,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect_obligations_answered(page, "1/3")
 
@@ -656,7 +656,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # completion count remains stable.
     expect_obligations_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
 
     # And the press means that thread, so the next line joins the one the first line
     # opened rather than starting another on the obligation or the widget. Whichever surface
@@ -809,11 +809,11 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
             "seated",
             """
 <h1 id="t">Seated</h1>
-<lf-ask id="shape-decision"><h2>Which material?</h2>
+<section id="shape-decision"><h2>Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-test-plan id="hub" label="The rail">
   <lf-test-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
   Either crew can take it, and neither has said which week.</lf-test-task>

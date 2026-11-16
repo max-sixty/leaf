@@ -5,6 +5,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     draft_control,
+    latest_press,
     leaf_page,
     open_page,
     round_trip,
@@ -75,6 +76,14 @@ def replace_editing_document(page, serve):
     )
     told(page)
     if page.evaluate("performance.timeOrigin") == birth:
-        page.keyboard.press("Control+Alt+r")
+        if latest_press(page).count():
+            page.keyboard.press("Control+Alt+r")
+        else:
+            # A reply in the panel's field leaves its end no press: run what the press
+            # runs, which moves no focus either.
+            page.evaluate(
+                "import('/runtime/version-picker.js')"
+                ".then(({versionPicker}) => versionPicker.latest())"
+            )
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") != birth

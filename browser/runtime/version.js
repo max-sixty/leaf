@@ -37,9 +37,9 @@
  * or change a selected passage/comment's complete authored anchor scope. Runtime
  * chrome stays outside the authored patch and follows its own editor continuation.
  * Unresolved delivery and an open version menu defer either install.
- * Ending composition releases its hold on the next heartbeat; pressing Latest, which the
- * floating panel offers while the page shows an older version, explicitly releases that
- * hold, and stays offered while activation waits.
+ * Ending composition releases its hold on the next heartbeat; Open latest, which the
+ * floating panel's field offers at its end while it says the page is an older version,
+ * and the leaf's menu's row for the latest, explicitly release that hold.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
  * contract, and the obligation view restores the selected obligation by id. Both installs restore these

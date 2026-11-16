@@ -433,9 +433,9 @@ const groupOf = (entry) =>
 function passing() {
   const notice = noticeReading();
   if (notice.visible)
-    return { message: notice.message, visible: true, press: notice.press };
+    return { message: notice.message, visible: true, press: notice.press, news: true };
   const message = navigationWords();
-  return { message, visible: Boolean(message), press: null };
+  return { message, visible: Boolean(message), press: null, news: false };
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
@@ -944,7 +944,7 @@ export function createFloatingPanel({
     readCorner();
     // A press offered while the pointer stood on the panel stands once it leaves
     // (`pagePress`).
-    if (shownOffer !== offeredPress()) paint();
+    if (shownOffer !== pageOffer()) paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1260,15 +1260,18 @@ export function createFloatingPanel({
     // as Comment and its key are (`noticePress`, composing/input.js `enters`); one
     // offering none leaves the page's own there (`pagePress`), as the walk a Next On
     // Me makes says its place beside the press that takes it on.
+    // A notice of news says its words after the stance alone, since news often
+    // announces a change to where the user stands ("Annotations hidden — o shows
+    // them"), and holds the line for a moment; a walk's position or the Go-to word, which
+    // stand as long as the user does, say the rest of where they stand first.
     if (notice.visible) {
       const own = notice.press ? noticePress(notice.press) : null;
       const close = own || !stance ? null : stanceClose();
+      const lead =
+        notice.news || key ? (stance ? [`${stance} · `] : []) : standing(stance, true);
       return {
         says: "notice",
-        words: [
-          ...(stance ? [`${stance} · `] : []),
-          ...[noticeWords(notice.message)].flat(),
-        ],
+        words: [...lead, ...[noticeWords(notice.message)].flat()],
         offer: own ?? close ?? (key ? null : pagePress()),
         exits: Boolean(close),
       };
@@ -1291,19 +1294,21 @@ export function createFloatingPanel({
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // The press offered alone on the page, as Next On Me after an answer
-  // (notifications.js, `offerPress`), else Latest while the page shows an older version
-  // (`latestPress`), or null. It comes and goes with the server's
+  // (notifications.js, `offerPress`), else Open latest while the page shows an older
+  // version (`latestPress`), or null (`pageOffer`). It comes and goes with the server's
   // reading rather than with the user's input, so while the pointer rests on the panel
   // the field's end keeps what it showed, and takes the change at the user's next input
   // or once the pointer leaves: a press arriving there would stand where the user was
   // about to press Comment (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  /** @type {import("./notifications.js").NoticePress | "latest" | null} */
+  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  const pageOffer = () => offeredPress() ?? (latestPress() ? "latest" : null);
+  /** @type {ReturnType<typeof pageOffer>} */
   let shownOffer = null;
   let offerShownAt = -1;
   function pagePress() {
     if (pointer === null || inputCount() !== offerShownAt) {
-      shownOffer = offeredPress() ?? (latestPress() ? "latest" : null);
+      shownOffer = pageOffer();
       offerShownAt = inputCount();
     }
     if (shownOffer === "latest") return latestPress();

@@ -2775,20 +2775,31 @@ export function createVersionController({
     const prepared = () => renderingState().preparationsSettled;
     let unwait = () => {};
     let cap = 0;
+    // The cap's turn: a preparation beginning, a later wait or the window closing ends
+    // it, standing down closing frames an expired cap has already queued.
+    let turn = 0;
+    const standDown = () => {
+      clearTimeout(cap);
+      turn++;
+    };
     const wait = () => {
       unwait();
-      clearTimeout(cap);
+      standDown();
+      const mine = turn;
       unwait = afterSettling(() => prepared() && (regionsSettled() ? close() : wait()));
-      cap = setTimeout(() => nextAnimation(() => nextAnimation(close)), SETTLING_MS);
+      cap = setTimeout(
+        () => nextAnimation(() => nextAnimation(() => mine === turn && close())),
+        SETTLING_MS,
+      );
     };
     preparation = (phase) => {
-      if (phase === "begin") clearTimeout(cap);
+      if (phase === "begin") standDown();
       else if (prepared()) wait();
     };
     closeWindow = () => {
       closeWindow = preparation = () => {};
       unwait();
-      clearTimeout(cap);
+      standDown();
     };
     if (prepared()) wait();
     const page = pageDocument();

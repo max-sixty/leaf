@@ -139,7 +139,10 @@ Leaf adds a Copy button to each `pre > code` in the page. A widget block holding
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
-the page, and a page without Leaf shows none. Where the button belongs among the
+the page, and a page without Leaf shows none. A widget that draws marks of its own over
+the block, as `lf-code` draws its notes mark, sets the block's `lfBar` to the
+`.lf-mark-bar` it places and shows over the block, and Leaf stands Copy last in it.
+Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,

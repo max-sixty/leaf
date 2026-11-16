@@ -2694,6 +2694,39 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     assert updates == []
 
 
+def test_a_connection_that_came_up_retries_its_next_drop_promptly(monkeypatch, capsys):
+    """Each drop after a connection came up is a first failure again.
+
+    A provider restart is over by the time anything notices, so the first retry is
+    prompt (`retry_delay`); a long-lived connection that drops a few times over a
+    session waits a second each time and says so, not a growing half-minute.
+    """
+    observer = _observer()
+    observer.started = True
+    waits = []
+
+    class StopAfterThreeDrops:
+        def is_set(self):
+            return len(waits) == 3
+
+        def wait(self, timeout):
+            waits.append(timeout)
+            return len(waits) == 3
+
+    observer.stop_event = cast(threading.Event, StopAfterThreeDrops())
+
+    def connect_then_drop():
+        observer.connected.set()
+        raise ConnectionError("dropped")
+
+    monkeypatch.setattr(observer, "_connect", connect_then_drop)
+
+    observer._run()
+
+    assert waits == [1, 1, 1]
+    assert capsys.readouterr().err.count("Codex App Server stream retry: dropped") == 3
+
+
 def test_an_app_server_failure_cleans_up_its_streams_before_retrying(
     monkeypatch, capsys
 ):

@@ -439,8 +439,10 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         return {cursor: cs.cursor, opacity: cs.opacity, off,
                 face: face(el), armed: off ? armed(el) : null};
       };
+      // The resting comment box stands in for the field it opens and wears that field's
+      // face, its text cursor included (annotation-chrome.css).
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '');
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
       const said = [document.querySelector('#intro > .tag'),
                     document.querySelector('#owner-fact > .tag')];
       return {

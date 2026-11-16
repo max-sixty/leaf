@@ -96,6 +96,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                   id: `tone-${index}`,
                   subject: {kind: 'widget', id: `${tone}-target`},
                   stage,
+                  at_work: stage === 'working',
                   condition: null,
                 } : null
               })]}), activate: () => {}
@@ -194,6 +195,9 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             hovered = []
             focused = []
             for button in buttons:
+                # Focus left on the entry above rests the comment box in the rail,
+                # over this one (floating-response.js), so let it go first.
+                page.evaluate(RELEASE_FOCUS)
                 button.hover()
                 hovered.append(button.evaluate(read))
                 page.mouse.move(0, 0)

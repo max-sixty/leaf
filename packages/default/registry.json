@@ -343,7 +343,7 @@
   },
   "lf-note": {
     "description": "A prose remark anchored to a line or omitted range of its lf-code parent.",
-    "x-instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines.",
+    "x-instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines. The note stands under that line, so a note about a key, field or definition names the line it starts on.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },

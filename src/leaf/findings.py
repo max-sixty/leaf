@@ -2024,6 +2024,14 @@ _TEXT = {
         f"{v['page']}'s server was stopped while `page init` held it down, so it"
         " stays stopped."
     ),
+    # `page check`'s advice on a page whose live server runs another Leaf
+    # (`server.another_leaf_serving`).
+    "another-leaf-serving": lambda at, v: (
+        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
+        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f" restart it with `leaf server stop {v['page']}` then"
+        f" `leaf server start {v['page']}`"
+    ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"

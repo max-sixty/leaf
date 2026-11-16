@@ -6,14 +6,7 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     wait_for,
 )
-from journeys.test_render_export import (  # noqa: F401 (fixtures)
-    OFFLINE_REGISTRY,
-    OFFLINE_WIDGET,
-    PIXEL,
-    POLICY_ATTEMPTS,
-    _reachable,
-    requested_documents,
-)
+from journeys.test_render_export import requested_documents
 from playwright.sync_api import expect
 from render_harness import (
     is_problem,

@@ -82,8 +82,8 @@ export function createAim({
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
   // get, and the answer cannot wait for them to jiggle the mouse first. An open composer
-  // is no reason to say nothing: the press still acts (it moves the draft onto another
-  // target), so the promise still paints — what stood down here left that one press made
+  // is no reason to say nothing: the press still acts (it opens another target's own
+  // draft), so the promise still paints — what stood down here left that one press made
   // blind.
   //
   // The margin layer is chrome that stands over the page, and a row there is about the

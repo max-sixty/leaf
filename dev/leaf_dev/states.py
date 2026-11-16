@@ -390,6 +390,27 @@ def panel_status_hover(page: Page) -> None:
     page.locator(".lf-fp-leaf").hover()
 
 
+def panel_errors(page: Page) -> None:
+    """The leaf's menu opened by its error dot, over an error the user edited past in
+    the field, so it waits unseen in the Errors list."""
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const {raiseError, passErrors} = await import(
+            new URL('runtime/errors.js', new URL(boot, location.href)));
+        passErrors([raiseError('That writing place is unavailable').id]);
+    }""")
+    expect(page.locator(".lf-fp-error-dot[data-lf-shown]")).to_be_attached()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator('.lf-fp-item[data-lf-row="errors"]')).to_be_visible()
+
+
+def panel_errors_list(page: Page) -> None:
+    """The Errors list the menu's Errors row opens, each error with its presses."""
+    panel_errors(page)
+    page.locator('.lf-fp-item[data-lf-row="errors"]').click()
+    expect(page.locator(".lf-fp-error").first).to_be_visible()
+
+
 def open_thread(page: Page, key: str) -> None:
     """The thread `key`, opened from Threads in the floating panel's view."""
     go_to_threads(page)
@@ -2762,6 +2783,13 @@ STATES = (
         region=".lf-fp-leaf",
     ),
     State("panel-status-hover", "review-a-plan", panel_status_hover),
+    State("panel-errors", "review-a-plan", panel_errors, region=".lf-floating-panel"),
+    State(
+        "panel-errors-list",
+        "review-a-plan",
+        panel_errors_list,
+        region=".lf-floating-panel",
+    ),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-opened"),
     State(
         "detached-thread", "feature-gallery", detached_thread, region=".lf-fp-opened"

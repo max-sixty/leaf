@@ -87,10 +87,12 @@
  *   editor covers its words, as at any box (composing/input.js), and the empty field
  *   says the newest one about nothing in its status's place and the danger's ink,
  *   until the user's first edit. An error the field has passed or no box stands for
- *   waits in the leaf's menu, under Errors, with a dot on the leaf until the user
- *   opens the list (`errorsList`). The user chose this on 17
- *   October over errors riding the passing notice, which faded after four seconds and
- *   went unsaid while the user wrote. A draft takes precedence over passing notices,
+ *   waits in the leaf's menu, under Errors, with a dot on the leaf and on Errors until
+ *   the user opens the list (`errorsList`), where each copies with its context. The
+ *   user chose this on 17 October over errors riding the passing notice, which faded
+ *   after four seconds and went unsaid while the user wrote. On 15 November 2026 they
+ *   asked for Errors to show in red that it is what the leaf's dot marks, which its
+ *   count in the accent's ink had left unclear. A draft takes precedence over passing notices,
  *   which still reach the live region. A selected passage is named by the field's
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
  *   The keys that send are Send's hover name, where Return sends with
@@ -215,6 +217,7 @@
  * behind the box widening around it; it replaced revealing everything a change moved
  * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
+  guard,
   html,
   noChange,
   keyed as keyedBy,
@@ -656,15 +659,7 @@ export function createFloatingPanel({
     const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
-    const sayingNow =
-      initial || noticePressing(input)
-        ? new Set()
-        : new Set(sayable().map((error) => error.id));
-    const unseen =
-      !initial &&
-      errorsReading().some(
-        (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
-      );
+    const unseen = !initial && errorsWaiting(input);
     const exit = initial ? null : fieldExit(search, top, input, reading);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
@@ -1144,6 +1139,17 @@ export function createFloatingPanel({
   /** @param {Element | null} input */
   function noticePressing(input) {
     return Boolean(passing().press) && input !== focused();
+  }
+  // Whether an error waits unseen in the menu's Errors list: one the user hasn't opened
+  // the list on, which neither the field says now nor stands at its own box. The leaf
+  // and the Errors row wear the same dot for it, so the row a press on the dotted
+  // leaf opens to is the one dotted there.
+  /** @param {Element | null} input */
+  function errorsWaiting(input) {
+    const saying = noticePressing(input) ? [] : sayable();
+    return errorsReading().some(
+      (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
+    );
   }
   // The page field's readings whose words say something other than a press there, so
   // its end says the press: the status, a passing notice, and the words selected on the
@@ -2437,6 +2443,24 @@ export function createFloatingPanel({
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
+  // The row that opens the Errors list, which the menu and its search both offer. It
+  // wears the leaf's error dot beside its name while an error waits unseen in the list
+  // (`errorsWaiting`), so a press on the dotted leaf finds the dotted row.
+  /** @param {readonly import("./errors.js").RaisedError[]} errors @param {boolean} [gone] */
+  const errorsRow = (errors, gone = false) =>
+    menuItem(
+      html`Errors<span
+          class="lf-fp-error-dot"
+          aria-hidden="true"
+          ?data-lf-shown=${errorsWaiting(fieldInput())}
+        ></span>`,
+      html`<span class="lf-fp-value">${errors.length}</span>`,
+      () => {
+        open({ view: "errors", errors });
+        seeErrors();
+      },
+      { opens: true, disabled: gone, row: "errors" },
+    );
   // A row's end says its value in words, then its shortcut where a keyboard is there to
   // press it, each press a key as the command reference draws it, so the two never read
   // as one run of text.
@@ -2552,19 +2576,7 @@ export function createFloatingPanel({
     );
     /** @param {unknown} word */
     const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
-    return html`${
-        errors.length
-          ? menuItem(
-              "Errors",
-              kind(errors.length),
-              () => {
-                open({ view: "errors", errors });
-                seeErrors();
-              },
-              { opens: true, row: "errors" },
-            )
-          : nothing
-      }${lists.map((group) =>
+    return html`${errors.length ? errorsRow(errors) : nothing}${lists.map((group) =>
         menuItem(group.label, nothing, () => open({ view: "group", group }), {
           opens: true,
           row: `group:${group.name}`,
@@ -2656,21 +2668,7 @@ export function createFloatingPanel({
         ? [
             {
               key: "errors",
-              draw: (/** @type {boolean} */ gone) =>
-                menuItem(
-                  "Errors",
-                  html`<span class="lf-fp-value">${errors.length}</span>`,
-                  () => {
-                    open({ view: "errors", errors });
-                    seeErrors();
-                  },
-                  {
-                    opens: true,
-                    urgent: errors.some((error) => !error.seen),
-                    disabled: gone,
-                    row: "errors",
-                  },
-                ),
+              draw: (/** @type {boolean} */ gone) => errorsRow(errors, gone),
             },
           ]
         : []),
@@ -2790,8 +2788,22 @@ export function createFloatingPanel({
     `;
   }
 
+  // What a copied error says, for whoever the user hands it to, a person or an agent:
+  // the error and the stack it was raised from (errors.js), then what About this page
+  // copies to say which page, Leaf and agent session it happened on (page-about.js).
+  // Read as it is pressed, so it says what holds then. The page's link stays out, since
+  // it grants access to every page on this machine.
+  /** @param {import("./errors.js").RaisedError} error */
+  const errorReport = (error) =>
+    [
+      `Leaf error: ${error.message}\nraised: ${new Date(error.at).toISOString()}\n${error.stack}`,
+      ...pageControls()
+        .filter((entry) => entry.group === "about" && entry.copies)
+        .map((entry) => entry.copies),
+    ].join("\n\n");
   // The errors the user has met, newest first, each saying what failed and when, with
-  // a press that dismisses it, whose name carries both, since a list's keys reach only
+  // a press that copies it with its context (`errorReport`), where the browser can copy,
+  // and one that dismisses it, whose names carry both, since a list's keys reach only
   // its presses. The list keeps the reading it opened with: new errors wait behind the
   // leaf's dot until reopening. An error whose cause ends
   // clears its words but keeps its space, so the next control stays under the reader.
@@ -2848,6 +2860,26 @@ export function createFloatingPanel({
           <p class="lf-fp-error-words" aria-hidden="true">
             <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
+          ${
+            canCopy()
+              ? guard([error.id], () => {
+                  const copy = copyControl("lf-fp-error-copy", {
+                    label: `Copy with page details: ${error.message}, ${clock(error.at)}`,
+                    success: "Error copied",
+                    error: "Error not copied",
+                    role: "symbol",
+                  });
+                  copy.addEventListener(
+                    "click",
+                    () => {
+                      copy.value = errorReport(error);
+                    },
+                    { capture: true },
+                  );
+                  return copy;
+                })
+              : nothing
+          }
           <button
             type="button"
             ${offeredAction("word", "lf-fp-dismiss")}

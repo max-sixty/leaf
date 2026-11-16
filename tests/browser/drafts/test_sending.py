@@ -270,7 +270,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     # until the user's first key or press there, and the leaf's dot waits for it.
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     expect(cover).to_have_text("Couldn't take this — refused before append")
-    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_hidden()
     # The first Enter only lifts the cover, with the caret at the words' end, so the
     # words are never sent unseen; the error waits in the leaf's menu.
     page.keyboard.press("Enter")
@@ -364,7 +364,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     refuse(page, held)
     box = page.locator(".lf-fab-input")
     cover = page.locator(".lf-fab-bar .lf-compose-error")
-    dot = page.locator(".lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
     expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(dot).to_be_hidden()
     assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
@@ -435,7 +435,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
         )
     # The field holds the later words, so it cannot say an error about nothing in
     # particular: the refusal waits in the leaf's menu, its dot on the leaf.
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
 
     page.keyboard.press("Escape")
@@ -526,7 +526,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
     expect(cover).to_be_hidden()
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
         len(parent),
         len(parent),

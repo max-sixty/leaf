@@ -222,19 +222,7 @@ VERB_SCHEMA = {
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
-        # What the deciding verb's outcomes do beyond answering (`$state`): the member
-        # tags each one takes off the page, and the one that declines the proposal.
-        "retires": {
-            "type": "object",
-            "minProperties": 1,
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {
-                "type": "array",
-                "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-                "minItems": 1,
-                "uniqueItems": True,
-            },
-        },
+        # The deciding verb's outcome that declines the proposal (`$state`).
         "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
             "type": "object",
@@ -249,7 +237,7 @@ VERB_SCHEMA = {
         "text": {"const": True},
     },
     "required": ["unit"],
-    "dependentRequired": {"retires": ["decides"], "withdraws": ["decides"]},
+    "dependentRequired": {"withdraws": ["decides"]},
     "allOf": [
         {
             "if": {"required": ["record"]},
@@ -401,6 +389,7 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
+        "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",
             "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -476,6 +465,7 @@ EXTENSION_SCHEMA = {
         "x-work": {"const": True},
     },
     "dependentRequired": {
+        "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-shows": ["x-owners", "x-refers"],
     },
@@ -599,8 +589,10 @@ LAYER_FACTS = {
 # of them, because the failure is one — the attribute is absent, so the pass reading the
 # key finds nothing and does nothing, and the widget is simply missing from it with no
 # error anywhere (validate_registry holds every key here to the entry's `properties`).
-# x-awaits and x-data name attributes too and keep their own loops, having more
-# to say about each than that it exists.
+# x-retired-when, of the same shape, is not in it: it names an outcome rather than an
+# attribute, and sharing a spelling is no reason to share a check. x-awaits and x-data
+# name attributes too and keep their own loops, having more to say about each than
+# that it exists.
 ATTRIBUTE_KEYS = (
     "x-prepaint",
     "x-refers",

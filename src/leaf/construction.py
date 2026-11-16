@@ -22,7 +22,7 @@ from .projection import (
     markup_value,
     record_members,
 )
-from .registry.contract import retired_members, state_specs, upgraded
+from .registry.contract import state_specs, upgraded
 from .structure import SourceDocument
 
 
@@ -262,11 +262,12 @@ def constructed_content(
                 continue
             if node["attrs"].get("id") in retired:
                 continue
+            entry = registry.get(node["tag"], {})
             if (
                 parent is not None
-                and (outcome := outcomes.get(parent["attrs"].get("id"))) is not None
-                and node["tag"]
-                in retired_members(registry.get(parent["tag"], {})).get(outcome, ())
+                and entry.get("x-retired-when")
+                and parent["tag"] in entry.get("x-owners", [])
+                and outcomes.get(parent["attrs"].get("id")) == entry["x-retired-when"]
             ):
                 continue
             node["content"] = visible(node["content"], node)

@@ -140,7 +140,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
     entry["x-state"]["review"] = {
         key: value
         for key, value in entry["x-state"]["decide"].items()
-        if key not in {"decides", "retires", "withdraws"}
+        if key not in {"decides", "withdraws"}
     }
     entry["x-awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")

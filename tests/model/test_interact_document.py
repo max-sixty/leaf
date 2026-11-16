@@ -4269,14 +4269,8 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     does carry retires that element's losing slot, or empties a widget it leaves
     showing nothing, exactly as the walk given it does."""
     registry = {
-        "lf-suggestion": {
-            "x-state": {
-                "decide": {
-                    "decides": True,
-                    "retires": {"accepted": ["lf-old"], "rejected": ["lf-new"]},
-                }
-            }
-        }
+        "lf-old": {"x-retired-when": "accepted"},
+        "lf-new": {"x-retired-when": "rejected"},
     }
     document = structure_model.SourceDocument(
         '<main><lf-suggestion id="edit"><lf-old><p>Old words.</p></lf-old>'

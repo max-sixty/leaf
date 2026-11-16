@@ -95,15 +95,17 @@ def enclosing_widgets(rec: dict):
         rec = rec["holder"]
 
 
-def enclosing_slot(rec: dict, slots: dict):
+def enclosing_slot(rec: dict, registry: dict):
     """The innermost slot an element stands in and the widget whose decision
     retires it, or None where it stands in neither. The element itself counts:
-    a slot's own id is the slot's, not the widget's around it. `slots` is the
-    registry's `retirement_slots`."""
+    a slot's own id is the slot's, not the widget's around it."""
     for node in (rec, *enclosing_widgets(rec)):
+        entry = registry.get(node["tag"]) or {}
         holder = node["holder"]
-        if holder and any(
-            node["tag"] in members for members in slots.get(holder["tag"], {}).values()
+        if (
+            entry.get("x-retired-when")
+            and holder
+            and holder["tag"] in entry["x-owners"]
         ):
             return node, holder
     return None
@@ -131,15 +133,13 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
                 "retires": {outcome: set() for outcome in declared[rec["tag"]]},
             }
     for wid, rec in parser.holders.items():
-        pair = enclosing_slot(rec, declared) if rec else None
+        pair = enclosing_slot(rec, registry) if rec else None
         if pair is None:
             continue
         slot, holder = pair
         held = holders.get(holder["attrs"].get("id"))
         if held is not None:
-            for outcome, members in declared[holder["tag"]].items():
-                if slot["tag"] in members:
-                    held["retires"][outcome].add(wid)
+            held["retires"][registry[slot["tag"]]["x-retired-when"]].add(wid)
     return list(holders.values())
 
 
@@ -909,8 +909,8 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
     The registry explicitly marks the deciding verb (`decides`), whose `outcome`
-    values its `retires` and `withdraws` name, so nothing here knows a widget or
-    verb by name."""
+    values a member's `x-retired-when` and the verb's own `withdraws` name, so
+    nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]
         for (widget, _unit, _verb), (e, spec) in actions.items()

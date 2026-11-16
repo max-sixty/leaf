@@ -10,11 +10,10 @@ under the element's `x-state`. Leaf validates each event, works out the current 
 hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
 A verb declaring `decides: true` selects which of its widget's members retire. It
-folds by widget and requires a string-enum `outcome` field. Its `retires` maps an
-outcome to the member tags it removes, and its `withdraws` names the outcome that
-declines the proposal (`$state`). An `outcome` field on any other verb is
-ordinary domain data; whether an action answers an obligation is separately
-declared by `x-awaits`.
+folds by widget and requires a string-enum `outcome` field. A member's
+`x-retired-when` and the verb's own `withdraws` name those outcomes. An `outcome`
+field on any other verb is ordinary domain data; whether an action answers an
+obligation is separately declared by `x-awaits`.
 
 The default board declares `move` as a position record in
 `packages/default/registry.json`:

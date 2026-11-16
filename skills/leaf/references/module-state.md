@@ -33,7 +33,7 @@ markup has a controller, and only under the `id` it had at upgrade: if the id ch
 user adds through a `creates` verb, such as a new option, has none; its parent draws it
 from its own state and passes the member's asynchronous drawing to
 `controller.present(promise)`. Leaf itself draws what the declaration alone decides,
-such as hiding a suggestion's `lf-old` once it is accepted (the verb's `retires`).
+such as hiding a suggestion's `lf-old` once it is accepted (`x-retired-when`).
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every

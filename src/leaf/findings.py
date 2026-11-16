@@ -1618,17 +1618,10 @@ _TEXT = {
             " which is not a value of its `outcome` field"
         )
     ),
-    "retires-outcome": _declared(
+    "retired-when": _declared(
         lambda v: (
-            f"x-state verb `{v['verb']}` retires members under `{v['outcome']}`,"
-            " which is not a value of its `outcome` field"
-        )
-    ),
-    "retires-member": _declared(
-        lambda v: (
-            f"x-state verb `{v['verb']}` retires <{v['member']}> under"
-            f" `{v['outcome']}`: <{v['member']}> must declare this widget in its"
-            " x-owners"
+            f"x-retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
+            " declares no deciding x-state verb with that outcome"
         )
     ),
     "answering-part": _declared(

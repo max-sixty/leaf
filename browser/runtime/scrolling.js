@@ -36,6 +36,7 @@ import {
   browserScrolls,
   holdScroll,
   readerScrolls,
+  scrollDrawn,
   setScroll,
   startReaderScroll,
   stopWhereItStands,
@@ -198,18 +199,14 @@ ended.set(pageScroller, pageScroller.scrollTop);
 // (landing-scroll.js, `readingBandMoves`), so `t` pressed again while the walk still
 // moves lands as typed slowly, where stopping the glide left the page where it stood
 // whenever the destination was already in view there; a return stops it itself.
-// Chromium can deliver one last compositor scroll after that cancellation, so its
-// rendering update must finish before the caller reads geometry and places the new
-// destination. Two callbacks enclose that whole update.
+// Chromium can deliver one last compositor scroll after that cancellation, so the
+// caller reads geometry and places the new destination once the stop is drawn
+// (arrivals.js, `scrollDrawn`).
 /** @param {Iterable<Element>} boxes */
 export function stopBrowserScroll(boxes) {
   const stopped = [...boxes].filter(browserScrolls);
-  if (!stopped.length) return null;
   for (const box of stopped) stopWhereItStands(box);
-  return new Promise(
-    /** @param {(value?: void) => void} resolve */ (resolve) =>
-      nextFrame(() => nextFrame(() => resolve(undefined))),
-  );
+  return stopped.length ? scrollDrawn() : null;
 }
 
 let choices = 0;

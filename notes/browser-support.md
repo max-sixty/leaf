@@ -999,7 +999,9 @@ reveals the thread card's next control where the card stood before the landing,
 scrolling the page on past where the walk leaves it; the glide matrix in
 `tests/journeys/navigation/test_reading_place.py` holds that case as known.
 Leaf's own readers ask where the glides land instead of reading an anchored box
-after a landing (scroll-containers.js, `seenAhead`). Recheck the three calls in
+after a landing (scroll-containers.js, `seenAhead`), and a reading of the whole
+scene, as a hint map's, waits until the rendering update after a script's scroll
+(arrivals.js, `scrollDrawn`). Recheck the three calls in
 Chromium; a 90px scroll means the gap has closed, and the matrix's known case
 then passes.
 

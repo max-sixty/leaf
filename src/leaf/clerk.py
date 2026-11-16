@@ -117,16 +117,16 @@ The fork authors neither the page nor markup, so each ask is the agent's message
 a thread, as the agent's guidance has it write one (`threads.md`). Where the agent
 offered answers the user picks among, the fork lists them. Leaf writes them into the
 message's markup as the `lf-options choose` group that `threads.md` ("Ask for a
-pick") has the agent write (`_choice`), and checks it as it checks an agent's
-`--markup`. The user's pick then shows as the group's state, `1`–`9` answer it, and
-a reply in words leaves it open, passing it to the agent until the agent answers.
-Any other ask, a step the user takes included, is the message with an obligation: On
-Me lists it until the user replies or settles it, and their reply reaches the agent
-as any reply does. An ask that asks an earlier question
-again, such as a step the user took that didn't work, names it, and Leaf asks it in
-its thread, in words under its own id, as the agent's `--obligation <id>` does
-(`obligations`), or with its choice, reopening the thread if the user closed it.
-Any other opens a thread of its own, on
+pick") has the agent write (`_choice`), and validates it with `check_markup`. The
+user's pick then shows as the group's state, `1`–`9` answer it, and a reply in words
+leaves it open, passing it to the agent until the agent answers. Any other ask, a
+step the user takes included, is the message with an obligation: On Me lists it
+until the user replies or settles it, and their reply reaches the agent as any reply
+does. An ask that asks an earlier question again, such as a step the user took that
+didn't work or a choice they closed without picking, names it, and Leaf asks it in
+its thread (`thread.ask_again`), with its choice or in words, a question first asked
+in words under its own id, as the agent's `--obligation <id>` does (`obligations`),
+reopening the thread if the user closed it. Any other opens a thread of its own, on
 the passage the ask concerns where the fork names words the page shows once, and
 otherwise on the page as a whole, which is also where words the page doesn't show
 once leave it. An ask Leaf can't put in its question's thread, as where that thread
@@ -153,10 +153,7 @@ the user ended with Done. On 2026-11-03 the user removed to-dos on the user
 altogether (`todos`): what is asked of the user is answered through the widget or
 thread it stands on, never a Done Leaf adds, so a step is asked in a thread too. A
 clarifying reply such as "where do I run it?" answers it, as any reply does, until the
-agent's answer reopens it (`obligations`). Until 2026-11-16 the fork asked a decision
-the same way, and a clarifying reply such as "before I decide, how does the schedule
-change?" ended it while it was still open. Since #5404 the fork asks a question with
-a short, fixed set of answers as a choice, as the agent's own guidance already did.
+agent's answer reopens it (`obligations`).
 
 The fork reads each page's words as the user reads them, a block to a line
 (`page_text`, from the passage reading `leaf thread create` quotes against), so it
@@ -440,11 +437,12 @@ OPENING = "<leaf-fork-check>"
 
 def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
-    it and the page's `events`: its On Me; the questions asked in words that On Me no
-    longer holds, each with its id, its thread and how it ended (answered, or its
-    thread closed), which the fork words anew only to ask one again
-    under its id; and each item the agent has started with the line its start gives
-    it (`todos.item_starts`)."""
+    it and the page's `events`: its On Me; the questions asked in a thread message,
+    in words or by a widget, that On Me no longer holds, each with the id
+    `thread.ask_again` takes, its thread and how it ended (answered, or its thread
+    closed), which the fork words anew only to ask one again under its id; and each
+    item the agent has started with the line its start gives it
+    (`todos.item_starts`)."""
     from .todos import item_starts
 
     threads = {thread["id"]: thread for thread in state["threads"]}
@@ -454,8 +452,7 @@ def page_facts(state: dict, events: list) -> dict:
 
     # What each message asking a question says now, edits included: a question asked
     # again stands on its newest message, while its record keeps the first one's
-    # words, and a widget asking in a message, such as a choice, reads as the
-    # message's words.
+    # words.
     asking = {record.get("message") for record in state["obligations"]}
     said = {}
     for event in events:
@@ -465,7 +462,12 @@ def page_facts(state: dict, events: list) -> dict:
             said[event["id"]] = event.get("text")
 
     def words(record: dict) -> str:
-        text = said.get(record.get("message")) or record["prompt"].get("text") or ""
+        """A question's words: a question asked in words reads as its message now
+        does, and a widget's as its own prompt, or where it has none, such as a
+        choice under the message that asks it, as its message."""
+        prompt, message = record["prompt"].get("text"), said.get(record.get("message"))
+        in_words = record["source"]["kind"] == "message"
+        text = ((message or prompt) if in_words else (prompt or message)) or ""
         return " ".join(text.split())[:300]
 
     def thread_named(thread: str) -> str:
@@ -501,11 +503,20 @@ def page_facts(state: dict, events: list) -> dict:
         closer = (threads.get(record["thread"]) or {}).get("resolved")
         return f"closed by the {closer}" if closer else "closed"
 
-    asked = [
-        f"{record['id']}, in {thread_named(record['thread'])}, {how}: " + words(record)
-        for record in state["obligations"]
-        if record["source"]["kind"] == "message" and (how := ended(record))
-    ]
+    asked: dict[str, str] = {}
+    for record in state["obligations"]:
+        if record.get("message") and (how := ended(record)):
+            # By the id `thread.ask_again` takes: a question asked in words by its
+            # own, and a widget's by the message holding it.
+            name = (
+                record["id"]
+                if record["source"]["kind"] == "message"
+                else f"message:{record['message']}"
+            )
+            asked.setdefault(
+                name,
+                f"{name}, in {thread_named(record['thread'])}, {how}: {words(record)}",
+            )
     started = []
     for item, start in item_starts(events).items():
         if todos.get(item, {}).get("state") == "open":
@@ -525,7 +536,7 @@ def page_facts(state: dict, events: list) -> dict:
         "title": state["title"],
         "path": state["page"],
         "on_me": on_me,
-        "asked": asked,
+        "asked": list(asked.values()),
         "started": started,
     }
 
@@ -828,8 +839,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     where its thread owes the user a reply, the ask is taken as one naming none."""
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .structure import SourceDocument
-    from .thread import ask_again, asking_widget, fit_title
+    from .thread import ask_again, fit_title, message_questions
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
@@ -841,13 +851,7 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
         if event["kind"] == "comment"
         and event["author"] == "agent"
         and "title" in event
-        and (
-            event.get("obligation")
-            or (
-                "markup" in event
-                and asking_widget(SourceDocument(event["markup"]), registry)
-            )
-        )
+        and message_questions(event, registry)
     }
     # Every message is checked before the first is written, so a refused one leaves
     # the page as the fork found it.
@@ -1202,8 +1206,15 @@ def _choice(options: list[dict]) -> str:
     """The `lf-options choose` group asking the user to pick one of `options`, the
     markup `threads.md` ("Ask for a pick") has the agent write: each option titled in
     bold, the recommended one tagged, and its detail after the title. Its ids are new
-    to the page, and the options' words are text. `open_thread` and `ask_again` check
-    it as they check an agent's `--markup`."""
+    to the page, and the options' words read as inline Markdown, as the message's
+    text does (`passages.markdown_dialect`), so a command in backticks shows as code
+    and any HTML in them as text. `open_thread` and `ask_again` check the group with
+    `check_markup`, as they check an agent's `--markup`."""
+    from .passages import markdown_dialect
+
+    def inline(words: str) -> str:
+        return markdown_dialect(True).renderInline(words.strip())
+
     group = f"ask-{secrets.token_hex(4)}"
     cards = "".join(
         f'<lf-option id="{group}-{number}">'
@@ -1212,8 +1223,8 @@ def _choice(options: list[dict]) -> str:
             if option.get("recommended")
             else ""
         )
-        + f"<strong>{escape(option['title'].strip())}</strong>"
-        + (f" {escape(detail)}" if (detail := option.get("detail", "").strip()) else "")
+        + f"<strong>{inline(option['title'])}</strong>"
+        + (f" {inline(detail)}" if (detail := option.get("detail", "").strip()) else "")
         + "</lf-option>"
         for number, option in enumerate(options, 1)
     )

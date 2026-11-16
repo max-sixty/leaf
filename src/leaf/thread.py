@@ -24,14 +24,14 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import local_obligation_entry, shown_in
+from leaf.obligations import local_obligation_entry, question_ids, shown_in
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
-from leaf.thread_context import thread_message, thread_names
+from leaf.thread_context import logged_fragment, thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
     checked_text,
@@ -364,19 +364,23 @@ def open_thread(
 def ask_again(
     page: PageTransaction, question: str, body: str, identity: dict, markup: str = ""
 ) -> dict:
-    """The agent's message asking `question`, a question an agent message asked in
-    words (`message:<id>`, or the bare id), again in its thread in `page`, an open
-    transaction, as `leaf thread reply <page> <message> --obligation <question>`
-    posts it: the question stands open on this message under its own id, and like
-    any spoken reply it reopens the thread if it was resolved. With `markup`, a
-    widget that asks, the message asks it with that widget instead, as `leaf thread
-    reply <page> <message> --markup` does. Refused where the thread owes the user a
-    reply, or `question` names no question asked there."""
+    """The agent's message asking `question` (`message:<id>`, or the bare id) again in
+    its thread in `page`, an open transaction; like any spoken reply it reopens the
+    thread if it was resolved. With `markup`, a widget that asks, the message asks
+    with that widget, as `leaf thread reply <page> <message> --markup` does. Without
+    it, a question asked in words stands open on this message under its own id, as
+    `--obligation <question>` posts it, and one a widget asked is asked anew in
+    words, as `--obligation` alone posts it. Refused where the thread owes the user
+    a reply, or `question` names no question asked there (`thread_questions`)."""
     message = question.removeprefix("message:")
+    name = f"message:{message}"
     addressed = _resolve_obligation(
         page, {"parent": message}, REFUSE, identity["session"], False, None
     )
     assert addressed is not None
+    asked = thread_questions(page.page_dir, page.events, addressed.thread)
+    if name not in asked:
+        raise Rejected([Finding("unasked-obligation", values={"question": name})])
     return _compose_and_append(
         page,
         addressed,
@@ -388,7 +392,7 @@ def ask_again(
         validate_source=False,
         todo=None,
         asks_back=False,
-        explicit_obligation=False if markup else [f"message:{message}"],
+        explicit_obligation=False if markup else ([name] if asked[name] else True),
         ephemeral=False,
         quote="",
         section="",
@@ -396,6 +400,31 @@ def ask_again(
         detach=False,
         title=None,
     )[0]
+
+
+def message_questions(event: dict, registry: dict) -> dict[str, bool]:
+    """The questions one logged message asks, each by the id that names it, and
+    whether it asks in words: its `obligation` names those it asks in words
+    (`obligations.question_ids`), and markup holding a widget that asks
+    (`asking_widget`) asks one named by the message itself."""
+    if event.get("obligation"):
+        return dict.fromkeys(question_ids(event), True)
+    if "markup" in event and asking_widget(logged_fragment(event), registry):
+        return {f"message:{event['id']}": False}
+    return {}
+
+
+def thread_questions(page_dir: Path, events: list, thread: str) -> dict[str, bool]:
+    """The questions `thread`'s messages ask (`message_questions`)."""
+    from leaf.registry.storage import require_registry
+
+    registry = require_registry(page_dir)
+    names = thread_names(events)
+    asked: dict[str, bool] = {}
+    for event in events:
+        if names.get(event["id"]) == thread:
+            asked.update(message_questions(event, registry))
+    return asked
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:

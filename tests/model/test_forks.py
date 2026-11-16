@@ -2018,6 +2018,38 @@ def opened_long_ago(turn: str, by: timedelta) -> None:
     )
 
 
+def test_a_line_turn_that_has_ended_holds_nothing(claimed, lane):
+    """A line turn that has ended keeps nothing: right after its line fork hands the
+    thread over, `leaf page state` says the main thread holds the thread and owes
+    its answer, and a running working fork of another thread may answer there, as in
+    any thread no turn holds."""
+    other, taken = taken_by_a_fork(claimed, "Which region?")
+    forks_model.started(
+        "s1", basis(claimed, other["id"], other["id"]), taken["turn"], "agent-1"
+    )
+    asked = said(claimed, "Which Python?")
+    line_turn = basis(claimed, asked["id"])["turn"]
+    assert holders(claimed)[1][asked["id"]] == {"kind": "line", "state": "running"}
+    assert (
+        forks_model.route(
+            "s1",
+            basis(claimed, asked["id"], asked["id"]),
+            answer=judged("checking"),
+            failed=None,
+        )["outcome"]
+        == "hand_over"
+    )
+    assert line_turn in state_model.agent_turns("s1")
+    main = {"kind": "main"}
+    owed, threads = holders(claimed)
+    assert (owed[asked["id"]], threads[asked["id"]]) == (main, main)
+    with state_model.acting_in(taken["turn"]):
+        answer = thread_model.post_reply(
+            claimed, {"responds": asked["id"]}, "Python 3.12 or later."
+        )
+    assert answer is not None and answer["turn"] == taken["turn"]
+
+
 def test_a_line_turn_that_ended_leaves_the_record_and_its_thread_reads_as_before(
     claimed, lane, capsys
 ):

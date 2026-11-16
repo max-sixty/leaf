@@ -211,9 +211,9 @@ class Hold(NamedTuple):
     # one that last took the thread, by a pickup of an earlier message or an
     # answer; None where no turn of the session took it.
     turn: str | None
-    # Whether `turn` holds the thread's waiting messages by an opened pickup of one
-    # of them, which keeps them its own after it ends (`Holding.keeper`); a line
-    # turn's `held` pickup holds them only while it runs.
+    # Whether `turn` holds the thread's waiting messages by a pickup of one of them:
+    # an opened one, which keeps them its own after the turn ends (`Holding.keeper`),
+    # or a running line turn's `held` one (`reading`).
     picked: bool
     # Who holds it, for a reader: `turn` named (`holder`).
     holder: dict
@@ -315,11 +315,10 @@ def reading(
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
     `found` is the log's `rounds`. A line turn's `held` pickup holds a thread as an
     opened one does while that turn runs, but takes nothing in
-    (`delivery.record_pickup`), so it leaves the thread's messages with no keeper
-    once the turn has ended (`Hold.picked`). Every reading goes through
+    (`delivery.record_pickup`), and counts for nothing once the turn has ended, so
+    the thread is whoever's it would be without it. Every reading goes through
     `reading_of`."""
-    # Each input's newest pickup: its seq, its turn and whether it opened the input.
-    newest: dict[str, tuple[int, str, bool]] = {}
+    newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
     took: dict[str, set[str]] = {}
     taken: set[str] = set()
@@ -328,14 +327,16 @@ def reading(
             taken.update(event["events"])
         if (
             event["kind"] == "pickup"
-            and event["phase"] in ("opened", "held")
+            and (
+                event["phase"] == "opened"
+                or (event["phase"] == "held" and event["turn"] in running)
+            )
             and event["session"] == session
             and event["turn"]
         ):
-            opened = event["phase"] == "opened"
             for input_id in event["events"]:
-                newest[input_id] = (event["seq"], event["turn"], opened)
-                if opened:
+                newest[input_id] = (event["seq"], event["turn"])
+                if event["phase"] == "opened":
                     picked.setdefault(event["turn"], {})[input_id] = None
                 if (thread := found.names.get(input_id)) is not None:
                     took.setdefault(event["turn"], set()).add(thread)
@@ -347,7 +348,7 @@ def reading(
         thread: (answer["seq"], answer.get("turn"))
         for thread, answer in found.answers.items()
     }
-    for input_id, (seq, turn, _opened) in newest.items():
+    for input_id, (seq, turn) in newest.items():
         thread = found.names.get(input_id)
         if thread is not None and seq > last.get(thread, (0, None))[0]:
             last[thread] = (seq, turn)
@@ -358,11 +359,8 @@ def reading(
             for event in found.waiting.get(thread, ())
             if event["id"] in newest
         ]
-        if pickups:
-            _seq, turn, opened = max(pickups)
-        else:
-            turn, opened = last.get(thread, (0, None))[1], False
-        threads[thread] = Hold(turn, opened, holder(turn, stamps, running))
+        turn = max(pickups)[1] if pickups else last.get(thread, (0, None))[1]
+        threads[thread] = Hold(turn, bool(pickups), holder(turn, stamps, running))
     return Holding(session, live, stamps, running, found, picked, taken, took, threads)
 
 

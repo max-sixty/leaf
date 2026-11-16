@@ -67,7 +67,7 @@ import {
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
-import { agePreview, ago, clockTime } from "../presence.js";
+import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
@@ -245,6 +245,22 @@ function threadStands(thread, said) {
       .filter((part) => wordsText(part) !== said)
       .flatMap((part, at) => (at ? [" · ", part] : [part])),
   };
+}
+
+// When a message or a run's face was said, in its head (presence.js, `saidAt`): its
+// day, then its clock. A head too narrow for both keeps the day whole and drops the
+// clock onto a line it clips (surfaces.css), so a crowded head still says which day,
+// where an ellipsis cut it to "15 Au…"; the preview reads the time whole.
+/** @param {string | null | undefined} timestamp */
+export function saidTime(timestamp) {
+  const said = saidAt(timestamp);
+  return said
+    ? html`<time datetime=${timestamp} .lfPreview=${agePreview}
+        >${said.day ? html`<span>${said.day}</span> ` : nothing}<span
+          >${said.clock}</span
+        ></time
+      >`
+    : nothing;
 }
 
 /** What pointing at threads reads (preview.js), on a passage mark and on a margin entry
@@ -507,7 +523,6 @@ export function messageReading(
     author: message.author,
     by: authorName(message),
     timestamp: message.ts,
-    age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, or a
     // deleted message's, since answers above may have been about those words.
     edited: removal
@@ -577,11 +592,6 @@ export class MessageView {
   #kept = false;
   /** @type {(() => void) | null} */
   #stopKept = null;
-  // Whether the head says the message's age, which a transcript leaves out where the
-  // message above already says it (transcript.js). A presentation that doesn't say,
-  // as a drawing taking back its widgets doesn't, keeps the last answer.
-  #dated = true;
-
   /** @param {MessageCommands} commands */
   constructor(commands) {
     this.#commands = commands;
@@ -589,11 +599,8 @@ export class MessageView {
   }
 
   /** @param {ReturnType<typeof messageReading>} model
-   * @param {{arrived?: boolean, dated?: boolean, headerControls?: unknown}} [options] */
-  present(
-    model,
-    { arrived = false, dated = this.#dated, headerControls = nothing } = {},
-  ) {
+   * @param {{arrived?: boolean, headerControls?: unknown}} [options] */
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     const presentation = (this.#presentation ??= {
       node: this.node,
@@ -601,7 +608,6 @@ export class MessageView {
       present: (reading) => this.present(reading),
     });
     presentation.model = model;
-    this.#dated = dated;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -612,17 +618,18 @@ export class MessageView {
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
-      // A message the keyboard stands on previews when it was said, the clock time its
-      // age says to a pointer or a finger (`agePreview`), beside the age in its head.
-      // Its words preview nothing to a pointer or a finger, since they are what the user
-      // reads.
+      // A message the keyboard stands on previews when it was said, as its time does to
+      // a pointer or a finger (`agePreview`), beside that time in its head. Its words
+      // preview nothing to a pointer or a finger, since they are what the user reads.
       this.node.lfPreview = (/** @type {import("../preview.js").Route} */ route) => {
         const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
-        // Where the head draws no age, as the second of two messages with one, its
-        // place in the head stands for it.
-        const meta = this.node.querySelector(":scope > .lf-msg-head > .lf-msg-meta");
         return at
-          ? { name: at, at: meta?.querySelector(":scope > time") ?? meta }
+          ? {
+              name: at,
+              at: this.node.querySelector(
+                ":scope > .lf-msg-head > .lf-msg-meta > time",
+              ),
+            }
           : null;
       };
       // A double click on the user's own words opens them for rewriting, as the word
@@ -745,13 +752,7 @@ export class MessageView {
       <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          >${
-            dated
-              ? html`<time datetime=${model.timestamp} .lfPreview=${agePreview}
-                  >${model.age}</time
-                >`
-              : nothing
-          }${
+          >${saidTime(model.timestamp)}${
             model.unread
               ? html`<span class="lf-msg-new lf-unread-dot"
                   ><span class="lf-quiet">New</span></span

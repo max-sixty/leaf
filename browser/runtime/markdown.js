@@ -741,6 +741,26 @@ function elementBlock(state, start, end, silent) {
   return true;
 }
 
+// A `<code>` opening tag, its attributes as CommonMark spells an HTML attribute.
+const CODE_OPENING =
+  /^<code(?:\s+[^\s"'>/=]+(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*>/i;
+// A `<code>` element in an agent's message holds its words as written, as a Markdown
+// code span does, so a formula's LaTeX keeps each backslash and asterisk Markdown would
+// read as an escape or emphasis (`leaf.passages._code_element`).
+/** @param {import("markdown-it").StateInline} state @param {boolean} silent */
+function codeElement(state, silent) {
+  const opening = CODE_OPENING.exec(state.src.slice(state.pos));
+  if (!opening) return false;
+  const close = state.src
+    .toLowerCase()
+    .indexOf("</code>", state.pos + opening[0].length);
+  if (close < 0) return false;
+  if (!silent)
+    state.push("html_inline", "", 0).content = state.src.slice(state.pos, close + 7);
+  state.pos = close + 7;
+  return true;
+}
+
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`). passages.py
 // reads the same dialects, short of `fence_words`, since it reads no fence in a
 // message.
@@ -752,10 +772,12 @@ export function makeMarkdown(module, message, html = false) {
     breaks: message,
     linkify: true,
   }).use(module.taskLists, { enabled: false });
-  if (html)
+  if (html) {
     markdown.block.ruler.before("html_block", "element_block", elementBlock, {
       alt: ["paragraph", "reference", "blockquote"],
     });
+    markdown.inline.ruler.before("html_inline", "code_element", codeElement);
+  }
   if (message) {
     markdown.disable(["lheading", "code"]);
     // CommonMark takes all of a fence's opening line as its info string and shows none

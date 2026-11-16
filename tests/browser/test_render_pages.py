@@ -2604,9 +2604,10 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "author": "agent",
             "parent": "c-fix",
             "revision": 1,
-            "text": "Like this:",
-            "markup": '<lf-diagram id="fallback-flow"><pre>\n'
+            "text": "Like this:\n\n"
+            '<lf-diagram id="fallback-flow"><pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2656,12 +2657,13 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "author": "agent",
             "parent": "c-log",
             "revision": 1,
-            "text": "Here it is, with the log:",
-            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
-            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
-            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
-            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>'
+            "text": "Here it is, with the log:\n\n"
+            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
+            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
+            "html": True,
         },
     )
     page = open_page(browser, url)

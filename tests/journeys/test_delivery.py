@@ -116,8 +116,10 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
                 "kind": "reply",
                 "author": "agent",
                 "parent": parent,
-                "text": "x" * 532,  # the shipped ship-review example's reply length
-                "markup": markup.format(i=f"w{turn}"),
+                "revision": 1,
+                # the shipped ship-review example's reply length
+                "text": "x" * 532 + "\n\n" + markup.format(i=f"w{turn}"),
+                "html": True,
             },
         )
         parent = append_carried_log_record(

@@ -5818,9 +5818,11 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
             "author": "agent",
             "revision": 1,
             "parent": root,
-            "text": "The mounts come first.",
-            "markup": "<p>" + "The mounts come first. " * 300 + "</p>"
+            "text": "The mounts come first.\n\n<p>"
+            + "The mounts come first. " * 300
+            + "</p>"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
+            "html": True,
         },
     )
     page.wait_for_function("""() => {

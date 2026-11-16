@@ -1,8 +1,10 @@
-/* Frozen message documents prepare once before joining any thread surface, and
-   keep that preparation when their original nodes move out of the inert fragment. */
+/* An agent's message holding HTML prepares once, from its rendered Markdown, before
+   joining any thread surface, and keeps that preparation when its original nodes
+   move out of the inert fragment. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
+import { loadMarkdown } from "/runtime/markdown.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { prepareAuthoredMessage } from "/runtime/thread/messages.js";
 
@@ -33,10 +35,10 @@ test("overlapping message reads share preparation and retain it through surface 
     $modules: { "lf-message-preparation": "widgets/lf-message-preparation.js" },
   });
   widgetModule(t, "lf-message-preparation", initializer);
+  assert.equal(await loadMarkdown(), true);
   const message = {
     id: "prepared-message",
-    markup:
-      '<lf-message-preparation id="prepared-widget">Original words</lf-message-preparation>',
+    text: '<lf-message-preparation id="prepared-widget">Original words</lf-message-preparation>',
   };
   const first = prepareAuthoredMessage(message, "prepared-thread");
   const overlap = prepareAuthoredMessage(message, "prepared-thread");
@@ -49,14 +51,14 @@ test("overlapping message reads share preparation and retain it through surface 
   assert.equal(complete, false);
   released.resolve();
   const prepared = await first;
-  assert.equal(prepared.body.text, "Original words");
+  assert.equal(prepared.body.text.trim(), "Original words");
   const original = prepared.nodes[0];
   document.body.append(original);
   original.textContent = "Drawn words";
-  assert.equal(prepared.root.childNodes.length, 0);
+  assert.equal(prepared.root.contains(original), false);
   assert.equal(prepareAuthoredMessage(message, "prepared-thread"), first);
   assert.equal((await overlap).nodes[0], original);
-  assert.equal(prepared.body.text, "Original words");
+  assert.equal(prepared.body.text.trim(), "Original words");
   assert.throws(
     () => prepareAuthoredMessage(message, "another-thread"),
     /changed its frozen document identity/,
@@ -75,9 +77,10 @@ test("failed message preparation reaches every waiting state read and later read
     $modules: { "lf-message-failure": "widgets/lf-message-failure.js" },
   });
   widgetModule(t, "lf-message-failure", initializer);
+  assert.equal(await loadMarkdown(), true);
   const message = {
     id: "failed-prepared-message",
-    markup: '<lf-message-failure id="failed-prepared-widget"></lf-message-failure>',
+    text: '<lf-message-failure id="failed-prepared-widget"></lf-message-failure>',
   };
   const first = prepareAuthoredMessage(message, "failed-prepared-thread");
   const overlap = prepareAuthoredMessage(message, "failed-prepared-thread");

@@ -616,8 +616,11 @@ def test_render_reads_widget_chrome_where_it_stands(
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "text": SAMPLE_TEXT
+            + "\n\n"
+            + SAMPLE_MARKUP
+            + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "html": True,
         },
     )
     page = open_page(primed(browser, stage_reach_cases), url)
@@ -689,10 +692,13 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
 
     def post(executable):
         return subprocess.run(
-            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-            + [
-                "--markup",
-                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            [
+                *LEAF_COMMAND,
+                "thread",
+                "create",
+                str(d),
+                "--text",
+                'See this.\n\n<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
             capture_output=True,
             text=True,

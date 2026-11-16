@@ -131,6 +131,29 @@ def _html_block(state, start: int, end: int, silent: bool) -> bool:
     return True
 
 
+# A `<code>` opening tag, its attributes as CommonMark spells an HTML attribute.
+CODE_OPENING = re.compile(
+    r"""<code(?:\s+[^\s"'>/=]+(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*>""",
+    re.IGNORECASE,
+)
+
+
+def _code_element(state, silent: bool) -> bool:
+    """A `<code>` element in an agent's message holds its words as written, as a
+    Markdown code span does, so a formula's LaTeX keeps each backslash and asterisk
+    Markdown would read as an escape or emphasis (markdown.js, `codeElement`)."""
+    opening = CODE_OPENING.match(state.src, state.pos)
+    if opening is None:
+        return False
+    close = state.src.lower().find("</code>", opening.end())
+    if close < 0:
+        return False
+    if not silent:
+        state.push("html_inline", "", 0).content = state.src[state.pos : close + 7]
+    state.pos = close + 7
+    return True
+
+
 @lru_cache(maxsize=3)
 def markdown_dialect(message: bool, html: bool = False):
     """The browser's safe Markdown dialect for one of its readings, with its linkify
@@ -156,6 +179,7 @@ def markdown_dialect(message: bool, html: bool = False):
         parser.block.ruler.at(
             "html_block", _html_block, {"alt": ["paragraph", "reference", "blockquote"]}
         )
+        parser.inline.ruler.before("html_inline", "code_element", _code_element)
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while

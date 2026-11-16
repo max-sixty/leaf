@@ -27,9 +27,10 @@ test("an agent's message holding HTML places each tag where Python checked it", 
   const cases = JSON.parse(
     readFileSync(new URL("../message_html_cases.json", import.meta.url)),
   );
-  for (const { source, elements } of cases) {
+  for (const { source, elements, words } of cases) {
     const body = document.createElement("template");
     body.innerHTML = renderAuthoredMarkdown(source);
+    assert.equal(body.content.textContent.replace(/\s+/g, " ").trim(), words, source);
     assert.deepEqual(
       [...body.content.querySelectorAll("*")].map(
         (element) =>

@@ -1255,15 +1255,8 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
-    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
-    ),
-    "missing-module": _declared(
-        lambda v: (
-            "is upgraded but its module is missing; expected"
-            f" {v['expected'][0]} or {v['expected'][1]}"
-        )
     ),
     "markdown-needs-data": _declared(
         lambda v: "block Markdown requires x-content: data"
@@ -1282,8 +1275,19 @@ _TEXT = {
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
     ),
-    "needs-upgrade": _declared(
-        lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
+    "unnamed-module": _declared(
+        lambda v: (
+            "no declared tag has the name of "
+            + ", ".join(v["modules"])
+            + "; a page widget's module is page/widgets/<tag>.js, and a helper"
+            " module stands elsewhere under page/"
+        )
+    ),
+    "needs-module": _declared(
+        lambda v: (
+            f"declares {', '.join(v['keys'])}, which a module provides, and has"
+            f" none at {v['module']}"
+        )
     ),
     "unknown-declarations": _declared(
         lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
@@ -1323,19 +1327,17 @@ _TEXT = {
             " be declared a string"
         )
     ),
-    "measured-input": _declared(
-        lambda v: f"x-measured input `{v['input']}` is not one of its x-data inputs"
-    ),
     "measured-source": _declared(
         lambda v: (
-            f"x-measured input `{v['input']}` source attribute `{v['attr']}`"
-            " must be required"
+            f"x-data input `{v['input']}` declares `measured`, so it needs a"
+            " required `source` attribute"
+            + (f", which `{v['attr']}` is not" if v["attr"] else "")
         )
     ),
     "measured-run": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` must be required and"
-            " declare a nonempty string"
+            f"x-data input `{v['input']}` names `{v['attr']}` as `measured`:"
+            " that attribute must be required and declare a nonempty string"
         )
     ),
     "refers-unknown-member": _declared(
@@ -1365,12 +1367,6 @@ _TEXT = {
             " for their anchor"
         )
     ),
-    "visual-upgrade": _declared(
-        lambda v: (
-            "declares addressable visual parts but has no upgraded handler to"
-            " resolve them"
-        )
-    ),
     # Its conditions, read against its own attributes.
     "predicate-attribute": _declared(
         lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
@@ -1390,7 +1386,7 @@ _TEXT = {
     ),
     "run-written": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` is an authored source"
+            f"x-data `measured` attribute `{v['attr']}` is an authored source"
             " receipt, but is written by a value record"
         )
     ),
@@ -1606,8 +1602,11 @@ _TEXT = {
         f"{at} attribute `{v['attribute']}` names unknown data contract"
         f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
-    "withdrawn-as": _declared(
-        lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
+    "withdraws-outcome": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` declares `withdraws: {v['outcome']}`,"
+            " which is not a value of its `outcome` field"
+        )
     ),
     "retired-when": _declared(
         lambda v: (
@@ -1957,20 +1956,21 @@ _TEXT = {
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task create` gave you"
     ),
-    "widget-obligation": lambda at, v: (
-        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "ended-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} is already {v['status']}"
+    "obligation-end": lambda at, v: (
+        f"{v['todo']!r} is the user's to answer, not a to-do; "
+        + (
+            "once they answer it elsewhere or it no longer applies, resolve its thread"
+            f" with `leaf thread resolve <page> {v['message']}`, after a reply saying"
+            " how if the thread should record it"
+            if v["message"]
+            else "record their answer in the widget's state, or withdraw the widget, in"
+            " a revision"
+        )
     ),
     "unasked-obligation": lambda at, v: (
         f"no message in this thread asks the question {v['question']!r}; --obligation"
         " takes an id from the delivery's `settled` or `leaf page state`, and without"
         " an id it asks a new question"
-    ),
-    "failed-question": lambda at, v: (
-        "a question asked in words ends `done` when the user answered it elsewhere,"
-        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (
@@ -2023,6 +2023,14 @@ _TEXT = {
     "stopped-during-init": lambda at, v: (
         f"{v['page']}'s server was stopped while `page init` held it down, so it"
         " stays stopped."
+    ),
+    # `page check`'s advice on a page whose live server runs another Leaf
+    # (`server.another_leaf_serving`).
+    "another-leaf-serving": lambda at, v: (
+        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
+        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f" restart it with `leaf server stop {v['page']}` then"
+        f" `leaf server start {v['page']}`"
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

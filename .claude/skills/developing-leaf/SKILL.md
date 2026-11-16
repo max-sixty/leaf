@@ -209,10 +209,7 @@ read off the code overstates the saving.
 
 ## Land a change
 
-The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
-(issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs
-no snapshot run before landing. `tests/AGENTS.md`, "Selecting checks", says what the
-landing gates run and what a failure there means. `wt merge` checks the rebased tree
+`tests/AGENTS.md`, "Selecting checks", says what the landing gates run and what a failure there means. `wt merge` checks the rebased tree
 and lands it; `✗ Can't push to local main branch` means a fast-forward failed.
 
 Installed sessions load harness caches, not the checkout, and follow `main`: Claude

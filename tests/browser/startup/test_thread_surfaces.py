@@ -95,8 +95,6 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
                 "property": "value",
             }
         },
-        "x-upgrade": True,
-        "x-thread-surface": True,
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
@@ -364,13 +362,11 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
         "type": "object",
         "properties": {"id": {"type": "string"}},
         "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": True,
-        "x-thread-surface": True,
         "x-example": '<lf-test-card id="card-example">A card.</lf-test-card>',
     }
     module = """
-import {keepsHidden, LeafElement, nothing, offer, offerAction, threadSurface}
+import {nothing} from '/vendor/lit.js';
+import {keepsHidden, LeafElement, offer, offerAction, threadSurface}
   from '/runtime/widget-api.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
@@ -1036,8 +1032,6 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
                 "property": "value",
             }
         },
-        "x-upgrade": True,
-        "x-thread-surface": True,
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
@@ -1193,8 +1187,6 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
                 "property": "value",
             }
         },
-        "x-upgrade": True,
-        "x-thread-surface": True,
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """

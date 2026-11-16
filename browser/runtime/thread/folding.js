@@ -30,7 +30,13 @@
    thread by its name, as `z` does and every surface that names a thread
    (`threadName`): "Resolved the thread" stood under the next thread a panel's Resolve
    moved the user on to, and read as that thread's (the user's choice, 31 October).
-   Rejected: the words the thread is about, which `z` then named by its name. */
+   Rejected: the words the thread is about, which `z` then named by its name. A
+   Resolve that leaves no thread open says that instead, "All threads resolved": with
+   none left there is no next thread for the words to be read as, `z` still names the
+   thread it takes back, and the user asked on 15 November 2026 for the field to mark
+   the moment. The words are Threads' own: "All done" would speak for On Me and the
+   agent's list too, which may still hold something, and Done is what an On list and
+   a to-do call what left them (glossary.md, "Reader-facing words"). */
 import { inputCount } from "../focus.js";
 import { randomId } from "../ids.js";
 import { pressCommand } from "../keyboard/dispatch.js";
@@ -92,9 +98,12 @@ export async function settleThread({
     : actions.resolve(key, { attempt });
   if (!answer) return;
   undo.retainGesture(attempt, { settled: { reader } });
-  notice(`${resolved ? "Reopened" : "Resolved"} ${named}`, {
-    press: nextStep(!resolved, undo.offerUndo(attempt)),
-  });
+  const said = resolved
+    ? `Reopened ${named}`
+    : anyOpenThread()
+      ? `Resolved ${named}`
+      : "All threads resolved";
+  notice(said, { press: nextStep(!resolved, undo.offerUndo(attempt)) });
   if (land) undo.landedAway(attempt);
   await landGesture({
     land,

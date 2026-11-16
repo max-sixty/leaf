@@ -13,8 +13,7 @@ element so its computed styles supply these boundaries; a closed popover is supp
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters.
-A widget that also declares an `x-data` input reads that input's property instead,
+blank lines and trailing whitespace. A widget that also declares an `x-data` input reads that input's property instead,
 which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
@@ -35,8 +34,8 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
 an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+widget whose title is an attribute holds it in `label`, as a column does, which names
+its element on every widget that takes it (the registry's `$attributes`).
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`
@@ -45,7 +44,7 @@ wrapping that question; where it titles no element, the heading itself. A `secti
 wrapper; any other element only where every other heading inside ranks below it, no
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
-An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
+An element its `label` attribute names, such as a tab, is not titled by a heading
 inside it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
 them. The headings that count are those the reading of its document lists, the page's
@@ -83,14 +82,9 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn. Where your key is a source location rather than the datum's
-lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
-element or `null`.
+name a datum not yet drawn.
 
-A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
-a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
-copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
-Loading, following, reloading, or going Back or Forward to that URL draws the part
+A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
 key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
 to its parts.
@@ -145,7 +139,10 @@ Leaf adds a Copy button to each `pre > code` in the page. A widget block holding
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
-the page, and a page without Leaf shows none. Where the button belongs among the
+the page, and a page without Leaf shows none. A widget that draws marks of its own over
+the block, as `lf-code` draws its notes mark, sets the block's `lfBar` to the
+`.lf-mark-bar` it places and shows over the block, and Leaf stands Copy last in it.
+Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,
@@ -156,11 +153,9 @@ pass it as `trigger` instead. Set its `value` before it copies, and it reports
 
 ### Text alignment
 
-`alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
-up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
-walks its own units with jsdiff, such as a document's lines, passes the same cap.
+A widget that walks its own units with jsdiff, such as a document's lines, gives up
+after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
+alignment does.
 
 ### Media URLs
 
@@ -174,7 +169,7 @@ the drawing needs them.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+`iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
@@ -187,7 +182,7 @@ tooltip and accessible name, unless `label` or `title` says more.
 face, such as the second of two symbols a press swaps by CSS.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`; `actionName(action)` supplies the action's accessible name.
+`offerAction`.
 
 ### Time axes
 
@@ -236,8 +231,7 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
+  status: "answered", // open | answered | withdrawn
   next_actor: null,   // user | agent | null
 }
 ```
@@ -255,8 +249,9 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
@@ -331,13 +326,10 @@ widget restoring something from `tabStore` compares it with the history once `ph
 `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false; outside `render()`,
-`reportsPresented(target)` answers the same question. Each entry has `id`, `target`,
+`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
 `source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
 by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
-`saidAt(element)` is when the message holding `element` was sent, or the page
-published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
@@ -355,6 +347,3 @@ the element the removal emptied of every block. A removal's `at` is in the part 
 page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
 The result's length counts changes as the reader does. Reading it during a
 `LeafElement` render subscribes that render to comparison changes.
-
-`revisionLabel(event.revision)` is the page's name for the version an event was
-recorded in.

@@ -1813,17 +1813,21 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const line = document.querySelector('#walk-code .lf-code-line');
       const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
+      const card = getComputedStyle(note, '::before');
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();
       return {
         page: channels(getComputedStyle(document.body).backgroundColor),
         block: channels(getComputedStyle(block).backgroundColor),
+        blockImage: getComputedStyle(block).backgroundImage,
+        gutterColor: getComputedStyle(line, '::before').backgroundColor,
         gutter: channels(getComputedStyle(line, '::before').backgroundColor),
-        note: channels(noteStyle.backgroundColor),
-        noteBorderBlock: noteStyle.borderBlock,
-        noteBorderLeftWidth: noteStyle.borderLeftWidth,
-        noteRadius: noteStyle.borderRadius,
+        card: channels(card.backgroundColor),
+        cardBorder: card.borderTopWidth,
+        cardRadius: card.borderTopLeftRadius,
         noteFont: noteStyle.fontFamily,
+        noteSize: parseFloat(noteStyle.fontSize),
+        codeSize: parseFloat(getComputedStyle(line).fontSize),
         sansFont: getComputedStyle(document.documentElement)
           .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
@@ -1840,12 +1844,18 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
-    assert appearance["note"] == appearance["block"], appearance
-    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
-    assert appearance["noteBorderLeftWidth"] == "0px", appearance
-    assert appearance["noteRadius"] == "0px", appearance
+    # The gutter's ground runs the block's whole height, past the note beside it.
+    assert appearance["gutterColor"] in appearance["blockImage"], appearance
+    # The note is a card in the block's own chrome, the gutter's ground, with its words
+    # in the interface face a size below the code's.
+    assert appearance["card"] == appearance["gutter"], appearance
+    assert appearance["cardBorder"] == "1px", appearance
+    assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
-    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+    assert appearance["noteSize"] < appearance["codeSize"], appearance
+    # The card stands inside the frame, sized to its words.
+    assert appearance["noteInset"]["left"] == 1, appearance
+    assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
     post_event(
@@ -2404,7 +2414,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
             assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
 
     # A theme or page sets the code inputs apart from the scheme (package-themes.md,
-    # "Theme colors"), as dark code on a light page does. The rows take their lightness
+    # "Theme tokens"), as dark code on a light page does. The rows take their lightness
     # from the code canvas rather than the scheme, so they stand a step from it and the
     # code on them reads as it does on the canvas.
     dark_code = {
@@ -2448,7 +2458,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -3751,7 +3762,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
@@ -5005,7 +5015,6 @@ LATE_STAGE = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-shadow": True,
     "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
@@ -6115,7 +6124,6 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": False,
                 "x-says": {"label": "before"},
                 "x-example": '<lf-said-label id="example" label="Head">Words.'
                 "</lf-said-label>",

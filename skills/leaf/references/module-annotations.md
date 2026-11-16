@@ -47,8 +47,7 @@ every surface redraws from the new entries. Each entry needs a `key`, a `label`,
 of a `glyph` (text), an `action` (one of Leaf's actions, whose symbol it shows;
 `module-reading.md`, "Icons") or an `icon` (a Leaf icon, for an entry that shows what it
 holds rather than what it does). `behavior`, `tone`, `rank` and
-`state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
-values and, under `options`, every field an entry accepts.
+`state` default to an ordinary primary action.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
 defaults to its key. An entry for one of the widget's declared commands instead sets
@@ -239,9 +238,10 @@ gallery's `lf-conversation-workspace` is the worked example.
 
 ### Widget-local Thread placement
 
-A widget that declares `"x-thread-surface": true` shows threads inside itself: beside
+A widget whose element has a `threadOutlets` method shows threads inside itself: beside
 its own projected data, as `lf-diff` does beside lines, or about the widget as a whole,
-as a task in `examples/command-hub.page/` does at its foot. Leaf calls its
+as a task in `examples/command-hub.page/` does at its foot. The method is the
+declaration, and the registry says nothing. Leaf calls
 `threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
 with the threads anchored exactly to the widget or to its data, and the open comment
 box. Return, in the same order, an outlet for each target or `null`, or a promise of

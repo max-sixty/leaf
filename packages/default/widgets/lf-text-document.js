@@ -27,12 +27,12 @@
  * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
+import { nothing } from "/vendor/lit.js";
 import {
   failSoft,
   ensureSyntaxLanguage,
   keeps,
   LeafElement,
-  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,

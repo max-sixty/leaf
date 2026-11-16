@@ -375,7 +375,7 @@ def open_thread(
 
 def ask_again(
     page: PageTransaction, question: str, body: str, identity: dict, html: bool = False
-) -> dict:
+) -> dict | None:
     """The agent's message asking `question` (`message:<id>`, or the bare id) again in
     its thread in `page`, an open transaction, from a `body` already checked and read
     with HTML where `html` says (`drawn_markup`); like any spoken reply it reopens
@@ -383,20 +383,25 @@ def ask_again(
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
-    anew, as `--obligation` alone posts it. Refused where the thread owes the user a
-    reply, or `question` names no question asked there (`thread_questions`)."""
+    anew, as `--obligation` alone posts it. None where the thread can't take it: it
+    owes the user a reply, or `question` names no question asked there
+    (`thread_questions`). Refused, as an agent's reply is, where its HTML doesn't
+    validate (`check_markup`)."""
     from leaf.registry.storage import require_registry
 
     message = question.removeprefix("message:")
     name = f"message:{message}"
-    addressed = _resolve_obligation(
-        page, {"parent": message}, REFUSE, identity["session"], False, None
-    )
+    try:
+        addressed = _resolve_obligation(
+            page, {"parent": message}, REFUSE, identity["session"], False, None
+        )
+    except Rejected:
+        return None
     assert addressed is not None
     registry = require_registry(page.page_dir)
     asked = thread_questions(page.events, addressed.thread, registry)
     if name not in asked:
-        raise Rejected([Finding("unasked-obligation", values={"question": name})])
+        return None
     widget = markup_asks(drawn_markup(body, html), registry)
     return _compose_and_append(
         page,

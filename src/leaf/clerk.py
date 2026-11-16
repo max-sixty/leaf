@@ -876,15 +876,13 @@ def _ask_one(
     (`drawn_markup`): in the thread of the question it asks `again` where Leaf can
     ask it there, and otherwise in a thread of its own, on `passage` where the page
     shows it once, unless the agent opened one to ask something under its title
-    (`asked_in`), where there is none."""
+    (`asked_in`), where there is none. A refusal of its HTML reaches the caller from
+    either thread, which asks it in words instead (`_ask`)."""
     from .findings import Rejected
     from .thread import ask_again, drawn_markup, markup_asks
 
-    if again:
-        try:
-            return ask_again(page, again, text, identity, html)
-        except Rejected:
-            pass
+    if again and (record := ask_again(page, again, text, identity, html)):
+        return record
     if title.casefold() in asked_in:
         return None
     asks = markup_asks(drawn_markup(text, html), registry)

@@ -432,6 +432,35 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, 
     assert not words or record["id"] == f"message:{again['id']}"
 
 
+def test_a_closed_choice_asked_again_with_html_leaf_refuses_is_asked_in_words(
+    claimed, capsys
+):
+    """The fork asks a closed choice again under its title, with a choice whose HTML
+    Leaf refuses, here for the id the first choice took. The question is asked in
+    words in its thread rather than dropped, and the agent hears why."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    [first] = clerk_model.take_answer(
+        "s1", reply(page, "LRU or TTL", choice=caches()), asked()["basis"]
+    )["wrote"]
+    append_carried_log_record(
+        claimed, {"kind": "resolve", "author": "user", "parent": first["id"]}
+    )
+    hook(capsys, "PostToolBatch")
+    [again] = clerk_model.take_answer(
+        "s1",
+        reply(page, "LRU or TTL", again=f"message:{first['id']}", choice=caches()),
+        asked()["basis"],
+    )["wrote"]
+    assert (again["kind"], again["parent"], again["obligation"]) == (
+        "reply",
+        first["id"],
+        True,
+    )
+    assert "html" not in again
+    assert "Leaf refused the HTML in it" in hook(capsys, "PostToolBatch")
+
+
 def test_an_ask_again_naming_a_message_that_asks_nothing_opens_its_own_thread(
     claimed, capsys
 ):

@@ -37,6 +37,7 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
+from leaf.drafts import read_drafts
 from leaf.files import latest_revision, revision_path
 from leaf.http import assets_path
 from leaf.page_snapshot import capture_page_snapshot
@@ -263,8 +264,12 @@ def _responses(
         transaction=page,
         process=False,
     )
-    snapshot = replace(snapshot, source_error=source_error)
-    paths = {"", "api/state", "api/news", "registry.json"}
+    # The drafts answer with the page while its container sleeps, as the replacement
+    # restores them, so a tab opened then neither wakes it nor writes over them.
+    snapshot = replace(
+        snapshot, source_error=source_error, frozen_drafts=read_drafts(page.page_dir)
+    )
+    paths = {"", "api/state", "api/news", "api/drafts", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     published = set(map(int, manifest["pages"][root]["states"]))
     for item, artifact in snapshot.artifacts.items():

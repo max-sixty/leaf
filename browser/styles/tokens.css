@@ -73,9 +73,8 @@
   );
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room, the page's own heads (base.css, at `--lf-top`) and any sticky header
-     under them. Ordinary content never sees either band; the document already keeps
-     clear of both (html[data-lf-live], base.css). */
+     the head room and any sticky header under it. Ordinary content never sees either
+     band; the document already keeps clear of both (html[data-lf-live], base.css). */
   --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's
@@ -224,6 +223,11 @@
      to be a fixed size under a finger — a margin entry, a panel's mark — still
      says so where it is written; this is the floor, not the size. */
   --lf-aim-floor: 24px;
+  /* The room between a choice's mark and its words (controls.css, `.lf-choice`): half
+     the em of its type, as Web Awesome spaces its radios and checkboxes, so it grows
+     with the words. A row that lines its words up with a choice's, as a screenshot's
+     key does, reads it too. */
+  --lf-choice-gap: 0.5em;
   /* The line: the face of a one-line control, a button, field, picker or transport.
      Controls that take turns in a place or stand side by side in it are each a line
      tall, so none of them sizes it. Each reads the token in its own rule, so a place

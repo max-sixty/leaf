@@ -367,8 +367,10 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-detail" label="Detail">
       <div id="band-body">
         <section id="band-ticket">
-          <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
-          <h2>The ticket's title</h2>
+          <hgroup>
+            <p id="band-eyebrow">ESC-1 · sev 1</p>
+            <h2>The ticket's title</h2>
+          </hgroup>
           <p>What happened.</p>
         </section>
         <section><h2>Another ticket</h2><p>Its account.</p></section>
@@ -383,8 +385,8 @@ PANE_BAND_PAGE = leaf_page(
 
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
     """A pane's body trims the margin at its top edge, and a declared section wrapping its
-    content passes its first child's margin to that edge. The eyebrow above a heading
-    carries the heading's 48px, which stood as an empty band at the top of the pane;
+    content passes its first child's margin to that edge. A title group with an eyebrow
+    carries its heading's 48px, which stood as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
     page = open_page(browser, serve(PANE_BAND_PAGE))
     resized(page, 1440, 900)
@@ -553,7 +555,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_scroll_behavior(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
@@ -607,7 +609,6 @@ ZONE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
 }
 
@@ -894,7 +895,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_scroll_behavior(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);

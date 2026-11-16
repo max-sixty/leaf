@@ -502,10 +502,10 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
-    // Each draft the user wrote and hasn't sent stands as an entry where it is about,
-    // dashed as a draft is (drafts.js, the drafts list): a reply or a rewrite in its
-    // thread's row, and a comment at its passage or element. A press takes the user back
-    // to writing it (`resumeDraft`), and its preview reads its words as they now stand.
+    // Each draft the user wrote and hasn't sent (drafts.js, the drafts list) stands as
+    // an entry where it is about: a reply or a rewrite in its thread's row, and a
+    // comment at its passage or element. A press takes the user back to writing it
+    // (`resumeDraft`), and its preview reads its words as they now stand.
     /** @param {import("./drafts.js").ListedDraft} draft @returns {LiveItem} */
     const draftItem = (draft) => ({
       kind: "draft",

@@ -143,6 +143,17 @@ test("Markdown body readings share file dialect, safe destinations and native st
     "![A ![B &amp; `code`](https://example.com/b.svg) C](https://example.com/a.svg)",
   );
   assert.equal(body.querySelector("img").alt, "A B & code C");
+  // An option the user added draws its words so (lf-options-addition.js), and the file
+  // reads the same cases (`test_added_option_file_words_match_browser_cases`).
+  const added = JSON.parse(
+    readFileSync(new URL("../option_markdown_cases.json", import.meta.url)),
+  );
+  for (const { source, words } of added)
+    assert.equal(
+      renderedWords(renderInlineMarkdown(source)).replace(/\s+/g, " ").trim(),
+      words,
+      source,
+    );
   assert.equal(renderInlineMarkdown("first\nsecond", false), "first\nsecond");
   // Formatting whitespace must not add a second line in space-preserving messages;
   // excerpts still read the semantic break as separation between the words.

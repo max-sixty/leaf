@@ -13,13 +13,11 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-output": {
       "document": {
         "contract": "text-document"
       }
-    },
-    "x-upgrade": false
+    }
   },
   "lf-widget-builder": {
     "description": "Live comparison of Leaf composition and HTML generation.",
@@ -33,8 +31,6 @@
       }
     },
     "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": true
+    "additionalProperties": false
   }
 }

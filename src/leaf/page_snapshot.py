@@ -8,11 +8,12 @@ import json
 import time
 from collections.abc import Generator
 from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .data import read_data
 from .data_contracts import resource_urls
+from .drafts import no_drafts
 from .files import (
     document_descriptor,
     list_revisions,
@@ -54,6 +55,10 @@ class PageSnapshot:
     revision_names: dict[int, str]
     reading: str
     source_error: str | None = None
+    # The drafts its taker froze with it. A browser check or an export is no reading
+    # of what the user is writing, so it holds none; leaf.page's saved answers hold
+    # those its replacement container restores (`leaf_website.storage`).
+    frozen_drafts: dict = field(default_factory=no_drafts)
 
     # A capture answers what a page server asks of its page
     # (`served_state.service.PageSource`), from what it froze, and takes no writes.
@@ -90,6 +95,9 @@ class PageSnapshot:
 
     def news(self) -> str:
         return self.reading
+
+    def drafts(self) -> dict:
+        return self.frozen_drafts
 
     def other_pages(self) -> list[dict]:
         # A capture shows its page alone: what it reads is the page's, frozen.

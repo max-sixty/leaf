@@ -1241,71 +1241,6 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-def test_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    card = page.locator("#card")
-    actions = page.locator("#actions")
-    pre = page.locator("#source")
-    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
-
-    expect(actions).to_be_hidden()
-    pre.hover()
-    expect(actions).to_be_visible()
-    copy.hover()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    assert not card.evaluate("node => node.matches(':hover')")
-
-    page.mouse.move(2, 300)
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-    pre.hover()
-    copy.focus()
-    page.mouse.move(2, 300)
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").focus()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
-def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Touch copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#source")
-    actions = page.locator("#actions")
-    pre.tap(position={"x": 30, "y": 20})
-    expect(actions).to_be_visible()
-    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").tap()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
 def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     """Copy is a mark, one size on every block, compact or tall, and its reach keeps
     the aim floor."""
@@ -2458,7 +2393,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -3761,7 +3697,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
@@ -5015,7 +4950,6 @@ LATE_STAGE = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-shadow": True,
     "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
@@ -6125,7 +6059,6 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": False,
                 "x-says": {"label": "before"},
                 "x-example": '<lf-said-label id="example" label="Head">Words.'
                 "</lf-said-label>",

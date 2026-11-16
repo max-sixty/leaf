@@ -9,7 +9,6 @@ from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
     LONG_PAGE,
     draft_control,
-    draft_key,
     expect_panel_says,
     hold_selection,
     leaf_page,
@@ -18,6 +17,7 @@ from render_harness import (
     select_words,
     selection_field,
     sending,
+    stored_drafts,
     write,
 )
 
@@ -221,14 +221,10 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     select_words(page, "#p2")
     expect(field).to_have_js_property("value", "")
     expect(field).not_to_be_focused()
-    assert (
-        page.evaluate(
-            """prefix => Object.keys(localStorage)
-          .filter(key => key.startsWith(prefix)).length""",
-            draft_key(page, "composer:"),
-        )
-        == 1
-    )
+    composed = [
+        context for context in stored_drafts(page) if context.startswith("composer:")
+    ]
+    assert len(composed) == 1
 
     select_words(page, "#p1")
     expect(field).to_have_js_property("value", original)
@@ -445,8 +441,9 @@ def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
 
 
 def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
-    """A comment draft stands as a dashed margin entry at its passage, and a reply
-    draft beside its thread's entry; a press on one resumes it in its own box."""
+    """A comment draft stands as a margin entry at its passage, and a reply draft
+    beside its thread's entry, each in an ink apart from a thread's; a press on one
+    resumes it in its own box."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     field = page.locator(".lf-fab-input")
     drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
@@ -455,7 +452,6 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     write(field, ninth)
     page.keyboard.press("Escape")
     expect(drafts).to_have_count(1)
-    expect(drafts).to_have_css("border-top-style", "dashed")
     expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("t")
@@ -468,6 +464,8 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     expect(drafts).to_have_count(2)
     thread = page.locator('.lf-margin-face[data-lf-kinds~="comment"]')
     expect(thread).to_have_attribute("data-lf-kinds", "comment draft")
+    ink = "n => getComputedStyle(n.querySelector('.lf-margin-entry-icon')).color"
+    assert thread.evaluate(ink) not in drafts.evaluate_all(f"ns => ns.map({ink})")
 
     drafts.first.click()
     expect(field).to_be_focused()
@@ -642,7 +640,8 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
-import {LeafElement, html} from '/runtime/widget-api.js';
+import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-draft-subject', class extends LeafElement {
   static properties = {words: {attribute: false}, key: {attribute: false}};
   constructor() {
@@ -687,7 +686,6 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                         "property": "value",
                     }
                 },
-                "x-upgrade": True,
                 "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }
         },

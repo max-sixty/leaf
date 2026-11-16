@@ -57,13 +57,16 @@ passed on. Name:
   or a section the user dropped in chat. Name only what the conversation shows the
   page saying now, quoting its words where it holds them, and leave out what the
   page might still say. A page that doesn't yet mention something isn't stale; the
-  agent decides what to add. Where a few of the page's words say it and a few new words
-  fix it, give the fix as `edit`: `words`, the page's words exactly as its text
-  below shows them and found nowhere else on it, and `replacement`, the words that
-  should stand there now, written as the page writes. Leaf makes the change and
-  tells the agent, which can undo it. Leave `edit` null where the fix needs more
-  than a sentence or a choice the conversation hasn't made; the agent revises the
-  page.
+  agent decides what to add. A title and opening are stale too where they still
+  present finished work as the page's news while what the work moved on to, such as a
+  question now waiting on the user, stands further down. Give that finding no edit,
+  since the agent rewrites the page around where the work now stands. Where a few of
+  the page's words say it and a few new words fix it, give the fix as `edit`:
+  `words`, the page's words exactly as its text below shows them and found nowhere
+  else on it, and `replacement`, the words that should stand there now, written as
+  the page writes. Leaf makes the change and tells the agent, which can undo it.
+  Leave `edit` null where the fix needs more than a sentence or a choice the
+  conversation hasn't made; the agent revises the page.
 - `settled`: an On Me item the user has answered elsewhere, such as in chat, or
   that the work has made moot. The agent records the answer on the page, or resolves
   the thread that asks it.

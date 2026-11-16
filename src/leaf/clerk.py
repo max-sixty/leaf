@@ -104,6 +104,19 @@ rests on (#5401), was dropped: it missed the one such case left to replay, and o
 other turns asked for the run or script behind a count far more often than the user
 asks for material.
 
+On 2026-11-16 `stale` gained a page's opening: a title and opening that still present
+finished work as the page's news while the question the work moved on to stands
+further down. A session holding margin-open-cost added each new request's results as a
+section at the page's end, and its title and opening went on telling of a change
+merged hours before while the question waiting on the user stood last. The fork read
+that page at the turn end and named nothing, since each sentence still held. Replayed
+at that turn end, the earlier wording named nothing in 2 of 2 runs and this one named
+the opening each time; at two other such turn ends it named the opening, and at eight
+ordinary recent turn ends, four of them on this wording and all on a draft that
+differed only in phrasing, it named no opening, with output and time near the earlier
+wording's. Its findings still reach the agent at its next step, which after a turn
+that leaves the session idle is the user's return.
+
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
 the answer it must give (`ANSWER`), and what Leaf does with that answer

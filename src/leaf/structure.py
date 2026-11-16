@@ -62,11 +62,12 @@ OPTIONAL_END = {
 ASCII_WHITESPACE = frozenset("\t\n\f\r ")
 
 # Blocks a user predictably points at whole rather than quoting: a run of code,
-# a table, a figure, an aside set off from the prose — and the sections
-# references/page-authoring.md holds to "Stable anchors". Widgets aren't listed
-# because the
-# registry's schemas already demand ids wherever pointing at one matters.
-POINTABLE_TAGS = {"section", "article", "aside", "pre", "table", "figure"}
+# a table, a figure, an aside set off from the prose, and a picture, which holds no
+# words to quote — and the sections references/page-authoring.md holds to "Stable
+# anchors". Widgets aren't listed because the registry's schemas already demand ids
+# wherever pointing at one matters.
+SECTION_TAGS = {"section", "article"}
+WHOLE_BLOCK_TAGS = {"aside", "pre", "table", "figure", "img", "svg", "video", "canvas"}
 # Prose and headings can use their enclosing block's address, but without one
 # element selection has no target.
 PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
@@ -616,9 +617,12 @@ class Authoring:
         # (`AUTHORED_ALLOCATIONS`).
         self.authored_allocations = []
         self.title = ""  # what <title> says, for the transcript's heading
-        # {tag, line, under} per id-less pointable block, where under is the nearest
-        # ancestor carrying an id. This is where a user's aim would otherwise land.
+        # {tag, line, under, holds} per id-less pointable block, where under is the
+        # nearest ancestor carrying an id, which is where a user's aim would otherwise
+        # land, and holds says something inside it takes an aim: a whole block that
+        # lands there too, or an element with an id of its own.
         self.bare_blocks = []
+        self._bare_wholes = {}  # each whole block's record, by where it starts
         # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class
         # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
         # runtime may coin later, without another list.
@@ -636,7 +640,7 @@ class Authoring:
         for child in document.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._visit(child, self.content)
-        del self._document, self._first_body_position
+        del self._document, self._first_body_position, self._bare_wholes
 
     def node_of(self, record: dict) -> dict | None:
         """The content node of one of the document's lf-* records, or None for one
@@ -800,6 +804,38 @@ class Authoring:
         if tag == "noscript":
             self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
 
+    def _note_aim(self, element, attrs: dict, line: int) -> None:
+        """Record a pointable block with no id of its own (`bare_blocks`). On the way
+        to the id its aim lands on, each whole block around it learns that it holds
+        another, as it does from an element inside it that has an id. A whole block
+        whose own attributes mark it as decoration, `aria-hidden` as an icon carries
+        or an image's empty `alt`, is nothing a reader points at."""
+        whole = element.tag in WHOLE_BLOCK_TAGS
+        named = bool(attrs.get("id"))
+        if not (named or whole or element.tag in SECTION_TAGS | PROSE_TAGS):
+            return
+        decoration = attrs.get("aria-hidden") == "true" or attrs.get("alt") == ""
+        if whole and not named and decoration:
+            return
+        under = None
+        for ancestor in element.ancestors:
+            if not isinstance(ancestor, turbohtml.Element):
+                continue
+            ancestor_id = element_attrs(ancestor).get("id")
+            if ancestor_id:
+                under = (ancestor.tag, ancestor_id)
+                break
+            if (whole or named) and ancestor.tag in WHOLE_BLOCK_TAGS:
+                holder = self._bare_wholes.get(_start(ancestor))
+                if holder:
+                    holder["holds"] = True
+        if named:
+            return
+        block = {"tag": element.tag, "line": line, "under": under, "holds": False}
+        self.bare_blocks.append(block)
+        if whole:
+            self._bare_wholes[_start(element)] = block
+
     def _visit(
         self,
         element,
@@ -860,6 +896,7 @@ class Authoring:
             }
             output.append(node)
             self.nodes.append(node)
+            self._note_aim(element, attrs, line)
             for child in element.children:
                 if isinstance(child, turbohtml.Element):
                     self._visit(child, output, ancestors=next_ancestors, in_svg=True)
@@ -880,19 +917,7 @@ class Authoring:
             if record is not None:
                 self._nodes_of[id(record)] = node
 
-            if element.tag in POINTABLE_TAGS | PROSE_TAGS and not attrs.get("id"):
-                under = next(
-                    (
-                        (ancestor.tag, element_attrs(ancestor)["id"])
-                        for ancestor in element.ancestors
-                        if isinstance(ancestor, turbohtml.Element)
-                        and element_attrs(ancestor).get("id")
-                    ),
-                    None,
-                )
-                self.bare_blocks.append(
-                    {"tag": element.tag, "line": line, "under": under}
-                )
+            self._note_aim(element, attrs, line)
 
         for child in element.children:
             if isinstance(child, turbohtml.Element):

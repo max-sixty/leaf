@@ -1150,7 +1150,7 @@ _TEXT = {
     ),
     "unpointable-wide": lambda at, v: (
         "unpointable — a comment aimed at a block with no id lands on the whole of"
-        f" the section named: {_blocks(v)}; give each block its own id"
+        f" the element named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"

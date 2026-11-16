@@ -341,9 +341,15 @@ the columns to what fits at the narrowest width the page's readers use.
 ## Stable anchors
 
 Give each section, major block and Leaf element a stable, meaningful `id` on the
-smallest element a user would point at. A code block, table, figure or aside a user
-will point at as a whole needs one too, on itself or its immediate container. Where a
-wrapper holds only one child that fills it, put the id on the child.
+smallest element a user would point at. A user comments on words by selecting them and
+on anything else by pointing at it, and a pointed comment lands on the nearest element
+around the pointer that has an id. So each block they would point at whole, such as a
+picture, a drawing, a code block, a table or an aside, needs an id of its own, on
+itself or on a block that holds only it and its caption, such as its `<figure>` or its
+table cell. An inline wrapper, such as a link around a picture, has only the box of a
+line of text, so there the id goes on the picture. One id around several such blocks,
+as on a table of screenshots, puts a comment aimed at any one of them on the whole
+table. Where a wrapper holds only one child that fills it, put the id on the child.
 
 Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the group.
 When that title starts a section with an id, the `<section>` carries the address

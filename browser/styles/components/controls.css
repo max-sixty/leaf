@@ -410,7 +410,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lf-accent);
+  background: var(--lf-news);
 }
 /* Where nothing has news, the On Me mark and the folded leaf wear it grey for a draft
    the user put away (floating-panel.js, `keptDrafts`). */
@@ -827,11 +827,11 @@ wa-copy-button.lf-icon-action {
   color: inherit;
 }
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
-   is marked in the ok tone, as a chosen answer is (below). */
+   is marked settled, as a chosen answer is (below). */
 .lf-btn.lf-commit[aria-pressed="true"] {
-  color: var(--lf-ok-ink);
-  border-color: var(--lf-ok);
-  background: var(--lf-ok-tint);
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
@@ -850,10 +850,11 @@ wa-copy-button.lf-icon-action {
    opens shows, as a symbol's chip does; a toggle on (Dictate listening) shows it in
    the accent. Its ink is its tone (`data-lf-tone`): the quiet ink by default
    (Dictate, Other responses), the accent for the composer's commit (Send), the full
-   ink (Resolve), the ok tone with its tint for a thread settled (Reopen, drawn done at
-   rest, so the press shows on hover as a deeper disc), and the danger tone for a
-   dictation that failed. Resolve's disc under the pointer is the chip, so a hovered
-   Resolve never looks already done. A press disabled keeps the quiet ink.
+   ink (Resolve), the settled tone for a thread settled (Reopen, drawn done at rest,
+   so the press shows on hover as a deeper disc), and the danger tone for a dictation
+   that failed. Reopen's disc wears a chosen answer's edge on its tint. The tint is the
+   chip, which is also Resolve's disc under the pointer, so the edge is what keeps a
+   hovered Resolve from looking already done. A press disabled keeps the quiet ink.
 
    A disc stands on the ground its holder gives it (`--lf-disc-ground`), none by
    default: a composer whose words run under Send gives its paper, so Send covers the
@@ -919,16 +920,17 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-chip);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"] {
-  color: var(--lf-ok-ink);
+  color: var(--lf-settled-ink);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]::before {
-  background: var(--lf-ok-tint);
+  background: var(--lf-settled-tint);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lf-settled) 45%, transparent);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]:not(
     :disabled,
     [aria-disabled="true"]
   ):is(:hover, [data-lf-focus-visible])::before {
-  background: color-mix(in srgb, var(--lf-ok-ink) 18%, var(--lf-ok-tint));
+  background: color-mix(in srgb, var(--lf-settled-ink) 18%, var(--lf-settled-tint));
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="negative"] {
   color: var(--lf-danger-ink);
@@ -946,7 +948,7 @@ wa-copy-button.lf-icon-action {
 /* The answer face: one of the answers a question offers, as On Me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
    so the reader sees a set to pick from rather than presses that act, and the chosen
-   one is marked as the page marks its chosen option (lf-options), in the ok tone with
+   one is marked as the page marks its chosen option (lf-options), settled, with
    a check before its words. It stands exactly a line tall (`--lf-line`), so the words
    an answer leaves in its place move nothing beside it, and at least as wide as the
    floor, so the reach of an answer as short as "A" lies over no answer beside it.
@@ -975,9 +977,9 @@ wa-copy-button.lf-icon-action {
   }
 }
 .lf-answer[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--lf-ok) 45%, transparent);
-  background: var(--lf-ok-tint);
-  color: var(--lf-ok-ink);
+  border-color: color-mix(in srgb, var(--lf-settled) 45%, transparent);
+  background: var(--lf-settled-tint);
+  color: var(--lf-settled-ink);
 }
 .lf-answer[aria-pressed="true"]::before {
   content: "✓";
@@ -1246,7 +1248,7 @@ wa-copy-button.lf-icon-action {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lf-accent);
+  background: var(--lf-news);
   box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-margin-entry-glyph {
@@ -1295,25 +1297,32 @@ wa-copy-button.lf-icon-action {
   place-items: center;
   font: var(--lf-font-count);
 }
-/* Margin and Page Map share the same attention reading. Blue is the ordinary
-   thread and work cue; green means it is the user's turn, even when another thread
-   on the same carrier has active agent work. Progress stays in the status words and
-   the one arrival pulse rather than competing for the attention color. */
+/* Margin and Page Map share the same attention reading, in the colours of what each
+   says (tokens.css, at `--lf-turn`): the agent's work on an entry that holds no thread, a
+   thread's own colour over it on one that does, and the user's turn over both, even
+   when another thread on the same carrier has active agent work. Progress stays in the
+   status words and the one arrival pulse rather than competing for the attention
+   colour. */
 :where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"],
     .lf-margin-face[data-lf-agent-workflow],
     .lf-page-map-action[data-lf-agent-workflow]
   )
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--lf-accent);
+  color: var(--lf-work);
+}
+:where(
+    .lf-margin-face[data-lf-kinds~="comment"],
+    .lf-page-map-action[data-lf-map-item^="comment:"]
+  )
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--lf-thread);
 }
 :is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
-   user's turn in the same green. */
+   user's turn in the same colour. */
 :is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
   color: var(--lf-turn-ink);
 }
@@ -1328,12 +1337,12 @@ wa-copy-button.lf-icon-action {
   0% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 0 color-mix(in srgb, var(--lf-accent) 42%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--lf-work) 42%, transparent);
   }
   58% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 7px color-mix(in srgb, var(--lf-accent) 16%, transparent);
+      0 0 0 7px color-mix(in srgb, var(--lf-work) 16%, transparent);
   }
   100% {
     box-shadow:

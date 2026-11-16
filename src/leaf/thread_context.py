@@ -321,9 +321,11 @@ def thread_memberships(
     return memberships
 
 
-# What one message is, to a wait consumer holding no page: who said it, what they said,
-# the widget they sent with it, and the id an answer names. `seq` is the log
-# position, which is also what marks a message as already delivered. A
+# What one message is, to a wait consumer holding no page: who said it, when, what they
+# said, the widget they sent with it, and the id an answer names. `seq` is the log
+# position, which is also what marks a message as already delivered. `ts` is when it
+# was said: a reply says what was true when it was sent ("I'm building it now"), so a
+# reader needs its moment as well as its order. A
 # `suggestion` is the user proposing exact replacement words rather than
 # describing a change, and the loop owes it a different answer — taken verbatim,
 # or declined with a reason — so a digest that dropped the flag rendered it as
@@ -331,6 +333,7 @@ def thread_memberships(
 MESSAGE_FIELDS = (
     "id",
     "seq",
+    "ts",
     "author",
     "agent",
     "text",

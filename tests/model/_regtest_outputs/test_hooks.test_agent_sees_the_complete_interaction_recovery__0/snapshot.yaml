@@ -17,7 +17,7 @@ delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery/15
+    format: leaf-delivery/46
     id: <delivery>
     created_at: <time>
     acknowledge: null
@@ -58,7 +58,7 @@ delivered at prompt:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+            in your reply in place of `--obligation`, as `<lf-options id="…" choose>`
             holding an `<lf-option id="…">` for each answer: the user answers with
             a press, and the choice waits on them by itself (`references/threads.md`,
             "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
@@ -72,7 +72,7 @@ delivered at prompt:
             answer rests on a source, such as a rule, a file or a message, quote
             the whole passage it turns on, conditions included, so the user can
             check your answer against it there; put a passage longer than a few
-            lines in a `<details>` in `--markup`.
+            lines in a `<details>` in your reply.
         events:
           - attention: true
             kind: comment

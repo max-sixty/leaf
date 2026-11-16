@@ -369,9 +369,10 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
                 "author": "agent",
                 "parent": "tv-decisioned",
                 "revision": 1,
-                "text": "Depends what you want to keep:",
-                "markup": '<lf-options id="tv-decision">'
+                "text": "Depends what you want to keep:\n\n"
+                '<lf-options id="tv-decision">'
                 '<lf-option id="tv-redis">Redis</lf-option></lf-options>',
+                "html": True,
             },
             {
                 "kind": "comment",

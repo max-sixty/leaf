@@ -1,4 +1,5 @@
-"""What an agent's writer hands in: message markup, bodies, and the ids it names."""
+"""What an agent's writer hands in: message bodies, the HTML in them, and the ids it
+names."""
 
 from collections.abc import Set as AbstractSet
 from pathlib import Path
@@ -7,7 +8,7 @@ from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
-from leaf.findings import Finding, Rejected
+from leaf.findings import Finding, Rejected, element_at
 from leaf.passages import SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
@@ -34,20 +35,23 @@ from .markup import (
 )
 
 
-def checked_text(page_dir: Path, text: str | None, *, allow_empty: bool = False) -> str:
+def checked_text(
+    page_dir: Path, text: str | None, *, allow_empty: bool = False, html: bool = False
+) -> str:
     """Every body an agent writes, checked at the one place they all come through.
     None, where the agent gave none, is refused, and so is an empty body unless
     `allow_empty`.
 
-    Prose needs no vocabulary gate — the runtime escapes every tag in it, so it
-    cannot claim a widget — but its Markdown can point at a file, and a picture the
-    directory hasn't got is a broken image in an append-only log for as long as the
-    page exists. `check_markup` asks that of `--markup` and runs only when one is
-    given; this asks it of the link and image destinations beside it, which is where
-    the runtime resolves one — a path quoted in a sentence stays the author's words."""
+    Its Markdown can point at a file, and a picture the directory hasn't got is a
+    broken image in an append-only log for as long as the page exists. `check_markup`
+    asks that of a message's HTML and runs only where the message holds some; this
+    asks it of the link and image destinations, which is where the runtime resolves
+    one — a path quoted in a sentence stays the author's words. `html` reads the text
+    as a message drawing its HTML does (`thread.drawn_markup`), where Markdown inside
+    a `<code>` is words."""
     if text is None or not (text or allow_empty):
         raise Refused(f"empty text ({NO_BODY})")
-    if errs := text_media_errors(text, page_dir):
+    if errs := text_media_errors(text, page_dir, html=html):
         raise Rejected(errs, "text names media the page won't show")
     return text
 
@@ -145,14 +149,14 @@ def check_markup(
     publication: SourceReading,
     thread: str | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against the registry it is published
-    with — the discussion-side `page check`, and the field's one gate: the browser
-    door refuses `markup` outright, so nothing reaches the log under that name
-    unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
-    escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `checked_text` asks about wherever a body arrives. `thread` is the thread
-    a reply joins; a comment opens one whose id is not yet assigned. Refuses with
-    what's wrong.
+    """The markup an agent's message holding HTML draws (`passages.message_markup`),
+    validated against the registry it is published with — the discussion-side `page
+    check`, and the one gate of a message's `html`: the browser door refuses `html`
+    outright, so no HTML reaches the log unvalidated. Text without it needs no
+    vocabulary gate — the runtime renders it with every tag escaped, so it cannot
+    claim a widget — but its Markdown can still point at a file, which `checked_text`
+    asks about wherever a body arrives. `thread` is the thread a reply joins; a
+    comment opens one whose id is not yet assigned. Refuses with what's wrong.
 
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
@@ -176,7 +180,7 @@ def check_markup(
         read_contracts(page_dir),
         thread,
     ):
-        raise Rejected(errors, f"{kind} markup doesn't validate")
+        raise Rejected(errors, f"the HTML in the {kind} doesn't validate")
     return frag
 
 
@@ -200,6 +204,16 @@ def message_markup_errors(
     stage reads only a fragment the stages before it accept, so it gives the first
     stage's findings, or none.
     """
+    # A block widget a Markdown paragraph holds follows words on its line, and the
+    # HTML parser may close that paragraph inside it (`passages._html_block`).
+    if misplaced := [
+        Finding("widget-in-paragraph", element_at(rec["tag"], rec["attrs"].get("id")))
+        for rec in frag.lf_elements
+        if rec["parent"] == "p"
+        and rec["tag"] in registry
+        and not registry[rec["tag"]].get("x-inline")
+    ]:
+        return misplaced
     if errs := (
         thread_markup_contract_errors(frag, registry)
         + extra_errors

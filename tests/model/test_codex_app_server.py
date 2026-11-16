@@ -3341,7 +3341,6 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
             page_dir,
             target,
             text="Manual answer",
-            markup="",
         )
     assert codex_model.recover_codex_receipt("codex-thread")
     assert not thread_model.delivery_reply_reserved(
@@ -3836,7 +3835,6 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
         page_dir,
         target,
         text="Manual winner",
-        markup="",
     )
     # The watcher settles the harness attempt without contacting the provider;
     # prolonged disconnect cannot block later input behind the manual winner.

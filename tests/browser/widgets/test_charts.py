@@ -542,8 +542,8 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "author": "agent",
             "parent": "c-chart",
             "revision": 1,
-            "text": "Like this:",
-            "markup": chart_markup("msg-chart", MESSAGE_CHART),
+            "text": "Like this:\n\n" + chart_markup("msg-chart", MESSAGE_CHART),
+            "html": True,
         },
     )
     page = open_page(browser, url)

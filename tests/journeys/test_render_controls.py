@@ -146,8 +146,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region.",
-    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
+    "html":true, "revision":1,
+    "text":"The destination is inside the nested reading region.\n\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');

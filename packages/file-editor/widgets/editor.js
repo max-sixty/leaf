@@ -410,14 +410,20 @@ export function createEditor(
   /** @param {string | null} name */
   const showLanguage = (name) => {
     if (name === shownLanguage) return;
+    dispatch({ effects: languageEffect(name) });
+  };
+  // The effect that gives the state shown `name`'s language where it has loaded, or
+  // none until then, loading it to follow.
+  /** @param {string | null} name */
+  const languageEffect = (name) => {
     shownLanguage = name;
     const ready = name && loaded.get(name);
-    dispatch({ effects: language.reconfigure(ready || []) });
-    if (!name || ready) return;
-    void loadLanguage(name).then((extension) => {
-      if (shownLanguage === name)
-        dispatch({ effects: language.reconfigure(extension) });
-    });
+    if (name && !ready)
+      void loadLanguage(name).then((extension) => {
+        if (shownLanguage === name)
+          dispatch({ effects: language.reconfigure(extension) });
+      });
+    return language.reconfigure(ready || []);
   };
   // Adopt `value` as the file's text, from a new undo history; `mark` marks the lines
   // it changed as written elsewhere, and otherwise every mark goes.
@@ -556,10 +562,13 @@ export function createEditor(
     resume(kept, text, name) {
       const next = kept?.state ?? state(text);
       scroll = kept?.scroll ?? { top: 0, left: 0 };
+      // The state shown takes this file's language with its other settings, in the one
+      // update, since it may hold another file's or none yet.
       const settings = next.update({
         effects: [
           editable.reconfigure(readonlyExtension()),
           hint.reconfigure(shownHint ? placeholder(shownHint) : []),
+          languageEffect(languageFor(name)),
         ],
       }).state;
       if (!view) retained = settings;
@@ -567,9 +576,6 @@ export function createEditor(
         view.setState(settings);
         setScroll(view.scrollDOM, scroll);
       }
-      // The state shown may hold another file's language, or none yet.
-      shownLanguage = undefined;
-      showLanguage(languageFor(name));
     },
     // Put the caret at the start of line `number`, or the last line where the file is
     // shorter, and bring that line to the middle of the editor's view.

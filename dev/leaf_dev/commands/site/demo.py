@@ -169,7 +169,7 @@ new version as the checks finish.</p>
 
 <section id="phases">
 <h2>Phases</h2>
-<ol class="steps">
+<ol>
   <li id="p1">Dual-write to old and new stores behind a flag.</li>
   <li id="p2">{phase_two}</li>
   <li id="p3">Use an online traffic swap, then retire the old store.</li>

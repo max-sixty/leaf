@@ -430,7 +430,7 @@
               The browser runtime supplies the commenting and collaboration interface.
               Authors build the content with these tools, starting with ordinary HTML:
             </p>
-            <ol class="steps" id="page-sources">
+            <ol id="page-sources">
               <li id="src-html">
                 <strong>Ordinary HTML.</strong> Leaf's reading theme, which a page takes
                 by default, styles headings, paragraphs, tables, code, and
@@ -440,9 +440,9 @@
               <li id="src-idioms">
                 <strong>Theme classes.</strong> The theme supplies classes for common
                 presentation patterns, including <code>.eyebrow</code>,
-                <code>.lede</code>, <code>.callout</code>, <code>aside.note</code> in a
-                <code>layout-note</code> row for a margin note, and
-                <code>ol.steps</code> for a numbered sequence like this list.
+                <code>.lede</code>, <code>.callout</code>, and
+                <code>aside.note</code> in a <code>layout-note</code> row for a margin
+                note.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -1841,7 +1841,7 @@ flowchart TD
           </section>
           <section id="boundaries" class="layout-flow">
             <h2>Choose the extension boundary</h2>
-            <ol class="steps">
+            <ol>
               <li id="extend-page">
                 <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
                 page-local <code>&lt;style&gt;</code>, and inline SVG shape one

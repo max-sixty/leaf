@@ -150,7 +150,6 @@ import { draftsReading } from "../drafts.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
-import { pageSeatThread } from "../thread/inline.js";
 import { releaseReplies } from "../thread/replies.js";
 
 import { createMarginClusterViews } from "./margin-cluster-view.js";
@@ -1923,11 +1922,10 @@ export function createMarginProjection({
   };
   /** @param {ThreadChoice} choice */
   const threadIdsOf = (choice) => choice.items.map((item) => item.thread.id);
-  // Only a page-owned seat or an exact widget-local placement takes the thread's
-  // page position. The same card DOM drawn in the margin or by a primary reader leaves
-  // that position and its margin preview available.
-  /** @param {string} id */
-  const seatedOnPage = (id) => claimed(id) || pageSeatThread(id) !== null;
+  // Only a widget's own placement takes the thread's page position. The same card DOM
+  // drawn in the margin or by a primary reader leaves that position and its margin
+  // preview available.
+  const seatedOnPage = claimed;
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `m` the user is on the obligation element, so

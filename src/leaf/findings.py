@@ -704,10 +704,6 @@ _TEXT = {
     "silent-word": lambda at, v: (
         f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
     ),
-    "missing-thread-seat": lambda at, v: (
-        f"{at} declares x-thread-seat but rendered {v['hosts']} matching hosts; its"
-        " module must place exactly one threadBox"
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (x-state) if a version is meant to carry"
@@ -1386,12 +1382,6 @@ _TEXT = {
             f" {v['reason']}",
         )
     ),
-    "seat-written": _declared(
-        lambda v: (
-            "x-thread-seat predicate attributes are authored and static, but"
-            f" {_json(v['attrs'])} are written by value records"
-        )
-    ),
     "binding-written": _declared(
         lambda v: (
             "x-data binding attributes are authored, but"
@@ -1872,8 +1862,8 @@ _TEXT = {
         f"datum anchor source {v['source']!r} has never been supplied to this page"
     ),
     "hold-target": lambda at, v: (
-        "comment holds must name its exact-section anchor on a matching x-thread-seat"
-        " hold target"
+        "comment holds must name the widget on the page that its anchor names, with"
+        " no passage, datum or part"
     ),
     "visual-with-passage": lambda at, v: (
         f"visual anchor {v['visual']!r} names a box rather than a passage, so it"
@@ -1967,20 +1957,21 @@ _TEXT = {
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task create` gave you"
     ),
-    "widget-obligation": lambda at, v: (
-        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "ended-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} is already {v['status']}"
+    "obligation-end": lambda at, v: (
+        f"{v['todo']!r} is the user's to answer, not a to-do; "
+        + (
+            "once they answer it elsewhere or it no longer applies, resolve its thread"
+            f" with `leaf thread resolve <page> {v['message']}`, after a reply saying"
+            " how if the thread should record it"
+            if v["message"]
+            else "record their answer in the widget's state, or withdraw the widget, in"
+            " a revision"
+        )
     ),
     "unasked-obligation": lambda at, v: (
         f"no message in this thread asks the question {v['question']!r}; --obligation"
         " takes an id from the delivery's `settled` or `leaf page state`, and without"
         " an id it asks a new question"
-    ),
-    "failed-question": lambda at, v: (
-        "a question asked in words ends `done` when the user answered it elsewhere,"
-        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (

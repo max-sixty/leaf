@@ -466,11 +466,14 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url)
     goal = page.locator("#goal-parser")
-    seat = goal.locator(":scope > .lf-thread-seat")
-    write(seat.get_by_role("textbox"), "Finish the current hunk, then park here.")
+    seat = goal.locator(":scope > .atlas-task-threads")
+    goal.locator(":scope > .atlas-task-comment").click()
+    write(seat.locator(".lf-fab-input"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
     expect(goal).to_have_attribute("data-lf-held")
+    # Leaf says what the press did beyond a comment, in words that hold for any widget.
+    expect(page.locator(".lf-live")).to_have_text("Held until resolved")
     page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.

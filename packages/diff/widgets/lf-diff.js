@@ -1504,6 +1504,8 @@ customElements.define(
 
     /** @param {import("/runtime/thread/surfaces.js").OutletTarget} target */
     threadOutletFor({ anchor, placement }) {
+      // A thread about the diff as a whole names no datum, and stays in the margin.
+      if (!anchor.datum) return null;
       const coordinate = readDiffCoordinate(anchor.datum);
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!coordinate || !entry || entry.filtered) return null;

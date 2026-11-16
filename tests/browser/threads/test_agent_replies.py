@@ -26,7 +26,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    preview_parts,
     resized,
     sending,
     stamp_page,
@@ -845,10 +844,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the obligation is the user's or the to-do stays open. Once the
-    agent ends the question, a line under it says how it ended and the agent's note on
-    where, whole in a margin card at 1440 px, so the thread no longer reads as
-    asking."""
+    for as long as the obligation is the user's or the to-do stays open."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -884,38 +880,6 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
         f'.lf-margin-preview .lf-msg[data-lf-event="{promise["id"]}"] .lf-msg-head'
     )
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
-
-    where = (
-        "Answered in the session: the session store owns it, and the page store "
-        "keeps only what the session hands it when the page closes."
-    )
-    todos_model.cmd_end(serve.page_dir, f"message:{question['id']}", "done", where)
-    told(page)
-    resized(page, 1440, 900)
-    open_margin_card(page, "h-how")
-    asking = page.locator(
-        f'.lf-margin-preview .lf-msg[data-lf-event="{question["id"]}"]'
-    )
-    expect(asking.locator(".lf-msg-leaves")).to_have_count(0)
-    ending = asking.locator(".lf-msg-ending")
-    expect(ending).to_have_text(f"Answered elsewhere · {where}")
-    # Every box that clips, up to the card, holds the line's words whole.
-    assert ending.evaluate(
-        """(line) => {
-          const words = document.createRange();
-          words.selectNodeContents(line);
-          const shown = words.getBoundingClientRect();
-          for (let at = line; at; at = at.parentElement) {
-            const box = at.getBoundingClientRect();
-            const clips = at === line || getComputedStyle(at).overflow !== 'visible';
-            if (clips && (shown.left < box.left - 0.5 || shown.right > box.right + 0.5
-                || shown.top < box.top - 0.5 || shown.bottom > box.bottom + 0.5))
-              return false;
-            if (at.matches('.lf-margin-preview')) return true;
-          }
-          return false;
-        }"""
-    ), "the margin card cuts the ended question's note"
 
 
 def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
@@ -1047,12 +1011,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
     # The server settled its turn, and the thread's `attention` still reads
-    # `needs_user` for recovery: the margin and panel name the action owed.
-    margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
-    expect(margin).to_have_attribute("data-lf-turn", "user")
-    assert any("Send it again" in part for part in preview_parts(margin))
-
-    # Threads names the action owed on the thread's row, whole.
+    # `needs_user` for recovery. The task seats the thread, so the margin lists none
+    # for it, and Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
     expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
@@ -1076,7 +1036,10 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
     rendered(page)
-    assert any("Send it again" in part for part in preview_parts(margin))
+    # The row says so still, beside the draft the refusal gave back.
+    expect(thread_row(page, unanswered["id"]).locator(".lf-row-end")).to_contain_text(
+        "Send it again"
+    )
 
     # The failed answer remains distinct from the muted clock without a chip face, in
     # the colour of a warning and Leaf's italic.

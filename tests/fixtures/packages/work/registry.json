@@ -206,12 +206,7 @@
     "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
     "x-content": "markup",
     "x-upgrade": true,
-    "x-thread-seat": {
-      "when": {
-        "talk": [true]
-      },
-      "hold": "Send & pause"
-    },
+    "x-thread-surface": true,
     "x-state": {
       "status": {
         "writer": "agent",

@@ -6,7 +6,12 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE, live_url
+from render_cases_interaction import (
+    OBLIGATION_PAGE,
+    SEATED_OBLIGATION_PAGE,
+    live_url,
+    open_seat_box,
+)
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -677,8 +682,8 @@ def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, 
     """Where a box is narrow, its label stands whole and the new-line key goes whole,
     since a label cut to keep a key names nothing, and nothing the placeholder shows
     stands on the field's actions: the panel's page comment, whose Comment… leaves room
-    for both keys at a phone's width, and a seat's box, whose actions stand in its
-    corner and leave room there for the label and the send key alone."""
+    for both keys at a phone's width, and the comment box a widget seats, whose actions
+    stand in its corner and leave room there for the label and the send key alone."""
     context = browser.new_context(viewport={"width": 430, "height": 700})
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE), context=context)
     page_comment(page)
@@ -687,10 +692,8 @@ def test_a_narrow_box_keeps_its_label_whole_and_drops_its_new_line_key(browser, 
     assert NEW_LINE.fullmatch(shown["parts"][-1]), shown
     assert not shown["covers"], shown
 
-    seat = page.locator('.lf-thread-seat[data-lf-thread-seat="jobs"] leaf-text')
-    seat.click()
-    expect(seat).to_be_focused()
-    shown = seat.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
+    _seat, box = open_seat_box(page, "#jobs")
+    shown = box.locator(".lf-compose-placeholder").evaluate(PLACEHOLDER_SHOWN)
     assert not shown["shortened"] and shown["parts"][-1] == "⏎", shown
     assert not shown["covers"], shown
 

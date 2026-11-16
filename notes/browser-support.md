@@ -720,6 +720,22 @@ Chromium 153.0.8010.12 also left a focused node unmatched by its own
 marks follow rendered ancestry; selectors for the focused editor use `:focus`.
 Recheck with a focused input moved into a hidden parent and back out.
 
+Chromium 158.0.8127.18 kept `:hover` on a node moved while the pointer was over
+it, and on the ancestors it left, on 2026-11-14. The comment box moves this way
+between a widget's outlet and its home (`composing/surface.js`, `seatFab` and
+`restoreFab`), so once the user has pointed at the box in an outlet and put it
+away, those nodes match `:hover` until the pointer crosses them again. The
+effect seen so far is in tooling: `leaf-dev probe` and `stills` wait for the
+hover to reach the element under the pointer (`catch_up_hover`) and fail. Whether
+a page's `:hover` rule on such an ancestor shows is not assessed. Recorded, not
+corrected. Reproduce with `leaf-dev probe pr-walkthrough` and a journey that
+presses a diff line's Comment control, hovers `.lf-fab-input`, presses Escape
+and moves the pointer to an empty part of the page: the arm fails at `settle`,
+and passes with `Element.prototype.moveBefore` deleted first. On a Command Hub
+task the same journey left `:hover` on the outlet the box had stood in
+(`.atlas-task-threads`) and not on the task around it, on 2026-11-15. Firefox
+159.0 (Playwright build 1572) left it on neither that day.
+
 ### Clearing a shadow host unloads its frames in WebKit
 
 In Playwright WebKit 26.6 on 2026-10-24, `replaceChildren()` on an element

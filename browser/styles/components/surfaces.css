@@ -635,14 +635,9 @@ summary {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
-/* The shared boxes of a registry-declared widget thread. The widget places it.
-   The same Thread view may be seated inside an x-thread-surface shadow tree, so this
-   whole vocabulary is in this file. */
-.lf-thread-seat {
-  display: none;
-  margin-top: var(--lf-sp-2);
-  overflow-wrap: anywhere;
-}
+/* The shared boxes of a thread a widget seats in an outlet of its own. The same
+   Thread view may be seated inside a widget's shadow tree, so this whole vocabulary
+   is in this file. */
 /* A box a thread draws one of its parts in where its container stands the part
    apart, as the floating panel stands Resolve on its head line (thread-card.js,
    `apart`), lays out as what it holds, in the container's place. */
@@ -686,32 +681,13 @@ summary {
     --lf-ring-at: var(--lf-focus-ring-inset);
   }
 }
-.lf-say {
-  display: none;
-  align-items: flex-end;
-  gap: var(--lf-sp-2);
-  margin-top: var(--lf-sp-3);
-}
-.lf-say leaf-text {
-  flex: 1;
-  min-width: 0;
-}
-.lf-thread-seat > .lf-say {
-  margin-top: 0;
-}
-/* A seat's threads close on their own reply boxes, and the seat's box for a new
-   thread stands a gap below them: flush, a reply being written there and the box
-   under it read as two fields of one thread. */
-.lf-thread-seat > :is(.lf-page-thread, .lf-resolved-threads) ~ .lf-say {
-  margin-top: var(--lf-sp-3);
-}
 /* Adjacent whole threads are ruled apart; parts belong to their author's
-   transcript. A seat contains only whole cards, its resolved group and reply row;
-   there, inert outgoing pixels may stand between the live neighbors. */
+   transcript. An outlet contains only whole cards, its resolved group and the comment
+   box; there, inert outgoing pixels may stand between the live neighbors. */
 :is(
   .lf-page-thread:not(.lf-primary-part, [inert])
     + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  .lf-thread-seat
+  [data-lf-thread-surface]
     > .lf-page-thread:not([inert])
     ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
 ) {
@@ -720,7 +696,7 @@ summary {
 :is(
   .lf-page-thread:not(.lf-primary-part, [inert])
     + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  .lf-thread-seat
+  [data-lf-thread-surface]
     > .lf-page-thread:not([inert])
     ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
 )::before {
@@ -1294,14 +1270,6 @@ button.lf-thread-news {
 /* What an answer leaves standing reads beside its time like a receipt. */
 .lf-msg-head .lf-msg-leaves {
   color: var(--lf-ink-2);
-}
-/* The line under a question the agent ended, saying how it ended (thread-card.js). It
-   stands on its own line, which wraps, since the agent's note on where or why runs to a
-   sentence that the head's single line would cut. */
-.lf-msg-ending {
-  margin: var(--lf-sp-1) 0 0;
-  color: var(--lf-ink-2);
-  font: var(--lf-font-small);
 }
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the

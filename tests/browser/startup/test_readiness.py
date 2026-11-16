@@ -96,14 +96,17 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
             wrote: tabStore.set('refused', '1'),
             keys: tabStore.keys(),
             where: tabStore.where('refused'),
+            scope: document.documentElement.dataset.lfPageScope,
           };
         }"""
     )
+    # A served page keeps its browser state under its own scope (`data-lf-page-scope`).
+    scope = tab_store.pop("scope")
     assert tab_store == {
         "read": {"available": False, "value": None},
         "wrote": False,
         "keys": [],
-        "where": {"store": "session", "key": "refused"},
+        "where": {"store": "session", "key": f"{scope}refused"},
     }
 
 

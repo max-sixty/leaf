@@ -4,9 +4,9 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
-   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
-   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   primary declined uses the page's nearest drawing of its thread: the outlet a widget
+   seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
+   a resolved thread; then a page preview. A message
    part lands on its message there. Where neither shows it, the primary is asked again
    with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a

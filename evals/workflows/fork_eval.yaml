@@ -838,16 +838,21 @@ cases:
         text: >-
           Staging has served the LRU cache since 09:06 with no errors. Should I turn it
           on in production too?
-      - kind: todo_end
+      - kind: reply
+        author: user
+        revision: 1
+        id: r1
+        parent: q1
+        ts: "2026-11-03T09:02:00+00:00"
+        text: Yes, once staging has run a full day without errors.
+      - kind: reply
         author: agent
         agent: Claude
-        id: e1
-        ts: "2026-11-03T09:02:00+00:00"
-        todo: "message:q1"
-        outcome: done
-        detail: >-
-          Answered in the session: yes, once staging has run a full day without
-          errors.
+        revision: 1
+        id: r2
+        parent: q1
+        ts: "2026-11-03T09:03:00+00:00"
+        text: I'll turn it on in production once staging has had a clean day.
     conversation:
       - from: cache
       - *cache-reply
@@ -863,14 +868,14 @@ cases:
           description: Ask on the page about production
         result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Turning on the LRU cache in production", "obligation": true}'
       - assistant: I've asked on the page whether to turn it on in production too.
-      - user: Yes, once staging has run a full day without errors.
+      - user: I answered on the page.
       - tool: Bash
         input:
           command: >-
-            leaf task end {page} message:q1 done --text "Answered in the session: yes,
-            once staging has run a full day without errors."
-          description: Record the answer given in chat
-        result: '{"kind": "todo_end", "id": "e1", "todo": "message:q1", "outcome": "done"}'
+            leaf thread reply {page} q1 --text "I'll turn it on in production once
+            staging has had a clean day."
+          description: Answer in the thread
+        result: '{"kind": "reply", "id": "r2", "parent": "q1", "author": "agent"}'
       - assistant: I'll turn it on in production once staging has had a clean day.
       - user: It's been a day. Go ahead if staging is clean.
       - tool: Bash

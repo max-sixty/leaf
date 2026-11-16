@@ -2437,6 +2437,11 @@ export function createFloatingPanel({
     // Enter went nowhere seen. A list that declares a row it opens at, such as the
     // version the page shows in Versions, brings that row into view by either route, and
     // a key lands on it, as the user reopening the list from there expects to see it.
+    // A fold's heading (`settledHeading`) is a row the arrows reach and never a landing:
+    // a list holding only what was put away holds focus itself, with no ring
+    // (floating-panel.css, `.lf-fp-view:focus`), and ↓ enters the fold. The user asked
+    // for that on 15 November 2026, after `r` on the last open thread returned them to
+    // Threads with the ring on Resolved, which read as Resolved chosen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2455,11 +2460,10 @@ export function createFloatingPanel({
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
     const declared = viewOf(route).at;
     const at = declared ? view?.querySelector(declared) : null;
-    const target =
-      stoodRow ||
-      (pressLed()
-        ? view
-        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
+    const first =
+      rows.find((row) => !row.matches(".lf-fp-settled")) ??
+      (rows.length ? null : view?.querySelector("button, input"));
+    const target = stoodRow || (pressLed() ? view : (at ?? first ?? view));
     // The row of the thread the user was in takes them back where they came from.
     if (target) focusDestination(target, target === stoodRow ? "return" : "move");
     if (at) scrollIntoView(at, { block: "nearest", within: view });

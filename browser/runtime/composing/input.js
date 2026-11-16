@@ -89,7 +89,7 @@ import { offeredAction } from "../widget-elements.js";
 
 /** @typedef {import("./drawing-record.js").DraftDrawing} Drawing
  * @typedef {import("./text-field.js").LeafTextElement} TextField
- * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string) => unknown} Sender
+ * @typedef {(text: string, raw: string, stillCurrent: () => boolean, typed: string, alternate: boolean) => unknown} Sender
  * @typedef {{word: string, keys: readonly string[], run: () => unknown}} BoxPress
  * @typedef {Object} InputOptions
  * @property {import("../keyboard/bindings.js").Cell<string>} hint
@@ -102,8 +102,7 @@ import { offeredAction } from "../widget-elements.js";
  * @property {string} [sendClass]
  * @property {import("../keyboard/bindings.js").Cell<string>} sends
  * @property {import("../keyboard/bindings.js").Cell<string>} [action]
- * @property {string | null} [altLabel]
- * @property {Sender | null} [altSend]
+ * @property {import("../keyboard/bindings.js").Cell<string | null>} [altLabel]
  * @property {() => true | string} [allowsMedia]
  * @property {() => boolean} [busy]
  * @property {(raw: string) => boolean} [hasContent]
@@ -363,8 +362,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sendClass = "",
       sends,
       action: submitAction = "send",
+      // The words of a second send, standing beside the field while they are given,
+      // whose press calls `send` with `alternate` true.
       altLabel = null,
-      altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
       // True, or why the box takes no image.
       allowsMedia = /** @type {() => true | string} */ (() => true),
@@ -673,7 +673,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         ?hidden=${micShown}
         aria-keyshortcuts=${sendBindings().flatMap(ariaBindings).join(" ")}
         @mousedown=${keepEditing}
-        @click=${() => pressed(send)}
+        @click=${() => pressed()}
       ></button>`;
       if (submitIn) render(submitControl, submitIn, { renderBefore: submitEnd });
       const drawn = drawing?.read() ?? null;
@@ -747,18 +747,18 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           <span>${error?.message ?? ""}</span>
         </p>
       `;
-      const alternate =
-        altSend && altLabel
-          ? html`<button
-              type="button"
-              ${offeredAction("word", "lf-compose-alt")}
-              aria-disabled=${String(!canSend())}
-              @mousedown=${keepEditing}
-              @click=${() => pressed(altSend)}
-            >
-              ${altLabel}
-            </button>`
-          : nothing;
+      const altWord = typeof altLabel === "function" ? altLabel() : altLabel;
+      const alternate = altWord
+        ? html`<button
+            type="button"
+            ${offeredAction("word", "lf-compose-alt")}
+            aria-disabled=${String(!canSend())}
+            @mousedown=${keepEditing}
+            @click=${() => pressed(true)}
+          >
+            ${altWord}
+          </button>`
+        : nothing;
       return html`${sentMedia ? nothing : shelf}
         <div
           class="lf-compose-field"
@@ -859,8 +859,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         passErrorsAt(ta);
       };
     });
-    /** @param {Sender} sender */
-    const submit = async (sender) => {
+    const submit = async (alternate = false) => {
       if (sending || uploading || held()) return;
       cancelDictation();
       // A send key on an empty box answered with silence reads as a send that
@@ -873,7 +872,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       sending = true;
       refresh();
       try {
-        await sender(text, raw, () => draftValue() === raw, ta.value);
+        await send(text, raw, () => draftValue() === raw, ta.value, alternate);
       } finally {
         sending = false;
         refresh();
@@ -1074,7 +1073,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         keys: sendBindings,
         label: sendKey,
         title: sends,
-        run: () => pressed(send),
+        run: () => pressed(),
       },
       ...rows,
     ]);
@@ -1101,11 +1100,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta.addEventListener("compositionend", () => (composing = false));
     // A send key, or Send reached by the keyboard, in a covered box lifts the cover and
     // sends nothing (`uncover`).
-    /** @param {Sender} sender */
-    const pressed = (sender) => {
+    const pressed = (alternate = false) => {
       if (inputError.value) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");
-      submit(sender);
+      submit(alternate);
     };
     return sync;
 

@@ -9,6 +9,8 @@ belongs in widget_quality; readings of Leaf's own chrome or theme belong in the 
 which holds Leaf's half."""
 
 import json
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -246,23 +248,15 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     """Every finding read from one settled scheme, without the scheme it was read in."""
     page = context.page
     unmarkable = evaluate_probe(page, "unmarkableElements")
-    missing_threads = []
     retired = []
-    if context.light:
-        # x-thread-seat promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and threadBox
-        # deliberately returns none there. Everywhere else, ask the merged registry
-        # for the instances and the module's own marker for the host it placed.
-        missing_threads = evaluate_probe(page, "missingThreads", context.declarations)
-        # Behind the caught-up wait: the settlement mark is replay's own write, so a
-        # reading taken earlier asks after paint the page has not been asked to make
-        # yet. Before the widget readings, whose replay is the last.
-        if context.replayed and (holders := _retired_holders(context)):
-            retired = evaluate_probe(page, "retiredSlots", holders)
+    # Behind the caught-up wait: the settlement mark is replay's own write, so a
+    # reading taken earlier asks after paint the page has not been asked to make
+    # yet. Before the widget readings, whose replay is the last.
+    if context.light and context.replayed and (holders := _retired_holders(context)):
+        retired = evaluate_probe(page, "retiredSlots", holders)
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
-    found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
     found += context.unsettled
     if context.light:
@@ -606,7 +600,9 @@ def shrunk_label_advice(readings) -> list[Finding]:
 
 # One passive reading on the loaded desktop, rather than a wait in every scheme and
 # sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
-# slowing plain page check or message admission. It promises only this observation.
+# slowing plain page check or message admission. It promises only this observation,
+# the least it lasts: the gate reads its other pages meanwhile, so the reading waits
+# only for what of it they leave.
 PASSIVE_OBSERVATION_MS = 3000
 
 
@@ -623,17 +619,25 @@ def drawn_height_advice(page, viewport: str) -> list[Finding]:
     ]
 
 
-def passive_layout_shift_advice(page) -> list[Finding]:
-    """Painted movement while no gate action changes the page, as author advice."""
+@contextmanager
+def passive_layout_shift_advice(page):
+    """Painted movement while no gate action changes the page, as author advice, in a
+    list filled when the scope ends. The observation lasts the scope, and at least
+    `PASSIVE_OBSERVATION_MS`, so the caller can read other pages meanwhile; a resize of
+    this page would count as input, and Chrome reports no shift for 500ms after one.
+    """
     rendered(page)
+    found = []
+    started = time.monotonic()
     with observe_probe(page, "passiveLayoutShifts") as records:
+        yield found
         # This is an observation interval, not a readiness wait: let real timers and
         # Chrome's compositor run, with Playwright still dispatching page events.
-        page.wait_for_timeout(PASSIVE_OBSERVATION_MS)
+        if (left := PASSIVE_OBSERVATION_MS - (time.monotonic() - started) * 1000) > 0:
+            page.wait_for_timeout(left)
         one_frame(page)
-    return [
-        Finding.read(record, severity="advice").but(
-            values={"observed_ms": PASSIVE_OBSERVATION_MS}
-        )
+    observed = round((time.monotonic() - started) * 10) * 100
+    found.extend(
+        Finding.read(record, severity="advice").but(values={"observed_ms": observed})
         for record in records
-    ]
+    )

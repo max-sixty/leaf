@@ -76,7 +76,7 @@ child's tag lists the widget in `x-owners`, requires only an `id`, and has
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
 presentation, but `package check` refuses one that declares state, obligations, work, history,
-data, visual parts, or a thread seat or surface of its own; the parent's controller
+data, visual parts or a thread surface of its own; the parent's controller
 records and presents
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions

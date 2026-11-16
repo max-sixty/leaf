@@ -318,7 +318,7 @@ def cmd_comment(
             quote,
             section,
             part,
-            markup,
+            html=True,
             title=title,
             obligation=obligation,
         )
@@ -331,21 +331,22 @@ def open_thread(
     quote: str = "",
     section: str = "",
     part: str = "",
-    markup: str = "",
     *,
+    html: bool = False,
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`) and the markup it draws
-    (`drawn_markup`); `identity` names the agent and session where the writer isn't
-    the agent's own process, as Leaf's clerk is (`clerk.apply_answer`)."""
+    describes, from a `body` already checked (`checked_text`) and read with HTML
+    where `html` says (`drawn_markup`); `identity` names the agent and session where
+    the writer isn't the agent's own process, as Leaf's clerk is
+    (`clerk.apply_answer`)."""
     events = page.events
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
-    if markup:
+    if markup := drawn_markup(body, html):
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication
@@ -387,7 +388,7 @@ def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -
         addressed,
         identity,
         body,
-        "",
+        html=False,
         attempt=None,
         failure=None,
         validate_source=False,
@@ -597,7 +598,7 @@ def post_reply(
             addressed,
             posting_identity,
             text,
-            markup,
+            html=html,
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
@@ -816,8 +817,8 @@ def _compose_and_append(
     obligation: _Obligation,
     posting_identity: dict,
     text: str,
-    markup: str,
     *,
+    html: bool,
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
@@ -831,13 +832,14 @@ def _compose_and_append(
     detach: bool,
     title: str | None,
 ) -> tuple[dict, "_Published | None"]:
-    """Check the reply's content against the page, compose its event and append it
-    at `obligation`. Successful replies publish saved edits when `validate_source`
+    """Check the reply's content, read with HTML where `html` says (`drawn_markup`),
+    against the page, compose its event and append it at `obligation`. Successful replies publish saved edits when `validate_source`
     requests it. Progress and failure reports use the active revision; detaching
     still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
+    markup = drawn_markup(text, html)
     event = {
         "kind": "reply",
         "author": "agent",

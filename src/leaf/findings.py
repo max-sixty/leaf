@@ -220,8 +220,8 @@ def _fork_holds_thread(holder: dict, answers: bool) -> str:
         else f"{fork} holds this thread; this command acted as the main session"
         " beside it"
     ) + (
-        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
-        " that begins with `leaf`)"
+        " (a fork's `leaf` command acts as the fork only where it begins with"
+        " `leaf --turn` and the turn Leaf gave the fork)"
     )
 
 

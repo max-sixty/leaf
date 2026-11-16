@@ -130,7 +130,10 @@ agent's harness id: as it opens it for an agent it resumes, and once the harness
 started a new one. The harness confirms the start of either within a minute of the
 opening, or the turn lapses (`activity.STARTING_GRACE`); the confirmation and the
 agent's tool boundaries renew it, and it closes as the harness says the run ended, or
-with the session's generation or instance. A pickup, a start or a reply
+with the session's generation or instance. The agent's `leaf` command acts in the
+turn where it names it (`leaf --turn`, which Leaf gives a fork with its task), is
+refused where it names a turn that isn't open, and acts as the main thread where it
+names none (`state.acting_agent_turn`). A pickup, a start or a reply
 names it as it names the main thread's turn: the page's served reading carries the
 claimant's agent turns that are open and not yet lapsed or that its log names
 (`agent_turns`), each with its agent's id, and the fold believes

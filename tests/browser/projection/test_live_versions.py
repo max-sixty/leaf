@@ -19,6 +19,7 @@ from render_harness import (
     expect_panel_says,
     holding,
     is_problem,
+    latest_press,
     leaf_page,
     open_page,
     open_threads,
@@ -475,7 +476,7 @@ def test_a_latest_press_whose_revision_failed_to_load_leaves_it_waiting_on_a_com
         (serve.page_dir / "index.html").write_text(
             first.replace("has not started yet", "finished on Tuesday")
         )
-        latest = page.locator(".lf-fp-row-notice-press").filter(has_text="Latest")
+        latest = latest_press(page)
         expect(latest).to_be_visible()
         before = len(failed)
         latest.click()

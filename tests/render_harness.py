@@ -1945,6 +1945,23 @@ def field_press(page):
     return page.locator(".lf-fp-field .lf-compose-press")
 
 
+def latest_press(page):
+    """Latest, which the panel field's end offers while the page shows an older version
+    than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
+    return field_press(page).filter(has_text="Latest")
+
+
+def open_latest_by_keys(page):
+    """Open the latest version from Versions by keyboard, the route that stands while
+    the field offers something else at its end, such as commenting on words selected
+    on the page, which the keys leave selected."""
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    panel_settled(page, view="versions")
+    page.keyboard.press("Home")
+    page.keyboard.press("Enter")
+
+
 def panel_settled(page, open=True, view=None):
     """Wait for the floating panel to stand with a view open, or with none, its motion
     finished.

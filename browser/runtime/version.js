@@ -37,8 +37,9 @@
  * or change a selected passage/comment's complete authored anchor scope. Runtime
  * chrome stays outside the authored patch and follows its own editor continuation.
  * Unresolved delivery and an open version menu defer either install.
- * Ending composition releases its hold on the next heartbeat; pressing the newest-version
- * chip explicitly releases that hold. The chip remains available while activation waits.
+ * Ending composition releases its hold on the next heartbeat; pressing Latest, which the
+ * floating panel offers while the page shows an older version, explicitly releases that
+ * hold, and stays offered while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
  * contract, and the obligation view restores the selected obligation by id. Both installs restore these
@@ -393,8 +394,8 @@ const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 0;
 const behindCurrent = () =>
   runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
-// Which version a page behind the latest shows, in the few words a notice beside the
-// floating panel's marks has room for: the version and the latest one's number, as in
+// Which version a page behind the latest shows, in the few words the floating panel's
+// field says before the status: the version and the latest one's number, as in
 // "v2 of 3", or a draft the agent has since revised.
 /** @param {NonNullable<typeof runtime.active>} active */
 const shownBehind = (active) =>

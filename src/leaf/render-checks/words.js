@@ -1,5 +1,5 @@
 import { canvas2D, pageScroller, scrollLimit } from "/runtime/widget-api.js";
-import { openingTitle, says, wrote } from "/runtime/widget-api.js";
+import { says } from "/runtime/widget-api.js";
 import {
   colourableAs,
   colouredAs,
@@ -565,16 +565,17 @@ export function silentWords(declarations) {
 // markup it opens with (leading-title.js), and `page check` admits that name before a
 // widget's members or its data, but a module that draws its own content by replacing
 // its children takes the name with it, and the user never sees it. The file knows each
-// name (`gesture_words.leading_title_holder`); this asks the rendered widget whether it
-// still opens with it, so a package whose module drops a name hears it at handover.
+// name (`gesture_words.leading_title_holder`); this asks the rendered widget whether the
+// name's words still stand in its tree, wherever its module put them, since a module may
+// set words of its own before the name, as a task's status line stands over its title.
+// A shadow stage keeps the name in the light tree it slots from (shadow-stage.js). So a
+// package whose module drops a name hears it at handover.
 /** @param {{id: string, name: string}[]} names */
 export function droppedNames(names) {
   const found = [];
   for (const { id, name } of names) {
     const widget = document.getElementById(id);
-    if (!widget) continue;
-    const title = openingTitle(widget)?.title;
-    if (!title || wrote(title) !== name)
+    if (widget && !(widget.textContent ?? "").replace(/\s+/g, " ").includes(name))
       found.push({ code: "dropped-name", at: at(widget), name });
   }
   return found;

@@ -340,11 +340,10 @@ body {
     height: 100%;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (root-headers.js). The page's own heads are cleared by the
-     * margin every box reads from the slot (surfaces.css), which a page's own
-     * `scroll-margin-top` replaces rather than adds to, and the root's band is Leaf's
-     * alone, so a page's own `scroll-padding-top`, written for its header, adds nothing
-     * either way: both idioms land a target once below the header. */
+     * `--lf-root-headers` (root-headers.js). The root's band is Leaf's alone, so a
+     * page's own `scroll-padding-top`, written for its header, adds nothing: a page
+     * clears its own header with its targets' `scroll-margin-top`, which replaces the
+     * margin every box reads from the slot (surfaces.css). */
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
     /* The floating panel states the root's `scroll-padding-bottom` in its style as its
@@ -580,22 +579,6 @@ main {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
-}
-/* The page's own heads, the headers it fixes at the window's top or sticks there
- * ahead of its content, which the runtime finds and measures (`--lf-page-head`,
- * root-headers.js), stand over everything in the page but themselves, so the slot
- * starts below them there. Leaf's chrome, after `body`, keeps the root's slot, and so
- * does what stands above a sticky head, such as a banner (`above`). A head stands at its
- * own slot, as a header Leaf sticks does, so a control focused in it counts as shown
- * (`--lf-head-inset`, surfaces.css) rather than being scrolled toward on every Tab. */
-body {
-  --lf-top: calc(var(--lf-head-room) + var(--lf-page-head, 0px));
-}
-[data-lf-page-head] {
-  --lf-top: var(--lf-head-room);
-}
-[data-lf-page-head]:not([data-lf-page-head="above"]) {
-  --lf-head-inset: 0px;
 }
 /* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved

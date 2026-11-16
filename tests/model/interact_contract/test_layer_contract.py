@@ -59,8 +59,8 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
     changes, keyword, path
 ):
     registry = shipped_core_registry()
-    entry = {"description": "An eyebrow.", "x-example": '<p class="eyebrow">Title</p>'}
-    registry[".eyebrow"] = entry
+    entry = {"description": "An opening.", "x-example": '<p class="lede">Opening</p>'}
+    registry[".lede"] = entry
     registry_validation.validate_layer_declarations(registry, "registry.json")
     entry["x-instructions"] = "Use above a heading."
     registry_validation.validate_layer_declarations(registry, "registry.json")
@@ -75,7 +75,7 @@ def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
         )
     )
     assert found(
-        [refused], "idiom-schema", selector=".eyebrow", keyword=keyword, path=path
+        [refused], "idiom-schema", selector=".lede", keyword=keyword, path=path
     )
 
 
@@ -256,16 +256,14 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
     assert next(iter(events)) in json.dumps(finding.values)
 
 
-@pytest.mark.parametrize(
-    "path", [("x-state", "decide", "unit"), ("x-upgrade",)], ids="-".join
-)
+@pytest.mark.parametrize("path", [("x-state", "decide", "unit")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):
-    """A layer's vocabulary stamps each widget's states and finds its module by
-    reading its declaration as valid (`layer.compose_vocabulary`), so `page init`
-    validates the registry first and names a declaration that leaves out a field they
-    read, rather than failing inside them."""
+    """A layer's vocabulary stamps each widget's states by reading its declaration
+    as valid (`layer.compose_vocabulary`), so `page init` validates the registry first
+    and names a declaration that leaves out a field the stamp reads, rather than
+    failing inside it."""
     entry = deepcopy(vocabulary(page_dir)["lf-suggestion"])
     *parents, field = path
     held = entry

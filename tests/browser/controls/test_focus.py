@@ -929,8 +929,8 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
         with subtests.test(native_move=native_move, renderer=renderer):
             page.evaluate(
                 """async ([index, nativeMove, renderer]) => {
-              const {render, repeat, setChildren: orderChildren, move} =
-                await window.__lfWidgetApi();
+              const {setChildren: orderChildren, move} = await window.__lfWidgetApi();
+              const {render, repeat} = await window.__lfVendorImport('lit.js');
               const rows = document.querySelector(`#rows-${index}`);
               if (!nativeMove) Element.prototype.moveBefore = undefined;
               const nodes = ['a', 'b', 'c'].map(id => {

@@ -124,9 +124,11 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Only presentation nodes are formatted. Source documents stay intact for typed state,
-// revision patching and provenance; arrivals call this after capture, before connection.
-// Their import preparation has already made the parser ready, so this step is synchronous.
+// Each element declaring `x-text-format` shows its data body's rendering in place of
+// its `<pre>`. Only presentation nodes are formatted. Source documents stay intact for
+// typed state, revision patching and provenance; arrivals call this after capture,
+// before connection. Their import preparation has already made the parser ready, so
+// this step is synchronous.
 /** @param {Element | Document | DocumentFragment} scope */
 export function formatDeclaredMarkdown(scope) {
   const elements = elementsDeclaring(scope, "x-text-format");
@@ -136,30 +138,16 @@ export function formatDeclaredMarkdown(scope) {
   if (!tokenize)
     throw new Error("leaf: Markdown formatting requires its loaded renderer");
   for (const element of elements) {
-    if (declarationFor(element, "x-text-format") === "markdown") {
-      const pre = element.querySelector(":scope > pre");
-      if (!pre) continue;
-      const body =
-        element.querySelector(":scope > .lf-markdown-body") ??
-        document.createElement("div");
-      if (body.className !== "lf-markdown-body") body.className = "lf-markdown-body";
-      paintMarkdown(body, dataBody(element));
-      body.removeAttribute("data-lf-prepaint");
-      body.removeAttribute("data-lf-gen");
-      pre.replaceWith(body);
-      continue;
-    }
-    for (const node of [...element.childNodes]) {
-      if (!(node instanceof Text) || !node.data.trim()) continue;
-      const parsed = inlineMarkdownFragment(node.data, false);
-      if (!parsed.firstElementChild && parsed.textContent === node.data) continue;
-      const words = document.createElement("span");
-      words.className = "lf-markdown-words";
-      words.dataset.lfMarkdownWords = "";
-      words.dataset.lfSourceWords = node.data;
-      words.append(parsed);
-      node.replaceWith(words);
-    }
+    const pre = element.querySelector(":scope > pre");
+    if (!pre) continue;
+    const body =
+      element.querySelector(":scope > .lf-markdown-body") ??
+      document.createElement("div");
+    if (body.className !== "lf-markdown-body") body.className = "lf-markdown-body";
+    paintMarkdown(body, dataBody(element));
+    body.removeAttribute("data-lf-prepaint");
+    body.removeAttribute("data-lf-gen");
+    pre.replaceWith(body);
   }
 }
 // A written Markdown file first paints as its rendering beside the `<pre>` its module

@@ -60,7 +60,7 @@ def expect_accept_all(page, words):
 
 
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
@@ -311,7 +311,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     )
     assert item.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""

@@ -438,7 +438,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "parent": "aabb0011",
             "author": "agent",
             "text": "An answer",
-            "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
+            "markup": '<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
         },
     )
     (page_dir / "index.html").write_text(
@@ -769,11 +769,11 @@ def test_sample_fixture_refusals_reach_page_check(
     [
         ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown-widget"),
         (
-            '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
+            '<lf-code id="child"><pre><code class="language-python">1</code></pre></lf-code>',
             "ids-taken",
         ),
         (
-            '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
+            '<lf-code id="code"><pre><code class="language-python">1</code></pre></lf-code><style>p {color:red}</style>',
             "message-style",
         ),
     ],

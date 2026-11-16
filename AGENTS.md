@@ -97,8 +97,8 @@ outside it.
   in a record kept outside a page. A change to the runtime, the served state, the
   bundled widgets and their registry entries, the theme or the public package API
   (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
-  Leaf's only version, so a record kept outside a page, such as a browser draft,
-  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  Leaf's only version, so a record kept outside a page's log and document, such as
+  its drafts, carries the protocol at which its own shape last changed (`layer-registry.md`,
   "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
   commits. Once Leaf is released, only a bump may break an existing page.
 - **A page's own code**, its widgets and scripts, and an installed package's
@@ -311,11 +311,13 @@ thread the user opens, the user's own reply and its wait for an answer, and the
 resend a refused send leaves. A refusal restores the
 server's state.
 
-Focus, scroll, selection, open disclosures, a draft being typed, a drag and
-layout stay with the browser until a gesture makes them part of the page's
-state. The log doesn't record them, so they live only as long as their DOM node:
-code that replaces a node carries that state to the new node, matched by the key
-the replacement already uses.
+Focus, scroll, selection, open disclosures, a drag and layout stay with the
+browser until a gesture makes them part of the page's state. The log doesn't
+record them, so they live only as long as their DOM node: code that replaces a
+node carries that state to the new node, matched by the key the replacement
+already uses. A draft being typed stays out of the log too, until Send, but
+outlives its node: the page's server keeps it for every tab and device
+(`src/leaf/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands: `activity.py` for the whole page,
 read by the Leaf panel, and `workflows.py` for each update
@@ -384,6 +386,12 @@ there. Size says little: a two-line selector can reach every page.
   constant, selector, style rule or inline check answers, not for its name. A copy is a
   second home even when a comment names its source. Where the change couldn't reach
   the owner, export, move or generate the owner rather than copy it.
+- **What it puts between the author and HTML**: be hesitant to add anything there,
+  such as a tag, class, attribute or key for what an HTML element, attribute or CSS
+  property already says, a rule that reads meaning out of the author's markup, or a
+  pass that rewrites it. Authors and agents already write HTML well, and each such
+  layer is one more thing every author learns and every later change keeps working.
+  Add one only for what HTML can't say.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a
   measured cost. A green test buys what the test protects, so name that.
 - **Where its cost lands**: read the change's reach rather than its claim, such as a

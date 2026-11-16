@@ -10,10 +10,10 @@ under the element's `x-state`. Leaf validates each event, works out the current 
 hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
 A verb declaring `decides: true` selects which of its widget's members retire. It
-folds by widget and requires a string-enum `outcome` field. `x-retired-when` and
-`x-withdrawn-as` refer to those outcomes. An `outcome` field on any other verb is
-ordinary domain data; whether an action answers an obligation is separately
-declared by `x-awaits`.
+folds by widget and requires a string-enum `outcome` field. A member's
+`x-retired-when` and the verb's own `withdraws` name those outcomes. An `outcome`
+field on any other verb is ordinary domain data; whether an action answers an
+obligation is separately declared by `x-awaits`.
 
 The default board declares `move` as a position record in
 `packages/default/registry.json`:
@@ -70,14 +70,14 @@ A verb that lets the user add a child element declares `creates`, as `lf-options
 does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail field
 holding the new child's id, which must be one no page or Thread markup holds, created
 members included, and `words` the field holding its text; its detail schema has just
-those two fields. Each added child is its own key, so undoing the add removes it. The
-child's tag lists the widget in `x-owners`, requires only an `id`, and has
-`x-content: markup`.
+those two fields. Leaf reads that text as inline Markdown the user typed, so the parent
+draws it with `inlineMarkdownFragment(text)` (`module-reading.md`, "Markdown"). Each
+added child is its own key, so undoing the add removes it. The child's tag lists the
+widget in `x-owners`, requires only an `id`, and has `x-content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
-presentation, but `package check` refuses one that declares state, obligations, work, history,
-data, visual parts or a thread surface of its own; the parent's controller
-records and presents
+presentation, but `package check` refuses one that declares state, obligations, work,
+history, data or visual parts of its own; the parent's controller records and presents
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
 still in force selects the same id if it returns. A widget that needs its own actions
 or services belongs in authored markup.
@@ -287,8 +287,7 @@ other unbound input to the widget. Tell page authors how to bind it in
         "property": "value"
       }
     },
-    "x-instructions": "Bind `source` to the build feed this page should show.",
-    "x-upgrade": true
+    "x-instructions": "Bind `source` to the build feed this page should show."
   }
 }
 ```

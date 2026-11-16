@@ -147,7 +147,6 @@
     "additionalProperties": false,
     "description": "An obligation-free stream of repository changes with distance, topic and contextual discussion.",
     "x-content": "empty",
-    "x-upgrade": true,
     "x-data": {
       "changes": {
         "contract": "repo-feed",

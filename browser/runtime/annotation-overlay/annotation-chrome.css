@@ -290,10 +290,10 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     position: fixed;
     pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
-    /* The bounds of a card no placement has sized yet; placement stands it at the
-       least width or the measure, capped by its room (thread-preview.js,
-       `measureThreadCard`). */
-    width: min(var(--lf-thread-card), calc(100vw - 16px));
+    /* The width of a card no placement has sized yet, where each selection starts;
+       placement stands it at the least width or the measure, capped by its room
+       (thread-preview.js, `measureThreadCard`). */
+    width: min(var(--lf-thread-card-min), calc(100vw - 16px));
     max-height: calc(100vh - var(--lf-head-room) - 16px);
     box-sizing: border-box;
     margin: 0;

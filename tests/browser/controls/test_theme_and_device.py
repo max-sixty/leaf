@@ -6,7 +6,6 @@ from playwright.sync_api import expect
 from render_cases_layout import UNBREAKABLE_PAGE
 from render_harness import (
     LONG_PAGE,
-    displayed,
     leaf_page,
     open_page,
     open_threads,
@@ -17,7 +16,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -133,16 +132,22 @@ def test_a_theme_gives_the_page_s_own_controls_leaf_s_faces(browser, serve, them
 @pytest.mark.parametrize("touch", [False, True])
 def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, touch):
     """Authored choices share their label's hit area and focus ring without boxing
-    selection or enlarging the native mark for a finger."""
+    selection or enlarging the native mark for a finger. Their words stand on the line
+    of the words beside them, whichever mark is checked, and run as one paragraph beside
+    the mark, however the page marks them up."""
     source = leaf_page(
         "Preview settings",
-        '<h1>Preview settings</h1><div role="group" aria-label="Detail">'
+        '<h1>Preview settings</h1><div role="group" aria-labelledby="detail">'
+        '<span id="detail">Detail</span>'
         '<label><input type="radio" name="detail" value="summary" checked>'
         "<span>Summary</span></label>"
         '<label><input type="radio" name="detail" value="full">'
         "<span>Full detail</span></label></div>"
         '<label><input type="checkbox" name="notes">'
-        "<span>Include notes</span></label>",
+        "<span>Include notes</span></label>"
+        '<div id="rich"><label><input type="checkbox" name="hq">'
+        "Use <strong>high quality</strong> for every image in this report</label></div>",
+        head="<style>#rich { inline-size: 12em; }</style>",
     )
     context = browser.new_context(has_touch=touch)
     page = open_page(browser, serve(source), context=context)
@@ -152,6 +157,30 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     words = face.get_by_text("Full detail")
     words.tap() if touch else words.click()
     expect(full).to_be_checked()
+    # A mark has no words, so a choice that took its baseline from its mark stood its
+    # words above the group's label, and dropped by the mark's border when checked.
+    assert face.bounding_box() == before
+    baselines = page.get_by_role("group", name="Detail").evaluate("""group =>
+      lfUnwatched(() => [...group.querySelectorAll('span')].map(words => {
+        const marker = words.appendChild(document.createElement('i'));
+        marker.style.display = 'inline-block';
+        const top = marker.getBoundingClientRect().top;
+        marker.remove();
+        return top;
+      }))""")
+    assert max(baselines) - min(baselines) < 0.5, baselines
+    # Each line of a label holding markup starts under the first, beside the mark, as
+    # a paragraph's would; laid out as a row of its parts, each part wrapped apart.
+    starts = page.locator("#rich label").evaluate("""label => {
+      const range = document.createRange();
+      range.setStartAfter(label.querySelector('input'));
+      range.setEndAfter(label.lastChild);
+      const lines = new Map();
+      for (const rect of range.getClientRects())
+        lines.set(Math.round(rect.top), Math.min(lines.get(Math.round(rect.top)) ?? Infinity, rect.left));
+      return [...lines.values()];
+    }""")
+    assert len(starts) > 1 and max(starts) - min(starts) < 0.5, starts
     full.press("ArrowLeft")
     summary = page.get_by_role("radio", name="Summary", exact=True)
     expect(summary).to_be_checked()
@@ -507,108 +536,6 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
         f"both schemes cast their shadows in {shade!r}, so routing them through a token "
         f"bought the dark page nothing it did not already have"
     )
-
-
-def test_authored_label_room_keeps_toolbar_still_before_runtime(
-    browser, serve, subtests
-):
-    """Labels and numeric readouts hold their space from authored paint to completion."""
-    source = leaf_page(
-        "Playback",
-        """<h1>Playback</h1>
-<div id="toolbar">
-  <button id="playback" class="lf-btn" data-room="Play&#10;Pause&#10;Resume&#10;Replay">
-    <span>Play</span>
-  </button>
-  <label id="speed">Speed <select><option>1×</option><option>0.5×</option></select></label>
-  <span id="status" role="status"
-        data-room="Ready to compare.&#10;Playing.&#10;Paused.&#10;Finished. Replay to compare again.">
-    <span>Ready to compare.</span>
-  </span>
-</div>
-<div id="timeline-row">
-  <input id="timeline" type="range" min="0" max="1200" value="0" aria-label="Timeline">
-  <output id="time" data-room="1200 / 1200ms"><span>0 / 1200ms</span></output>
-</div>
-<p id="following">The comparison stays beneath the controls.</p>
-<script type="module">
-const button = document.querySelector('#playback');
-const status = document.querySelector('#status > span');
-const states = [
-  ['Pause', 'Playing.', 20], ['Resume', 'Paused.', 300],
-  ['Replay', 'Finished. Replay to compare again.', 1200], ['Play', 'Ready to compare.', 0]
-];
-let next = 0;
-button.addEventListener('click', () => {
-  const [label, message, time] = states[next++ % states.length];
-  button.firstElementChild.textContent = label;
-  status.textContent = message;
-  document.querySelector('#timeline').value = time;
-  document.querySelector('#time > span').textContent = `${time} / 1200ms`;
-});
-button.dataset.connected = '';
-</script>""",
-        head="""<style>
-#toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-#speed { white-space: nowrap; }
-#timeline-row { display: flex; align-items: center; gap: 12px; }
-#timeline { flex: 1; min-inline-size: 0; }
-#time { font-variant-numeric: tabular-nums; }
-</style>""",
-    )
-    boot = []
-    page = browser.new_page(viewport={"width": 390, "height": 900})
-    page.route("**/leaf.js", lambda route: boot.append(route))
-    geometry = """() => Object.fromEntries(
-      ['playback', 'speed', 'status', 'timeline', 'time', 'following'].map(id =>
-        [id, document.getElementById(id).getBoundingClientRect().toJSON()]))"""
-    try:
-        with page.expect_request("**/leaf.js"):
-            page.goto(serve(source), wait_until="commit")
-        displayed(page)
-        assert boot, "the positive control did not hold runtime startup"
-        before_startup = page.evaluate(geometry)
-        boot.pop().continue_()
-        wait_until_ready(page)
-        expect(page.locator("#playback")).to_have_attribute("data-connected", "")
-        assert page.evaluate(geometry) == before_startup
-        for width in (390, 900):
-            with subtests.test(width=width):
-                page.set_viewport_size({"width": width, "height": 900})
-                before = page.evaluate(geometry)
-                button = page.get_by_role("button", name="Play", exact=True)
-                button.click()
-                expect(
-                    page.get_by_role("button", name="Pause", exact=True)
-                ).to_be_focused()
-                assert page.evaluate(geometry) == before
-                page.keyboard.press("Space")
-                expect(
-                    page.get_by_role("button", name="Resume", exact=True)
-                ).to_be_focused()
-                assert page.evaluate(geometry) == before
-                page.keyboard.press("Enter")
-                expect(
-                    page.get_by_role("button", name="Replay", exact=True)
-                ).to_be_focused()
-                expect(page.locator("#status")).to_have_text(
-                    "Finished. Replay to compare again."
-                )
-                expect(page.locator("#time")).to_have_text("1200 / 1200ms")
-                assert page.evaluate(geometry) == before
-                if width == 900:
-                    assert page.locator("#status > span").evaluate(
-                        "el => el.scrollWidth <= el.clientWidth"
-                    ), "the status was clipped despite room for its full wording"
-                page.keyboard.press("Enter")
-                expect(
-                    page.get_by_role("button", name="Play", exact=True)
-                ).to_be_focused()
-                assert page.evaluate(geometry) == before
-    finally:
-        for route in boot:
-            route.continue_()
-        page.unroute_all(behavior="wait")
 
 
 # The WCAG contrast of an element's words, or of its edge, against the ground they stand

@@ -1,13 +1,14 @@
 /* Blocks of source text own a copy control at their top right: every document code
-   block, every block a widget declares, such as a code listing, and any widget block
-   that asks with `copyBlock`, such as a draft's Markdown among its own controls.
+   block, and every block a widget declares, such as a code listing or a draft's
+   Markdown.
    Document controls stand in chrome so authored sibling selectors keep their meaning.
    Runtime prose keeps its control beside the source, inside its surface's interaction
    boundary, so pressing Copy neither dismisses the surface nor falls behind it.
    A declared block carries `data-lf-copy`, naming what it holds, and its `lfCopy()`
    returns its text, the source the widget drew line numbers, annotations or other words
    over; its control stands right after it, in the widget's tree, or last in the
-   toolbar the widget draws over the block (`lfBar`). A widget declaring
+   toolbar the widget draws over the block (`lfBar`), as a draft's editing marks
+   and a code listing's notes mark share Copy's corner. A widget declaring
    one imports nothing from Leaf to do it, so a page without Leaf, which reads no
    declaration, shows no control. Sources read their current text on activation. CSS
    anchors keep the control at the block's right edge (block-controls.js). Widgets
@@ -52,6 +53,7 @@ import { upFrom } from "./shadow.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { DATA_BODY } from "./syntax.js";
 
 /** @type {WeakMap<Element, ReturnType<typeof copyControl>>} */
 const controls = new WeakMap();
@@ -142,19 +144,11 @@ function declareCopy(pre, copy, noun) {
   );
 }
 
-/** @param {Element} block @param {() => string} source @param {string} noun */
-export function copyBlock(block, source, noun) {
-  const copy = aimControl(prepareCodeBlock(block, source, noun));
-  declareCopy(block, copy, noun);
-  return copy;
-}
-
 // A declared block's control stands after it, in the widget's tree, until the block
 // leaves or stops declaring. Standing it there is a sibling arriving beside the block,
 // which asks again, so a block whose control already stands is passed by. A block
 // whose widget draws a toolbar of its own marks over it (`lfBar`, a `.lf-mark-bar`
-// the widget places and shows) takes Copy as that toolbar's last mark instead, as
-// lf-code's notes mark and Copy share one corner.
+// the widget places and shows) takes Copy as that toolbar's last mark instead.
 const DECLARED = "[data-lf-copy]";
 /** @param {Element} block @param {Element | undefined} copy */
 const standing = (block, copy) =>
@@ -234,7 +228,7 @@ export function watchCodeBlocks() {
     },
   );
   // A widget's shadow stage is its renderer's notation, not an ordinary document
-  // block. Its module supplies the source explicitly through copyBlock.
+  // block. Its module declares the block that holds its source (`data-lf-copy`).
   prepareDocumentBlocks = (blocks) => {
     // Read every source before anchor names and connected controls change layout.
     const prepared = blocks
@@ -302,7 +296,9 @@ export function watchCodeBlocks() {
       }
     }
   };
-  watchArrivals(`pre:has(> code):not(${DECLARED})`, ["style"], {
+  // A widget's data body is no document block: its module draws it, and declares the
+  // block it draws.
+  watchArrivals(`pre:has(> code):not(${DECLARED}, ${DATA_BODY})`, ["style"], {
     arriveBatch: prepareDocumentBlocks,
     leave(pre) {
       if (deferred.delete(pre)) revealed.unobserve(pre);

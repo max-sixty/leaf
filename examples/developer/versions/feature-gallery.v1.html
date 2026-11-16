@@ -12,8 +12,10 @@
         </div>
       </aside>
       <div class="layout-column">
-        <p class="eyebrow">developer playground</p>
-        <h1>Leaf feature gallery</h1>
+        <hgroup>
+          <p>developer playground</p>
+          <h1>Leaf feature gallery</h1>
+        </hgroup>
         <p class="lede" id="bg-lede">
           Try Leaf’s working features together on one synthetic page. Everything here is
           an experiment; accepting, rejecting, editing, or reacting does not choose a
@@ -289,7 +291,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
               id="bg-source-live"
               source="gallery-source"
               label="feature-gallery-source.toml · lines 1–4"
-              language="toml"
+              class="language-toml"
             ></lf-text-document>
           </section>
 
@@ -369,13 +371,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
                 >walking skeleton</lf-gloss
               >. Hover, focus, or click the marked phrase to open its explanation.
             </p>
-            <lf-code id="bg-code" language="python" hi="2-3">
-              <pre>
+            <lf-code id="bg-code" hi="2-3">
+              <pre><code class="language-python">
 def route(weather):
     if weather == "rain":
         return "covered terrace"
     return "courtyard"
-</pre>
+</code></pre>
               <lf-note id="bg-code-note" at="2">
                 The branch exists only to make the highlighted walkthrough visible.
               </lf-note>

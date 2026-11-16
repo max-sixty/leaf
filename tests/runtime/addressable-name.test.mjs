@@ -1,8 +1,8 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
    A section is named by its heading, a disclosure by its summary, a titled compound
-   member by its leading <strong>, and an element whose registry entry declares
-   `x-name` by that attribute. Anything else has no name, and the caller decides what
+   member by its leading <strong>, and a registered widget that takes a `label` by
+   that attribute. Anything else has no name, and the caller decides what
    stands in for one. The words come through the passage reader, so
    generated chrome inside an element names nothing.
 
@@ -139,7 +139,7 @@ test("past every name, plain markup is its words and a widget is its word", () =
 });
 
 test("a heading titles the outermost element it is the first heading of, short of a label", () => {
-  declare({ "lf-tab": { "x-name": "label" } });
+  declare({ "lf-tab": {} });
   document.body.innerHTML = `<main><h1>Plan</h1>
     <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
       <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>

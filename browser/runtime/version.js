@@ -30,8 +30,8 @@
  * patch; changed executable inputs require a fresh document. Prose, styles, and media
  * can change without reloading. Served identity
  * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
- * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
- * patched inside its members instead, while the revision keeps its shell.
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget whose class declares
+ * `static lfPatch = "members"` is patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
@@ -129,7 +129,7 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring, upgrades } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
@@ -159,7 +159,6 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { tabStore } from "./tab-store.js";
-import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
@@ -584,11 +583,11 @@ const diffBlockSel = () =>
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring(
-      (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+      (e, tag) => upgrades(tag) && !e["x-verbatim"] && e["x-content"] === "data",
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e["x-data"]),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -659,21 +658,6 @@ const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
 /** @param {Element} root @param {string} [opaque] */
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
-// Formatting may render authored words while keeping their source on the formatted
-// island. The keys compare that source; the change's card reads the formatted words
-// (`diffWordsOf`), which are what the user sees.
-/** @param {Element} block @param {string} opaque */
-function diffWords(block, opaque) {
-  const words = (/** @type {Element} */ root) => comparisonWords(root, opaque);
-  if (!block.querySelector("[data-lf-source-words]")) return words(block);
-  const source = block.ownerDocument.importNode(block, true);
-  for (const island of source.querySelectorAll("[data-lf-source-words]")) {
-    const text = new Text();
-    text.textContent = island.getAttribute("data-lf-source-words");
-    island.replaceWith(text);
-  }
-  return words(source);
-}
 // The blocks of a painted source (`paintedSource`), each keyed by its authored text
 // (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
 /** @param {Element} root @returns {[Element, string][]} */
@@ -695,7 +679,7 @@ function diffBlocks(root) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
-    let key = diffWords(b, opaque);
+    let key = comparisonWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
@@ -792,8 +776,8 @@ function paintBodies(doc, widgets) {
 }
 // A child an action in force created (`creates`) stood on the page that version
 // showed, so its painted source holds it too, as passages.py adds it to the file's
-// reading: at its owner's end, marked `data-lf-added`, its words formatted as its entry
-// says. Without it, an option the user added before the base reads as changed since.
+// reading: at its owner's end, marked `data-lf-added`, its words the user's inline
+// Markdown. Without it, an option the user added before the base reads as changed since.
 /** @param {Document} doc @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function placeCreated(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
@@ -803,7 +787,6 @@ function placeCreated(doc, widgets) {
       const owner = doc.getElementById(id);
       if (!owner) continue;
       const { child, words } = creates;
-      const markdown = registry[child]?.["x-text-format"] === "inline-markdown";
       for (const [unit, { detail }] of Object.entries(value.units)) {
         if (doc.getElementById(unit)) continue;
         const created = doc.createElement(child);
@@ -812,9 +795,7 @@ function placeCreated(doc, widgets) {
         const text = detail[words];
         if (typeof text !== "string")
           throw new Error("A created child requires its declared words");
-        created.append(
-          markdown ? doc.importNode(inlineMarkdownFragment(text), true) : text,
-        );
+        created.append(doc.importNode(inlineMarkdownFragment(text), true));
         owner.append(created);
       }
     }
@@ -824,7 +805,10 @@ function placeCreated(doc, widgets) {
 // actions created placed. `sourceOf` maps each copied element to the source element it
 // copies, read before formatting replaces a Markdown body's <pre>; what the painting
 // made has none. Formatting is synchronous: the renderer is loaded wherever a source
-// declares Markdown, for the live page at its upgrade and for a base before this.
+// declares Markdown, for the live page at its upgrade and for a base before this. A
+// created child's words read as their source until the renderer loads, which the page
+// asks for once it has presented (text-field.js); both sources a comparison reads are
+// painted in one task, so they agree either way.
 /** @param {Element} source @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function paintedSource(source, widgets) {
   const doc = document.implementation.createHTMLDocument("");
@@ -1830,8 +1814,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (/** @type {Element} */ element) =>
-    Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (/** @type {Element} */ element) => upgrades(element.localName);
 
   // Every element under a root in document order, including inert template contents.
   /** @param {Element} root @returns {Generator<Element>} */
@@ -1887,12 +1870,17 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // An x-patch container retains authored markup while the inputs its renderer
+  // A widget's module says how a revision reaches it, as its class's static `lfPatch`
+  // (module-authoring.md, "Revisions"). The module of every widget standing in the
+  // page has run by the time a patch asks: startup awaits each import before the state
+  // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
+  // A `members` container retains authored markup while the inputs its renderer
   // consumes stay the same. A structured member list, or a declared x-views list,
   // consumes its direct members' identities and attributes. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
-  // including native attributes. A generated authored body likewise separates that
-  // evidence from the renderer's inputs.
+  // including native attributes. A widget that draws its content itself
+  // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
+  // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
@@ -1905,10 +1893,14 @@ export function createVersionController({
     /** @type {string | null} */ arrivingRoot,
   ) => {
     const entry = registry[before.localName];
-    if (entry?.["x-patch"] !== "members") return false;
-    const members =
-      !authoredBody(sourcePairs.require(before)) &&
-      (entry["x-content"] === "members" || entry["x-views"] !== undefined);
+    const content = entry?.["x-content"];
+    if (
+      !entry ||
+      customElements.get(before.localName)?.lfPatch !== "members" ||
+      (content !== "members" && content !== "markup")
+    )
+      return false;
+    const members = content === "members" || entry["x-views"] !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1930,7 +1922,6 @@ export function createVersionController({
       contains: (node, owner) =>
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
-      body: authoredBody,
       // `main` holds nearly all of a page's content, so a page module that moves or
       // replaces one of its children is patched around, as it was when `main` was the
       // patch root, rather than rebuilding the page beneath the user.

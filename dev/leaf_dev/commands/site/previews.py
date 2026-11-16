@@ -150,7 +150,7 @@ def refresh_previews() -> None:
         site_build.build(
             site_build.OUT,
             site_build.prepared_leaf(site_build.OUT),
-            assets=checkout.path,
+            assets=checkout,
         )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

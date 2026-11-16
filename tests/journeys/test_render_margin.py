@@ -328,10 +328,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1200, 900)
-    # Wrapping, the comment still fits in four lines at the box's least width, past
-    # which Send widens its card (comment-placement.js, `outgrowsNarrow`).
+    # The editor measures terminal spaces; sent Markdown does not paint them.
     text = (
-        "Check the January failure mode before accepting this design."
+        ("Check the January failure mode before accepting this design. " * 3).rstrip()
         if wrapping
         else "Check the January failure mode."
     )
@@ -347,7 +346,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     )
     assert narrow["minimum"] <= narrow["cardWidth"] <= narrow["preferred"], narrow
     assert narrow["replyWidth"] >= 160, narrow
-    # The sent thread keeps the comment frame's inline start.
+    # The sent thread retains the comment frame's width and inline start.
     # Its control cluster remains clear when the card takes the lower route.
     assert narrow["cardLeft"] == pytest.approx(editor_start, abs=0.5), narrow
     assert narrow["cardLeft"] < narrow["mainRight"], narrow

@@ -429,24 +429,25 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
-// A card by its text stands at the least width while each sent message in it fits in
-// `NARROW_LINES` lines there, and at the measure from the first that runs past them
-// (`size-width`): a short comment stays slim, as it does through the agent's progress
-// steps, which a card shows one at a time apart from its messages, and a paragraph long
-// enough to read gets the measure's line length.
-const NARROW_LINES = 4;
-/** Whether any of `texts`, laid out at the width it stands at, is as tall as one line
- * more than `NARROW_LINES`, which a paragraph's own spacing doesn't reach.
+// A card by its text stands at the least width while each message it shows is no
+// taller than it is wide there, and at the measure from the first that stands taller
+// (`size-width`). A block of words wider than it is tall reads at a glance in the slim
+// card; a taller one reads as a column, which the measure's lines halve. The shape,
+// unlike a count of lines or characters, follows the card's width and face. Rejected
+// on 15 November 2026: past four lines, which widened a third of the user's comments
+// at Send and nearly every answer.
+/** Whether any of `texts`, laid out at the width it stands at, stands taller than wide.
  * @param {Iterable<Element>} texts */
-export const outgrowsNarrow = (texts) => {
+export const standsTall = (texts) => {
   for (const text of texts) {
     const style = getComputedStyle(text);
-    const line = parseFloat(style.lineHeight) || 1.2 * parseFloat(style.fontSize);
-    const words =
+    const height =
       text.scrollHeight -
       parseFloat(style.paddingTop) -
       parseFloat(style.paddingBottom);
-    if (words > (NARROW_LINES + 1) * line - 0.5) return true;
+    const width =
+      text.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    if (height > width) return true;
   }
   return false;
 };

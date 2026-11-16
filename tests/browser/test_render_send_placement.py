@@ -532,13 +532,17 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     assert card["right"] <= boundary["right"] + 1
 
 
-def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
+# An answer that stands taller than it is wide in a card at its least width.
+LONG_ANSWER = "The plan pins the runner to one image so every step builds alike. " * 9
+
+
+def test_a_box_and_its_card_stay_slim_until_a_message_stands_taller_than_wide(
     browser, serve
 ):
     """Beside its text, the comment box and its card stand at the card's least width
-    while each message fits in four lines there, so Send opens the card in the box's
-    rectangle, and a short answer and progress steps keep it, however long an earlier
-    step that folds away. A long answer widens the card from its
+    while no message stands taller than it is wide there, so Send opens the card in the
+    box's rectangle, and a short answer and progress steps keep it, however long an
+    earlier step that folds away. A long answer widens the card from its
     start as it arrives, carrying the card's controls, which the shift watch credits to
     the card's declaration (`permittedWidening`). Reopening stands the card between the
     same sides."""
@@ -574,7 +578,7 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
     thread_model.post_reply(
         serve.page_dir,
         address,
-        "Reading every workflow that checks out the runner, and each job it runs. " * 3,
+        "Reading every workflow that checks out the runner, and each job it runs. " * 9,
         ephemeral=True,
     )
     thread_model.post_reply(
@@ -592,7 +596,7 @@ def test_a_box_and_its_card_stay_slim_until_a_message_runs_past_four_lines(
     append_agent_reply(
         serve.page_dir,
         root,
-        "The plan pins the runner to one image so every step builds alike. " * 3,
+        LONG_ANSWER,
     )
     told(page)
     expect(card.locator(".lf-msg")).to_have_count(3)
@@ -618,22 +622,22 @@ def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser,
     width, so nothing widens while they type, and their Send widens it. The window
     leaves the card room to rise for the answer below the window's top."""
     context = browser.new_context(
-        viewport={"width": 1024, "height": 600}, reduced_motion="reduce"
+        viewport={"width": 1024, "height": 1000}, reduced_motion="reduce"
     )
     # The card over a passage stands over its paragraph. Paragraphs above it let the
-    # page scroll it two thirds down the window, so the card rises within its room.
+    # page scroll it most of the way down the window, so the card rises within its room.
     filler = "<p>A paragraph above the passage, so the page can scroll it down.</p>"
     page = open_page(
         browser,
-        serve(PAGE.replace('<p id="long">', filler * 8 + '<p id="long">', 1)),
+        serve(PAGE.replace('<p id="long">', filler * 20 + '<p id="long">', 1)),
         context=context,
     )
     page.locator(FIRST_LINE.block).evaluate(
-        "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.65)"
+        "el => scrollTo(0, el.getBoundingClientRect().top + scrollY - innerHeight * 0.85)"
     )
     rendered(page)
     assert page.locator(FIRST_LINE.block).evaluate(
-        "el => el.getBoundingClientRect().top > innerHeight * 0.6"
+        "el => el.getBoundingClientRect().top > innerHeight * 0.8"
     )
     FIRST_LINE.open(page, False)
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
@@ -658,7 +662,7 @@ def test_a_long_answer_waits_to_widen_a_card_while_its_reply_is_written(browser,
     append_agent_reply(
         serve.page_dir,
         root,
-        "The plan pins the runner to one image so every step builds alike. " * 3,
+        LONG_ANSWER,
     )
     told(page)
     expect(card.locator(".lf-msg")).to_have_count(2)
@@ -680,8 +684,8 @@ def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
     browser, serve
 ):
     """The comment box keeps the card's least width however many lines are typed in
-    it. Send opens the card at the measure from the box's start where the words run
-    past four lines there."""
+    it. Send opens the card at the measure from the box's start where the words stand
+    taller than they are wide there."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
     )
@@ -691,7 +695,7 @@ def test_typing_keeps_the_box_slim_and_send_widens_a_long_comment_s_card(
         "data-lf-placement", re.compile(".+")
     )
     minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
-    page.keyboard.insert_text("\n".join(f"Line {n}" for n in range(1, 7)))
+    page.keyboard.insert_text("\n".join(f"Line {n}" for n in range(1, 19)))
     rendered(page)
     frame = page.evaluate(RECT, ".lf-fab-bar")
     assert frame["right"] - frame["left"] == pytest.approx(minimum, abs=0.5), frame
@@ -1753,9 +1757,7 @@ def test_send_grows_thread_around_the_words(
     on.open(page, touch)
     text = (
         "Keep the runner checkout fixed while the disposable workspace is safely removed. "
-        # One sentence takes a few lines in a box at the least width, short of the
-        # four past which Send widens the card.
-        * (80 if long in (True, "scrolled") else 1)
+        * (80 if long in (True, "scrolled") else 2)
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."

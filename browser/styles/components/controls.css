@@ -1956,6 +1956,44 @@ textarea.lf-field {
   padding: 5px 8px;
   color: var(--lf-muted);
 }
+/* PROTOTYPE (resolved-threads-view): the candidates for a folded group's face
+   (floating-panel.js, `foldDesign`). `row` and `line` draw a folded group as a quiet
+   row, off the band's ground, its count beside its name; `line` stands a lone fold at
+   the end of the list's empty line. */
+.lf-rows-group > .lf-rows-head[data-lf-quiet] {
+  position: static;
+  background: none;
+}
+.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-main {
+  flex: 0 1 auto;
+}
+.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-end {
+  margin-inline-start: 6px;
+}
+.lf-rows-empty.lf-fp-empty-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 0;
+  padding-inline-end: 0;
+}
+.lf-fp-empty-fold > .lf-row.lf-fp-settled {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  width: auto;
+  min-height: max(30px, var(--lf-aim-floor));
+  padding: 0 8px;
+  color: var(--lf-muted);
+  font: var(--lf-font-heading);
+  white-space: nowrap;
+}
+.lf-fp-empty-fold > .lf-row.lf-fp-settled .lf-row-end {
+  margin-inline-start: 6px;
+  color: inherit;
+  font-weight: 400;
+}
 /* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
    Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
    (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),

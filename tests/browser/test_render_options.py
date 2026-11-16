@@ -77,9 +77,15 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def assert_selected_mark(mark):
     """The selected box paints ink around a check cut out of its centre."""
+    # A canvas resolves the computed colour, which may be `oklab(…)`, to sRGB.
     ink = mark.evaluate(
-        """el => getComputedStyle(el, '::before').backgroundColor
-            .match(/\\d+/g).slice(0, 3).map(Number)"""
+        """el => {
+          const context = document.createElement('canvas')
+            .getContext('2d', {willReadFrequently: true});
+          context.fillStyle = getComputedStyle(el, '::before').backgroundColor;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
     )
     shot = Image.open(BytesIO(mark.screenshot())).convert("RGB")
     x, y = shot.width // 2, shot.height // 2

@@ -251,7 +251,7 @@
   // the words this document last wrote of each draft, the attempts it wrote them as,
   // the words of each write still out, by the write's place among the draft's writes,
   // and what the server said it holds of each in an answer asked for after this
-  // document's last write of it, null for none.
+  // document's last write of it, null for none, with the store's version then.
   /** @type {Map<string, string | null>} */
   const draftsWritten = new Map();
   const attemptsWritten = new Set();
@@ -261,6 +261,8 @@
   const draftsOut = new Map();
   /** @type {Map<string, {attempt: string, text: string} | null>} */
   const draftsHeld = new Map();
+  /** @type {Map<string, number>} */
+  const heldAt = new Map();
   const { fetch: send } = window;
   const draftPath = (input) => {
     try {
@@ -306,8 +308,22 @@
     const settle = () => {
       if (context !== null) draftsOut.get(context)?.delete(place);
     };
-    /** @param {string} key */
-    const current = (key) => (writesOf.get(key) ?? 0) === (asked.get(key) ?? 0);
+    // A reading may be served before a write out at the time, or answered after a
+    // later one, so it speaks of a draft only with nothing newer heard, and, with a
+    // write of it out, only of another document's words, which the page takes over
+    // that write as the server would (runtime/drafts.js).
+    /** @param {string} key @param {number} version @param {{attempt: string} | null} [held] */
+    const current = (key, version, held = null) =>
+      (writesOf.get(key) ?? 0) === (asked.get(key) ?? 0) &&
+      version >= (heldAt.get(key) ?? 0) &&
+      (kind === "write" ||
+        !draftsOut.get(key)?.size ||
+        Boolean(held && !attemptsWritten.has(held.attempt)));
+    /** @param {string} key @param {{attempt: string, text: string} | null} held @param {number} version */
+    const hear = (key, held, version) => {
+      draftsHeld.set(key, held);
+      heldAt.set(key, version);
+    };
     return send.apply(this, arguments).then(
       async (response) => {
         settle();
@@ -319,9 +335,10 @@
                 ...draftsHeld.keys(),
                 ...Object.keys(answer.drafts),
               ]))
-                if (current(key)) draftsHeld.set(key, answer.drafts[key] ?? null);
-            } else if (context !== null && current(context))
-              draftsHeld.set(context, answer.record);
+                if (current(key, answer.version, answer.drafts[key]))
+                  hear(key, answer.drafts[key] ?? null, answer.version);
+            } else if (context !== null && current(context, answer.version))
+              hear(context, answer.record, answer.version);
           } catch {
             // An answer the watch can't read credits nothing.
           }

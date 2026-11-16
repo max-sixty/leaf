@@ -309,11 +309,12 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_be_hidden()
 
 
-def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
-    """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
+def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
+    """Keyboard and pointer Comment gestures take the same explicit target: the chosen
+    target's own draft opens, and the words typed about the heading stay with it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     field = page.locator(".lf-fab-input")
-    draft = "Carry these deliberate words."
+    draft = "Words about the heading."
 
     page.locator("h1").click(modifiers=["Alt"])
     expect(field).to_be_focused()
@@ -335,8 +336,11 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     page.keyboard.type(prose_code)
 
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", draft)
+    expect(field).to_have_js_property("value", "")
     assert page.evaluate(DRAFT_MARK) == "prose"
+    page.keyboard.press("Escape")
+    page.locator("h1").click(modifiers=["Alt"])
+    expect(field).to_have_js_property("value", draft)
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):

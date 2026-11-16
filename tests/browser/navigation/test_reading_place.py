@@ -1999,8 +1999,9 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
+    # Nothing is on the user, so the mark opens Threads, where the put-away draft waits.
     page.locator(".lf-fp-on-user").tap()
-    panel_settled(page, view="queue")
+    panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(

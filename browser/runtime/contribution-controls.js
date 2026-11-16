@@ -606,7 +606,14 @@ export function materializeContributionControls(offer, surface, activate) {
       control = createContributionControl(entry);
       directory.set(entry.key, control);
       changed = true;
-    } else changed = contributionEntryRecord(control) !== entry;
+    } else
+      // A control every surface let go of gave up its command and its availability
+      // (`releaseContributionControl`), so a surface taking it up again draws it again
+      // though its record is the one it last drew, as a page's own view does when it
+      // shows an entry it had stopped showing.
+      changed =
+        contributionEntryRecord(control) !== entry ||
+        !controlContributions.has(control);
     const native = control;
     native.onclick = (event) =>
       activate({ offered: source, entry, control: native, surface, event });

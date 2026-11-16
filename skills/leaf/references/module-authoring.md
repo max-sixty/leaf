@@ -14,8 +14,8 @@ files beside this one:
   presses, previews, and text entry;
 - [module-scroll-and-motion.md](module-scroll-and-motion.md): reading regions,
   scrolling, travel, motion, and notices;
-- [module-annotations.md](module-annotations.md): margin contributions, visual
-  parts, and Threads.
+- [module-annotations.md](module-annotations.md): margin contributions, where the
+  margin's rail stands, visual parts, and Threads.
 
 [page-behavior.md](page-behavior.md) covers where a script goes, its imports, and how
 long it lives across revisions. A widget's declarations are in

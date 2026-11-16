@@ -201,7 +201,8 @@ summary from before a compaction, doesn't carry its rules.
   HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
-  `references/module-annotations.md` for margin entries, visual parts and Threads.
+  `references/module-annotations.md` for margin entries, where the rail stands, visual
+  parts and Threads.
 - `references/interface-goals.md`: before writing a widget, package CSS, or page CSS
   that adds controls or changes what moves when the page changes.
 - `references/packages.md`: for package design, registry declarations, or a design

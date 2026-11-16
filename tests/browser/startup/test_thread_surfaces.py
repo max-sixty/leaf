@@ -793,6 +793,8 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
             "anchor": {"section": "note-3", "quote": "the nightly window"},
         },
     ]
+    # A window with no room for the marks beside the column, from its first layout.
+    context = browser.new_context(viewport={"width": 920, "height": 780})
     page = open_page(
         browser,
         serve(
@@ -825,10 +827,9 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
             },
             events=events,
         ),
+        context=context,
     )
     margin = page.locator("lf-x-margin")
-    # A window with no room for the marks beside the column.
-    page.set_viewport_size({"width": 920, "height": 780})
     expect(margin).to_have_attribute("data-pinned", "")
     passage = margin.get_by_role("button", name="Thread: About the passage, 1 unread")
     window = margin.get_by_role("button", name="Thread: About the window")
@@ -877,6 +878,16 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
     expect(card).to_contain_text("About the passage")
     reply = card.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_focused()
+    # With no room beside the column the card stands under its words, at the width
+    # that says a message's line whole.
+    assert margin.locator(".xm-card").evaluate(
+        """(card) => {
+          const words = [...CSS.highlights.get('lf-x-margin-passage')][0];
+          const box = card.getBoundingClientRect();
+          return [box.top >= words.getClientRects()[0].bottom, box.right <= innerWidth,
+            Math.round(box.width / parseFloat(getComputedStyle(document.documentElement).fontSize))];
+        }"""
+    ) == [True, True, 26]
     page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("Escape")

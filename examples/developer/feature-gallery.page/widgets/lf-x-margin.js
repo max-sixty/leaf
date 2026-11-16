@@ -157,7 +157,9 @@ customElements.define(
     #open = null; // the key of the thread whose card is open
     #hidden = false; // whether the user has hidden the annotation layer
     #pinned = false; // whether the marks stand as pins over the page
-    #room = null; // the width a card has right of the marks, or null under its words
+    // The width a card has right of the marks, null where it stands under its words,
+    // and undefined until the first layout has read which.
+    #room = undefined;
     #tinted = new Set(); // the elements holding tinted words
     #schedule = frameFor(this, () => this.#layout());
     // A key pressed in a thread goes to the scopes on its outlet, then to the page

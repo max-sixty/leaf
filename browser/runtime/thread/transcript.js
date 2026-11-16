@@ -33,11 +33,10 @@
      `aria-owns`, and draws the frame around the open fold from its own head to its
      last message's foot by anchors (`--lf-fold-head`, `--lf-fold-foot`, surfaces.css),
      since no box contains them. Rejected: moving the covered messages into a container
-     inside the checkpoint, which unloaded a frame among them in an engine without
-     `moveBefore` (WebKit reloaded it once as the summary arrived and twice as it was
-     retracted) and lost a selection inside them in every engine; and, before that,
+     inside the checkpoint, which unloads a frame among them in an engine without
+     `moveBefore` and loses a selection inside them in every engine; and
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
-     rebuilt a gathered message's row.
+     rebuilds a gathered message's row.
    - An explicit summary that arrives over a message the user is on or reads stays
      open. Completed progress disappears even if the reader had opened it.
    - A message that leaves the thread while drawn, as a reply the log refuses does,

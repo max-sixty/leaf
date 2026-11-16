@@ -82,8 +82,8 @@
    words, which widens under their typing, as they asked nothing should. The card's one
    widening moves its controls without a press, which they accept, calling
    those controls secondary. They chose where a message outgrows
-   the least width, a block taller than it is wide, over four lines, which widen many
-   of their comments at Send and nearly every answer.
+   the least width, a block taller than it is wide, over four lines, a count that
+   widens far more comments at Send and answers.
    Another selection chooses afresh. Floating UI supplies room from the held edge; native
    grid tracks share it between transcript and reply, growing to their words before
    scrolling. Reply continuity retains removed turns as flexible space and lets the
@@ -1118,8 +1118,8 @@ export function createThreadPreview({
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
       // actions line, which on a card in a narrow room (`--lf-thread-card-min`) already
-      // leaves the message heads little room; " of " made it 12px wider, which on a
-      // 311px card pushed the actions past the card's start.
+      // leaves the message heads little room; " of " would widen it enough to push the
+      // actions past the start of a narrow card.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

@@ -55,7 +55,7 @@ export function nameAction(control, action, { label, className } = {}) {
 // restated on every write rather than settled at birth.
 //
 // This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
-// `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
+// `.lf-ui` box around it — that box is a look, the chrome face, and would be standing
 // in for a permission the user has no category for — and paper reads it beside
 // data-lf-offer to keep a control whose label is one of the page's own words.
 // data-lf-gen goes on either way, because no label is words the author wrote, which

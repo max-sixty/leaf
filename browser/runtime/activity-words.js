@@ -184,8 +184,8 @@ function statusWords({
   // the agent keeps the sentence current, reminded by its hooks when it goes unrenewed
   // (`hook_transport.status_reminders`), and a sentence the server stops believing
   // becomes a stall, which dates itself. The disclosure says how long ago it was
-  // written. Rejected: a row dated by the sentence's age, which reads
-  // "3m ago" for most of every turn, while the session is visibly moving.
+  // written. Rejected: a row dated by the sentence's age, which can read
+  // "3m ago" for most of a turn while the session is visibly moving.
   //
   // Until the agent writes that sentence the row says nothing, and the leaf's tone says
   // it works: the words beside the leaf are the agent's to choose (the user's choice).

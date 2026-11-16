@@ -292,8 +292,8 @@ export function createTargetPicker({
   // A direct slash opens the shared mode in page search, without a target map: search
   // covers the whole document, and reading a viewport-local map it would then hide is
   // work for nobody. It opens straight into search, so the panel is handed the one mode
-  // it shows: handed the hints and then search in one task, it drew the press the
-  // hints' field offers and took it away again.
+  // it shows: handed the hints and then search in one task, it would draw the press the
+  // hints' field offers and take it away again.
   // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */

@@ -101,8 +101,7 @@ import {
 // so Tab skips what it renders.
 //
 // It collects into one array, as its caller wants: walked through a generator for each
-// element, Tab stops over a listing of 96,000 rows took Firefox 54 to 60 ms, and 36 to
-// 39 ms with the array.
+// element, Tab stops over a long listing take Firefox longer than with the array.
 /** @param {Element | Document | ShadowRoot} node @param {Element[]} [into] */
 function renderedElements(node, into = []) {
   eachRenderedElement(node, (child) => {

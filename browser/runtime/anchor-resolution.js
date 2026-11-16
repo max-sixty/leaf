@@ -508,8 +508,8 @@ const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 // (`contextAround`), with its own between. Every part's words are left out of its
 // block's, so a neighbour's label never names this one, and a picture says none of its
 // own, since its name describes it: a text document's view is a picture of the whole
-// document, which read all of it twice for every move of the pointer over it in Design
-// mode, 0.3 to 1.7 s on a document of 50,000 lines. Other controls say their own words
+// document, whose words would be read whole twice for every move of the pointer over it
+// in Design mode. Other controls say their own words
 // as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
 // them, as a tab whose words start with its name and go on to a count. A block is read
 // once per inventory, noting where each part stands in it; chosen capture stays lazy.

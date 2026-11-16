@@ -86,7 +86,7 @@ import { isNativeLayer } from "../shadow-tree.js";
 // The ⋯ stands beside Dictate only while the field is empty, and the draft's first
 // word takes its place, so the field spans the bar in every state and nothing moves
 // as the user starts typing (response.css). Max chose this over a
-// bordered button beside the field, which keeps 40px of a 294px bar from the words
+// bordered button beside the field, which keeps part of the bar from the words
 // and ends a sent card's message short of its Reply field, over hiding that button
 // at the first key, which widens the field under the caret, and over no button at
 // all, which leaves a mouse or finger no way to Suggest or a reaction. Rejected too: a
@@ -347,8 +347,8 @@ export function createSelectionComposer({
   // What the box holds that a user would miss, asked once. The complete draft, because a
   // attached image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
-  // hiding box says about what became of the words, and the word Escape's row shows. They
-  // had a spelling each, and the one over the field alone read a box holding a picture
+  // hiding box says about what became of the words, and the word Escape's row shows. With
+  // a spelling each, the one over the field alone would read a box holding a picture
   // and nothing else as empty.
   /** @param {string | null | undefined} draft */
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);

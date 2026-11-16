@@ -60,9 +60,8 @@
    in view. So while the user is in a `leaf-text` inside a box standing in a plane,
    the root says so (`data-lf-floating-editor`, base.css), and is read again
    as the user moves and as a box takes or leaves its plane (`readFloatingEditor`). The
-   root is the scroller the padding belongs to; a `:has()` on it matched its argument
-   against the whole document at each write, 4 ms a write in the chrome on the
-   512-section asks page of `leaf-dev bench`. */
+   root is the scroller the padding belongs to; a `:has()` on it matches its argument
+   against the whole document at each write. */
 
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";

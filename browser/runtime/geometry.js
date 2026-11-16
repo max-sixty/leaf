@@ -639,8 +639,8 @@ export function shownBox(el) {
 //
 // A box with no area may hold content the browser skips, as a closed tab's panel does.
 // A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
-// read its boxes, which lays it out to answer: Firefox takes hundreds of milliseconds to
-// lay out a closed tab's panel holding a large text document.
+// read its boxes, which lays it out to answer: Firefox can take hundreds of milliseconds
+// to lay out a closed tab's panel holding a text document of several megabytes.
 // A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
 // `skipped`).
 /** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */

@@ -393,8 +393,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     // drew, which are its render root's: the element itself, its shadow tree, or the
     // part it draws into, as a tab set's strip, whose paint reaches the element around
     // it too. A draw leaves what the page wrote beside that part as it was, such as a
-    // tab set's panels, so their keys aren't read again: reading
-    // every panel's document can hold each tab switch for over a second.
+    // tab set's panels, so their keys aren't read again: reading every panel's
+    // document would hold up each tab switch on a page of large panels.
     untracked(() => integration?.paintKeysWithin(this.renderRoot));
   }
 

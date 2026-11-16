@@ -122,9 +122,8 @@ export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 // The widgets at or under `root` whose declaration `holds` answers for, in document
 // order. The browser matches their tags, so a root holding a long document of plain
 // rows, as a tab set's panel can, costs a native match of each row rather than a
-// script's look at it. The match costs more for each tag it names: over 30 panels,
-// every declared tag took 0.4 s where the few declaring `x-awaits`
-// took 0.05 s, so a question about some widgets names only theirs.
+// script's look at it. The match costs more for each tag it names, so a question about
+// some widgets names only theirs.
 /** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} [holds] */
 export const declaredElements = (root, holds = () => true) => {
   const tags = tagsDeclaring(holds);

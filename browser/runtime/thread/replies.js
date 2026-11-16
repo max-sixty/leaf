@@ -357,8 +357,8 @@ export function replyControlDestination(node) {
 
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
-// spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached. A send returns the
+// spent and refuses on its own — in this tab and in any other showing the page, which a
+// hold kept in this document's memory would not reach. A send returns the
 // message it drew; nothing when nothing was sent.
 /** @param {string} draftCtx @param {string} key @param {string} text
  * @param {Parameters<typeof sendMessage>[1]} owns @param {ReplyCommands["actions"]} actions */

@@ -111,8 +111,7 @@ export const renderedParent = (node) =>
 // sibling to sibling, as a walk does (browser/AGENTS.md, "One answer for each
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
 // node's life once it is asked for. A walk of elements steps over the text between them
-// unasked: handed every node, Tab stops over a 5,000-row table took Chromium a third
-// longer.
+// unasked: handed every node, Tab stops over a long table take Chromium longer.
 /** @typedef {(host: Element) => ShadowRoot | null} RootOf */
 /** @param {Element} host */
 const openRoot = (host) => host.shadowRoot;
@@ -276,9 +275,9 @@ export const UI_MARKS = `.lf-ui, ${SAID}`;
 // The same question one node at a time: is this the runtime's own chrome rather than the
 // document? Every affordance asks it before acting on where the pointer or the caret is.
 // The nearest element that answers wins: a declared label is the page's words inside the
-// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
-// the answer once, and it is a look — which is how a user ended up reading a heading
-// they could not point at, twice.
+// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone is
+// no answer, since it is a look: taken as one, it leaves a user reading a heading they
+// cannot point at.
 //
 // Bounded or not, by the second argument, and that is the whole difference between the
 // two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
@@ -363,15 +362,15 @@ export function excludedByInert(node) {
 // off-screen `content-visibility: auto` box holds, which a long text document's runs
 // are, and a closed disclosure's content. The browser leaves skipped content unstyled and unlaid, and one
 // question about any box inside — its computed style, its rect, its scroll offsets —
-// makes it style and lay out that whole subtree first to answer. On the corpus, whose
-// examples each stand in a hidden tab, those forced passes were most of a revision's
-// style time. So a reading that has nothing to say about a box on no screen — where it
-// stands, whether it scrolls, what room it takes — asks this first and leaves the box
-// out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. An `auto` box draws what it holds at
-// the size it already had, so a reading that follows it hears the box say so
-// (`contentvisibilityautostatechange`). A reading that marks what the user will see
-// once it is drawn (an anchor's outline) still asks, and pays.
+// makes it style and lay out that whole subtree first to answer. On a page whose parts
+// stand in hidden tabs, as the corpus's do, those forced passes can be most of a
+// revision's style time. So a reading that has nothing to say about a box on no screen
+// — where it stands, whether it scrolls, what room it takes — asks this first and
+// leaves the box out until a pass after it is drawn: revealing a panel or opening a
+// disclosure resizes what holds it, which brings those passes round. An `auto` box
+// draws what it holds at the size it already had, so a reading that follows it hears
+// the box say so (`contentvisibilityautostatechange`). A reading that marks what the
+// user will see once it is drawn (an anchor's outline) still asks, and pays.
 //
 // Answered without forcing anything: `checkVisibility({contentVisibilityAuto: true})`
 // reads the tree the browser has, and is false for a box that is not drawn for any
@@ -411,15 +410,14 @@ export const skipped = (element) => Boolean(skipper(element));
 // it holds, so once `skipper` names it for one child the rest go unasked. An `auto` box
 // on screen draws the children beside one that draws no box, and a closed disclosure
 // draws its summary wherever it stands, so under either each child is asked whether it
-// is drawn, though nothing it holds is asked. On a page of thirty 4 MB documents in
-// tabs, the walk asks about the open document's 68,000 lines of two million elements,
-// in about 10 ms. A slotted child stands in its slot rather than beside its siblings,
-// so each asks for itself, and a host draws no child that no slot takes.
+// is drawn, though nothing it holds is asked. A slotted child stands in its slot rather
+// than beside its siblings, so each asks for itself, and a host draws no child that no
+// slot takes.
 //
 // One case goes unwalked: a `display: contents` child of an `auto` box on screen.
 // `skipper` names the box for any child of it that draws no box, on screen or not, and
 // telling such a child from a skipped line would mean asking each undrawn child its
-// `display`, which makes the browser style it: 21 s in Chromium on the page above.
+// `display`, which makes the browser style it.
 /** @param {Element} root @returns {Element[]} */
 export function drawnElements(root) {
   /** @type {Element[]} */

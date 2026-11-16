@@ -248,10 +248,11 @@ export function createObligationView({
   // The unanswered obligations rather than the user's list, because being in an obligation is
   // about where the user is working and not about what they owe. The two part on a widget
   // whose own seat holds a thread waiting on the agent: it leaves the list while its pick
-  // stays unmade and its controls stay live, and reading the list took the ring off that
-  // widget and moved `c` from the seat the user was writing in down to whichever option
-  // their focus rested on — a second thread on the child rather than the next line of their
-  // own. The agent's reply put both back. Nothing the user did moved either. An
+  // stays unmade and its controls stay live, and reading the list would take the ring off
+  // that widget and move `c` from the seat the user is writing in down to whichever option
+  // their focus rests on — a second thread on the child rather than the next line of their
+  // own — and the agent's reply would put both back, though nothing the user did moved
+  // either. An
   // answered obligation leaves both worklists but stays in the active inventory: the
   // On Me's Done rows can return the user to it, and being there restores
   // the same numeric action route so they can revise the recorded answer.
@@ -413,10 +414,10 @@ export function createObligationView({
   // handed back. Which control inside it they held is not something this can answer: the
   // controls are the widget's, most carry no id of their own, and the first
   // answering control is the walk's landing rule rather than a restore. Handing that back
-  // is the failure version.js's header names — a user holding the second option was
-  // given the first, and their next press chose it. The obligation's own opening is the one
-  // place that cannot misfire, because it holds a lent tab stop rather than a decision:
-  // the widget's context routes are live there and Space decides nothing.
+  // is the failure version.js's header names — a user holding the second option would be
+  // given the first, and their next press would choose it. The obligation's own opening
+  // is the one place that cannot misfire, because it holds a lent tab stop rather than
+  // a decision: the widget's context routes are live there and Space decides nothing.
   //
   // Chrome is excluded because it has nothing to restore: an On Me row and a
   // margin entry for the same obligation are keyed by that id already, so a patch hands each of
@@ -447,11 +448,11 @@ export function createObligationView({
   // The kind that most needs a region is the kind that cannot declare one. A suggestion is
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no enclosing widget can be written round it. Landing on the change alone put
-  // its own top edge under the window's head and took that sentence with it: the user arrived
-  // at ✓ Accept with nothing on screen saying what they were accepting. So where the
-  // author has not declared a region, the document supplies one in the shape a declared
-  // region has.
+  // the question", and no enclosing widget can be written round it. Landing on the
+  // change alone would put its own top edge under the window's head and take that
+  // sentence with it: the user would arrive at ✓ Accept with nothing on screen saying
+  // what they are accepting. So where the author has not declared a region, the
+  // document supplies one in the shape a declared region has.
   //
   // Candidates widest first — the heading titling this part of the document, then the
   // block the change stands in, or, for a change that is its own block, the block before

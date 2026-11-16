@@ -26,9 +26,9 @@
    about over its messages, since nothing beside it shows them; a margin card stands the
    notice and the settlement on its row of presses, which stands in the thread over its
    first message's head. The thread draws each of them there, so the panel's view and a
-   card share one notice, one settlement and one reply box. The card tried a head line
-   above its messages and dropped it: the line made the card 36px taller for little more
-   than its presses, which cost the card too much density. A title could fill the line,
+   card share one notice, one settlement and one reply box. Rejected: a head line above
+   the card's messages, which makes the card taller for little more than its presses,
+   costing it too much density. A title could fill the line,
    but the passage the card points at already says what the thread is about, so the card
    draws no quote either.
 

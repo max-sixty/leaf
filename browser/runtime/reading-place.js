@@ -203,8 +203,7 @@ const QUOTABLE = 24;
 // `contents` has no box and shows through its children. A part the browser skips while it
 // is far from the window (`content-visibility: auto`) shows its words as it nears it, so
 // it may. A part the page skips, as in a closed tab, is asked nothing more: asking its box
-// or its style has the browser style everything it holds, 240 ms for 29 closed
-// documents in Chromium.
+// or its style has the browser style everything it holds.
 /** @param {Element} part */
 const showsWords = (part) =>
   part.checkVisibility() || [...part.children].some((child) => child.checkVisibility());
@@ -238,8 +237,8 @@ const textEnvelope = (block, segments, range) => {
 // Where each run's words stood the last time a reading of the screen laid the page out,
 // so a later reading measures only the runs that stood in its band rather than every
 // block of the page on each scroll, key and focus. An observer of every block would read
-// them all itself on each frame of a scroll: 8,000 observed paragraphs
-// cost Chromium 4 ms of main thread a wheel step.
+// them all itself on each frame of a scroll, a cost on every wheel step that grows
+// with the page.
 //
 // The page is laid out in frames: boxes whose runs keep their places relative to the box
 // as anything scrolls, each laid out in its own coordinates (`originOf`). The box a
@@ -261,7 +260,7 @@ const textEnvelope = (block, segments, range) => {
 // flow at or above the band's foot moves one of those. A box moved by none of these, such
 // as a paragraph a script transforms or one an anchor places, stays where the layout has
 // it until a change lays the page out again. Any widget's notice lays out every frame
-// again, as a reading of every block did before.
+// again.
 /** @typedef {{run: BlockRun, order: number}} Member
  * @typedef {{top: number, bottom: number, left: number, right: number}} Span
  * @typedef {Span & ({member: Member, byBox: boolean} | {frame: Element, at: Element})} Entry
@@ -384,8 +383,7 @@ function* drawnSegments(segments, range, drawn = new Map()) {
 // The last of `segments` from `at` on that `box` holds. A walk meets what a box holds
 // together, so they are found by doubling a step past `at` and then halving it, and a
 // long text document's skipped lines cost a few questions a run of them rather than one
-// a line: over 96,000 lines, 11,000 rather than 96,000 a scroll rest, and a reading of
-// the document's place took Firefox 3.5 ms rather than 6. A segment `box` draws without
+// a line. A segment `box` draws without
 // holding it, as a slot draws what is assigned to it, can stand among those it holds.
 // The search may stop at it, and `drawnSegments` asks it its own question, or step over
 // it, which gives it the same answer: whatever a skipped box draws is undrawn too.

@@ -105,9 +105,8 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 //
 // Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
-// draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
-// from its card's Close. A reaction's removal took undo over ✕ for the same reading
-// (the user's choice, anchor-controls.js).
+// draft, and a draft's other ways out save. A reaction's removal took undo over ✕ for
+// the same reading (the user's choice, anchor-controls.js).
 /** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },

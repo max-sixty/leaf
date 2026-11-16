@@ -145,7 +145,7 @@ export function sampleFrameImage(frame, crop) {
 
 // For the minutes after a leaf.page deploy that a visitor's container still runs the
 // previous release, the edge refuses an allocation and names a wait (`retryAfter`,
-// layer-client.js). A rollout ends within minutes; a release that still refuses
+// layer-client.js). A rollout can take about 381 s; a release that still refuses
 // after ten minutes has failed, and the allocation fails with it.
 const ROLLOUT_MS = 10 * 60_000;
 

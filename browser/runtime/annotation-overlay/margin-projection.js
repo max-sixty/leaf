@@ -480,11 +480,10 @@ export function createMarginProjection({
   // A marker's name says what it holds and its subject, and, only while it holds focus,
   // where it stands (`place`, `spokenPlace`). Where it stands changes for every marker
   // whenever a marker joins or leaves or the page's height changes, so naming every
-  // marker with it read every target's box on each such change: about 9 ms of a
-  // comment's send on the 1,024-section page `leaf-dev bench` generates, growing with
-  // the page. A listener hears the place as they land on a marker, by any route; one
-  // reading the markers without moving focus hears each one's subject alone (the user's
-  // choice).
+  // marker with it would read every target's box on each such change, a cost in every
+  // comment's send that grows with the page. A listener hears the place as they land on
+  // a marker, by any route; one reading the markers without moving focus hears each
+  // one's subject alone (the user's choice).
   /** @typedef {{index: number, of: number, position: number | null}} Place */
   /** @param {Entry} entry @param {Place | null} place */
   function markerName(entry, place) {
@@ -1754,8 +1753,8 @@ export function createMarginProjection({
   }
   pageRung("margin options", optionsRung);
 
-  // The card's way out stands ahead of the reaction and navigation modes, as the
-  // surface's old local listener did, without another keydown listener of its own.
+  // The card's way out stands ahead of the reaction and navigation modes, without
+  // another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the margin",

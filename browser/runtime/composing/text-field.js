@@ -107,7 +107,7 @@
  * hold until CodeMirror arrives, draws its words plain in the empty line's place, and
  * keeps the user's focus there; what they type meanwhile lands natively in that place,
  * which the field reads back as its value, so the editor builds holding it. Rejected:
- * loading CodeMirror with the page, about 345 KB of the bytes before the server's
+ * loading CodeMirror with the page, adding its bytes to those before the server's
  * state shows, for a capability most openings never use.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
@@ -217,7 +217,7 @@ sheet.replaceSync(`
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
-     caret after a line that fills the box, as a trailing space can, was
+     caret after a line that fills the box, as a trailing space can, would be
      cut away whole. Words an owner carries down from above the box, as a line removed
      carries them, need more: it sets --lf-field-reach as far as they travel, and
      stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach

@@ -116,8 +116,8 @@
    them back had to opt out of. The margin's floating card holds news that would move
    the reply the user writes (the user's decision), and its width never
    follows its words (comment-placement.js, `size-width`). Rejected: taking every change
-   at once, which widens it up to 232px, carries Resolve, Close and Send sideways, and
-   raises it under a draft; keeping only its width, which doubles the rise; keeping its
+   at once, which can widen it, carrying Resolve, Close and Send sideways, and raise it
+   under a draft; keeping only its width, which can double the rise; keeping its
    box and scrolling the transcript, which scrolls Resolve away; and holding all news while it is open, which stops
    progress showing live where the user watches it. A presentation that makes room for
    the agent's answer to the user's last turn itself shows that answer at once, as the

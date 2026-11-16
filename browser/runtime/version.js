@@ -357,8 +357,8 @@ export const revisionBase = ({ revision, version, url }) =>
 // both the control's rather than the styling's. A select takes its inner
 // height from Chrome's own metrics and refuses line-height, so it can never stand
 // level with the buttons beside it; and its closed label is its selected option's whole
-// text, so the note has to be in both places or neither — 190px of bar, the widest
-// control on the row, for about nine characters of a note that then ellipsizes. A press
+// text, so the note has to be in both places or neither, which makes it the widest
+// control on the row for a note it then cuts short. A press
 // states the version alone, and the menu is the only place the notes are, where a row
 // can wrap and carry one whole.
 //
@@ -1923,8 +1923,8 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       // `main` holds nearly all of a page's content, so a page module that moves or
-      // replaces one of its children is patched around, as it was when `main` was the
-      // patch root, rather than rebuilding the page beneath the user.
+      // replaces one of its children is patched around rather than rebuilding the page
+      // beneath the user.
       traversed: (element) =>
         element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),

@@ -651,11 +651,11 @@ export function createHintSession({
   // The map stands on a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
   // scroll a script has just written, as `g` writes landing the glides under way, leaves
   // a box anchored to what it moved where it stood until the next rendering update, so a
-  // map read then named a margin entry the thread card the walk had opened was arriving
-  // to cover, and Tab walked to it. Armed before then, the map is read at once, for a key
-  // typed in those frames, and read again once the scene is drawn, unless a letter typed
-  // meanwhile holds it; `then` hears what the map found once it stands on the drawn
-  // scene.
+  // map read then would name a margin entry the thread card the walk opened is arriving
+  // to cover, and Tab would walk to it. Armed before then, the map is read at once, for
+  // a key typed in those frames, and read again once the scene is drawn, unless a
+  // letter typed meanwhile holds it; `then` hears what the map found once it stands on
+  // the drawn scene.
   /** @type {Promise<void> | null} */
   let reading = null;
   /** @param {(found: C[]) => void} [then] */

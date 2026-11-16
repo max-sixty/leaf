@@ -194,8 +194,8 @@
   // or when the user lets go as above, and never on a clock. The notice says the keys
   // run when the page is ready, and a healthy page can take any time to get there on
   // a loaded machine or a slow network. Rejected: ending the hold ten seconds in,
-  // on the reading that a page not upgraded by then had faulted, which dropped the keys
-  // of pages that upgraded fifteen seconds in on a loaded Mac. A page that hangs with no
+  // on the reading that a page not upgraded by then had faulted, which drops the keys
+  // of a page that upgrades later than that on a loaded machine. A page that hangs with no
   // report keeps showing that it is still loading, which is then the truth.
   const { takesLetters } = /** @type {DocumentInputs} */ (
     Reflect.get(window, Symbol.for("leaf.inputs"))

@@ -24,7 +24,7 @@
  *   the ✕ that ends it wherever the field doesn't say Close at its end, as it does with
  *   its words at rest, so the seat never stands empty and the stance has one way out
  *   on screen. The ✕ takes the leaf's width, beside the field;
- *   filling the room On Me keeps for its count would stand it 29px clear of the field,
+ *   filling the room On Me keeps for its count would stand it apart from the field,
  *   which the user questioned. The ✕ keeps the seat while the user writes in
  *   the stance. Once the stance ends, a draft's Send takes the corner as it does at
  *   rest, so a draft standing through a stance rewraps as the stance comes and as it
@@ -58,8 +58,8 @@
  *   says its key only while that key would make it now: `m` typed in a card's reply is
  *   a letter, and Escape closes a comment box standing in Design mode before the mode.
  *   The user chose a notice's press, so a Resolve that moves the panel
- *   on says which thread it resolved and offers its next step there, and the rest,
- *   from what their keys pressed next, over Undo and z
+ *   on says which thread it resolved and offers its next step there, and the rest
+ *   over Undo and z
  *   after a Resolve, Comment and c after an answer, and the ✕ with Escape unsaid in a
  *   stance. In a thread it says the thread's word beside the leaf, in its
  *   speaker's face (voice.js), with a walk's position after it, and Reply with the key
@@ -115,11 +115,11 @@
  *   moves them. The user chose
  *   this over a row of controls between a thread and its reply, where Resolve and
  *   Close stand with the way back as ‹ Threads
- *   among them. Rejected: Threads › before the name, which costs the name about 70px; a
+ *   among them. Rejected: Threads › before the name, which takes room from the name; a
  *   ‹ hanging off the box beside the leaf, far from the name it leads away from; and no
  *   way back, which leaves a pointer two presses from Threads. The field below runs to
  *   the panel's edge while a view stands, at rest and widened alike, which the user
- *   chose over Close in the row's seat, 52px of the field at rest. The
+ *   chose over Close in the row's seat, which takes room from the field at rest. The
  *   panel stands on the window's foot, so a view grows and shrinks from its top edge,
  *   and its head line moves with it: news, such as an answer growing a thread, carries
  *   the thread's presses up with its name. A press on the head line holds the view's
@@ -172,7 +172,7 @@
  * `keys` group). The panel shows one key hint of its own, `c` at the field's end while
  * it enters the field, which says where `c` goes: beside Reply in an open thread, which
  * the user asked for as a margin card's reply box shows it, and beside
- * Comment at rest, which they chose after the box that rests beside
+ * Comment at rest, which they chose to match the box that rests beside
  * a target (composing/surface.js, `restFab`). The menu's rows carry every other key and `?` opens
  * the full reference, which the user chose over a hint or two in the line
  * over the field, to keep the panel quietest. The field the
@@ -213,7 +213,7 @@
  * where it now stands, revealed by the surface's clip, so news moves nothing the reader
  * reads. Nothing's layout tweens, so the box's room on the page is its new room at
  * once. The user asked for this, so a line the field gains doesn't leave its
- * attachment vanishing and its ring outrunning the box, nor more room leave the field
+ * attachment vanishing and its ring outrunning the box, nor does more room leave the field
  * behind the box widening around it. Rejected: revealing everything a change moves
  * by the surface's clip, which hides each part that moved until the clip reaches it. */
 import {
@@ -544,7 +544,7 @@ export function createFloatingPanel({
   // (floating-panel.css, `data-lf-tone="away"`). The nod answers the user's own key, so
   // a press shows it landed although the field's words, quiet and already standing on a
   // repeat, may not; the user picked it over the words brightening
-  // and the panel tinting, and each other moment's motion,
+  // and the panel tinting, and picked each other moment's motion too,
   // leaving the leaf still while the agent works. The leaf's personality is still
   // evolving (browser/AGENTS.md, "Motion is brief and keeps the user oriented"). Each
   // motion moves the whole mark, since the panel draws it as the layer's icon.svg
@@ -959,8 +959,8 @@ export function createFloatingPanel({
   // panel and gives the field more lines (floating-panel.css), so the words
   // re-wrap because the user asked. It folds back when the field empties, a send included, or on a second
   // press. The user chose this over the panel widening by itself at the
-  // third line, which re-wraps every line under the caret; no composer they compared
-  // widens on its own (Open WebUI and Zulip offer the same press once text is long).
+  // third line, which re-wraps every line under the caret; composers such as Open WebUI
+  // and Zulip don't widen on their own either, and offer the same press once text is long.
   // Whether the draft in the field runs past three lines, read from the editor's own
   // height as the field's size changes.
   let long = false;
@@ -1127,8 +1127,8 @@ export function createFloatingPanel({
   // view with no editor in the field, can say none. The editor is the one this paint
   // stands in the field, whether or not it stands there yet: the paint that closes a
   // thread's view reads before it moves the page's editor in, and read from the DOM,
-  // the error went unsaid for that paint, and the leaf's dot was set and cleared in
-  // one task.
+  // the error would go unsaid for that paint, and the leaf's dot would be set and
+  // cleared in one task.
   function sayable() {
     const input = host.dataset.lfRest === "mark" ? null : fieldInput();
     if (!input || draftOf(input) !== "") return [];
@@ -4395,10 +4395,9 @@ export function createFloatingPanel({
     // so a group keeps its band while the view stands. Every group has its band, one
     // card alone in it included, so the list has one shape whatever its groups hold: the
     // user chose that with the bands (`groupedItems`), over a heading only for a group
-    // of two or more, a card alone saying its group's name over its place, which suits
-    // a heading drawn as a line of muted words that spends a card's room and groups
-    // nothing. What left the list
-    // stands folded under Done, a line each once unfolded, as Threads' Resolved does.
+    // of two or more, a card alone saying its group's name over its place. What left
+    // the list stands folded under Done, a line each once unfolded, as Threads'
+    // Resolved does.
     /** @param {PanelQueueItem} item */
     const waits = (item) => lists.you.some((current) => current === item);
     // Only Done's items stand as lines, which open, and only while it is unfolded.

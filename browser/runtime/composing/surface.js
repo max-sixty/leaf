@@ -969,8 +969,8 @@ export function createResponseSurface({
   // What this drag has had inside the document, kept against a release that ends holding
   // something else. Only while both ends are still in it: `pageSelection` answers for the
   // end the press began at, which stays in the page for the whole of a drag that leaves it,
-  // so without the far end this remembered the runaway range itself and had nothing to put
-  // back.
+  // so without the far end this would remember the runaway range itself and have nothing
+  // to put back.
   /** @param {PagePress} press */
   const rememberPointerSelection = (press) => {
     const selection = pageSelection();
@@ -1200,9 +1200,9 @@ export function createResponseSurface({
       const selected = selection ? selectionAnchor(selection) : null;
       // A drag whose far end left the document is the same release as one that ended holding
       // nothing: what the user meant is what the drag had before the pointer crossed out,
-      // and the range this press remembered is that. Without it, a hand five words along a
-      // paragraph overshooting the layer by 40px captured 14,387 characters, marked 22,140,
-      // and named the whole document in the field — because past the page's last words the
+      // and the range this press remembered is that. Without it, a hand a few words along a
+      // paragraph overshooting the layer would capture and mark far more than it held, and
+      // name the whole document in the field — because past the page's last words the
       // browser extends through everything between (leftThePage, composing/capture.js).
       //
       // Asked here and nowhere shared, because the gesture is what tells this from ⌘A: select
@@ -1273,9 +1273,9 @@ export function createResponseSurface({
       // mouseup). The same complaint `offer` answers for a press on a control
       // (reachedForWords), and it governs the whole of
       // what a click on prose means — the block design mode comments on, and the thread a
-      // mark opens. Marked words are where it showed: a gesture inside one travelled to its
-      // thread, and with Threads open the reply box it landed in collapsed the selection
-      // the user had just made, so the words and the 💬 went with it.
+      // mark opens. Marked words show it most: a gesture inside one would travel to its
+      // thread, and with Threads open the reply box it lands in would collapse the
+      // selection the user just made, taking the words and the 💬 with it.
       //
       // Asked of what this press changed rather than of the current selection those two
       // have to read, because a mark is a painted range with no element to put the question
@@ -1305,8 +1305,8 @@ export function createResponseSurface({
       // The record rather than this event's own coordinates, for the reason the record is
       // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
       // carries the pointer's place rounded to a whole pixel, while markAt measures against
-      // getClientRects, whose edges are floats. Asked at the rounded point this answered a
-      // different thread than refreshHover had just promised at the true one — a quote lit
+      // getClientRects, whose edges are floats. Asked at the rounded point, this can answer
+      // a different thread than refreshHover just promised at the true one — a quote lit
       // up under the hand and a press on it opening nothing.
       //
       // A click with no press behind it carries 0,0 rather than a position — `offer` calls
@@ -1389,8 +1389,8 @@ export function createResponseSurface({
     // The thread drawn with the user's place (`threadHere`), such as the card beside it,
     // is one place with it, so its reply box is where c writes, even where the thread is
     // about a block enclosing what they stand on: the box they see is the one c names,
-    // rather than a new thread on the obligation the card stands beside, which closed the
-    // card they were reading. That thread starts from `s`, which chooses an element.
+    // rather than a new thread on the obligation the card stands beside, which would close
+    // the card they are reading. That thread starts from `s`, which chooses an element.
     // An undrawn thread continues only where it is about what they stand on: its target
     // lies within the element they stand at — the obligation holding focus, answered or
     // not, else the element itself — as an obligation's options group does when the user

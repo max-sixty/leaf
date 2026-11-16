@@ -136,9 +136,8 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no
 // others. The vocabulary is the layer's and the page is one document in it, so
-// importing every declared tag would make every page pay for the whole layer — a triage
-// board with no diff anywhere on it would fetch Pierre's 1.7MB renderer on every load,
-// more than half the bytes that page moves.
+// importing every declared tag would make every page pay for the whole layer, as a page
+// with no diff anywhere on it fetching Pierre's renderer on every load.
 //
 // Three boundaries can bring a tag into the document and all three ask here: startup,
 // a version activation, and the panel's instantiation of the frozen markup an agent

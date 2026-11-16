@@ -133,9 +133,9 @@
    margin-placement.js doesn't have: the face, kept off words and touching its target,
    and the aim, kept off controls and other rows. CSS alone gives a pin one box. With
    margins making the row the aim, every seat stays, but a pin seated outside its
-   target draws 9px further from it, past the 12px `leaf-dev placement pins` allows, in
-   most of its cases at 390px. With the row the face, the aim lies over a neighbouring
-   control's press on a few sentences. */
+   target can draw further from it than the 12px `leaf-dev placement pins` allows at
+   390px. With the row the face, the aim can lie over a neighbouring control's
+   press. */
 .lf-margin-cluster[data-lf-place="pin"] {
   --lf-margin-entry: max(26px, var(--lf-aim-floor));
 }

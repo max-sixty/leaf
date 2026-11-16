@@ -55,9 +55,9 @@
    carrier is one anchor for every row its scroller holds. So a change that moves the
    page moves the root lane's rows by the pass's writes, not by carriers anchored to the
    blocks they stand by: Chromium 158 lays out every anchored fixed or absolute box again
-   on each layout of the document, whatever changed, at 25 to 55 µs each on a page of
-   12,000 elements, so a carrier for each of 256 sections adds 6 to 14 ms to every
-   layout of the page, as each keystroke into a field brings.
+   on each layout of the document, whatever changed, so a carrier for each section
+   would add its cost to every layout of the page, as each keystroke into a field
+   brings.
    Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
@@ -1901,8 +1901,8 @@ function seatingMove(seating, resized, byBox, holders, reading) {
 
 // A pass reads only the rows whose records a change dropped (`seatings`), but it still
 // seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
-// all of them, and each row's seat is set again. That is about 8 ms a pass on the
-// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// all of them, and each row's seat is set again, a cost that grows with the page
+// (`leaf-dev bench` measures it). Not yet built: seat only the rows
 // whose records were dropped and the rows their new seats push, and leave every other
 // row as it stands.
 /** @param {Layer} layer */

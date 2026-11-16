@@ -91,9 +91,9 @@
    disagree. The hand stands on the element under the pointer (page-geometry.js), so
    arming and a crossing restyle only what that element holds. Elsewhere a press takes
    nothing (claimPress) and the page keeps its own cursor, the I-beam over words no item
-   holds: an arrow declared on the body for them restyled every element each time the
-   page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty 4 MB text
-   documents. A control keeps its own cursor while armed. */
+   holds: an arrow declared on the body for them would restyle every element each time
+   the page arms or disarms, which can take Firefox over a second on a page of large
+   text documents. A control keeps its own cursor while armed. */
 body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
@@ -590,9 +590,9 @@ html[data-lf-draw-mode] {
   }
   /* The results are the one part of the column that gives up height when the window is
      short; the head, the search and this line keep their own. As a shrinkable flex item
-     the line was squeezed to its 1.2em floor, 13.8px under a 16.7px line, and the results
-     started on its last pixel, so a scrolled row ran into the words. One line is its
-     floor, empty or not, and the results start a step below it. */
+     the line would be squeezed to its 1.2em floor, under its own line height, and the
+     results would start on its last pixel, so a scrolled row would run into the words.
+     One line is its floor, empty or not, and the results start a step below it. */
   .lf-command-reference-head,
   .lf-command-reference-search,
   .lf-command-reference-meta {

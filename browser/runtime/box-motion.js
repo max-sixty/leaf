@@ -65,9 +65,9 @@
  * typing, owns what it sets going until that rendering settles, and carries what it
  * moved, so the eye follows it. A key changes the box in the frame it lands, though,
  * as it changes a textarea sized to its words, since what a key adds is what the user
- * reads next: a tween cut off the glyph just typed for its first frames as the box
- * widened, and the word and caret a new line took for about 100 ms, and a tween each
- * key restarted never settled. Only a line a key takes away travels, both edges on
+ * reads next: a tween would cut off the glyph just typed for its first frames as the
+ * box widens, and the word and caret a new line takes, and a tween each key restarts
+ * never settles. Only a line a key takes away travels, both edges on
  * the one tween, as anything leaving the page folds (motion.js), so words the box
  * carries down with its top edge stay where the eye can follow them, and nothing the
  * user reads waits on it. The user asked for typing to grow the box as
@@ -93,8 +93,8 @@
  * of its layout moves anything. A box a placement stands (`placement`) is read once that
  * placement has stood it, since a change of the box's size can move it too, as a line
  * taking it past the window's foot holds it by that foot: the change asks the placement
- * first, and the placement's landing reads it (`placed`). Read first, the box set out
- * for where its old placement stood it and turned back a frame later.
+ * first, and the placement's landing reads it (`placed`). Read first, the box would set
+ * out for where its old placement stood it and turn back a frame later.
  *
  * A send is the user's change joining a stream ("send" from `theirs()`, read where
  * the stream starts from with `stream`). What the box shows above its field then
@@ -184,8 +184,8 @@ function listen() {
 // landing in its delivery can resize the placed box, which the placement's own
 // observer, made when it first watches the box, observes too. Chromium delivers
 // observers in the order they were made, so that observer reads the box's new size
-// after this one. Delivered before it, as a motion's own observer made when the box
-// first stood was, it read the old size and Chromium reported the new one as a loop.
+// after this one. Delivered before it, as an observer made when the box first stands
+// would be, it would read the old size and Chromium would report the new one as a loop.
 // We could consider, in future, making this the only observer that asks a placed box's
 // placement for a change of its size: Floating UI's watch (`autoUpdate`'s
 // `elementResize`) asks too, and observes the reference with the same option, so its

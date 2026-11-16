@@ -22,8 +22,8 @@ export const labelWords = (value) =>
 // Words cut to at most `cap` characters, at a word boundary in the second half where
 // there is one, ending in an ellipsis. A long word or unspaced language keeps its prefix.
 // Only enough of a long value to hold more than `cap` characters once collapsed is
-// read, doubling the read until it does. Collapsing and splitting all of a 4 MB
-// document's words for its label took 23 ms in Chromium on every pass that named it.
+// read, doubling the read until it does, since collapsing and splitting all of a large
+// document's words would cost every pass that names it.
 /** @param {unknown} value @param {number} cap */
 export function excerptWords(value, cap) {
   const text = String(value ?? "");

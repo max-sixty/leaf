@@ -354,6 +354,11 @@ it is filled, is judged by the nearest box around it. So stand an outlet in the 
 of the window clear of the panel, which `shownWindow` gives
 (`module-scroll-and-motion.md`), and show nothing for an outlet that is empty.
 
+Leaf draws a thread at whatever width its outlet has. The head of a thread's first
+message keeps room for the thread's controls beside its author, time and line, so an
+outlet narrower than about 23rem cuts that line. Give a card that width, and stand it
+where the page has the room.
+
 The returned handle has `read()`, the collection `readThreads()` returns; `update()`,
 which asks for `render` again after a change of the element's own, such as a card
 closing, and returns a promise of the pass that places the result, so await it before

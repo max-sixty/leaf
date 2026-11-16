@@ -315,8 +315,10 @@ def splice(source, edits):
 
 
 def pre_body(element) -> str | None:
-    """The text of `element`'s first `<pre>` child: the body a Markdown-bodied element
-    renders and a `body` state record reads, or None where it has none."""
+    """The text of `element`'s first `<pre>` child, as the browser reads a data body
+    (widget-upgrade.js, `dataBody`): all of it, a `<code>` naming its language
+    included. The body a Markdown-bodied element renders, a written Markdown file
+    first paints and a `body` state record reads, or None where it has none."""
     pre = next(
         (
             child
@@ -325,11 +327,7 @@ def pre_body(element) -> str | None:
         ),
         None,
     )
-    if pre is None:
-        return None
-    return "".join(
-        child.data for child in pre.children if isinstance(child, turbohtml.Text)
-    )
+    return None if pre is None else pre.text
 
 
 class SourceDocument:
@@ -627,6 +625,9 @@ class Authoring:
         # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
         # runtime may coin later, without another list.
         self.reserved_markers = []
+        # (tag, line, name) per `language-…` class, the name a block of code gives its
+        # language (syntax-tokens.js, `codeLanguage`).
+        self.code_languages = []
         # The same parse retains ordinary HTML, exact text, and construction locations
         # for inspection. Widget validation keeps its specialized index; content is one
         # tree, with no reconstructed HTML or parent objects.
@@ -786,6 +787,11 @@ class Authoring:
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
+        self.code_languages += [
+            (tag, line, name.removeprefix("language-"))
+            for name in (attrs.get("class") or "").split()
+            if name.startswith("language-")
+        ]
         references = [
             (name, value[start:end])
             for name, value in attrs.items()

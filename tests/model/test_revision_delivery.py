@@ -838,6 +838,20 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     assert not body.find_all("div")
 
 
+def test_a_written_markdown_file_prepaints_through_the_code_naming_its_language():
+    """A data body may wrap its text in the `<code>` that names its language, as any
+    code block does, and the first paint reads the whole text as the module will."""
+    delivered = mark_declared(
+        '<lf-text-document id="notes" label="NOTES.md" preview="markdown"><pre>'
+        '<code class="language-markdown">**Fixed** a crash</code></pre>'
+        "</lf-text-document>",
+        {"lf-text-document": {"x-prepaint": "preview"}},
+        {},
+    )
+    body = SourceDocument(delivered).tree.select_one(".lf-markdown-body strong")
+    assert body is not None and body.text == "Fixed"
+
+
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     """A new data widget gets the same pre-upgrade reading primitive without a tag list."""
     source = '<lf-new-source id="source"><pre>raw source</pre></lf-new-source><lf-literal id="literal">literal source</lf-literal>'

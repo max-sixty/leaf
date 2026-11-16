@@ -131,10 +131,13 @@ changing prose repaints then.
 line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
 splits them by line. To colour a long text a part at a time, pass each part the state
 the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
-be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
-one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
-`highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language and that wears the reading face
+be in the whole text. `lang` is a registry `$languages` name; `codeLanguage(element)`
+reads one off the `language-…` class a block of code names it by, on a `<code>`, on the
+`<code>` in a widget's `<pre>` body, or else on the widget itself, and is undefined for
+a language Leaf doesn't colour; `langForPath(path)` derives one from a file name, and
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `highlightBlocks(root)` colours
+each `pre > code` in `root` whose `language-…` class names a language and that wears
+the reading face, leaving a widget's data body to its module
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than

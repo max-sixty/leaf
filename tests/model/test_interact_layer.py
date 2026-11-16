@@ -5239,8 +5239,8 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
-    """An attribute that names a layer-wide word, such as a column's tone or a code
-    block's language, takes the layer's list as its `enum` in the vocabulary a page
+    """An attribute that names a layer-wide word, such as a column's tone, takes the
+    layer's list as its `enum` in the vocabulary a page
     composes, so its schema says what it accepts to validation and to an author
     reading the entry, and the selected entry's instructions list the words."""
     registry = registry_storage.read_page_registry(page_dir).registry

@@ -1698,7 +1698,7 @@ def _held(page, cdp, selector, words):
 # holds of the author's markup: an option's chip beside its mark, a link in an option,
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
-    '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
+    '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
     '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '

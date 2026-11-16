@@ -52,6 +52,7 @@ import { upFrom } from "./shadow.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
+import { DATA_BODY } from "./syntax.js";
 
 /** @type {WeakMap<Element, ReturnType<typeof copyControl>>} */
 const controls = new WeakMap();
@@ -302,7 +303,9 @@ export function watchCodeBlocks() {
       }
     }
   };
-  watchArrivals(`pre:has(> code):not(${DECLARED})`, ["style"], {
+  // A widget's data body is no document block: its module draws it, and declares the
+  // block it draws.
+  watchArrivals(`pre:has(> code):not(${DECLARED}, ${DATA_BODY})`, ["style"], {
     arriveBatch: prepareDocumentBlocks,
     leave(pre) {
       if (deferred.delete(pre)) revealed.unobserve(pre);

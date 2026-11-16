@@ -1869,8 +1869,8 @@ flowchart TD
               This is everything <code>lf-options</code> tells Leaf about its three
               verbs and when its obligation counts as answered.
             </p>
-            <lf-code id="options-verbs" language="json" data-width="wide">
-              <pre>
+            <lf-code id="options-verbs" data-width="wide">
+              <pre><code class="language-json">
 "x-state": {
   "choose": {
     "unit": "widget",
@@ -1893,7 +1893,7 @@ flowchart TD
     "answer": {"when": {"multiple": [true]}}
   }
 }
-</pre>
+</code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
@@ -2015,8 +2015,8 @@ flowchart TD
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
-            <lf-code id="captured-log" language="json" data-width="wide">
-              <pre>
+            <lf-code id="captured-log" data-width="wide">
+              <pre><code class="language-json">
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
@@ -2083,7 +2083,7 @@ flowchart TD
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
 {"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
-</pre>
+</code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
                 <code>widget</code>, <code>action</code>, <code>detail</code>, and

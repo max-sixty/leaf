@@ -834,9 +834,11 @@ async function bundle(spec) {
 /**
  * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
  * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * gives a grammar, which a `language-…` class names, read here so that identifying a
  * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself.
+ * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
+ * names too, as the one line of JSON `syntaxLanguageNames` is written on
+ * (`leaf.validation.markup.COLOURED_LANGUAGES`).
  */
 async function syntaxLoaders() {
   const names = languages();

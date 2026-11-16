@@ -748,7 +748,6 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-option", "x-unique", {"label": "lf-options"}, "label"),
-        ("lf-code", "x-language", "dialect", "dialect"),
         ("lf-column", "x-tone", "shade", "shade"),
     ],
 )
@@ -757,7 +756,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 ):
     """These keys point at attributes rather than declaring them — the words a widget
     shows, the ones that name another element, the ones no two members of an owner
-    share, and the two carrying a word its layer
+    share, and the one carrying a word its layer
     has to know —
     and each is read by a pass that finds the attribute absent and does nothing. That
     is the never-closed vocabulary's own failure mode: no error anywhere, the widget

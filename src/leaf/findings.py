@@ -1148,6 +1148,12 @@ _TEXT = {
         "unpointable — a comment aimed at a block with no id lands on the whole of"
         f" the element named: {_blocks(v)}; give each block its own id"
     ),
+    "uncoloured-language": lambda at, v: (
+        f'{_line(at, v)}: class="language-{v["language"]}" names no language Leaf'
+        " colours, so its code shows uncoloured; Leaf colours "
+        + ", ".join(v["names"])
+        + ", and short names for them such as py and sh"
+    ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
         f" run {v['run']}, but that source now holds run {v['current_run']}"

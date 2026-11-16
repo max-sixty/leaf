@@ -703,10 +703,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-code id="patch" language="python"><pre>
+<lf-code id="patch"><pre><code class="language-python">
 def bracket():
     return "steel"
-</pre></lf-code>
+</code></pre></lf-code>
 """,
 )
 
@@ -1024,12 +1024,12 @@ graph LR
     </section>
   </section>
 </section>
-<lf-code id="walk" language="python" hi="2"><pre>
+<lf-code id="walk" hi="2"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
   <lf-note id="line-note" at="2">Freezing is the only threshold that matters.
     <lf-diagram id="in-note"><pre>
 graph LR

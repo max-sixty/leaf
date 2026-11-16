@@ -2457,15 +2457,15 @@ const ids = api.read().state.choose.value;</code></pre>
               ><code class="language-python"><span id="bg-code-target"></span><span class="line">def load(path):</span>
 <span class="line">    data = read(path)</span>
 <span class="line">    return <mark>data</mark></span></code></pre>
-              <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
-                <pre>
+              <lf-code id="bg-code" lines="40-43,58-59" hi="41-42">
+                <pre><code class="language-python">
 def route(weather):
     if weather == "rain":
         return "covered terrace"
     return "courtyard"
 def seat(guest):
     return guest.table
-</pre>
+</code></pre>
                 <lf-note id="bg-code-note" at="41">
                   The branch exists only to make the highlighted walkthrough visible.
                 </lf-note>
@@ -3371,7 +3371,7 @@ switch --readers checkout-api,orders-api</code></pre>
                 id="bg-source-live"
                 source="gallery-source"
                 label="feature-gallery-source.toml · lines 1–4"
-                language="toml"
+                class="language-toml"
               ></lf-text-document>
             </section>
 

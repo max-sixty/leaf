@@ -1,9 +1,31 @@
-/* Code as tokens: the one tokenizing engine, its grammars, and the nodes and lines a
-   caller builds from what it returns. It loads in any document (portable-api.js): it
-   reads nothing Leaf composes into a page, and a failure is the caller's to report, as a
-   widget reports one through `failSoft`. syntax.js highlights the page's own blocks;
-   language-paths.js reads the host's declared file-extension map. */
-import { syntaxLanguages } from "./syntax-languages.js";
+/* Code as tokens: the one tokenizing engine, its grammars, the language a block names,
+   and the nodes and lines a caller builds from what it returns. It loads in any
+   document (portable-api.js): it reads nothing Leaf composes into a page, and a failure
+   is the caller's to report, as a widget reports one through `failSoft`. syntax.js
+   highlights the page's own blocks; language-paths.js reads the host's declared
+   file-extension map. */
+import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
+
+// The language a block of code names, by HTML's own convention for it: a class prefixed
+// `language-` on the `<code>` (WHATWG, "The code element"), which every Markdown
+// renderer writes, so a block written anywhere else needs no translation here. A widget
+// whose body is data reads the `<code>` in its `<pre>`, and the class on the widget
+// itself where it has none, as a document bound to a source has no `<pre>`. A grammar
+// answers to its name and to each alias Shiki gives it (`syntaxLanguageNames`), and the
+// grammar's name is returned. Any other name colours nothing, and the block stays the
+// colour of its ink, as it would on a page that colours nothing; `page check` names
+// such a class (`validation/markup.py`, `language_advice`).
+const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
+/** @param {Element | null} element */
+const classLanguage = (element) => {
+  const name = element?.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
+  return name && Object.hasOwn(syntaxLanguageNames, name)
+    ? syntaxLanguageNames[name]
+    : undefined;
+};
+/** @param {Element} block a `<code>`, or a widget whose body is a `<pre>` */
+export const codeLanguage = (block) =>
+  classLanguage(block.querySelector(":scope > pre > code")) ?? classLanguage(block);
 
 // Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors
 // follow the page's scheme; generated spans never enter the authored source.
@@ -38,8 +60,7 @@ export function ensureSyntaxLanguage(lang) {
 // carrying Shiki's themed CSS declarations directly, whose CSS variables inherit the
 // page's palette. A list rather than markup because callers build different DOM from
 // it: plain code emits one span per token, while lf-code interleaves the line spans it
-// numbers. A declared language is validated by page check against the registry's
-// $languages.names.
+// numbers. `lang` is a grammar's name, as `codeLanguage` and `langForPath` return one.
 //
 // `state` is the grammar state the source's last line ends in, and passed back as
 // `state` it continues another source from there, so a long text coloured a part at a

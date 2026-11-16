@@ -1,12 +1,13 @@
 """Shared structural and authored-markup validation rules."""
 
+import json
 from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from leaf.findings import Finding, element_at
 from leaf.passages import markdown_dialect
-from leaf.schema import MEDIA_DIR, SERVED_PATH
+from leaf.schema import ASSETS, MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
     SECTION_TAGS,
@@ -35,6 +36,41 @@ def reserved_marker_errors(parser) -> list[Finding]:
     return [
         Finding("reserved-markers", element_at(tag), {"line": line, "markers": markers})
         for tag, line, markers in parser.authoring.reserved_markers
+    ]
+
+
+# Each name a `language-…` class may give a language Leaf colours, mapped to its
+# grammar: each grammar's name and Shiki's aliases for it, which build/vendor.mjs writes
+# into the runtime's table as one line of JSON (`syntaxLanguageNames`), and
+# syntax-tokens.js reads a class by.
+_NAMES_LINE = "export const syntaxLanguageNames = "
+COLOURED_LANGUAGES: dict[str, str] = next(
+    json.loads(line.removeprefix(_NAMES_LINE).removesuffix(";"))
+    for line in (ASSETS / "runtime" / "syntax-languages.js")
+    .read_text(encoding="utf-8")
+    .splitlines()
+    if line.startswith(_NAMES_LINE)
+)
+
+
+def language_advice(parser) -> list[Finding]:
+    """Each `language-…` class, on any element, naming a language Leaf doesn't colour,
+    so its code stays the colour of its ink. Advice, not a gate: the name may be a
+    misspelling, which nothing else on the page says, or a language Leaf has no
+    grammar for, which the class still names truly to any other reader."""
+    return [
+        Finding(
+            "uncoloured-language",
+            element_at(tag),
+            {
+                "line": line,
+                "language": name,
+                "names": sorted(set(COLOURED_LANGUAGES.values())),
+            },
+            severity="advice",
+        )
+        for tag, line, name in parser.authoring.code_languages
+        if name not in COLOURED_LANGUAGES
     ]
 
 

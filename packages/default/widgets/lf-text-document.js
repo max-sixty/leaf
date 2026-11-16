@@ -28,6 +28,7 @@
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import {
+  codeLanguage,
   failSoft,
   ensureSyntaxLanguage,
   keeps,
@@ -792,6 +793,11 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
+  // The language the text is coloured in (`codeLanguage`), read at setup while the
+  // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
+  // revision that names another language brings a new element.
+  /** @type {string | undefined} */
+  language;
   /** @type {(() => void) | null} */
   finishFrame = null;
   /** @type {Promise<void> | undefined} */
@@ -926,6 +932,7 @@ class TextDocument extends LeafElement {
   }
 
   setup() {
+    this.language = codeLanguage(this);
     // A departure abandons the rendering in flight and its frame's wait, and the
     // colour of the runs it drew, which a return draws again as they show.
     whileConnected(this, () => {
@@ -1002,8 +1009,7 @@ class TextDocument extends LeafElement {
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
-      const language = this.getAttribute("language") ?? preview;
-      // A language with no grammar fails the document here, before it draws.
+      const language = this.language ?? preview;
       if (language) await ensureSyntaxLanguage(language);
       if (preview === "markdown") {
         let failure;

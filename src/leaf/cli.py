@@ -22,7 +22,6 @@ itself (`PrintsItself`), and what it notes goes to stderr.
 """
 
 import json
-import os
 import shlex
 import sys
 from pathlib import Path
@@ -322,26 +321,15 @@ def _refuse_a_turn_not_open() -> None:
 
 
 def _acting_turn(ctx: click.Context, _param: click.Parameter, value) -> None:
-    """Run the command in the agent turn `value` of its session
-    (`state.TURN_VARIABLE`), for this command alone: the variable goes back as the
-    command ends, so a command run in the same process, as a test's are, acts in
-    whichever turn it names. Its diagnostics name the turn (`record_command`), and a
-    turn that isn't open has the command refused (`_refuse_a_turn_not_open`)."""
+    """Run the command in the agent turn `value` of its session, for this command
+    alone (`state.acting_in`). Its diagnostics name the turn (`record_command`), and
+    a turn that isn't open has the command refused (`_refuse_a_turn_not_open`)."""
     if not value:
         return
-    from leaf.state import TURN_VARIABLE
+    from leaf.state import acting_in
 
-    before = os.environ.get(TURN_VARIABLE)
-    os.environ[TURN_VARIABLE] = value
+    ctx.with_resource(acting_in(value))
     ctx.ensure_object(dict)["turn"] = value
-
-    def restore() -> None:
-        if before is None:
-            os.environ.pop(TURN_VARIABLE, None)
-        else:
-            os.environ[TURN_VARIABLE] = before
-
-    ctx.call_on_close(restore)
 
 
 @click.group(cls=LeafGroup)

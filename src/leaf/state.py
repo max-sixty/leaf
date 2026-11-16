@@ -794,12 +794,29 @@ AGENT_TURNS = Record(
     ),
     since=44,
 )
-# Where a `leaf` command names the agent turn of its session it acts in: `leaf --turn
-# ID`, which Leaf's prompt to a fork tells it to begin each `leaf` command with
-# (`forks.work_prompt`), sets it in the command's process (`cli`), so the command
-# acts in that turn (`acting_turn`). A subagent's commands otherwise run in the
-# session's own environment, with nothing that names it (`harness.ClaudeCodeHarness`).
-TURN_VARIABLE = "LEAF_TURN"
+# The agent turn the running `leaf` command names with `leaf --turn ID`, which Leaf's
+# prompt to a fork tells it to begin each `leaf` command with (`forks.work_prompt`),
+# so the command acts in that turn (`acting_turn`). It is set for that command alone
+# (`acting_in`) and lives in its process rather than its environment, so a process the
+# command starts, such as a page server, names no turn. A subagent's commands
+# otherwise run in the session's own environment, with nothing that names it
+# (`harness.ClaudeCodeHarness`).
+_named_turn: str | None = None
+
+
+@contextlib.contextmanager
+def acting_in(turn: str):
+    """Act in the agent turn `turn` inside the block, as a command run with `leaf
+    --turn` does, then restore the turn named before, so a command run in the same
+    process, as a test's are, acts in whichever turn it names."""
+    global _named_turn
+    before, _named_turn = _named_turn, turn
+    try:
+        yield
+    finally:
+        _named_turn = before
+
+
 # How often at most an agent's tool boundary renews its turn (`renew_agent_turn`), well
 # inside the working grace a reader believes an unrenewed turn for
 # (`activity.running_agent_turns`).
@@ -808,11 +825,10 @@ AGENT_RENEWAL = timedelta(minutes=1)
 
 def leaf_invocation() -> str:
     """How a `leaf` command that this one prints for its reader to run next begins:
-    with the turn this one names (`TURN_VARIABLE`), so a fork that runs it as
-    printed acts in its own turn, as an acknowledgement must; plain `leaf` for a
-    command that names none."""
-    turn = os.environ.get(TURN_VARIABLE)
-    return f"leaf --turn {turn}" if turn else "leaf"
+    with the turn this one names (`acting_in`), so a fork that runs it as printed
+    acts in its own turn, as an acknowledgement must; plain `leaf` for a command
+    that names none."""
+    return f"leaf --turn {_named_turn}" if _named_turn else "leaf"
 
 
 def agent_turns(session_id: str) -> dict[str, dict]:
@@ -1016,13 +1032,13 @@ def _update_agent_turns(session_id: str, change) -> bool:
 
 def acting_agent_turn(session: str | None) -> str | None:
     """The agent turn of `session` a command acts in: the one it names
-    (`TURN_VARIABLE`); None for a command that names none, which acts as the main
+    (`acting_in`); None for a command that names none, which acts as the main
     thread. A command naming a turn that isn't one of the session's open agent
     turns, as a fork's command run after its turn closed does, or one naming the
     main thread's turn, an id the session never opened, or any turn where no
     session runs the command, is refused (`refusals.Refused`): it acts neither in a
     closed turn nor with the main thread's authority."""
-    turn = os.environ.get(TURN_VARIABLE)
+    turn = _named_turn
     if not turn:
         return None
     if session is None or turn not in open_agent_turns(session):

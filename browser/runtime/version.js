@@ -70,9 +70,11 @@
  * `versionsOffered` controls the destination and the Versions row.
  */
 import {
+  afterSettling,
   cancelRender,
   nextAnimation,
   nextRender,
+  observePreparations,
   renderingState,
   sizeObserver,
 } from "./rendering.js";
@@ -2504,6 +2506,7 @@ export function createVersionController({
     const acted = box !== undefined && inputSince(box, hold.since);
     if (!moved && !acted && hold.currentIntent()) return hold;
     holds.delete(id);
+    if (!holds.size) stopReapplying();
     // Where the reader acted in the box the restore put them in, that place is theirs,
     // as if recorded before they acted, so whatever their act moves records over it.
     // Where a scroll carried the landmark away, the place it left is that scroll's.
@@ -2710,20 +2713,31 @@ export function createVersionController({
   // Apply each held place again while the shift's layout settles, as a widget drawing
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
-  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
-  // and every region stands where it was last seen (`regionsSettled`). A widget's
-  // preparation keeps it open until it lands, however long a slow device takes, since
-  // its release is the event that ends that work. Otherwise it closes after `SETTLING`
-  // deliveries, or once it has stood open `SETTLING_MS` with no preparation pending: a
-  // widget that keeps resizing, or one whose drawing never quiets, as an animated chart's
-  // doesn't, would otherwise keep reading every later move as layout's. What moves a
-  // place is the page's own content or its bounded region's, and it lands only in the
-  // box it was restored into.
+  // window closes at the first quiet rendering update after the last widget
+  // preparation lands (rendering.js, `afterSettling`), which includes the layout the
+  // preparation committed and the size changes it made, with every region standing
+  // where it was last seen (`regionsSettled`); or once the last hold ends, or a
+  // revision ends them all. A preparation keeps it open however long a slow device
+  // takes, and its release, not a frame, is what the window waits on. Two caps stand
+  // for a page that never settles, as one whose animated chart keeps redrawing:
+  // `SETTLING` deliveries, and `SETTLING_MS` with no preparation pending, counted from
+  // the window's opening or the last release and closing a rendering update after, so a
+  // release's layout lands first even when frames paused. Without them, every later move
+  // would read as layout's. What moves a place is the page's own content or its bounded
+  // region's, and it lands only in the box it was restored into.
   const SETTLING = 12;
   const SETTLING_MS = 1000;
+  let closeWindow = () => {};
+  // Heard from the controller's start, since a preparation reports its end only to
+  // those who heard it begin, and one a width change sets going can begin before the
+  // shift that opens the window is announced.
+  /** @type {(phase: import("./rendering.js").PreparationPhase) => void} */
+  let preparation = () => {};
+  observePreparations((phase) => preparation(phase));
   const stopReapplying = () => {
     reapply?.disconnect();
     reapply = null;
+    closeWindow();
   };
   const releaseHolds = () => {
     holds.clear();
@@ -2757,17 +2771,26 @@ export function createVersionController({
       again();
     });
     reapply = observer;
-    let prepared = performance.now();
-    const settled = () =>
-      nextAnimation((now) => {
-        if (reapply !== observer) return;
-        const { updatesSettled, preparationsSettled } = renderingState();
-        if (!preparationsSettled) prepared = now;
-        else if ((updatesSettled && regionsSettled()) || now - prepared > SETTLING_MS)
-          return stopReapplying();
-        settled();
-      });
-    settled();
+    const close = () => reapply === observer && stopReapplying();
+    const prepared = () => renderingState().preparationsSettled;
+    let unwait = () => {};
+    let cap = 0;
+    const wait = () => {
+      unwait();
+      clearTimeout(cap);
+      unwait = afterSettling(() => prepared() && (regionsSettled() ? close() : wait()));
+      cap = setTimeout(() => nextAnimation(() => nextAnimation(close)), SETTLING_MS);
+    };
+    preparation = (phase) => {
+      if (phase === "begin") clearTimeout(cap);
+      else if (prepared()) wait();
+    };
+    closeWindow = () => {
+      closeWindow = preparation = () => {};
+      unwait();
+      clearTimeout(cap);
+    };
+    if (prepared()) wait();
     const page = pageDocument();
     if (page) reapply.observe(page);
     for (const hold of holds.values()) {

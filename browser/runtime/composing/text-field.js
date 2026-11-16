@@ -288,7 +288,8 @@ sheet.replaceSync(`
   .lf-md-circle { list-style-type: circle; }
   .lf-md-square { list-style-type: square; }
   .lf-md-number { list-style-type: decimal; }
-  .lf-md-code-block { font-family: var(--lf-mono); font-size: var(--lf-code-size);
+  .lf-md-code-block { color-scheme: var(--lf-code-scheme, inherit); font-family: var(--lf-mono);
+    font-size: var(--lf-code-size);
     line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
     padding-inline: var(--lf-pre-inset); }

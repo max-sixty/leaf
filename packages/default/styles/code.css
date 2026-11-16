@@ -4,6 +4,7 @@
    resolves in the code's face on the <pre> and a note inherits that width, not its own
    face's `ch`. The rendered lines own the block's containment. */
 lf-code {
+  color-scheme: var(--lf-code-scheme); /* tokens.css, at --lf-pre-bg */
   contain: inline-size;
   /* Its code block wears markup's reading face (`reading.css`) whatever look the page
      takes, since the block's frame and type are the widget's own. */

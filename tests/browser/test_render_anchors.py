@@ -2351,15 +2351,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # A theme or page sets the code inputs apart from the scheme (package-themes.md,
     # "Theme tokens"), as dark code on a light page does. The rows take their lightness
     # from the code canvas rather than the scheme, so they stand a step from it and the
-    # code on them reads as it does on the canvas. Every line number and sign, and the
-    # change counts, read at 4.5:1 or more against the ground under them, where the
-    # light scheme's status inks on changed rows read 2.2–2.5:1.
+    # code on them reads as it does on the canvas.
     dark_code = {
         "--lf-pre-bg": "#1b1b1a",
-        "--lf-code-chrome": "#222220",
         "--lf-code-ink": "#e8e7e3",
-        "--lf-code-muted": "#9b9992",
-        "--lf-code-border": "#3b3a37",
         "--lf-syn-comment": "#cac2b3",
         "--lf-syn-keyword": "#efafa0",
         "--lf-syn-string": "#9dc4dd",
@@ -2377,39 +2372,6 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         step = paints[kind]["row"][0] - paints["canvas"][0]
         assert abs(step) < 0.1, f"a {kind} row {step:+.3f} in lightness from dark code"
     assert evaluate_probe(page, "unreadSyntax") == []
-    unread = page.evaluate("""() => {
-      const root = document.querySelector('#patch').shadowRoot;
-      const cx = document.createElement('canvas').getContext('2d',
-        {willReadFrequently: true});
-      // Each colour composited over the ones before it, as the page paints them.
-      const paint = layers => {
-        for (const colour of ['white', ...layers]) {
-          cx.fillStyle = colour;
-          cx.fillRect(0, 0, 1, 1);
-        }
-        return [...cx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-      };
-      const luminance = rgb => rgb.map(c => (c /= 255) <= 0.03928 ? c / 12.92
-        : ((c + 0.055) / 1.055) ** 2.4)
-        .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
-      const contrast = (element, pseudo) => {
-        const ground = [];
-        for (let at = element; at; at = at.parentElement ?? at.getRootNode().host)
-          ground.unshift(getComputedStyle(at).backgroundColor);
-        const [ink, on] = [paint([...ground, getComputedStyle(element, pseudo).color]),
-          paint(ground)].map(luminance);
-        return (Math.max(ink, on) + 0.05) / (Math.min(ink, on) + 0.05);
-      };
-      return [
-        ...[...root.querySelectorAll('.lf-diff-line-number')]
-          .map(number => [`number ${number.textContent}`, contrast(number)]),
-        ...[...root.querySelectorAll('[data-line-type^="change-"]')]
-          .map(line => [`${line.dataset.lineType} sign`, contrast(line, '::before')]),
-        ...[...root.querySelectorAll('.lf-diff-additions, .lf-diff-deletions')]
-          .map(count => [count.className, contrast(count)]),
-      ].filter(([, ratio]) => ratio < 4.5);
-    }""")
-    assert unread == [], unread
     page.evaluate(restyle, dict.fromkeys(dark_code, ""))
 
     # Pierre's inline comparison is language-independent. Dockerfile is intentionally

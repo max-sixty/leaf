@@ -6,6 +6,13 @@ lf-text-document {
   margin: 14px 0;
   min-height: 2px;
 }
+/* The frame, caption and listing are code, in the code's scheme (tokens.css, at
+   --lf-pre-bg). A document that previews its text stands on the page's paper instead
+   (below), since the preview is prose, so only its listing, the Source tab, is code. */
+lf-text-document:not([preview]),
+lf-text-document .lf-text-document-listing {
+  color-scheme: var(--lf-code-scheme);
+}
 /* The frame clips its rounded corners with `clip`, which makes no scroll container
    (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
    scroller as every horizontal tab strip does. `hidden` made the frame the strip's

@@ -489,6 +489,13 @@
         calc(b * min(0.5, 1 + 0.014 / hypot(a, b)))
     )
   );
+  /* A code block's colours. Each code surface's own sheet sets `color-scheme:
+     var(--lf-code-scheme)`, so a theme or page that sets --lf-code-scheme to `dark` or
+     `light` draws its code in that scheme whatever the page's is: every light-dark()
+     token inside the block, these, the syntax colours, the status inks and the paper a
+     thread among the code's rows stands on, takes that scheme's branch. It is declared
+     nowhere here: unset, the declaration is invalid, so the block inherits the page's
+     scheme. */
   --lf-pre-bg: light-dark(#fff, #1b1b1a);
   --lf-code-chrome: light-dark(#f6f8fa, #222220);
   --lf-code-ink: light-dark(#24292f, #e8e7e3);

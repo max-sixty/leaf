@@ -16,7 +16,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered
+from leaf.render_checks import evaluate_probe, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -527,6 +527,118 @@ def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
     edge = page.evaluate(CONTRAST, ["#field", "borderTopColor"])
     assert words >= 4.5, f"a control's quiet words read {words:.2f}:1 on the page"
     assert edge >= 1.3, f"a field's edge reads {edge:.2f}:1 against its ground"
+
+
+CODE_SURFACES = leaf_page(
+    "Code surfaces",
+    """<h1>Code surfaces</h1>
+<lf-code id="code" hi="2"><pre><code class="language-python">def route(weather):
+    return "terrace" if weather == "rain" else "courtyard"
+</code></pre><lf-note at="1">Rain moves the party under cover.</lf-note></lf-code>
+<pre id="plain"><code class="language-python">limit = 2  # doubled</code></pre>
+<lf-text-document id="doc" label="change.diff" class="language-diff"><pre>@@ -1,2 +1,2 @@
+-limit = 1
++limit = 2
+</pre></lf-text-document>
+<lf-diff id="patch" view="patch"><pre>diff --git a/x.py b/x.py
+--- a/x.py
++++ b/x.py
+@@ -1,1 +1,1 @@
+-A = 1
++A = 2
+</pre><lf-diff-note id="patch-note" file="x.py" side="new" at="1">The new value doubles it.</lf-diff-note></lf-diff>""",
+)
+
+# The WCAG contrast of each number, sign, note, caption and status ink on the page's
+# code surfaces against the ground under it, each colour composited as the browser paints
+# it, and the lightness of a code block's canvas.
+CODE_CONTRAST = """() => {
+    const cx = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+    const paint = (layers) => {
+        for (const colour of ['white', ...layers]) {
+            cx.fillStyle = colour;
+            cx.fillRect(0, 0, 1, 1);
+        }
+        return [...cx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    };
+    const luminance = (rgb) => rgb
+        .map((c) => (c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+        .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const contrast = (element, {pseudo = null, card = null, ink = null} = {}) => {
+        const ground = [];
+        for (let at = element; at; at = at.parentElement ?? at.getRootNode().host)
+            ground.unshift(getComputedStyle(at).backgroundColor);
+        if (card) ground.push(getComputedStyle(element, card).backgroundColor);
+        const [a, b] = [paint([...ground, ink ?? getComputedStyle(element, pseudo).color]),
+            paint(ground)].map(luminance);
+        return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
+    };
+    // A token as it resolves where the browser paints a highlight with it.
+    const token = (element, name) => {
+        const probe = element.appendChild(document.createElement('span'));
+        probe.style.color = `var(${name})`;
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+    };
+    const diff = document.querySelector('#patch').shadowRoot;
+    const row = document.querySelector('#doc .lf-text-document-run > *');
+    const readings = [
+        ...[...document.querySelectorAll('#code .lf-code-line')].map((line) =>
+            [`code line ${line.dataset.lfLine}'s number`, contrast(line, {pseudo: '::before'})]),
+        ['the highlighted line', contrast(document.querySelector('#code [data-lf-hi]'))],
+        ['the code note', contrast(document.querySelector('#code lf-note'))],
+        ['the document caption', contrast(document.querySelector('#doc figcaption'))],
+        ["a document line's number", contrast(row, {pseudo: '::before'})],
+        ['an added document line', contrast(row, {ink: token(row, '--lf-ok-ink')})],
+        ['a removed document line', contrast(row, {ink: token(row, '--lf-danger-ink')})],
+        ...[...diff.querySelectorAll('.lf-diff-line-number')].map((number) =>
+            [`diff number ${number.textContent}`, contrast(number)]),
+        ...[...diff.querySelectorAll('[data-line-type^="change-"]')].map((line) =>
+            [`${line.dataset.lineType} sign`, contrast(line, {pseudo: '::before'})]),
+        ...[...diff.querySelectorAll('.lf-diff-additions, .lf-diff-deletions')].map(
+            (count) => [count.className, contrast(count)]),
+        ['the diff note', contrast(diff.querySelector('lf-diff-note'), {card: '::after'})],
+    ];
+    const canvas = getComputedStyle(document.querySelector('#plain')).backgroundColor;
+    // The Copy the plain block's hover shows, which stands in chrome, out of the block.
+    const copy = document.querySelector('.lf-block-controls .lf-code-copy');
+    return {
+        canvas: luminance(paint([canvas])),
+        copy: luminance(paint([getComputedStyle(copy).backgroundColor])),
+        read: readings.length,
+        unread: readings.filter(([, ratio]) => ratio < 4.5),
+    };
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
+    """A theme or page sets `--lf-code-scheme` to draw code in a scheme of its own, as
+    dark code on a light page (package-themes.md, "Theme tokens"). Every code surface
+    takes that scheme's branch of each token inside it, so every number, sign, note,
+    caption, highlighted line and status ink reads at 4.5:1 or more against its ground,
+    and the syntax probe finds nothing. Unset, the code takes the page's scheme. While a
+    theme could only restate the code tokens dark, the page's status inks, its muted
+    words and the highlight's tint stayed light: a diff's changed line numbers read
+    2.2:1, a note on a diff 1.1:1 and a highlighted line 1.2:1."""
+    page = open_page(request.getfixturevalue(engine), serve(CODE_SURFACES))
+    page.locator("#plain").hover()
+    rendered(page)
+    light = page.evaluate(CODE_CONTRAST)
+    # A surface that drew no numbers, signs or counts leaves the readings short.
+    assert light["read"] >= 15, f"only {light['read']} readings: the page drew less"
+    assert light["canvas"] > 0.9, "the code took a scheme the page doesn't have"
+    assert light["unread"] == [], light["unread"]
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--lf-code-scheme', 'dark')"
+    )
+    rendered(page)
+    dark = page.evaluate(CODE_CONTRAST)
+    assert dark["canvas"] < 0.05, "the code scheme never reached the code"
+    assert dark["unread"] == [], dark["unread"]
+    assert dark["copy"] < 0.1, "a code block's Copy stayed a light control on dark code"
+    assert evaluate_probe(page, "unreadSyntax") == []
 
 
 RESET = (

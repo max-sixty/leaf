@@ -9,6 +9,10 @@
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */
+lf-diff,
+lf-call-diff {
+  color-scheme: var(--lf-code-scheme); /* tokens.css, at --lf-pre-bg */
+}
 lf-diff {
   contain: inline-size;
 }
@@ -194,11 +198,11 @@ lf-call-diff {
 }
 
 .lf-call-line[data-lf-status="added"] .lf-call-marker {
-  color: var(--lf-code-add-ink);
+  color: var(--lf-ok-ink);
 }
 
 .lf-call-line[data-lf-status="removed"] .lf-call-marker {
-  color: var(--lf-code-del-ink);
+  color: var(--lf-danger-ink);
 }
 
 .lf-call-location {

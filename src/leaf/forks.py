@@ -682,8 +682,10 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
         why = f"the message was refused: {error}"
         return {**_hand_over(session_id, basis, why), "text": text, "refused": why}
     if record is None:
-        close_agent_turns(session_id, turn=basis["turn"])
-        return {"outcome": "dropped", "text": text}
+        # The message the line responds to owes no reply now, as when a newer one in
+        # the thread carries its answer, so the thread goes to the session bare.
+        why = "the line's message owes no reply now"
+        return {**_hand_over(session_id, basis, why), "text": text}
     return {"text": text, "line": record["id"]}
 
 
@@ -735,6 +737,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
     which fork has the thread; a turn whose start nothing confirms lapses
     (`activity.agent_turn_end`)."""
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
+    from .presence import nudge_unwatched
 
     page_dir = Path(basis["page"])
     turn = basis["turn"]
@@ -750,6 +753,7 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
             if data is None:
                 # Only the session can settle what owes no reply in the thread.
                 close_agent_turns(session_id, turn=turn)
+                nudge_unwatched(page)
                 return {"outcome": "hand_over", **posted}
             claim = page.active_claim
             assert claim is not None

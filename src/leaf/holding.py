@@ -282,12 +282,13 @@ class Holding(NamedTuple):
 
     def forked(self) -> set[str]:
         """The waiting messages a fork has taken on, which read On it
-        (`served_state.work`): those of a thread an agent's running turn holds, a
-        line turn's or a working fork's, and those the agent's working message came
-        after, until the session answers."""
+        (`served_state.work`): those of a thread a running line turn holds, and those
+        the agent's working message came after, until the session answers."""
         return {
             event["id"]
-            for event in self.waiting(lambda held: owed_by(held.holder) is not MAIN)
+            for event in self.waiting(
+                lambda held: owed_by(held.holder)["kind"] == "line"
+            )
         } | {
             event["id"]
             for said in self.found.waiting.values()

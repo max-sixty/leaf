@@ -79,18 +79,19 @@ diagnostics (`fork_outcome`):
 
 With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
 does the work: the line fork judges it a fork's, and a fork spawned from the
-conversation, in a turn of its own that picked the comment up, answers it in the
-thread itself with `leaf thread reply` while the session stays idle. Then
+conversation, in the line turn passed to it, which picked the comment up, answers it
+in the thread itself with `leaf thread reply` while the session stays idle. Then
 `fork-follow-up`: a question a fork takes and looks up in the page's source, and the
 user's further message in its thread sent as the fork starts, which the fork's next
 tool boundary hands it: the fork's turn picks it up and the fork answers it, while the
 session stays idle. Then `fork-resume`: once that fork's run has ended, a further
 message in its thread goes to the same fork, which Claude Code resumes under the same
-agent id in a new turn of its own that picks the message up and answers it, while the
-session stays idle; the session then wakes for Claude Code's notice that the resumed
-fork finished, and doesn't answer the message again. Then `fork-todo`: a question a
-fork takes, whose rest the user leaves as work for later, which the fork answers with
-a to-do on the thread (`--todo`), ending its turn as `todo`; Leaf's wake for that
+agent id in the message's line turn, passed to it, which picked the message up; the
+fork answers it while the session stays idle; the session then wakes for Claude
+Code's notice that the resumed fork finished, and doesn't answer the message again.
+Then `fork-todo`: a question a fork takes, whose rest the user leaves as work for
+later, which the fork answers with a to-do on the thread (`--todo`), ending its turn
+as `todo`; Leaf's wake for that
 to-do starts a turn of the idle session, whose prompt hook hands it the line naming
 the to-do, and the session does the work and ends the to-do or leaves it open on its
 list, as it judges. `fork-work` then checks
@@ -738,8 +739,10 @@ def steps(
                 run_end["outcome"] in ("answer", "todo"),
                 f"fork-idle: the fork gave the thread back: {fork_summary(run_end)}",
             )
+            # The line turn admission opened picked the comment up, and the take
+            # picked it up again in that turn, which it passed to the fork.
             require(
-                picked_up(page, comment) == [taken["turn"]],
+                set(picked_up(page, comment)) == {taken["turn"]},
                 "fork-idle: a turn other than the fork's picked the comment up: "
                 f"{picked_up(page, comment)}",
             )
@@ -803,8 +806,8 @@ def steps(
                 150,
             )
             require(
-                picked_up(page, asked) == [taken["turn"]]
-                and picked_up(page, more) == [taken["turn"]],
+                set(picked_up(page, asked)) == {taken["turn"]}
+                and set(picked_up(page, more)) == {taken["turn"]},
                 "fork-follow-up: a turn other than the fork's picked the thread up: "
                 f"{picked_up(page, asked)}, {picked_up(page, more)}",
             )
@@ -904,7 +907,7 @@ def steps(
                 "fork-resume: the session started a turn before the fork answered",
             )
             require(
-                picked_up(page, again) == [taken["turn"]],
+                set(picked_up(page, again)) == {taken["turn"]},
                 "fork-resume: a turn other than the resumed fork's picked the message "
                 f"up: {picked_up(page, again)}",
             )
@@ -1009,7 +1012,7 @@ def steps(
                 told, "fork-todo: no prompt hook handed the session the line naming it"
             )
             require(
-                picked_up(page, comment) == [taken["turn"]],
+                set(picked_up(page, comment)) == {taken["turn"]},
                 "fork-todo: a turn other than the fork's picked the question up: "
                 f"{picked_up(page, comment)}",
             )
@@ -1108,11 +1111,14 @@ def steps(
         cc.until(answered("fork-work"), "fork-work: the session did not answer it")
         first = lined("fork-work")
         # The session's turn once it answered, which is the user's own or the next.
+        # The line turn's pickup at admission comes first, and the main thread's
+        # once the line fork handed the request over.
         last = claimed(page)["turn"]
-        took = picked("fork-work")
+        took = [t for t in picked("fork-work") if t in (turn, last)]
         require(
-            bool(took) and took[0] in (turn, last),
-            "fork-work: neither the user's turn nor the next picked the request up",
+            bool(took),
+            "fork-work: neither the user's turn nor the next picked the request up: "
+            f"{picked('fork-work')}",
         )
         where = "the user's turn" if took[0] == turn else "the next turn"
         if fork_work:

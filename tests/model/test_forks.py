@@ -2181,13 +2181,14 @@ def test_a_message_while_kept_back_joins_the_line_turn_and_goes_where_it_goes(
     assert basis(claimed, first["id"])["turn"] == line_turn
     assert deliverable(claimed) == []
 
-    assert forks_model.route(
+    routed = forks_model.route(
         "s1",
         basis(claimed, first["id"], first["id"]),
         answer=judged("checking why 30 s", "take"),
         failed=None,
         work_forks=True,
-    ) == {"outcome": "dropped", "text": "checking why 30 s", "work": "take"}
+    )
+    assert (routed["outcome"], "line" in routed) == ("hand_over", False), routed
     assert line_turn not in state_model.open_agent_turns("s1")
     assert kept_back(claimed) == []
     assert deliverable(claimed) == [first["id"], second["id"]]

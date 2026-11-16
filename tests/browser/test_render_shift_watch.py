@@ -2920,6 +2920,57 @@ def test_width_animation_cannot_credit_a_script_height_change(browser):
     consume_browser_errors(page, moved_within("button#control"))
 
 
+# A box holding its words centred, as a button holds its label, standing on its head
+# or, placed by `bottom`, on its foot. A press begins a native animation of its
+# height, or of the unrelated `#other`'s, paused at its start.
+CENTRED = """<!doctype html><body style="margin:0">
+<button id="start">Start</button>
+<div style="position:relative;height:300px">
+  <div id="box" style="display:flex;align-items:center;height:20px;{place}">
+    <span id="words" style="position:relative">Words</span></div>
+  <div id="other" style="position:absolute;top:0;right:0;width:20px;height:20px"></div>
+</div>
+<script>
+  start.addEventListener("pointerdown", () => {{
+    window.effect = (document.body.dataset.animates === "other" ? other : box)
+      .animate([{{height: "20px"}}, {{height: "120px"}}], {{duration: 400, fill: "forwards"}});
+    effect.playbackRate = 0;
+    effect.currentTime = 0;
+  }});
+</script>"""
+
+
+@pytest.mark.parametrize("arm", ["head", "foot", "further", "unanimated"])
+def test_a_size_animation_carries_what_its_box_lays_out(browser, arm):
+    """A box a press's animation grows re-centres its words between its edges,
+    whichever edge holds. The test seeks the animation to its end in one frame, as a
+    starved host's long frames do; at 60 frames a second each step moves the words
+    less than the 3 px Chrome reports as a shift. Words a script carries farther than
+    the box grew still fail, and so do words re-centred by a size change that no
+    animation of their box makes."""
+    place = "position:absolute;bottom:0;left:0;right:0" if arm == "foot" else ""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(CENTRED.format(place=place)))
+    if arm == "unanimated":
+        page.evaluate("document.body.dataset.animates = 'other'")
+    page.locator("#start").click()
+    assert page.evaluate("effect.playState") == "running"
+    paint(page)
+    page.evaluate(
+        """arm => {
+      effect.currentTime = 400;
+      if (arm === 'further') words.style.top = '150px';
+      if (arm === 'unanimated') box.style.height = '120px';
+    }""",
+        arm,
+    )
+    judge_watches()
+    if arm in ("head", "foot"):
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("span#words"))
+
+
 @pytest.mark.parametrize(
     "motion,translation,retarget",
     [

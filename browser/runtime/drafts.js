@@ -60,10 +60,10 @@
    it holds (`drafts.py`), so words another tab or device wrote in the
    meantime come back in its place, and they own the draft: this document's words since
    then retire. Words written over a generation another tab sent start the draft again,
-   since they are newer than anything sent. The server settles the generation an
-   accepted event was sent from as it admits the event, and the document that sent it
-   settles it too, which covers a generation whose own write reaches the server after
-   its event.
+   since they are newer than anything sent. The log answers which generations were
+   sent, so the server settles one at its first reading after the event, which every
+   tab hears at its next look, and turns a write of it that arrives later into its
+   settlement (`drafts.py`).
 
    Every send draws its result in this document before the log answers. So the send
    masks its generation here at the gesture (`standGesture`) and the box the words were
@@ -74,11 +74,11 @@
    refusal took down (`keepRefusedWords`).
 
    Settlement is generation-specific. `activeDraftRecord` filters settled records and
-   accepted attempts (`attemptAccepted`: an attempt already in `events` is settled
-   whatever the server has yet to say of it). `sendDraft` snapshots the current record,
-   checks ownership immediately before POST, and settles only that attempt.
-   `mirrorDraft` updates visible text only when doing so will not erase a newer local
-   generation.
+   the generation this document is sending. The server never hands this document a
+   generation the log admitted (`drafts.py`), so nothing here asks the log whether
+   words were sent. `sendDraft` snapshots the current record, checks ownership
+   immediately before POST, and settles only that attempt. `mirrorDraft` updates
+   visible text only when doing so will not erase a newer local generation.
 
    The selection composer keys drafts by anchor, not by one global composer slot. Its
    record carries the anchor, mode, and last-touch time; startup reopens the most
@@ -140,8 +140,7 @@ import { signal } from "./framework.js";
 //
 // A new attempt is minted even when its words equal an earlier message, and the
 // attempt is what lets the log recognize the same gesture after the tab that sent it
-// has died. The log outranks the server's record: an attempt already present in
-// `events` is settled whatever the record still says.
+// has died, and the server settles every generation whose attempt the log holds.
 
 // The page's own draft: the floating panel's field, the one place a page thread
 // starts.
@@ -178,9 +177,6 @@ export const tellDraft = (ctx, value, payload = undefined) =>
   document.dispatchEvent(
     new CustomEvent(DRAFT_NEWS, { detail: { ctx, value, payload } }),
   );
-/** @param {string} attempt */
-const attemptAccepted = (attempt) =>
-  runtime.events.some((event) => event.attempt === attempt);
 /** @param {string} ctx */
 const rawDraftRecord = (ctx) => draftCache.get(ctx)?.record ?? null;
 /** @param {DraftRecord | null} left @param {DraftRecord | null} right */
@@ -201,7 +197,7 @@ const projectDraftRecord = (ctx, record) =>
   queueMicrotask(() => {
     const current = draftCache.get(ctx)?.record ?? null;
     if (!sameDraftRecord(current, record)) return;
-    const active = current && !current.settled && !attemptAccepted(current.attempt);
+    const active = current && !current.settled;
     tellDraft(ctx, active ? current.text : null, active ? current.payload : undefined);
   });
 
@@ -490,7 +486,7 @@ const sentAttempts = new ListingMap(); // ctx -> attempt
 /** @param {string} ctx */
 const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
-  return record && !record.settled && !attemptAccepted(record.attempt) ? record : null;
+  return record && !record.settled ? record : null;
 };
 /** @param {string} ctx */
 const activeDraftRecord = (ctx) => {
@@ -641,12 +637,7 @@ const listsAlike = (was, now) =>
 function listDraft(ctx) {
   const subject = draftSubject(ctx);
   if (!subject) return;
-  // The record as this document shows it, short of the log's acceptance, which reaches
-  // the list as the settlement the server writes as it admits the send (`drafts.py`):
-  // asking the log here would cost each keystroke a walk of the session's events.
-  const raw = rawDraftRecord(ctx);
-  const record =
-    raw && !raw.settled && sentAttempts.get(ctx) !== raw.attempt ? raw : null;
+  const record = activeDraftRecord(ctx);
   const holds = Boolean(record?.text.trim() || field(record?.payload, "drawing"));
   const was = listing.get(ctx);
   if (!holds && !was) return;

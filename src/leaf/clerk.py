@@ -64,7 +64,7 @@ follow-up goes On Me is settled once, by that rule. On 2026-11-05 they chose the
 for how a question reads: the reference's own wording for it gave 47 of 47 recorded
 questions as one unbroken paragraph, and the agent's guidance now shapes both.
 Findings for the agent:
-a page that still says what the work or the conversation has since changed, an On Me
+anything a page still holds that no longer fits the work as it now stands, an On Me
 item already settled elsewhere, work promised or set running that no page shows,
 for which the fork sees the items the page shows started, and an open thread whose
 agent messages the user would misread (`overtaken`). A first version also wrote
@@ -187,9 +187,13 @@ told. Confirming the lines from the transcript, as `delivery.confirm_entered` do
 for input, would close that gap.
 
 A line queued with `wake` tells the session of work it now owes, such as a to-do a
-fork opened (`forks.ended`). Until a hook has printed it, the watch between turns
-wakes the session for it once the turn has closed (`waking`,
-`session.watch_between_turns`). None of the clerk's own lines wakes the session.
+fork opened (`forks.ended`) or a finding Leaf changed nothing for. Until a hook has
+printed it, the watch between turns wakes the session for it once the turn has closed
+(`waking`, `session.watch_between_turns`), and a session no watch follows is nudged
+(`presence.nudge_unwatched`). The turn that ends a stretch of work is the one most
+likely to leave a page stale, and its next step is otherwise the user's return, by
+when they have read the page. A record Leaf wrote and a fix it made need nothing of
+the agent, so their lines wait for its next step.
 
 Each fork's outcome goes to the diagnostics of every page the session holds
 (`interaction_log`, type `turn_end_check`), as a fork reply's does (`forks.py`): what
@@ -303,7 +307,7 @@ _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 # Each kind of finding, as the agent's line names it: the one list of kinds, which
 # the answer's schema and form read.
 FOUND = {
-    "stale": "the page saying what has since changed",
+    "stale": "the page holding what no longer fits the work",
     "settled": "an On Me item already settled",
     "unshown": "work no page shows",
     "overtaken": "a thread of yours the user would misread",
@@ -736,16 +740,23 @@ def apply_answer(
     """Act on `answer` for each page `session_id` holds: put its asks On Me
     (`_ask`) and make each stale passage's fix (`_fix`) while the session's turn is
     still the one `asked` names, and pass each other finding to the agent whatever
-    turn has opened since, queueing a line for each for the agent's next step; what
-    it wrote, changed and told, and why it wrote no records if it didn't. Each page's
-    diagnostics note what the fork named there and what came of it, with `run`."""
+    turn has opened since, queueing a line for each for the agent's next step. A
+    finding Leaf changed nothing for is work the agent owes before the user next
+    reads the page, so its line wakes an idle session (`waking`), and a session no
+    watch follows is nudged for it, once, if no turn has opened since; a record Leaf
+    wrote or a fix it made only tells.
+    Returns what it wrote, changed and told, and why it wrote no records if it
+    didn't. Each page's diagnostics note what the fork named there and what came of
+    it, with `run`."""
     from .leases import page_locked
+    from .presence import nudge_unwatched
     from .service import PageTransaction, owned_pages
 
     wrote: list[dict] = []
     changed: list[dict] = []
     told: list[str] = []
     dropped = None
+    nudged = False
     for page_dir in owned_pages(session_id):
         path = str(page_dir)
         mine = {
@@ -770,7 +781,7 @@ def apply_answer(
                     continue
                 identity = {"agent": claim["agent"], "session": claim["id"]}
                 current = basis(session_id) == asked
-                lines = []
+                lines, owed = [], []
                 # A record refused partway leaves those before it on the page, so the
                 # agent hears of each record written, whatever stops the rest.
                 try:
@@ -795,15 +806,25 @@ def apply_answer(
                         if fixed:
                             changed.append({"page": path, **fixed})
                             here["changed"].append(fixed)
-                        lines.append(_found(path, item, session_id, current, fixed))
+                        (lines if fixed else owed).append(
+                            _found(path, item, session_id, current, fixed)
+                        )
                 except Exception as error:
                     here["error"] = str(error)
                     raise
                 finally:
                     _append(session_id, lines)
-                    told.extend(lines)
-                    here["told"] = len(lines)
+                    _append(session_id, owed, wake=True)
+                    told.extend([*lines, *owed])
+                    here["told"] = len(lines) + len(owed)
                     _note(page_dir, session_id, asked, {**mine, **here, **(run or {})})
+                # After the lines are queued, so the turn a nudge starts hears them;
+                # once, since that turn hears every page's lines; and only for the
+                # turn the fork read, which ended on its answer, so a later turn the
+                # user stopped with Escape waits for their next prompt.
+                if owed and current and not nudged:
+                    nudge_unwatched(page)
+                    nudged = True
         except FileNotFoundError:
             continue
     return {

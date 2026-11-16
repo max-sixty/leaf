@@ -149,20 +149,19 @@ lf-toc a[data-lf-focus] {
 }
 /* A section's mark (toc-view.js) says it holds an On me item, in the user's turn's
  * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
- * preview counts both. It is a small ring of its colour, which meets the rule and a
- * changed stretch as any marker does. An On me item's ring also stands in a soft disc of
- * its colour, with a hairline of paper round the disc (`--lf-toc-halo`), so the disc
- * never runs into a changed stretch or the lens, and what waits on the user differs
- * from a thread by its shape as well as its colour, which some readers can't tell apart
- * at this size (tokens.css, at `--lf-turn`); the user chose this on 15 November 2026
- * over discs on both. Rejected: a hairline of paper round a thread's bare ring, which
- * cut the rule short on both sides of it where every other marker meets the rule. The outline draws the ring on its rule, centred on
- * the row's first line in one column at every depth; the map draws the section's marker
- * as that ring (below). Only where you are fills a marker, so no mark reads as the
- * current section. While the changes view is on, a changed section's stretch of the
- * rule wears the face a change wears in the margin (`--lf-change-bar`, chrome.css),
- * and a mark stands over it. Out of the words,
- * no mark reads as part of them, and out of flow, none moves a row. They take no
+ * preview counts both. It is a small ring of its colour. An On me item's ring also
+ * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
+ * differs from a thread by its shape as well as its colour, which some readers can't
+ * tell apart at this size (tokens.css, at `--lf-turn`); the user chose this on 15
+ * November 2026 over discs on both. The rule, the lens and a changed stretch meet every
+ * mark flush, as they meet a plain marker. Rejected: a hairline of paper round each
+ * mark, which cut the rule short on both sides of it. The outline draws the ring on its
+ * rule, centred on the row's first line in one column at every depth; the map draws the
+ * section's marker as that ring (below). Only where you are fills a marker, so no mark
+ * reads as the current section. While the changes view is on, a changed section's
+ * stretch of the rule wears the face a change wears in the margin (`--lf-change-bar`,
+ * chrome.css), and a mark stands over it. Out of the words, no mark reads as part of
+ * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
  * as an en dash; dashes ticked off the rule, with every label inset 6px further on the
  * map, stacked into a letter E beside a changed row and rewrapped labels on every map;
@@ -194,9 +193,8 @@ lf-toc [data-lf-toc-mark="thread"] {
    circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark="on-me"] {
   --lf-toc-mark: var(--lf-turn);
-  --lf-toc-halo:
-    0 0 0 3.5px color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper)),
-    0 0 0 4.5px var(--lf-paper);
+  --lf-toc-halo: 0 0 0 3.5px
+    color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper));
 }
 /* A changed stretch runs its round caps half its width past each end of its row, so two
    changed rows' stretches overlap there and join at full width, rather than pinching
@@ -373,8 +371,11 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     lf-toc .lf-toc-start::before {
       --lf-toc-dot: 9px;
     }
+    /* Every marker is an odd number of pixels across, so it centres on the one-pixel
+       spine: an even one stands half a pixel off it, which engines round to a whole
+       pixel to one side. */
     lf-toc li[data-lf-depth="0"]::before {
-      --lf-toc-dot: 6px;
+      --lf-toc-dot: 7px;
     }
     lf-toc .lf-toc-start::before,
     lf-toc li[data-lf-depth="0"]::before {

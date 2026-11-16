@@ -55,9 +55,11 @@ lf-tabs[data-lf-views]
     & > * + *::before {
       content: " · ";
     }
-    & + * > :is(h1, h2, h3, h4):first-child,
-    & + :is(h1, h2, h3, h4) {
+    /* What follows stands at the panel's top edge, as the panel's first block would
+       (base.css, at `--lf-frame-start`), so its heading sits under the eyebrow. */
+    & + * {
       margin-block-start: 0;
+      --lf-frame-start: 1;
     }
   }
   lf-tabs[list="side"] > lf-tab > & {

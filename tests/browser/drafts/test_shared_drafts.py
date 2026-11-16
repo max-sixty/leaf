@@ -2,6 +2,8 @@
 attempt, edit generations, settlement, a server out of reach, and a draft outliving its
 tab."""
 
+from urllib.parse import urlsplit
+
 import pytest
 from interact_support import append_carried_log_record, wait_for
 from playwright.sync_api import expect
@@ -855,11 +857,14 @@ def test_a_reading_older_than_a_write_s_answer_leaves_the_words_typed_since(
     box = page_comment(page)
     write(box, "Zero.")
     assert stored_draft_text(page, "general") == "Zero."
+    origin = urlsplit(page.url)
     reads = []
-    page.route("**/api/drafts", lambda route: reads.append((route, route.fetch())))
+    page.route("**/api/drafts", lambda route: reads.append(route))
     elsewhere = "Another draft moves the version."
     write_draft_elsewhere(page, "reply:elsewhere", elsewhere)
     holding(page, reads, 1, "the drafts read")
+    # What the server answered that read with, as it stood then.
+    stale = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
     write(box, "Zero. One.")
     assert stored_draft_text(page, "general") == "Zero. One."
     writes = []
@@ -867,10 +872,9 @@ def test_a_reading_older_than_a_write_s_answer_leaves_the_words_typed_since(
     write(box, "Zero. One. Two.")
     holding(page, writes, 1, "the latest write")
 
-    route, answer = reads.pop()
-    route.fulfill(response=answer)
+    reads.pop(0).fulfill(response=stale)
     heard_draft(page, "reply:elsewhere", elsewhere)
     expect(box).to_have_js_property("value", "Zero. One. Two.")
+    page.unroute("**/api/draft")
     writes.pop().continue_()
-    page.unroute_all(behavior="wait")
     assert stored_draft_text(page, "general") == "Zero. One. Two."

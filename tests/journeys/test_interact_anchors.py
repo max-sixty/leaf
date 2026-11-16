@@ -334,8 +334,8 @@ def test_a_quote_without_a_section_detaches_when_its_words_disappear(page_dir):
         ],
     )
     assert moved.exit_code == 0, moved.output
-    advice, reply = [json.loads(line) for line in moved.output.splitlines()]
-    assert advice["code"] == "unpointable"
+    reply = json.loads(moved.stdout)
+    assert [finding["code"] for finding in reply["findings"]] == ["unpointable"]
     assert reply["anchor"]["quote"] == "Beta"
 
 

@@ -86,7 +86,7 @@ Read the registry rather than repeating it. `declarationFor(element, key)` retur
 key of the element's entry, and `elementsDeclaring(root, key, {direct})` lists the
 elements under `root`, or only its children, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
-such as an `x-thread-seat`'s. `layerFact(name)` returns a frozen layer-wide `$`
+such as an `x-awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference

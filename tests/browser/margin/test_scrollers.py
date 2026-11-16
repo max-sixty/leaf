@@ -1423,7 +1423,10 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
     """A section of fixed height that the browser skips until it nears the window
     (`content-visibility: auto`) withholds the row on a target inside it, and scrolling
     the page alone, which resizes and rewrites nothing, brings the row back once the
-    section is drawn."""
+    section is drawn: whether the reader wheels toward it, which draws it before it
+    shows, or jumps to it, as a key or the scrollbar does, which the page reads before
+    it draws. The section keeps its size as it draws, so after a jump the row stayed
+    withheld until some other change laid the margin out."""
     source = leaf_page(
         "a far section",
         '<h1 id="t">Far</h1><div style="height: 3000px"></div>'
@@ -1436,13 +1439,31 @@ def test_a_row_in_content_skipped_until_near_stands_once_the_page_scrolls_to_it(
     resized(page, 1280, 720)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="far"]')
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
+    withheld = re.compile(r"\blf-withheld\b")
+    far_drawn = (
+        "document.getElementById('far').checkVisibility({contentVisibilityAuto: true})"
+    )
+    expect(row).to_have_class(withheld)
     page.mouse.move(640, 360)
     for _ in range(12):
         page.mouse.wheel(0, 250)
         page.wait_for_timeout(50)
     expect(page.locator("#far")).to_be_in_viewport()
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+    expect(row).not_to_have_class(withheld)
+
+    # A pass while the section is skipped withholds the row again.
+    page.evaluate("() => scrollTo(0, 0)")
+    page.wait_for_function(f"() => !{far_drawn}")
+    margins_laid_out(page)
+    expect(row).to_have_class(withheld)
+    page.evaluate(
+        "() => scrollTo(0, document.getElementById('far-section').offsetTop - 200)"
+    )
+    page.wait_for_function(f"() => {far_drawn}")
+    rendered(page)
+    # Read once: a later pass for another change would stand the row whether or not
+    # the section's drawing brought one.
+    assert not withheld.search(row.get_attribute("class"))
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):

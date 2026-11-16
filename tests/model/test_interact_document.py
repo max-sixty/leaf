@@ -676,8 +676,8 @@ def test_one_check_reports_markup_and_capture_problems_each_once(page_dir):
         ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><p id="twice">One</p><p id="twice">Two</p>'
-            '<img src="/media/0000000000000001.png" alt="missing">'
-            '<img src="/media/shot.png" alt="unserved">',
+            '<img id="missing-shot" src="/media/0000000000000001.png" alt="missing">'
+            '<img id="unserved-shot" src="/media/shot.png" alt="unserved">',
         )
     )
 

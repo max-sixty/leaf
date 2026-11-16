@@ -368,8 +368,10 @@ export function excludedByInert(node) {
 // style time. So a reading that has nothing to say about a box on no screen — where it
 // stands, whether it scrolls, what room it takes — asks this first and leaves the box
 // out until a pass after it is drawn: revealing a panel or opening a disclosure resizes
-// what holds it, which brings those passes round. A reading that marks what the user
-// will see once it is drawn (an anchor's outline) still asks, and pays.
+// what holds it, which brings those passes round. An `auto` box draws what it holds at
+// the size it already had, so a reading that follows it hears the box say so
+// (`contentvisibilityautostatechange`). A reading that marks what the user will see
+// once it is drawn (an anchor's outline) still asks, and pays.
 //
 // Answered without forcing anything: `checkVisibility({contentVisibilityAuto: true})`
 // reads the tree the browser has, and is false for a box that is not drawn for any

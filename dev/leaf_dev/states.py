@@ -1136,8 +1136,9 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
     root = thread.get_attribute("data-lf-thread")
     assert root
     as_agent("thread", "reply", root, "--text", "That one goes first.")
+    # The notice says one count of all it holds; its preview says each fact.
     notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_attribute("title", "1 new reply")
+    expect(notice).to_have_text("1 new")
     PageClient(served_page.get().address).post(
         {
             "kind": "reply",
@@ -1146,7 +1147,7 @@ def held_news(page: Page, thread: Locator, *, drafting: bool = True) -> None:
             "text": "Sent from my other tab.",
         }
     )
-    expect(notice).to_have_attribute("title", "1 new reply · 1 new message")
+    expect(notice).to_have_text("2 new")
 
 
 def card_held_news(page: Page) -> None:
@@ -1216,6 +1217,23 @@ def seat_held_news(page: Page) -> None:
     thread = page.locator("#goal-parser .lf-page-thread")
     thread.scroll_into_view_if_needed()
     held_news(page, thread, drafting=False)
+
+
+def seat_comment_box(page: Page) -> None:
+    """A goal's row with its comment box open under the conversation it holds, the
+    words of a second comment typed: the box stands in the row's own outlet, with the
+    send that holds the goal beside it."""
+    as_agent(
+        "thread", "create", "--section", "goal-parser", "--text", "Which worker first?"
+    )
+    load(page, served_page.get().address)
+    goal = page.locator("#goal-parser")
+    control = goal.locator(":scope > .atlas-task-comment")
+    control.scroll_into_view_if_needed()
+    control.click()
+    box = goal.locator(":scope > .atlas-task-threads .lf-fab-input")
+    expect(box).to_be_focused()
+    page.keyboard.insert_text("Park it once the hunk lands")
 
 
 def option_picked(page: Page) -> None:
@@ -3298,6 +3316,12 @@ STATES = (
         "command-hub",
         seat_held_news,
         region="#goal-parser .lf-page-thread",
+    ),
+    State(
+        "hub-seat-comment",
+        "command-hub",
+        seat_comment_box,
+        region="#goal-parser > .atlas-task-threads",
     ),
     State(
         "plan-card-reply-large",

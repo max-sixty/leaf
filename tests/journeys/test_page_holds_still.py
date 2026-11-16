@@ -490,21 +490,24 @@ def put_pin(page, built):
     page.locator(PIN).first.hover()
 
 
-# The pin the thread the user works in stands at in the margin, by its seat's head.
-JOBS_PIN = '[data-lf-margin-for="jobs"] .lf-margin-marker'
+# Resolve at the head of the thread the user works in. The task seats the thread, so
+# the margin holds no pin for it.
+JOBS_RESOLVE = (
+    '.lf-page-thread[data-lf-thread="$jobs"] button[aria-label="Resolve thread"]'
+)
 
 
-def put_typing_pin(page, built):
-    """Type in the reply box, then rest the pointer on its thread's margin pin, in sight
+def put_typing_on_resolve(page, built):
+    """Type in the reply box, then rest the pointer on its thread's Resolve, in sight
     above it, as a user glancing at the thread does; focus stays in the box."""
     type_in_reply(page, built)
-    pin = page.locator(JOBS_PIN).first
-    assert pin.evaluate(
-        "(pin, box) => pin.getBoundingClientRect().bottom > 0"
-        " && pin.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
+    resolve = page.locator(ids_in(JOBS_RESOLVE, built))
+    assert resolve.evaluate(
+        "(resolve, box) => resolve.getBoundingClientRect().bottom > 0"
+        " && resolve.getBoundingClientRect().bottom < box.getBoundingClientRect().top",
         page.locator(ids_in(reply_box("jobs"), built)).element_handle(),
-    ), "the pin doesn't stand in sight above the reply box"
-    pin.hover()
+    ), "Resolve doesn't stand in sight above the reply box"
+    resolve.hover()
 
 
 # Over the page's right edge, past the column: its background, no control and no words.
@@ -1009,9 +1012,9 @@ PLACES = [
         {"thread above": "jobs"},
     ),
     Place(
-        "typing-pin",
+        "typing-on-resolve",
         "thread",
-        put_typing_pin,
+        put_typing_on_resolve,
         Found(reply_box("jobs")),
         {"thread above": "jobs"},
     ),

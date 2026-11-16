@@ -2,7 +2,7 @@
 their required readers, and the fallback when a surface fails."""
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, wait_for
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -346,6 +346,76 @@ customElements.define('lf-test-surface', class extends LeafElement {
             "invalid-outlet": "A Thread outlet must be an Element or null",
         }[failure]
         consume_browser_errors(page, expected)
+
+
+def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
+    """A thread names its widget by id, so an instance without one can seat no thread
+    and open no comment box. The page reports that as the widget's own failure once the
+    instance would have registered, which `page check` shows without a press. Its opener stays null, so the Comment control a module offers by it never
+    shows, and the instance beside it, which has an id, opens its box."""
+    entry = {
+        "description": "A card that seats the threads about it.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-upgrade": True,
+        "x-thread-surface": True,
+        "x-example": '<lf-test-card id="card-example">A card.</lf-test-card>',
+    }
+    module = """
+import {keepsHidden, LeafElement, nothing, offer, offerAction, threadSurface}
+  from '/runtime/widget-api.js';
+customElements.define('lf-test-card', class extends LeafElement {
+  setup() {
+    this.threads = offer('div', 'lf-test-threads');
+    this.comment = offerAction('symbol', 'lf-test-comment', undefined, {
+      action: 'comment',
+    });
+    this.comment.addEventListener('click', () => threadSurface(this).open?.(this));
+    this.append(this.threads, this.comment);
+  }
+  threadOutlets(targets) {
+    return targets.map(() => this.threads);
+  }
+  render() {
+    keepsHidden(this.comment, !threadSurface(this).open);
+    return nothing;
+  }
+});
+"""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Cards",
+                '<h1 id="title">Cards</h1>'
+                '<lf-test-card id="named">A card with an id.</lf-test-card>'
+                "<lf-test-card>A card without one.</lf-test-card>",
+            ),
+            layer_registry={"lf-test-card": entry},
+            layer_widgets={"lf-test-card.js": module},
+        ),
+    )
+    said = (
+        "<lf-test-card> failed: a widget that shows threads needs an id on each"
+        " instance, and this one has none"
+    )
+    logged = wait_for(
+        lambda: [
+            event["text"]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "error"
+        ],
+        bool,
+        failure="the surface without an id reached the log as no error",
+    )
+    consume_browser_errors(page, said)
+    assert len(logged) == 1 and logged[0].startswith(said), logged
+    expect(page.locator("lf-test-card:not([id]) > .lf-test-comment")).to_be_hidden()
+    named = page.locator("#named")
+    named.locator(":scope > .lf-test-comment").click()
+    expect(named.locator(":scope > .lf-test-threads .lf-fab-input")).to_be_focused()
 
 
 def test_page_annotation_view_seats_obligations_and_contributed_controls(

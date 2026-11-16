@@ -11,15 +11,16 @@
 # All four runs preserved fixture isolation; the view-selection assertion alone
 # separated them. The earlier CC-only run hit
 # the old harness's turn limit on both baseline samples and measured no baseline.
-# The case now authors the page and names nothing to read: at 0e538e29d, 2 of 2
-# Claude Code authors read the playground's instructions through `leaf page
-# instructions` and passed.
+# As an authoring case naming nothing to read, at 0e538e29d, 2 of 2 Claude Code authors
+# read the playground's instructions through `leaf page instructions` and passed. Now a
+# probe given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2 at
+# b90df8d3a2.
 description: playground-isolates-fixture-history
 metadata:
   purpose:
     "Playground: live Leaf candidates own fictional history and practice interactions; the outer
     page owns feedback."
-  authoring: true
+  page: [playground]
   tags:
     - playground
 vars:

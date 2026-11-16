@@ -168,7 +168,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     """One file boots the captured runtime, but never resurrects its host boundary.
 
     The file keeps the choice recorded on the page's widget and leaves out the thread on
-    another, whose seat offers no box to start one in."""
+    another, which offers no comment box to start one in."""
     source = leaf_page(
         "offline interactive",
         """
@@ -206,7 +206,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(live.locator("#seated .lf-msg")).to_contain_text(
         "A remark the export leaves behind"
     )
-    expect(live.locator("#seated > .lf-thread-seat")).to_have_count(1)
+    expect(live.locator("#seated > .lf-test-comment")).to_be_visible()
     live.close()
 
     # Export resolves the stamped artifact, never the page's mutable source.
@@ -250,7 +250,8 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     expect(page.locator(".lf-floating-panel")).to_have_count(0)
     expect(page.locator("#seated")).to_contain_text("Discuss this.")
     expect(page.locator("#seated .lf-msg")).to_have_count(0)
-    expect(page.locator("#seated > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#seated > .lf-test-comment")).to_be_hidden()
+    expect(page.locator("#seated .lf-fab-input")).to_have_count(0)
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"

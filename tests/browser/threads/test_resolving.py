@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     OBLIGATION_PAGE,
     PANEL_PAGE,
+    SEAT,
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_PAGE,
     SEATED_OBLIGATION_WIDGETS,
@@ -35,7 +36,6 @@ from render_harness import (
     sending,
     told,
     undo,
-    write,
 )
 
 from browser.threads import (
@@ -52,29 +52,21 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser, serve):
     """A page seat keeps focus through settlement when its controls are replaced."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Inline settlement",
-                '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
-                "Should these jobs share a visit?</lf-verdict>"
-                '<label>Another thought <input id="later"></label>',
-            ),
-            layer_registry=SEATED_OBLIGATION_LAYER,
-            layer_widgets=SEATED_OBLIGATION_WIDGETS,
+    url = serve(
+        leaf_page(
+            "Inline settlement",
+            '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
+            "Should these jobs share a visit?</lf-verdict>"
+            '<label>Another thought <input id="later"></label>',
         ),
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
-    first = page.locator("#proposal > .lf-thread-seat > .lf-say")
-    write(first.locator("leaf-text"), "Please combine the jobs.")
-    with sending(page, "the root comment"):
-        first.get_by_role("button", name="Send", exact=True).click()
-    root = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+    root = panel_comment(
+        serve.page_dir, "Please combine the jobs.", {"section": "proposal"}
     )
-    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root["id"]}"]')
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     destination = thread.locator("leaf-text")
     expect(destination).to_have_count(1)
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
@@ -173,7 +165,7 @@ def test_inline_retirement_is_resolved_before_its_pixels_finish(
         expect(thread).to_have_attribute("inert", "")
         expect(summary).to_be_focused()
         expect(summary).to_contain_text(f"Resolved · {2 if existing_neighbors else 1}")
-        assert thread.evaluate("node => node.parentElement.matches('.lf-thread-seat')")
+        assert thread.evaluate("node => node.parentElement.matches('.lf-test-threads')")
         assert page.evaluate("window.retirement.effect.getTiming().duration") == 220
         assert abs(thread.locator("..").bounding_box()["height"] - before) < 1
 
@@ -454,7 +446,7 @@ def seat_surface(browser, serve, gesture):
         )
     page = open_page(browser, url)
     resized(page, 1920, 900)
-    seat = page.locator("#jobs > .lf-thread-seat")
+    seat = page.locator(f"#jobs > {SEAT}")
     seated = seat.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     reopen = seated.get_by_role("button", name="Reopen", exact=True)
 

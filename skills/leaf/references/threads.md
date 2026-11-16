@@ -80,7 +80,9 @@ the reasoning matters to someone using the result, keep the thread anchored to t
 section.
 
 A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
-heredoc on stdin, for anything longer.
+heredoc on stdin, for anything longer. A `math` fence holds a display formula; a
+formula inside a sentence needs that sentence in `--markup` (`page-authoring.md`,
+"Markup").
 
 To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.

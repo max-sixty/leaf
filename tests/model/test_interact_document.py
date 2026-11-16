@@ -1534,13 +1534,15 @@ def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
     check reads every such class, a widget's as a native block's: a name the layer
     can't colour, a misspelling or a language it has no grammar for, is reported
     beside the page and refuses nothing, since the class still names the code truly.
-    A grammar's alias, such as `py`, colours as its name does."""
+    A grammar's alias, such as `py`, colours as its name does, and `math` names a
+    formula, which the browser typesets."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
             '<pre><code class="language-py">y = 2</code></pre>\n'
+            '<p>Its area is <code class="language-math">\\pi r^2</code>.</p>\n'
             '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
             "</code></pre></lf-code>\n"
             '<lf-text-document id="notes" source="notes" class="language-haskell">'

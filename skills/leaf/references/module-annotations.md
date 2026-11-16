@@ -323,7 +323,10 @@ says where it stands:
   highlight only from a rule matching the words' own element: set
   `data-lf-marked-words`, the mark Leaf's own passage highlights use, on the parent
   element of each range's start and end, and write the rule as
-  `[data-lf-marked-words]::highlight(name)`.
+  `[data-lf-marked-words]::highlight(name)`. On this route the element is the
+  attribute's only writer, so it also removes it from each element whose words it
+  stops painting, and from all of them when it leaves. A rule in the document doesn't
+  reach words inside a shadow tree, which paint only from a rule in that tree.
 - `status` is `exact`, or `fallback` or `outdated` where Leaf can't place the anchor's
   own subject, such as a named control or data since replaced, and `place` is the
   nearest element still standing. A comment on a widget's datum also reads `fallback`

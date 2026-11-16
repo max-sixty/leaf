@@ -1,6 +1,8 @@
 """A deck of cards: an answer moves it on, Later keeps a card for the end of the pass,
 Back and Review step through answered cards, and a new tab opens where a card waits."""
 
+import re
+
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
@@ -143,6 +145,36 @@ def test_a_recap_row_opens_a_card_with_no_id_of_its_own(browser, serve):
         "link", name="Ship the docs?"
     ).click()
     expect(page.locator("#docs-ask")).to_be_visible()
+
+
+SUGGESTION_DECK_PAGE = leaf_page(
+    "Deck with a suggestion",
+    '<h1>Before the release</h1><lf-deck id="deck">'
+    '<section id="note-card"><h3>Tighten the upgrade note?</h3>'
+    '<lf-suggestion id="note-suggestion">'
+    "<lf-old><p>Users may need to clear their cache in some cases.</p></lf-old>"
+    "<lf-new><p>Clear the cache once after installing.</p></lf-new>"
+    "</lf-suggestion></section>" + card("store", "Keep Redis?") + "</lf-deck>",
+)
+
+
+def test_a_recap_row_takes_its_cards_heading_where_the_question_has_no_words(
+    browser, serve
+):
+    """A suggestion asks outside an `lf-ask`, so its question has no words of its own;
+    its row in the end frame names it by the card's heading."""
+    page = open_page(browser, serve(SUGGESTION_DECK_PAGE))
+    open_card(page, "note-card")
+    page.get_by_role(
+        "button", name=re.compile(r"^Accept the suggested change")
+    ).first.click()
+    round_trip(page)
+    open_card(page, "store-ask")
+    answer(page, "store-yes")
+    expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
+    expect(page.locator("lf-deck .lf-deck-recap > li > a")).to_have_text(
+        ["Tighten the upgrade note?", "Keep Redis?"]
+    )
 
 
 def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):

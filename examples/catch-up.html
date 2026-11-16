@@ -27,18 +27,22 @@
           <p>
             marram ignores Rhea's <code>~/.config/marram/marram.toml</code> on Windows.
             That's #397, which #402 fixed on main by reading
-            <code>%APPDATA%\marram</code>; it ships in 1.7.3.
+            <code>%APPDATA%\marram</code>; it ships in 1.7.3. Either way I post:
           </p>
           <lf-draft id="cu-windows-reply">
             <pre>
-Thanks for the clear report! This is #397, fixed on main by #402: on Windows marram now reads `%APPDATA%\marram\marram.toml`. It ships in 1.7.3. Until then, `marram --config %APPDATA%\marram\marram.toml` works.</pre>
+Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\marram\marram.toml` on Windows. Until then, pass that path with `--config`.</pre>
           </lf-draft>
+          <p>I'd close it: #397 tracks the fix, and the reply names the release.</p>
           <lf-options id="cu-windows-choice" choose>
             <lf-option id="cu-windows-open">
-              <strong>Post the reply and leave #423 open until 1.7.3</strong>
+              <small class="tag">Rhea hears at 1.7.3</small>
+              <strong>Leave #423 open until 1.7.3 ships</strong>
             </lf-option>
             <lf-option id="cu-windows-close">
-              <strong>Post the reply and close #423 as a duplicate of #397</strong>
+              <small class="tag">Rhea follows #397</small>
+              <small class="tag ok">recommended</small>
+              <strong>Close #423 as a duplicate of #397</strong>
             </lf-option>
           </lf-options>
         </lf-ask>
@@ -50,10 +54,7 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
           </hgroup>
           <p>
             The bump from reqwest 0.12.24 to 0.13.1 fails to build, because 0.13 renamed
-            the <code>rustls-tls</code> feature to <code>rustls</code>. 0.13 also checks
-            certificates against the operating system's store instead of a bundled list.
-            With the rename, the suite passes on all three platforms on my branch, and
-            the 1,212 links in the HTTPS fixture resolve the same.
+            the <code>rustls-tls</code> feature to <code>rustls</code>:
           </p>
           <pre><code class="language-diff"> [dependencies.reqwest]
 -version = "0.12.24"
@@ -61,12 +62,20 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
 +version = "0.13.1"
 +features = ["rustls"]
  default-features = false</code></pre>
+          <p>
+            I'd merge it. With the rename the suite passes on all three platforms. 0.13
+            also checks certificates against the operating system's store instead of a
+            bundled list, and all 1,212 links in the HTTPS fixture resolve the same
+            under it.
+          </p>
           <lf-options id="cu-reqwest-choice" choose>
             <lf-option id="cu-reqwest-close">
-              <strong>Close #421 and stay on 0.12</strong> Dependabot opens it again for
-              the next 0.13 release.
+              <small class="tag">reopens at 0.13.2</small>
+              <strong>Close #421 and stay on 0.12</strong>
             </lf-option>
             <lf-option id="cu-reqwest-merge">
+              <small class="tag">1 line</small>
+              <small class="tag">OS cert store</small>
               <small class="tag ok">recommended</small>
               <strong>Push the rename to #421 and merge it</strong>
             </lf-option>
@@ -87,22 +96,31 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
             <dd>6 min 40 s → 3 min 10 s</dd>
             <dt>Flaky test</dt>
             <dd>
-              <code>redirect_loop_times_out</code> failed 2 of 30 runs while another
-              test held its port; #419 runs it serially, and 30 more runs passed
+              the redirect-loop test failed 2 of 30 runs while another test held its
+              port; #419 runs it serially, and 30 more runs passed
             </dd>
             <dt>Doctests</dt>
             <dd>
               nextest skips them, so #419 adds a <code>cargo test --doc</code> step
             </dd>
           </dl>
+          <p>
+            I'd approve it: every push gets its result three and a half minutes sooner,
+            and running one test serially costs about a second. Giving each test its own
+            port is the real fix for the flake, and it can follow on its own.
+          </p>
           <lf-options id="cu-nextest-choice" choose>
             <lf-option id="cu-nextest-port">
-              <strong>Ask Tomasz to give each test a free port first</strong> The serial
-              test is a workaround that the next port clash repeats.
+              <small class="tag">CI 6m 40s</small>
+              <small class="tag">no workaround</small>
+              <strong>Ask Tomasz to give each test a free port first</strong> #419 waits
+              for that change.
             </lf-option>
             <lf-option id="cu-nextest-approve">
+              <small class="tag">CI 3m 10s</small>
+              <small class="tag">1 serial test</small>
               <small class="tag ok">recommended</small>
-              <strong>Approve #419</strong>
+              <strong>Approve #419</strong> I'll open an issue for the free ports.
             </lf-option>
           </lf-options>
         </lf-ask>
@@ -115,18 +133,25 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
           <p>
             Ade's docs team is choosing a link checker for 30 repositories and asks
             whether 2.0 will break the 1.x config. I drafted the reply from
-            <code>ROADMAP.md</code>. Its first sentence commits you to a quarter; the
-            rest only repeats what the roadmap already promises.
+            <code>ROADMAP.md</code>:
           </p>
           <lf-draft id="cu-roadmap-reply">
             <pre>
 2.0 is planned for the first quarter of next year. It reads 1.x config files unchanged and warns about each key that moved, and `marram migrate-config` rewrites a file in place. Adopting the 1.x format now is safe.</pre>
           </lf-draft>
+          <p>
+            I'd post it without the date. What Ade asked about, the config format, is
+            settled; the roadmap marks the quarter tentative, and a team planning 30
+            repositories around it would hold you to it.
+          </p>
           <lf-options id="cu-roadmap-choice" choose>
             <lf-option id="cu-roadmap-undated">
+              <small class="tag">promises the format</small>
+              <small class="tag ok">recommended</small>
               <strong>Post it without the date</strong> I'll drop the first sentence.
             </lf-option>
             <lf-option id="cu-roadmap-dated">
+              <small class="tag">promises Q1 too</small>
               <strong>Post it as written</strong>
             </lf-option>
           </lf-options>
@@ -149,8 +174,9 @@ Thanks for the clear report! This is #397, fixed on main by #402: on Windows mar
             <code>docs/ja/入門.md</code> arrives as
             <code>"docs/ja/\345\205\245\351\226\200.md"</code> and fails to open.
             <code>git ls-files -z</code> writes each path whole, ended by a NUL byte,
-            the way <code>xargs -0</code> reads them, and adding <code>-0</code>
-            later changes nothing for line-separated input.
+            the way <code>xargs -0</code> reads them. I'd ask for it before merging: a
+            translated docs tree hits this on its first run, and the change is a few
+            lines. The review I'd post:
           </p>
           <lf-draft id="cu-stdin-review">
             <pre>
@@ -158,10 +184,14 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
           </lf-draft>
           <lf-options id="cu-stdin-choice" choose>
             <lf-option id="cu-stdin-ask">
-              <strong>Ask for <code>-0</code> with the review above</strong> Jaana's
-              first pull request waits on a second round.
+              <small class="tag">1 more round</small>
+              <small class="tag">any name</small>
+              <small class="tag ok">recommended</small>
+              <strong>Post the review asking for <code>-0</code></strong>
             </lf-option>
             <lf-option id="cu-stdin-merge">
+              <small class="tag">merged today</small>
+              <small class="tag">ASCII only</small>
               <strong>Approve and merge #418</strong> I'll open an issue for
               NUL-separated input.
             </lf-option>
@@ -179,19 +209,29 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
             target's HTML has to be parsed, which made a full check of marram's own docs
             40% slower in my prototype, so it would sit behind <code>--anchors</code>.
           </p>
+          <p>
+            I'd put it on the 1.8 milestone: the prototype already works, and the
+            slowdown reaches only those who pass the flag. It costs me three days after
+            1.7.3.
+          </p>
           <lf-options id="cu-anchors-choice" choose>
             <lf-option id="cu-anchors-decline">
+              <small class="tag">0 days</small>
+              <small class="tag">never ships</small>
               <strong>Decline it as out of scope</strong> Close #424 and point to anchor
               checking in a site generator's build.
             </lf-option>
             <lf-option id="cu-anchors-help">
               <small class="tag">0 days</small>
+              <small class="tag">if contributed</small>
               <strong>Label it help wanted</strong> With a note on where the parser
               would hook in.
             </lf-option>
             <lf-option id="cu-anchors-milestone">
               <small class="tag">3 days</small>
-              <strong>Put it on the 1.8 milestone</strong> I'd build it after 1.7.3.
+              <small class="tag">ships in 1.8</small>
+              <small class="tag ok">recommended</small>
+              <strong>Put it on the 1.8 milestone</strong>
             </lf-option>
           </lf-options>
         </lf-ask>
@@ -225,11 +265,14 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
           </p>
           <lf-options id="cu-ssrf-choice" choose>
             <lf-option id="cu-ssrf-expected">
+              <small class="tag">0 days</small>
+              <small class="tag">still probeable</small>
               <strong>Reply that this is expected behavior</strong> Document that marram
               follows redirects, and leave CI runners to restrict their network.
             </lf-option>
             <lf-option id="cu-ssrf-advisory">
               <small class="tag">1 day</small>
+              <small class="tag">SSO needs flag</small>
               <small class="tag ok">recommended</small>
               <strong>Open a private advisory and fix it in 1.7.3</strong> Request a
               CVE, credit Nadia, and publish the advisory with the release.

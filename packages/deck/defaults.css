@@ -31,7 +31,10 @@ lf-deck[data-lf-deck-flying] {
   gap: 3px;
   min-inline-size: 0;
 }
+/* The count holds its line before the first reading fills it, so the marks above it
+   don't climb when it arrives. */
 .lf-deck-count {
+  min-block-size: 1lh;
   overflow: hidden;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -78,22 +81,22 @@ lf-deck[data-lf-deck-flying] {
 .lf-deck-recap {
   flex-basis: 100%;
   margin: 0;
-  padding: var(--sp-2) 0 0;
-  border-top: 1px solid var(--rule);
+  padding: var(--lf-sp-2) 0 0;
+  border-top: 1px solid var(--lf-rule);
   list-style: none;
 }
 .lf-deck-recap > li {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(14em, 100%), 1fr));
-  gap: 2px var(--sp-3);
-  padding-block: var(--sp-1);
+  gap: 2px var(--lf-sp-3);
+  padding-block: var(--lf-sp-1);
 }
 /* The link's box, and so its focus ring, holds its words rather than the column. */
 .lf-deck-recap > li > a {
   justify-self: start;
 }
 .lf-deck-recap > li > span:not([data-lf-voice]) {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
 }
 @media print {
   .lf-deck-end {

@@ -632,6 +632,8 @@ customElements.define(
     // retained node), and the record of the pass, a row for each card that asks
     // something. A row's question, as On Me names it (`prompt.text`), links to where
     // the user answers it (`prompt.target`), so a card with no id of its own opens too.
+    // A widget that asks outside an `lf-ask`, such as a suggestion, has no prompt
+    // words, so its row takes the card's own heading.
     /** @param {DeckReadings | null} readings */
     #drawEnd(readings) {
       const left = readings
@@ -643,9 +645,13 @@ customElements.define(
         const [first] = held;
         if (!first) return nothing;
         const target = first.prompt.target ?? each.id;
+        const question =
+          first.prompt.text ||
+          each.querySelector("h1, h2, h3, h4, h5, h6")?.textContent?.trim() ||
+          target;
         const [words, voice] = this.#ending(held);
         return html`<li>
-          <a href=${target ? `#${target}` : nothing}>${first.prompt.text ?? target}</a
+          <a href=${target ? `#${target}` : nothing}>${question}</a
           ><span data-lf-voice=${voice ?? nothing}>${words}</span>
         </li>`;
       };

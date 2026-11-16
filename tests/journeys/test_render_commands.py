@@ -458,9 +458,9 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     d = serve.page_dir
 
-    def check(status, **env):
+    def check(status, *flags, **env):
         ran = subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d)],
+            [*LEAF_COMMAND, "page", "check", str(d), *flags],
             capture_output=True,
             text=True,
             check=False,
@@ -482,6 +482,11 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert "/page/film.js:2:" in errors
     assert "Error: the trace never loaded" in errors
     assert "/page/widgets/lf-loader.js:3" in errors
+    # The render check reads page code on its first page, and reads no further.
+    rendered = check(1, "--render", LEAF_BROWSER_EXECUTABLE=headless_shell)
+    codes = [f["code"] for f in broken["findings"]]
+    assert [f["code"] for f in rendered["findings"]] == codes
+    assert rendered["browser"]["ran"] == ["page code"]
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])

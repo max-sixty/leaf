@@ -674,6 +674,27 @@ const bundles = {
           ),
       },
       {
+        file: /@pierre\/trees\/dist\/render\/scrollTarget\.js$/,
+        // Trees measures its viewport with getBoundingClientRect, so a reveal target
+        // can be fractional (138.16) where the browser holds the box at a device
+        // pixel (138). Compared exactly, the target never equals where the box
+        // stands, so each focus change writes a scroll that moves nothing and stops
+        // one under way. A target within a pixel is where the box already stands.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return nextScrollTop === currentScrollTop ? null : nextScrollTop;",
+              "return Math.abs(nextScrollTop - currentScrollTop) < 1 ? null : nextScrollTop;",
+              "Trees scroll-target comparison",
+              3,
+            ),
+            "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
+            "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
+            "Trees preserved scroll-target comparison",
+          ),
+      },
+      {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
         edit: (source) =>
           seam(

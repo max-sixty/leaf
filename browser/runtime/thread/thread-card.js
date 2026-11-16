@@ -73,8 +73,8 @@
    (`answering`), and a box that follows its end, as a card's transcript does
    (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
    loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
-   the panel on 14 October 2026, and the rest of the floating panel's growth with it
-   (floating-panel.js, which records it); the margin card gained it on 4 November, so
+   the panel, and the rest of the floating panel's growth with it
+   (floating-panel.js, which records it); the margin card takes it too, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
@@ -1418,7 +1418,7 @@ export class ThreadView {
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
   // done on a resolved thread (browser/AGENTS.md, "Controls are few and quiet"), in one corner:
-  // settling moves nothing beside it. A margin card once said Reopen as a word.
+  // settling moves nothing beside it. Rejected: a margin card saying Reopen as a word.
   /** @param {ThreadViewModel} model
    * @param {NonNullable<ThreadViewModel["settlement"]>} state */
   #settlement(model, state) {

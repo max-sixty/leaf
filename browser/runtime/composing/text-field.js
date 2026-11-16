@@ -89,7 +89,7 @@
  * words do, the words shorten before it, and it stays in the accessibility tree and
  * takes the pointer, so a press on it is its own and never a press on the field.
  * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the
- * accessibility tree (found in review, 6 November 2026).
+ * accessibility tree.
  *
  * A connected field holding words draws them in its editor. An empty one builds its
  * editor when the user arrives in it (`#build`), since a page can show many empty
@@ -123,7 +123,7 @@
  * The field keeps that room at the end of every line, so where its words wrap depends
  * only on the words and the box's width, never on which line Send stands beside or on
  * what follows the last word. A sent message that keeps the draft's wrapping keeps the
- * same room. Rejected: the room after the last words only (#1871 to #3678), which ran
+ * same room. Rejected: the room after the last words only, which ran
  * the lines above under Send's column but made the last line's wrapping turn on the
  * caret's surroundings: an inline spacer after the last word wrapped alone or carried
  * that word with it, so typing a space after a word could pull it back up a line,

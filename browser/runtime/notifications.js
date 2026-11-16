@@ -12,10 +12,10 @@
    panel's field says at its end with the key of the page command that makes it too,
    after the words, as "Resolved “One reconnect in about 40” … Next thread t"
    (floating-panel.js, `noticePress`). The notice stands no longer than its gesture
-   does, so its press never acts for anything else. The user chose a notice's press on
-   31 October, after a Resolve that moved the panel on left nothing there offering to
-   take it back; until then a notice was text alone, and what it named the panel's own
-   controls reached. A gesture whose next step needs no words of its own, as an answer
+   does, so its press never acts for anything else. The user chose a notice's press,
+   so a Resolve that moves the panel on leaves something there offering to take it
+   back, over a notice of text alone, whose subject only the panel's own controls
+   reach. A gesture whose next step needs no words of its own, as an answer
    with more on the user, offers its press alone (`offerPress`), which the field says at
    its end after the words it already says. There is no second surface for news, so
    nothing floats in a corner to become a stale pointer target. A failure is no news: it

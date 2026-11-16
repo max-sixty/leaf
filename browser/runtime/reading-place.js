@@ -31,7 +31,7 @@
  * however many entries have arrived since. A box standing at its start is read from its
  * top: its own box returns to its start, across a resize or a revision, so a page read
  * from its top keeps its title in view, and only a box its words are handed to takes
- * the landmark. The user chose this on 2026-10-25 over keeping the first line at the
+ * the landmark. The user chose this over keeping the first line at the
  * edge, which scrolls the title away where a header fixed beside that line drops into
  * the flow above it as the window narrows.
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
@@ -203,8 +203,8 @@ const QUOTABLE = 24;
 // `contents` has no box and shows through its children. A part the browser skips while it
 // is far from the window (`content-visibility: auto`) shows its words as it nears it, so
 // it may. A part the page skips, as in a closed tab, is asked nothing more: asking its box
-// or its style has the browser style everything it holds, 240 ms for the 29 closed
-// documents of #4781's page in Chromium.
+// or its style has the browser style everything it holds, 240 ms for 29 closed
+// documents in Chromium.
 /** @param {Element} part */
 const showsWords = (part) =>
   part.checkVisibility() || [...part.children].some((child) => child.checkVisibility());
@@ -238,7 +238,7 @@ const textEnvelope = (block, segments, range) => {
 // Where each run's words stood the last time a reading of the screen laid the page out,
 // so a later reading measures only the runs that stood in its band rather than every
 // block of the page on each scroll, key and focus. An observer of every block would read
-// them all itself on each frame of a scroll: on 2026-11-14, 8,000 observed paragraphs
+// them all itself on each frame of a scroll: 8,000 observed paragraphs
 // cost Chromium 4 ms of main thread a wheel step.
 //
 // The page is laid out in frames: boxes whose runs keep their places relative to the box

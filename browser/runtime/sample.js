@@ -44,7 +44,7 @@
  * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
  * `_sample_headers`). The frame delegates no permission policy, so the browser refuses
  * the child's clipboard writes and its copy controls fall back as on any page whose
- * clipboard refuses. The user chose this on 21 October 2026 over delegating
+ * clipboard refuses. The user chose this over delegating
  * `clipboard-write`, which would let any script an author puts in a sample write the
  * user's clipboard on a press. A failed allocation or admission retires the
  * allocation before `ready` rejects. */
@@ -145,7 +145,7 @@ export function sampleFrameImage(frame, crop) {
 
 // For the minutes after a leaf.page deploy that a visitor's container still runs the
 // previous release, the edge refuses an allocation and names a wait (`retryAfter`,
-// layer-client.js). Measured rollouts ended within 381 s; a release that still refuses
+// layer-client.js). A rollout ends within minutes; a release that still refuses
 // after ten minutes has failed, and the allocation fails with it.
 const ROLLOUT_MS = 10 * 60_000;
 

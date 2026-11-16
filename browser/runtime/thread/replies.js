@@ -16,12 +16,12 @@
    session, which stands through a send until the server accepts it. Rejected:
    beginning on every `focusin`, which made an opening's caret a session nobody began
    and kept a resolved thread's card standing over its empty box (the same class as the
-   send's caret, #5364; found on 4 November 2026).
+   send's caret).
    The send preserves the panel's narrowing and, whichever control sent it, leaves the
    caret in the box for the next message, on a card or a seat as in the floating
-   panel's field; Escape takes the user to the thread. The user chose this on 31
-   October, as an experiment for consistency with the panel: a second send by mistake
-   is rare, so keeping the caret costs little. Reverting it would again leave focus on
+   panel's field; Escape takes the user to the thread. The user chose this,
+   as an experiment for consistency with the panel: a second send by mistake
+   is rare, so keeping the caret costs little. Reverting it would leave focus on
    the conversation's card or title (`landSent`, landing.js), ringed, where the next
    message takes `c` or Enter on the thread first. A saved draft preserves
    words independently of the editor. External settlement retains a reply the user is

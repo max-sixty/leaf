@@ -3,10 +3,10 @@
  * of motion for the floating panel (floating-panel.js, `followBox`), the margin thread
  * card (annotation-overlay/thread-preview.js) and the comment box beside a passage
  * (annotation-overlay/composing/floating-response.js), whose Send grows the card out of
- * its field (`drawnAt`). The user asked on 25 October for one canonical animation, after a
- * card's send jumped to its new turn's head while a second mechanism slid its words by
- * scrolling, and on 26 October for the comment box to move the same way, which grew a
- * line in one frame and grew its card by a clip of its own on another clock.
+ * its field (`drawnAt`). The user asked for one canonical animation, over a second
+ * mechanism that slides a card's words by scrolling while its send jumps to its new
+ * turn's head, and for the comment box to move the same way, over a box that grows a
+ * line in one frame and grows its card by a clip of its own on another clock.
  *
  * The layout changes in one step, so nothing a press aims at waits on a tween, and what
  * the user sees then travels from where it was drawn to where it now stands, every part
@@ -70,8 +70,8 @@
  * key restarted never settled. Only a line a key takes away travels, both edges on
  * the one tween, as anything leaving the page folds (motion.js), so words the box
  * carries down with its top edge stay where the eye can follow them, and nothing the
- * user reads waits on it. The user asked on 30 October for typing to grow the box as
- * a textarea's grows, and chose on 31 October to keep a removed line's travel. News,
+ * user reads waits on it. The user asked for typing to grow the box as
+ * a textarea's grows, and chose to keep a removed line's travel. News,
  * such as an answer arriving, moves nothing the reader reads (browser/AGENTS.md,
  * "The page holds still under the user's aim"): each part it moved shows where it now
  * stands, revealed by the frame it stands in or growing from its own old box, while
@@ -104,7 +104,7 @@
  * rides up with the name over them; and a part new to the box, as a view the send
  * opens is, rises with the box's top edge out of the box's old outline rather than
  * being uncovered in place, while one standing inside that outline, as a reply field
- * taking the row's seat, is revealed there. The user asked for this on 25 October: a
+ * taking the row's seat, is revealed there. The user asked for this: a
  * stream that slides up to take the new message, its header moving with it. A head
  * stuck to the scroller's edge rides as a scroll that far back would stick it
  * (`streamContent`). While the
@@ -112,9 +112,9 @@
  * (scrolling.js, `contentRides`), and its scroll is anchored to nothing, so neither
  * a landing at its end nor the browser's scroll anchoring chases the ride, and a reading
  * meanwhile, news included, carries the ride on from where it is drawn. Rejected:
- * scrolling the scroller through the ride, which a card's send once did on its own
- * clock after its box had already grown, so its new turn's head jumped into view
- * before its words slid; every landing during the ride would also stop it.
+ * scrolling the scroller through the ride on its own clock after its box has already
+ * grown, so a card's new turn's head jumps into view before its words slide; every
+ * landing during the ride would also stop it.
  *
  * The platform's own way to move a layout change, a view transition, draws the old
  * state as a picture, sends every press to the root while it runs, and abandons a
@@ -748,9 +748,9 @@ export function boxMotion({
     // frames around it: its words left, so nothing in it carries on. On an axis where
     // such a part shrank and its far edge stayed, it travels by that edge, so the
     // emptied field standing at its box's foot stays there while the box closes onto
-    // it, rather than showing at its old top and sliding down. The user asked on 26
-    // October for a line removed to move the words with the field's top edge, which
-    // until then traveled while they jumped.
+    // it, rather than showing at its old top and sliding down. The user asked for a line
+    // removed to move the words with the field's top edge, rather than the edge
+    // traveling while the words jump.
     /** @param {Part} part @param {Box} from */
     function carryContent(part, from) {
       const to = part.box;

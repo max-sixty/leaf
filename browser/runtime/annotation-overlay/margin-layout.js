@@ -56,8 +56,8 @@
    page moves the root lane's rows by the pass's writes, not by carriers anchored to the
    blocks they stand by: Chromium 158 lays out every anchored fixed or absolute box again
    on each layout of the document, whatever changed, at 25 to 55 µs each on a page of
-   12,000 elements, so a carrier for each of 256 sections added 6 to 14 ms to every
-   layout of the page, as each keystroke into a field brings (measured 2026-11-15).
+   12,000 elements, so a carrier for each of 256 sections adds 6 to 14 ms to every
+   layout of the page, as each keystroke into a field brings.
    Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
@@ -494,7 +494,7 @@ function scrollSources(node) {
 // it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
 // in Chromium"). Painting and the user's presses are right either way, so what the root
 // lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
-// Rejected: a carrier anchored to every passage's words, as #3091 had it, which in
+// Rejected: a carrier anchored to every passage's words, which in
 // Chromium and WebKit also carried a row through a transform moving its words while the
 // transform ran. A row in the root lane trails such a transform, as a row on an element
 // does, and both are placed again once a CSS transition or animation ends

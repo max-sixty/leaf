@@ -348,11 +348,11 @@ export function createObligationView({
     };
   }
   // The ring that says so, painted from the focus rather than written where the user was
-  // put. The walk used to write it, and it then said where the walk had left them rather
-  // than where they were: click away, work in the panel, come back tomorrow, and an obligation
-  // nobody was in went on wearing "you are here". Every other way into an obligation —
-  // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
-  // same place was marked or not by how the user had reached it.
+  // put. Rejected: the walk writing it, which then says where the walk left them rather
+  // than where they are: click away, work in the panel, come back tomorrow, and an obligation
+  // nobody is in goes on wearing "you are here". Every other way into an obligation —
+  // Tab, a click on one of its controls — leaves the ring somewhere else entirely, so the
+  // same place is marked or not by how the user reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
   // focused control's ring. An On Me row's press lands the focus by script

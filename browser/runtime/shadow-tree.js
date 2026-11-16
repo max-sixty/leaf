@@ -82,12 +82,12 @@ export function closestAcross(node, selector) {
   return null;
 }
 
-// A different question the class also used to answer, and not a question about looks at
-// all: which document is this element in? The runtime's layer is one container, so a
+// Which document an element is in is not a question about looks at all, so the class
+// `.lf-ui` doesn't answer it. The runtime's layer is one container, so a
 // widget inside a reply — markup frozen in the log, carried by no version — is exactly
 // what that container holds, and the reading position is a place in the page rather than
-// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
-// on the page besides, which is the look standing in for the place.
+// in the panel over it. `.lf-ui` reaches those elements and a widget's own controls out
+// on the page besides, which would make the look stand in for the place.
 // Across the boundary as closestAcross does: the marker lives out in
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.

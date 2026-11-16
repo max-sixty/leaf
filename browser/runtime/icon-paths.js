@@ -66,8 +66,8 @@ const ICONS = {
   start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
   unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
-  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick,
-  // 31 October 2026). Rejected: a left arrow whose tail turns down, which is Lucide's
+  // A U-turn back to the left, as Apple's and Lucide's undo draw it (the user's pick).
+  // Rejected: a left arrow whose tail turns down, which is Lucide's
   // and VS Code's reply and reads as Reply beside a message; and the arc Material's
   // undo draws.
   undo: '<path d="M5.5 2.75 2.75 5.5l2.75 2.75M3 5.5h6.25a3.5 3.5 0 0 1 0 7H6.5"/>',
@@ -107,7 +107,7 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
 // draft, and a draft's other ways out save. A rewrite's Discard also stood two seats
 // from its card's Close. A reaction's removal took undo over ✕ for the same reading
-// (the user's choice, 23 October 2026, anchor-controls.js).
+// (the user's choice, anchor-controls.js).
 /** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
@@ -139,7 +139,7 @@ export const ACTIONS = {
   "next-match": { name: "Next match", icon: "down" },
   // The next steps the floating panel's field offers at its end (floating-panel.js,
   // `noticePress`): after a Resolve, and after an answer with more on the user, in the
-  // title case the user asked for on 6 November 2026.
+  // title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
   "on-me": { name: "On Me", icon: "inbox" },

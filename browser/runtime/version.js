@@ -353,18 +353,18 @@ const stamped = (version) =>
 export const revisionBase = ({ revision, version, url }) =>
   Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
-// what each one was and what it changed. It was a <select>, and the two things that
-// cost were both the control's rather than the styling's. A select takes its inner
-// height from Chrome's own metrics and refuses line-height, so it could never stand
+// what each one was and what it changed. Rejected: a <select>, whose two costs are
+// both the control's rather than the styling's. A select takes its inner
+// height from Chrome's own metrics and refuses line-height, so it can never stand
 // level with the buttons beside it; and its closed label is its selected option's whole
-// text, so the note had to be in both places or neither — 190px of bar, the widest
-// control on the row, for about nine characters of a note that then ellipsized. A press
+// text, so the note has to be in both places or neither — 190px of bar, the widest
+// control on the row, for about nine characters of a note that then ellipsizes. A press
 // states the version alone, and the menu is the only place the notes are, where a row
 // can wrap and carry one whole.
 //
-// The diff was a second press beside it, and everything the two shared was in the
-// menu already. It named the previous version because a control with one label can
-// offer one base, and the previous version is the least useful of them on a page that
+// Rejected: the diff as a second press beside it, since everything the two share is in
+// the menu already. A control with one label can offer one base, such as the previous
+// version, and the previous version is the least useful of them on a page that
 // ships a version whenever the work moves: what the user wants marked is what has
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
@@ -1313,9 +1313,9 @@ function commitDiff({ marked, paired, words, changes }) {
 // The change's card (margin-bars.js draws it) answers what a change replaced without
 // travel to the other version and back, and without moving the page under the reader:
 // it stands over the change, in the chrome, and reads text from the two sources taken
-// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it on 3
-// November over splicing the old words into the live blocks, which moved the text under
-// a press and could not show a block the hunk took out, and over two columns.
+// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it
+// over splicing the old words into the live blocks, which moves the text under
+// a press and cannot show a block the hunk took out, and over two columns.
 
 // A marked block's two readings, where its live words are its source's: a block a module
 // writes into shows what the page shows and compares nothing.

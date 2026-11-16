@@ -459,10 +459,10 @@ export function refuseBareText() {
 //
 // A widget riding a message stands inside the floating panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
-// nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, On Me named the
-// question by its id, and every widget reading its own words in a message got "" and fell
-// back to something else.
+// nothing whatever. That silence does not read as one: it reads as an empty slot, so the
+// group would name its options by their ids in the accessibility tree, On Me would name
+// the question by its id, and every widget reading its own words in a message would get
+// "" and fall back to something else.
 //
 // So chrome between the words and their widget is that widget's own apparatus, and chrome
 // above the widget is somebody else's. Rooting the search at the element handed in says
@@ -473,10 +473,10 @@ export function refuseBareText() {
 // runtime renders from their words, is a document of its own (`authoredScope`) standing
 // inside the chrome that draws the message, so the body frames a reading there as a
 // widget does, and the words read as their writer's: a heading in a reply names what
-// follows it there. The version diff once read every block on the live page, a
-// conversation's paragraphs among them, and so took a reader's comments for the page's
-// words; it compares versions' sources now (version.js, `paintedSource`) and reads no
-// message.
+// follows it there. The version diff compares versions' sources (version.js,
+// `paintedSource`) and reads no message: reading every block on the live page, a
+// conversation's paragraphs among them, it would take a reader's comments for the page's
+// words.
 /** @param {Node | null} node */
 const frameOf = (node) => {
   for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a))
@@ -1572,12 +1572,12 @@ const EDGE = "\u0000"; // no document holds one, so it can't collide with page t
 // A quote names text, not a place, and a page is free to say the same thing twice. Where it
 // does, the words on either side decide which occurrence was meant. A unified diff holds
 // the same line on both sides by construction, so without this, commenting on a fixed line
-// marked the broken one — the user's objection attached to the code they were objecting
+// would mark the broken one — the user's objection attached to the code they were objecting
 // to, and stored that way. Section scoping cannot reach it, because both sides of a diff
 // live under one id. Context rather than an offset: an offset goes stale silently when the
 // page is revised, while neighbours can be checked against the page as it now stands — see
 // `holds` for what checking them means, and what it deliberately refuses to do.
-// Anchors written before this carry none: their quote resolves only when it has a
+// An anchor carrying none resolves its quote only when it has a
 // single candidate, since there is no evidence that can identify one repeated copy.
 // The way back from the reading to the page is its segments and where each one starts in
 // `raw`: each segment carries its `rawStart` alongside its DOM coordinates,

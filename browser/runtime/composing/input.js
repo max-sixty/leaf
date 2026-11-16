@@ -1057,8 +1057,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     );
     // The box's own scope: one row, so the hint's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
-    // each thread's reply, the selection composer, a widget thread — where the reference
-    // used to carry one row saying "in the focused composer" for a sequence that fires in all
+    // each thread's reply, the selection composer, a widget thread — rather than one row in
+    // the reference saying "in the focused composer" for a sequence that fires in all
     // of them, including widget-owned text boxes.
     // The sentence is the same in every box, so the reference names the binding once however
     // many boxes the page holds; the word is this box's, because what the press does here is

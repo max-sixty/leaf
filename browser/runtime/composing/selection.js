@@ -85,13 +85,13 @@ import { isNativeLayer } from "../shadow-tree.js";
 //
 // The ⋯ stands beside Dictate only while the field is empty, and the draft's first
 // word takes its place, so the field spans the bar in every state and nothing moves
-// as the user starts typing (response.css). Max chose this on 25 October 2026 over a
-// bordered button beside the field, which kept 40px of a 294px bar from the words
-// and ended a sent card's message short of its Reply field, over hiding that button
-// at the first key, which widened the field under the caret, and over no button at
-// all, which left a mouse or finger no way to Suggest or a reaction. It replaces
-// #4124's ⋯ over the field's end, in the head row the floating frame reserves, which
-// only the floating presentation had.
+// as the user starts typing (response.css). Max chose this over a
+// bordered button beside the field, which keeps 40px of a 294px bar from the words
+// and ends a sent card's message short of its Reply field, over hiding that button
+// at the first key, which widens the field under the caret, and over no button at
+// all, which leaves a mouse or finger no way to Suggest or a reaction. Rejected too: a
+// ⋯ over the field's end, in the head row the floating frame reserves, which
+// only the floating presentation has.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
 fabBar.dataset.lfRuntime = ""; // Leaf's own when seated in a widget (passages.js, leafSurface)
 fabBar.setAttribute("role", "group");
@@ -483,10 +483,10 @@ export function createSelectionComposer({
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
-    // Hiding keeps the words and used to say nothing at all, so a press on the chrome took
-    // the box off screen with the user's sentence in it and left no sign the sentence
-    // still existed — recoverable only by reselecting that exact passage on that exact
-    // version. Said here rather than at each dismissal because every one of them — an
+    // Hiding keeps the words and says so: a hide that says nothing lets a press on the
+    // chrome take the box off screen with the user's sentence in it and leaves no sign the
+    // sentence still exists — recoverable only by reselecting that exact passage on that
+    // exact version. Said here rather than at each dismissal because every one of them — an
     // outside press, Escape, another target — leaves the same state, and
     // every path that discards the words empties the box before hiding it (leaveComposer),
     // so those stay silent. The sentence names the address that brings the draft back,

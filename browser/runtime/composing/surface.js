@@ -43,9 +43,9 @@
 
    Where `c` would open the box beside a target the user can see, the box already stands
    there, empty, with the key that opens it (`restFab`), so where `c` goes shows before
-   the press, as it does for a selection. The user chose this on 4 November 2026, with
+   the press, as it does for a selection. The user chose this, with
    the key in the panel's row and `c` leaving focus scrolled out of sight
-   (`focusedPlace`), from independent choices drawn side by side, accepting a box in the
+   (`focusedPlace`), accepting a box in the
    margin at every stop of a walk, every Tab and every press that leaves focus on a
    control. With no room in the margin, the box waits for the press (floating-response.js).
    They passed over `c` following only a ringed control, which turned their
@@ -766,7 +766,7 @@ export function createResponseSurface({
       // A fast keyboard action can capture this completed native selection before the
       // pointer gesture's queued update arrives. That later update is the same target,
       // not a request to reopen its Comment composer: reopening calls closeReactions
-      // and used to collapse choices immediately after `e` exposed them.
+      // and would collapse choices immediately after `e` exposed them.
       if (sameAnchor(anchor, fabAnchor.value)) {
         placement?.place();
         return;

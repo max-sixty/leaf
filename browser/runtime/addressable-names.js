@@ -127,15 +127,15 @@ function readLeadingTitle(container) {
 // counts the conversations about it (thread/placement.js, `conversationsAbout`).
 // `titlingHeading` reads it the other way round.
 //
-// Replaced: the contents took an identified `section` whose first heading this was, and
+// Rejected: the contents taking an identified `section` whose first heading this is, and
 // a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
 // which stops at a question inside a section and lets a sub-heading after a question
-// title the section around both. Neither took a question with no section around it.
+// title the section around both. Neither takes a question with no section around it.
 //
 // The answer turns on headings and words anywhere around the heading, so it is kept
 // with its document's whole reading (`keptWithReading`), which any change to the
 // document forgets, a widget's data included. Kept with the heading's own part of the
-// page, it outlived a heading put before that part.
+// page, it would outlive a heading put before that part.
 /** @param {Element} heading @returns {Element} */
 export function titledElement(heading) {
   const kept = keptWithReading(

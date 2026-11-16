@@ -180,7 +180,7 @@ export const dragging = (el, on) => {
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
 // hidden line saying how many comments a block holds, which a screen reader reaches by
-// Tab and which used to cast a vote on the way into the thread. It catches the container's
+// Tab and which would otherwise cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
 /** @param {Element} node @param {Element} container */

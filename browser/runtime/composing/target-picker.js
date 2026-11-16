@@ -1028,12 +1028,12 @@ export function createTargetPicker({
   pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
   // one. Either route opens Comment, while reactions wait for a target. The leaf menu's
-  // Annotations lists it for every pointer. The user chose this on 24 October 2026 over
-  // listing it only where no keyboard was there to press `s`: a mouse user who never
-  // learned `s` had no visible way to comment on a whole widget or picture, since
-  // selecting words picks neither. A row at the menu's top level was shown and set
-  // aside for Annotations. It is named Select mode beside Draw and Design mode, as the
-  // user chose on 30 October over Comment on an element.
+  // Annotations lists it for every pointer. The user chose this over
+  // listing it only where no keyboard is there to press `s`: a mouse user who never
+  // learns `s` has no visible way to comment on a whole widget or picture, since
+  // selecting words picks neither. They set aside a row at the menu's top level for
+  // Annotations. It is named Select mode beside Draw and Design mode, as the
+  // user chose over Comment on an element.
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],

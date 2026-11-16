@@ -625,12 +625,12 @@ export function shownBox(el) {
 // one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
 // where it can be seen.
 //
-// The runtime's own chrome leaves by name rather than on that test. Area read as though
-// it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
-// a span with no width, so the apparatus fell out on its own. The line saying how many
-// comments a block holds is clipped to a pixel and has one — so a decision that had been
-// commented on wore its ring on the runtime's word about the page rather than on the
-// page, and the pixel it hung from moves the first time a comment lands. That question is
+// The runtime's own chrome leaves by name rather than on that test. Area only seems to
+// do the job, by luck: a suggestion hangs its controls off
+// a span with no width, so the apparatus falls out on its own. The line saying how many
+// comments a block holds is clipped to a pixel and has one — so a decision that has been
+// commented on would wear its ring on the runtime's word about the page rather than on the
+// page, and the pixel it hangs from moves the first time a comment lands. That question is
 // already asked, declared labels and all, and it is the one the anchor pass puts
 // to a text node — so what a mark hangs on and what a quote may name cannot come apart.
 // Bounded at the element, for the reason given where the question is stated: a widget an
@@ -639,8 +639,8 @@ export function shownBox(el) {
 //
 // A box with no area may hold content the browser skips, as a closed tab's panel does.
 // A reading of what is drawn now leaves that content out (`leaveSkipped`) rather than
-// read its boxes, which lays it out to answer: the target picker's first map read the
-// panels of 29 closed tabs, each a 4 MB text document, about 270 ms apiece in Firefox.
+// read its boxes, which lays it out to answer: Firefox takes hundreds of milliseconds to
+// lay out a closed tab's panel holding a large text document.
 // A mark that must stand once the content is drawn reads it, and pays (shadow-tree.js,
 // `skipped`).
 /** @param {Element} el @param {{leaveSkipped?: boolean}} [options] @returns {Element[]} */

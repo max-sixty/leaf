@@ -233,7 +233,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      frame, so attaching neither grows the box nor moves a word and the passage stays in
      view, as the floating panel hangs its shelf over its card (floating-panel.css):
      the shelf's gap clear of the field's ring (response.css), under the field, or over
-     it when the box stands above its passage. The user chose this on 20 October
+     it when the box stands above its passage. The user chose this
      over 34px pictures in the header row the frame keeps for the card's author line,
      and over a row of their own in the box, which re-placed the box and moved the
      field. The pictures cover the page beside the box while the draft holds them, and
@@ -350,8 +350,8 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   /* The card is the thread's one frame. The thread fills it with no ground or ring of its
      own, so focus on the thread rings the card: the ring takes the
      card's edge in place of its border, inset, since the card stands over the page and
-     nothing outside it is free. It used to ring and tint the thread 13px inside the
-     card's own border, a frame in a frame with the reply field a third box inside
+     nothing outside it is free. Rejected: ringing and tinting the thread 13px inside
+     the card's own border, a frame in a frame with the reply field a third box inside
      that. The reply field keeps its box, since that is the thing typed into. The ring is
      still the thread's focus; the card's face only carries it, and its surface while the
      card moves. A message holding focus, as Next On Me leaves the reply it lands on,
@@ -381,8 +381,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      inside the border its overflow clips at; the comment box's hugs its field, whose
      inside is the caret's, from outside. The band paints nothing: the pointer on it
      takes the grab cursor and, after a beat, the surface's own border takes the
-     accent, so a pointer crossing the band to a control inside flashes nothing. It
-     used to tint the whole band, which on the card lit a 12px frame at every crossing.
+     accent, so a pointer crossing the band to a control inside flashes nothing.
+     Rejected: tinting the whole band, which on the card lights a 12px frame at every
+     crossing.
      A focused field's ring already stands in the box's border, so there the cursor
      alone shows the grip. */
   .lf-surface-grip {
@@ -606,7 +607,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     scroll-padding-block: var(--lf-focus-ring-room);
     /* The room above the heads is where their slot starts (`--lf-top-start`,
        base.css), held open by a row before the first message, not padding: Firefox
-       (155 and 158, 2026-10-25) sticks a box in a subgrid scroller at the scroller's
+       (155 and 158) sticks a box in a subgrid scroller at the scroller's
        edge, ignoring its padding, which stood the stuck head that room above the
        actions' line. */
     --lf-top-start: var(--lf-transcript-room);
@@ -620,7 +621,7 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
   }
   /* The transcript is a subgrid. Chromium (153 and 156) and Firefox (155) lay out a
      subgrid's items on its parent's tracks without subtracting the room an `auto`
-     scrollbar takes (2026-10-30), so on a platform whose scrollbars take room (Linux,
+     scrollbar takes, so on a platform whose scrollbars take room (Linux,
      Windows, macOS with a mouse) the words would run under the bar and the
      transcript could scroll sideways by the bar's width. Both subtract a
      `scrollbar-gutter: stable` gutter, so the transcript holds one once its turns

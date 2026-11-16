@@ -136,13 +136,13 @@ export function headingAfter(heading) {
 // reader cannot see, as in a tab not selected, still heads its part, so a part's name
 // does not change as the page shows or hides it; an arrival measures what it lands on
 // and passes one that shows nothing. On the corpus page, whose pages stand in tabs with
-// their titles in headers and their last sections untitled, the container alone sent
-// every item to the corpus's own title.
+// their titles in headers and their last sections untitled, the container alone would
+// send every item to the corpus's own title.
 //
-// Replaced: only a declared name or a leading heading named a container, while the
-// preview named a place by its nearest named holder first (`holderNaming`). The two
-// rules disagreed under a sub-heading inside a titled section, the preview saying the
-// section and On Me the sub-heading; one rule now says the sub-heading for both.
+// Rejected: only a declared name or a leading heading naming a container, while the
+// preview names a place by its nearest named holder first (`holderNaming`). The two
+// rules disagree under a sub-heading inside a titled section, the preview saying the
+// section and On Me the sub-heading; one rule says the sub-heading for both.
 //
 // The reading records what stood over each element as its walk reached it, so a call
 // costs the node's depth: On Me asks it of every item it lists. A node the reading never
@@ -220,9 +220,9 @@ export function partTrail(node) {
 // conversation about a heading, or about the whole question or section it titles, is
 // its part's, not the part before it.
 //
-// Replaced: a heading counted only what `partOver` put under it, which places a
-// question in the part around it, so a thread about a whole question counted under the
-// heading before the question, and the question's own heading previewed none.
+// Rejected: a heading counting only what `partOver` puts under it, which places a
+// question in the part around it, so a thread about a whole question counts under the
+// heading before the question, and the question's own heading previews none.
 //
 // Kept against exactly what it reads: the threads as the thread reading publishes them,
 // a new value whenever any thread's contents change, its turns included; the agent's

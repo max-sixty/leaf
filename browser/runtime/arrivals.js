@@ -521,7 +521,7 @@ export function watchScrolls(listener) {
 // with no scroll in the box. Chromium, Firefox and WebKit send one for every move that
 // lands, a script's, a clamp's and an anchoring adjustment's included, but none for an
 // input that moves nothing, a box that leaves mid-scroll or Chromium's stop of a smooth
-// scroll, nor for Playwright's wheel in Firefox and WebKit (2026-11-15). The spell needs
+// scroll, nor for Playwright's wheel in Firefox and WebKit. The spell needs
 // both: Firefox's main thread hears its smooth scroll's frames late, and a busy page
 // delays the updates that carry a scroll's events past any clock. A Firefox starved of
 // CPU outlasts both, applying a key's scroll up to 800 ms after the key and pausing

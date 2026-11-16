@@ -184,12 +184,12 @@ function statusWords({
   // the agent keeps the sentence current, reminded by its hooks when it goes unrenewed
   // (`hook_transport.status_reminders`), and a sentence the server stops believing
   // becomes a stall, which dates itself. The disclosure says how long ago it was
-  // written. A row dated by the sentence's age, rejected on 27 October 2026, read
-  // "3m ago" for most of every turn, while the session was visibly moving.
+  // written. Rejected: a row dated by the sentence's age, which reads
+  // "3m ago" for most of every turn, while the session is visibly moving.
   //
   // Until the agent writes that sentence the row says nothing, and the leaf's tone says
-  // it works: the words beside the leaf are the agent's to choose (the user's choice,
-  // 28 October 2026). Rejected: Leaf's guess at them ("Got your comment", "Working on
+  // it works: the words beside the leaf are the agent's to choose (the user's choice).
+  // Rejected: Leaf's guess at them ("Got your comment", "Working on
   // it"), which put Leaf's words in the agent's mouth; the update's own label already
   // says it was Delivered. The step the harness observed stays in the disclosure.
   if (kind === "working") {
@@ -204,8 +204,8 @@ function statusWords({
   }
   // The stock words say where a comment starts; they report and ask nothing. An
   // update still on its way says so on its own label and in the explanation's count,
-  // so the line keeps the invitation (the user's choice, 26 October 2026, over a
-  // separate "listening" while one was).
+  // so the line keeps the invitation (the user's choice, over a
+  // separate "listening" while one is).
   if (kind === "listening") return [invite, invite, ""];
   if (kind === "stalled")
     return [

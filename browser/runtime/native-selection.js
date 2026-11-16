@@ -12,14 +12,18 @@ import { pageShadowRoots } from "./shadow.js";
 //
 // `getComposedRanges` is the only thing that answers truthfully, and it answers only for
 // the roots it is handed, which is why the declaration (x-shadow) and not a sweep decides
-// what is passed. A selection that starts in one tree and ends in another is left to the
-// light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote running
-// from the page's prose into a widget's shadow is exactly what the fences already refuse.
+// what is passed. An end in any other root moves out to its host's edge, outside the
+// host where the selection starts and ends past it, as the page's reading reads that
+// host by its light children: a drag from prose into a typeset formula (formulas.js)
+// takes the whole formula. Firefox's legacy Range is wrong there too: a drag across a
+// formula came back holding only the words after it. A selection that starts in one
+// tree and ends in another is left to the light-DOM range on purpose: a Range cannot
+// hold ends in two roots, and a quote running from the page's prose into a widget's
+// shadow is exactly what the fences already refuse.
 /** @param {Selection} sel */
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
   const shadowRoots = pageShadowRoots();
-  if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;

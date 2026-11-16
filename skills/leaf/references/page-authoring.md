@@ -288,6 +288,13 @@ as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>
 
 Format filenames and paths as inline code.
 
+Write a formula in LaTeX in a `<code class="language-math">`, escaping `&`, `<` and `>`
+as in any HTML text: inside a sentence it reads as an inline formula, and as the code
+of its own `<pre>`, which takes an id like any block a reader points at, as a display
+formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
+`page check --render` reports a formula it can't read, and a comment quotes a formula
+by its LaTeX.
+
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
 put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
 language from `$languages.names` or a bundled grammar's alias, such as `language-js`

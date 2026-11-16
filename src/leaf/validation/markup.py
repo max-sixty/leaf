@@ -51,13 +51,17 @@ COLOURED_LANGUAGES: dict[str, str] = next(
     .splitlines()
     if line.startswith(_NAMES_LINE)
 )
+# The language a formula's LaTeX is written in, as GitHub's and remark-math's Markdown
+# name it: the browser typesets a `<code>` naming it rather than colouring it
+# (runtime/formulas.js).
+FORMULA_LANGUAGE = "math"
 
 
 def language_advice(parser) -> list[Finding]:
-    """Each `language-…` class, on any element, naming a language Leaf doesn't colour,
-    so its code stays the colour of its ink. Advice, not a gate: the name may be a
-    misspelling, which nothing else on the page says, or a language Leaf has no
-    grammar for, which the class still names truly to any other reader."""
+    """Each `language-…` class, on any element, naming a language Leaf neither colours
+    nor typesets, so its code stays the colour of its ink. Advice, not a gate: the name
+    may be a misspelling, which nothing else on the page says, or a language Leaf has
+    no grammar for, which the class still names truly to any other reader."""
     return [
         Finding(
             "uncoloured-language",
@@ -70,7 +74,7 @@ def language_advice(parser) -> list[Finding]:
             severity="advice",
         )
         for tag, line, name in parser.authoring.code_languages
-        if name not in COLOURED_LANGUAGES
+        if name not in COLOURED_LANGUAGES and name != FORMULA_LANGUAGE
     ]
 
 

@@ -1454,8 +1454,20 @@ export const segmentPieces = (segments) =>
   segments.map((segment) => ({
     segment,
     block: segmentBlock(segment),
-    lines: [...rangeOf([segment]).getClientRects()],
+    lines: drawnLines(segment),
   }));
+// A host whose shadow root no entry declares is read by its light children (`walk`), and
+// its tree may draw words it slots nowhere as something else, as a typeset formula draws
+// its LaTeX as MathML (formulas.js): those words have no lines of their own and stand in
+// the host's drawing.
+/** @param {Segment} segment */
+function drawnLines(segment) {
+  const lines = [...rangeOf([segment]).getClientRects()];
+  const host = segment.node.parentElement;
+  if (lines.length || segment.node.assignedSlot || !host?.shadowRoot) return lines;
+  if (declaredRoot(host)) return lines;
+  return [...host.shadowRoot.children].flatMap((drawn) => [...drawn.getClientRects()]);
+}
 // Whether a character's box stands on a line after `line`, as lines follow one another
 // along the block axis of the writing mode they are set in: down the page, or across
 // it from the right or from the left.

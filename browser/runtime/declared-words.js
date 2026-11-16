@@ -52,6 +52,7 @@ import { markViews } from "./storage.js";
 import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
+import { typesetFormulas } from "./formulas.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
@@ -273,9 +274,9 @@ export function watchNativeContent() {
 
 // What an upgraded subtree owes beyond its module's own work: the words a widget says
 // through an attribute rendered as real text, the facts it paints spoken, and its
-// code — and the page's own <pre><code> blocks, alongside the widgets and for the same
-// reason: the tokenizer is vendored, so a page has it exactly when it has a widget
-// layer at all. Written once because it happens twice, over the page at the upgrade and
+// code — and the page's own <pre><code> blocks and formulas, alongside the widgets and
+// for the same reason: the tokenizer and the typesetter are vendored, so a page has
+// them exactly when it has a widget layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
 // the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
 // is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
@@ -283,7 +284,7 @@ export function watchNativeContent() {
 export function paintDeclaredWords(root) {
   renderSaid(root);
   renderQuiet(root);
-  return highlightBlocks(root);
+  return Promise.all([highlightBlocks(root), typesetFormulas(root)]);
 }
 
 // The declarations a stylesheet has to read and cannot. Three of them first: one about

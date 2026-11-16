@@ -1131,7 +1131,8 @@ _TEXT = {
         f'{_line(at, v)}: class="language-{v["language"]}" names no language Leaf'
         " colours, so its code shows uncoloured; Leaf colours "
         + ", ".join(v["names"])
-        + ", and short names for them such as py and sh"
+        + ", and short names for them such as py and sh, and typesets LaTeX in"
+        ' class="language-math" as a formula'
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"

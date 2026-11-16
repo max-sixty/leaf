@@ -23,6 +23,7 @@ from render_harness import (
     holding,
     http_error_console,
     is_problem,
+    latest_press,
     leaf_page,
     open_page,
     open_threads,
@@ -1271,8 +1272,9 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
             "author": "agent",
             "revision": 1,
             "parent": "native-thread",
-            "text": "Choose a channel.",
-            "markup": '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+            "text": "Choose a channel.\n\n"
+            '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1338,10 +1340,12 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
             **({"parent": "root"} if message != "root" else {}),
         }
         if message == "middle":
-            event["markup"] = (
+            event["text"] += (
+                "\n\n"
                 '<lf-options id="channel" choose>'
                 '<lf-option id="email">Email</lf-option></lf-options>'
             )
+            event["html"] = True
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     reader = page.locator("#reader")
@@ -1370,8 +1374,9 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which extras?",
-            "markup": '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+            "text": "Which extras?\n\n"
+            '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -1644,8 +1649,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "author": "agent",
             "revision": 1,
             "parent": "question",
-            "text": "Choose a direction.",
-            "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+            "text": "Choose a direction.\n\n"
+            '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1666,8 +1672,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
-    assert reply["body"]["markup"] == event["markup"]
-    assert "markup" not in root and "markup" not in reply
+    assert "html" not in root and "html" not in reply
     assert '"html"' not in json.dumps(record)
     open_threads(page)
     # The agent answered without naming the thread, so it reads its opening words.
@@ -1972,8 +1977,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "text": "Which channel?\n\n"
+            '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2164,11 +2170,9 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    # The panel's row notice for the newer version, pressed without taking the
-    # editor's focus first, as a press on it does.
-    page.locator(".lf-fp-row-notice-press").filter(has_text="Latest").dispatch_event(
-        "click"
-    )
+    # The panel's Open latest, pressed without taking the editor's focus first, as a press
+    # on it does.
+    latest_press(page).dispatch_event("click")
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")

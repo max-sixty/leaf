@@ -334,7 +334,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
 
 
 def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding]:
-    """The widget readings of each thread whose messages carry markup, read with that
+    """The widget readings of each thread whose messages hold HTML, read with that
     thread open, less what `known` already reports.
 
     A message's widgets render only where its thread is drawn, and the page draws one

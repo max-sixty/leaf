@@ -140,6 +140,7 @@ def append_user_reply(page_dir, parent, text):
 
 
 def append_agent_reply(page_dir, parent, text, markup=None):
+    """An agent's reply; `markup` is HTML written after its words, as `leaf thread reply` reads it."""
     event = {
         "kind": "reply",
         "author": "agent",
@@ -147,10 +148,10 @@ def append_agent_reply(page_dir, parent, text, markup=None):
         "session": "pytest-summary",
         "parent": parent,
         "revision": 1,
-        "text": text,
+        "text": text if markup is None else f"{text}\n\n{markup}",
     }
     if markup is not None:
-        event["markup"] = markup
+        event["html"] = True
     return append_carried_log_record(page_dir, event)
 
 
@@ -284,7 +285,7 @@ REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
 
 
 def seed_reply(d, markup, anchor_id, chatter=0, after=0):
-    """A thread whose reply carries `markup`, with a thread anchored on it.
+    """A thread whose reply holds the HTML `markup`, with a thread anchored on it.
 
     `chatter` is what makes the panel a scroller of its own: a travel that lands by
     accident when the whole list already fits proves nothing about which box moved.
@@ -320,8 +321,8 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "author": "agent",
             "parent": "tv-decisioned",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": markup,
+            "text": "Depends what you want to keep:\n\n" + markup,
+            "html": True,
         },
     )
     append_carried_log_record(

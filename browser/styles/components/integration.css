@@ -97,6 +97,12 @@
 .lf-block-controls .lf-block-control-cut > * {
   position: fixed;
 }
+/* A document code block's Copy stands in chrome, outside the block, so it takes the
+   code's scheme itself (tokens.css, at --lf-pre-bg); a widget's Copy inherits its
+   widget's. */
+.lf-block-controls .lf-code-copy {
+  color-scheme: var(--lf-code-scheme, inherit);
+}
 /* A document block's control stands in chrome, which marks it; a widget's stands
    inside the widget, so the widget's hover or focus shows it. */
 :not(.lf-chrome, .lf-block-controls):is(:hover, [data-lf-focus-within]) > .lf-code-copy,

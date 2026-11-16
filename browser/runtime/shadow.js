@@ -71,6 +71,16 @@ export const shadowRootsIn = (root) =>
     (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
   );
 export const pageShadowRoots = () => shadowRootsIn(document);
+// Every element under `root` that `selector` names, in `root`'s own tree and the
+// declared roots under it, so it costs what `root` holds rather than the page.
+/** @template {Element} [E=Element] @param {Element | Document} root @param {string} selector
+ * @returns {E[]} */
+export const queryAllUnder = (root, selector) =>
+  [root, ...shadowRootsIn(root)].flatMap((scope) => {
+    /** @type {NodeListOf<E>} */
+    const elements = scope.querySelectorAll(selector);
+    return [...elements];
+  });
 
 // The layer's rules for shadow trees: every root's shadow.css, above adopted defaults,
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer

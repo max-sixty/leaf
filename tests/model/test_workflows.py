@@ -330,9 +330,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir)
 
 def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
-    question = thread_model.cmd_comment(
-        page_dir, "", "", "", "Forty?", "", obligation=True
-    )
+    question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
     [owed] = served_obligations(browser)["user"]
@@ -365,8 +363,8 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="thread-region" choose>'
+            "html": True,
+            "text": "Which region?\n\n" + '<lf-options id="thread-region" choose>'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -476,8 +474,8 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "author": "agent",
             "parent": asked["id"],
             "responds": asked["id"],
-            "text": "Here is the board.",
-            "markup": registry["lf-board"]["x-example"],
+            "html": True,
+            "text": "Here is the board.\n\n" + registry["lf-board"]["x-example"],
         },
     )
     moved = append_command(
@@ -933,8 +931,8 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="region" choose>'
+            "html": True,
+            "text": "Which region?\n\n" + '<lf-options id="region" choose>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'
             "</lf-options>",
@@ -995,8 +993,8 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which regions?",
-            "markup": '<lf-options id="regions" choose multiple>'
+            "html": True,
+            "text": "Which regions?\n\n" + '<lf-options id="regions" choose multiple>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'
             "</lf-options>",

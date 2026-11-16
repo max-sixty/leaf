@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    latest_press,
     leaf_page,
     open_page,
     stamp_page,
@@ -190,14 +191,6 @@ PROGRESSIVE_REGISTRY = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#5642: how the panel's row shares its room between the version notice and "
-        "Comment… c is still being decided, and until then the hint slides as the "
-        "notice comes and goes"
-    ),
-)
 def test_native_input_survives_progressive_render_revision_and_export(
     browser, serve, tmp_path
 ):
@@ -264,8 +257,8 @@ def test_native_input_survives_progressive_render_revision_and_export(
         )
         stamp_page(serve.page_dir, revised, "Revise widget inputs and defaults")
         told(page)
-        latest = page.locator("button.lf-fp-row-notice-press")
-        expect(latest).to_contain_text("Latest")
+        latest = latest_press(page)
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#proof .proof-control")).to_have_text("revised")
         expect(page.locator("#early-details")).to_have_attribute("open", "")
@@ -282,11 +275,11 @@ def test_native_input_survives_progressive_render_revision_and_export(
         page.locator("#early-draft").evaluate("e => e.setSelectionRange(2,7)")
 
         # A member-only revision keeps the generated control and native editor
-        # nodes, including the caret, after explicit Latest activation.
+        # nodes, including the caret, after explicit Open latest activation.
         revised = revised.replace("Authored evidence.", "Revised evidence.")
         stamp_page(serve.page_dir, revised, "Revise the slotted evidence")
         told(page)
-        expect(latest).to_contain_text("Latest")
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#prose")).to_have_text("Revised evidence.")
         assert page.evaluate(

@@ -1529,47 +1529,34 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
 
-def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
-    """A widget's `language` attribute is held to the
-    layer's $languages list. A plain <pre><code class="language-…"> claims no
-    vocabulary: one the layer can't color stays the ink of an uncolored block."""
+def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
+    """Every block of code names its language one way, a `language-…` class, and one
+    check reads every such class, a widget's as a native block's: a name the layer
+    can't colour, a misspelling or a language it has no grammar for, is reported
+    beside the page and refuses nothing, since the class still names the code truly.
+    A grammar's alias, such as `py`, colours as its name does."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
-            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
+            '<pre><code class="language-py">y = 2</code></pre>\n'
+            '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
+            "</code></pre></lf-code>\n"
+            '<lf-text-document id="notes" source="notes" class="language-haskell">'
+            "</lf-text-document>",
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
+    assert status == 0
     assert [
-        (f.at, f.values["path"])
-        for f in found(findings, "attribute-schema", keyword="enum")
-    ] == [("<lf-code>", ["language"])]
-
-
-def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
-    """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose declaration takes `language` is held to
-    $languages on the strength of the declaration. A thirteenth widget that colors
-    something — a terminal transcript, a diff — is covered without the lint moving."""
-
-    def declare(registry):
-        registry["lf-gloss"]["properties"]["language"] = {"type": "string"}
-
-    declare_on_page(page_dir, declare)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" language="lisp">feeders</lf-gloss>',
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["language"]
-    )
+        (f.at, f.values["language"], f.severity)
+        for f in found(findings, "uncoloured-language")
+    ] == [
+        ("<code>", "pythn", "advice"),
+        ("<code>", "pythn", "advice"),
+        ("<lf-text-document>", "haskell", "advice"),
+    ]
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1706,8 +1693,8 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     assert not found(findings, "parts-in-layout")
 
 
-def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
-    """A layer that names none colors none, so a page declaring one is asking for
+def test_a_layer_naming_no_tones_refuses_every_word_rather_than_none():
+    """A layer that names none paints none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for
     emptiness: an empty list that stood the check down would be a check retiring itself
     the moment its list moved — and this is the check whose failures the user can't
@@ -1715,12 +1702,11 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
 
     Read where the words become the schema (`registry.contract.stamp_words`): no page
     can compose such a layer over the shipped one, whose widget examples name
-    languages."""
+    tones."""
     registry = copy.deepcopy(model_layer())
-    registry["$languages"]["names"] = []
-    registry["$languages"]["paths"] = {}
+    registry["$tones"]["names"] = []
     stamp_words(registry)
-    assert registry["lf-code"]["properties"]["language"]["enum"] == []
+    assert registry["lf-column"]["properties"]["tone"]["enum"] == []
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):

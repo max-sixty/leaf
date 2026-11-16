@@ -526,7 +526,7 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     source_page = leaf_page(
         "waiting document",
         """
-<lf-text-document id="full" source="full-text" label="full.toml" language="toml"></lf-text-document>
+<lf-text-document id="full" source="full-text" label="full.toml" class="language-toml"></lf-text-document>
 """,
     )
     url = live_url(serve(source_page))
@@ -565,7 +565,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "captured source",
         f"""
 <h1 id="title">Leaf skill</h1>
-<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" class="language-markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )

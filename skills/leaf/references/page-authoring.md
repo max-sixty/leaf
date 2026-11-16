@@ -288,10 +288,10 @@ as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>
 
 Format filenames and paths as inline code.
 
-Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
-`lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
-language from `$languages.names`. Native `code` classes also accept the bundled
-grammar's aliases, such as `language-js` and `language-sh`. Leaf colours a native
+Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
+put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
+language from `$languages.names` or a bundled grammar's alias, such as `language-js`
+and `language-sh`. Leaf colours a native
 block only where the reading face reaches it: the `reading` theme turns it on, and a
 page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
 (`package-themes.md`, "Personal themes"). Format example code with

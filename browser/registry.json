@@ -68,7 +68,7 @@
     "x-retired-when": "reject"
   },
   "$languages": {
-    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list: an author may declare only these, validation refuses any other, and build/vendor.mjs builds a grammar for each. A widget takes a language in its `language` attribute ($attributes), and composing the vocabulary writes this list into that attribute's `enum`, so a new tag that takes a language needs only to declare the attribute. `paths` maps a file extension to a language, for widgets with no attribute to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
+    "description": "The code languages this layer can color, and how a filename maps to one. `names` is the full list, and build/vendor.mjs builds a grammar for each. A block of code names its language with a `language-…` class, as HTML recommends, by one of these names or an alias the grammar's build gives it, such as `py` for python; `page check` advises on a class naming any other, which shows uncolored. `paths` maps a file extension to a language, for widgets with no class to name one: a diff spans several files, and a file editor shows one. A file whose extension is not listed shows uncolored.",
     "why-diff-is-not-a-path": "`diff` is in `names` but not in `paths`. Coloring a .patch file inside a diff with the diff grammar would mark additions and deletions a second time, on top of the widget's own tints.",
     "names": [
       "bash",
@@ -154,7 +154,6 @@
   "$attributes": {
     "description": "The attributes that mean the same on every widget, as HTML's global attributes do. A declaration lists each one its element takes among its `properties`, like any other attribute, and Leaf supplies the meaning, so no key maps a widget's own name for it. `id`, `restated` ($restated), `overruled` ($report) and `resolves` (x-state) are global the same way.",
     "label": "The element's title, which the page uses to name the element elsewhere, as the activity feed does. Take it only where an attribute is the title, as a column's or a tab's is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
-    "language": "A code language. Composing the vocabulary gives the attribute `$languages.names` as its `enum`, so a new tag that takes a language needs only to declare the attribute.",
     "tone": "One of the layer's semantic tints. Composing the vocabulary gives the attribute `$tones.names`, which the theme has a rule for, as its `enum`."
   },
   "$state": {

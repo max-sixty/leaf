@@ -474,11 +474,12 @@ export function createGoToSequence({
       hints.disarm();
       return repaint();
     }
-    const found = hints.arm();
     // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
     // to exactly the user who cannot see them.
-    announce(
-      `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+    hints.arm((found) =>
+      announce(
+        `Go to — ${found.length ? `${found.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
+      ),
     );
     repaint();
   }

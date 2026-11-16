@@ -217,11 +217,10 @@ LEAF_WORD = re.compile(r"(?:(?<=bin/)|(?<=\./)|(?<![\w./-]))leaf(?![\w./-])")
 def leaf_words(command: str) -> list[int]:
     """Where the word `leaf` stands in the Bash command line `command`, by
     character offset, wherever Bash might run it from: after another command or a
-    keyword such as `then`, in a command substitution, quoted, in a here-document,
-    or in a string that `bash -c` or `eval` runs. It reads words, not Bash's
-    grammar, so it also finds one Bash would only pass as text, as in `grep leaf`,
-    `python -c 'from leaf import …'` or a reply's `--text` that names a `leaf`
-    command. A `leaf` that a script runs is out of its reach."""
+    keyword such as `then`, in a command substitution, quoted or in a here-document.
+    It reads words, not Bash's grammar, so it also finds one Bash would only pass as
+    text, as a reply's `--text` that names a `leaf` command does. Only the calls
+    Claude Code hands the hook reach it (`agent_command`)."""
     return [found.start() for found in LEAF_WORD.finditer(command)]
 
 
@@ -251,8 +250,20 @@ def agent_command(sid: str, payload: dict) -> dict | None:
     act as the main thread's, and a mark spliced into it could land inside quoted
     text, so the answer denies it and tells the agent to run each `leaf` command on
     its own, beginning with `leaf`. The rule reads words rather than Bash's grammar,
-    so it also denies a call that only names `leaf`, and the denial says how to post
-    text that names a `leaf` command and how to search for the word.
+    so it also denies a `leaf` call whose text names another, and the denial says how
+    to post text that names a `leaf` command and how to search for the word.
+
+    Claude Code runs the hook only for a call `hooks.json`'s `if` rules match: one
+    where `leaf` or `…/leaf` begins a command Claude Code finds in it, after `&&`,
+    `;`, `|` or a keyword, in `$(…)` or backticks, quoted, or after an assignment
+    (measured at 2.1.325). A call that hands `leaf` to another program, as
+    `bash -c 'leaf …'`, `sh -c`, `timeout 30 leaf …` or `bash` reading a
+    here-document do, never reaches it, nor one that only names the word, as
+    `grep leaf` does. Such a command acts as the main thread's, and says so beside
+    its result where a fork holds its thread (`holding.authorize`). A rule matching
+    `leaf` anywhere in the call would reach them, but would also run the hook, and
+    open the sandbox's road out (`bridge.py`), for every call naming a path through
+    a directory called `leaf`.
 
     A new fork runs before Leaf learns its agent id: the turn Leaf opened for it
     stays unnamed until the module, once `$.agent.spawn` returns, says which agent

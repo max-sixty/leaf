@@ -495,6 +495,13 @@ export function createMarginProjection({
     };
   }
 
+  // A marker's name says its place among the markers and how far down the column its
+  // target stands. So a marker joining or leaving renames every marker, and every
+  // render that names markers reads every target's box (`readSpokenPositions`): about
+  // 9 ms of a comment's send on the 1,024-section page `leaf-dev bench` generates. Not
+  // yet built, since it changes what a screen reader hears: say the place and the
+  // distance down only for the marker focus is on, read when it takes focus, so a
+  // render names only the markers it drew.
   /** @param {Entry} entry @param {number} index @param {number} anchored @param {number | null | undefined} position */
   function markerName(entry, index, anchored, position) {
     const choice = primaryReading(entry);
@@ -513,25 +520,55 @@ export function createMarginProjection({
   }
 
   // A row hidden with the annotation layer is not one the keyboard can land on either.
+  /** @param {HTMLElement} row */
+  const available = (row) =>
+    !row.hidden &&
+    !standsWithheld(row) &&
+    row.checkVisibility({ visibilityProperty: true });
   function availableRows() {
-    return [...markerRows()].filter(
-      (row) =>
-        !row.hidden &&
-        !standsWithheld(row) &&
-        row.checkVisibility({ visibilityProperty: true }),
-    );
+    return [...markerRows()].filter(available);
   }
 
   // Where a row's marker is painted (margin-layout.js, `paintedBox`).
   /** @param {HTMLElement} row */
   const markerBox = (row) => paintedBox(row, row.closest("leaf-margin-cluster"));
 
-  // The rows in front of the user (`seenRect`): one under the floating panel,
-  // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
-  function visibleRows() {
+  // The rows within a window's height of the window. An IntersectionObserver adds and
+  // removes them as a scroll or a layout carries rows across that band's edge, so a
+  // reading of the rows in view measures these, and a scroll costs what the window shows
+  // rather than every row the margin holds. The observer reports after the frame that
+  // moved a row, so a band no wider than the window left a row a scroll brought into
+  // view out of that frame's reading, and the rail's stop stood below it for a frame or
+  // two; with a window's height either side, the frame that draws a scroll of up to a
+  // window already holds every row it shows. A row crossing the band's edge can change
+  // the rail's way in (`syncRoving`). The observer's root is this document's window,
+  // which `seenRect` cuts by, rather than the top window a framed page stands in.
+  /** @type {Set<HTMLElement>} */
+  const nearRows = new Set();
+  const watchNear = new IntersectionObserver(
+    (entries) => {
+      for (const { target, isIntersecting } of entries) {
+        const row = /** @type {HTMLElement} */ (target);
+        if (isIntersecting) nearRows.add(row);
+        else nearRows.delete(row);
+      }
+      scheduleRoving();
+    },
+    { root: document, rootMargin: "100% 0px" },
+  );
+
+  // Of `rows`, those in front of the user (`seenRect`): one under the floating panel, or
+  // scrolled out of a pane, is no row the walk or the rail's way in may land on.
+  /** @param {Iterable<HTMLElement>} rows */
+  function seenRows(rows) {
     const clips = new Map();
-    return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
+    return [...rows].filter(
+      (row) => available(row) && seenRect(row, clips, markerBox(row)),
+    );
   }
+  // The rows in view, in the margin's order.
+  const visibleRows = () =>
+    seenRows([...markerRows()].filter((row) => nearRows.has(row)));
 
   /** @param {Element | null | undefined} host */
   function clusterMarginEntries(host) {
@@ -727,15 +764,18 @@ export function createMarginProjection({
   // The rail holds one tab stop: the way in from the page, not the reading position,
   // which the walk, generated go-to hints, and the pointer all reach without it. A
   // status reports a move already made, so the stop passes to the nearest marker that
-  // still offers a press.
+  // still offers a press. A row joins the rail out of the Tab order (`renderNow`), so
+  // moving the stop rewrites the row it leaves and the row it reaches, and no other.
+  /** @type {HTMLElement | null} */
+  let tabStop = null;
   /** @param {HTMLElement | null | undefined} next */
   function holdTabStop(next) {
-    const available = availableRows();
     const acts = (/** @type {HTMLElement} */ row) =>
       contributionEntryRecord(row)?.behavior !== "status";
-    let stop = next;
+    let stop = next ?? null;
     if (stop && !acts(stop)) {
-      const at = available.indexOf(stop);
+      const rows = availableRows();
+      const at = rows.indexOf(stop);
       /** @type {(nearest: {row: HTMLElement, distance: number} | null, row: HTMLElement, index: number) => {row: HTMLElement, distance: number} | null} */
       const nearestActive = (nearest, row, index) => {
         if (!acts(row)) return nearest;
@@ -743,33 +783,40 @@ export function createMarginProjection({
         const distance = Math.abs(index - at);
         return distance < nearest.distance ? { row, distance } : nearest;
       };
-      stop = available.reduce(nearestActive, null)?.row;
+      stop = rows.reduce(nearestActive, null)?.row ?? null;
     }
-    rove(markerRows(), stop);
+    rove(
+      [tabStop, stop].filter((row) => row !== null),
+      stop,
+    );
+    tabStop = stop;
   }
 
   // The row focus stands on, which the stop stays on while it does (`syncRoving`).
   const focusedRow = () => {
     const at = focused();
-    return at?.matches(".lf-margin-marker") ? at : null;
+    return at instanceof HTMLElement && at.matches(".lf-margin-marker") ? at : null;
   };
-  /** @type {Element | null} */
+  /** @type {HTMLElement | null} */
   let rovedRow = null;
   function syncRoving() {
     rovedRow = focusedRow();
-    const available = availableRows();
-    const visible = visibleRows();
-    if (!available.length) {
-      holdTabStop(null);
+    if (rovedRow && available(rovedRow)) {
+      holdTabStop(rovedRow);
       return;
     }
-    const currentLocation = available.find((row) => row === focused());
-    const candidates = visible.length ? visible : available;
     // The stop is the highest row in view, or with none in view the row nearest the
     // window, whatever held it before, so the way in follows from the page as it
     // stands rather than from the widths and scrolls it passed through. A stop kept
     // where it stood while in view moved for good once a narrower width had shown
-    // another row first.
+    // another row first. Only a row near the window can be in view, so while one is, a
+    // scroll measures the rows near it (`nearRows`); while none is, every row.
+    const visible = seenRows(nearRows);
+    const candidates = visible.length ? visible : availableRows();
+    if (!candidates.length) {
+      holdTabStop(null);
+      return;
+    }
     const room = shownWindow();
     /** @param {HTMLElement} row @returns {[number, number, number]} */
     const place = (row) => {
@@ -784,12 +831,11 @@ export function createMarginProjection({
     };
     /** @param {[number, number, number]} a @param {[number, number, number]} b */
     const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-    const nearest = () =>
+    holdTabStop(
       candidates
         .map((row) => ({ row, at: place(row) }))
-        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row;
-    const next = currentLocation ?? nearest();
-    holdTabStop(next);
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row,
+    );
   }
 
   function scheduleRoving() {
@@ -1198,6 +1244,8 @@ export function createMarginProjection({
     for (const [key, host] of hosts)
       if (!liveHosts.has(key)) {
         unregisterMarginRow(host);
+        watchNear.unobserve(host.marker);
+        nearRows.delete(host.marker);
         host.clear();
         host.remove();
         hosts.delete(key);
@@ -1272,6 +1320,9 @@ export function createMarginProjection({
           },
           { capture: true },
         );
+        // Out of the Tab order until the rail's stop reaches it (`holdTabStop`).
+        created.marker.tabIndex = -1;
+        watchNear.observe(created.marker);
         hosts.set(entry.key, created);
       }
       const { marker, more } = host;
@@ -1362,9 +1413,10 @@ export function createMarginProjection({
     refreshHighlight();
     // The layout runs a pass where this render changed what a seat reads: a row registered
     // for another target, or a face drawn at another size (margin-layout.js,
-    // `registerMarginRow`, `faces`). The rail's tab stop reads every row, so a render
+    // `registerMarginRow`, `faces`). The rail's tab stop reads the rows, so a render
     // that changed none, with focus still on the same row, leaves it where it stands; the
-    // room moving reads it again by itself (`watchRoom`).
+    // room moving or a row coming near the window or leaving reads it again by itself
+    // (`watchRoom`, `watchNear`).
     if (rowsChanged || focusedRow() !== rovedRow) {
       rowsChanged = false;
       tick(drawnMargin);

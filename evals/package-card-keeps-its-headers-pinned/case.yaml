@@ -20,7 +20,7 @@ vars:
     header does. A log can run to thousands of lines, so the card takes its full
     height and the page scrolls.
 
-    Read the references you need and show the widget's shadow.css for the card, the
+    Show the widget's shadow.css for the card, the
     step groups and their title rows. Return CSS in your reply.
 assert:
   - type: llm-rubric

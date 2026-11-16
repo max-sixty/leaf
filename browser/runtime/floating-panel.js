@@ -3301,7 +3301,9 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     if (top) viewOf(top).nominate?.(top, collection, parts);
   }
-  // On draws each question asked in words as its message, in its card's outlet.
+  // On draws each message its cards ask in, in the card's outlet, aside from the
+  // conversation: a thread the page shows keeps the message's widgets (messages.js,
+  // `HOLDS`).
   /** @param {import("./thread/primary-reader.js").PrimaryCollection} collection @param {import("./thread/primary-reader.js").NominationParts} parts */
   function nominateAsked(collection, parts) {
     /** @type {NodeListOf<HTMLElement>} */
@@ -3813,13 +3815,21 @@ export function createFloatingPanel({
   // while it is the open item. `says` names what the group's heading already says of
   // it, which the card leaves out where that is its `place`; `leads` whether it is the
   // first item of the walk's stop it stands at, which alone wears the walk's ring.
+  // `drawing` collects the ids of the messages this paint's cards have drawn so far,
+  // so a later card doesn't draw one again (`nominateAsked`).
   /** @param {PanelQueueItem} item @param {PanelQueueList} list
    * @param {{card?: boolean, says?: "place" | "kind" | null, leads?: boolean,
-   * also?: readonly string[] | undefined}} [options] */
+   * also?: readonly string[] | undefined, drawing?: Set<string>}} [options] */
   function onItemCard(
     item,
     list,
-    { card = false, says = null, leads = true, also = item.also } = {},
+    {
+      card = false,
+      says = null,
+      leads = true,
+      also = item.also,
+      drawing = new Set(),
+    } = {},
   ) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
@@ -3834,18 +3844,46 @@ export function createFloatingPanel({
       inWords && thread
         ? thread.msgs.find((candidate) => candidate.id === record.message)
         : null;
-    const message =
-      asking && thread && presentation?.primary !== false
-        ? { thread, reading: asking }
+    // A widget in an agent's message, such as a choice asked in a thread, is in the
+    // document only while a drawing of that message holds it (thread/messages.js,
+    // `HOLDS`). So its card draws the message too, aside from the conversation. Where
+    // nothing else shows the message, the widget stands in the card: focused, the card
+    // shows the options' digits, and a pick is the same action a pick in the thread
+    // records. Where the page shows the message, as a thread open beside its passage
+    // does, the widget stays there, and the card answers it with its choices
+    // (`choicesOf`), as a page choice's card does. Which drawing holds the widget can
+    // change while the card stands, as a margin card opens or closes, so the card draws
+    // its choices wherever the widget stands, and they give way to the widget while the
+    // card's own drawing of the message holds it (floating-panel.css, `data-lf-holds`). Until 15 November 2026 the card showed
+    // only the widget's words, and while the thread wasn't drawn it offered no options
+    // and took no digits. A view draws a message once, so where it holds several such
+    // widgets the first card draws it and the others answer through their choices. A
+    // line opened into its card keeps the name it has folded. A record's obligation
+    // (`source.unit`), one of many that a widget such as a review asks, draws no
+    // message, since its card is about the one record.
+    const holding =
+      record?.source.kind === "widget" && !record.source.unit && thread
+        ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
-    const title = message
-      ? (message.thread.title ??
-        (message.thread.root.id === message.reading.id
-          ? ""
-          : threadName(message.thread)))
-      : asking && thread
-        ? threadName(thread)
-        : queueTitle(item);
+    const key = queueItemKey(item);
+    const opened = opening.openItem === key;
+    const reader = presentation?.primary !== false;
+    const message =
+      asking && thread && reader
+        ? { thread, reading: asking }
+        : holding && thread && reader && (card || opened) && !drawing.has(holding.id)
+          ? { thread, reading: holding }
+          : null;
+    if (message && (card || opened)) drawing.add(message.reading.id);
+    const title =
+      message && (asking || card)
+        ? (message.thread.title ??
+          (message.thread.root.id === message.reading.id
+            ? ""
+            : threadName(message.thread)))
+        : asking && thread
+          ? threadName(thread)
+          : queueTitle(item);
     const said = message
       ? ""
       : asking
@@ -3875,7 +3913,7 @@ export function createFloatingPanel({
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
-      record && !answered && record.source.kind === "widget" && !inWords
+      record && !answered && record.source.kind === "widget"
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -3897,17 +3935,12 @@ export function createFloatingPanel({
     // stood far from the question it shows. The arrival may open a thread in this
     // panel; keep its current route until the destination decides, then close only for
     // page travel.
-    // A card drawing the message it asks (`message`) holds that message's drawing ahead
-    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On Me
-    // standing landed in this card, and the user fell to the page as it closed. Where
-    // the thread stands on the page, On Me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
-            if (message && placedAt(message.thread.id)?.place) close();
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });
@@ -4020,8 +4053,6 @@ export function createFloatingPanel({
         Reply
       </button>`;
     } else answers = nothing;
-    const key = queueItemKey(item);
-    const opened = opening.openItem === key;
     const stop = queueStop(item);
     const mine = item.owner === "user";
     // A line says what its item is: what waits on the user in the walk's word for it,
@@ -4075,6 +4106,7 @@ export function createFloatingPanel({
           presentation?.primary !== false
             ? html`<div
                 class="lf-fp-asked lf-fp-outlet"
+                data-lf-carried
                 data-lf-thread=${where.key}
                 data-lf-message=${asked.key}
               ></div>`
@@ -4260,6 +4292,8 @@ export function createFloatingPanel({
     ];
     seated = items;
     const seatedKeys = new Set(items.map(queueItemKey));
+    /** @type {Set<string>} */
+    const drawing = new Set();
     /** @param {PanelQueueItem} item @returns {PanelQueueList} */
     const listOf = (item) =>
       lists.you.some((current) => current === item)
@@ -4307,12 +4341,13 @@ export function createFloatingPanel({
         ],
         (item, group) =>
           !("leads" in group)
-            ? onItemCard(item, "done")
+            ? onItemCard(item, "done", { drawing })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says,
                 leads: group.leads.has(item),
                 also: carrying.get(queueItemKey(item)),
+                drawing,
               }),
       ),
     )}`;
@@ -5444,6 +5479,9 @@ export function createFloatingPanel({
       // The view makes room for the agent's answer to the user's last turn itself
       // (the growth under **Opened**), so the reader hands it over at once.
       answersAtOnce: true,
+      // The view's only message parts are On Me's cards, which stand aside from
+      // the conversation (messages.js, `HOLDS`).
+      messagesAside: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
       // reader, and the message they were on, goes.

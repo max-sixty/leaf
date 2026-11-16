@@ -11,10 +11,10 @@ Each request owns its work; inference releases its page transaction before waiti
 for the harness.
 
 A document runs this process's browser runtime (`runtime_selection`), whose identity
-addresses the resources a document loads and is named on every answer (`Leaf-Runtime`)
-and on every write a tab sends, so a tab running another runtime reads and writes
-nothing here. A website release already names its runtime, so a release answers by its release
-alone.
+is part of the address of the resources a document loads (`assets_path`) and is named
+on every answer (`Leaf-Runtime`) and on every write a tab sends, so a tab running
+another runtime reads and writes nothing here. A website release already names its
+runtime, so a release answers by its release alone.
 """
 
 import hashlib
@@ -49,6 +49,7 @@ from .interaction_log import admit_batch, append_interactions, client_records
 from .layer import incompatible_layer, running_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
+from .page_memory import memo, once
 from .passages import SourceReading
 from .presence import live_servers
 from .refusals import Refused
@@ -181,6 +182,26 @@ def scope_page_urls(value, page_root: str):
 def child_interaction_page(page_root: str, owner_root: str) -> str:
     """The child identity relative to the durable diagnostic owner."""
     return page_root[len(owner_root) :]
+
+
+def assets_path(identity: str) -> str:
+    """The path, below the page root, under which a page server answers the resources
+    a revision's documents run. It is named by the identity of every byte served
+    there (`runtime_selection.executing`), so revisions that differ only in their
+    document share it, and a browser reuses what it fetched for one when it loads
+    the next."""
+    return f"/revisions/{identity}"
+
+
+class _Executions:
+    """What this process has learned of where a page's executions answer: a
+    revision that executes under each identity it computed (`PageEndpoint._identity`),
+    and the identity the search for an address found for each revision it tried
+    (`PageEndpoint._addressed`)."""
+
+    def __init__(self) -> None:
+        self.revisions: dict[str, str] = {}
+        self.searched: dict = {}
 
 
 def page_delivery(
@@ -967,25 +988,48 @@ class PageEndpoint:
         reading = self._reading(revision)
         return reading.registry["$layer"]["generation"]
 
-    def _artifact_root(self, revision: int) -> str:
-        return self._named_root(
-            self._revision_name(revision).removesuffix(".html"),
-            self._artifact(revision),
+    def _identity(self, revision: int) -> str:
+        """The identity `revision` executes under here, kept for `_addressed`."""
+        identity = execution_identity(self._artifact(revision))
+        memo(self.page_dir, _Executions).revisions[identity] = self._revision_name(
+            revision
         )
+        return identity
 
-    def _named_root(self, name: str, artifact: RevisionArtifact) -> str:
-        """Where a revision's resources answer as this process runs them: its capture,
-        and the runtime and layer it executes (`execution_identity`), each named by its
-        identity, so the address names the same bytes for as long as a browser may
-        cache it."""
-        return (
-            self.page_root.rstrip("/")
-            + f"/revisions/{name}/{execution_identity(artifact)}"
-        )
+    def _addressed(self, identity: str) -> RevisionArtifact | None:
+        """The execution whose resources answer at `identity` (`assets_path`), or None
+        where no revision of the page executes under it here.
+
+        Every revision executing under one identity serves the same bytes there.
+        Serving a document records its revision under its identity (`_identity`), so
+        the requests its load makes find it at once. An address this process hasn't
+        served, such as one a tab from before a restart names, is searched for among
+        the revisions, newest first. The search computes each revision's identity once
+        however many requests ask at the same time (`page_memory.once`), and keeps it,
+        so an address no revision answers costs one search in this process."""
+        held = memo(self.page_dir, _Executions)
+        names = self.source.revision_names
+        if (
+            (known := held.revisions.get(identity)) is not None
+            and names.get(revision := revision_num(known)) == known
+            and (executed := named_execution(self._artifact(revision), identity))
+        ):
+            return executed
+        for revision in sorted(names, reverse=True):
+            if once(
+                held.searched, names[revision], partial(self._identity, revision)
+            ) == identity and (
+                executed := named_execution(self._artifact(revision), identity)
+            ):
+                return executed
+        return None
+
+    def _assets_root(self, identity: str) -> str:
+        return self.page_root.rstrip("/") + assets_path(identity)
 
     def _document_asset_root(self, revision: int) -> str:
         """The immutable dependency namespace selected for this document."""
-        return self._artifact_root(revision)
+        return self._assets_root(self._identity(revision))
 
     def _sample_asset_root(self, revision: int) -> str | None:
         """A host's public captured graph, or the child's own capability namespace."""
@@ -1049,23 +1093,20 @@ class PageEndpoint:
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
-            rf"/revisions/(?P<name>{REVISION_NAME})/(?P<runtime>[0-9a-f]+)/(?P<resource>.+)",
-            self.path,
+            r"/revisions/(?P<identity>[0-9a-f]+)/(?P<resource>.+)", self.path
         )
-        if match is None:
+        # Media answers at the page root (`DeliveryAddress`), so the identity covers
+        # none of it and this address serves none.
+        if match is None or match["resource"].startswith(f"{MEDIA_DIR}/"):
             return None
-        revision, name = int(match.group("revision")), match.group("name")
-        if self.source.revision_names.get(revision) != name + ".html":
-            return None
-        artifact = named_execution(self._artifact(revision), match.group("runtime"))
+        artifact = self._addressed(match["identity"])
         if artifact is None:
             return None
         response = self._revision_resource(
-            artifact, "/" + match.group("resource"), self._named_root(name, artifact)
+            artifact, "/" + match["resource"], self._assets_root(match["identity"])
         )
         if response is not None:
-            # The revision name carries its manifest digest, the execution identity
-            # names the runtime and layer, and the address is in the URL, so these bytes never
+            # The identity names every byte served beneath it, so these never
             # change. Every document of one page shares this namespace: a gallery's
             # live samples are each a whole runtime importing the same modules, and
             # refetching each one per document queued them behind one another on the

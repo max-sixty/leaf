@@ -950,6 +950,32 @@ def long_press(page, point):
     )
 
 
+def cursor_at(page, x, y):
+    """The cursor the user sees at a point of the viewport: the computed cursor of the
+    element a press there lands on, through every open shadow tree it crosses, since
+    the runtime paints a cursor on that element and no other (page-geometry.js)."""
+    return page.evaluate(
+        """([x, y]) => {
+          let at = document.elementFromPoint(x, y);
+          while (at?.shadowRoot) {
+            const inner = at.shadowRoot.elementFromPoint(x, y);
+            if (!inner || inner === at) break;
+            at = inner;
+          }
+          return getComputedStyle(at).cursor;
+        }""",
+        [x, y],
+    )
+
+
+def cursor_over(page, locator):
+    """Rest the pointer over the middle of `locator`, as a hover does, and return the
+    cursor the user sees there (`cursor_at`)."""
+    locator.hover()
+    box = locator.bounding_box()
+    return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -3207,10 +3233,10 @@ def root_overflow(page) -> float:
 
 
 def wide_width(page) -> float:
-    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    """The page's `--lf-wide` in pixels: the theme derives it from the code size, and a
     page may restate it, so a width check reads it rather than copying the number."""
     return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-wide'))"
     )
 
 

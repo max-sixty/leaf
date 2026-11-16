@@ -19,7 +19,7 @@ vars:
     of the list while the user scrolls through that week's incidents, with no rows
     showing above it.
 
-    Read the references you need and show the widget's shadow.css for the list
+    Show the widget's shadow.css for the list
     box, the week groups and their heading rows. Return CSS in your reply.
 assert:
   - type: llm-rubric

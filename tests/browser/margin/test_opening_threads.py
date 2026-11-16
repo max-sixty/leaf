@@ -570,7 +570,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const needed = item.getBoundingClientRect().width;
           const probe = document.createElement('i');
           probe.style.cssText =
-            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';
+            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-rail)';
           document.querySelector('main').append(probe);
           const rail = probe.getBoundingClientRect().width;
           probe.remove();

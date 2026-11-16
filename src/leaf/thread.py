@@ -1,7 +1,7 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple, Never
@@ -537,7 +537,7 @@ def post_reply(
             ):
                 raise ReceiptRefused("response no longer matches its page log")
         from .forks import page_holding
-        from .holding import authorize
+        from .holding import authorize, owed_by
 
         # A fork may answer only what its turn holds, and write in no thread
         # another turn took, and an ended one nothing; it asks first, so a refused
@@ -546,15 +546,17 @@ def post_reply(
         # answer, which responds to a message, takes the thread.
         holding = page_holding(page)
         responds = address.get("responds")
+        thread = (
+            holding.found.names.get(address["parent"])
+            if address.get("parent")
+            else None
+        )
         beside = authorize(
             page,
             holding,
             posting_identity.get("session"),
             [responds] if responds else [],
-            thread=None
-            if responds or not address.get("parent")
-            else holding.found.names.get(address["parent"]),
-            answers=responds is not None and not ephemeral,
+            thread,
         )
         if attempt is not None and (
             repeated := _repeated_reply(
@@ -597,6 +599,12 @@ def post_reply(
             detach=detach,
             title=title,
         )
+        if beside is not None and responds is not None and not ephemeral:
+            # Whether the answer took the thread, by the reading once it is in: one to
+            # an older message, or to a widget frozen there, leaves a message the fork
+            # picked up waiting, and the thread with the fork.
+            took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
+            beside = replace(beside, values={**beside.values, "answers": took})
     if beside is not None and claimed_session is None:
         note(beside)
     if published is not None:

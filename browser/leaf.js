@@ -325,6 +325,7 @@ async function boot() {
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
+    pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -609,6 +610,7 @@ async function boot() {
     repaint,
   });
   regionCapture = createRegionCapture({
+    refreshCrosshair: pageGeometry.refreshCrosshair,
     closeTargetPicker: targets.closeTargetPicker,
     closeReactionMode: () => reactions.setReact(false),
     parent: chromeForeground,

@@ -71,7 +71,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import panel_tab
-from leaf_dev.panel_paint import ROUTES, ink_box, settled
+from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
@@ -2334,7 +2334,7 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
     )
-    agent_said(
+    answered = agent_said(
         serve.page_dir,
         root,
         "The workshop fits, including a fifteen-minute break.",
@@ -2353,7 +2353,9 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     said = agent_said(
         serve.page_dir, root, "The room stays free until seven. " * 4, responds=asked
     )
-    summarize_thread(serve.page_dir, asked, said, "The room is free until seven.")
+    summarize_thread(
+        serve.page_dir, answered, said, "It fits, and the room is free until seven."
+    )
     agent_said(serve.page_dir, root, "Booked it for the afternoon.")
     page = floating(browser, url)
     page.locator("body").focus()
@@ -3708,20 +3710,16 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
     functional guarantee."""
     from io import BytesIO
 
-    from PIL import Image, ImageColor
+    from PIL import Image
 
     page = floating(browser, serve(leaf_page("fold", '<h1 id="title">Fold</h1>')))
     page.emulate_media(reduced_motion="no-preference")
     leaf = page.locator(".lf-fp-leaf")
-    colours = leaf.evaluate("""node => ({
-      ring: getComputedStyle(node).outlineColor,
-      mark: getComputedStyle(node.querySelector('svg[data-lf-icon=leaf]')).color
-    })""")
+    colours = mark_colours(leaf)
     # Authored words can share the mark's colour; only the panel's pixels count.
     page.locator("#title").evaluate(
-        "(node, colour) => node.style.color = colour", colours["mark"]
+        "(node, colour) => node.style.color = colour", f"rgb{colours['mark']}"
     )
-    colours = {name: ImageColor.getrgb(value) for name, value in colours.items()}
 
     for route, action in ROUTES:
         if action == ".lf-fp-minimize":
@@ -3731,9 +3729,7 @@ def test_the_leaf_paints_inside_its_focus_ring_after_folding(browser, serve):
             field(page).click()
             page.keyboard.press("Shift+Tab")
             expect(leaf).to_be_focused()
-            colours["ring"] = ImageColor.getrgb(
-                leaf.evaluate("node => getComputedStyle(node).outlineColor")
-            )
+            colours["ring"] = mark_colours(leaf)["ring"]
         if route == "keyboard":
             page.keyboard.press(action)
         else:
@@ -4517,7 +4513,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
         """line => {
           const ink = document.createElement('span');
           ink.hidden = true;
-          ink.style.color = 'var(--ink)';
+          ink.style.color = 'var(--lf-ink)';
           line.append(ink);
           const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
           ink.remove();
@@ -5630,7 +5626,7 @@ def test_send_stands_in_the_mark_s_place_while_the_field_holds_a_draft(browser, 
     page.keyboard.type("Could the rollback cover the weekend, and the Monday after it?")
     expect(send).to_be_visible()
     accent = page.evaluate(
-        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"
+        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--lf-accent)';"
         " document.body.append(probe); const seen = getComputedStyle(probe).color;"
         " probe.remove(); return seen; }"
     )

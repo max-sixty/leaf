@@ -104,11 +104,10 @@ def selected_vocabulary(record: dict, page_dir: Path):
 
 
 def _compose_selected(compose, record: dict, page_dir: Path):
-    from leaf.themes import theme_package
+    from leaf.themes import with_theme
 
-    theme = theme_package(record["theme"])
     try:
-        return compose(tuple(record["packages"]), theme, page_dir)
+        return compose(with_theme(tuple(record["packages"]), record["theme"]), page_dir)
     except Refused as error:
         raise RegistryError(
             [Finding("layer-unavailable", values={"error": str(error)})]

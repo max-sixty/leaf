@@ -11,9 +11,11 @@
 # Those scores used the historical sentence-count rubric. The revised premise
 # rubric grades useful context and task prominence. Both saved Codex answers passed
 # when regraded for context anywhere on the page rather than repeated in its intro.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: playground-controls-stand-by-their-item
 metadata:
   purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
+  authoring: true
   tags:
     - playground
     - layout
@@ -37,10 +39,6 @@ vars:
     Build a Leaf playground page where the user sets each alert's threshold and route,
     sees the month's page count against the budget as they go, and submits the
     settings for me to apply.
-
-    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
-    directory. The page directory is not reachable here, so reply with the page's
-    HTML and any page module it needs.
 assert:
   - type: llm-rubric
     metric: controls-stand-by-their-item

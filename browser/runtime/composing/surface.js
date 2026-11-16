@@ -85,7 +85,8 @@ import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { landGlides } from "../scrolling.js";
+import { landGlides, stopGlide } from "../scrolling.js";
+import { carriersOf } from "../scroll-containers.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
@@ -1303,10 +1304,16 @@ export function createResponseSurface({
         ? { x: ev.clientX, y: ev.clientY }
         : pointerAt();
       const threadId = markAt?.(point.x, point.y);
-      if (threadId)
-        return void openPageThread(threadId, {
-          travel: false,
-        });
+      if (!threadId) return;
+      // The press picked words where they stood, and the thread opens without travel,
+      // so a glide under way that carries them stops there, as a spatial command stops
+      // one (scrolling.js, `stopGlide`): the card the thread opens moves no scroller of
+      // its own (scroll-containers.js, `scrollersOf`), so its landing would leave a
+      // walk's glide carrying the clicked words out of the window.
+      const clicked =
+        target instanceof Element ? target : (target?.parentElement ?? null);
+      for (const box of carriersOf(clicked)) stopGlide(box);
+      void openPageThread(threadId, { travel: false });
     });
     wireFabInput();
   }

@@ -3,6 +3,9 @@
 # On d1a357e06, with page-authoring.md read, the baseline passed 0 of 3 and the
 # guidance on language and illustrative-code formatting passed 3 of 3. The plain
 # diagnostic output is the guardrail against treating every preformatted block as code.
+# Without the prompt's pointer to page-authoring.md, 4 of 4 Claude Code runs of the
+# primary context at 0e538e29d read it themselves and passed, as 4 of 4 pointed runs
+# did; the two variants lost the same pointer and haven't run since.
 description: source-code-readable
 metadata:
   purpose:
@@ -13,9 +16,6 @@ metadata:
     - code
 vars:
   prompt: |
-    Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-    base directory before revising this page.
-
     Revise this section in our Leaf keyboard API design playground. Explain that each
     action is declared once, and that `commands(deck, decisions)` exposes the scope
     while keeping its action identity. Keep the explanation short. Include the code
@@ -140,9 +140,6 @@ variants:
         rendering rather than a hand conversion, with its exact words kept.
     vars:
       prompt: |
-        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-        base directory before writing.
-
         You are writing a Leaf page that surveys Leaf's interface principles. Write its
         section "Two rules before and after": the two rules in `browser/AGENTS.md` that
         had been patched most, as each read before this branch rewrote the section and
@@ -200,9 +197,6 @@ variants:
       purpose: Markdown whose syntax is the subject stays visible as the characters typed.
     vars:
       prompt: |
-        Use the leaf:leaf skill and read `references/page-authoring.md` inside its
-        base directory before writing.
-
         You are writing a Leaf page about the Markdown in Leaf's message composer. A
         user typed this reply, meaning a sign-off followed by a horizontal rule:
 

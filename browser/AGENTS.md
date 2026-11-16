@@ -445,7 +445,8 @@ around the rows already there (`margin-layout.js`). `test_page_fixture_renders` 
 these rules on every corpus page.
 
 Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py` declares
-(`../skills/leaf/references/packages.md`, "Styles and composition"). A widget package's rules
+(`../skills/leaf/references/packages.md`, "Styles and composition"), above the
+layer a page's reset stands in (`PAGE_RESET_LAYER`). A widget package's rules
 name the widgets they style, so a rule several packages need belongs in the kernel. Page and theme-package rules reach widget
 controls as they reach the page's own; the chrome keeps unlayered page rules up to one
 class's weight off itself (`styles/chrome-guard.css`), and a package restyles it on
@@ -532,7 +533,7 @@ custom property changes on `html`.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
-  heights, `--raise-1` to `--raise-3` (`base.css`). Check:
+  heights, `--lf-raise-1` to `--lf-raise-3` (`base.css`). Check:
   `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 
 ### The browser answers first
@@ -637,6 +638,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Order and containment along another climb of the tree, as the page reading's own order is             | `shadow-tree.js` `alongClimb`                                                      |
 | The next element in a walk; Chromium keeps each `children` or `childNodes` list for its node's life   | `firstElementChild` and `nextElementSibling`, or `firstChild` and `nextSibling`    |
+| The nodes a node draws as its children, through the shadow roots the walk names (`rootOf`)            | `shadow-tree.js` `eachRenderedChild`, `eachRenderedElement`                        |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
 | Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
 | Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
@@ -669,6 +671,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | The positions a box's scroll takes on each axis, on whichever side of zero                            | `arrivals.js` `scrollRange`                                                        |
 | When a box's scroll ends, a glide's counted once, and whether the browser or a script moves it        | `arrivals.js` `watchScrollEnds`, `holdScroll`, `browserScrolls` (_lint_)           |
+| When the page shows a script's scroll, boxes anchored to what it moved included                       | `arrivals.js` `scrollDrawn`                                                        |
 | Whether the reader's input has set a box scrolling                                                    | `arrivals.js` `readerScrolls`                                                      |
 | Which way the reader's input heads a box, and where it found it                                       | `scrolling.js` `readerScroll`                                                      |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |

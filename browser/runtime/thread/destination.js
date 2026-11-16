@@ -183,9 +183,11 @@ export function createThreadDestinations({
   });
   // Prefer a shown destination in the same order opening asks: the primary reader,
   // then the page's own surfaces. Otherwise return a retained node to reveal; a
-  // hidden primary's retained rows must not mask the page's open card. A route to the
-  // page alone (`page`) lands on the page's drawing, never on the primary's view it is
-  // about to put away, which would leave the user on nothing once it goes.
+  // hidden primary's retained rows must not mask the page's open card. An arrival on
+  // the page (`page`) lands on the page's drawing, never on the primary's view: the
+  // primary declined the thread or is about to put its view away, and its view can
+  // still draw the message, as On Me's card does, closing as the user arrives, which
+  // would leave them on nothing.
   /** @param {string} id @param {{part?: ThreadPart, page?: boolean}} [options] */
   const threadFocusTarget = (id, { part = null, page = false } = {}) => {
     const thread = threadNamed(id);
@@ -324,7 +326,8 @@ export function createThreadDestinations({
         return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
-    // The page's own drawings of the thread: its outlet or seat, a preview.
+    // The page's own drawings of the thread: its outlet or seat, a preview. Its
+    // arrival lands there, never on the primary's view (`threadFocusTarget`'s `page`).
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
       // A route to a message is an arrival at it, so a seat holding it back shows it.
@@ -403,7 +406,7 @@ export function createThreadDestinations({
             focus !== false &&
             !(await arrive(
               () => {
-                const current = threadFocusTarget(id, { part, page });
+                const current = threadFocusTarget(id, { part, page: true });
                 return (
                   current && {
                     where: current,
@@ -417,7 +420,7 @@ export function createThreadDestinations({
           )
             return null;
         }
-        return threadFocusTarget(id, { part, page });
+        return threadFocusTarget(id, { part, page: true });
       }
       return DECLINED;
     }

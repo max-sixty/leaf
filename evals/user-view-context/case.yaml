@@ -15,7 +15,6 @@ vars:
     user may have two visible browser windows, and you have revised the report
     since the first handover. Do not invent an observed width.
 
-    Use the leaf skill and read the instructions that own this workflow.
     Only Skill and Read run here; write the requested answer in your reply.
 assert:
   - type: llm-rubric

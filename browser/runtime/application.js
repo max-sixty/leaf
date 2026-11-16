@@ -60,7 +60,7 @@ import { raiseError } from "./errors.js";
 /** @typedef {Parameters<typeof createThreadPresentation>[0]} ThreadPresentationOptions
  * @typedef {ReturnType<typeof createThreadDestinations>} ThreadDestinations
  * @typedef {{render: import("./thread/primary-reader.js").PrimaryRender, reveal: import("./thread/destination.js").OpenPrimary, answersAtOnce?: boolean}} PresentationSpec
- * @typedef {PresentationSpec & {yielded: () => (() => void) | null}} YieldingSpec
+ * @typedef {PresentationSpec & {yielded: () => (() => void) | null, messagesAside?: boolean}} YieldingSpec
  */
 /** @template {PresentationSpec} [T=PresentationSpec]
  * @typedef {{owner: Element, spec: T, attached: {reader: ReturnType<typeof createPrimaryReader>, detach: () => void} | null}} PresentationEntry */
@@ -626,10 +626,10 @@ function createApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  /** @param {Element} owner @param {PresentationSpec} spec @param {(() => void) | undefined} [onFailure] */
+  /** @param {Element} owner @param {PresentationSpec & {messagesAside?: boolean}} spec @param {(() => void) | undefined} [onFailure] */
   const attachPresentation = (
     owner,
-    { render, reveal, answersAtOnce = false },
+    { render, reveal, answersAtOnce = false, messagesAside = false },
     onFailure = undefined,
   ) => {
     const reader = createPrimaryReader(
@@ -637,7 +637,7 @@ function createApplication(dependencies) {
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce, ...(onFailure ? { onFailure } : {}) },
+      { answersAtOnce, messagesAside, ...(onFailure ? { onFailure } : {}) },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;

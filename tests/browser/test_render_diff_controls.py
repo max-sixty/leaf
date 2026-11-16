@@ -851,7 +851,7 @@ def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, 
         corner: getComputedStyle(head(file)).borderTopLeftRadius,
       }));
     }"""
-    corner = diff.evaluate("d => getComputedStyle(d).getPropertyValue('--r').trim()")
+    corner = diff.evaluate("d => getComputedStyle(d).getPropertyValue('--lf-r').trim()")
     models, views, guide = diff.evaluate(read)
     assert views["top"] - views["outlet"] == pytest.approx(8, abs=0.5), views
     assert views["corner"] == corner, views

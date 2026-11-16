@@ -19,8 +19,8 @@ vars:
     the editor and its existing effect methods are already implemented.
 
     Only Leaf's shipped references are available here; the runtime source, page
-    directory and package-check execution are unavailable. Use the reference's
-    public API and reply with the JavaScript integration snippet.
+    directory and package-check execution are unavailable. Use Leaf's public API
+    and reply with the JavaScript integration snippet.
 assert:
   - type: llm-rubric
     metric: judgment

@@ -54,6 +54,7 @@ from leaf import codex_state as codex_state_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import forks as forks_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
@@ -1214,6 +1215,44 @@ cmd_hook(
     assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
 
 
+def test_codex_tool_hook_offers_only_what_the_cursor_has_not_passed(
+    page_dir, codex_loop, capsys
+):
+    """A comment the adapter queued as the task's next message, which its receipt
+    passed, is the queue's: the running turn's tool hook offers the newer comment
+    alone, never the queued one again beside it."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    queued = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "First, queued"}
+    )
+    with service_model.PageTransaction(page_dir) as page:
+        [event] = [e for e in page.events if e["id"] == queued["id"]]
+        delivery_model.record_pickup(
+            page, [event], phase="queued", session="codex-thread", turn=None
+        )
+        delivery_model.record_receipt(page, event["seq"])
+    newer = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Second, new"}
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert [
+        event["id"]
+        for batch in json.loads(context)["batches"]
+        for event in batch["events"]
+    ] == [newer["id"]]
+
+
 def test_codex_tool_hook_reminds_the_task_of_a_status_line_left_standing(
     page_dir, codex_loop, capsys
 ):
@@ -2265,7 +2304,9 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
         )
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert chat.queued == [] and chat.opened == []
-    assert desktop_pickups(page_dir) == []
+    assert desktop_pickups(page_dir) == (
+        [("failed", None, codex_model.UNCONFIRMED_DELIVERY)] if abandoned else []
+    )
     assert [
         event.get("failure")
         for event in events_model.read_events(page_dir)
@@ -2274,6 +2315,22 @@ def test_a_desktop_start_the_transcript_never_shows_is_abandoned_once_idle(
     assert [record["state"] for _, record in codex_records("codex-thread")] == (
         [] if abandoned else ["starting"]
     )
+    if abandoned:
+        # The pickup names what the abandonment's receipt passed, so a quiet tool
+        # hook on the page reads its log alone.
+        def unread(page):
+            raise AssertionError("a quiet tool hook read who holds each thread")
+
+        monkeypatch.setattr(forks_model, "page_holding", unread)
+        cleanup_model.prompt_turn("codex-thread", "next-turn")
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": "codex-thread",
+                "turn_id": "next-turn",
+            },
+        )
 
 
 def test_a_refused_desktop_start_stays_for_the_queue_when_the_queue_fails(
@@ -2602,8 +2659,8 @@ def test_failed_codex_delivery_start_restores_the_previous_page_claim(
     )
     out, err = failed.communicate(timeout=STATED_TIMEOUT)
 
-    assert failed.returncode != 0, out
-    assert "queue unsupported" in err
+    assert failed.returncode != 0, out + err
+    assert "queue unsupported" in out
     assert service_model.page_claim(page_dir) == previous
 
 

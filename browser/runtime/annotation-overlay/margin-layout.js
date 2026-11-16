@@ -83,12 +83,16 @@ import {
 } from "../geometry.js";
 import {
   composedParentNode,
-  renderedChildren,
   renderedParent,
   renderedUnder,
   upFrom,
 } from "../shadow.js";
-import { isText, skipped } from "../shadow-tree.js";
+import {
+  eachRenderedChild,
+  eachRenderedElement,
+  isText,
+  skipped,
+} from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
@@ -535,7 +539,7 @@ function restingRail(layer) {
 // Where across the page the margin row for a comment on `target` stands, at `point`
 // inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
 // quotes (a range), each of which stands a row of its own: the row standing there
-// now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
+// now where one is shown, else where a rail row would stand at rest, `--lf-rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. comment-placement.js keeps this
 // row clear when the full preferred message width fits beyond it; otherwise the
@@ -555,7 +559,7 @@ export function marginSpot(target, point = null, passage = null) {
   if (!layer || !railStandsBeside(target)) return null;
   const hang =
     parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--rail-hang"),
+      getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-hang"),
     ) || 0;
   const left = railEdge() + hang;
   return { left, right: left + restingRail(layer).row };
@@ -938,17 +942,24 @@ function controlsIn(host) {
   /** @type {Element[]} */
   const found = [];
   /** @param {Element} el */
-  const visit = (el) => {
-    for (const node of renderedChildren(el)) {
-      if (!(node instanceof Element)) continue;
+  const visit = (el) =>
+    eachRenderedElement(el, (node) => {
       if (node.matches(CONTROL)) found.push(node);
       visit(node);
-    }
-  };
+    });
   visit(host);
   return found;
 }
 
+// The nodes `node` draws as its children (`eachRenderedChild`), which `childIndex` reads
+// once a pass for each parent a seat's walk comes down through.
+/** @param {Node} node @returns {Node[]} */
+function drawnChildren(node) {
+  /** @type {Node[]} */
+  const children = [];
+  eachRenderedChild(node, (child) => void children.push(child));
+  return children;
+}
 // What a seat's walk reads of each parent's children, once per layout pass for every pin
 // (`coverIn`): each run of words' line boxes, and each element's box, leaving out the
 // chrome and skipped content. Pins seat one after another with no write between, so the
@@ -1136,10 +1147,10 @@ function coverIn(root, band, target, bands, stop, standing, children, heads) {
         if (summary) visit(node, () => [summary], at);
         continue;
       }
-      visit(node, () => renderedChildren(node), at);
+      visit(node, () => drawnChildren(node), at);
     }
   };
-  visit(root, () => renderedChildren(root), { x: 0, y: 0 });
+  visit(root, () => drawnChildren(root), { x: 0, y: 0 });
   for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
@@ -1675,6 +1686,12 @@ function layoutMovedPage() {
   layoutMarginRows();
 }
 
+// A pass reads only the rows whose records a change dropped (`seatings`), but it still
+// seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
+// all of them, and each row's seat is set again. That is about 8 ms a pass on the
+// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// whose records were dropped and the rows their new seats push, and leave every other
+// row as it stands.
 /** @param {Layer} layer */
 function layoutMountedRows(layer) {
   pass += 1;
@@ -1696,8 +1713,8 @@ function layoutMountedRows(layer) {
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
-  const hang = parseFloat(rootStyle.getPropertyValue("--rail-hang")) || 0;
-  const pinInset = parseFloat(rootStyle.getPropertyValue("--pin-inset")) || 0;
+  const hang = parseFloat(rootStyle.getPropertyValue("--lf-rail-hang")) || 0;
+  const pinInset = parseFloat(rootStyle.getPropertyValue("--lf-pin-inset")) || 0;
   const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   // Read once a row could stand in the rail, since every other row pins whatever the

@@ -134,7 +134,7 @@ export const railStands = (main = layoutBox()) => {
     document.body.dataset.rail === "none"
   )
     return false;
-  const width = parseFloat(getComputedStyle(main).getPropertyValue("--rail")) || 0;
+  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
   return shellRight() - proseRect(main).right >= width;
 };
 // Whether the window has room for the rail: as wide as the column with a rail on either

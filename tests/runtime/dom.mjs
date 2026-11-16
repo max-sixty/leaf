@@ -35,6 +35,30 @@ for (const { prototype } of [Element, Text])
       return [...slots].find((slot) => slot.assignedNodes().includes(this)) ?? null;
     },
   });
+// Its flattened assignment leaves out a slot's own children where nothing is assigned
+// to it, which Chromium and Firefox put in its place, as the DOM's "find flattened
+// slottables" does; a slot outside a shadow tree flattens to nothing in all three.
+const { assignedNodes, assignedElements } = window.HTMLSlotElement.prototype;
+/** @param {HTMLSlotElement} slot @returns {Node[]} */
+const flattened = (slot) => {
+  if (!(slot.getRootNode() instanceof ShadowRoot)) return [];
+  const assigned = assignedNodes.call(slot);
+  return (assigned.length ? assigned : [...slot.childNodes]).flatMap((node) =>
+    node instanceof window.HTMLSlotElement && node.getRootNode() instanceof ShadowRoot
+      ? flattened(node)
+      : node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE
+        ? [node]
+        : [],
+  );
+};
+window.HTMLSlotElement.prototype.assignedNodes = function (options) {
+  return options?.flatten ? flattened(this) : assignedNodes.call(this);
+};
+window.HTMLSlotElement.prototype.assignedElements = function (options) {
+  return options?.flatten
+    ? flattened(this).filter((node) => node.nodeType === Node.ELEMENT_NODE)
+    : assignedElements.call(this);
+};
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
 // the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and

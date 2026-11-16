@@ -1285,6 +1285,31 @@ def on_me_question(page: Page) -> None:
     page.locator(".lf-fp-on-item", has_text=question).scroll_into_view_if_needed()
 
 
+def on_me_thread_choice(page: Page) -> None:
+    """On Me opened on the card of a choice the agent asked in a thread with
+    `--markup`, drawn nowhere else, the card focused so its options wear their
+    digits."""
+    as_agent(
+        "thread",
+        "create",
+        "--section",
+        "plan-context",
+        "--text",
+        "Open the pull request now, or hold it?",
+        "--markup",
+        '<lf-options id="pr-timing" choose>'
+        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>'
+        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>'
+        "</lf-options>",
+    )
+    page.reload()
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    on_me(page)
+    card = page.locator('.lf-fp-on-item[data-lf-obligation-id="widget:pr-timing"]')
+    card.scroll_into_view_if_needed()
+    card.focus()
+
+
 def on_me_choice(page: Page) -> None:
     """A described choice card in On Me, before answering."""
     on_me(page)
@@ -3472,6 +3497,7 @@ STATES = (
         window=Window((1440, 480)),
     ),
     State("on-me-question", "review-a-plan", on_me_question),
+    State("on-me-thread-choice", "review-a-plan", on_me_thread_choice),
     State("on-me", "corpus", on_me),
     State("on-agent", "corpus", on_agent),
     State("hub-on-me", "command-hub", on_me),

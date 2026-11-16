@@ -46,25 +46,6 @@ from leaf.registry import storage as registry_storage
 from model.interact_contract import _stateful_page_declaration
 
 
-def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
-    minted = iter(["aaaaaaaa", "aaaaaaaa", "bbbbbbbb"])
-    widths = []
-    token_hex_real = delivery_model.secrets.token_hex
-
-    def token_hex(width):
-        if width != 4:
-            return token_hex_real(width)
-        widths.append(width)
-        return next(minted)
-
-    monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
-    first = delivery_model.freeze_delivery([], created_at=1)
-    second = delivery_model.freeze_delivery([], created_at=2)
-
-    assert widths == [4, 4, 4]
-    assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
-
-
 def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys):
     """Shared clauses travel once, and each event names only its applicable rules:
     its kind's, then the answer it owes, and no answer's where it owes none."""

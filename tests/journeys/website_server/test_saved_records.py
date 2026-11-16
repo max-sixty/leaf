@@ -160,7 +160,10 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
         assert state["active"]["revision"] == 2
         assert state["session_alive"] is None and state["listening"] is False
         assert state["activity"].get("next_transition_at") is None
-        assert body("api/news").decode() == state["reading"]
+        assert json.loads(body("api/news")) == {
+            "reading": state["reading"],
+            "pages": None,
+        }
         assert b"Revised plan" in body("")
         private_entry = revision_root(private, 2).lstrip("/") + "/leaf.js"
         assert private_entry in publication["responses"]

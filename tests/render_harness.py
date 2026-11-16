@@ -1139,7 +1139,7 @@ def plant_quiet_word(page, selector, holding):
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
-def told(page, *, until=None):
+def told(page):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
@@ -1148,25 +1148,20 @@ def told(page, *, until=None):
     the gesture rather than the write. The server's answer is asked through the
     context's request API rather than the page: it carries the same cookie, and it is
     not seen by page routes or by the traffic watcher, so a test that stubs or counts
-    /api/state sees exactly what it did before this call existed. `until` waits for
-    a server fact another page publishes asynchronously before asking this page to
-    adopt that answer."""
+    /api/state sees exactly what it did before this call existed. Another page's
+    change is no part of that answer (`all_pages_offered`)."""
     origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+    assert answer.ok, f"the server would not say what it holds: {answer.status}"
+    wait_until_ready(page, answer.json(), through="state")
 
-    def read():
-        answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-        assert answer.ok, f"the server would not say what it holds: {answer.status}"
-        return answer.json()
 
-    # A neighboring leaf publishes its row on its own server's next maintenance
-    # pass. A state answer from this page can still carry the previous row just
-    # after a test writes that neighbor's status.
-    state = (
-        wait_for(read, until, failure="the server did not publish the expected state")
-        if until is not None
-        else read()
-    )
-    wait_until_ready(page, state, through="state")
+def all_pages_offered(page):
+    """Wait until the page offers All pages: another page is live, and this one has
+    read the list of them. It reads that list apart from its own state, once a news
+    look names it (live-leaves.js, `hearPages`), so a page that has taken in all its
+    own state may not hold it yet."""
+    wait_for_check_api(page, "(api) => api.leavesOffered()")
 
 
 def nudge(page_dir):

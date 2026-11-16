@@ -45,9 +45,8 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     RELEASE_FOCUS,
-    CutOff,
     Traffic,
-    _until,
+    all_pages_offered,
     any_draft_control,
     any_owner_entry,
     expect_panel_says,
@@ -64,6 +63,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -71,7 +71,6 @@ from render_harness import (
     sending,
     show_resolved,
     stamp_page,
-    told,
     write,
 )
 
@@ -1095,6 +1094,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     second_url, _ = live_leaf("second", "Middle leaf")
     _, other_dir = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -1104,7 +1104,6 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     page.evaluate("window.focusedLeaf = document.activeElement")
 
     live_leaf("first", "A first leaf")
-    told(page)
     expect(rows).to_have_count(3)
     expect(rows.nth(2).locator(".lf-fp-label")).to_have_text("The other leaf")
     assert page.evaluate(
@@ -1112,7 +1111,6 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     )
 
     declare(other_dir, "idle")
-    told(page)
     expect(rows).to_have_count(2)
     expect(rows.nth(1).locator(".lf-fp-label")).to_have_text("Middle leaf")
     assert page.locator(LEAVES).evaluate(
@@ -1186,7 +1184,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
 
     def sweep(where):
         violations, report = serious_axe_violations(page)
@@ -1461,6 +1459,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 row.focus()
                 page.keyboard.press("Enter")
         page_at_rest(page)
+        all_pages_offered(page)
 
         for scope, keys, cases in RING_CASES:
             if (samples := cases.get(name)) is None:
@@ -1739,6 +1738,7 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2542,6 +2542,7 @@ def test_all_pages_opens_a_neighbour_in_a_tab_of_its_own(
         cwd=str(tmp_path / "self-work"),
     )
     page = open_page(browser, url, context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2574,6 +2575,7 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     back to the drawer."""
     old_url, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -2582,15 +2584,10 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     row.focus()
     page.evaluate("window.focusedLeaf = document.activeElement")
 
-    # The page hears nothing from the old server stopping until the new one has
-    # published its row, so its next reading moves the neighbour from one address to
-    # the other.
-    reads = CutOff().hold(page)
-    _until(
-        page,
-        lambda traffic: traffic.asked == traffic.heard,
-        "heard every state read it asked before the cut",
-    )
+    # The page hears nothing of other pages from the old server stopping until the new
+    # one has published its row: its news looks are refused meanwhile, so the next
+    # list it reads moves the neighbour from one address to the other.
+    page.route("**/api/news*", refuse)
     # The recovery a taken port's refusal names: with the service record deleted, the
     # restarted server derives its address again, and binds past the port still taken.
     hosting_model.cmd_stop(other_dir)
@@ -2605,13 +2602,8 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
         lambda urls: [url.split("?")[0] for url in urls] == [new_url],
         failure="the restarted neighbour never published its row",
     )
-    reads.restore()
-    told(
-        page,
-        until=lambda state: (
-            [entry["url"].split("?")[0] for entry in state["others"]] == [new_url]
-        ),
-    )
+    page.unroute("**/api/news*", refuse)
+    expect(row).to_have_attribute("href", re.compile(rf"^{re.escape(new_url)}\?t="))
 
     destination = row.get_attribute("href")
     assert destination is not None and destination.startswith(f"{new_url}?t=")

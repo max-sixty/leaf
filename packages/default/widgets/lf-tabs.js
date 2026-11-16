@@ -84,7 +84,7 @@
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
  * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
- * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
+ * open mark back. Which obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
  * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
@@ -107,7 +107,7 @@ import {
   actionTemplate,
   agentName,
   PRESS,
-  obligationsIn,
+  obligationsByRegion,
   answerWords,
   under,
   backgroundFlash,
@@ -425,6 +425,11 @@ export class TabSet extends LeafElement {
   // once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
+    // Every panel's obligations in one pass, read once the first panel asks for them.
+    /** @type {ReturnType<typeof obligationsByRegion> | undefined} */
+    let byPanel;
+    const held = (/** @type {Element} */ panel) =>
+      (byPanel ??= obligationsByRegion(this.#panels)).get(panel) ?? [];
     return html`${this.#edge("start")}${
         this.#side
           ? repeat(
@@ -445,14 +450,14 @@ export class TabSet extends LeafElement {
                   ${repeat(
                     run.panels,
                     (panel) => panel,
-                    (panel) => this.#tab(panel),
+                    (panel) => this.#tab(panel, held),
                   )}
                 </div>`,
             )
           : repeat(
               this.#panels,
               (panel) => panel,
-              (panel) => this.#tab(panel),
+              (panel) => this.#tab(panel, held),
             )
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
@@ -462,11 +467,11 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel */
-  #tab(panel) {
+  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held */
+  #tab(panel, held) {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
-    const items = hasAnswer ? obligationsIn(panel) : [];
+    const items = hasAnswer ? held(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");
     const answered = items.length > 0 && done.length === items.length;

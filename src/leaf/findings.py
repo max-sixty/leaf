@@ -3,8 +3,8 @@ fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
 registry's validation, the markup checks, a sample's initial history, the capture of a
-revision, the page-code run, the render gate in each color scheme and viewport, its
-width sweep and advice, and the widget quality report. The suite's browser fixture
+revision, the page-code run, the render gate, its width sweep and advice, and the
+widget quality report. The suite's browser fixture
 reports through it too: what the browser said, and what its health sensors
 (`tests/*_watch.js`) found. So does every gate that refuses one event at the append
 door (`event_contracts.admitted_event`). A refusal raised with what a check found
@@ -24,9 +24,8 @@ other reader, the gate's retry policy and the suite among them, reads the fields
 - `values` are what the check measured, as JSON.
 - `severity` is `error`, which refuses the page, or `advice`, which leaves the call to
   its author.
-- `scheme`, `viewports` and `widths` say where it was read: one color scheme, or none
-  where the reading is scheme-blind; the fixed viewports it was read at, empty where it
-  holds at every one; the swept widths a run spans, lowest and highest.
+- `widths` says where a swept reading stands: the widths its run spans, lowest and
+  highest.
 - `samples` says which document a markup check read: the page's own, where it is
   empty, or the live sample child these template ids name, outermost first (None for
   a template without one).
@@ -55,8 +54,6 @@ class Finding:
     at: str = ""
     values: dict = field(default_factory=dict)
     severity: str = "error"
-    scheme: str | None = None
-    viewports: tuple[str, ...] = ()
     widths: tuple[int, int] | None = None
     samples: tuple[str | None, ...] = ()
 
@@ -71,16 +68,10 @@ class Finding:
 
     def __str__(self) -> str:
         text = _words(self)
-        if self.code in _CONSOLE and self.scheme is not None:
-            text = f"console: {text}"
         if self.widths is not None:
             low, high = self.widths
             span = f"{low}px" if low == high else f"{low}–{high}px"
             text = f"at {span} wide, {text}"
-        if self.scheme is not None:
-            text = f"[{self.scheme}] {text}"
-        if self.viewports:
-            text = f"{text} (at {', '.join(self.viewports)})"
         return "".join(f"sample {s or '<unnamed>'!r}: " for s in self.samples) + text
 
     @classmethod
@@ -97,8 +88,6 @@ class Finding:
             found.get("at", ""),
             found.get("values", {}),
             found["severity"],
-            found.get("scheme"),
-            tuple(found.get("viewports", ())),
             tuple(found["widths"]) if "widths" in found else None,
             tuple(found.get("samples", ())),
         )
@@ -107,10 +96,6 @@ class Finding:
         found = {"code": self.code, "severity": self.severity}
         if self.at:
             found["at"] = self.at
-        if self.scheme is not None:
-            found["scheme"] = self.scheme
-        if self.viewports:
-            found["viewports"] = list(self.viewports)
         if self.widths is not None:
             found["widths"] = list(self.widths)
         if self.samples:
@@ -556,8 +541,7 @@ _MOVE_UNDER_PAGE = (
 
 
 # The words for each code, from the finding's `at` and `values`. A console code's
-# words are what the console said; read by the gate in a color scheme, beside findings
-# of its own, it says "console: " first.
+# words are what the console said.
 _TEXT = {
     "invalid-output": lambda at, v: (
         f"{at} ("
@@ -1731,12 +1715,6 @@ _TEXT = {
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "passive-layout-shift": lambda at, v: (
-        f"{at} moved without input during a {v['observed_ms']}ms observation after"
-        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
-        " boxes, not necessarily the cause; reserve space for changing content."
-        " Later timers and gesture paths were not checked."
-    ),
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
         f" before upgrade, {_size(v['now'])} once presented"
@@ -2188,14 +2166,6 @@ _TEXT = {
 _USER = {
     "stale-move": "The page changed while I moved this; move it again.",
     "stale-edit": "The message changed while I edited it; edit it again.",
-}
-
-_CONSOLE = {
-    "console-error",
-    "console-warning",
-    "page-exception",
-    "window-error",
-    "resize-loop",
 }
 
 

@@ -864,9 +864,9 @@ export function createThreadPreview({
               fromSubject &&
               !held.writing &&
               standsTall(preview.querySelectorAll(".lf-msg-text:not([hidden] *)"));
-            // A card at the least width reads its messages there before this fit
-            // writes, so news widens it in one write; a selection's first fit lays it
-            // out there first.
+            // A card at the least width, where each selection starts (`select`), reads
+            // its messages there before this fit writes, so news widens it in one
+            // write; one standing at another width lays out there first.
             const stoodNarrow = Math.abs(preview.offsetWidth - narrow) < 0.5;
             if (!session.wide && stoodNarrow && outgrown()) session.wide = true;
             // Choosing its spot, the card is capped by the boundary alone, and slides
@@ -1065,6 +1065,10 @@ export function createThreadPreview({
     };
     previewSession = session;
     tick(cardRevision);
+    // Another selection chooses its width afresh, from the least width the stylesheet
+    // stands an unsized card at, so its first fit reads its messages there rather than
+    // at the width the last selection left (`placeThreadPreview`).
+    preview.style.removeProperty("width");
     if (origin) session.side.adopt(origin);
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).

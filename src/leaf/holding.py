@@ -2,8 +2,9 @@
 thread another turn holds.
 
 A session works in turns: its main thread's (the session lifecycle record,
-`state.py`) and each run of an agent it runs beside the main thread, such as a
-working fork that took a thread's work (`state.AGENT_TURNS`, `forks.py`). A pickup in
+`state.py`) and each run of an agent it runs beside the main thread, a line turn, in
+which a line fork writes the agent's working line on a thread, or a working fork's
+that took a thread's work (`state.AGENT_TURNS`, `forks.py`). A pickup in
 the page log names the turn that took messages in, and an agent's reply names the
 turn that posted it (`thread.post_reply`), so the log says which turn took each
 message and which answered it. A thread's waiting messages are the user's turns in it
@@ -29,7 +30,8 @@ the moment it takes the thread until another turn does (`Hold`).
   answered, rather than to a second fork or to the main thread; and to the main
   thread once its answer took the thread over.
 - A thread Leaf keeps back while a line fork judges its waiting messages is held by
-  the line turn admission opened for it, by its pickup (`forks.kept_back`).
+  the line turn admission opened for it, by that turn's pickup, and by the working
+  fork the turn passes to on a take (`forks.py`).
 - An answered message is held by the turn that answered it, the one its thread's
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
@@ -46,13 +48,14 @@ that reads the fold does (`activity.agent_holds`); and an agent's tool boundary
 (`forks.ended`), keeping a thread back for a line fork (`forks.kept_back`) and every
 writer's right to act on a thread (`authorize`, `pickable`) ask it too.
 
-A thread's holder, for a reader (`holder`), is the session's main thread, the fork
-that took it, by the agent id the main thread reaches it by, with whether its turn
-runs, closed or lapsed. Who owes the answer to its waiting messages now is that
-holder while its turn runs, and otherwise the main thread (`owed_by`). `leaf page state` prints both: each thread's holder, and on
-each answer the agent owes the holder that owes it now. So a main thread recovering
-what it owes there can leave a running fork's work, and a message a line fork is
-judging, to them.
+A thread's holder, for a reader (`holder`), is the session's main thread, a line
+turn, or the working fork that took it, by the agent id the main thread reaches it
+by, with whether a line turn or a fork's turn runs, closed or lapsed. Who owes the
+answer to its waiting messages now is that holder while its turn runs, and otherwise
+the main thread (`owed_by`). `leaf page state` prints both: each thread's holder,
+and on each answer the agent owes the holder that owes it now. So a main thread
+recovering what it owes there can leave a running fork's work, and a message a line
+fork is judging, to them.
 
 An agent's turn keeps the main thread off the messages it holds only while it runs,
 that is while it is open and renewed within the working grace
@@ -171,10 +174,12 @@ def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict
     turn of the claimant's session that holds a thread.
 
     One of the session's agent turns (`stamps`, as `state.agent_turn_stamps` gives
-    them) is `{"kind": "fork", "agent", "state"}`: the fork that took the thread, by
-    its agent id, the one address that reaches it (`forks.py`), null until its
-    harness has started it (`forks.started`), and whether its turn is `running` (in
-    `running`, `activity.running_agent_turns`), `closed` or `lapsed`
+    them) is a line turn, `{"kind": "line", "state"}`, while a line fork writes the
+    agent's working line on the thread, and otherwise `{"kind": "fork", "agent",
+    "state"}`: the working fork that took the thread, by its agent id, the one
+    address that reaches it (`forks.py`), null until its harness has started it
+    (`forks.started`). `state` says whether the turn is `running` (in `running`,
+    `activity.running_agent_turns`), `closed` or `lapsed`
     (`activity.agent_turn_state`). Any other turn, or none, is the session's main
     thread (`MAIN`), which has whatever no agent's turn holds."""
     # TODO(2026-11-14): the shipped instructions no longer keep a worker subagent off
@@ -184,11 +189,10 @@ def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict
         return MAIN
     from .activity import agent_turn_state
 
-    return {
-        "kind": "fork",
-        "agent": stamps[turn]["agent"],
-        "state": agent_turn_state(turn, stamps, running),
-    }
+    state = agent_turn_state(turn, stamps, running)
+    if stamps[turn]["role"] == "line":
+        return {"kind": "line", "state": state}
+    return {"kind": "fork", "agent": stamps[turn]["agent"], "state": state}
 
 
 def owed_by(held: dict) -> dict:

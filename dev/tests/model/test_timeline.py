@@ -24,8 +24,9 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     closed = state.open_agent_turn("s1")
     lapsed = state.open_agent_turn("s1")
     assert running and closed and lapsed
-    state.name_agent_turn("s1", running, "agent-1")
-    state.name_agent_turn("s1", closed, "agent-2")
+    for turn, agent in ((running, "agent-1"), (closed, "agent-2")):
+        state.pass_agent_turn("s1", turn)
+        state.name_agent_turn("s1", turn, agent)
     state.close_agent_turns("s1", turn=closed)
     turns = state.agent_turns("s1")
     long_ago = datetime.now().astimezone() - timedelta(hours=1)
@@ -85,14 +86,14 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
             "current": current,
         }
 
-    def admitted(identity: str, minute: int, *, lane: float | None) -> dict:
+    def admitted(identity: str, minute: int, *, lane: bool) -> dict:
         return {
             "ts": at(minute),
             "source": "cli",
             "type": "fork_admission",
             "session": "s1",
             "event": identity,
-            "kept_back": lane is not None,
+            "kept_back": lane,
             "held_by": None,
             "lane": lane,
         }
@@ -101,9 +102,9 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     append_interactions(
         tmp_path,
         [
-            admitted("c0", 0, lane=None),
+            admitted("c0", 0, lane=False),
             follower(0, forks=True, current=True),
-            admitted("c1", 1, lane=1.0),
+            admitted("c1", 1, lane=True),
             {
                 **fork,
                 "ts": at(1, 1),
@@ -132,11 +133,11 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "refused": "this agent's turn no longer holds c1",
             },
             follower(1, forks=False, current=True),
-            admitted("c2", 2, lane=None),
+            admitted("c2", 2, lane=False),
             follower(2, forks=True, current=False),
-            admitted("c3", 3, lane=None),
+            admitted("c3", 3, lane=False),
             follower(3, forks=True, current=True),
-            admitted("c4", 4, lane=None),
+            admitted("c4", 4, lane=False),
         ],
     )
 
@@ -159,12 +160,17 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     )
     assert "c4 not kept back: no fork lane: the follower from " in out
     assert "pages follower keeps threads back for line forks" in out
-    # Each agent turn of the session as it stands now.
-    shown = [line.strip() for line in out.splitlines() if "agent turn " in line]
+    # Each agent turn of the session as it stands now: a fork's by its agent, and a
+    # line turn as one.
+    shown = [
+        line.strip()
+        for line in out.splitlines()
+        if " turn " in line and ": opened " in line
+    ]
     assert len(shown) == 3, out
     assert shown[0].startswith(f"agent turn {running[:8]} of agent-1 on c1: opened ")
     assert shown[0].endswith(", running")
     assert shown[1].startswith(f"agent turn {closed[:8]} of agent-2 on no thread here")
     assert ", closed " in shown[1]
-    assert shown[2].startswith(f"agent turn {lapsed[:8]} of an agent not yet named")
+    assert shown[2].startswith(f"line turn {lapsed[:8]} on no thread here")
     assert shown[2].endswith(", lapsed")

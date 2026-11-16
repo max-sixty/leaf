@@ -201,17 +201,18 @@
           "type": "boolean"
         },
         "agent_turns": {
-          "description": "The turns of the agents the claimant's session runs beside its main thread, such as a fork that took a thread's work, that are open and not yet lapsed or that the page's log names, by turn id: the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
+          "description": "The turns of the agents the claimant's session runs beside its main thread, line turns and working forks', that are open and not yet lapsed or that the page's log names, by turn id: its role, the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
+              "role": { "enum": ["line", "fork"] },
               "agent": { "type": ["string", "null"] },
               "opened": { "type": "string" },
               "renewed": { "type": "string" },
               "closed": { "type": ["string", "null"] }
             },
-            "required": ["agent", "opened", "renewed", "closed"],
+            "required": ["role", "agent", "opened", "renewed", "closed"],
             "additionalProperties": false
           }
         },

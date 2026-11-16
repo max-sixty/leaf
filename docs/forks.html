@@ -118,7 +118,7 @@
             <dd>
               The line fork's judgment that a working fork should do the work
               (<code>take</code>), and the act that gives the thread to one: the line
-              turn goes on as the fork's.
+              turn passes to the fork.
             </dd>
             <dt id="term-hand-over">Hand over, hand back</dt>
             <dd>
@@ -139,7 +139,8 @@
             <dt id="term-turn">Turn</dt>
             <dd>
               A span of an agent's work that Leaf's records name. The main thread works
-              in its turns, and each run of a working fork is a turn of its own.
+              in its turns, and each line fork and each run of a working fork has a turn
+              of its own: a line turn, which passes to the working fork on a take.
             </dd>
             <dt id="term-delivery">Delivery</dt>
             <dd>
@@ -223,13 +224,17 @@ flowchart TD
 
           <p id="path-record">
             Keeping a message back is a turn's pickup in the log, as every hold is: the
-            line turn's, which admission records with the message. Its ways out are an
-            agent turn's: the turn closing, which writes the session's agent turns, or
-            lapsing. The lane decides only whether admission opens one, since the line
-            fork runs in the hooks module rather than the follower. This adds a pickup
-            to each kept-back message, and an entry to the session's agent turns. Until
-            2026-11, keeping back was read from the follower's lease and a hand-over
-            file outside the log, because the lease ending had to end it.
+            line turn's, which admission records with the message. The session's
+            agent-turns record marks the turn a line turn as admission opens it, and a
+            take passes it to the working fork, so every reader, the
+            <code>holder</code> in <code>leaf page state</code> among them, tells a line
+            turn from a fork's by that mark. Its ways out are an agent turn's: the turn
+            closing, which writes the session's agent turns, or lapsing. The lane
+            decides only whether admission opens one, since the line fork runs in the
+            hooks module rather than the follower. This adds a pickup to each kept-back
+            message, and an entry to the session's agent turns. Until 2026-11-15,
+            keeping back was read from the follower's lease and a hand-over file outside
+            the log, because the lease ending had to end it.
           </p>
 
           <section id="sorting" class="layout-flow">
@@ -305,14 +310,16 @@ flowchart TD
             <h3>A working fork takes a message</h3>
             <p id="take-steps">
               When the line fork judges <code>take</code>, Leaf posts the working
-              message, then records the line turn's pickup again with a delivery made
-              for it (<code>forks._take</code>): the line turn goes on as the working
-              fork's, so the message never changes hands. Leaf's hooks module then
-              spawns the working fork with that delivery and tells Leaf which agent runs
-              the turn (<code>forks.started</code>); or it resumes the fork that
-              answered the thread before, whose agent id Leaf names the turn with at the
-              take (<a href="#follow-ups">Follow-ups and flurries</a>). The fork works
-              with the session's tools and answers with its own
+              message, passes the line turn to the working fork
+              (<code>state.pass_agent_turn</code>), and records the turn's pickup again
+              with a delivery made for it (<code>forks._take</code>), so the message
+              never changes hands. Leaf's hooks module then spawns the working fork with
+              that delivery and tells Leaf which agent runs the turn
+              (<code>forks.started</code>); or it resumes the fork that answered the
+              thread before, whose agent id Leaf names the turn with at the take (<a
+                href="#follow-ups"
+                >Follow-ups and flurries</a
+              >). The fork works with the session's tools and answers with its own
               <code>leaf thread reply</code>, using the reply reference its delivery
               names, and the turn its task names (<a href="#acting-starting"
                 >Who a <code>leaf</code> command acts as</a
@@ -325,7 +332,7 @@ flowchart TD
                 <pre>
 sequenceDiagram
   accTitle: A working fork takes a message and answers it
-  accDescr: The user writes. Leaf keeps the message back while a line fork writes the working message and judges take. Leaf posts the line, opens a turn for a working fork, records its pickup and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
+  accDescr: The user writes. Leaf keeps the message back while a line fork writes the working message and judges take. Leaf posts the line, passes the line turn to a working fork, records its pickup again and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
   participant U as User
   participant L as Leaf
   participant W as Working fork
@@ -358,14 +365,17 @@ sequenceDiagram
           <p id="holding-turns">
             Leaf ties work to the turn it runs in: a pickup, a start or an agent's reply
             names a turn, and a pickup or a start stops counting when that turn ends.
-            The main thread works in its own turns, and Leaf keeps a turn for each run
-            of a working fork in the session's agent-turns record
-            (<code>state.AGENT_TURNS</code>). A fork's turn opens at the take, before
-            Claude Code starts or resumes the fork, and closes when the hooks module
-            reports that the fork's run ended. It also lapses when nothing has renewed
-            it within the working grace, 15 minutes, or within 30 s of its opening until
-            the module confirms the fork it spawned or resumed runs, as when the module
-            lost the take; the confirmation and the fork's tool boundaries renew it.
+            The main thread works in its own turns, and Leaf keeps a turn for each line
+            fork and each run of a working fork in the session's agent-turns record
+            (<code>state.AGENT_TURNS</code>), which marks each a line turn or a fork's.
+            A line turn opens as admission keeps a message back. A take passes it to the
+            working fork before Claude Code starts or resumes the fork, and it closes
+            when the hooks module reports that the fork's run ended. A turn whose start
+            nothing has confirmed lapses 30 s after it opened: a line turn, which
+            nothing renews, and a fork's until the module confirms the fork it spawned
+            or resumed runs, as when the module lost the take. The confirmation and the
+            fork's tool boundaries renew a fork's turn, which then lapses only when
+            nothing has renewed it within the working grace, 15 minutes.
             <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
@@ -403,11 +413,11 @@ sequenceDiagram
           </p>
           <p id="holding-shown">
             <code>leaf page state</code> names a <code>holder</code> on each thread and
-            each answer the agent owes: the main thread, a fork by the agent id the main
-            thread reaches it by (<code>agent</code>, null while a line fork judges the
-            thread and in the second or so before Claude Code has started the fork). A
-            thread's holder is the turn that holds it, with whether that fork's turn is
-            <code>running</code>, <code>closed</code> or <code>lapsed</code>. An
+            each answer the agent owes: the main thread, a line turn while a line fork
+            judges the thread, or a fork by the agent id the main thread reaches it by
+            (<code>agent</code>, null in the second or so before Claude Code has started
+            the fork). A thread's holder is the turn that holds it, with whether that
+            turn is <code>running</code>, <code>closed</code> or <code>lapsed</code>. An
             answer's holder is who owes it now: its thread's holder while that is a
             running turn, and otherwise the main thread (<code>holding.owed_by</code>).
             Delivery, the Stop hook and the watch read the same reading. A main thread
@@ -441,7 +451,7 @@ flowchart TD
               message joins whichever state its thread is in, and goes to a running fork
               even once it has answered; a message in a thread the main thread already
               owes goes straight to it. Leaf also gives kept-back messages to the main
-              thread when the newest owes no reply or the pages follower stops.
+              thread when the newest owes no reply.
             </figcaption>
           </figure>
 
@@ -840,22 +850,23 @@ flowchart TD
               A message the line fork judges <code>take</code>, in a thread whose last
               answer names a fork's turn that has since closed in the session's present
               generation, goes to that fork again (<code>forks._resumable</code>). Leaf
-              opens the new turn under the fork's agent id and records its pickup, as a
-              first take does, tells the main thread at once which fork has the thread,
-              and the hooks module resumes the fork by that id. Leaf's message resuming
-              it (<code>forks.resume_prompt</code>) carries the thread's delivery and
-              tells the fork to read <code>leaf page state</code> before it answers,
-              since its transcript lacks what the rest of the session did on the page
-              meanwhile. The fork can SendMessage the main thread to ask about it.
+              passes the line turn to the fork under its agent id and records its
+              pickup, as a first take does, the hooks module resumes the fork by that
+              id, and the main thread hears which fork has the thread once the module
+              has delivered the fork's message. Leaf's message resuming it
+              (<code>forks.resume_prompt</code>) carries the thread's delivery and tells
+              the fork to read <code>leaf page state</code> before it answers, since its
+              transcript lacks what the rest of the session did on the page meanwhile.
+              The fork can SendMessage the main thread to ask about it.
             </li>
             <li id="follow-up-new-fork">
               A thread the main thread answered last gets a new fork, once the fork it
               took the thread from has ended, and so does one whose fork ran in an
               earlier generation. A thread whose fork Claude Code can't resume goes to
-              the main thread instead: the module ends the turn Leaf opened, which gives
-              the thread back. A message the main thread writes in the thread unasked,
-              such as a correction of the fork's answer, answers nothing, so the thread
-              stays the fork's.
+              the main thread instead: the module ends the turn Leaf passed it, which
+              gives the thread back. A message the main thread writes in the thread
+              unasked, such as a correction of the fork's answer, answers nothing, so
+              the thread stays the fork's.
             </li>
             <li id="follow-up-threads">
               Messages in different threads start a fork each, side by side.
@@ -1067,7 +1078,9 @@ flowchart TD
               <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
                 ><code>src/leaf/state.py</code></a
               >: <code>AGENT_TURNS</code> and <code>acting_agent_turn</code>, the record
-              of agent turns and the turn a command acts in.
+              of agent turns and the turn a command acts in, and
+              <code>open_agent_turn</code> and <code>pass_agent_turn</code>, a line
+              turn's opening and its passing to a working fork.
             </li>
             <li id="source-hooks">
               <a

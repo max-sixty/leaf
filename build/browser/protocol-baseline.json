@@ -1,5 +1,5 @@
 {
-  "protocol": 44,
+  "protocol": 45,
   "events": {
     "ownership": {
       "derived": ["meaning","attention"],
@@ -38,8 +38,8 @@
       "schema": {"description":"The key every page this machine serves is read with (`host_key`), in the state home's `access.json`.","type":"object","properties":{"token":{"type":"string"}},"required":["token"]}
     },
     "agent-turns": {
-      "since": 44,
-      "schema": {"description":"The turns of the agents a session runs beside its main thread, such as a fork of its conversation that took a thread's work, in the state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's id in its harness (null until the harness starts it), the session generation it opened in, when it opened and was last renewed, when it closed, or null while it is open.","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"agent":{"type":["string","null"]},"generation":{"type":"string"},"opened":{"type":"string","format":"date-time"},"renewed":{"type":"string","format":"date-time"},"closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]}},"required":["agent","generation","opened","renewed","closed"]}}},"required":["turns"]}
+      "since": 45,
+      "schema": {"description":"The turns of the agents a session runs beside its main thread, in the state home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, its role, `line` while a line fork of the session's conversation writes the agent's working line on a thread message, and `fork` once a working fork does the thread's work in it, the agent's id in its harness (null until the harness starts it), the session generation it opened in, when it opened and was last renewed, when it closed, or null while it is open.","type":"object","properties":{"turns":{"type":"object","additionalProperties":{"type":"object","properties":{"role":{"enum":["line","fork"]},"agent":{"type":["string","null"]},"generation":{"type":"string"},"opened":{"type":"string","format":"date-time"},"renewed":{"type":"string","format":"date-time"},"closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]}},"required":["role","agent","generation","opened","renewed","closed"]}}},"required":["turns"]}
     },
     "bridge": {
       "since": 13,

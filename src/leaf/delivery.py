@@ -93,6 +93,7 @@ from .state import (
 )
 
 if TYPE_CHECKING:
+    from .holding import Holding
     from .served_state.work import WorkState
 
 _INTEGER = {"type": "integer"}
@@ -1024,6 +1025,7 @@ def record_pickup(
     turn: str | None = None,
     failure: str | None = None,
     refs: dict[str, dict] | None = None,
+    holding: "Holding | None" = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact attention-bearing inputs.
 
@@ -1051,7 +1053,10 @@ def record_pickup(
     An opened pickup says which turn holds a thread (`holding.Holding`), so this
     records one only where that turn may take the message (`holding.pickable`): an
     agent's turn, only what it holds or nobody does, refusing the rest; another
-    turn, nothing an agent's running turn holds.
+    turn, nothing an agent's running turn holds. It asks the page's reading, or
+    `holding` where the caller has read it in this transaction since the log last
+    changed, as admission has as it opens a line turn (`forks`), so the page is read
+    once.
     """
     claim = page.claim
     if session is None and claim:
@@ -1094,7 +1099,9 @@ def record_pickup(
         from .forks import page_holding
         from .holding import pickable
 
-        fresh = pickable(page_holding(page), fresh, session, turn)
+        fresh = pickable(
+            page_holding(page) if holding is None else holding, fresh, session, turn
+        )
     if not fresh:
         return None
     carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
@@ -1231,21 +1238,22 @@ def deliverable(
         holding = None
     if holding is not None:
         if work is not None and holding.live:
-            # What a fork's turn picked up and then left owed, giving its thread back
-            # or ending without answering, is the main thread's input now; a message
-            # already pending or owed goes once.
+            # What an agent's turn picked up and then left owed, a line turn ending
+            # or lapsing, or a fork giving its thread back or ending without
+            # answering, is the main thread's input now; a message already pending
+            # or owed goes once.
             left = {
                 event["id"]
                 for event in holding.waiting(
                     lambda held: (
                         held.picked
-                        and held.holder["kind"] == "fork"
+                        and held.holder["kind"] != "main"
                         and held.holder["state"] != "running"
                     )
                 )
             } - {event["id"] for event in [*owed, *pending]}
             owed += [event for event in page.events if event["id"] in left]
-        # A waiting message a running fork or the line fork holds is theirs,
+        # A waiting message a running fork or line turn holds is theirs,
         # pending where the cursor hasn't passed it and owed and unreferenced where
         # it has (`holding.not_awaited`).
         if elsewhere := {

@@ -378,10 +378,11 @@ def without_lane(admission: dict, followers: list[dict]) -> str:
 
 def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> list[str]:
     """Each agent turn of `session` as this machine's state home holds it now
-    (`leaf.state.AGENT_TURNS`): its agent, the threads it took on the page, when it
-    opened and was last renewed, and whether it runs, closed or lapsed: open but
-    believed running no longer (`leaf.activity.agent_turn_state`). Only the turns
-    that took `thread`, where one is given."""
+    (`leaf.state.AGENT_TURNS`): a line turn, or a fork's by its agent, the threads it
+    took on the page, when it opened and was last renewed, and whether it runs,
+    closed or lapsed: open but believed running no longer
+    (`leaf.activity.agent_turn_state`). Only the turns that took `thread`, where one
+    is given."""
     record = session_record(session)
     turns = agent_turns(session)
     running = running_agent_turns(
@@ -406,9 +407,13 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         shown = (
             f"closed {local(held['closed']):%H:%M:%S}" if state == "closed" else state
         )
+        named = (
+            f"line turn {turn[:8]}"
+            if held["role"] == "line"
+            else f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'}"
+        )
         lines.append(
-            f"agent turn {turn[:8]} of {held['agent'] or 'an agent not yet named'} "
-            f"on {', '.join(took) or 'no thread here'}: opened "
+            f"{named} on {', '.join(took) or 'no thread here'}: opened "
             f"{local(held['opened']):%H:%M:%S}, renewed "
             f"{local(held['renewed']):%H:%M:%S}, {shown}"
         )

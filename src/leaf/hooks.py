@@ -299,13 +299,13 @@ def cmd_pages(payload: dict) -> None:
     moved past a protocol bump. That newer Leaf reads an older follower's lane as no
     one's. On 8 November one follower, four days old, kept back messages that the
     line fork's step, under the newer Leaf, refused as not kept back, so each waited
-    out its bound with no line.
+    out the 30 s hold with no line.
 
     The module that reads the list stays the one the session loaded until
     `/reload-plugins`, so a follower under a newer Leaf may print it to a module
     that reads kept-back threads by an older contract. From 10 to 11 November a
     session running a checkout's Leaf under the installed copy's module, which read
-    them under another name, kept back every thread message for the whole bound with
+    them under another name, kept back every thread message for the whole 30 s with
     no line fork asked. So a follower whose module isn't this Leaf's keeps nothing
     back, and the session's messages reach it as they would without forks.
 

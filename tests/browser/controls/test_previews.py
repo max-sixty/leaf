@@ -664,7 +664,8 @@ def test_a_finger_holding_a_thread_s_words_again_reads_it_again(browser, serve):
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
-    """An age says how long ago, and its preview says when, in the reader's own zone:
+    """An age says how long ago, and its preview says when, in the reader's own zone
+    and as their locale writes it:
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
@@ -706,7 +707,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     )
     browser = request.getfixturevalue(engine)
     context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, timezone_id="America/Los_Angeles"
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
     )
     context.clock.install()
     page = open_page(browser, url, context=context)
@@ -720,7 +723,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     expect(preview).to_be_hidden()
     page.keyboard.press("Shift+K")
     expect(question).to_be_focused()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     assert "lf-preview" in question.evaluate(DESCRIBED)
     # It stands by the head, where the age the message above shares would stand, not
     # by the whole message.
@@ -735,7 +738,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     dwelt(page)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "focus")
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 
@@ -745,14 +748,14 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     box = age.bounding_box()
     page.mouse.move(box["x"] - 30, box["y"] - 30)
     age.hover()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:02 PM PT")
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
     resolved = thread_row(page, settled).locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
-    assert preview_text(resolved) == "Sat 15 Aug 2026, 18:30 PT"
+    assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])

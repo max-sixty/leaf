@@ -212,13 +212,19 @@ lf-tabs[data-lf-views] > lf-tab {
     lf-tabs[list="side"] > lf-tab > & {
       display: none;
     }
-    /* What follows the eyebrow, or the name a side list hides, stands at the panel's
-       top edge, as the panel's first block would (base.css, at `--lf-frame-start`). */
-    &:is(header, strong) + *,
-    lf-tabs[list="side"] > lf-tab > & + * {
-      margin-block-start: 0;
-      --lf-frame-start: 1;
-    }
+  }
+  /* What follows the eyebrow, or the name a side list hides, stands at the panel's
+     top edge, as the panel's first block would (base.css, at `--lf-frame-start`).
+     Written out rather than nested: nesting wraps the name's selector in an :is() of
+     a complex selector, and Chromium then restyled every section on a focus mark's
+     change (test_chrome_contracts.py, `test_resolving_a_thread_restyles_what_focus_marks`). */
+  lf-tabs[data-lf-views] > lf-tab > :first-child:is(header, strong) + *,
+  lf-tabs[data-lf-views][list="side"]
+    > lf-tab
+    > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+    + * {
+    margin-block-start: 0;
+    --lf-frame-start: 1;
   }
   @scope (html[data-lf-interactive]) {
     /* :where keeps the frame face below the generic edge trim's specificity. */

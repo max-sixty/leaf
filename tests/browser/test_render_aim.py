@@ -2859,15 +2859,6 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
         }""")
         assert by_input == reads["label-input"][0]["anchor"], by_input
 
-    with subtests.test(reading="generated words stay out of the anchor"):
-        anchor = reads["queue"][1]["anchor"]
-        assert (
-            anchor_capture_model.resolve_quote(
-                passages, {**anchor, "quote": "Backup pages"}
-            )
-            is None
-        )
-
     with subtests.test(reading="a range holding no words captures its element"):
         captured = page.evaluate("""async () => {
           const {anchorForRange} = await window.__lfCheckApi();

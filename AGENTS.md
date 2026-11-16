@@ -460,7 +460,8 @@ Before finishing a feature:
 Score any change to agent instructions that an agent could read more than one way,
 such as a new or reworded rule, a goal that competes with another or a cut that may
 have carried a behavior, before and after (`/developing-leaf`, "Score an instruction
-change").
+change"). Deleting a description of an input that can no longer arrive, or correcting
+a fact, needs no score.
 
 Several sessions share one machine, so local compute is often the bottleneck.
 Before handing over, run the tests that cover what the change touches, and

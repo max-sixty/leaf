@@ -92,7 +92,7 @@ DRAFTS = Record(
 _WRITE = {
     "type": "object",
     "properties": {
-        "context": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "context": {"type": "string", "minLength": 1},
         "expect": {"anyOf": [{"type": "null"}, _ATTEMPT]},
         "record": {
             "anyOf": [

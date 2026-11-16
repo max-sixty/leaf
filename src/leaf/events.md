@@ -29,7 +29,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                                   | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
 | <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                              | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                          | what the render check newly found in a version the agent handed over                                                                                                                          |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                                       | opens work the agent owes (`todos.py`)                                                                                                                                                        |
-| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                   | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                                 | ends a to-do (`todos.py`)                                                                                                                                                                     |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                    | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                                            | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                                        | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -321,14 +321,14 @@ to-do keeps that obligation the agent's even after the thread is resolved
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
-the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
-An agent reply whose `obligation` lists such questions, each by the id the message that
-first asked it set, opens each again whatever ended it: each keeps its id and words and
-stands on the reply until the user's next message or a settling reaction answers it
-(`obligations.question_ids`).
-The agent's `todo_end` also retires a frozen widget's question the user answered in
-words, since no revision can write that widget's state; the delivery of the user's
-reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).
+a `resolve` by either side ends every question asked before it, however the thread
+reopens later, until the resolve is taken back or a message asks one again
+(`obligations`), which is how the agent ends one the user answered elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
+message that first asked it set, opens each again whatever ended it: each keeps its id
+and words and stands on the reply until the user's next message or a settling reaction
+answers it (`obligations.question_ids`).
+The delivery of the user's reply lists a frozen widget's question up its thread in
+`waiting`, since no revision can write that widget's state (`obligations.waiting_in_thread`).
 A message asks by its words or by a widget in its markup, not both: only words answer
 `obligation: true`, so beside a widget it would outlast the user's pick, and
 `thread create` and `thread reply` refuse the pair.

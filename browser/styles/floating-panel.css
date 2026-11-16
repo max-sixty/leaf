@@ -1253,13 +1253,22 @@
      stage's edge, it ran along the panel's border and was cut square above the crumb.
      A thread's view wears none, however focus came to it. The user chose that on
      3 Nov 2026; it departs from the visible focus browser/AGENTS.md asks of a scroller
-     ("A region that must scroll behaves like the document").
+     ("A region that must scroll behaves like the document"). A list holding rows wears
+     none on its view either: a key lands on its first row, which wears the ring, or,
+     where its only row is a fold's heading, on the view with nothing in it chosen
+     (floating-panel.js, `focusView`). Its bands also run past the ring's box to the
+     panel's edges and cut the ring where they cross it.
      TODO: how Leaf draws focus rings is still being decided, so this may change. */
   .lf-fp-view:focus {
     outline: none;
     box-shadow: none;
   }
-  .lf-fp-stage > .lf-fp-view:not([data-lf-leaving], [data-lf-route="thread"]) {
+  .lf-fp-stage
+    > .lf-fp-view:not(
+      [data-lf-leaving],
+      [data-lf-route="thread"],
+      :has(.lf-rows-group)
+    ) {
     --lf-focus-box: .lf-fp-stage;
   }
   .lf-fp-stage[data-lf-control-focus-visible]::after {

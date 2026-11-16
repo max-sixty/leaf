@@ -458,9 +458,9 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     d = serve.page_dir
 
-    def check(status, **env):
+    def check(status, *flags, **env):
         ran = subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d)],
+            [*LEAF_COMMAND, "page", "check", str(d), *flags],
             capture_output=True,
             text=True,
             check=False,
@@ -482,6 +482,11 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert "/page/film.js:2:" in errors
     assert "Error: the trace never loaded" in errors
     assert "/page/widgets/lf-loader.js:3" in errors
+    # The render check reads page code on its first page, and reads no further.
+    rendered = check(1, "--render", LEAF_BROWSER_EXECUTABLE=headless_shell)
+    codes = [f["code"] for f in broken["findings"]]
+    assert [f["code"] for f in rendered["findings"]] == codes
+    assert rendered["browser"]["ran"] == ["page code"]
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
@@ -522,6 +527,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 
 
@@ -870,7 +876,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     url = serve(
         FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
@@ -893,8 +899,10 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     class RoutedBrowser:
         def __init__(self, *, fail_helper):
             self.fail_helper = fail_helper
+            self.opened = 0
 
         def new_page(self, **kwargs):
+            self.opened += 1
             page = browser.unwatched.new_page(**kwargs)
             page.route(
                 "**/page/helper.js",
@@ -935,3 +943,14 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
+
+    # `page check --render` takes the same reading on the render check's first page,
+    # and a page that cannot start is read no further. A page that refuses never
+    # upgrades, so a reading that missed the refusal would wait out each page's
+    # deadline, shortened here.
+    monkeypatch.setattr(render_gate_scheme, "HANDOVER_DEADLINE_MS", 20_000)
+    routed = RoutedBrowser(fail_helper=True)
+    folded = []
+    reading = render_gate_model.render_version(routed, url, page_code=folded)
+    assert folded == failed
+    assert (reading.findings, routed.opened) == ([], 1)

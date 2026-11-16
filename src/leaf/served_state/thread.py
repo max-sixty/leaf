@@ -129,11 +129,11 @@ def browser_thread(
         rendered_threads.append(
             {
                 # A thread's turn and closure histories are the server's to read
-                # (`unanswered_turns`, `provenance.saved_after`).
+                # (`unanswered_turns`, `provenance.saved_after`, `obligations`).
                 **{
                     key: value
                     for key, value in thread.items()
-                    if key not in ("turns", "closures")
+                    if key not in ("turns", "closures", "closings")
                 },
                 "msgs": messages,
                 "root": next(

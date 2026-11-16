@@ -72,6 +72,7 @@ def _render_version_attempt(
     *,
     implementations=None,
     declaration_sources=None,
+    page_code=None,
 ) -> tuple[RenderReading, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console error (a widget failing soft is one, since the page reports it),
@@ -93,9 +94,10 @@ def _render_version_attempt(
     geometry between them), as advice a drawing whose height differs from the box it
     showed before drawing, and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
-    it reads native layout shifts as advice during a three-second passive observation
-    after presentation; and then, resizing that loaded page through every width from
-    360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
+    it reads native layout shifts as advice during a passive observation of at least
+    three seconds after presentation, while it reads the other three pages; and then,
+    resizing that loaded page through every width from 360px to 1920px
+    (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
     reach, a box cutting off its own content where no scroll reaches it, words drawn on
@@ -147,7 +149,10 @@ def _render_version_attempt(
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
         advice.extend(drawn_height_advice(page, _viewport_label(desktop)))
-        advice.extend(passive_layout_shift_advice(page))
+        # Nothing acts on this page while the other pages are read.
+        with passive_layout_shift_advice(page) as shifts:
+            render_others()
+        advice.extend(shifts)
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
@@ -163,7 +168,7 @@ def _render_version_attempt(
         samples.extend(sweep(page, narrow, open_widgets(registry)))
         settle_at(page, phone["width"], phone["height"])
 
-    def render(viewport, scheme, then):
+    def render(viewport, scheme, then, page_code=None):
         viewport_label = _viewport_label(viewport)
         found, found_notices, complete = _render_scheme(
             browser,
@@ -175,16 +180,30 @@ def _render_version_attempt(
             then=then,
             implementations=implementations,
             declaration_sources=declaration_sources,
+            page_code=page_code,
         )
         failures.extend((finding, viewport_label) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
         completed.append(complete)
 
+    others = [
+        (desktop, "dark", sample),
+        (phone, "light", phone_sweep),
+        (phone, "dark", sample),
+    ]
+
+    def render_others():
+        while others:
+            render(*others.pop(0))
+
     try:
-        render(desktop, "light", desktop_sweep)
-        render(desktop, "dark", sample)
-        render(phone, "light", phone_sweep)
-        render(phone, "dark", sample)
+        # The first page is also the page-code reading's, where one is asked for, and
+        # a page whose code fails is read no further. It reads the others during its
+        # passive observation, or after it where it ended before that.
+        render(desktop, "light", desktop_sweep, page_code)
+        if page_code:
+            return RenderReading([], []), [], True
+        render_others()
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
@@ -205,10 +224,15 @@ def render_version(
     *,
     implementations=None,
     declaration_sources=None,
+    page_code: list | None = None,
 ) -> RenderReading:
     """Read a version at the `desktop` window and a phone's, confirming a complete
     attempt that reports a ResizeObserver loop notice. Advice is the first attempt's:
     it refuses nothing, so a confirmation has nothing to say about it.
+
+    `page_code`, where given, is a list the first attempt's first page fills with its
+    page-code reading (`page_code.PageCode`); where that fails the page, the reading
+    stops there and holds nothing.
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
     on every rendering. The unit here is the whole color-scheme and viewport gate,
@@ -226,7 +250,7 @@ def render_version(
     def retain(found):
         failures.extend(failure for failure in found if failure not in failures)
 
-    def attempt():
+    def attempt(page_code=None):
         try:
             return _render_version_attempt(
                 browser,
@@ -235,12 +259,15 @@ def render_version(
                 served_timeout_ms=served_timeout_ms,
                 implementations=implementations,
                 declaration_sources=declaration_sources,
+                page_code=page_code,
             )
         except PlaywrightError as error:
             failure = Finding("gate-failed", values={"error": str(error).strip()})
             return RenderReading([failure], []), [], False
 
-    first, notices, complete = attempt()
+    first, notices, complete = attempt(page_code)
+    if page_code:
+        return first
     retain(first.failures)
 
     def reading():

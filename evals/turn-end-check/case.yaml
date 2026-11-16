@@ -79,4 +79,4 @@ variants:
   overtaken-question:
     metadata:
       scenario: overtaken-question
-      purpose: A thread question answered in chat, whose subject later work completed with no reply there, is named overtaken.
+      purpose: A thread question the user answered there, whose subject later work completed with no reply there, is named overtaken.

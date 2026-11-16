@@ -78,8 +78,8 @@ picks depend on each other, such as a limit on how many.
 
 On Me lists only what still needs the user. Retire a question on the document
 once it stops mattering, by removing its widget in a new version or marking it
-`restated` (`authoring-revisions.md`). For a question asked in a thread message, use
-`leaf task end` as "The On lists" describes. A request the user made stays open until you
+`restated` (`authoring-revisions.md`). For a question asked in a thread message,
+resolve its thread as `conversation-loop.md`, "The On lists", describes. A request the user made stays open until you
 answer it or they withdraw it; deciding something else, however related, doesn't
 answer it. To retire one yourself, say what changed to make it unnecessary.
 

@@ -10,16 +10,6 @@ export interface NativeLayoutShift extends PerformanceEntry {
     readonly currentRect: DOMRectReadOnly;
   }[];
 }
-export interface ShiftSource {
-  node: Element | null;
-  before: { x: number; y: number; width: number; height: number };
-  after: { x: number; y: number; width: number; height: number };
-}
-export interface ShiftReading {
-  startTime: number;
-  value: number;
-  sources: ShiftSource[];
-}
 export interface FirstBox {
   element: HTMLElement;
   width: number;
@@ -31,11 +21,6 @@ export interface RenderDriver {
   requestFrame(): number;
   framePresented(requested: number): boolean;
   renderingState(): ReturnType<NonNullable<HTMLScriptElement["lfRenderingState"]>>;
-  observeLayoutShifts(
-    collect: (entries: ShiftReading[]) => void,
-    buffered?: boolean,
-  ): () => void;
-  startupLayoutShifts(): ShiftReading[];
   undrawnHeights(): Map<Element, number>;
   captureFirstBoxes(): void;
   firstBoxes(): FirstBox[];

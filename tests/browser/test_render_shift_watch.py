@@ -500,7 +500,8 @@ def test_a_shift_without_input_fails(browser):
 # Words under a box, and a button holding its label centred. A script animates the
 # box's height, carrying the words; the button's, re-centring its label; or the words'
 # own `translate`. `#press` begins the box's animation from a press instead. For
-# `arrives`, a spinner keeps the page moving while words arrive, and then slide.
+# `arrives`, a spinner keeps the page moving while words arrive, and then slide; for
+# `scrolling`, the words slide while a pane beside them scrolls.
 STEPPED_MOTION = """<!doctype html><body style="margin:0">
 <div id="box" style="height:24px"></div>
 <p id="below">Words under the box</p>
@@ -509,6 +510,8 @@ Centred</button>
 <button id="press" style="position:absolute;top:0;left:300px">Press</button>
 <div id="spinner" style="position:absolute;top:0;left:400px;width:10px;height:10px">
 </div>
+<div id="pane" style="position:absolute;top:40px;left:400px;width:60px;height:40px;
+overflow:auto"><div style="height:400px">Pane</div></div>
 <script>
   const late = document.createElement("p");
   late.id = "late";
@@ -518,6 +521,7 @@ Centred</button>
     centres: [centred, [{height: "24px"}, {height: "40px"}]],
     slides: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
     arrives: [late, [{translate: "0 0"}, {translate: "0 16px"}]],
+    scrolling: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
   };
   // Draws `motion` to its end `step` px of the box's growth a frame, as a fast host
   // draws a slow animation in small steps and a starved host a fast one in large steps.
@@ -534,6 +538,7 @@ Centred</button>
     const next = () => {
       at = Math.min(16, at + step);
       effect.currentTime = at;
+      if (motion === "scrolling") pane.scrollTop += 4;
       requestAnimationFrame(at < 16 ? next : done);
     };
     requestAnimationFrame(next);
@@ -552,6 +557,7 @@ Centred</button>
         ("centres", 0.5, "button#centred"),
         ("slides", 0.5, "p#below"),
         ("arrives", 0.5, "p#late"),
+        ("scrolling", 0.5, "p#below"),
         ("press", 0.5, None),
     ],
 )
@@ -560,8 +566,9 @@ def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, mov
     16 px at a time. At 60 frames a second a slow animation moves the words less than
     the 3 px a frame Chrome reports as a layout shift, and less than a pixel, so the
     watch judges how far they have moved since the motion began rather than each
-    frame's step, words that arrive while other motion goes on included. It reads
-    transforms too, which Chrome never reports. The same growth begun by a press is
+    frame's step, words that arrive while other motion goes on included, and words
+    beside a box that scrolls meanwhile. It reads transforms too, which Chrome never
+    reports. The same growth begun by a press is
     credited across every one of its frames."""
     page = browser.new_page()
     page.goto("data:text/html," + quote(STEPPED_MOTION))
@@ -956,6 +963,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("sticky_tail", None),
         ("tail_growth", None),
         ("tail_then_arrival", None),
+        ("tail_with_drift", "button#reply"),
         ("undeclared_tail_growth", "button#reply"),
         ("tail_replaced", None),
         ("undeclared_tail_replaced", "button#reply"),
@@ -984,7 +992,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     cards, preserving the transcript; so may a port sized to what it holds that grows at
     its foot with it, as a floating card does, and no further. The tail growing and a
     child arriving in the next frame are each permitted, though no one transition from
-    the first frame to the last would be."""
+    the first frame to the last would be, and a drift beside the growth, under a pixel
+    each frame, stays the reply's own."""
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
@@ -999,6 +1008,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         in {
             "tail_growth",
             "tail_then_arrival",
+            "tail_with_drift",
             "region_growth",
             "tail_and_region_growth",
             "tail_replaced",
@@ -1057,6 +1067,20 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           }
           else if (fault.endsWith('tail_growth'))
             document.getElementById('old').style.height = '80px';
+          else if (fault === 'tail_with_drift') {
+            // Each frame the tail grows 4 px, and the reply drifts half a pixel more.
+            const old = document.getElementById('old');
+            const reply = document.getElementById('reply');
+            let steps = 16;
+            return new Promise((done) => {
+              const next = () => {
+                old.style.height = `${parseFloat(getComputedStyle(old).height) + 4}px`;
+                reply.style.marginTop = `${(16 - steps + 1) / 2}px`;
+                requestAnimationFrame(--steps ? next : done);
+              };
+              requestAnimationFrame(next);
+            });
+          }
           else if (fault === 'tail_then_arrival') {
             document.getElementById('old').style.height = '80px';
             return new Promise((done) => requestAnimationFrame(() => {

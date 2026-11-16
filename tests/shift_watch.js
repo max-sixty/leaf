@@ -165,14 +165,17 @@
 // moves what follows it unpermitted. A landmark first read during the run, or read
 // again after it left the page, is compared from the frame that read it then.
 //
-// A frame that scrolls is judged on its own step, and starts the next run. Its moves
-// stand only where Chrome reports painting them, as every move did before runs. A
-// scroll moves a landmark on screen and not in layout, and these comparisons read a
-// move as one the landmark made where both its screen and its layout positions
-// changed. In a frame that scrolls, the two can change for different reasons: a
-// sticky track whose own scroller scrolls as the page scrolls past it moves on screen
-// by its scroll and in layout by its sticking. Chrome removes scrolling from what it
-// reports, so its report stays the judge there.
+// A landmark that a scroll moves in a frame, as its scrollers' offsets changing say, is
+// judged on that frame's step alone, and its moves stand only where Chrome reports
+// painting them, as every move did before runs; it is judged from where that frame
+// left it. A scroll moves a landmark on screen and not in layout, and these
+// comparisons read a move as the landmark's own where both its screen and its layout
+// positions changed. In a frame that scrolls, the two can change for different
+// reasons: a sticky track whose own scroller scrolls as the page scrolls past it
+// moves on screen by its scroll and in layout by its sticking. Chrome removes
+// scrolling from what it reports. Scroll anchoring holding the page still as content
+// above grows changes the root's offset too, so it moves every landmark the root
+// scrolls in that frame.
 //
 // A move fails where the next reading still finds the landmark away from where the run
 // began (`standingMotion`). Typing is judged the same way, from where the key found its
@@ -193,9 +196,10 @@
 //
 // Two verdicts still depend on the frame rate. A roundtrip that Chrome doesn't report,
 // a transform's or one under 3 px a frame, fails on a fast host, which reads it in
-// several frames, and may pass on a starved host, which reads it once. A move made in
-// frames that scroll stands only on Chrome's report, so one under 3 px a frame, or a
-// transform's, passes on a fast host and may fail on a starved one.
+// several frames, and may pass on a starved host, which reads it once. A landmark's
+// move in frames where a scroll also moves it stands only on Chrome's report, so one
+// under 3 px a frame, or a transform's, passes on a fast host and may fail on a
+// starved one.
 //
 // Unchanged frames. A reading appends to the ledger only where a node's reading
 // differs from its last, so a frame on which nothing could have changed keeps the
@@ -1479,6 +1483,9 @@
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
   const VERIFY = 30;
+  // The boxes whose scroll offset a reading has seen change since the last frame's
+  // audit, a reading between frames, as an observer's, included.
+  const scrolledSince = new Set();
   let held = [];
   let written = 0;
   let quiet = 0;
@@ -1652,7 +1659,7 @@
       const prior = scrolls.at(-1)?.scroll;
       if (prior?.left !== scroll.left || prior?.top !== scroll.top) {
         if (verifying) misses.push([node, ["scroll offset"]]);
-        if (entry && prior) entry.scrolled = true;
+        if (prior) scrolledSince.add(node);
         written++;
         scrolls.push({ at, scroll });
         pruneSamples(scrolls);
@@ -2838,6 +2845,8 @@
       ];
     });
   };
+  // How far the append growth `growth` carried `node` between `around`'s frames, in
+  // layout pixels, where that carry is its whole move; otherwise nothing.
   const permittedAppend = (node, previousRect, currentRect, around, growth) => {
     const first = around[0].at,
       last = around[2].at;
@@ -2921,12 +2930,15 @@
       node.nodeType === Node.TEXT_NODE
         ? ["left", "top", "bottom"]
         : ["left", "right", "top", "bottom"];
+    const carry = { left: 0, top: by - rise };
     return edges.every((edge) => {
       const axis = edge === "left" || edge === "right" ? "left" : "top";
       const prior = previousRect[edge] - priorBox[axis] + before[axis];
       const next = currentRect[edge] - nextBox[axis] + after[axis];
-      return Math.abs(next - prior - (axis === "top" ? by - rise : 0)) < 1;
-    });
+      return Math.abs(next - prior - carry[axis]) < 1;
+    })
+      ? carry
+      : null;
   };
   const paintState = (node, rect, at) => {
     const own = paintAt(node, at);
@@ -3806,7 +3818,8 @@
   // added to `permits` instead, so a run takes away what each of its transitions
   // permitted rather than asking whether its endpoints form one permitted transition.
   // `step` is the frame before `to`, whose reading Chrome's painted shift is measured
-  // from. A move `reported` marks stands only on Chrome's report (`judge`).
+  // from. A move of a node `reported` accepts stands only on Chrome's report (`judge`),
+  // and adds nothing to `permits`.
   const protectedMotion = (
     to,
     {
@@ -3816,7 +3829,7 @@
       judged = () => true,
       permitted = null,
       permits = null,
-      reported = false,
+      reported = () => false,
     },
   ) => {
     // Append growth is read once for each frame compared from, and only once a move
@@ -3913,25 +3926,26 @@
           };
           // A run's comparison spans transitions a declaration may not permit together,
           // so it takes away only what each step's own comparison found permitted.
-          if (
+          const appended =
             !permitted &&
-            (permittedAppend(node, previousRect, drawnRect, around, growth()) ||
-              permittedWidening(painted, around) ||
-              permittedReflow(painted, around))
+            permittedAppend(node, previousRect, drawnRect, around, growth());
+          if (
+            appended ||
+            (!permitted &&
+              (permittedWidening(painted, around) || permittedReflow(painted, around)))
           ) {
-            if (!permits) continue;
+            if (!permits || reported(node)) continue;
+            // Append growth measures how far it carried the node, so a drift beside it
+            // within its tolerance stays the node's own. Widening and reflow say only
+            // that the node stayed inside the box declaring them, so the step's move is
+            // theirs.
+            const step = appended || {
+              left: currentRect.left - previousRect.left - scroll.left - motion.left,
+              top: currentRect.top - previousRect.top - scroll.top - motion.top,
+            };
             const held = permits.get(node) ?? [];
             const by = held[i] ?? { left: 0, top: 0 };
-            held[i] = {
-              left:
-                by.left +
-                currentRect.left -
-                previousRect.left -
-                scroll.left -
-                motion.left,
-              top:
-                by.top + currentRect.top - previousRect.top - scroll.top - motion.top,
-            };
+            held[i] = { left: by.left + step.left, top: by.top + step.top };
             permits.set(node, held);
             continue;
           }
@@ -3943,7 +3957,7 @@
               currentRect,
               drawnRect,
               permitted,
-              reported,
+              reported: reported(node),
               stepAt: step.at,
               stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
               before: around[before].at,
@@ -3973,6 +3987,8 @@
   // presentation takes the frame (the header's "Runs of motion").
   let run = null;
   const audit = () => {
+    const scrollers = [...scrolledSince];
+    scrolledSince.clear();
     if (frames.length < 2) return;
     const at = nativePerformance.now(),
       before = frames.at(-2),
@@ -4002,35 +4018,49 @@
     for (const animation of after.motion) run.motion.add(animation);
     if (!changed) return;
     const animations = [...run.motion];
-    // A frame that scrolls is judged on its own step, its moves standing only on
-    // Chrome's report, and the next run starts from it (the header's "Runs of motion").
-    if (after.scrolled) {
-      protectedMotion(after, {
-        from: () => before,
-        animations,
-        step: before,
-        reported: true,
-      });
-      run = null;
-      return;
-    }
     const { from, permitted, arrived } = run;
-    // A node first read during the run, or read again after it left the page, is a new
-    // reading, judged from the frame that read it then.
+    // Whether a scroll moved the node this frame: the scroll offsets its layout
+    // position adds back changed (the header's "Runs of motion").
+    const scrolled = new Map();
+    const scrolls = (node) => {
+      if (!scrollers.length) return false;
+      if (!scrolled.has(node)) {
+        const offset = (at) => {
+          const box = boxAt(node, at),
+            layout = layoutAt(node, at);
+          return (
+            box && layout && { left: layout.left - box.left, top: layout.top - box.top }
+          );
+        };
+        const was = offset(before.at),
+          now = offset(after.at);
+        scrolled.set(
+          node,
+          Boolean(was && now) &&
+            (Math.abs(now.left - was.left) >= 0.5 ||
+              Math.abs(now.top - was.top) >= 0.5),
+        );
+      }
+      return scrolled.get(node);
+    };
+    // A node first read during the run, read again after it left the page, or moved by
+    // a scroll this frame is judged from the frame that read it then.
     for (const node of after.nodes)
-      if (!readIn(before, node)) {
+      if (!readIn(before, node) || scrolls(node)) {
         arrived.set(node, after);
         permitted.delete(node);
       }
     const origin = (node) => arrived.get(node) ?? (readIn(from, node) ? from : null);
-    // This frame's step records what a declaration permits. On the run's first frame
-    // it is the run's own comparison too.
+    // This frame's step records what a declaration permits, and judges a node a scroll
+    // moved, on Chrome's report. On the run's first frame it is the run's own
+    // comparison too.
     protectedMotion(after, {
       from: () => before,
       animations,
       step: before,
-      judged: () => from === before,
+      judged: (node) => from === before || scrolls(node),
       permits: permitted,
+      reported: scrolls,
     });
     // The run's comparison judges each node from where it stood when the run began.
     if (from !== before)

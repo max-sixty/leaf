@@ -406,12 +406,18 @@ def message_questions(event: dict, registry: dict) -> dict[str, bool]:
     """The questions one logged message asks, each by the id that names it, and
     whether it asks in words: its `obligation` names those it asks in words
     (`obligations.question_ids`), and markup holding a widget that asks
-    (`asking_widget`) asks one named by the message itself."""
+    (`asking_widget`) asks one named by the message itself (`widget_question`)."""
     if event.get("obligation"):
         return dict.fromkeys(question_ids(event), True)
     if "markup" in event and asking_widget(logged_fragment(event), registry):
-        return {f"message:{event['id']}": False}
+        return {widget_question(event["id"]): False}
     return {}
+
+
+def widget_question(message: str) -> str:
+    """The id that names the question a widget in message `message`'s markup asks,
+    which `ask_again` takes."""
+    return f"message:{message}"
 
 
 def thread_questions(page_dir: Path, events: list, thread: str) -> dict[str, bool]:

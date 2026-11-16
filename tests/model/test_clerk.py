@@ -398,6 +398,14 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     [record] = [o for o in state["obligations"] if o["message"] == again["id"]]
     assert (record["status"], record["next_actor"]) == ("open", "user")
+    # The agent hears the id the question now stands under: the reply's own where it
+    # asks the choice's question anew in words.
+    assert (
+        f"On Me again, with your message {again['id']} in the thread of {question} "
+        if options
+        else f"On Me again, as {record['id']}, with your message {again['id']} in its "
+    ) in hook(capsys, "PostToolBatch")
+    assert options or record["id"] == f"message:{again['id']}"
 
 
 def test_an_ask_again_naming_a_message_that_asks_nothing_opens_its_own_thread(

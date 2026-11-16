@@ -443,6 +443,7 @@ def page_facts(state: dict, events: list) -> dict:
     closed), which the fork words anew only to ask one again under its id; and each
     item the agent has started with the line its start gives it
     (`todos.item_starts`)."""
+    from .thread import widget_question
     from .todos import item_starts
 
     threads = {thread["id"]: thread for thread in state["threads"]}
@@ -511,7 +512,7 @@ def page_facts(state: dict, events: list) -> dict:
             name = (
                 record["id"]
                 if record["source"]["kind"] == "message"
-                else f"message:{record['message']}"
+                else widget_question(record["message"])
             )
             asked.setdefault(
                 name,
@@ -1237,13 +1238,22 @@ def _told(
     """The line telling the agent what Leaf put On Me as its own, and where: a new
     thread, or the thread of the question `again` it asks again, and with which
     choice where it asks with one."""
+    from .obligations import question_ids
+
     if record["kind"] == "reply":
-        question = f"message:{again.removeprefix('message:')}"
-        put = (
-            f" again, with your message {record['id']} in the thread of {question}"
-            if "markup" in record
-            else f" again, as {question}, with your message {record['id']} in its thread"
-        ) + f" on {path}, which reopens the thread if it was closed"
+        if "obligation" in record:
+            # In words: under the question's own id, or the reply's where it asks a
+            # choice's question anew.
+            [question] = question_ids(record)
+            put = (
+                f" again, as {question}, with your message {record['id']} in its thread"
+            )
+        else:
+            question = f"message:{again.removeprefix('message:')}"
+            put = (
+                f" again, with your message {record['id']} in the thread of {question}"
+            )
+        put += f" on {path}, which reopens the thread if it was closed"
     else:
         where = (
             f'the words "{passage}" in {path}'

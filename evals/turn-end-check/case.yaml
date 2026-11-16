@@ -56,6 +56,14 @@ variants:
     metadata:
       scenario: stale-passed-on
       purpose: A stale passage Leaf's earlier message already passed on is left out.
+  stale-lead:
+    metadata:
+      scenario: stale-lead
+      purpose: Finished work the page still tells as news, while the question the work moved on to waits below it, is named stale.
+  stale-lead-current:
+    metadata:
+      scenario: stale-lead-current
+      purpose: A page rewritten around the new question, its finished work folded into a record, has nothing stale.
   settled:
     metadata:
       scenario: settled

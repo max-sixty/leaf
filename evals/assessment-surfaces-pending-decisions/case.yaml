@@ -347,7 +347,7 @@ variants:
   # The agent read empty queues, then handed over undecided rewrites as prose.
   # This short replay protects the contract; it does not reproduce the
   # long-session omission. The prompt names the review page and its services as
-  # unreachable, since "files unreachable" reads as forbidding reading Leaf
+  # unreachable, since "files unreachable" can read as forbidding reading Leaf
   # references.
   prose-review-handoff:
     metadata:

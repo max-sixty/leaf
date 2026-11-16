@@ -94,12 +94,14 @@ a causal estimate of image benefit.
 | `controls-after-a-press` | Controls follow any focus inside a message, so after a press they stay lit when the pointer moves to another message. | Controls follow the pointer and keyboard focus only.                                   |
 
 Under this suite's "consequential usability" prompt, reviewers can describe the
-mid-card Copy's inset as minor, where an open "what looks wrong" prompt flags the
+mid-card Copy's inset as minor, where an open "what looks wrong" prompt can flag the
 same placement. A browser reviewer that presses Copy and then clicks another control
 moves focus, so it sees the controls left lit after a press only by resting the
 pointer on another message as a reader does.
 
-Do not pool different provider versions as if they supplied identical evidence.
+The browser provider supplies computed accessibility and nested scroll targets;
+their effect on model detection has not been measured. Do not pool different
+provider versions as if they supplied identical evidence.
 
 ## Evidence and grading
 

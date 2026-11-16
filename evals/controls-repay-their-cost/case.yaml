@@ -6,9 +6,9 @@
 # authoring session's omission.
 # The disclosure contrast: an outer evidence disclosure that mostly revealed
 # further disclosure controls. Short support stays visible; substantial source
-# remains available on demand. Drafts tend to keep the outer wrapper, even with a
-# root-skill pointer that makes them read page-authoring.md; the reference's direct
-# wording removes it while preserving playback and restoration.
+# remains available on demand. A draft can keep the outer wrapper even when a
+# root-skill pointer makes it read page-authoring.md, so the reference states the
+# rule directly.
 description: controls-repay-their-cost
 metadata:
   purpose: "Page contract: choose controls by their benefit to the user's task,

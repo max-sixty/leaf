@@ -2,7 +2,7 @@
 # Failing answers put them all above the Ask; a passing one puts the figure inside
 # it and the demo after it. The prompts don't tell the agent to read the registry
 # entries; authoring-on-me.md states the heading that opens the Ask, since without
-# it agents open the Ask with a paragraph.
+# it an agent can open the Ask with a paragraph.
 description: record-asks-hold-their-premise
 metadata:
   purpose:
@@ -186,9 +186,9 @@ variants:
   # "Show, then take" plus "Say what z takes"; the user asked "how am I supposed to
   # know what [that] means??", and of another "what was the policy change??". The
   # case gives the agent only what that session had read; given the notes' contents
-  # as well, an agent explains both names. Failing answers leave the calibration
+  # as well, an agent can explain both names. Failing answers leave the calibration
   # decision's policy change or "Show, then take" unexplained. A rewording of
-  # page-authoring.md's rule on unread sources doesn't fix it.
+  # page-authoring.md's rule on unread sources alone may not fix it.
   unseen-names:
     metadata:
       purpose: "Asks: a decision relies on no name the user would have to look up in sources they haven't read."
@@ -252,11 +252,10 @@ variants:
   # "Closes the exception the triage agent used, at the sentence it read". The user
   # wrote "there's not nearly enough context here, this is a bad question!" on two of
   # them. The prompt carries the reply the session had just sent, whose shorthand the
-  # decisions reused. Stated this plainly, agents write richer decisions than the
-  # session did but leave out what keeping each absolute costs (tradeoff-stated),
-  # which guidance asking for each option's cost, the recommended one's included,
-  # addresses. Agents lean on "the triage agent" and "the evals" undescribed
-  # (names-described), as unseen-names also fails.
+  # decisions reused. Stated this plainly, agents can still leave out what keeping
+  # each absolute costs (tradeoff-stated), which guidance asking for each option's
+  # cost, the recommended one's included, addresses, and lean on "the triage agent"
+  # and "the evals" undescribed (names-described), as unseen-names also fails.
   absolutes-in-a-draft:
     metadata:
       purpose: "Asks: a decision on a wording says what each choice would change in a case the user can picture, what the recommended one costs, and who any agent or run it cites was."

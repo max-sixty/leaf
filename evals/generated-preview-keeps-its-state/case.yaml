@@ -1,7 +1,7 @@
 # An author read the one-scroll guidance but chose fixed preview heights for
 # stability, then framed the comparison app inside the Leaf page as well.
 # Exercises that competing goal; existing live-stream and window-sample cases
-# guard legitimate bounded views. State-preservation clarifications alone still
+# guard legitimate bounded views. State-preservation clarifications alone can still
 # produce separate preview panes.
 # This scores proposed structure and code, not a rendered browser implementation.
 description: generated-preview-keeps-its-state

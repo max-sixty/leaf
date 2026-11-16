@@ -1,7 +1,7 @@
 # Watches agents use `leaf task plan` on a served page rather than describe it. The
 # live task lays out a job of four steps, one the user's pick, then reshapes it;
 # `resume` hands over a page whose remaining work is recorded only in an ended
-# session's plan. Agents tend to open to-dos and write no plan, or write it after the
+# session's plan. An agent can open to-dos and write no plan, or write it after the
 # first step, passing its JSON as an argument with an unknown state; the instructions
 # say to plan before the first step, that the outline is read from stdin, and which
 # states a step takes.

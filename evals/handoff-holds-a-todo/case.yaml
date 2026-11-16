@@ -1,14 +1,13 @@
-# On real pages, replies promising later work that the replying agent carried
-# itself held a task; those it handed to another session (a `/dispatch`) held none,
-# so the promise left both queues and no result reached the thread. Cold, every run
-# opens the task; what fails is ending it, since "a worker touches the page only in
-# a role Leaf's instructions give it" leads the brief to forbid `leaf task`;
-# "wherever the result lands, the task ends there" has each brief end the task from
-# the dispatched session. Dispatch handoffs on real pages also answer `--done`. The
-# dispatch skill's own last step, pasted in below, is what pulls that way ("the
-# launch closes out this task"), with "work owned by another session stays there"
-# misread as covering the thread; naming a handoff as a promise in "Long-running
-# work" counters it.
+# A reply promising later work holds a task where the replying agent carries the
+# work itself; one handing it to another session (a `/dispatch`) can hold none, so
+# the promise leaves both queues and no result reaches the thread. Cold, the failure
+# is ending the task rather than opening it: "a worker touches the page only in a
+# role Leaf's instructions give it" can lead the brief to forbid `leaf task`, so the
+# instructions say whoever finishes the work ends the to-do, from the dispatched
+# session. A dispatch handoff can also answer `--done`: the dispatch skill's own last
+# step, pasted in below, pulls that way ("the launch closes out this task"), with
+# "work owned by another session stays there" misread as covering the thread, so
+# "Long-running work" names a handoff as a promise.
 description: handoff-holds-a-todo
 metadata:
   purpose: "Conversation loop: work the agent hands to another session still gets a

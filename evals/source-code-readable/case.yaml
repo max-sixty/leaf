@@ -119,10 +119,9 @@ variants:
 
   # Markdown excerpt reconstruction: a session's page principles-survey, whose "Two
   # rules before and after" section showed each rule's Markdown in <pre><code>. The
-  # user asked why it wasn't rendered Markdown. Cold, authors render the rules, so
-  # showing source needs the session's own context; the failure converts them to
-  # HTML by hand, and page-authoring.md asks for the preview. A variant gives the
-  # rules as Read-tool output.
+  # user asked why it wasn't rendered Markdown. Cold, authors can render the rules,
+  # so the failure may need the session's own context; it converts them to HTML by
+  # hand, and page-authoring.md asks for the preview.
   markdown-excerpt:
     metadata:
       purpose:

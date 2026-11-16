@@ -1,4 +1,5 @@
-# Reconstructed from the user's repeated-link complaint.
+# The user doesn't want a progress message to repeat the page URL once the page is
+# handed over.
 description: page-url-opening-progress
 metadata:
   purpose: "Handoff: an opening progress message after a page handoff does not repeat its URL."

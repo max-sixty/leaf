@@ -3,8 +3,7 @@
 # review and a stamp before answering a heading edit, slowing the reply. A record's
 # render check, reading and stamp are scoped to checkpoints the user names, and the
 # reply is the revision's only check, so the first criterion fails any `page check`
-# in the first turn. An answer that stamps before the first reply also fails the
-# sign-off criterion.
+# in the first turn.
 description: record-reply-before-its-stamp
 metadata:
   purpose:

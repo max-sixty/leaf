@@ -5,10 +5,10 @@
 # after: the table's counts again, as marks. The user called it "a comically naive
 # diagram". Stated cold, an agent may draw several figures per section, among them
 # a mark per call site and eight empty boxes for eight shadow values; "Show the
-# subject"'s geometry rule, with its refactor exception, draws the few that each
-# show a layout or a call path. With the user's earlier "explained much more
-# visually, always" pasted in, an agent draws a figure per item, which follows the
-# user's word, so the prompt leaves it out.
+# subject"'s geometry rule, with its refactor exception, keeps figures to those whose
+# geometry makes the point, such as a layout or a call path. With the user's earlier
+# "explained much more visually, always" pasted in, an agent can draw a figure per
+# item, which follows the user's word, so the prompt leaves it out.
 # The answerability criterion accepts the eight-control page and rejects prose
 # saying items could be left out with no controls, and a page missing one control.
 description: figures-add-what-words-cannot

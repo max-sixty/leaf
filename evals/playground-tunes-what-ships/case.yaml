@@ -3,10 +3,10 @@
 # percentage of today's token, so the layers being decided appeared only in the
 # submitted instruction, and the per-elevation controls it placed in the preview
 # squeezed the cards it was tuning. "What the user is doing" in author.md addresses
-# it. Failing pages offer only multipliers such as "Darkness x 1" or show the CSS in
-# a disclosure (values-in-view), or clip cards at 1120-1280px (subject-leads); a
-# passing page edits the selected elevation's layers in pixels beside a CSS readout
-# and shows the cards in a list with a raised and an overlay card.
+# it. A failing page offers only relative settings such as "Darkness x 1"
+# (values-in-view), or clips the cards at the desktop width (subject-leads); a page
+# can pass values-in-view by editing the selected elevation's layers in pixels
+# beside a CSS readout.
 # The plain HTML control gets the same request. Both arms are judged on the page on
 # arrival at the run's windows, and the prompt names no 1440x900 window, which would
 # contradict the run's 1280x800 one.

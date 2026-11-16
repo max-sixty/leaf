@@ -1,5 +1,5 @@
-# Longer completion text wrapped the toolbar and moved the timeline by 38px. The
-# live judge exercises the full interaction; source inspection alone missed a 2.9px
+# Longer completion text can wrap the toolbar and move the timeline. The live judge
+# exercises the full interaction, since source inspection alone can miss a small
 # wrap and a disabled Pause control.
 description: changing-feedback-keeps-place
 metadata:

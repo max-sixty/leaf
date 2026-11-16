@@ -1,9 +1,9 @@
 # A Claude Code agent's overnight work page linked a pull request where it led a
 # table row or was newly introduced, and left it bare text in the decision sections
 # and the prose that came back to it, so the user could not open the PRs a decision
-# named. Bare `#N` mentions are common on real pages. The rule is in
-# page-authoring.md. In a fresh context agents link per section, so the case guards
-# that behavior rather than reproducing the late-session failure.
+# named. The rule is in page-authoring.md. In a fresh context agents can link per
+# section, so the case guards that behavior rather than reproducing the
+# late-session failure.
 description: named-work-is-linked-everywhere
 metadata:
   purpose:

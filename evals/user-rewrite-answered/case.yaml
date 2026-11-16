@@ -10,9 +10,9 @@
 # the references, and a handling change is scored by pasting each wording into the
 # prompt. Its thread is titled for its subject, which the rewrite keeps, so it also
 # guards the handling's retitling sentence: the title stands. A sentence keyed on the
-# rewrite changing "what the thread is about" leads agents to retitle it; keyed on
-# the title no longer fitting, the title holds. No launch date is given, so the rubric
-# accepts an answer that drafts only the reply asking for one.
+# rewrite changing "what the thread is about" can lead agents to retitle it, so the
+# handling keys it on the title no longer fitting. No launch date is given, so the
+# rubric accepts an answer that drafts only the reply asking for one.
 description: user-rewrite-answered
 metadata:
   purpose: "A user's rewrite of an answered message is answered as a new turn, for the edit's id, about what the rewrite changed, and a rewrite that keeps the thread's subject keeps its title."

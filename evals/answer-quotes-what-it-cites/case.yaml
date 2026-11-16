@@ -4,8 +4,8 @@
 # `[The paragraph](#mark-guidance)`, a link to the passage the thread was on, whose
 # preview showed the thread itself. The user asked why the reply didn't quote the
 # section, collapsed if need be. A handling that asks for "what changed, in a
-# sentence or two, linking the section that shows it" leads agent replies that link
-# a section to link their own thread's.
+# sentence or two, linking the section that shows it" can lead agent replies that
+# link a section to link their own thread's.
 # `earlier-decision` rebuilds a reply that paraphrased the record of a user's choice
 # and linked its own section; `page-paragraph` is the paragraph's first draft;
 # `result-elsewhere` guards the link a reply owes to a result in another section.

@@ -1,10 +1,10 @@
 # A session's layout-shift page drew each section's figure above its Ask and wrote
 # every option as a title, chips and a sentence, though the options differed in where
-# a reply box sits. Options on real pages held no drawing; an lf-option entry and
-# lf-options example that show text faces lead agents to write options as text.
+# a reply box sits. An lf-option entry and lf-options example that show text faces
+# can lead agents to write options as text.
 # reason-beside-options: registry examples that write the reason into the recommended
-# card (`<em>My take: …</em>`) lead agents to keep it in the cards; the examples put
-# the reason in the lf-ask's prose.
+# card (`<em>My take: …</em>`) can lead agents to put it in the cards; the examples
+# put the reason in the lf-ask's prose.
 # The rubric names no tags, so spatial before/after text wireframes count as drawing
 # both options. The reason rubric passes a bare `recommended` label, which is not an
 # argument. The case is a probe given a page with its packages.

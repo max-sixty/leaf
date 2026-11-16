@@ -1,8 +1,8 @@
 # A Codex session's comment-growth sketch added authoring-status text inside the
 # simulated thread after reading the playground instructions. Scores product copy
-# and useful exploration controls. The short copy-pass fixture is a guardrail. These
-# score authored strings, not animation behavior. The judgment accepts no partial
-# revision, since the author writes every control.
+# and useful exploration controls. The short copy-pass fixture is a guardrail. Its
+# metrics score authored strings, not animation behavior. The judgment accepts no
+# partial revision, since the author writes every control.
 description: playground-candidates-use-product-copy
 metadata:
   purpose:

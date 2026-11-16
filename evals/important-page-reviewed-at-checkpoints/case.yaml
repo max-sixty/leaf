@@ -1,10 +1,10 @@
 # An issue-triage page the agent kept current for 16 hours inside one conversation,
-# through about 25 revisions, never had a browser review, since the skill gave one
-# only to a record, a page used beyond the conversation; a table whose page CSS kept
-# its first column on one line reached the user scrolling sideways with its status
-# prose a word a line. `page check --render` reported it. The skill weighs a page's
-# importance, a record being one reason, and reviews an important page at the
-# checkpoints the user names.
+# through about 25 revisions, needed a browser review though it wasn't a record, a
+# page used beyond the conversation: a table whose page CSS kept its first column on
+# one line reached the user scrolling sideways with its status prose a word a line,
+# which `page check --render` reports. So the skill weighs a page's importance, a
+# record being one reason, rather than reviewing only records, and reviews an
+# important page at the checkpoints the user names.
 description: important-page-reviewed-at-checkpoints
 metadata:
   purpose: "Checks and checkpoints: a large page the user relies on throughout a long

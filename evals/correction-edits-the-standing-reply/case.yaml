@@ -3,7 +3,7 @@
 # deliveries are real, frozen by `leaf.delivery` from a scratch page at the commit
 # that adds this case, with the page path rewritten; regenerate them to score a
 # change to the handling they carry. The default context is the correction the
-# paragraph is for, where an agent tends to post a new reply; `promised-result`
+# paragraph is for, where an agent can post a new reply instead; `promised-result`
 # and `delivered-update` are the two cases it keeps as new replies.
 description: correction-edits-the-standing-reply
 metadata:

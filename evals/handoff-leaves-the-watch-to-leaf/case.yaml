@@ -1,8 +1,8 @@
 # Leaf's Claude Code watch is Leaf's own `asyncRewake` Stop hook, which Claude
 # Code 2.1.286 keeps past the two-hour limit it puts on a background command,
 # rather than a background `leaf wait` the model restarts. Opus 5.5's safeguards
-# refuse every run while the prompt asks for each tool call with its full JSON
-# input, so the prompt asks for the commands.
+# can refuse a run whose prompt asks for each tool call with its full JSON input, so
+# the prompt asks for the commands.
 description: handoff-leaves-the-watch-to-leaf
 metadata:
   purpose:

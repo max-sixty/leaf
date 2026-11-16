@@ -2,8 +2,8 @@
 # decision with `--done`: the previews were for the user to try before deciding,
 # but nothing put the answer on On Me, so the user could close the thread and lose
 # it. A handling that shows `--done` as the answer's command and offers
-# `--obligation` as an addition for replies that "need" a response leads agents to
-# reason that the decision itself is already on On Me, so the handling says the
+# `--obligation` as an addition for replies that "need" a response can lead agents
+# to reason that the decision itself is already on On Me, so the handling says the
 # declaration names whose move the answer leaves. The envelopes are the real
 # delivery's shape with the handling at the commit that adds this case; a handling
 # change is scored by regenerating them with each wording.

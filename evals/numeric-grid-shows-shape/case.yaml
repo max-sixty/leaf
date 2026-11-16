@@ -30,10 +30,10 @@ variants:
     # A page reporting a prompt A/B copied the grid its analysis script printed, one
     # column per wording and model, so each wording sat two or four columns from its
     # baseline, and quoted the tested sentences only in another section. The prompt
-    # carries that printout and the agent's earlier reply that repeated it; asked
-    # plainly, with the grid and no earlier turns, agents already quote the tested
-    # sentences beside their table. The experiment sentence in page-authoring.md,
-    # "Composing a page", addresses it.
+    # carries that printout and the agent's earlier reply that repeated it, since
+    # asked plainly, with the grid and no earlier turns, agents can already quote the
+    # tested sentences beside their table. The experiment sentence in
+    # page-authoring.md, "Composing a page", addresses it.
     metadata:
       purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
       tags:
@@ -101,8 +101,8 @@ variants:
           analysis printed, and any difference shown is computed correctly from them.
           Fail on an omitted or misread count.
   traffic-mix:
-    # Ordinary Leaf reports repeatedly describe useful experiences without showing
-    # them. Unlike the complete configuration tasks, this request names an
+    # An ordinary Leaf report can describe a useful experience without showing it.
+    # Unlike the complete configuration tasks, this request names an
     # exploratory goal but no control or presentation form. Native page authoring
     # tests the result; the source rubric cannot prove browser operation.
     metadata:

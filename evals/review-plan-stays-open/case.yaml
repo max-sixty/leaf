@@ -1,8 +1,8 @@
-# On the arrangement eval's `document` subject, Leaf pages put the whole "Plan if we
-# pick Postgres" in a collapsed `<details>` at the foot of a review the team reads
+# On the arrangement eval's `document` subject, Leaf pages can put the whole "Plan if
+# we pick Postgres" in a collapsed `<details>` at the foot of a review the team reads
 # top to bottom and comments on. A Reading cost that sends "exhaustive support"
-# under `<details>` leads authors to collapse the plan's steps; the guidance keeps
-# open what readers are asked to review or comment on.
+# under `<details>` can lead authors to collapse the plan's steps, so the guidance
+# keeps open what readers are asked to review or comment on.
 description: review-plan-stays-open
 metadata:
   purpose:

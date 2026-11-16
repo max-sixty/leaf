@@ -4,15 +4,15 @@
 # apparent from titles or labels, including candidate wording used as titles. The
 # rubric accepts both title forms and rejects indistinguishable titles, a
 # recommendation on the wrong option and an invented pick.
-# SKILL.md asks every page for pictures, so the section may draw the 68px shift above
-# the options while the options stay words; options-draw-nothing alone judges the
-# drawing, so comparison-labels doesn't forbid a figure outside the options.
+# The section may draw the 68px shift above the options while the options stay
+# words; options-draw-nothing alone judges the drawing, so comparison-labels doesn't
+# forbid a figure outside the options.
 # options-draw-nothing passes a wording shown in its setting, such as each wording
 # among the report's lines in a `<pre>`, as authoring-on-me.md's "a wording as it
 # would appear" asks, and fails only a drawing.
 # reason-beside-options: registry examples that write the reason into the recommended
-# card (`<em>My take: …</em>`) lead agents to keep it in the cards; the examples put
-# the reason in the lf-ask's prose.
+# card (`<em>My take: …</em>`) can lead agents to put it in the cards; the examples
+# put the reason in the lf-ask's prose.
 # The case is a probe given a page with its packages.
 description: options-stay-words-for-wording
 metadata:

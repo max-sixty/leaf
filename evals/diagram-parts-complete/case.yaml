@@ -1,7 +1,8 @@
-# A partial `parts` list makes adjacent diagram boxes respond differently to
-# Comment. This case checks the author's choice at page creation. The renderer
-# owns the node inventory rather than making the author duplicate it in a
-# synchronized roster. It is a probe given a page with its packages.
+# A `parts` list naming only some nodes would make adjacent diagram boxes respond
+# differently to Comment, so `parts` takes only "all" and the renderer owns the node
+# inventory rather than making the author duplicate it in a synchronized roster.
+# This case checks the author's choice at page creation. It is a probe given a page
+# with its packages.
 description: diagram-parts-complete
 metadata:
   purpose: A diagram exposes every named box through its renderer-owned inventory.

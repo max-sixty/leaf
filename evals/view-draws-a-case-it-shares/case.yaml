@@ -1,7 +1,6 @@
 # A session's section #11 called itself "#6's on-screen case in the panel" instead of
 # showing its own geometry. The seeded earlier sections recreate that competing
-# context; this is a bounded continuation, not a full session replay. A fragment or
-# standalone page would not provide those earlier views.
+# context; this is a bounded continuation, not a full session replay.
 description: view-draws-a-case-it-shares
 metadata:
   executor: leaf_dev.usability_eval

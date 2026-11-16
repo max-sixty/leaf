@@ -1,10 +1,9 @@
-# These score decisions, not executed artifacts. The drag case is synthetic
+# Its contexts score decisions, not executed artifacts. The drag case is synthetic
 # generalization coverage, not a reconstruction of a live rectangle-tool failure.
 # Native fixed-output grader controls reject an archived open/focus plan and accept
 # active-row inspection and a pointer-based equivalent.
-# Capture first-reading reconstruction, with resize and useful-ghost controls: a
-# separate blinded browser review caught the original obstruction; plan scores
-# alone do not establish that.
+# Capture first-reading reconstruction, with resize and useful-ghost controls: plan
+# scores alone don't establish that a capture avoids the original obstruction.
 description: review-shows-the-change
 metadata:
   purpose: "Maintainer review: user reviews the change; agent verifies preservation."

@@ -1,6 +1,7 @@
 # A session's focus-indication playground assembled each preset from a treatment per
 # surface; three of one preset's marks stacked in the same gutter and the user called
-# the presets "disastrous". Presets that leave controls unset fail; the presets
+# the presets "disastrous". A preset that leaves a value its appearance depends on
+# unset makes its treatment depend on the configuration tried before it; the presets
 # paragraph on whole designs addresses it.
 # Also guards realistic candidate copy: comparison labels belong around the diff,
 # while the diff retains product text.

@@ -1,13 +1,13 @@
-# On real pages, agent messages in a thread rarely ask with a widget and mostly ask in
-# words with --obligation, some listing the answers ("Which do you want? - Keep this
-# hold. - Drop it.") and some asking yes or no to an action ("Shall I open the PR?"),
-# which the user answers with a press when the reply carries lf-options. A handling
-# that sends every user move to --obligation and names the widget route only as an
-# aside keeps every open question in words. The envelopes are the real delivery's
-# shape with the handling at the commit that adds this case; a handling change is
-# scored by regenerating them with each wording. A handling that only names
-# `lf-options` leads agents to markup that `leaf thread reply` refuses, lacking ids
-# and `choose`, so the handling gives the markup's shape.
+# Agent messages in a thread can ask in words with --obligation, some listing the
+# answers ("Which do you want? - Keep this hold. - Drop it.") and some asking yes or
+# no to an action ("Shall I open the PR?"), which the user could answer with a press
+# were the reply to carry lf-options. A handling that sends every user move to
+# --obligation and names the widget route only as an aside can keep every open
+# question in words. The envelopes are the real delivery's shape with the handling at
+# the commit that adds this case; a handling change is scored by regenerating them
+# with each wording. A handling that only names `lf-options` can lead agents to markup
+# that `leaf thread reply` refuses, lacking ids and `choose`, so the handling gives
+# the markup's shape.
 description: thread-choice-takes-a-press
 metadata:
   purpose:

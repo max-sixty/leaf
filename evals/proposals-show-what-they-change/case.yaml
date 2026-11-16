@@ -1,12 +1,10 @@
-# A session's plan page after the plain HTML comparison put ten accept/reject asks to
-# the user in words and one defect table, though four of the defects were layouts
-# the eval had screenshotted. The user asked "for all of these, can you mark up
-# images or make diagrams", and called the marked-up captures and drawn options that
-# followed "really good". Asks whose subject has a shape go unpictured mostly on
-# plan, survey or to-do pages whose options name actions ("Explore and build it",
-# "Leave it").
+# A session's plan page put ten accept/reject asks to the user in words and one
+# defect table, though four of the defects were layouts the eval had screenshotted.
+# The user wants such asks pictured: "for all of these, can you mark up images or
+# make diagrams". Asks whose subject has a shape can go unpictured on plan, survey or
+# to-do pages whose options name actions ("Explore and build it", "Leave it").
 # The captures are cited only as paths, as the source's subagent findings cited
-# them: listing them as page media, or naming `leaf page media`, makes an author
+# them: listing them as page media, or naming `leaf page media`, can make an author
 # embed them without the rule. Tool-capable authoring registers real files and
 # grades the saved page; drawings don't substitute for an unavailable capture.
 # The shape-shown-inside-the-ask rule in authoring-on-me.md addresses it. The

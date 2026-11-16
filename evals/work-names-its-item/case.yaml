@@ -4,8 +4,8 @@
 # "When to write" and "Page availability and handoff". The criterion is the
 # behavior, not a command. The `line-reads-at-a-glance` metric holds the rule that a
 # working line says what the agent is doing in a few of the user's words; the to-do's
-# title and the CI wait on a named commit are the pulls real lines showed, and a line
-# fails on the CI wait's hash, run number and length.
+# title and the CI wait on a named commit can pull a line toward restating the title
+# or carrying the CI wait's hash, run number and length, which fail it.
 description: work-names-its-item
 metadata:
   purpose:

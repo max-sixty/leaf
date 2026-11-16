@@ -3,8 +3,8 @@
 # keep every measurement in tables instead of charting them. `request.md`
 # synthesizes such notes at about 3,200 words: a photo-upload pipeline moving its
 # variant generation from the request to a queue and workers.
-# This case doesn't reproduce that failure, which came with about 9,500 words of
-# notes, a user's global instructions and xhigh effort, so it guards the default.
+# This case doesn't reproduce that failure, which came with much longer notes, a
+# user's global instructions and xhigh effort, so it guards the default.
 # SKILL.md routes measured facts to authoring-evidence.md's `lf-chart` line.
 description: Mechanism proposal handover
 metadata:

@@ -3,10 +3,11 @@
 # light review list). The session joined each candidate's three captures into one
 # image with Pillow, cut from review sheets, so every option showed a ragged collage
 # with leftover label bands and clipped text, at a different scale per list.
-# That happened late in a long session, after compaction; cold, runs don't join
-# captures. References that send options' captures out of the table of captures and
-# name no other layout lead agents to hand-write a CSS grid, some with no label on
-# any capture; naming the table for an option's captures needs no page CSS.
+# That happened late in a long session, after compaction, which a cold run need not
+# reproduce. References that send options' captures out of the table of captures
+# and name no other layout can lead agents to hand-write a CSS grid, some with no
+# label on any capture, so the references name the table for an option's captures,
+# which needs no page CSS.
 description: option-captures-line-up
 metadata:
   purpose:

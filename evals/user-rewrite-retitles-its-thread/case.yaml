@@ -5,7 +5,7 @@
 # carries the delivery's own handling, so the arms are the wordings, pasted into the
 # prompt. Cold, the agent reads references/threads.md, which says to rename a thread
 # whose title no longer fits. `mid-session` reads no reference, leaving the handling
-# as the guidance in reach: without the sentence, the agent leaves the title stale.
+# as the guidance in reach: without the sentence, the agent can leave the title stale.
 description: user-rewrite-retitles-its-thread
 metadata:
   purpose: "A user's rewrite of a thread's opening message to a new subject retitles the thread."

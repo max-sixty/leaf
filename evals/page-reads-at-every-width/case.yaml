@@ -1,10 +1,9 @@
 # A page can pass the render gate while a judge still finds tiny text at 900px and
 # phone defects. Each context authors one ordinary page from a complete task's
 # request, and `page_defects.py` lists the defects a user would notice at three widths
-# beside what `page check` reported and what the author did about it. Most defects
-# outside Leaf's thread chrome are wrong facts, and the final checks report few of
-# them; the supplied-facts paragraph in page-authoring.md, "Reading cost", addresses
-# pages misstating a supplied fact.
+# beside what `page check` reported and what the author did about it. A defect can
+# be a wrong fact, which the final checks don't report; the supplied-facts paragraph
+# in page-authoring.md, "Reading cost", addresses pages misstating a supplied fact.
 # notes/agent-usability-evals.md, "Bad pages and the checks", has the runs.
 description: page-reads-at-every-width
 metadata:
@@ -30,9 +29,9 @@ variants:
   configuration:
     vars:
       prompt: file://configuration/request.md
-  # A two-job demo followed the universal playground-width instruction and spread
-  # a small form across a mostly empty window. Exercise the authored result, not
-  # whether the author chose a particular Layout or control appearance.
+  # A two-job demo can spread a small form across a mostly empty window. Exercise
+  # the authored result, not whether the author chose a particular Layout or control
+  # appearance.
   small-configuration:
     vars:
       prompt: |

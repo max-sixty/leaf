@@ -1,8 +1,8 @@
 # Guardrail for the contents default: a short document readable at a glance
 # needs no outline; this measures the exception rather than reproducing the
-# long-session omission. A generic polish request prompts extra cards and theme
-# overrides. A defaults-first wording alone removes the card but keeps theme
-# overrides; direct guidance to polish within Leaf's treatment holds.
+# long-session omission. A generic polish request can prompt extra cards and theme
+# overrides, and a defaults-first wording alone can remove the card but keep the
+# theme overrides, so the guidance says to polish within Leaf's treatment.
 description: brief-document-needs-no-outline
 metadata:
   purpose: "Short documents use Leaf's default styling and need no contents outline;

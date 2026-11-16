@@ -1,16 +1,15 @@
 # Over 25 revisions of a page, the agent wrote each pick in with `chosen` and amended
 # a sentence when its work landed ("Both are decided: #4518 (merged)"), but never
-# retired a question; all five answered groups stayed open. Nearly every answered
-# group still open on its page's final revision has `chosen` written in: agents do
-# the step the pick's delivery names ("write the answer into the markup") and stop
-# there. The main prompt replays the minute #4542 merged with that page's revision
-# and the pick's real delivery; the variant replays a pick that keeps today's
-# behavior. A delivery naming only writing in leaves the question open; one asking
-# for the record once the work is done retires it, and never calls the unfinished
-# pick done. For the earlier picks, delivered before that wording, SKILL.md stating
-# the goal (bring the whole page up to date; decisions you have acted on become
-# settled records) settles them, where a one-line pointer to "Keep the current page
-# current" does not. The open `keys` question stays open.
+# retired a question; all five answered groups stayed open. Agents can do the step
+# the pick's delivery names ("write the answer into the markup") and stop there. The
+# main prompt replays the minute #4542 merged with that page's revision and the
+# pick's real delivery; the variant replays a pick that keeps today's behavior. The
+# delivery asks for the record once the work is done, since one naming only writing
+# in can leave the question open. For the earlier picks, delivered before that
+# wording, SKILL.md states the goal (bring the whole page up to date; decisions you
+# have acted on become settled records), since a one-line pointer to "Keep the
+# current page current" can leave them open. The `open-question` metric holds the
+# open `keys` question open.
 description: decision-record-after-its-work
 metadata:
   purpose:

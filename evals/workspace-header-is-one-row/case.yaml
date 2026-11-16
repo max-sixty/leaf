@@ -1,6 +1,6 @@
-# The workspace header is one row; a failing page puts a lede in the header. The
-# rubric judges usable working space and understandable context, not particular
-# header contents and density-working.
+# The rubric judges usable working space and understandable context: introductory
+# or status material, such as a lede in the header, fails where it crowds the
+# working regions, whatever the header's tag names, number of rows or density class.
 description: workspace-header-is-one-row
 metadata:
   purpose: "Writing a workspace: context leaves room to read and decide in the working regions."

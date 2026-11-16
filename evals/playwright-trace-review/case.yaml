@@ -1,7 +1,7 @@
 # Imported journeys should use the shared review widget and preserve the full viewer
 # route. The native-video case remains the guardrail for recordings whose input is a
 # video rather than a trace index. The prompt carries result context, since without
-# it a real review offered no useful preset moments.
+# it a review can offer no useful preset moments.
 description: playwright-trace-review
 metadata:
   purpose: "Author a commentable imported browser journey with the optional Playwright package."

@@ -3,10 +3,9 @@
 # with "Held: ... stays an open item until then", keeping the deferral in its own
 # closeout's open items. Nothing on the page held it, so the case's decision stood on
 # On Me while the user had put it off. The prompt pastes the closeout rule that
-# pulled that way. Cold, agents reply with a to-do. Where the to-do leaves the
-# decision on On Me, agents also withdraw `c13-pick` in a revision and plan to ask
-# again under a new id; with the to-do holding the decision, they leave the widget
-# alone.
+# pulled that way. Where the to-do leaves the decision on On Me, an agent can also
+# withdraw `c13-pick` in a revision and plan to ask again under a new id; while the
+# to-do holds the decision, the decision stays off On Me.
 description: deferral-holds-a-todo
 metadata:
   purpose: "Conversation loop: a decision the user puts off until other work lands is

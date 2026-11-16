@@ -1,9 +1,8 @@
 # A session's decision section compared three designs in a table as rows A, B and C,
 # ordered by how far each departed from today, then listed the lf-option cards as C,
-# B, A: the recommended option first and the one closest to today last, the order
-# most recommending groups on real pages use. Another page did the same to a
-# four-row table (D, C, B, A).
-# Notes alone don't reproduce it; the session was copying its own page, so each
+# B, A: the recommended option first and the one closest to today last. Another
+# page did the same to a four-row table (D, C, B, A).
+# Notes alone may not reproduce it; the session was copying its own page, so each
 # prompt pastes the page's earlier decisions, all recommended-first.
 # authoring-on-me.md's paragraph on ordering options by the subject addresses it.
 description: options-keep-one-order
@@ -209,7 +208,7 @@ variants:
   # in chat as A, B and C with its pick first, then wrote the page's cards in the
   # subject's order, keep-today first and its pick second, and kept "I'd take the
   # first option" in the prose, which then named the option it argued against. A run
-  # writes the prose and cards together, so it doesn't reproduce a wrong pointer;
+  # writes the prose and cards together, so it may not reproduce a wrong pointer;
   # this grades the habit that let it through: naming an option by position. The
   # pasted earlier decision, in the recommended-first order and "first option"
   # wording, tempts it. authoring-on-me.md's sentence on naming an option by its

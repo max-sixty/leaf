@@ -342,7 +342,7 @@ cases:
             pages: evidence.pages.map(({path, document, data}) => ({path, document, data}))
           });
   # Question placement without an existing widget or user comment. Thread creation
-  # is task setup, since without it agents ask in chat; obligation registration
+  # is task setup, since without it agents can ask in chat; obligation registration
   # remains an agent choice. Score placement separately so a usable plain-text
   # thread cannot conceal a missing On Me obligation. The message-API metric
   # separates lf-ask from --obligation.
@@ -1104,8 +1104,8 @@ cases:
         - - kind: render
     assert: *render-after-handover-assert
   # The user waiting, on a page whose one failure, a card label kept on one line,
-  # reads as fine in the source, unlike the failures in the cases above, which
-  # agents fix before handing over.
+  # reads as fine in the source; agents can fix the failures in the cases above before
+  # handing over.
   render-hidden-failure:
     inputs:
       prompts:

@@ -1,4 +1,5 @@
-# Sibling of the user's repeated-link complaint.
+# The user doesn't want a progress message to repeat the page URL once the page is
+# handed over.
 description: page-url-midwork-progress
 metadata:
   purpose: "Handoff: a progress message while checks run does not repeat the page URL."

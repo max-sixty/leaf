@@ -7,9 +7,9 @@
 # than separates.
 # The during-work verification waits 40 s, and a comment posted once it starts
 # checks that page input still reaches the agent (`reached-during-verify`). Real
-# misses were foreground calls deep into their sessions; fresh sessions background
-# the wait with or without SKILL.md's sentence on background commands, so it guards
-# rather than separates.
+# misses were foreground calls deep into their sessions; fresh sessions can
+# background the wait with or without SKILL.md's sentence on background commands,
+# so it guards rather than separates.
 description: parent-keeps-leaf-responsive
 metadata:
   purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.

@@ -1,8 +1,8 @@
 # A panel-motion comparison. Measures live comparison and choice, including shared
 # inspection controls staying useful while the page scrolls. Phone evidence
-# readability is where pages fall short: a native-size view crops the recording on
-# phone. The criterion judges the complete motion rather than tiny recorded labels
-# and icons.
+# readability is the hard part: a native-size view can crop the recording on phone.
+# The criterion judges the complete motion rather than tiny recorded labels and
+# icons.
 description: Motion design comparison
 metadata:
   purpose: Compare real motion candidates through shared playback and record the

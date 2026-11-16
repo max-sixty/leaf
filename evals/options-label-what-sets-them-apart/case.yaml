@@ -2,13 +2,13 @@
 # said the undo-reach Ask lacked context, rewrote its options with their effort as
 # trailing prose ("Small.", "Medium.") rather than as labels. The script's option
 # helper took labels as an optional argument no decision had used. Asked the same of
-# the HTML rather than the script, agents label both, so the script's unused labels
-# argument is what reproduces the session.
+# the HTML rather than the script, agents can label both, so the script's unused
+# labels argument is what reproduces the session.
 # A label rule that lives only in the lf-option registry entry, while the reference
-# says to add words for a tradeoff, leads agents to label effort and leave reach in
-# prose. The rule is in authoring-on-me.md, cut back to its goal (labels for the
-# facts the user weighs, with no order or every-option requirement), and the rubric
-# checks that goal. Runs that read no reference can't see it. The rubric accepts
+# says to add words for a tradeoff, can lead agents to label effort and leave reach
+# in prose. The rule in authoring-on-me.md states its goal (labels for the facts the
+# user weighs, with no order or every-option requirement), and the rubric checks
+# that goal. Runs that read no reference can't see it. The rubric accepts
 # facts in compact titles or labels and rejects reach only in option bodies. The
 # prompt doesn't say which files the session had read.
 description: options-label-what-sets-them-apart

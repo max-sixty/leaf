@@ -1,12 +1,9 @@
-# Asks left at a closeout reached On Me as to-dos on the user with the page as
-# their subject, titled as questions ("Land … with /merge-pr?"). A to-do's title is
-# all the user reads of it, so the panel showed half the ask beside a bare "?" at
-# the page's heading, and its Done couldn't say yes or no. Most such to-dos on real
-# pages were a decision or a permission. The user asked for the routes a question
-# asked well takes, a widget or a thread, over titling a to-do "as a direct
-# question". The user kept the page as a to-do's subject, once `m` opens On Me on
-# a to-do, where its title shows whole. There are no to-dos on the user, the
-# user's choice, so the step is asked in a thread too.
+# A permission or step the agent leaves to the user at a closeout reaches On Me by a
+# route a question asked well takes, a widget or a thread message, the user's choice
+# over a to-do on the user titled "as a direct question" ("Land … with /merge-pr?"):
+# a to-do's title would be all the user reads of it, showing half the ask beside a
+# bare "?" at the page's heading, with a Done that can't say yes or no. There are no
+# to-dos on the user, also the user's choice, so the step is asked in a thread too.
 description: closeout-asks-take-their-route
 metadata:
   purpose: "Conversation loop: a permission or a step the agent leaves to the user at a

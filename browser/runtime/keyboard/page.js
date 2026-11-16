@@ -44,17 +44,20 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // second copy of it is wrong.
 /** @param {string} name @param {string} title @param {string} sel @param {readonly import("./bindings.js").Command[]} rows */
 function currentLocationOn(name, title, sel, rows) {
+  const at = () => {
+    const el = focused();
+    return Boolean(el?.matches?.(sel)) && !inChrome(el);
+  };
   pageScope(name, {
     title,
     root: focused,
-    at: () => {
-      const el = focused();
-      return Boolean(el?.matches?.(sel)) && !inChrome(el);
-    },
+    at,
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the reference promising a press nothing makes.
-    when: () => pageQueryAll(sel).some((el) => !inChrome(el)),
+    // not see one would leave the reference promising a press nothing makes. The user
+    // standing on one answers it at once, which is the only time the dispatcher asks,
+    // so a key costs no walk of the page.
+    when: () => at() || pageQueryAll(sel).some((el) => !inChrome(el)),
     rows,
   });
 }

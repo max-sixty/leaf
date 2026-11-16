@@ -2711,19 +2711,18 @@ export function createVersionController({
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
   // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
-  // and every region stands where it was last seen (`regionsSettled`), or after
-  // `SETTLING` deliveries or `SETTLING_MS` whatever happens: a widget that keeps
-  // resizing, or a rendering hold that never releases, would otherwise keep reading
-  // every later move as layout's. What moves a place is the page's
-  // own content or its bounded region's, and it lands only in the box it was restored
-  // into.
+  // and every region stands where it was last seen (`regionsSettled`). A widget's
+  // preparation keeps it open until it lands, however long a slow device takes, since
+  // its release is the event that ends that work. Otherwise it closes after `SETTLING`
+  // deliveries, or once it has stood open `SETTLING_MS` with no preparation pending: a
+  // widget that keeps resizing, or one whose drawing never quiets, as an animated chart's
+  // doesn't, would otherwise keep reading every later move as layout's. What moves a
+  // place is the page's own content or its bounded region's, and it lands only in the
+  // box it was restored into.
   const SETTLING = 12;
   const SETTLING_MS = 1000;
-  /** @type {number | undefined} */
-  let reapplyTimer;
   const stopReapplying = () => {
     reapply?.disconnect();
-    clearTimeout(reapplyTimer);
     reapply = null;
   };
   const releaseHolds = () => {
@@ -2758,13 +2757,15 @@ export function createVersionController({
       again();
     });
     reapply = observer;
-    reapplyTimer = setTimeout(stopReapplying, SETTLING_MS);
+    let prepared = performance.now();
     const settled = () =>
-      nextAnimation(() => {
+      nextAnimation((now) => {
         if (reapply !== observer) return;
         const { updatesSettled, preparationsSettled } = renderingState();
-        if (updatesSettled && preparationsSettled && regionsSettled()) stopReapplying();
-        else settled();
+        if (!preparationsSettled) prepared = now;
+        else if ((updatesSettled && regionsSettled()) || now - prepared > SETTLING_MS)
+          return stopReapplying();
+        settled();
       });
     settled();
     const page = pageDocument();

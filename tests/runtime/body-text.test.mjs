@@ -21,6 +21,31 @@ test("a data body's text drops its <pre>'s layout and the browser's whitespace a
   }
 });
 
+test("an agent's message holding HTML places each tag where Python checked it", async () => {
+  const { loadMarkdown, renderAuthoredMarkdown } = await import("/runtime/markdown.js");
+  assert.equal(await loadMarkdown(), true);
+  const cases = JSON.parse(
+    readFileSync(new URL("../message_html_cases.json", import.meta.url)),
+  );
+  for (const { source, elements } of cases) {
+    const body = document.createElement("template");
+    body.innerHTML = renderAuthoredMarkdown(source);
+    assert.deepEqual(
+      [...body.content.querySelectorAll("*")].map(
+        (element) =>
+          element.localName +
+          (element.id
+            ? `#${element.id}`
+            : element.classList[0]
+              ? `.${element.classList[0]}`
+              : ""),
+      ),
+      elements,
+      source,
+    );
+  }
+});
+
 test("a rendered Markdown caret keeps its exact source position in long and structured bodies", async () => {
   const { loadMarkdown, paintMarkdown, markdownSourceOffset } =
     await import("/runtime/markdown.js");

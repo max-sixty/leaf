@@ -268,8 +268,8 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     Markup names a picture in an attribute or a stylesheet, where the parsed reading
     finds it (`revision_artifact.uncaptured_errors`); a message names one as a
     Markdown destination, which that reading cannot see — so an agent sending a
-    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
-    given, and text on its own reached the log unread.
+    screenshot came through the one door that never asked. `check_markup` runs only
+    on a message holding HTML, and text without it reached the log unread.
 
     A reference is a rendered link or image destination, never a scan of the words.
     Parsing the Markdown resolves referenced definitions and leaves fenced examples

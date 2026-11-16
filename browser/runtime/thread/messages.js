@@ -5,9 +5,8 @@
    projects pasted attachments separately from its words using the draft's media
    reading, so a retained text viewport never clips an attachment. Each message
    retains its header and body together, sharing delivery, unread and fold state.
-   Its header declares its stationary text-reflow boundary. An
-   immutable descriptor changes prose without reconnecting the validated authored
-   fragment. A new message cues its own words once on first presentation, in every
+   Its header declares its stationary text-reflow boundary. An agent's message holding
+   HTML is one validated authored fragment, its words included, which no edit changes. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
    view that was already presented. Opening a view cues nothing it already holds, and
    admission and later descriptor paints never replay the cue.
@@ -28,6 +27,7 @@ import { generatedElement, offeredAction, worksInside } from "../widget-elements
 import {
   loadMarkdown,
   markdownReady,
+  renderAuthoredMarkdown,
   renderMarkdown,
   renderedWords,
 } from "../markdown.js";
@@ -152,7 +152,7 @@ function proseReading(message) {
   return reading;
 }
 
-// Authored messages hold the complete captured reading of prose and islands.
+// Authored messages hold the complete captured reading of their words.
 // Other messages and summaries still need their prose rendered here.
 // What a deleted message reads in its place, in Leaf's voice, as what the user did.
 const DELETED = leafSays("Deleted");
@@ -355,11 +355,11 @@ export function draftPreview(drafts, about = null) {
   };
 }
 
-// A rollback can withdraw an authored island, but neither retry nor a prose edit
-// may instantiate it twice. Its native identity is independent of the prose cache.
+// A rollback can withdraw an authored island, but a retry may not instantiate it
+// twice. Its native identity is independent of the prose cache.
 /** @typedef {{
  * message: string,
- * body: {text: string, markup: string, document: {thread: string, message: string}},
+ * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},
  * authored: ReturnType<typeof stageAuthoredStates>,
  * descriptors: ReturnType<typeof stageWidgetDescriptors>,
  * nodes: readonly ChildNode[], root: DocumentFragment,
@@ -373,7 +373,20 @@ const authoredMessages = new Map();
 // the message keeps for its lifetime.
 /** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
 const keptElements = new Map();
-/** @param {{id: string, attempt?: string, markup?: string}} message @param {string} thread
+// The markup a drawing that doesn't hold an authored message draws in its place
+// (`authoredHolders`): the message less what a second copy would duplicate, each
+// custom element, which a module upgrades once, and each id.
+/** @param {string} markup */
+function heldElsewhere(markup) {
+  const copy = document.createElement("template");
+  copy.innerHTML = markup;
+  for (const element of copy.content.querySelectorAll("*"))
+    if (element.localName.includes("-")) element.remove();
+    else element.removeAttribute("id");
+  return copy.innerHTML;
+}
+
+/** @param {{id: string, attempt?: string, text?: string}} message @param {string} thread
  * @returns {Promise<PreparedAuthoredMessage>} */
 export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
@@ -381,8 +394,13 @@ export function prepareAuthoredMessage(message, thread) {
     throw new TypeError("an authored message needs its thread's id");
   let prepared = authoredMessages.get(key);
   if (!prepared) {
+    // Captured once for the message's lifetime, so never from the escaped source the
+    // renderer stands in with until it loads.
+    if (!markdownReady())
+      throw new Error("leaf: an authored message needs its loaded Markdown renderer");
+    const markup = renderAuthoredMarkdown(message.text ?? "");
     const template = document.createElement("template");
-    template.innerHTML = message.markup ?? "";
+    template.innerHTML = markup;
     markDeclared(template.content);
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
@@ -392,13 +410,13 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
-    const text = template.content.textContent;
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {
       message: message.id,
       body: {
-        text,
-        markup: message.markup ?? "",
+        // An image counts as the thread names it, its alt text (`renderedWords`).
+        text: renderedWords(markup, true),
+        heldElsewhere: heldElsewhere(markup),
         document: { thread, message: message.id },
       },
       authored,
@@ -534,7 +552,8 @@ export function messageReading(
       : message.suggestion
         ? "suggestion"
         : "prose";
-  const prose = kind === "prose" ? proseReading(message) : null;
+  const authored = message.body.kind === "authored";
+  const prose = kind === "prose" && !authored ? proseReading(message) : null;
   const removal = message.withdrawn ?? message.edited;
   return Object.freeze({
     key: messageKey(message),
@@ -574,22 +593,20 @@ export function messageReading(
     body: Object.freeze({
       kind,
       text: message.text ?? "",
-      html: prose?.html ?? "",
+      // An authored message's markup as a drawing that doesn't hold it draws it.
+      html: authored ? (message.body.heldElsewhere ?? "") : (prose?.html ?? ""),
       mediaHtml: prose?.mediaHtml ?? "",
-      plainText: prose?.plainText ?? message.text ?? "",
+      plainText: authored
+        ? message.body.text
+        : (prose?.plainText ?? message.text ?? ""),
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
-      authored: message.body.kind === "authored",
+      authored,
     }),
-    // The message as its Copy control copies it: its words as written, then any markup
-    // an agent sent after them, which Markdown carries as HTML. A reaction has none.
-    markdown:
-      kind === "reaction"
-        ? null
-        : [message.text, message.body.kind === "authored" ? message.body.markup : null]
-            .filter(Boolean)
-            .join("\n\n"),
+    // The message as its Copy control copies it: its Markdown as written, any HTML in
+    // it included. A reaction has none.
+    markdown: kind === "reaction" ? null : (message.text ?? ""),
     // Where this drawing ranks among those that may hold the message's widgets
     // (`authoredHolders`); 0 for one that never does.
     authoredRank,
@@ -842,13 +859,20 @@ export class MessageView {
             if (body) this.#stopRead = this.#commands.read.observeMessage(body, model);
           })}
         >
-          ${editor ? editor.node : this.#body(model.body, model.edited)}
+          ${
+            editor
+              ? editor.node
+              : holds
+                ? html`<div class="lf-msg-text">
+                    ${keyed(this.#authoredTake, authored)}
+                  </div>`
+                : this.#body(model.body, model.edited)
+          }
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
               : nothing
           }
-          ${holds ? keyed(this.#authoredTake, authored) : nothing}
         </div>
         ${strip}
       `,

@@ -352,8 +352,8 @@ def steps(
         )
         if rich == "rich-choice":
             require(
-                bool(reply.get("markup")),
-                "the real author did not send clickable thread markup",
+                bool(reply.get("html")),
+                "the real author did not send a clickable choice in its reply",
             )
         else:
             require(

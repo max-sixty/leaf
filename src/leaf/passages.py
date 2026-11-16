@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
+from markdown_it.rules_block import html_block
 
 from .registry.contract import upgraded
 from .registry.kernel import kernel_passages
@@ -94,12 +95,50 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
     return "".join(parts)
 
 
-@lru_cache(maxsize=2)
-def markdown_dialect(message: bool):
-    """The browser's safe Markdown dialect for one of its two readings, with its
-    linkify and task lists (markdown.js, `makeMarkdown`; `renderMarkdown` says how
-    the readings differ). A thread message and a user-created child's words read as
-    a message, and a Markdown body reads as a file."""
+# A line that opens a custom element: a widget's tag, or a page's own.
+ELEMENT_OPENING = re.compile(r"<([a-z][a-z0-9]*-[a-z0-9-]*)(?=[\s/>]|$)", re.IGNORECASE)
+
+
+def _html_block(state, start: int, end: int, silent: bool) -> bool:
+    """An HTML block in an agent's message, read as the browser reads it (markdown.js,
+    `elementBlock`). A custom element opening a line holds raw HTML to the line that
+    closes it, as CommonMark's `<pre>` does, blank lines included: a widget's body is
+    its own, such as code whose blank lines would otherwise end the block and become
+    Markdown. Any other block is markdown-it's own. Neither starts on a line indented
+    as code, which the browser's parser refuses even in a message, which reads no
+    indented code, where markdown-it-py asks whether that rule is on."""
+    if state.sCount[start] - state.blkIndent >= 4:
+        return False
+    at = state.bMarks[start] + state.tShift[start]
+    opening = ELEMENT_OPENING.match(state.src, at, state.eMarks[start])
+    if opening is None:
+        return html_block(state, start, end, silent)
+    if silent:
+        return True
+    closing = f"</{opening[1].lower()}>"
+    line = start
+    while line < end:
+        if line > start and state.sCount[line] < state.blkIndent:
+            break
+        text = state.src[state.bMarks[line] + state.tShift[line] : state.eMarks[line]]
+        line += 1
+        if closing in text.lower():
+            break
+    state.line = line
+    token = state.push("html_block", "", 0)
+    token.map = [start, line]
+    token.content = state.getLines(start, line, state.blkIndent, True)
+    return True
+
+
+@lru_cache(maxsize=3)
+def markdown_dialect(message: bool, html: bool = False):
+    """The browser's safe Markdown dialect for one of its readings, with its linkify
+    and task lists (markdown.js, `makeMarkdown`; `renderMarkdown` says how the
+    readings differ). A thread message and a user-created child's words read as a
+    message, and a Markdown body reads as a file. `html` keeps the raw HTML an
+    agent's message holds (`message_markup`), which every other reading shows as
+    text."""
     from markdown_it import MarkdownIt
     from markdown_it.renderer import RendererHTML
     from mdit_py_plugins.tasklists import tasklists_plugin
@@ -108,11 +147,15 @@ def markdown_dialect(message: bool):
         def validateLink(self, url: str) -> bool:
             return True
 
-    parser = PageMarkdown("gfm-like", {"html": False, "breaks": message}).use(
+    parser = PageMarkdown("gfm-like", {"html": html, "breaks": message}).use(
         tasklists_plugin
     )
     if message:
         parser.disable(["lheading", "code"])
+    if html:
+        parser.block.ruler.at(
+            "html_block", _html_block, {"alt": ["paragraph", "reference", "blockquote"]}
+        )
     assert parser.linkify is not None
     parser.linkify.set({"fuzzy_link": False})
     # The browser accepts syntax first, then removes unsafe link destinations while
@@ -177,6 +220,21 @@ def markdown_markup(source: str) -> str:
     a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
     revision's prepaint."""
     return markdown_dialect(False).render(source)
+
+
+def message_markup(text: str) -> str:
+    """The markup an agent's message holding HTML draws (`html` on its event): its
+    Markdown read as a message, with the raw HTML in it kept, as the browser renders
+    it (markdown.js, `renderAuthoredMarkdown`). Every reading of the message's
+    elements, its check among them, parses this."""
+    return markdown_dialect(True, html=True).render(text)
+
+
+def holds_html(text: str) -> bool:
+    """Whether an agent's Markdown holds raw HTML, by whether keeping it changes what
+    the message draws. Only a message written with a `leaf thread` command keeps
+    it, and one whose readings agree carries no `html`."""
+    return message_markup(text) != markdown_dialect(True).render(text)
 
 
 def feed_markdown(parser, source: str) -> None:

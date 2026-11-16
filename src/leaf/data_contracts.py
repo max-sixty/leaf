@@ -188,8 +188,8 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Read each historical data consumer with its captured registry.
 
-    Thread markup uses its admitted revision's registry; seeded markup on a page
-    without revisions uses the initial registry. These readings permit historical
+    A message's markup uses its admitted revision's registry; a seeded message on a
+    page without revisions uses the initial registry. These readings permit historical
     producers and inventories without restricting later documents' bindings.
     """
     documents = [
@@ -202,7 +202,7 @@ def page_data_document_readings(
     active_document = documents.pop() if documents else None
     newest = latest_revision(page_dir)
     for event in events:
-        if event.get("markup"):
+        if event.get("html"):
             revision = event.get("revision") or newest
             selected_registry = (
                 registry
@@ -216,7 +216,7 @@ def page_data_document_readings(
                     selected_registry,
                 )
             )
-    # The active document owns current bindings ahead of older thread markup.
+    # The active document owns current bindings ahead of older messages' markup.
     if active_document is not None:
         documents.append(active_document)
     return [reading for group in documents for reading in group]
@@ -234,10 +234,10 @@ def _authored_readings(page_dir: Path, registry: dict) -> list[tuple[list, str, 
 def initial_data_document_readings(
     authored: SourceDocument, events: list, registry: dict
 ) -> list:
-    """A fresh page's source and seeded markup share its initial registry."""
+    """A fresh page's source and seeded messages share its initial registry."""
     documents = data_document_readings(authored, "index.html", registry)
     for event in events:
-        if event.get("markup"):
+        if event.get("html"):
             documents.extend(
                 data_document_readings(
                     logged_fragment(event), f"event {event['id']!r} markup", registry

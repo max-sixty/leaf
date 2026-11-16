@@ -703,7 +703,7 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
     refused = post(headless_shell)
     assert refused.returncode != 0, refused.stdout + refused.stderr
     refusal = json.loads(refused.stdout)["error"]
-    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert refusal.startswith("the HTML in the comment doesn't draw:"), refusal
     assert '<lf-chart id="t-bad"> failed: ' in refusal
     assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
 

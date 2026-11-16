@@ -4436,6 +4436,38 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     ] == case["links"]
 
 
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parents[1] / "message_html_cases.json").read_text()),
+)
+def test_message_html_lands_where_the_browser_draws_it(case):
+    """An agent's message holding HTML is checked as Python renders it and drawn as
+    the browser does, so both place each HTML block and tag in the same element
+    (body-text.test.mjs reads the same cases), and only a message whose HTML changes
+    what it draws holds HTML."""
+    import turbohtml
+
+    def elements(node):
+        for child in node.children:
+            if isinstance(child, turbohtml.Element):
+                classes = child.attrs.get("class") or []
+                classes = classes.split() if isinstance(classes, str) else classes
+                yield child.tag + (
+                    f"#{child.attrs['id']}"
+                    if child.attrs.get("id")
+                    else f".{classes[0]}"
+                    if classes
+                    else ""
+                )
+                yield from elements(child)
+
+    rendered = turbohtml.parse_fragment(
+        passages_model.message_markup(case["source"]), context="div", positions=False
+    )
+    assert list(elements(rendered)) == case["elements"]
+    assert passages_model.holds_html(case["source"]) is case["html"]
+
+
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])
 def test_exact_markdown_body_retains_saved_whitespace_across_revision(page_dir, source):
     """Pre indentation and edge whitespace are content, including code and hard breaks."""

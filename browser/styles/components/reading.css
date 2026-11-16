@@ -756,17 +756,6 @@ leaf-text.lf-fab-input,
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
 }
-/* A message's authored markup (messages.js) follows its words and pictures, and stands
-   under them at least as far as the blocks above stand apart, so a question of bare
-   words never reads as the words' last line or touches the picture above it. The gap
-   is the words' or pictures' own end, so it collapses with whatever top the markup sets
-   and a message of markup alone starts at its head. */
-.lf-msg-body
-  > :is(.lf-msg-text:not(:empty), .lf-msg-media):has(
-    + :not(.lf-msg-media, .lf-drawing-reference)
-  ) {
-  margin-block-end: 6px;
-}
 /* A message keeps its source's spaces and line breaks, wrapped as its draft's editor
    wraps them (composing/text-field.js), a space at a line's end hanging past it. */
 .lf-msg-text > p {
@@ -819,8 +808,8 @@ leaf-text.lf-fab-input,
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
    where it left none, as a list typed under its first line or an item under the
-   last. The renderer counts those lines (markdown.js, `data-lf-gap`); an agent's
-   authored markup carries none, and keeps the spacing above. A fence's count stands
+   last. The renderer counts those lines (markdown.js, `data-lf-gap`); HTML an agent
+   wrote carries none, and keeps the spacing above. A fence's count stands
    on its code. A line is the message's, computed where the text starts, since code
    sets a shorter one of its own. */
 @property --lf-msg-line {

@@ -264,7 +264,7 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     )
     ran = browser_check(page_dir, snapshot, page_code=True, render=False)
     if ran.status:
-        raise Rejected(ran.findings(), f"{kind} markup doesn't draw")
+        raise Rejected(ran.findings(), f"the HTML in the {kind} doesn't draw")
 
 
 @dataclass(frozen=True, slots=True)

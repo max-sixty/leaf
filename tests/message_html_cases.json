@@ -1,0 +1,83 @@
+[
+  {
+    "source": "The formula <code class=\"language-math\">x^2</code> holds.",
+    "html": true,
+    "elements": ["p", "code.language-math"]
+  },
+  {
+    "source": "Before\n\n<table><tbody><tr><th>Load</th><td>**12**</td></tr></tbody></table>\n\nAfter **bold**",
+    "html": true,
+    "elements": ["p", "table", "tbody", "tr", "th", "td", "p", "strong"]
+  },
+  {
+    "source": "Pick one:\n\n<lf-options id=\"pick\" choose>\n<lf-option id=\"pick-a\">**A**</lf-option>\n</lf-options>",
+    "html": true,
+    "elements": ["p", "lf-options#pick", "lf-option#pick-a"]
+  },
+  {
+    "source": "<lf-options id=\"pick\" choose><lf-option id=\"pick-a\">**A**</lf-option></lf-options>",
+    "html": true,
+    "elements": ["lf-options#pick", "lf-option#pick-a"]
+  },
+  {
+    "source": "<details><summary>Log</summary>\n\nLine **one**\n</details>",
+    "html": true,
+    "elements": ["details", "summary", "p", "strong"]
+  },
+  {
+    "source": "<div>\n*kept as written*\n</div>\nstill the block\n\n*emphasis*",
+    "html": true,
+    "elements": ["div", "p", "em"]
+  },
+  {
+    "source": "Use `<b>` here, and:\n\n```\n<div id=\"shown\">\n```",
+    "html": false,
+    "elements": ["p", "code", "pre", "code"]
+  },
+  {
+    "source": "A <https://example.com> link, and - [x] not a task\n\n- [x] done\n- [ ] open",
+    "html": false,
+    "elements": [
+      "p",
+      "a",
+      "ul.contains-task-list",
+      "li.task-list-item",
+      "input.task-list-item-checkbox",
+      "li.task-list-item",
+      "input.task-list-item-checkbox"
+    ]
+  },
+  {
+    "source": "> Quoted <kbd>K</kbd>\n\n1. First <span id=\"s\">span</span>",
+    "html": true,
+    "elements": ["blockquote", "p", "kbd", "ol", "li", "span#s"]
+  },
+  {
+    "source": "Here:\n\n<lf-code id=\"c\">\n<pre>def a():\n    return 1\n\ndef b():\n    return 2\n</pre>\n</lf-code>\n\nAfter **bold**",
+    "html": true,
+    "elements": ["p", "lf-code#c", "pre", "p", "strong"]
+  },
+  {
+    "source": "Which?\n<lf-ask id=\"ask\"><h3>Store</h3><lf-options id=\"store\" choose><lf-option id=\"store-a\">A</lf-option></lf-options></lf-ask>\nMore *words*",
+    "html": true,
+    "elements": [
+      "p",
+      "lf-ask#ask",
+      "h3",
+      "lf-options#store",
+      "lf-option#store-a",
+      "p",
+      "em"
+    ]
+  },
+  {
+    "source": "Pick <lf-options id=\"inline\" choose><lf-option id=\"inline-a\">A</lf-option></lf-options> now",
+    "html": true,
+    "elements": ["p", "lf-options#inline", "lf-option#inline-a"]
+  },
+  {
+    "source": "    <span id=\"indented\">\nwords</span>",
+    "html": true,
+    "elements": ["p", "span#indented", "br"]
+  }
+]

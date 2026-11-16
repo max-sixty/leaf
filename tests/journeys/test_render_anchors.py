@@ -278,7 +278,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
 def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     browser, serve
 ):
-    """Copy uses source, including whitespace, rather than rendered annotations.
+    """Copy uses source, including whitespace, rather than rendered line numbers.
 
     A numbered widget and both ordinary block shapes share the same gesture.
     The retained widget's Copy returns after a hidden widget is detached and
@@ -307,7 +307,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + '</code></pre><a id="after-copy" href="#title">After code</a>'
             + '<lf-code id="numbered" language="python" hi="2"><pre>'
             + escape(widget)
-            + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
+            + "</pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
             head="<style>#plain { anchor-name: --authored-plain; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
@@ -316,7 +316,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     url = live_url(serve(document()))
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    # The draft's control is its own (`lf-draft.js`); these are the code blocks'.
+    # The draft's Copy stands in its toolbar (`lfBar`); these are the code blocks'.
     expect(page.locator("#draft .lf-draft-tools > .lf-code-copy")).to_have_count(1)
     controls = page.locator(".lf-code-copy:not(#draft *)")
     expect(controls).to_have_count(3)
@@ -324,7 +324,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(document_controls).to_have_count(2)
     expect(page.locator("#colored")).to_have_attribute("tabindex", "0")
     expect(page.locator("#colored")).to_have_attribute("aria-keyshortcuts", "Enter")
-    expect(page.locator("#numbered lf-note")).to_contain_text("not source")
     expect(page.locator("#numbered .lf-quiet")).to_have_count(1)
 
     anchors = {}

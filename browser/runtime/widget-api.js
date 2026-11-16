@@ -175,7 +175,6 @@ export {
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { copyBlock } from "./code-copy.js";
 export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.

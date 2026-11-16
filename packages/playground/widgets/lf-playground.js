@@ -408,7 +408,7 @@ customElements.define(
             this.#draw();
           });
         const { instruction } = initial;
-        // Leaf's copy control in the popover's head. A code block's (`copyBlock`) hides
+        // Leaf's copy control in the popover's head. A code block's Copy hides
         // while its block is away and came back a frame or more after the popover
         // opened, after a Tab had passed it by. A page that draws its own actions
         // shows the instruction where it was written, with no popover to copy from.

@@ -1,15 +1,4 @@
 /* Document-side values exchanged with Playwright's render-check driver. */
-/** Native Layout Instability API entries; TypeScript's DOM library omits this API. */
-export interface NativeLayoutShift extends PerformanceEntry {
-  readonly entryType: "layout-shift";
-  readonly hadRecentInput: boolean;
-  readonly value: number;
-  readonly sources: readonly {
-    readonly node: Node | null;
-    readonly previousRect: DOMRectReadOnly;
-    readonly currentRect: DOMRectReadOnly;
-  }[];
-}
 export interface FirstBox {
   element: HTMLElement;
   width: number;

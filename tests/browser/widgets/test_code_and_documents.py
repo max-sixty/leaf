@@ -46,6 +46,43 @@ NUMBER = """row => {
 }"""
 
 
+def test_a_widget_that_draws_its_data_keeps_the_name_it_opens_with(browser, serve):
+    """A code block, a draft and a diff draw their own content, and each keeps the name
+    the page opened it with, over what it draws: a light-DOM module puts it back first,
+    and a shadow stage slots it at its top (shadow-stage.js)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Named data",
+                '<h1 id="t">Named data</h1>'
+                '<lf-code id="and-code" language="python"><strong>main.py</strong>'
+                "<pre>print(1)</pre></lf-code>"
+                '<lf-draft id="and-draft"><strong>Release note</strong>'
+                "<pre>Adds --dry-run.</pre></lf-draft>"
+                '<lf-diff id="and-diff"><strong>x.py change</strong><pre>\n'
+                "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n"
+                "</pre></lf-diff>",
+            )
+        ),
+    )
+    for widget, name, body in (
+        ("and-code", "main.py", "pre"),
+        ("and-draft", "Release note", ".lf-draft-body"),
+    ):
+        title = page.locator(f"#{widget} > strong")
+        expect(title).to_have_text(name)
+        expect(title).to_be_visible()
+        assert page.locator(f"#{widget} > {body}").evaluate(
+            "(drawn, title) => title.getBoundingClientRect().bottom"
+            " <= drawn.getBoundingClientRect().top + 1",
+            title.element_handle(),
+        ), f"{widget}'s name does not stand over what it draws"
+    expect(page.locator("#and-diff .lf-diff-file")).to_have_count(1)
+    expect(page.locator("#and-diff > strong")).to_have_text("x.py change")
+    expect(page.locator("#and-diff > strong")).to_be_visible()
+
+
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve
 ):

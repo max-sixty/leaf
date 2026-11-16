@@ -43,7 +43,12 @@ the name the element opens with, `{title, holder}`, or null: `title` is the elem
 whose words name it, and `holder`, the element's first element, is that title or the
 `<header>` or `<hgroup>` holding it, the name to draw, move or hide. The theme's
 selector for the holder is
-`:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`.
+`:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`. `page check`
+lets any widget open with its name before its members or its data, so a module that
+draws its own content keeps the holder where it draws, as a code block keeps its name
+over its lines: one that replaces its children puts the holder back first, and
+`shadowStage` slots it at the top of its stage. `page check --render` reports a name
+a module drew over (`dropped-name`).
 `addressableName(element)` is the name's words, for a place that takes only text, such
 as an `aria-label`, a native `<option>` or an announcement.
 

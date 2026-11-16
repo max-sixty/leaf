@@ -68,6 +68,7 @@ import {
   measure,
   nextRender,
   once,
+  openingTitle,
   previewChanged,
   sizeObserver,
 } from "/runtime/portable-api.js";
@@ -357,7 +358,9 @@ customElements.define(
         this.#height = height;
         this.drawing.className = "lf-chart-drawing";
         this.drawing.style.blockSize = layoutPx(height);
-        this.replaceChildren(this.drawing);
+        // The name the chart opens with stays over its drawing (`openingTitle`).
+        const name = openingTitle(this)?.holder;
+        this.replaceChildren(...(name ? [name] : []), this.drawing);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
         resized = () => {

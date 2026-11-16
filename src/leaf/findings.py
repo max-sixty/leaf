@@ -704,6 +704,12 @@ _TEXT = {
     "silent-word": lambda at, v: (
         f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
     ),
+    "dropped-name": lambda at, v: (
+        f'{at} opens with the name "{v["name"]}", which its module drew over, so the'
+        " page never shows it — name the widget where the page shows it, such as a"
+        " heading before it, or have the module keep the name it opens with"
+        " (`openingTitle`)"
+    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (x-state) if a version is meant to carry"

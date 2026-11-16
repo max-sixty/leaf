@@ -1837,11 +1837,14 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     hidden light-DOM span and `querySelector` finds it, so a check written against the
     markup passes on a page whose user is never handed the word. Asking `says()` for
     the words is what tells the two apart — the layer's own reading enters a declared
-    root in the host's stead."""
+    root in the host's stead.
+
+    `lf-blank` draws over its children, the name it opens with among them, so the page
+    never shows a name `page check` admitted, and the gate names it (`dropped-name`)."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
     _author_lying_callout(tmp_path)
-    for tag in ("lf-dusk", "lf-stager", "lf-veil"):
+    for tag in ("lf-dusk", "lf-stager", "lf-veil", "lf-blank"):
         add_test_widget(package, tag, upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
@@ -1877,6 +1880,12 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
             '    const stage = document.createElement("p");\n'
             '    stage.textContent = "The feeder stopped overnight.";\n'
             "    shadowStage(this, [stage]);\n"
+            "  }\n"
+        ),
+        "lf-blank": (
+            "  connectedCallback() {\n"
+            "    if (!once(this)) return;\n"
+            '    this.replaceChildren("Drawn over.");\n'
             "  }\n"
         ),
     }
@@ -1935,6 +1944,7 @@ customElements.define("author-card", class extends HTMLElement {
             '<lf-stager id="staged-note"><strong>Heads up</strong> Staged.</lf-stager>\n'
             '<lf-veil id="veiled-note" label="Escalated">'
             "<strong>Heads up</strong> Clipped words.</lf-veil>\n"
+            '<lf-blank id="blank-note"><strong>Kept name</strong> Words.</lf-blank>\n'
             '<author-card id="author-card"><span slot="lead">Slotted lead.</span>'
             "Unslotted source.</author-card>\n</main>",
         )
@@ -1960,6 +1970,13 @@ customElements.define("author-card", class extends HTMLElement {
     assert {f.values["value"] for f in reported("silent-word")} >= {
         "09:00",
         "Escalated",
+    }, failures
+    # A module that draws over its children takes the name the widget opens with, as
+    # `lf-callout`'s and `lf-blank`'s do; one whose stage keeps it (shadowStage), as
+    # `lf-stager`'s and `lf-veil`'s do, shows it.
+    assert {(f.at, f.values["name"]) for f in reported("dropped-name")} == {
+        ("<lf-callout id=custom-note>", "Heads up"),
+        ("<lf-blank id=blank-note>", "Kept name"),
     }, failures
     # Delivery serves media under the revision, so the issue names that URL.
     issues = [f for f in reading.advice if f.code == "devtools-issue"]

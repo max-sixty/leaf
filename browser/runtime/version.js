@@ -1927,11 +1927,23 @@ export function createVersionController({
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A widget that draws its content itself
   // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
-  // revision that changes it replaces it whatever its class declares.
+  // revision that changes it replaces it whatever its class declares. A widget's
+  // module also draws the name the widget opens with, and each member's, as a tab
+  // strip shows each panel's and a pane names its region by its header
+  // (`openingTitle`), so the shell holds each of those names whole: a revision that
+  // renames one replaces the widget, as one that changes an attribute does.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
-    if (members)
-      for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    const own = openingTitle(element)?.holder;
+    for (const child of element.childNodes) {
+      if (child === own) copy.append(child.cloneNode(true));
+      else if (members) {
+        const member = child.cloneNode(false);
+        const name = child instanceof Element ? openingTitle(child)?.holder : null;
+        if (name) member.appendChild(name.cloneNode(true));
+        copy.append(member);
+      }
+    }
     return copy;
   };
   const reachesMembers = (

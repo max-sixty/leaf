@@ -59,6 +59,7 @@ import {
   offer,
   offerAction,
   once,
+  openingTitle,
   synNodes,
   syntax,
   tabStore,
@@ -258,7 +259,9 @@ customElements.define(
             });
         };
         paintNotes();
-        this.replaceChildren(pre, ...(bar ? [bar] : []));
+        // The name the block opens with stays over its lines (`openingTitle`).
+        const name = openingTitle(this)?.holder;
+        this.replaceChildren(...(name ? [name] : []), pre, ...(bar ? [bar] : []));
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
         const saved = tabStore.get(key);

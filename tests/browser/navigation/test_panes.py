@@ -1336,23 +1336,28 @@ def test_a_pane_is_a_region_named_by_its_header_unless_its_author_named_it(
     browser, serve
 ):
     """A pane is a region named as any element is, by the title its header opens with;
-    an `aria-label` its author gave names it instead."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Panes",
-                '<div class="layout-split">'
-                '<lf-pane id="named"><header><h2>Findings</h2></header>'
-                "<div><p>One.</p></div></lf-pane>"
-                '<lf-pane id="labelled" aria-label="Raw log"><header><h2>Log</h2>'
-                "</header><div><p>Two.</p></div></lf-pane></div>",
-            )
-        ),
-    )
+    an `aria-label` its author gave names it instead. A revision that renames the pane
+    renames its region."""
+
+    def panes(title):
+        return leaf_page(
+            "Panes",
+            '<div class="layout-split">'
+            f'<lf-pane id="named"><header><h2>{title}</h2></header>'
+            "<div><p>One.</p></div></lf-pane>"
+            '<lf-pane id="labelled" aria-label="Raw log"><header><h2>Log</h2>'
+            "</header><div><p>Two.</p></div></lf-pane></div>",
+        )
+
+    page = open_page(browser, live_url(serve(panes("Findings"))))
     expect(page.get_by_role("region", name="Findings", exact=True)).to_have_id("named")
     expect(page.get_by_role("region", name="Raw log", exact=True)).to_have_id(
         "labelled"
+    )
+    stamp_page(serve.page_dir, panes("Open findings"), "rename the findings pane")
+    wait_for_revision(page, 2)
+    expect(page.get_by_role("region", name="Open findings", exact=True)).to_have_id(
+        "named"
     )
 
 

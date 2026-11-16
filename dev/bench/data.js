@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794743868551,
+  "lastUpdate": 1794831012072,
   "repoUrl": "https://github.com/max-sixty/leaf",
   "entries": {
     "Bench at 64 sections": [
@@ -4044,6 +4044,578 @@ window.BENCHMARK_DATA = {
           {
             "name": "threads: resolve shown",
             "value": 95,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Maximilian Roos",
+            "username": "max-sixty",
+            "email": "5635139+max-sixty@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "1740bb536f99b592c4f947a334a1a87f64b172cb",
+          "message": "Name every widget by the markup it opens with, and retire x-name (#6088)\n\nCloses #5595\n\nEvery element Leaf names now takes its name from markup it opens with,\nas a section is named by its heading: a tab, a part, a board column, a\nsample, a pane, a text document, a worktree, a playground control,\nchoice and preset, a timeline run, lane and event, and a trace with its\nbookmarks. The registry's `x-name` key is gone, with the `label`\nattributes it pointed at, the `$attributes` entry that kept `label` as a\nname on every widget (`NAME_ATTRIBUTE`), and the `summary` attribute of\ntabs and parts.\n\n```html\n<lf-part id=\"part-readme\">\n  <header>\n    <strong><code>README.md</code></strong>\n    <p><span class=\"added\">+120</span> <span class=\"removed\">−45</span> lines</p>\n  </header>\n  <article class=\"layout-column\">…</article>\n</lf-part>\n```\n\nThe list of parts shows `README.md` in code type over the coloured\ndiffstat.\n\n## The rule and where it lives\n\nAn element's name is its leading title: a leading `<summary>`, heading\nor `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.\nThe rule already named sections, disclosures and titled members, and now\nnames widgets.\n\nA widget that draws, moves or hides its name takes it only where it\nopens the widget: the title, or the `<header>` or `<hgroup>` holding it,\nis the widget's first element. A quoted sample whose heading follows its\nfirst paragraph keeps the heading where it stands, and a tab whose\nheading follows a paragraph is unnamed, which `page check` refuses.\nWhere a name is only read, as a section's heading after an eyebrow or an\noption's title after its chips, it may follow those elements, as on\nmain: requiring it to open them too would have unnamed 41 options, 66\nsections and 39 list items in the corpus.\n\nEach runtime states the rule once:\n\n- **Browser**: `leading-title.js`. Packages get one reader,\n`openingTitle` (`portable-api.js`, and through it `widget-api.js`),\nwhich returns the name an element opens with as `{title, holder}`, or\nnull: the title naming it, and the holder, its first element, which is\nthat title or the `<header>` or `<hgroup>` around it. The board, tabs,\ntext document, worktree, playground, timeline and version diff read\nnames through it, and a widget draws, moves or hides the holder.\n`leadingTitle`, which reads past an eyebrow or an option's chips, stays\ninternal to the runtime. `addressable-names.js` reads the name's words\nas the author wrote them (`addressableName`) and copies a node's markup\nwithout ids or generated words for a surface that shows a name away from\nits element (`echoCopy`).\n- **Python**: `gesture_words.leading_title_node`, `leading_title` and\n`leading_title_holder`. `tests/name_cases.json` holds both runtimes to\nthe same names and the same holders.\n- **CSS**: one selector, `:first-child:is(summary, h1, h2, h3, h4, h5,\nh6, strong, header, hgroup)`, the holder `openingTitle` returns. CSS\ncan't see text, so it also matches a title that loose text precedes, as\n`strong:first-child` did on main.\n\n## How each widget shows its name\n\n- **Tab strip along a row** shows only each panel's name, so the panel\nkeeps its `<strong>` or `<header>` as the eyebrow over its first\nheading, in the reading theme's `.eyebrow` face, and the block under the\neyebrow takes the panel's top edge as the first block would. The tab's\ncopy is an echo (`says: \"echo\"`), so a comment on the name anchors in\nthe panel. A panel named by a heading keeps the heading as it is.\n- **Side list and a page's parts** show the name with the summary under\nit, so on screen the panel hides its name and the list's copy is the\npage speaking (`says: true`): page search finds the name in the list and\na comment on it anchors there. On paper the list is gone and each item\nprints under its name. A side list reserves a summary's line before\nupgrade from a panel's header, so a phone's row strip keeps its height\nwhen the module draws.\n- **Column, sample, pane, text document, worktree**: the authored name\nstands where the widget draws one. A text document's name heads its\nframe and names its figure. A worktree's `<strong>` stands in its row's\nroom from first paint, before the module slots it into the row. A pane's\nregion is named by its header's title unless its author gave it an\n`aria-label`.\n- **Playground control, choice and preset**: the name stays the\nelement's first child, hidden once the playground draws, and the view\ndraws a copy as the radio's label or on the preset's button. The\nplayground refuses a name holding a link, a control or a widget, which\nthe copy would nest inside that control. Its list of such tags and page\ncheck's are held together by `tests/nested_name_cases.json`, which both\nruntimes answer.\n- **Code block, chart, draft, diagram, diff**: a widget that draws its\nown content keeps the name it opens with over what it draws. The four\nlight-DOM modules put the holder back first when they replace their\nchildren, and `shadowStage`, the runtime's helper for a shadow-DOM\nwidget, keeps it in the light tree and slots it alone at the top of the\nstage, which covers the diff, the file tree and the file editor.\n- **Places that take only text** read `addressableName`: every tab's and\npane's `aria-label`, a thread card's heading, the timeline's chart\nlabels, the trace chooser and the board's announcements. Each panel is\nlabelled by its tab.\n\n## Checks\n\n- Under `x-content: members` and `data`, a widget may open with the\nelement its name stands in, a title or a `<header>` holding one, before\nits members or its `<pre>`. A `<header>` with no title names nothing and\nstays a stray member. Which widgets take a name is what their modules\nkeep: `page check --render` reports a name a module drew over\n(`dropped-name`), so a package's module that drops one hears it, with no\nper-widget key.\n- A revision that renames a tab, a part or a pane replaces the widget,\nas one that changed its `label` did: a members-patched widget's shell\nholds its own opening name and each member's whole.\n- `page check` refuses a view whose name doesn't open it\n(`unnamed-view`), and a link, control or widget in a view's header,\nwhich its tab, a control, copies (`interactive-name`). Another widget's\nname is drawn in place or read as words, so a question's heading or an\noption's title may link a pull request.\n- `x-says` is a list of attribute names, each said after the element's\nwords. Its `before` edge served only the column and sample labels this\nchange retires.\n\n## Evidence\n\n- **Corpus**: all 57 pages under `examples/`, `examples/developer/`,\n`docs/` and `tests/fixtures/pages/` build and pass `leaf page check`.\n- **Tests**: `pnpm run test:runtime` 992 passed; `pnpm run\ncheck:browser` clean; the touched model tests (959) pass; 191 browser\nand journey tests across the tab, document, workspace, playground,\nsample and version-diff files, the worktree rows, the pane names, the\nanchors selections, and the four tests CI failed on the first head pass.\n- **New tests**: a comment on a side list's name anchors on the list's\ncopy and survives a revision (fails on `says: \"echo\"`); an author's\n`aria-label` names a pane (fails when the header always wins); a quoted\nsample's heading after its first paragraph stays a heading (fails on the\nlenient selector); a tab whose heading follows a paragraph is refused; a\nplayground refuses a link in a preset's name; a code block, a draft and\na diff keep and show the name they open with; a revision that renames a\ntab reaches its strip and one that renames a pane its region (both\nfailed before); the render gate reports a widget that draws over its\nname; a removal that empties a nameless box stands in it, the version\ndiff's `gapIn`, which kept no test once a tab keeps its name.\n- **A stale journey**: `test_render_shift_watch.py`, which this branch\nedits and so CI runs, expected a message head to say \"just now\"; since\n#6097 a head says its clock time, so the journey now advances days\n(\"Yesterday 22:10\", \"13 Nov 22:10\") and still holds the thread in place.\n- **Probes**: a printed queue (`alert-review`) shows each item's header\nunder its group, where main printed the group and label together; a\nnamed text document's figure reads as `figure \"Reviewed\"`.\n- **Page search** on the root parts (`root-parts`): Workbench 4,\nEvidence 6, Plan 7, as on main.\n- **Stills** (`leaf-dev stills --authored` against main; Chromium and\nFirefox light, Chromium dark): the side list and the root parts are\npixel-identical to main. Both text documents' caption bars match main in\nboth schemes. A worktree's first paint differs only by its name standing\nin the row's room, which main leaves empty, with its body where main's\nis (Chromium only, since Firefox can't hold the runtime). The gallery's\npage of parts gains the `README.md` part, in code type over +120 −45.\nEach horizontal tab panel shows its name as the eyebrow over its first\nheading, in the face of a section's eyebrow under it: the root tabs, the\ngallery and a boxed set. A printed queue (`printed-queue`, new) prints\neach item's group, then its name and summary, where main printed the\ngroup and name on one line. A quoted sample whose heading follows its\nfirst paragraph keeps the heading where main does (`leaf-dev probe`\npair).\n- **Evals** (Claude Code, paired base): every head sample (8) wrote each\nname as markup and passed `page check`; base wrote `label` attributes.\nRubric results, head vs base: queue 1/1 vs 1/1; presets 2/3 vs 3/3;\nparts 0/4 vs 3/4, every head sample choosing a `layout-sidebar` with a\ncontents outline, which the rubric then refused and accepts since #6111.\n\n## Calls Max may reverse\n\n- **The eyebrow takes a `<strong>` or `<header>` name only**; a heading\nthat names a panel stays a heading.\n- **`x-says` became a list** rather than a map whose only value is\n`after`.\n- **A text document's caption bar keeps the figure's ground**: code's\nunder a source capture, the page's under a preview's tabs. Dropping the\nground made a source capture's caption paper where main's is white.\n- **A widget draws only a name that opens it, and only where a widget\ndraws its name**; reading a name stays as lenient as main's, past an\neyebrow or an option's chips.\n- **Only a view's name is required** (`unnamed-view`); columns,\ncontrols, choices and events may go unnamed.\n- **`lf-event` and `lf-trace-bookmark` declare `x-content: members` with\nno members** to hold only a name.\n\n## Adds\n\n- `openingTitle` in `portable-api.js`, returning `{title, holder}`;\n`addressableName` and `echoCopy` in `widget-api.js`, documented in\n`module-reading.md`.\n- `tests/nested_name_cases.json`, which the validator's `nested_in` and\nthe playground's `nestedIn` both answer.\n- The findings `unnamed-view` and `interactive-name`; the content-model\nrule that admits a leading name; the playground's refusal of a name\nholding a control.\n- `slot=\"lf-worktree-name\"` on a worktree's authored name, and\n`slot=\"lf-name\"` on the name of a widget `shadowStage` stages; the\n`parts-list` and `printed-queue` stills states.\n- The render finding `dropped-name` (`droppedNames`,\n`render-checks/words.js`).\n\n## Not verified\n\n- Page search finds a worktree's name and its branch separately, but no\nquery spanning both, which it did when both were the row's generated\nwords.\n- Option labels, board card titles and the quiet word's seat still read\n`:scope > strong`, a lookup that predates `x-name` and agrees with the\nrule wherever no text precedes the title.\n-\n`tests/journeys/margin/test_card_placement.py::test_the_shipped_long_thread_keeps_the_margin_and_its_height`\nfails here with a 320 px card where it asks for 379: #5991, on main,\nmade a card slim at 320 px until a message stands tall and left this\nassertion as it was. It fails without this branch's thread-card change\ntoo.",
+          "timestamp": "2026-11-16T10:35:01Z",
+          "url": "https://github.com/max-sixty/leaf/commit/1740bb536f99b592c4f947a334a1a87f64b172cb"
+        },
+        "date": 1794831010541,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "documents: load cpu",
+            "value": 823.03,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: design cpu",
+            "value": 50.17,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: draw cpu",
+            "value": 80.92,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: capture cpu",
+            "value": 164.65,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: data cpu",
+            "value": 119.69,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: reveal cpu",
+            "value": 113.71,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: search cpu",
+            "value": 43.34,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: matches cpu",
+            "value": 2014.06,
+            "unit": "ms"
+          },
+          {
+            "name": "documents: browse cpu",
+            "value": 39.6,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: load cpu",
+            "value": 1502.54,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click cpu",
+            "value": 43.11,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: key cpu",
+            "value": 14.08,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: leave cpu",
+            "value": 41.52,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: tab cpu",
+            "value": 32.64,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: scroll cpu",
+            "value": 5.81,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: hover cpu",
+            "value": 2.36,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: design cpu",
+            "value": 483.43,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: draw cpu",
+            "value": 151.72,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: capture cpu",
+            "value": 284.55,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: revision cpu",
+            "value": 284.07,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: stamp cpu",
+            "value": 273.05,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: select cpu",
+            "value": 77.24,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: open cpu",
+            "value": 100.88,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment cpu",
+            "value": 176.06,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve cpu",
+            "value": 122.55,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: reply cpu",
+            "value": 80.08,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: status cpu",
+            "value": 25.93,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: click shown",
+            "value": 65.65,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: comment shown",
+            "value": 186.2,
+            "unit": "ms"
+          },
+          {
+            "name": "asks: resolve shown",
+            "value": 108.8,
+            "unit": "ms"
+          },
+          {
+            "name": "document: load cpu",
+            "value": 612.61,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click cpu",
+            "value": 53.36,
+            "unit": "ms"
+          },
+          {
+            "name": "document: key cpu",
+            "value": 18.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: leave cpu",
+            "value": 37.12,
+            "unit": "ms"
+          },
+          {
+            "name": "document: tab cpu",
+            "value": 39.1,
+            "unit": "ms"
+          },
+          {
+            "name": "document: scroll cpu",
+            "value": 10.81,
+            "unit": "ms"
+          },
+          {
+            "name": "document: hover cpu",
+            "value": 1.1,
+            "unit": "ms"
+          },
+          {
+            "name": "document: design cpu",
+            "value": 62.06,
+            "unit": "ms"
+          },
+          {
+            "name": "document: draw cpu",
+            "value": 80.37,
+            "unit": "ms"
+          },
+          {
+            "name": "document: capture cpu",
+            "value": 157.27,
+            "unit": "ms"
+          },
+          {
+            "name": "document: revision cpu",
+            "value": 116.39,
+            "unit": "ms"
+          },
+          {
+            "name": "document: stamp cpu",
+            "value": 106.73,
+            "unit": "ms"
+          },
+          {
+            "name": "document: select cpu",
+            "value": 67.26,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment cpu",
+            "value": 208.77,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve cpu",
+            "value": 122.19,
+            "unit": "ms"
+          },
+          {
+            "name": "document: reply cpu",
+            "value": 97.72,
+            "unit": "ms"
+          },
+          {
+            "name": "document: status cpu",
+            "value": 45.67,
+            "unit": "ms"
+          },
+          {
+            "name": "document: click shown",
+            "value": 39.45,
+            "unit": "ms"
+          },
+          {
+            "name": "document: comment shown",
+            "value": 178.5,
+            "unit": "ms"
+          },
+          {
+            "name": "document: resolve shown",
+            "value": 104.7,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: load cpu",
+            "value": 464.27,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click cpu",
+            "value": 30.51,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: key cpu",
+            "value": 11.93,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: leave cpu",
+            "value": 21.81,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: tab cpu",
+            "value": 28.81,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: scroll cpu",
+            "value": 2.42,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: hover cpu",
+            "value": 2.71,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: design cpu",
+            "value": 88.05,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: draw cpu",
+            "value": 42.44,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: capture cpu",
+            "value": 61.25,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: revision cpu",
+            "value": 72.55,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: stamp cpu",
+            "value": 87.56,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: select cpu",
+            "value": 57.16,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment cpu",
+            "value": 185.18,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve cpu",
+            "value": 77.14,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: reply cpu",
+            "value": 68.58,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: status cpu",
+            "value": 20.26,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: click shown",
+            "value": 33.05,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: comment shown",
+            "value": 179.2,
+            "unit": "ms"
+          },
+          {
+            "name": "prose: resolve shown",
+            "value": 74.8,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: load cpu",
+            "value": 491.55,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click cpu",
+            "value": 28.55,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: key cpu",
+            "value": 12.32,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: leave cpu",
+            "value": 25.29,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: tab cpu",
+            "value": 38.84,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: scroll cpu",
+            "value": 3.41,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: hover cpu",
+            "value": 1.07,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: design cpu",
+            "value": 46.85,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: draw cpu",
+            "value": 42.66,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: capture cpu",
+            "value": 63.75,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: revision cpu",
+            "value": 75.52,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: stamp cpu",
+            "value": 75.26,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: select cpu",
+            "value": 63.98,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment cpu",
+            "value": 184.52,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve cpu",
+            "value": 104.47,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: reply cpu",
+            "value": 65.65,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: status cpu",
+            "value": 19.95,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: click shown",
+            "value": 37.5,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: comment shown",
+            "value": 173.6,
+            "unit": "ms"
+          },
+          {
+            "name": "rows: resolve shown",
+            "value": 90.2,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: load cpu",
+            "value": 711.7,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click cpu",
+            "value": 52.94,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: key cpu",
+            "value": 13.07,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: leave cpu",
+            "value": 22.78,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: tab cpu",
+            "value": 54.68,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: scroll cpu",
+            "value": 3.72,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: hover cpu",
+            "value": 4.69,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: design cpu",
+            "value": 94.31,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: draw cpu",
+            "value": 67.99,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: capture cpu",
+            "value": 94.46,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: revision cpu",
+            "value": 98.15,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: stamp cpu",
+            "value": 102.33,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: select cpu",
+            "value": 71.13,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment cpu",
+            "value": 274.27,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve cpu",
+            "value": 141.62,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: reply cpu",
+            "value": 92.97,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: status cpu",
+            "value": 21.94,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: click shown",
+            "value": 55.3,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: comment shown",
+            "value": 185.1,
+            "unit": "ms"
+          },
+          {
+            "name": "threads: resolve shown",
+            "value": 125.9,
             "unit": "ms"
           }
         ]

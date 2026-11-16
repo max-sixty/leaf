@@ -240,11 +240,10 @@
     inset-inline-end: 3px;
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
   }
-  /* Raised by its position alone, so the dot leaves the line's height, and the word
-     beside it, where they stand without it. */
+  /* Set at the text's top, so the whole dot stands inside the label's clipped line and
+     leaves the line's height, and the word beside it, where they stand without it. */
   .lf-fp-label > .lf-fp-error-dot {
-    position: relative;
-    top: -0.6em;
+    vertical-align: text-top;
     margin-inline-start: 2px;
   }
   .lf-fp-field {

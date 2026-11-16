@@ -33,6 +33,9 @@
           grid-row: auto;
           grid-column: auto;
         }
+        #dc-files {
+          --lf-file-tree-height: 20rem;
+        }
       }
     </style>
   </head>
@@ -40,12 +43,6 @@
     <main class="layout-workspace density-working" id="dc-workspace">
       <header>
         <h1>Four settings before receipts-worker ships</h1>
-        <p id="dc-lede">
-          I wrote the production values, alerts, deploy workflow and runbook from what
-          staging measured. Four settings are yours, each a <code>TODO(you)</code> in
-          its file. Edit them here: each file saves to disk as you type, and I render
-          the chart against staging once they're set.
-        </p>
       </header>
       <div id="dc-regions">
         <lf-pane id="dc-files-pane" label="Files">
@@ -57,28 +54,33 @@
         </lf-pane>
         <lf-pane id="dc-yours-pane" label="Yours to set">
           <section id="dc-yours">
-            <h2>Yours to set</h2>
+            <p id="dc-lede">
+              I wrote the production values, alerts, deploy workflow and runbook from
+              what staging measured. Four settings are yours, each a
+              <code>TODO(you)</code> in its file. Each file saves to disk as you type,
+              and I render the chart against staging once they're set.
+            </p>
             <ol>
               <li id="dc-replicas">
                 <strong>Pods at the morning peak.</strong> One pod renders 46 receipts a
                 minute; the 09:00 peak is 130. Three pods leave 6% headroom, four leave
                 41%.
-                <a href="#dc-editor:values-production">values-production.yaml</a>
+                <a href="#dc-editor:values-production:8">values-production.yaml</a>
               </li>
               <li id="dc-memory">
                 <strong>Memory limit.</strong> Chromium peaked at 1.35Gi in staging at
                 four renders a pod. I set 1536Mi; a pod over it is killed mid-render.
-                <a href="#dc-editor:values-production">values-production.yaml</a>
+                <a href="#dc-editor:values-production:29">values-production.yaml</a>
               </li>
               <li id="dc-paging">
                 <strong>Who a backlog pages.</strong> I routed it to payments on-call,
                 whose cluster runs the queue.
-                <a href="#dc-editor:alerts">alerts.yaml</a>
+                <a href="#dc-editor:alerts:22">alerts.yaml</a>
               </li>
               <li id="dc-escalation">
                 <strong>Who to call next.</strong> The runbook's escalation, for a
                 backlog on-call can't clear in an hour.
-                <a href="#dc-editor:runbook">receipts-worker.md</a>
+                <a href="#dc-editor:runbook:36">receipts-worker.md</a>
               </li>
             </ol>
             <p id="dc-checked">

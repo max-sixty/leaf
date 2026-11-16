@@ -2095,8 +2095,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
 
     claimPress acts whether or not a composer stands open. Holding ⌥ over a second item
     raises its box beside the draft's own mark; two at once is the true state — where
-    the draft stands, and where the next comment would land. The press carries the typed
-    text onto the new anchor."""
+    the draft stands, and where the next comment would land. The press opens the card's
+    own draft, and the heading keeps the words typed about it."""
     page = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -2105,7 +2105,7 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.up("Alt")
     composer = page.locator(".lf-composer")
     open_compact_comment(page)
-    write(composer.locator("leaf-text"), "carried words")
+    write(composer.locator("leaf-text"), "words about the heading")
 
     card = page.locator("#card-notes")
     card.hover()
@@ -2113,18 +2113,18 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     promised = [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)]
     assert promised == ["card-notes", "t"], (
         f"holding ⌥ over a card with a draft open on the heading showed {promised} as "
-        "[aim, draft], so the press that would move the draft is blind"
+        "[aim, draft], so the press that would open the card's box is blind"
     )
     card.click()
     page.keyboard.up("Alt")
-    # The second explicit comment gesture moves the open draft onto the card.
+    # The second explicit comment gesture opens the card's own draft.
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(composer.locator("leaf-text")).to_be_focused()
-    expect(composer.locator("leaf-text")).to_have_js_property("value", "carried words")
+    expect(composer.locator("leaf-text")).to_have_js_property("value", "")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [
         None,
         "card-notes",
-    ], "the press re-anchored the draft, so its new anchor alone should stand marked"
+    ], "the press opened the card's box, so the card alone should stand marked"
     round_trip(page)
     assert [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

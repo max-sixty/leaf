@@ -389,8 +389,8 @@ independent clocks, such as the page's timers, its rendering updates, the server
 test's own steps, so a test makes every order it relies on between them itself, by
 holding or stepping one clock or by waiting for the event that ends the other's work
 (below, and "Races"). Check a test against the rule by running it starved of CPU,
-which slows every process at once ("Races"). CI checks it in the daily run, not in a
-landing gate.
+which slows every process at once ("Races"). CI's daily macOS job runs the suite that
+way, with more workers than the runner has cores; no landing gate does.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound

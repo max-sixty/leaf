@@ -2388,33 +2388,39 @@ def versions_menu(page: Page) -> None:
 
 def all_pages(page: Page) -> None:
     """All pages with two neighbours of one title, told apart only by where their
-    sessions work. A stills server has no neighbour of its own, so a rewritten state
-    supplies them."""
+    sessions work. A stills server has no neighbour of its own, so its news names a
+    list of pages, which `/api/pages` answers with them."""
+    activity = PageClient(served_page.get().address).state()["activity"]
+    neighbours = [
+        {
+            "page_key": place,
+            "url": f"http://127.0.0.1:9/{place}",
+            "title": "Move Tend's agent runs into one sandbox and retire its setup",
+            "session_cwd": f"/workspace/tend.{place}",
+            "activity": {
+                **activity,
+                "kind": "working",
+                "dropped": None,
+                "awaiting": None,
+                "detail": "Running the sandbox suite against both harnesses",
+            },
+        }
+        for place in ("sandbox-runner", "release-notes")
+    ]
 
     def with_neighbours(route):
         response = route.fetch()
-        state = response.json()
-        state["others"] = [
-            {
-                "page_key": place,
-                "url": f"http://127.0.0.1:9/{place}",
-                "title": "Move Tend's agent runs into one sandbox and retire its setup",
-                "session_cwd": f"/workspace/tend.{place}",
-                "activity": {
-                    **state["activity"],
-                    "kind": "working",
-                    "dropped": None,
-                    "awaiting": None,
-                    "detail": "Running the sandbox suite against both harnesses",
-                },
-            }
-            for place in ("sandbox-runner", "release-notes")
-        ]
-        route.fulfill(response=response, json=state)
+        route.fulfill(response=response, json={**response.json(), "pages": "stills"})
 
-    page.route("**/api/state*", with_neighbours)
-    page.reload()
-    wait_until_ready(page)
+    page.route("**/api/news*", with_neighbours)
+    page.route("**/api/pages*", lambda route: route.fulfill(json=neighbours))
+    # A predicate's promise reads as a truthy answer, so the check API is imported first.
+    page.evaluate("""async () => {
+        const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+        const api = await import(new URL('runtime/check-api.js', new URL(boot, location.href)));
+        window.__lfLeavesOffered = api.leavesOffered;
+    }""")
+    page.wait_for_function("() => window.__lfLeavesOffered()")
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     page.locator(panel_view("leaves")).wait_for()

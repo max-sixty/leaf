@@ -27,6 +27,7 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
+    all_pages_offered,
     available_commands,
     back_gesture,
     consume_browser_errors,
@@ -1525,6 +1526,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
     leaves = page.locator(panel_view("leaves"))
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
     expect(leaves).to_be_hidden()

@@ -315,6 +315,14 @@
    * the measure from the box's start edge (base.css). Ordinary boxes contain their
    * children, so a list item, custom grid or frame needs no geometry policing.
    *
+   * Rejected (15 November 2026): the column as a grid of named lines (`prose`, `wide`,
+   * `full`), each flow in it a subgrid, which placed every breakout where this does
+   * without the room's arithmetic below. A grid item's margins don't collapse, so a
+   * section's box took in its heading's top margin: the ring Leaf draws round a section
+   * stood above the heading and cut the line before it, and the section's landing and
+   * margin entries moved up with it. Restoring them would take a rule for each kind of
+   * block that can open a section.
+   *
    * The room past the gutter on each side of the column is what a block declaring a
    * wider space breaks into (Breakouts, below). Only the Layout's box
    * (`--lf-layout-box`, above) has room: it stands in a size container as wide as its

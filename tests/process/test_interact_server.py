@@ -1244,7 +1244,9 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
     status, raw = fetch(f"{server}/api/state")
     assert status == 200, raw
     served = json.loads(raw)
-    assert served["others"] and served["browser"]["views"]
+    assert served["browser"]["views"]
+    # The list of other pages is an answer of its own, held to its schema by `fetch`.
+    assert json.loads(fetch(f"{server}/api/pages")[1])
     for state in (answered, served):
         assert served_state_error(state, "answer") is None, served_state_error(
             state, "answer"
@@ -2446,15 +2448,10 @@ def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
     assert set(state["browser"]["views"]) == {"1", "3"}
 
 
-def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
-    server, page_dir, monkeypatch
-):
-    """A retry needs the accepted log snapshot, not a lease over other pages.
-
-    Neighbour discovery is independent I/O. The normal state path releases this
-    page before doing it, and an accepted retry must take the same route so a slow
-    neighbour cannot hold this page's writers behind it.
-    """
+def test_a_state_answer_reads_nothing_of_another_page(server, page_dir, monkeypatch):
+    """A state answer is the page's own, whether a read asks for it or an accepted
+    retry carries it: neither scans the machine's other pages, so a slow or faulty
+    neighbour can neither hold this page's writers nor change what it reads."""
     publish(page_dir)
     sent = {
         "kind": "comment",
@@ -2464,28 +2461,14 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     }
     assert fetch(f"{server}/api/event", data=json.dumps(sent).encode())[0] == 200
 
-    own_state_read = threading.Event()
-    scanned = threading.Event()
-    original = served_page.read_served_page
+    def neighbours(_directory):
+        raise AssertionError("a state answer scanned the machine's other pages")
 
-    def own_state(*args, **kwargs):
-        assert leases_model.lock_is_held(page_dir / "events.jsonl")
-        own_state_read.set()
-        return original(*args, **kwargs)
-
-    def neighbours(directory):
-        assert directory == page_dir
-        assert not leases_model.lock_is_held(page_dir / "events.jsonl")
-        scanned.set()
-        return []
-
-    monkeypatch.setattr(served_page, "read_served_page", own_state)
     monkeypatch.setattr(presence_model, "neighbor_reading", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
-
     assert status == 200, body
-    assert own_state_read.is_set()
-    assert scanned.is_set()
+    status, body = fetch(f"{server}/api/state")
+    assert status == 200, body
 
 
 def test_a_state_fault_after_append_leaves_the_attempt_retryable(
@@ -2894,7 +2877,9 @@ def _news(server):
         f"{server}/api/news?t={TOKEN}", timeout=STATED_TIMEOUT
     ) as response:
         assert response.headers.get("Cache-Control") == "no-cache"
-        return response.read().decode()
+        answer = json.loads(response.read())
+    assert served_state_error(answer, "NewsAnswer") is None
+    return answer
 
 
 def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
@@ -2903,20 +2888,52 @@ def test_freshness_names_the_state_reading_and_changes_with_the_page(server, pag
     After a source save, the token a tab sees already names the revision the state
     read it prompts will answer with, so the tab reads once."""
     publish(page_dir)
-    first = _news(server)
+    first = _news(server)["reading"]
     assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
-    assert _news(server) != first
-    assert _news(server) == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    assert _news(server)["reading"] != first
+    assert (
+        _news(server)["reading"]
+        == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    )
 
     (page_dir / "index.html").write_text(PAGE.replace("<p>", "<p>Revised. ", 1))
-    saved = _news(server)
+    saved = _news(server)["reading"]
     revised = json.loads(fetch(f"{server}/api/state")[1])
     assert revised["active"]["revision"] == 2
     assert revised["reading"] == saved
+
+
+def test_another_pages_change_moves_only_the_pages_reading(server, page_dir):
+    """A page's reading is its own. Another page arriving, or its agent starting
+    work, leaves this page's news reading and state as they were and moves only the
+    pages reading the news names beside it, so an open tab reads the list of pages
+    again (`/api/pages`) and never its own state. With no other page live, the news
+    names no list at all."""
+    publish(page_dir)
+    alone = _news(server)
+    assert alone["pages"] is None
+    assert json.loads(fetch(f"{server}/api/pages")[1]) == []
+
+    neighbor = cleanup_model.state_home() / "pages" / "neighbor"
+    neighbour_page(neighbor, title="Neighbor")
+    arrived = _news(server)
+    assert arrived["reading"] == alone["reading"]
+    assert arrived["pages"] is not None
+    [row] = json.loads(fetch(f"{server}/api/pages")[1])
+    assert row["title"] == "Neighbor"
+
+    declare_work(neighbor, "measuring")
+    server_rows_model.RowPublisher(neighbor, "fixture-server").refresh()
+    working = _news(server)
+    assert working["reading"] == alone["reading"]
+    assert working["pages"] not in (None, arrived["pages"])
+    [row] = json.loads(fetch(f"{server}/api/pages")[1])
+    assert row["activity"]["detail"] == "measuring"
+    assert json.loads(fetch(f"{server}/api/state")[1])["reading"] == alone["reading"]
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
@@ -2925,21 +2942,21 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     """Several freshness reads share one presence observation until the page moves.
 
     The cache is a reading cache, not a second authority: rewriting a page-owned
-    file invalidates it immediately, while a repeated quiet observation does not
-    call the neighboring-page scan again.
+    file invalidates it immediately, while a repeated quiet read takes no fresh
+    observation of the processes and leases behind it.
     """
     # The cache's two-second age would expire it on a slow machine; age isn't the
     # subject here.
     monkeypatch.setattr(presence_model, "PRESENCE_CACHE_S", STATED_TIMEOUT)
-    real_other_leaves = presence_model.other_leaves
+    real_live_facts = presence_model.live_facts
     calls = 0
 
-    def counted_other_leaves(directory):
+    def counted_live_facts(*args, **kwargs):
         nonlocal calls
         calls += 1
-        return real_other_leaves(directory)
+        return real_live_facts(*args, **kwargs)
 
-    monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
+    monkeypatch.setattr(presence_model, "live_facts", counted_live_facts)
 
     def reading():
         files = served_reading.page_reading(page_dir)
@@ -2952,7 +2969,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     declare(page_dir, "waiting")
     refreshed = reading()
     assert refreshed == first
-    assert calls == 1
+    assert calls == 2
 
 
 def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
@@ -3878,7 +3895,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        assert _news(server.origin) == snapshot.reading
+        assert _news(server.origin) == {"reading": snapshot.reading, "pages": None}
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
@@ -4891,7 +4908,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     assert json.loads(raw)["status"] == {"state": "waiting"}
 
 
-def test_others_ships_on_a_network_facing_bind_too(page_dir):
+def test_other_pages_ship_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
     neighbour_page(
         cleanup_model.state_home() / "pages" / "live", title="The other page"
@@ -4901,8 +4918,8 @@ def test_others_ships_on_a_network_facing_bind_too(page_dir):
     )
     with running_http_server(httpd):
         port = httpd.server_address[1]
-        state = json.loads(fetch(f"http://127.0.0.1:{port}/api/state")[1])
-    assert [entry["title"] for entry in state["others"]] == ["The other page"]
+        pages = json.loads(fetch(f"http://127.0.0.1:{port}/api/pages")[1])
+    assert [entry["title"] for entry in pages] == ["The other page"]
 
 
 def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(

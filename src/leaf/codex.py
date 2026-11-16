@@ -118,7 +118,6 @@ from .delivery import (
     batch_refs,
     current_responses,
     deliverable,
-    delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
@@ -2043,14 +2042,11 @@ class PreparedDelivery:
 
 
 def _readdress_record(path: Path) -> Path:
-    """Give a collecting record a fresh identity after a delivery collision."""
-    while True:
-        candidate = new_delivery_id()
-        replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or delivery_path(candidate).exists():
-            continue
-        path.replace(replacement)
-        return replacement
+    """Give a collecting record a fresh identity where its id's envelope already
+    holds other input."""
+    replacement = path.with_name(f"{new_delivery_id()}.json")
+    path.replace(replacement)
+    return replacement
 
 
 @dataclass(frozen=True)
@@ -2140,11 +2136,7 @@ def append_batch(
     """Append fresh events to the task's one collecting record."""
     current = _collecting_record(session_id)
     if current is None:
-        while True:
-            delivery_id = new_delivery_id()
-            path = record_path(session_id, delivery_id)
-            if not path.exists() and not delivery_path(delivery_id).exists():
-                break
+        path = record_path(session_id, new_delivery_id())
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
     else:

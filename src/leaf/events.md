@@ -394,8 +394,9 @@ to-do is made from an obligation.
   is held while the thread is open.
 - A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. An
-  agent's message written with `leaf thread create` or the reply commands draws the
-  HTML in its text instead, widgets included, and carries `html: true` where its text
+  agent's message written with `leaf thread create` or the reply commands, or a
+  question Leaf's turn-end check asks as the agent's (`clerk.py`), draws the HTML in
+  its text instead, widgets included, and carries `html: true` where its text
   holds any (`passages.message_markup`), validated against the page's registry. The
   door refuses a Markdown link or image to a `/media/…` path the page directory cannot
   answer.

@@ -15,11 +15,15 @@ variants:
   ask-question:
     metadata:
       scenario: ask-question
-      purpose: A decision the agent's last reply left to the user goes On Me as a question.
+      purpose: A decision between two answers the agent's last reply left to the user goes On Me as a choice of them.
+  ask-choice:
+    metadata:
+      scenario: ask-choice
+      purpose: A three-way decision the agent's reply left to the user, with its advice, goes On Me as a choice of the three with the advised one marked.
   ask-step:
     metadata:
       scenario: ask-step
-      purpose: A command the agent asked the user to run goes On Me as a step, in a new thread beside a closed ask on another subject.
+      purpose: A command the agent asked the user to run goes On Me as a step asked in words, in a new thread beside a closed ask on another subject.
   ask-follow-up:
     metadata:
       scenario: ask-follow-up

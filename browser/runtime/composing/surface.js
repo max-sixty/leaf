@@ -36,8 +36,8 @@
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
    the durable draft and takes the focus decision. Every explicit item and visual route
-   passes its resolved anchor to `commentOnTarget`, which focuses the field and carries an
-   unsent draft to the new target. Automatic passage selection opens that passage's own
+   passes its resolved anchor to `commentOnTarget`, which focuses the field on the
+   target's own draft; an earlier draft stays with its passage. Automatic passage selection opens that passage's own
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 
@@ -147,6 +147,7 @@ import {
   pressIsKeyboardActivation,
 } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
+import { seatOf } from "../thread/model.js";
 
 import { livePoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
@@ -290,8 +291,18 @@ export function createResponseSurface({
   // Whether the bar stands inline in an outlet or floats, said as the one attribute the
   // stylesheets read. Floating, the selected presentation decides whether it shows
   // (`data-lf-placement`, `data-lf-withheld`); core writes no visibility of its own.
-  const presentFab = () =>
+  // The label of the hold the outlet the bar stands in offers (its `lfHold`,
+  // thread/surfaces.js), a signal since the field draws its second send from it. A
+  // comment holds the widget it is about and nothing in it, so the hold is offered only
+  // on the widget's own target.
+  /** @type {import("@preact/signals-core").Signal<string | null>} */
+  const fabHold = signal(null);
+  const fabHoldAt = () =>
+    seatOf({ anchor: fabAnchor.value, about: pendingAbout }) ? fabHold.value : null;
+  const presentFab = () => {
     keeps(fabBar, "data-lf-presentation", fabInlineOutlet ? "inline" : null);
+    fabHold.value = fabInlineOutlet?.lfHold ?? null;
+  };
 
   /** @param {Element} outlet */
   function seatFab(outlet) {
@@ -1062,6 +1073,7 @@ export function createResponseSurface({
     openPageThread,
     anchorTravelAt,
     fabAnchorAt,
+    fabHoldAt,
     fabPointAt,
     fabFrameAt,
     fabPositioned,
@@ -1319,14 +1331,14 @@ export function createResponseSurface({
   }
 
   // ---------- where "comment" goes ----------
-  // The thread the user is in, and the box it is written in. Three
-  // containers hold one and the user can enter any of them: the panel's thread, a
-  // thread seated on the page (x-thread-seat), and each thread inside that seat.
+  // The thread the user is in, and the box it is written in. Two
+  // containers hold one and the user can enter either: the panel's thread, and a thread
+  // drawn on the page, in a card or in a widget's outlet.
   // They are one question — a press meaning "say something about this" belongs to the box
   // of the thread the user is already in — so they get one reading rather than a
   // rule for the panel and a different one for the page.
   //
-  // One of the three is in the chrome, which is not the exception it looks like: page scope
+  // One of the two is in the chrome, which is not the exception it looks like: page scope
   // already crosses there. A page key that takes the user somewhere owes them an answer
   // once they are there.
   //
@@ -1557,12 +1569,13 @@ export function createResponseSurface({
   });
 
   // Tab opens responses from the editor, outside a list item, where the editor takes
-  // Tab to nest it; attachments keep native traversal.
+  // Tab to nest it; attachments keep native traversal, and so does a box offering a
+  // second send (`fabHoldAt`), which Tab reaches past Send.
   // Project this alongside the input owner's submit scope rather than replacing it.
   const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
-      keys: () => (composer.responseOptionsAreOpen() ? [] : ["Tab"]),
+      keys: () => (composer.responseOptionsAreOpen() || fabHoldAt() ? [] : ["Tab"]),
       title: "other responses",
       control: fabOptionsTrigger,
       when: fabOptionsAvailable,

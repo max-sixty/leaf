@@ -83,10 +83,6 @@ for (const [name, read] of Object.entries({
 }))
   Object.defineProperty(viewport, name, { configurable: true, get: read });
 window.visualViewport ??= viewport;
-// happy-dom's `elementFromPoint` finds nothing, since nothing is laid out, and it lacks
-// `elementsFromPoint`, which root-headers.js asks of the window's top: nothing stands
-// there either.
-document.elementsFromPoint ??= () => [];
 // Nor does it run animations, so none is under way.
 document.getAnimations ??= () => [];
 // happy-dom's computed style is the declared style: no initial values, and no

@@ -1,22 +1,63 @@
-/* Authored remarks keep their prose face before and after shadow staging. */
+/* Authored remarks keep their prose face before and after shadow staging. A note is a
+   small card under its source row, as an lf-code note is (default package, code.css):
+   its left edge at the code's first column, a caret pointing up at it, and its words a
+   size smaller than the code's. The code column is the rows' gutter and sign in the
+   code's face, registered as a length so the note, set in another face, resolves it
+   in the code's `ch` (widget-shadow.css sets it on the rows). */
+@property --lf-diff-code-at {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 18px;
+}
 /* Source rows sit inside the file's one-pixel inline borders. Reserve that
    inset while notes still stand beside the authored patch. */
 lf-diff > lf-diff-note {
   margin-inline: 1px;
 }
+/* Its spacing is padding and the card is drawn inside it, so the box is the same
+   width beside the patch and docked under its row, where the reader's width sets it
+   (widget-shadow.css); unlike an lf-code note's, the card spans that width rather
+   than fitting its words, since the box can't know its code column before it docks. */
 lf-diff-note {
+  --lf-code-inline-size: 94%;
   display: block;
+  position: relative;
+  isolation: isolate;
   box-sizing: border-box;
   min-inline-size: 0;
-  padding: 10px 18px;
-  border-block: 1px solid var(--lf-rule);
-  background: var(--lf-paper);
+  padding: 13px 22px 17px calc(var(--lf-diff-code-at) + 12px);
   color: var(--lf-ink);
   white-space: normal;
   overflow-wrap: anywhere;
-  font: var(--lf-font-widget);
+  font: var(--lf-font-small);
   contain: inline-size;
 }
+lf-diff-note::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 5px 10px 9px var(--lf-diff-code-at);
+  border: 1px solid var(--lf-code-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-code-chrome);
+}
+lf-diff-note:not([data-lf-unmatched])::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-start: calc(var(--lf-diff-code-at) + 4px);
+  inline-size: 8px;
+  block-size: 8px;
+  border-inline-start: 1px solid var(--lf-code-border);
+  border-block-start: 1px solid var(--lf-code-border);
+  background: var(--lf-code-chrome);
+  transform: rotate(45deg);
+}
+lf-diff-note code {
+  color: var(--lf-code-ink);
+  background: var(--lf-pre-bg);
+}
+/* A note whose line is gone says which address it lost, at its card's head. */
 lf-diff-note[data-lf-unmatched]::before {
   content: attr(data-lf-unmatched);
   display: block;

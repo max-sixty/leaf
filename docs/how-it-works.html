@@ -136,8 +136,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">How it works</p>
-        <h1>How Leaf works</h1>
+        <hgroup>
+          <p>How it works</p>
+          <h1>How Leaf works</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent builds a page around the work. The user comments, explores, and makes
           choices. The agent responds by revising the same page.
@@ -253,8 +255,8 @@ flowchart TD
               changes. Each reading applies the events still in force. Undo records
               which gesture it withdraws, leaving the original event in history. Focus,
               scroll, selection, and open disclosures remain
-              <a href="#browser-local">browser-local interaction</a>; an unsent draft
-              can be recovered from browser storage.
+              <a href="#browser-local">browser-local interaction</a>; the page’s server
+              keeps an unsent draft outside the log, for every tab and device.
             </p>
             <p id="architecture-current-leaf">
               The Leaf serving, checking, or exporting a page supplies its current
@@ -272,7 +274,7 @@ flowchart TD
               the page as a whole. To make this choice yourself, try the
               <a href="#practice-caption">queue policy practice</a> in Workflow.
             </p>
-            <ol class="steps" id="exchange-steps">
+            <ol id="exchange-steps">
               <li id="exchange-author">
                 <strong>The agent prepares the page.</strong> It writes the
                 alternatives, checks the page, and opens its link.
@@ -1070,7 +1072,7 @@ flowchart TD
               App Server client. Pi’s experimental extension runs inside Pi. Each route
               supplies the same delivery format and says who confirms receipt.
             </p>
-            <ol id="wait-ack" class="steps">
+            <ol id="wait-ack">
               <li>
                 <strong>Confirm receipt separately from transport.</strong> Leaf counts
                 an update as received only when the agent or harness confirms it. A
@@ -1277,8 +1279,8 @@ flowchart TD
                 the words from the conversation it rests on, which lead the agent to the
                 original message even after a compaction. At its next prompt or tool
                 call, the agent reads these and each record and change Leaf made, and
-                withdraws a question it disagrees with, with <code>leaf task end</code>,
-                as it would its own.
+                withdraws a question it disagrees with by resolving its thread, as it
+                would its own.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -1418,6 +1420,14 @@ flowchart TD
                   <td>The latest value of one external feed, replaced whole.</td>
                   <td>its name</td>
                 </tr>
+                <tr id="ontology-draft">
+                  <td>Draft</td>
+                  <td>
+                    Words the user typed and hasn’t sent, the latest generation of each,
+                    outside the log. Every tab and device reads it; the agent doesn’t.
+                  </td>
+                  <td>what it is about, such as a passage or a thread</td>
+                </tr>
               </tbody>
               <tbody id="ontology-folded">
                 <tr>
@@ -1512,11 +1522,11 @@ flowchart TD
                 <tr id="ontology-local">
                   <td>Browser-owned state</td>
                   <td>
-                    Focus, scroll, navigation position, open disclosures and unsent
-                    drafts. They stay outside shared state; browser stores preserve some
-                    across reloads (<a href="#data-survives">Data lifetime</a>).
+                    Focus, scroll, navigation position and open disclosures. They stay
+                    outside shared state; browser stores preserve some across reloads
+                    (<a href="#data-survives">Data lifetime</a>).
                   </td>
-                  <td>the element, or the draft's thread</td>
+                  <td>the element</td>
                 </tr>
               </tbody>
             </table>
@@ -1610,8 +1620,9 @@ flowchart TD
                 validates gestures and commands at the same entry point before appending
                 them to <code>events.jsonl</code>. Any process can publish whole values
                 with <code>leaf data set</code>. These stores travel with the page
-                directory. View state and drafts remain in the browser; session claims
-                and delivery coordination remain in the machine’s state home.
+                directory, and so do the user’s unsent drafts, outside the log. View
+                state remains in the browser; session claims and delivery coordination
+                remain in the machine’s state home.
               </figcaption>
             </figure>
             <p id="data-bookkeeping-lede">
@@ -1661,9 +1672,9 @@ flowchart TD
           <section id="data-survives">
             <h2>Data lifetime</h2>
             <p id="data-survives-lede">
-              Accepted events and external data survive closing a tab or restarting the
-              server. Browser stores preserve drafts and interface arrangements with the
-              scopes shown below. An update the server has not yet accepted has not
+              Accepted events, external data and unsent drafts survive closing a tab or
+              restarting the server. Browser stores preserve interface arrangements with
+              the scopes shown below. An update the server has not yet accepted has not
               reached durable storage; while the status says the connection is lost or
               the update is not through yet, keep its tab open until it is.
             </p>
@@ -1697,7 +1708,7 @@ flowchart TD
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
-                  <td class="lost">✗</td>
+                  <td class="kept">✓</td>
                 </tr>
                 <tr id="survives-chrome">
                   <td>Arrangements of Leaf controls</td>
@@ -1716,11 +1727,12 @@ flowchart TD
               </tbody>
             </table>
             <p id="data-browser-lede">
-              Draft text is shared between tabs showing the same page; arranged controls
-              are shared across pages in that browser. Reading position, the active tab
-              or panel, and design mode belong to one browser tab. Comment text awaiting
-              acceptance remains in the draft store; pending widget actions have no
-              durable browser queue.
+              Draft text is shared between every tab and device showing the page, since
+              the page’s server keeps it; words typed while the server is out of reach
+              stay in their tab until it answers. Arranged controls are shared across
+              pages in that browser. Reading position, the active tab or panel, and
+              design mode belong to one browser tab. Comment text awaiting acceptance
+              remains a draft; pending widget actions have no durable browser queue.
             </p>
           </section></lf-tab
         ><lf-tab id="event-log" label="Event log" class="layout-flow"
@@ -1869,8 +1881,8 @@ flowchart TD
               This is everything <code>lf-options</code> tells Leaf about its three
               verbs and when its obligation counts as answered.
             </p>
-            <lf-code id="options-verbs" language="json" data-width="wide">
-              <pre>
+            <lf-code id="options-verbs" data-width="wide">
+              <pre><code class="language-json">
 "x-state": {
   "choose": {
     "unit": "widget",
@@ -1893,7 +1905,7 @@ flowchart TD
     "answer": {"when": {"multiple": [true]}}
   }
 }
-</pre>
+</code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
@@ -2015,8 +2027,8 @@ flowchart TD
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
-            <lf-code id="captured-log" language="json" data-width="wide">
-              <pre>
+            <lf-code id="captured-log" data-width="wide">
+              <pre><code class="language-json">
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
@@ -2083,7 +2095,7 @@ flowchart TD
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
 {"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
-</pre>
+</code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
                 <code>widget</code>, <code>action</code>, <code>detail</code>, and
@@ -2091,7 +2103,7 @@ flowchart TD
                 <code>attention</code> records whether the action changes work the agent
                 owes.</lf-note
               >
-              <lf-note at="19"
+              <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
                 it. It keeps only what a reader without the registry could not recover:
                 whether the action was made on the page or in a thread
@@ -2111,7 +2123,7 @@ flowchart TD
                 group with a <code>resolves</code> attribute would name one
                 here.</lf-note
               >
-              <lf-note at="62"
+              <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
                 deriving state, and both records stay in the log.</lf-note
               >
@@ -2828,8 +2840,8 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. The agent can end it with
-                <code>leaf task end</code> as answered elsewhere or withdrawn.
+                such as trying a build, is asked the same way. Once the user answers
+                elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">
                 <strong
@@ -4137,9 +4149,10 @@ flowchart TD
             <h2>Browser-owned state</h2>
             <p id="browser-local-owned">
               Focus, scroll, selection, open disclosures, unsent text and active drags
-              live outside shared state and the log. DOM nodes hold them;
+              live outside shared state and the log. DOM nodes hold them, and the page’s
+              server keeps the unsent text too;
               <a href="#data-survives">Data lifetime</a> names browser stores preserving
-              some across reloads.
+              some of the rest across reloads.
             </p>
             <table id="browser-local-handoff" class="runtime-table">
               <thead>

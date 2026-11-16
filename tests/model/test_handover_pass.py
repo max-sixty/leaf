@@ -384,15 +384,8 @@ def test_only_what_the_last_reading_did_not_hold_is_told(claimed, told):
 def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
     claimed, told
 ):
-    """A layout shift's words carry when it started, and a sideways scroll's how far,
-    and neither names an element, so another reading that measures them anew holds
-    nothing the agent hasn't heard."""
-    shift = {
-        "code": "startup-layout-shift",
-        "severity": "advice",
-        "values": {"cls": 0.12, "entries": [{"at": 812.4, "value": 0.12}]},
-        "text": "startup CLS 0.1200 before first settled presentation; …812.4…",
-    }
+    """A sideways scroll's words carry how far it scrolls and names no element, so
+    another reading that measures it anew holds nothing the agent hasn't heard."""
     scrolls = {
         "code": "page-scrolls",
         "severity": "error",
@@ -400,21 +393,14 @@ def test_a_finding_naming_no_element_is_not_told_again_for_its_measurements(
         "values": {"past": 206},
         "text": "at 360–480px wide, the page scrolls sideways by 206px",
     }
-    assert len(told([shift, scrolls])) == 1
-    remeasured = [
-        {
-            **shift,
-            "values": {"cls": 0.12, "entries": [{"at": 905.1, "value": 0.12}]},
-            "text": "startup CLS 0.1200 before first settled presentation; …905.1…",
-        },
-        {
-            **scrolls,
-            "widths": [360, 400],
-            "values": {"past": 190},
-            "text": "at 360–400px wide, the page scrolls sideways by 190px",
-        },
-    ]
-    assert len(told(remeasured)) == 1
+    assert len(told([scrolls])) == 1
+    remeasured = {
+        **scrolls,
+        "widths": [360, 400],
+        "values": {"past": 190},
+        "text": "at 360–400px wide, the page scrolls sideways by 190px",
+    }
+    assert len(told([remeasured])) == 1
 
 
 def test_console_errors_are_told_apart_by_their_words(claimed, told):

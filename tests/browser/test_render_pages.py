@@ -16,9 +16,11 @@ from interact_support import (
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    SEAT,
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_WIDGETS,
     live_url,
+    open_seat_box,
 )
 from render_cases_layout import (
     MARK,
@@ -378,7 +380,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
 def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     browser, serve, draft
 ):
-    """A rejected inline root gives the authored seat and its focused editor back."""
+    """A rejected inline root gives the widget's seat and the focused comment box in it
+    back."""
     url = serve(
         leaf_page(
             "Inline rollback",
@@ -388,8 +391,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     page = open_page(browser, live_url(url))
-    seat = page.locator("#proposal > .lf-thread-seat")
-    composer = seat.locator(":scope > .lf-say leaf-text")
+    seat, composer = open_seat_box(page, "#proposal")
     words = "keep this first message" if draft else ""
     write(composer, words)
     composer.evaluate(
@@ -449,9 +451,9 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     nudge(serve.page_dir)
     told(page)
     expect(inline.locator(".lf-msg-body")).to_have_text("candidate root")
-    expect(composer).to_have_count(1 if draft else 0)
-    if draft:
-        expect(composer).to_have_js_property("value", words)
+    # The box the user opened is theirs until they put it away, words in it or not.
+    expect(composer).to_be_visible()
+    expect(composer).to_have_js_property("value", words)
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -475,9 +477,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(
-        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
-    )
+    thread = page.locator(f'#proposal > {SEAT} > [data-lf-thread="{root["id"]}"]')
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -1957,7 +1957,7 @@ INDENTED_PAGE = leaf_page(
     + _indented("control")
     + f'<ul><li>One<ol><li>Two<ul><li id="nested">Three{_indented("nested")}</li></ul>'
     "</li></ol></li></ul>"
-    + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
+    + f'<ol><li id="ordered">A step{_indented("ordered")}</li></ol>'
     + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
     + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>'
     # Boxes the page arranges itself: breakouts that are items in the second track of

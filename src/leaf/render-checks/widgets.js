@@ -1,4 +1,4 @@
-import { inChrome, matchesWhen, quoted, TEXT_BOX } from "/runtime/widget-api.js";
+import { inChrome, quoted } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
   textNodesUnder,
@@ -6,6 +6,7 @@ import {
   commandRoutes,
   pageDocument,
   inPage,
+  TEXT_BOX,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -96,14 +97,9 @@ export function invalidPaints() {
 // every tag the page simply does not contain. `document`, not the page, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const missingUpgrades = (declarations) =>
-  Object.entries(declarations)
-    .filter(
-      ([tag, entry]) =>
-        entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
-    )
-    .map(([tag]) => tag);
+/** @param {readonly string[]} modules the tags a module upgrades */
+export const missingUpgrades = (modules) =>
+  modules.filter((tag) => document.querySelector(tag) && !customElements.get(tag));
 // visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -118,25 +114,6 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const missingThreads = (declarations) =>
-  Object.entries(declarations)
-    .flatMap(([tag, entry]) => {
-      const seat = entry["x-thread-seat"];
-      if (!seat) return [];
-      return [...document.querySelectorAll(tag)]
-        .filter((el) => !inChrome(el) && !quoted(el) && matchesWhen(el, seat.when))
-        .map((el) => ({
-          code: "missing-thread-seat",
-          at: locate(el),
-          hosts: [
-            .../** @type {NodeListOf<HTMLElement>} */ (
-              el.querySelectorAll(".lf-thread-seat")
-            ),
-          ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
-        }));
-    })
-    .filter((instance) => instance.hosts !== 1);
 
 // Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and

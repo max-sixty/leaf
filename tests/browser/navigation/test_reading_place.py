@@ -217,7 +217,6 @@ ITEMS_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
@@ -232,7 +231,6 @@ ITEMS_LAYER = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-refers": {"for": {}},
-        "x-upgrade": True,
         "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }
@@ -1999,8 +1997,9 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
+    # Nothing is on the user, so the mark opens Threads, where the put-away draft waits.
     page.locator(".lf-fp-on-user").tap()
-    panel_settled(page, view="queue")
+    panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(

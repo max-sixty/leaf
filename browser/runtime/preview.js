@@ -67,11 +67,12 @@
    - A link an author wrote into the page previews the place it names, and what that
      place holds (place-preview.js), since that is what pressing it opens.
    - Whatever supplies it, a reading says only what its target's face doesn't show
-     whole: a line the face shows uncut goes, as does a press whose key chip it draws,
-     and a reading left with only the face's own words shows nothing (`beyondFace`), so
-     a status declaring its words for where its row, or a box around it, cuts them
-     previews only while they're cut. Reading a face stops at a few lines (`FACE`), so a
-     preview over a long section costs what one over a button does.
+     whole: a line the face shows uncut goes, as does a press whose key chip it draws or
+     the command hints label it with (command-hints.js, `drawnKeys`), as a playground's
+     commit wears its `1`, and a reading left with only the face's own words shows
+     nothing (`beyondFace`), so a status declaring its words for where its row, or a box
+     around it, cuts them previews only while they're cut. Reading a face stops at a few
+     lines (`FACE`), so a preview over a long section costs what one over a button does.
 
    Nothing standing open (`aria-expanded="true"`) previews, since what pressing it opens
    is already in front of the user, and the search goes on outward from it, as it does
@@ -288,6 +289,7 @@ import {
   showNativeLayer,
 } from "./keyboard/layer-stack.js";
 import { controlKeys } from "./keyboard/control-keys.js";
+import { drawnKeys } from "./keyboard/command-hints.js";
 import { advertisesKeys } from "./keyboard/bindings.js";
 import { focused, onCurrentLocation, typesText } from "./focus.js";
 import { pageScope } from "./keyboard/register.js";
@@ -670,7 +672,8 @@ function faceOf(root, skip = null) {
   };
 }
 // What a control and its labels show, or null where it holds more than a face. A select
-// shows the option chosen, not the rest.
+// shows the option chosen, not the rest. Its chips are its own and the keys the command
+// hints label it with, as Done's digit or a playground's commit's `1`.
 /** @param {Element} control @returns {Face | null} */
 function controlFace(control) {
   const chosen =
@@ -696,7 +699,7 @@ function controlFace(control) {
     words: all("words"),
     joined: all("joined"),
     partial: faces.some((face) => face.partial),
-    chips: own.chips,
+    chips: [...own.chips, ...drawnKeys(control)],
   };
 }
 // Whether `face` shows `line` whole, read apart or together.

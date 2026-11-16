@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from types import SimpleNamespace
 from xml.etree import ElementTree
 
 import pytest
@@ -1010,6 +1011,51 @@ def test_a_connection_failure_in_the_delivery_loop_is_retried(
     assert attempts == ["codex-thread", "codex-thread"]
 
 
+def test_a_clean_delivery_pass_starts_the_retry_ladder_again(
+    codex_claimed_page, monkeypatch
+):
+    """A failure after a pass that raised nothing waits as a first failure does.
+
+    An ordinary idle pass recovers and offers nothing; it still ends a run of
+    failures, so errors spread over a long session each retry after a second
+    (`retry_delay`) rather than climbing toward its half-minute ceiling.
+    """
+    for name in CLAUDE_IDENTITY:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+    attempts = []
+    delays = []
+
+    def recover_receipt(_session_id):
+        attempts.append(len(attempts))
+        if len(attempts) in (1, 3):
+            raise WebSocketException("the handshake was refused")
+        return False
+
+    def owned(_session):
+        return [] if len(attempts) >= 4 else [codex_claimed_page]
+
+    monkeypatch.setattr(codex_model, "recover_codex_receipt", recover_receipt)
+    monkeypatch.setattr(codex_adapter_model, "owned_pages", owned)
+    monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
+    monkeypatch.setattr(
+        codex_adapter_model, "_offer_queued_delivery", lambda *_args: False
+    )
+    monkeypatch.setattr(
+        codex_adapter_model,
+        "read_watch_pass",
+        lambda *_args, **_kwargs: SimpleNamespace(delivered=True),
+    )
+    monkeypatch.setattr(
+        codex_adapter_model,
+        "retry_delay",
+        lambda failures: delays.append(failures) or 0,
+    )
+
+    assert codex_adapter_model.run_adapter("codex") == 0
+    assert delays == [1, 1]
+
+
 def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     codex_claimed_page, monkeypatch
 ):
@@ -1314,7 +1360,7 @@ def test_a_later_claim_preserves_the_running_transport(
             stderr=subprocess.PIPE,
             text=True,
         )
-        [(status, first, err), (refused, _, refusal), (joined, again, _)] = wait_for(
+        [(status, first, err), (refused, refusal, _), (joined, again, _)] = wait_for(
             lambda: files_model.read_json(results),
             lambda reading: reading is not None,
             failure="the persistent Codex harness did not finish its three start commands",
@@ -1322,7 +1368,10 @@ def test_a_later_claim_preserves_the_running_transport(
         assert status == 0, err
         assert json.loads(first) == {"session": "codex-thread"}
         assert refused != 0
-        assert "not through App Server unix:///tmp/elsewhere.sock" in refusal
+        assert (
+            "not through App Server unix:///tmp/elsewhere.sock"
+            in json.loads(refusal)["error"]
+        )
         assert joined == 0
         assert json.loads(again) == {"session": "codex-thread"}
         release_held(started)

@@ -39,13 +39,15 @@ from pathlib import Path
 
 from .findings import Finding
 
-# What an obligation's status reads as on a step.
-_OBLIGATION_STATES = {
-    "open": "open",
-    "answered": "done",
-    "answered_elsewhere": "done",
-    "withdrawn": "dropped",
-}
+# What an obligation's status reads as on a step. An open one nobody owes a move on,
+# a question whose thread was resolved, reads done (`obligations`).
+_OBLIGATION_STATES = {"open": "open", "answered": "done", "withdrawn": "dropped"}
+
+
+def _obligation_state(item: dict) -> str:
+    if item["status"] == "open" and item["next_actor"] is None:
+        return "done"
+    return _OBLIGATION_STATES[item["status"]]
 
 
 def latest_plan(events: list, withdrawn: set) -> dict | None:
@@ -122,7 +124,7 @@ def plan_reading(
         item = obligations_by_id.get(step["item"])
         return {
             "title": item["prompt"]["text"] if item else None,
-            "state": _OBLIGATION_STATES[item["status"]] if item else "dropped",
+            "state": _obligation_state(item) if item else "dropped",
             "owner": "user",
             "item": {"kind": "obligation", "id": step["item"]},
             "running": None,

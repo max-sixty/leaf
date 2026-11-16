@@ -44,7 +44,6 @@ from interact_support import (
     activity_reading,
     append_carried_log_record,
     append_command,
-    check,
     declare,
     declare_data_input,
     declare_on_page,
@@ -280,11 +279,14 @@ def test_interaction_trace_does_not_change_page_readings(page_dir):
     assert served_reading.source_readings(page_dir)[0] != sources[0]
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", [*schema_model.SESSION_FILES, schema_model.DRAFTS_FILE]
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
-    """Declaring status or taking a wait writes a session file, and the next state read holds the activation it had rather than validating
-    the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the panel."""
+    """Declaring status or taking a wait writes a session file, and a tab saving a
+    draft writes the drafts, and the next state read holds the activation it had rather
+    than validating the whole page again: on a large page that re-validation was most
+    of the time a status took to reach the panel, and a draft is saved as it is typed."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):
@@ -568,7 +570,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "parent": "aabb0011",
             "revision": 1,
             "text": "Seeded reply",
-            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
+            "markup": '<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
         },
     )
     before = event_model.read_events(page_dir)
@@ -3895,7 +3897,12 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        assert _news(server.origin) == {"reading": snapshot.reading, "pages": None}
+        # A capture is no reading of what the user is writing, so it holds no drafts.
+        assert _news(server.origin) == {
+            "reading": snapshot.reading,
+            "pages": None,
+            "drafts": 0,
+        }
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
@@ -4971,26 +4978,11 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
-def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
-    """Thread seats are installed from authored predicates once. Refuse a
-    declaration that would make replay and the POST hold gate disagree about one."""
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["lf-test-task"]["x-thread-seat"].update(
-            when={"status": ["blocked"]}
-        ),
-    )
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert "x-thread-seat predicate attributes are authored and static" in result.output
-
-
-def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
+def test_a_hold_comment_can_only_hold_the_widget_it_is_about(server, page_dir):
     """The stronger send is one comment, not a comment followed by a pause action.
-    Its target is therefore checked at the comment door against the same declaration
-    that rendered the control, or a forged field could pause any id on the page."""
+    Its target is therefore checked at the comment door: the widget the comment is
+    anchored to and nothing inside it, or a forged field could pause another id on
+    the page. Which widgets offer the send is their modules' to say."""
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
@@ -5024,15 +5016,34 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     assert status == 400
     assert refused_on(body).code == "hold-target"
 
-    for target in ("plain-goal", "plan"):
+    # Another widget than the one the comment is on, and an element that is no widget,
+    # held from a comment on the goal or on itself.
+    for target, anchor in (
+        ("plain-goal", "goal"),
+        ("plan", "goal"),
+        ("plan", "plan"),
+    ):
         bad = {
             **event,
+            "anchor": {"section": anchor},
             "holds": target,
-            "attempt": f"hold_comment_bad_{target.replace('-', '_')}",
+            "attempt": f"hold_comment_bad_{target.replace('-', '_')}_{anchor}",
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert refused_on(body).code == "hold-target"
+
+    # The door reads no declaration, so a comment on a widget whose entry says nothing
+    # of threads or holds may hold it.
+    undeclared = {
+        **event,
+        "anchor": {"section": "work"},
+        "holds": "work",
+        "attempt": "hold_comment_undeclared",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undeclared).encode())
+    assert status == 200, body
+    assert event_model.read_events(page_dir)[-1]["holds"] == "work"
 
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
@@ -5051,7 +5062,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "parent": "aabb0011",
             "author": "agent",
             "text": "A sample answer",
-            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+            "markup": '<lf-code id="answer-code"><pre><code class="language-python">1</code></pre></lf-code>',
         },
         {
             "kind": "action",

@@ -179,7 +179,7 @@ def browser_check(
 ) -> BrowserCheck:
     """Serve the candidate source once and, in one browser, run the page's own code
     (`page_code` says which run and which errors fail it), then the render invariants
-    at the desktop window `desktop_viewport` chooses and a phone's, saving the screens
+    at the desktop window `desktop_viewport` chooses, saving the screens
     the author reads where `screens` asks, including when there are findings. Page code
     that fails ends the check before the render reading."""
     artifact = snapshot.artifact(snapshot.active_revision())
@@ -191,17 +191,22 @@ def browser_check(
     desktop = desktop_viewport(page_dir) if render else None
 
     def read(browser, url: str):
-        errors = run_page_code(browser, url) if page_code else None
-        if errors or not render:
-            return errors, None, None
+        if not render:
+            return run_page_code(browser, url) if page_code else None, None, None
         assert desktop is not None
+        # The render's page takes the page-code reading, so the page loads once for
+        # both.
+        errors = [] if page_code else None
         reading = render_version(
             browser,
             url,
             desktop=desktop.viewport,
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
+            page_code=errors,
         )
+        if errors:
+            return errors, None, None
         return (
             errors,
             reading,

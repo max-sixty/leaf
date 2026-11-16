@@ -168,10 +168,8 @@ def queues(
                 record, "agent" if record["source"]["kind"] == "update" else "user"
             ),
             "state": "dropped" if record["status"] == "withdrawn" else "done",
-            "ended": ((record["end"] or record["answer"] or {}).get("event") or {}).get(
-                "ts"
-            ),
-            "detail": record["end"]["detail"] if record["end"] else None,
+            "ended": ((record["answer"] or {}).get("event") or {}).get("ts"),
+            "detail": None,
         }
         for record in records
         if record["status"] != "open"

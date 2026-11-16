@@ -184,9 +184,9 @@ question holds"):
 leaf thread reply <answer.ref> --text "Which store should own sessions? I'd keep the account store, which already expires them." --markup '<lf-options id="session-store" choose><lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option><lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option></lf-options>'
 ```
 
-If the user answers in words instead, end the question with
-`leaf task end <page> widget:<id> done --text "<where they answered>"`; the delivery
-of their reply lists it in `waiting`. Another widget that asks works the same way, such
+If the user answers in words instead, the delivery of their reply lists the question
+in `waiting`; once you have answered, resolve the thread if nothing else in it waits on
+them, which takes the question off On Me. Another widget that asks works the same way, such
 as an `lf-draft` marked `needed` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.
@@ -238,8 +238,9 @@ wider one ("Summarize a long discussion").
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,
-when an event's `handling` says to, or when no review or follow-up could change the
-outcome, which finishing the work does not show by itself. When unsure, leave it
+when an event's `handling` says to, when its question was settled elsewhere
+(`conversation-loop.md`, "The On lists"), or when no review or follow-up could change
+the outcome, which finishing the work does not show by itself. When unsure, leave it
 open. First answer any unanswered user message in it:
 
 ```bash

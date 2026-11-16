@@ -10,8 +10,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": true,
     "x-state": {
       "review": {
         "unit": "widget",

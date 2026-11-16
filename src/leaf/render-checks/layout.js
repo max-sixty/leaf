@@ -1,12 +1,14 @@
-import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-api.js";
+import { pageScroller } from "/runtime/widget-api.js";
 import {
   layoutBox,
   pageDocument,
   inPage,
   readingRegions,
+  regionScrollBehavior,
   shownBand,
   shownRegionBounds,
   skipped,
+  TEXT_BOX,
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";
@@ -339,8 +341,8 @@ export function misplacedBoxes() {
   // holds, or nothing where it shows all of it. Imported rather than restated, so the
   // band a handover is refused against and the band the page paints to cannot come
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
-  // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
-  // formatting context keeps in.)
+  // (`trappedMargins`, framing.js, reads `contain` for the neighbouring question:
+  // which margins a formatting context keeps in.)
   const main = layoutBox();
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome

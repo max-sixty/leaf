@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  obligationsByRegion,
   obligationsIn,
   obligationPlace,
   subjectPlace,
@@ -92,7 +93,6 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
       prompt: { text: `Choose ${id}.`, target: id },
       answer: null,
       status: "open",
-      end: null,
       next_actor: "user",
     }));
     applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));
@@ -144,6 +144,58 @@ test("a region holds the live widget obligations whose source is it or stands un
     assert.deepEqual(ids("item"), ["widget:first", "widget:item"]);
     assert.deepEqual(ids("first"), ["widget:first"]);
     assert.deepEqual(ids("outside"), ["widget:outside"]);
+    const regions = ["queue", "item", "first", "outside"].map((id) =>
+      document.getElementById(id),
+    );
+    const byRegion = obligationsByRegion(regions, items);
+    for (const region of regions)
+      assert.deepEqual(
+        byRegion.get(region).map((held) => held.id),
+        ids(region.id),
+      );
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
+test("placing an inventory in many regions reads each obligation's place once", () => {
+  // A side list of tabs or a deck counts every panel or card in one render, so its
+  // cost is the obligations, not the obligations times the regions. Counted in the
+  // ids the placement looks up.
+  /** @param {number} n */
+  const lookups = (n) => {
+    const ids = Array.from({ length: n }, (_, k) => `r${k}`);
+    document.body.innerHTML = ids
+      .map((id) => `<section id="${id}"><div id="${id}-ask"></div></section>`)
+      .join("");
+    const items = ids.map((id) => ({
+      id: `widget:${id}-ask`,
+      thread: null,
+      message: null,
+      status: "open",
+      source: { kind: "widget", id: `${id}-ask` },
+      prompt: { target: `${id}-ask` },
+    }));
+    const regions = ids.map((id) => document.getElementById(id));
+    const lookup = document.getElementById;
+    let count = 0;
+    document.getElementById = function (id) {
+      count++;
+      return lookup.call(this, id);
+    };
+    try {
+      const held = obligationsByRegion(regions, items);
+      assert.deepEqual(
+        regions.map((region) => held.get(region).map((item) => item.id)),
+        items.map((item) => [item.id]),
+      );
+    } finally {
+      document.getElementById = lookup;
+    }
+    return count / n;
+  };
+  try {
+    assert.equal(lookups(64), lookups(8));
   } finally {
     document.body.replaceChildren();
   }

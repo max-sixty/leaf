@@ -547,7 +547,10 @@ main()
     )
 
     first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
-    assert (first.returncode, first_out) == (2, ""), first_err
+    assert first.returncode == 2, first_out + first_err
+    # It prints why it stopped and nothing else, so none of the new owner's batch.
+    assert list(json.loads(first_out)) == ["findings"], first_out
+    assert "no longer owns it" in first_out
     assert second.poll() is None
     assert page_state(page)["listening"]
 
@@ -600,7 +603,10 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     service_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
-    assert (first.returncode, first_out) == (2, ""), first_err
+    assert first.returncode == 2, first_out + first_err
+    # It prints why it stopped and nothing else, so not the comment it was handed.
+    assert list(json.loads(first_out)) == ["findings"], first_out
+    assert "no longer owns it" in first_out
     session = service_model.page_claim(page)
     assert session is not None
     assert session["id"] == "replacement"

@@ -25,6 +25,7 @@ from interact_support import (
     SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
+    available_loopback_port,
     command_findings,
     declare_on_page,
     element_declaration,
@@ -34,12 +35,15 @@ from interact_support import (
     lock_contention,
     package_findings,
     publish,
+    read_record,
     record_claim,
     registry_refusal,
+    serving,
     shipped_payload,
     vendored_at_another_protocol,
     wait_for,
     words,
+    write_record,
 )
 from model_folds import leaf_page
 from packaging.requirements import Requirement
@@ -317,6 +321,37 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     assert stated.returncode == 0, stated.stderr
     error = json.loads(stated.stdout)["source"]["error"]
     assert "Use a newer Leaf" in error
+
+
+def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
+    """A server keeps the Leaf it started under, so a check by another commit of
+    Leaf may pass on code the user's tab doesn't run. `page check` notes that, with
+    the commands that restart the server, and the first reply on a revision repeats
+    its advice. A live server at this Leaf's commit, or a stopped one, draws no
+    note."""
+    (page_dir / "index.html").write_text(leaf_page("Notes", "<p>Ship Tuesday.</p>"))
+    activate_source(page_dir)
+    serving(page_dir, available_loopback_port())
+    service = read_record(page_dir / "service.json")
+
+    def advised(commit, enabled=True):
+        write_record(
+            page_dir / "service.json",
+            {**service, "enabled": enabled, "runtime": {"commit": commit}},
+        )
+        checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        assert checked.exit_code == 0, checked.output
+        return [
+            finding
+            for finding in json.loads(checked.output)["findings"]
+            if finding["code"] == "another-leaf-serving"
+        ]
+
+    [noted] = advised("0123456789ab")
+    restart = f"`leaf server stop {page_dir}` then `leaf server start {page_dir}`"
+    assert "runs Leaf 0123456789ab" in noted["text"] and restart in noted["text"]
+    assert advised(layer_model.running_leaf()["commit"]) == []
+    assert advised("0123456789ab", enabled=False) == []
 
 
 def test_a_later_layer_record_shape_is_not_read_as_none(claimed):
@@ -2874,12 +2909,9 @@ def test_the_layer_composer_is_the_browser_module_population():
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, diagram]
     )
     widgets = composition.directory_files["widgets"]
-    upgraded = {
-        f"{tag}.js"
-        for tag, entry in composition.vocabulary.registry.items()
-        if tag.startswith("lf-") and entry["x-upgrade"]
-    }
+    upgraded = {f"{tag}.js" for tag in composition.vocabulary.registry["$modules"]}
 
+    assert {"lf-suggestion.js", "lf-options.js", "lf-diagram.js"} <= upgraded
     assert upgraded <= widgets.keys()
     assert "lf-diagram.js" in widgets
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
@@ -3291,7 +3323,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {"user-only": {"type": "string"}},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     project_entry = {
         "description": "project shape",
@@ -3299,7 +3330,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {"project-only": {"type": "string"}},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     project_only = {
         "description": "project-only shape",
@@ -3307,7 +3337,6 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "properties": {},
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": False,
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
     (project_layer / "registry.json").write_text(
@@ -3982,6 +4011,40 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     assert checked.exit_code == 0, checked.output
 
 
+def test_a_widget_module_under_another_name_is_refused(tmp_path, monkeypatch):
+    """A module's name is what ties it to its tag, so one a typo or a renamed tag
+    left under another name is loaded by nothing, and its widget would draw as plain
+    markup. The package check and `page init` name the file; a helper another module
+    imports stands."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-callout")
+    widgets = package / "widgets"
+    (widgets / "lf-calout.js").write_text(
+        "customElements.define('lf-callout', class extends HTMLElement {});\n"
+    )
+
+    for args in (
+        ["package", "check", ".leaf"],
+        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
+    ):
+        result = runner.invoke(cli_model.cli, args)
+        assert result.exit_code != 0
+        assert "widgets/lf-calout.js" in result.output
+
+    (widgets / "lf-calout.js").rename(widgets / "lf-callout.js")
+    (widgets / "lf-callout-parts.js").write_text("export const parts = [];\n")
+    refused = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    assert "widgets/lf-callout-parts.js" in refused.output
+    (widgets / "lf-callout.js").write_text(
+        'import { parts } from "./lf-callout-parts.js";\n'
+        "customElements.define('lf-callout', class extends HTMLElement {});\n"
+    )
+    checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    assert json.loads(checked.output)["status"] == 0, checked.output
+
+
 def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -4206,7 +4269,12 @@ def test_package_init_widget_refuses_existing_members_without_writing(
     )
 
     assert result.exit_code != 0
-    assert "already exists in the composed layer" in result.output
+    # A module no tag names is refused before the starter can collide with it.
+    assert (
+        "nothing loads these modules"
+        if collision == "module"
+        else "already exists in the composed layer"
+    ) in result.output
     assert {
         path.relative_to(package): path.read_bytes()
         for path in package.rglob("*")
@@ -4641,7 +4709,6 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
         }
     }
     assert widget["x-state"]["review"]["unit"] == "case"
-    assert widget["x-thread-surface"] is True
     assert "visual-run" in registry["$data"]["contracts"]
     assert "/widgets/lf-visual-review.js" in layer_files(page)
     assert "author.md" in layer_instructions(page)
@@ -5204,23 +5271,23 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
-    """An attribute that names a layer-wide word, such as a column's tone or a code
-    block's language, takes the layer's list as its `enum` in the vocabulary a page
+    """An attribute that names a layer-wide word, such as a column's tone, takes the
+    layer's list as its `enum` in the vocabulary a page
     composes, so its schema says what it accepts to validation and to an author
     reading the entry, and the selected entry's instructions list the words."""
     registry = registry_storage.read_page_registry(page_dir).registry
     checked = set()
-    for key, fact in DECLARED_WORDS:
+    for attr, fact in DECLARED_WORDS:
         for name, entry in registry.items():
-            if name.startswith("$") or not isinstance(entry, dict) or key not in entry:
+            if not name.startswith("lf-") or attr not in entry.get("properties", {}):
                 continue
             names = registry[fact]["names"]
-            assert entry["properties"][entry[key]]["enum"] == names
+            assert entry["properties"][attr]["enum"] == names
             author = page_instructions(page_dir, entries=(name,))["author"]
             listed = ", ".join(f"`{word}`" for word in names)
-            assert f"`{entry[key]}` takes one of: {listed}." in author
-            checked.add(key)
-    assert checked == {key for key, _ in DECLARED_WORDS}
+            assert f"`{attr}` takes one of: {listed}." in author
+            checked.add(attr)
+    assert checked == {attr for attr, _ in DECLARED_WORDS}
 
 
 def test_cli_selection_returns_the_composed_audience_map(instruction_page):

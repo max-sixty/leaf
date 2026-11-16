@@ -7,7 +7,11 @@ import pytest
 from interact_support import append_carried_log_record
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
+from render_cases_interaction import (
+    SEATED_OBLIGATION_PAGE,
+    open_seat_box,
+    panel_comment,
+)
 from render_cases_navigation import (
     JOURNEY_V1,
     NOTED_PAGE,
@@ -19,7 +23,6 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     draft_control,
-    draft_key,
     expect_error_waits_in_menu,
     expect_panel_says,
     holding,
@@ -34,6 +37,7 @@ from render_harness import (
     select_words,
     stored_draft,
     stored_draft_text,
+    until_draft_settled,
     write,
 )
 
@@ -107,11 +111,8 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("leaf-text")).to_have_count(0)
 
     page.evaluate("window.releaseDraftSend()")
-    page.wait_for_function(
-        """key => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && JSON.parse(localStorage.getItem(key))?.settled === true""",
-        arg=draft_key(page, "edit:draft-ops"),
-    )
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    until_draft_settled(page, "edit:draft-ops")
     events = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -505,13 +506,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     ], "a gesture reached the wire naming a thread the log never took"
     # The thread went with its parent, so the reply's words wait in the parent's draft.
     assert stored_draft_text(page, f"reply:{attempt}") is None
-    assert (
-        page.evaluate(
-            "([read, ctx]) => read(ctx)?.held ?? null",
-            [stored_draft(page), "general"],
-        )
-        == reply
-    )
+    assert (stored_draft(page, "general") or {}).get("held") == reply
 
     # The refusal covers the words it gave back until the user comes back to them.
     cover = page.locator(".lf-fp-field .lf-compose-error")
@@ -677,9 +672,8 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     browser, held = held_events
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE))
     live = page.locator(".lf-live")
-    seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-    field = seat.locator("leaf-text")
-    press = seat.get_by_role("button", name="Send", exact=True)
+    seat, field = open_seat_box(page, "#jobs")
+    press = seat.locator(".lf-compose-submit")
     write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the

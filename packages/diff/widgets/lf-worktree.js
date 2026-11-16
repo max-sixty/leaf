@@ -6,6 +6,7 @@ import { LeafElement } from "/runtime/widget-api.js";
 customElements.define(
   "lf-worktree",
   class extends LeafElement {
+    static lfPatch = "members";
     render() {
       return render(this);
     }

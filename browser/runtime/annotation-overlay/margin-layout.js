@@ -100,13 +100,13 @@ import {
   eachRenderedElement,
   isText,
   skipped,
+  skipper,
 } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
 import { hearScrollsIn, watchScrollEnds } from "../arrivals.js";
 import { closestAcross, layoutBox, pageDocument } from "../passages.js";
-import { pageHeads } from "../root-headers.js";
 import {
   Footprints,
   arrivals,
@@ -1127,23 +1127,19 @@ function childIndex() {
 }
 
 // A box that stands still in the window as the document scrolls past it: one fixed
-// there, or one of the page's heads, which sticks at its top (root-headers.js,
-// `pageHeads`). What
-// it holds and what scrolls under it move apart with every scroll, so a pin reads the
-// room in the one it stands in (`coverIn`), and the window bounds the seats of a pin in
-// such a box, since no scroll brings any other into view.
-/** @param {Element} box @param {ReadonlyMap<Element, unknown>} heads */
-const standsStill = (box, heads) => heads.has(box) || inWindow(box);
-/** @param {Element} target @param {ReadonlyMap<Element, unknown>} heads */
-function stillBox(target, heads) {
+// there. What it holds and what scrolls under it move apart with every scroll, so a pin
+// reads the room in the one it stands in (`coverIn`), and the window bounds the seats of
+// a pin in such a box, since no scroll brings any other into view.
+/** @param {Element} target */
+function stillBox(target) {
   /** @type {Element | null} */
   let at = target;
-  for (; at; at = renderedParent(at)) if (standsStill(at, heads)) return at;
+  for (; at; at = renderedParent(at)) if (inWindow(at)) return at;
   return null;
 }
 
-/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {ReadonlyMap<Element, unknown>} heads the page's heads (`standsStill`) @param {Element} subject what the row stands level with: a pointed row inside the target, or the target */
-function coverIn(root, band, target, bands, stop, standing, children, heads, subject) {
+/** @param {Element} root @param {Pick<Box, "top" | "bottom">} band @param {Element} target @param {import("../geometry.js").ClipCache} bands @param {Element} stop @param {readonly DOMRect[]} standing where the block controls stand (`blockControlBoxes`) @param {ReturnType<typeof childIndex>} children the pass's index of what each parent holds @param {Element} subject what the row stands level with: a pointed row inside the target, or the target */
+function coverIn(root, band, target, bands, stop, standing, children, subject) {
   /** @type {Box[]} */
   const cover = [];
   /** @type {Box[]} */
@@ -1181,7 +1177,7 @@ function coverIn(root, band, target, bands, stop, standing, children, heads, sub
       }
       const { node, box } = child;
       // A box standing still holds its own pins' room, not this one's.
-      if (standsStill(node, heads)) continue;
+      if (inWindow(node)) continue;
       const boxless = !box.width && !box.height;
       const holds = node !== target && renderedUnder(target, node);
       const leads = node === subject || renderedUnder(subject, node);
@@ -1351,7 +1347,6 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
     const shown = shownWindow({ viewport: "layout" });
     return {
       page: pageDocument(),
-      heads: pageHeads(),
       shown,
       // A scrollable document can reveal seats beyond the viewport, but none above its
       // own top. A root whose overflow prevents user scrolling cannot, so its window
@@ -1378,7 +1373,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       continue;
     }
     shared ??= readShared();
-    const { page, heads, shown, rootBounds, children, standing } = shared;
+    const { page, shown, rootBounds, children, standing } = shared;
     const { target, point, words, row, preformatted } = read;
     const height = entry.rect.bottom - entry.rect.top;
     const width = entry.rect.right - entry.rect.left;
@@ -1439,7 +1434,7 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
     // page reads nothing standing still in the window, and one in such a box reads only
     // that box, where the window shows it (`stillBox`).
     const stop = read.scroller;
-    const still = stillBox(target, heads);
+    const still = stillBox(target);
     const room = coverIn(
       still ?? (stop === pageScroller ? page : stop),
       band,
@@ -1448,7 +1443,6 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
       stop,
       still ? [] : standing,
       children,
-      heads,
       point ?? target,
     );
     const { cover, controls } = room;
@@ -1558,6 +1552,29 @@ function scheduleMarginLayout() {
 function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
+}
+// Whether `target` stands in content the browser skips (`skipped`), whose row is
+// withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
+// resizes what holds it, which brings that pass. A box that skips what it holds while
+// it is out of view (`content-visibility: auto`), as a run of a long text document's
+// lines, keeps its size as it draws them (notes/browser-support.md, "A skipped
+// `content-visibility: auto` box keeps its drawn height"), and a scroll that brings it
+// into view is read before it draws, so the box is heard saying it drew. A withheld row
+// keeps no record (`seatings`), so a pass for the rows reads it again.
+/** @param {Element} target */
+function skippedUntilDrawn(target) {
+  const skipping = skipper(target);
+  skipping?.addEventListener("contentvisibilityautostatechange", drawnAgain);
+  return Boolean(skipping);
+}
+/** @param {Event} event */
+function drawnAgain(event) {
+  if (/** @type {ContentVisibilityAutoStateChangeEvent} */ (event).skipped) return;
+  event.currentTarget?.removeEventListener(
+    "contentvisibilityautostatechange",
+    drawnAgain,
+  );
+  scheduleRowLayout();
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
@@ -1720,6 +1737,8 @@ function scheduleStirReading() {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;
+      const withheld = row.classList.contains("lf-withheld");
+      if (withheld && skippedUntilDrawn(target)) continue;
       const words = quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
       // A box inside the target that scrolls a passage's words moves them too.
@@ -1732,7 +1751,6 @@ function scheduleStirReading() {
           return false;
         });
       if (!moving) continue;
-      const withheld = row.classList.contains("lf-withheld");
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
@@ -1791,7 +1809,7 @@ function seatingsAfter(resized) {
       holders.add(at);
       at = renderedParent(at);
     }
-  const reading = { children: childIndex(), heads: pageHeads(), root: pageDocument() };
+  const reading = { children: childIndex(), root: pageDocument() };
   for (const [row, seating] of seatings) {
     const move = seatingMove(seating, resized, byBox, holders, reading);
     if (move) seating.moved = move;
@@ -1809,7 +1827,7 @@ function seatingsAfter(resized) {
 // left where it was; at a level of that path holding a box that changed size, the band
 // now meets a box it didn't; or the subject moved across, which a rail row doesn't
 // follow, or moved where a box clipping it bounds what the record read.
-/** @param {Seating} seating @param {Resized[]} resized @param {Map<Element, Resized>} byBox @param {Set<Element>} holders @param {{children: ReturnType<typeof childIndex>, heads: ReadonlyMap<Element, unknown>, root: Element}} reading what every record's check reads alike @returns {Move | null} */
+/** @param {Seating} seating @param {Resized[]} resized @param {Map<Element, Resized>} byBox @param {Set<Element>} holders @param {{children: ReturnType<typeof childIndex>, root: Element}} reading what every record's check reads alike @returns {Move | null} */
 function seatingMove(seating, resized, byBox, holders, reading) {
   const { read, frame, band } = seating;
   const subject = read.point ?? read.anchor;
@@ -1872,7 +1890,7 @@ function seatingMove(seating, resized, byBox, holders, reading) {
       .some((child) => {
         if (child.lines) return true;
         const { node, box } = child;
-        if (path.has(node) || standsStill(node, reading.heads)) return false;
+        if (path.has(node) || inWindow(node)) return false;
         if (!box.width && !box.height) return newcomer(node);
         return !recorded.has(node);
       });
@@ -1993,13 +2011,13 @@ function layoutMountedRows(layer) {
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
-    // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
-    // to stand, and every reading below would force that content's style and layout to
-    // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
-    // pass that runs once it is drawn, and keeps the lane it stands in meanwhile, so a
-    // tab switch does not move the rows of a reading region's hidden panels between
-    // lanes.
-    if (skipped(target)) {
+    // A target in skipped content — a tab not chosen, a closed disclosure, lines out of
+    // view — has nowhere to stand, and every reading below would force that content's
+    // style and layout to say so. Withheld like a target that has gone, it is anchored
+    // by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps the lane
+    // it stands in meanwhile, so a tab switch does not move the rows of a reading
+    // region's hidden panels between lanes.
+    if (skippedUntilDrawn(target)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;

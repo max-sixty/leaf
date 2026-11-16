@@ -558,12 +558,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
     assert [
-        (f.scheme, f.at, f.values["changed"])
-        for f in failures
-        if f.code == "relative-render"
+        (f.at, f.values["changed"]) for f in failures if f.code == "relative-render"
     ] == [
-        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
-        ("light", "<lf-tally id=tally-seen>", ["body text"]),
+        ("<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
     # the current vocabulary beside it leaves the gate nothing to say.
@@ -997,7 +995,6 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
-    expect(one.locator(".lf-say")).to_have_count(0)
     reply = panel_field(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()

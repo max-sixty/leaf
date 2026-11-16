@@ -2,9 +2,11 @@
  * that supply margin clusters. DOM placement, retained controls, activation, search
  * input and focus stay in the dialog adapter. */
 
-import { spokenSubject, visibleContributionEntryLabel } from "./contribution-model.js";
-
-import { contributionItemKey } from "./contribution-model.js";
+import {
+  contributionItemKey,
+  spokenSubject,
+  visibleContributionEntryLabel,
+} from "./contribution-model.js";
 import { annotationItems, entryControls } from "./margin-model.js";
 import { wordsText } from "./voice.js";
 

@@ -514,7 +514,7 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     lines = [f"line {at}" for at in range(300)]
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(3)
     )
     url = serve(
@@ -561,7 +561,7 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -603,7 +603,7 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     lines into runs of their own: Firefox showed them uncoloured for a frame or two."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(2)
     )
     url = serve(
@@ -694,7 +694,7 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -1124,7 +1124,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serv
     plain document and in one whose tokens split the text into coloured spans."""
     tags = (
         '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
-        '<lf-text-document id="python-document" source="python-text" language="python">'
+        '<lf-text-document id="python-document" source="python-text" class="language-python">'
         "</lf-text-document>"
     )
     source = LONG_LINE_DIFF_PAGE.replace(
@@ -1363,7 +1363,7 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     url = serve(
         leaf_page(
             "Split colour",
-            '<lf-text-document id="log" source="log-text" language="python">'
+            '<lf-text-document id="log" source="log-text" class="language-python">'
             "</lf-text-document>",
         )
     )
@@ -1464,8 +1464,8 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     """An lf-code body with `lines` is a quotation from a longer file. What the user
     reads is the file's own numbering: the gutter counts from where the quote starts
     and jumps where it skips, each skip stands as an elided row saying how much is
-    left out, and the gutter widens so four digits still leave the code in line with
-    its notes. Everything that points into the block — `hi`, a note's `at`, a key
+    left out, and the gutter widens so four digits still leave a note's card under its
+    line's first character. Everything that points into the block — `hi`, a note's `at`, a key
     another widget navigates to — names lines by those numbers. A left-out number
     addresses the elided row standing for it, so a note placed there is that row's
     caption, and a number outside the block addresses nothing. A body longer than its ranges goes on counting,
@@ -1479,14 +1479,14 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
             """
 <h1 id="t">Runs</h1>
 <p id="lede">The loop that finds each run.</p>
-<lf-code id="walk" language="rust" lines="1505-1507,1550-1552" hi="1550"><pre>
+<lf-code id="walk" lines="1505-1507,1550-1552" hi="1550"><pre><code class="language-rust">
 fn merge_sort()
 {
     let len = v.len();
     while end &gt; 0 {
         let mut start = end - 1;
         start -= 1;
-</pre>
+</code></pre>
 <lf-note at="1551">One run per pass.</lf-note>
 <lf-note id="gap" at="1520">Setup, left out.</lf-note>
 </lf-code>
@@ -1532,18 +1532,34 @@ only
     expect(vast).to_have_count(1)
     assert vast.evaluate("r => getComputedStyle(r, '::before').content") == '"1"'
 
-    code_x, note_x = page.evaluate(
+    # The note on 1551 hangs from that line's first character, past its indent, so its
+    # card's left edge stands under the `let` it explains.
+    code_x, key_x, card_x = page.evaluate(
         """() => {
           const start = (node) => {
             const range = document.createRange();
             range.setStart(node.firstChild.firstChild ?? node.firstChild, 0);
             return range.getBoundingClientRect().left;
           };
+          const line = document.querySelector('#walk [data-lf-line="1551"]');
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          let key = null;
+          for (let node = walker.nextNode(); node && !key; node = walker.nextNode()) {
+            const at = node.data.search(/\\S/);
+            if (at < 0) continue;
+            key = document.createRange();
+            key.setStart(node, at);
+            key.setEnd(node, at + 1);
+          }
+          const note = document.querySelector('#walk pre > lf-note');
+          const card = note.getBoundingClientRect().left
+            + parseFloat(getComputedStyle(note, '::before').left);
           return [start(document.querySelector('#walk .lf-code-line')),
-                  start(document.querySelector('#walk pre > lf-note'))];
+                  key.getBoundingClientRect().left, card];
         }"""
     )
-    assert abs(code_x - note_x) < 1, (code_x, note_x)
+    assert key_x > code_x + 1, (code_x, key_x)
+    assert abs(card_x - key_x) < 1, (key_x, card_x)
 
     # The caption sits after the gutter and the count, on the elided row's own line.
     gutter, caption = page.evaluate(
@@ -1603,11 +1619,11 @@ def test_a_code_line_longer_than_its_block_wraps_under_its_own_indent(browser, s
             "wrap",
             f"""
 <h1 id="t">Wrap</h1>
-<lf-code id="walk" language="python"><pre>
+<lf-code id="walk"><pre><code class="language-python">
 def ceiling(limit):
 {call}
 {digest}
-</pre></lf-code>
+</code></pre></lf-code>
 """,
         )
     )
@@ -1683,3 +1699,78 @@ def ceiling(limit):
     page.emulate_media(media="print")
     expect(line).to_have_css("white-space", "pre-wrap")
     expect(line).to_have_css("overflow-wrap", "anywhere")
+
+
+def test_a_reader_hides_a_blocks_notes_to_read_its_code_whole(browser, serve):
+    """A block with notes offers a mark beside Copy in its toolbar, and `n` while the
+    reader is on the block, so they can read the code without the cards between its
+    lines. The toolbar takes no room and shows only while the pointer is on the block.
+    A hidden note's line keeps its number in the accent, so the reader still sees where
+    the notes were. The choice is the tab's reading state, as wrapping is: it holds
+    across a reload, and paper shows the notes whatever the screen chose. A block
+    without notes keeps Copy alone."""
+    url = serve(
+        leaf_page(
+            "notes",
+            """
+<h1 id="t">Brackets</h1>
+<lf-code id="walk"><pre><code class="language-python">
+def bracket(temp):
+    if temp &lt; 0:
+        return "steel"
+    return "cedar"
+</code></pre>
+<lf-note id="freeze" at="2">Freezing is the only threshold that matters.</lf-note>
+</lf-code>
+<lf-code id="plain"><pre><code class="language-python">
+print("no notes")
+</code></pre></lf-code>
+""",
+        ),
+    )
+    page = open_page(browser, url)
+    bar = page.locator("#walk > .lf-code-bar")
+    toggle = bar.locator(".lf-code-notes-toggle")
+    note = page.locator("#freeze")
+    number = page.locator('#walk [data-lf-line="2"]')
+    # Notes first, Copy last, on one toolbar; a block without notes keeps Copy alone.
+    expect(bar.locator(":scope > *")).to_have_count(2)
+    assert bar.locator(":scope > *").evaluate_all(
+        "marks => marks.map(m => m.getAttribute('aria-label'))"
+    ) == ["Hide notes", "Copy"]
+    expect(page.locator("#plain .lf-code-bar")).to_have_count(0)
+    expect(page.locator("#plain .lf-code-copy")).to_have_count(1)
+    expect(note).to_be_visible()
+    page.mouse.move(0, 0)
+    expect(bar).to_have_css("opacity", "0")
+    shown = number.evaluate("line => getComputedStyle(line, '::before').color")
+
+    page.locator("#walk pre").hover()
+    expect(bar).to_have_css("opacity", "1")
+    toggle.click()
+    expect(toggle).to_have_attribute("aria-label", "Show 1 note")
+    expect(note).to_be_hidden()
+    assert number.evaluate("line => getComputedStyle(line, '::before').color") != shown
+
+    page.locator("#walk pre").focus()
+    page.keyboard.press("n")
+    expect(toggle).to_have_attribute("aria-label", "Hide notes")
+    expect(note).to_be_visible()
+
+    page.keyboard.press("n")
+    expect(note).to_be_hidden()
+    # Copy, the toolbar's last mark, copies the code without the note's words.
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#walk pre").hover()
+    bar.get_by_role("button", name="Copy").click()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        'def bracket(temp):\n    if temp < 0:\n        return "steel"\n    return "cedar"'
+    )
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#walk .lf-code-notes-toggle")).to_have_attribute(
+        "aria-label", "Show 1 note"
+    )
+    expect(page.locator("#freeze")).to_be_hidden()
+    page.emulate_media(media="print")
+    expect(page.locator("#freeze")).to_be_visible()

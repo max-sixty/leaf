@@ -11,7 +11,8 @@ browser run, a module that breaks on its first paint, or a chart whose body fail
 would pass the check and reach the user, and its author would hear about it only from
 the watcher's `error` event. The check therefore runs the exact candidate once,
 wherever the page carries any of these: through upgrade, authoritative presentation,
-and one rendering frame after it, at the render viewport in the light scheme.
+and one rendering frame after it, in the light scheme, at the render viewport, or with
+`--render` on the render check's page, at its desktop window (`PageCode`).
 
 A thread message's markup is run the same way before it posts (`message_page`,
 `command.message_check`), wherever it places one of those widgets. Nothing else draws
@@ -111,18 +112,44 @@ def message_page(markup: str) -> SourceDocument:
     return SourceDocument(source)
 
 
-def run_page_code(browser, url: str) -> list[Finding]:
-    """Every error the served page reports while it upgrades and first presents.
+class PageCode:
+    """The page-code reading of one browser page, from before its navigation: every
+    error the runtime reports, and the requests that failed while it ran. A page opened
+    for it alone (`run_page_code`) or the render check's page (`scheme._render_page`)
+    takes it, so `page check --render` loads the page once for both."""
 
-    Returns the reports, each in the words the runtime gave it, then any stage the page
-    never reached; [] is a pass."""
-    from playwright.sync_api import Error as PlaywrightError
+    def __init__(self, page):
+        self.reports = []
+        answer_reports(
+            page,
+            lambda text: self.reports.append(
+                Finding("page-report", values={"text": text})
+            ),
+        )
+        self.network_errors = _failed_requests(page)
 
-    reports = []
-    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
-    answer_reports(
-        page, lambda text: reports.append(Finding("page-report", values={"text": text}))
-    )
+    def findings(self, page, unready: PageNotReady | None = None) -> list[Finding]:
+        """The reports, each in the words the runtime gave it, then the stage the page
+        never reached (`unready`), and where any of those failed it, the requests that
+        failed; [] is a pass. Read once the page is ready, or has missed a stage."""
+        reports = self.reports
+        if unready is not None:
+            reports.append(
+                Finding(
+                    "not-ready", values={"stage": unready.stage, "error": str(unready)}
+                )
+            )
+        # A page that refused to start still answers, and posts why; one that missed a
+        # stage may not answer at all. The report is posted asynchronously, and the
+        # route answers it only while this process is waiting on the page.
+        if unready is None or unready.stage == "refused":
+            wait_for_probe(page, "sendsAcked")
+        return [*reports, *self.network_errors] if reports else []
+
+
+def _failed_requests(page) -> list[Finding]:
+    """The requests of `page` that fail or answer an error status from now on, filled
+    in as they do."""
     cdp = page.context.new_cdp_session(page)
     cdp.send("Page.enable")
     cdp.send("Network.enable")
@@ -191,8 +218,22 @@ def run_page_code(browser, url: str) -> list[Finding]:
     cdp.on("Network.loadingFinished", cdp_finished)
     cdp.on("Network.loadingFailed", cdp_failed)
     cdp.on("Network.responseReceived", cdp_response)
+    return network_errors
+
+
+def run_page_code(browser, url: str) -> list[Finding]:
+    """Every error the served page reports while it upgrades and first presents, in a
+    page of its own.
+
+    Returns the reports, each in the words the runtime gave it, then any stage the page
+    never reached; [] is a pass."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
+    code = PageCode(page)
     try:
         page.goto(url)
+        unready = None
         try:
             state = served(page, url, "/api/state").json()
             wait_until_ready(page, state, fixed_server=True)
@@ -200,24 +241,13 @@ def run_page_code(browser, url: str) -> list[Finding]:
             # A widget that paints from a rendering callback throws there, not in its
             # upgrade; once the rendering has settled, every callback it queued has run.
             rendered(page)
-            answering = True
         except PageNotReady as error:
-            reports.append(
-                Finding("not-ready", values={"stage": error.stage, "error": str(error)})
-            )
-            # A page that refused to start still answers, and posts why; one that
-            # missed a stage may not answer at all.
-            answering = error.stage == "refused"
-        if answering:
-            # The report is posted asynchronously, and the route above answers it only
-            # while this process is waiting on the page.
-            wait_for_probe(page, "sendsAcked")
+            unready = error
+        return code.findings(page, unready)
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        reports.append(Finding("browser-error", values={"error": str(error).strip()}))
+        browser_error = Finding("browser-error", values={"error": str(error).strip()})
+        return [*code.reports, browser_error, *code.network_errors]
     finally:
         page.close()
-    if reports and network_errors:
-        reports.extend(network_errors)
-    return reports

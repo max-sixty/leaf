@@ -9,15 +9,10 @@
  * themselves. */
 import "/widgets/lf-shot.js";
 /** @typedef {import("/widgets/lf-shot.js").Shot} Shot */
+import { html, nothing, repeat, ref, render, live } from "/vendor/lit.js";
 import {
   LeafElement,
-  html,
-  nothing,
-  repeat,
-  ref,
   generatedElement,
-  render,
-  live,
   generated,
   offered,
   offeredAction,
@@ -664,7 +659,8 @@ customElements.define(
     /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets */
     threadOutlets(targets) {
       return targets.map(({ anchor, placement }) => {
-        const article = this.#entries.get(anchor.datum)?.article;
+        // A thread about the review as a whole names no datum, and stays in the margin.
+        const article = anchor.datum && this.#entries.get(anchor.datum)?.article;
         return article &&
           anchor.datum === this.#selected?.record.id &&
           placement.datumElement === article

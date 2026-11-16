@@ -416,7 +416,7 @@ async function boot() {
     compositionSurface: {
       active: () => {
         const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
-        return anchor ? { anchor } : null;
+        return anchor ? { anchor, about: pendingAbout } : null;
       },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),

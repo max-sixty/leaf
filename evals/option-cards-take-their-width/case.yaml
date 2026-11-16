@@ -5,16 +5,17 @@
 # The fix is guidance: the lf-options entry says a card of words reads at about 18rem,
 # so a row of three needs `data-width="wide"`. As a probe told to read the entries,
 # base a2773d828 set `data-width` on the row in 1 of 4 Claude Code runs, and the entry
-# stating the rule in 4 of 4; every run set `across`. The case now authors the page
-# and names nothing to read: at 0e538e29d each of 4 Claude Code authors read the
-# entries through `leaf page instructions --use` and set the width, as 4 of 4 told
-# probes did.
+# stating the rule in 4 of 4; every run set `across`. As an authoring case naming
+# nothing to read, at 0e538e29d each of 4 Claude Code authors read the entries through
+# `leaf page instructions --use` and set the width, as 4 of 4 told probes did. Now a
+# probe given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2 at
+# b90df8d3a2.
 description: option-cards-take-their-width
 metadata:
   purpose:
     "Asks: a row of option cards set side by side takes the width its cards need to
     read, rather than a share of the reading column too small for a card's title."
-  authoring: true
+  page: []
   tags:
     - asks
 vars:

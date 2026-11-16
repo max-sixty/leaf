@@ -1,10 +1,6 @@
-"""Approved appearance across a real message delivery journey.
-
-Run
-``uv run pytest -n0 tests/*/test_render_thread_snapshots.py``. Baselines are
-reviewed PNG images pinned in leaf-assets; run evidence stays in .tmp.
-``leaf-dev journey snapshots --help`` owns snapshot review and acceptance.
-"""
+"""On Linux the suite lays text out in the faces its fixed fontconfig names
+(`leaf_dev.browser.linux_font_environment`), so every Linux run measures the same
+text."""
 
 import sys
 

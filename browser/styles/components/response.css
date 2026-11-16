@@ -347,9 +347,7 @@ leaf-composition-field {
    never takes the field's width; a seated comment box's composer adds no box of its
    own (`display: contents`). The row's own gap between its lines would add to the
    shelf's, so the shelf's margin alone sets it. */
-:is(.lf-thread-reply, .lf-say):has(
-  > leaf-composition-field > .lf-composer-media:not([hidden])
-),
+.lf-thread-reply:has(> leaf-composition-field > .lf-composer-media:not([hidden])),
 .lf-fab-bar[data-lf-presentation="inline"]:has(
     > .lf-composer > leaf-composition-field > .lf-composer-media:not([hidden])
   ) {

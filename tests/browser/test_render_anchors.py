@@ -1241,71 +1241,6 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-def test_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    card = page.locator("#card")
-    actions = page.locator("#actions")
-    pre = page.locator("#source")
-    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
-
-    expect(actions).to_be_hidden()
-    pre.hover()
-    expect(actions).to_be_visible()
-    copy.hover()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    assert not card.evaluate("node => node.matches(':hover')")
-
-    page.mouse.move(2, 300)
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-    pre.hover()
-    copy.focus()
-    page.mouse.move(2, 300)
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").focus()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
-def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Touch copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#source")
-    actions = page.locator("#actions")
-    pre.tap(position={"x": 30, "y": 20})
-    expect(actions).to_be_visible()
-    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").tap()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
 def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     """Copy is a mark, one size on every block, compact or tall, and its reach keeps
     the aim floor."""
@@ -1743,9 +1678,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1813,17 +1748,21 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
       const line = document.querySelector('#walk-code .lf-code-line');
       const note = document.querySelector('#walk-code pre > lf-note');
       const noteStyle = getComputedStyle(note);
+      const card = getComputedStyle(note, '::before');
       const blockRect = block.getBoundingClientRect();
       const noteRect = note.getBoundingClientRect();
       return {
         page: channels(getComputedStyle(document.body).backgroundColor),
         block: channels(getComputedStyle(block).backgroundColor),
+        blockImage: getComputedStyle(block).backgroundImage,
+        gutterColor: getComputedStyle(line, '::before').backgroundColor,
         gutter: channels(getComputedStyle(line, '::before').backgroundColor),
-        note: channels(noteStyle.backgroundColor),
-        noteBorderBlock: noteStyle.borderBlock,
-        noteBorderLeftWidth: noteStyle.borderLeftWidth,
-        noteRadius: noteStyle.borderRadius,
+        card: channels(card.backgroundColor),
+        cardBorder: card.borderTopWidth,
+        cardRadius: card.borderTopLeftRadius,
         noteFont: noteStyle.fontFamily,
+        noteSize: parseFloat(noteStyle.fontSize),
+        codeSize: parseFloat(getComputedStyle(line).fontSize),
         sansFont: getComputedStyle(document.documentElement)
           .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
@@ -1840,12 +1779,18 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         )
     ), f"the code canvas is not whiter than the document: {appearance}"
     assert appearance["gutter"] != appearance["block"], appearance
-    assert appearance["note"] == appearance["block"], appearance
-    assert appearance["noteBorderBlock"].startswith("1px solid"), appearance
-    assert appearance["noteBorderLeftWidth"] == "0px", appearance
-    assert appearance["noteRadius"] == "0px", appearance
+    # The gutter's ground runs the block's whole height, past the note beside it.
+    assert appearance["gutterColor"] in appearance["blockImage"], appearance
+    # The note is a card in the block's own chrome, the gutter's ground, with its words
+    # in the interface face a size below the code's.
+    assert appearance["card"] == appearance["gutter"], appearance
+    assert appearance["cardBorder"] == "1px", appearance
+    assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
-    assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
+    assert appearance["noteSize"] < appearance["codeSize"], appearance
+    # The card stands inside the frame, sized to its words.
+    assert appearance["noteInset"]["left"] == 1, appearance
+    assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
     post_event(
@@ -1901,7 +1846,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             f"""
 <h1 id="t">Shell commands</h1>
 <pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
-<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-code id="shell-widget"><pre><code class="language-bash">{escape(source)}</code></pre></lf-code>
 <lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
 --- a/check.sh
 +++ b/check.sh
@@ -2254,7 +2199,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
@@ -2404,7 +2349,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
             assert stands >= 0.05, f"{scheme}: a {kind} mark {stands:.3f} from its row"
 
     # A theme or page sets the code inputs apart from the scheme (package-themes.md,
-    # "Theme colors"), as dark code on a light page does. The rows take their lightness
+    # "Theme tokens"), as dark code on a light page does. The rows take their lightness
     # from the code canvas rather than the scheme, so they stand a step from it and the
     # code on them reads as it does on the canvas.
     dark_code = {
@@ -2448,7 +2393,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -3751,7 +3697,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
@@ -5005,7 +4950,6 @@ LATE_STAGE = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-shadow": True,
     "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
@@ -6115,7 +6059,6 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": False,
                 "x-says": {"label": "before"},
                 "x-example": '<lf-said-label id="example" label="Head">Words.'
                 "</lf-said-label>",

@@ -36,7 +36,7 @@
   },
   {
     "id": "an eyebrow stands above a header's title",
-    "markup": "<section id=\"it\"><header><p class=\"eyebrow\">Stage 2</p><strong>Migration rehearsal</strong></header></section>",
+    "markup": "<section id=\"it\"><header><p>Stage 2</p><strong>Migration rehearsal</strong></header></section>",
     "name": "Migration rehearsal"
   },
   {
@@ -46,29 +46,29 @@
   },
   {
     "id": "a title group names itself by its heading",
-    "markup": "<hgroup id=\"it\"><p class=\"eyebrow\">Stage 2</p><h1>Review</h1><p>Subtitle.</p></hgroup>",
+    "markup": "<hgroup id=\"it\"><p>Stage 2</p><h1>Review</h1><p>Subtitle.</p></hgroup>",
     "name": "Review"
   },
   {
     "id": "a title group names its owner",
-    "markup": "<section id=\"it\"><header><hgroup><p class=\"eyebrow\">Stage 2</p><h2>Migration</h2></hgroup></header></section>",
+    "markup": "<section id=\"it\"><header><hgroup><p>Stage 2</p><h2>Migration</h2></hgroup></header></section>",
     "name": "Migration"
   },
   {
-    "id": "the x-name attribute names its element",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "id": "a widget's label names its element",
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
     "name": "Ready"
   },
   {
-    "id": "the x-name attribute comes before a heading",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "id": "a widget's label comes before a heading",
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><h3>Later</h3></lf-column>",
     "name": "Ready"
   },
   {
     "id": "without its attribute an element takes its heading",
-    "registry": { "lf-column": { "x-name": "label" } },
+    "registry": { "lf-column": {} },
     "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
     "name": "Later"
   },

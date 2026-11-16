@@ -5,7 +5,6 @@ import * as editing from "/runtime/thread/message-edit.js";
 import { createCompositionInputs } from "/runtime/composing/input.js";
 import { clearDraft, loadDraft, rewriteContext, saveDraft } from "/runtime/drafts.js";
 import { applicationState } from "/runtime/semantic-state.js";
-import { draftStore } from "/runtime/storage.js";
 import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
 import { dispatchKey } from "/runtime/keyboard/dispatch.js";
 import "/runtime/thread/landing.js";
@@ -65,14 +64,6 @@ test("restore keeps the latest changed rewrite and its revision, without replaci
   assert.equal(restore.when(), false);
   await restore.run();
   assert.equal(loadDraft(ctx)?.text, "A newer draft");
-  assert.deepEqual(visits, []);
-  clearDraft(ctx);
-  // Another tab writes before its storage event reaches this one. The cached
-  // tombstone must not authorize replacing those newer words.
-  saveDraft("other-tab", "Words from another tab", { over: "revision-2" });
-  draftStore.set("lf-draft:" + ctx, draftStore.get("lf-draft:other-tab"));
-  await restore.run();
-  assert.equal(loadDraft(ctx)?.text, "Words from another tab");
   assert.deepEqual(visits, []);
   clearDraft(ctx);
   await restore.run();

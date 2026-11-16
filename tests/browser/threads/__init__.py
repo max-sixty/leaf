@@ -12,6 +12,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_WIDGETS,
+    open_seat_box,
     panel_comment,
 )
 from render_cases_navigation import source_revision
@@ -248,7 +249,6 @@ def _shadow_tree_widget(tag):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-example": f'<{tag} id="example"></{tag}>',
     }
@@ -447,10 +447,9 @@ def bounded_seat_page(steps, bound):
 
 def seated_page(serve, kind):
     """A page whose seat sits past a screen of filler with more below it, and the
-    selector of the widget holding it: `task` keeps its box after a send to offer
-    Send & pause, `verdict` gives it up to the thread it starts. `bounded` is a task
-    in a command that bounds its height and scrolls, `bounded-short` one in a block
-    whose bound its contents do not yet fill."""
+    selector of the widget holding it: `task`'s comment box offers Send & pause,
+    `verdict`'s only Send. `bounded` is a task in a command that bounds its height and
+    scrolls, `bounded-short` one in a block whose bound its contents do not yet fill."""
     if kind == "bounded":
         return serve(bounded_seat_page(6, "end")), "#jobs"
     if kind == "bounded-short":
@@ -526,18 +525,16 @@ def pressed_send_surface(browser, serve, surface):
     if surface in {"pause", "handoff"}:
         url, host = seated_page(serve, "task" if surface == "pause" else "verdict")
         page = open_page(browser, url)
-        seat = page.locator(f"{host} > .lf-thread-seat")
-        box = seat.locator(":scope > .lf-say leaf-text")
-        box.scroll_into_view_if_needed()
-        name = "Send & pause" if surface == "pause" else "Send"
-        send = seat.get_by_role("button", name=name, exact=True)
-        # A seat that gives its box up leaves the user on the thread it started.
-        after = box if surface == "pause" else seat.locator(":scope > .lf-page-thread")
-        reply = (
-            box
+        page.locator(f"{host} > .lf-test-comment").scroll_into_view_if_needed()
+        seat, box = open_seat_box(page, host)
+        send = (
+            seat.get_by_role("button", name="Send & pause", exact=True)
             if surface == "pause"
-            else seat.locator(":scope > .lf-page-thread > .lf-thread-reply leaf-text")
+            else seat.locator(".lf-compose-submit")
         )
+        # The box gives way to the thread it starts, and leaves the user on it.
+        after = seat.locator(":scope > .lf-page-thread")
+        reply = after.locator(":scope > .lf-thread-reply leaf-text")
     elif surface == "diff-reply":
         url, root = long_diff_thread(serve)
         page = open_page(browser, url)

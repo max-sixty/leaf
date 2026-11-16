@@ -149,18 +149,19 @@ lf-toc a[data-lf-focus] {
 }
 /* A section's mark (toc-view.js) says it holds an On Me item, in the user's turn's
  * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
- * preview counts both. It is a small ring of its colour, with a hairline of paper round
- * it (`--lf-toc-halo`), so it never runs into a changed stretch or the lens. An On Me
- * item's ring also stands in a soft disc of its colour, so what waits on the user
+ * preview counts both. It is a small ring of its colour. An On Me item's ring also
+ * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
  * differs from a thread by its shape as well as its colour, which some readers can't
  * tell apart at this size (tokens.css, at `--lf-turn`); the user chose this on 15
- * November 2026 over discs on both. The outline draws the ring on its rule, centred on
- * the row's first line in one column at every depth; the map draws the section's marker
- * as that ring (below). Only where you are fills a marker, so no mark reads as the
- * current section. While the changes view is on, a changed section's stretch of the
- * rule wears the face a change wears in the margin (`--lf-change-bar`, chrome.css),
- * and a mark stands over it. Out of the words,
- * no mark reads as part of them, and out of flow, none moves a row. They take no
+ * November 2026 over discs on both. The rule, the lens and a changed stretch meet every
+ * mark flush, as they meet a plain marker. Rejected: a hairline of paper round each
+ * mark, which cut the rule short on both sides of it. The outline draws the ring on its
+ * rule, centred on the row's first line in one column at every depth; the map draws the
+ * section's marker as that ring (below). Only where you are fills a marker, so no mark
+ * reads as the current section. While the changes view is on, a changed section's
+ * stretch of the rule wears the face a change wears in the margin (`--lf-change-bar`,
+ * chrome.css), and a mark stands over it. Out of the words, no mark reads as part of
+ * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
  * as an en dash; dashes ticked off the rule, with every label inset 6px further on the
  * map, stacked into a letter E beside a changed row and rewrapped labels on every map;
@@ -179,28 +180,31 @@ lf-toc .lf-toc-mark {
   border: 1px solid var(--lf-toc-mark);
   border-radius: 50%;
   translate: 0 -50%;
-  background: var(--lf-paper);
+  background-color: var(--lf-paper);
+  background-clip: padding-box;
   box-shadow: var(--lf-toc-halo);
   pointer-events: none;
 }
 lf-toc [data-lf-toc-mark="thread"] {
   --lf-toc-mark: var(--lf-thread);
-  --lf-toc-halo: 0 0 0 1px var(--lf-paper);
+  --lf-toc-halo: none;
 }
 /* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
    circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark="on-me"] {
   --lf-toc-mark: var(--lf-turn);
-  --lf-toc-halo:
-    0 0 0 3.5px color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper)),
-    0 0 0 4.5px var(--lf-paper);
+  --lf-toc-halo: 0 0 0 3.5px
+    color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper));
 }
+/* A changed stretch runs its round caps half its width past each end of its row, so two
+   changed rows' stretches overlap there and join at full width, rather than pinching
+   where their caps meet. */
 lf-toc
   :is(.lf-toc-start, li, .lf-toc-toggle, .lf-toc-heading)[data-lf-toc-changed]::after {
   content: "";
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: -1.5px;
+  bottom: -1.5px;
   inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
@@ -359,21 +363,30 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: var(--lf-toc-dot);
       height: var(--lf-toc-dot);
       border-radius: 50%;
-      background: var(--lf-muted);
+      background-color: var(--lf-muted);
+      /* A ring's fill stops inside its stroke, so where a changed stretch runs under the
+         marker its edge meets the ring's colour, not a fringe of paper. */
+      background-clip: padding-box;
     }
     lf-toc .lf-toc-start::before {
       --lf-toc-dot: 9px;
     }
+    /* Every marker is an odd number of pixels across, so it centres on the one-pixel
+       spine: an even one stands half a pixel off it, which engines round to a whole
+       pixel to one side. */
     lf-toc li[data-lf-depth="0"]::before {
-      --lf-toc-dot: 6px;
+      --lf-toc-dot: 7px;
     }
     lf-toc .lf-toc-start::before,
     lf-toc li[data-lf-depth="0"]::before {
       border: 1px solid var(--lf-muted);
-      background: var(--lf-paper);
+      background-color: var(--lf-paper);
     }
+    /* A filled marker is one disc, so its fill runs under its stroke, which would
+       otherwise leave a seam between them. */
     lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-      background: var(--lf-accent);
+      background-color: var(--lf-accent);
+      background-clip: border-box;
       border-color: var(--lf-accent);
     }
     lf-toc .lf-toc-start a,
@@ -412,11 +425,12 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       }
     }
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
-       its marker, which shows at rest too: a ring of the mark's colour in its halo,
-       where a subsection's point grows to such a ring. Where you are keeps its accent
-       fill inside the halo. A changed section's stretch of the spine runs from its
-       marker to the next one, under the lens, so the lens still shows the part in
-       view. */
+       its marker, which shows at rest too: a ring of the mark's colour, where a
+       subsection's point grows to such a ring. Where you are keeps its accent fill,
+       inside the disc for an On Me item. A changed section's stretch of the spine runs
+       from its marker to the next one, under the lens, so the lens still shows the part
+       in view. Its caps run half its width past each marker, as the outline's run past
+       each row (above), so every end lies under a marker. */
     lf-toc .lf-toc-mark {
       display: none;
     }
@@ -428,15 +442,15 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         :has(> a[aria-current="location"])
       )::before {
       border: 1px solid var(--lf-toc-mark);
-      background: var(--lf-paper);
+      background-color: var(--lf-paper);
     }
     lf-toc li:not([data-lf-depth="0"])[data-lf-toc-mark]::before {
       --lf-toc-dot: 5px;
     }
     lf-toc :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
-      top: var(--lf-toc-row-shift, 0px);
+      top: calc(var(--lf-toc-row-shift, 0px) - 1.5px);
       inset-inline-start: calc(var(--lf-toc-spine-width) / 2 - 1.5px);
-      height: var(--lf-toc-reach, 100%);
+      height: calc(var(--lf-toc-reach, 100%) + 3px);
     }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
@@ -539,7 +553,6 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      keep. */
   lf-toc [data-lf-toc-mark] {
     --lf-toc-mark: CanvasText;
-    --lf-toc-halo: 0 0 0 1.5px Canvas;
   }
   lf-toc [data-lf-toc-mark="on-me"] {
     --lf-toc-halo: 0 0 0 1.5px Canvas, 0 0 0 3px CanvasText;

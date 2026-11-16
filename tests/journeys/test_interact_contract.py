@@ -2,14 +2,12 @@
 
 import json
 import re
-import shutil
 
 import pytest
 import tinycss2
 import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     PAGE,
     append_carried_log_record,
     assert_revendor_serializes_writer,
@@ -164,19 +162,21 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
 
 def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
 
-    def withdrawn_as(outcome):
+    def withdraws(outcome):
         declare_on_page(
             trial_page,
-            lambda registry: registry["lf-trial"].update({"x-withdrawn-as": outcome}),
+            lambda registry: registry["lf-trial"]["x-state"]["decide"].update(
+                {"withdraws": outcome}
+            ),
         )
 
-    withdrawn_as("pause")
+    withdraws("pause")
     result = check(trial_page)
     assert result.exit_code == 0, result.output
-    withdrawn_as("missing")
+    withdraws("missing")
     status, findings = check_findings(trial_page)
     assert status != 0
-    assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
+    assert found(findings, "withdraws-outcome", "<lf-trial>", outcome="missing")
 
 
 @pytest.mark.parametrize(
@@ -210,7 +210,6 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "restated": {"type": "boolean"},
             }
             entry["x-state"] = verbs
-            entry["x-upgrade"] = True
             (widgets / f"{tag}.js").write_text("export default class {}\n")
         if arrangement == "recording-column-position":
             registry["lf-column"]["x-state"]["move"] = {
@@ -421,52 +420,6 @@ def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
     assert check(page_dir).exit_code == 0
     assert "color: rebeccapurple" in tokenized
     assert not [len(css) for css in tokenized if blob in css]
-
-
-def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
-    """A hold is recorded against the declaration that admitted it."""
-    package = page_dir.parent / "mutable-command-hub"
-    shutil.copytree(COMMAND_HUB_PACKAGE, package)
-    selected = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
-    )
-    assert selected.exit_code == 0, selected.output
-    version = page_dir / "index.html"
-    version.write_text(
-        PAGE.replace(
-            "</section>",
-            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-test-task></lf-test-tasks></section>",
-        )
-    )
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Pause after this pass.",
-            "anchor": {"section": "goal"},
-            "holds": "goal",
-        },
-    )
-    dropped = page_dir.parent / "dropped-command-hub"
-    shutil.copytree(package, dropped)
-    registry_path = dropped / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    del registry["lf-test-task"]["x-thread-seat"]["hold"]
-    registry_path.write_text(json.dumps(registry))
-
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "./dropped-command-hub", str(page_dir)],
-    )
-
-    assert result.exit_code == 0, result.output
-
-    assert events_model.read_events(page_dir)
 
 
 def test_sample_fixture_accepts_native_message_markup(page_dir):

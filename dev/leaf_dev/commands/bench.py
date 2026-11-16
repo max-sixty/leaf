@@ -480,8 +480,9 @@ def document_lines(n: int) -> str:
         "</lf-options></lf-ask>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{steps(n * 32)}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
 
@@ -504,11 +505,22 @@ def side_documents(n: int) -> str:
     reads."""
     tabs = "".join(
         f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
 
 
 def document_text(d: int, first: str | None = None) -> str:
@@ -697,6 +709,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),

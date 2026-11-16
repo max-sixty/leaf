@@ -1,8 +1,8 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
+import { nothing } from "/vendor/lit.js";
 import {
   LeafElement,
-  nothing,
   generate,
   highlightBlocks,
   keepsHidden,

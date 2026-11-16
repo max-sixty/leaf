@@ -230,7 +230,11 @@ it, a correction to it, or a later finding of yours that changes its answer, goe
 into that reply with `leaf thread edit` rather than a new reply, so the user returns
 to the current answer rather than to messages that correct one another. Keep new
 replies for news the user is waiting on, such as a result you promised, and for
-answering a delivered update, which an edit does not answer.
+answering a delivered update, which an edit does not answer. Where you already
+posted such a correction as a new reply, fold it and the reply it corrects into one
+current answer with `leaf thread summarize <page> --from <earlier-reply> --through
+<correction> --text "<the current answer>"`, widening the range where Leaf names a
+wider one ("Summarize a long discussion").
 
 An ordinary reply leaves the thread open, or reopens it, so the user can inspect the
 answer; the user usually resolves it. Resolve it yourself only when the user asks,

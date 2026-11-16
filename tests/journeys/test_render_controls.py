@@ -274,7 +274,7 @@ CONTROL_ARCHETYPES = (
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
 FLOOR_RING = (
-    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
+    "[data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])"
 )
 
 

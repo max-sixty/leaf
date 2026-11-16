@@ -903,7 +903,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator("#later")).to_be_focused()
     else:
         expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+        expect(page.locator("#origin")).to_have_attribute("data-lf-projected-mark", "")
     assert page.evaluate("scrollY") == before
 
 

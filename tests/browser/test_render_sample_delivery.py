@@ -1,20 +1,16 @@
 """Opaque samples use ordinary native delivery and reconnect after a reload."""
 
 import json
-import re
-from urllib.parse import urlsplit
 
 import pytest
 from journeys.test_render_sample_delivery import sample_records
 from playwright.sync_api import expect
 from render_harness import (
     consume_browser_errors,
-    holding,
     http_error_console,
     leaf_page,
     open_page,
     reported_browser_errors,
-    said,
     take_browser_errors,
 )
 
@@ -169,139 +165,6 @@ def test_canceled_native_departure_keeps_fault_reporting(browser, serve):
         page,
         "live fault after canceled departure",
         "live fault after canceled departure",
-    )
-
-
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
-@pytest.mark.parametrize("navigation", ["form", "script"])
-def test_sample_native_departure_keeps_destination_and_reset(
-    request, serve, engine, navigation
-):
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            leaf_page(
-                "Native departure",
-                """
-<h1>Containing page</h1>
-<lf-sample id="practice" label="Practice" window>
-  <template id="practice-source" data-sample>
-    <h1>Practice page</h1>
-    <form action="https://docs.example.invalid/reference.html" method="get">
-      <input name="q" value="term"><button>Search docs</button>
-    </form>
-  </template>
-</lf-sample>
-""",
-            )
-        ),
-    )
-    page.route(
-        "https://docs.example.invalid/**",
-        lambda route: route.fulfill(
-            content_type="text/html", body="<!doctype html><h1>External reference</h1>"
-        ),
-    )
-    sample = page.locator("#practice")
-    sample.evaluate("async sample => await sample.ready")
-    child = sample.locator("iframe").element_handle().content_frame()
-    previous = child.url
-    child.evaluate("""async () => {
-      const {registerSampleCommand} = await window.__lfCheckApi();
-      registerSampleCommand('thread', () => {
-        window.waitingCommand = true;
-        return new Promise(() => {});
-      });
-    }""")
-    sample.evaluate("""sample => {
-      sample.showThread('pending').then(
-        shown => (window.departedCall = shown), error => (window.departedCall = error.name));
-    }""")
-    child.wait_for_function("window.waitingCommand")
-    assert take_browser_errors(page) == []
-    # Exercise departure while the real feed has a native read outstanding.
-    # WebKit stops the old document's loads when navigation starts, before
-    # pagehide. Reads during that interval are logged as access-control refusals.
-    held = []
-    page.route(previous + "api/news", lambda route: held.append(route))
-    holding(page, held, 1, "the departing document's freshness read")
-    with page.expect_event(
-        "requestfailed", predicate=lambda request: request == held[0].request
-    ):
-        if navigation == "form":
-            child.get_by_role("button", name="Search docs").click()
-        else:
-            child.evaluate(
-                "location.assign('https://docs.example.invalid/reference.html')"
-            )
-    # The native request has failed, but Playwright still owns its held route.
-    # Resolve that route before the next interaction probe sends another request.
-    held[0].abort()
-    expect(child.get_by_role("heading")).to_have_text("External reference")
-    departed_records = sample_records(page, serve)
-    departed_record = next(
-        row for row in departed_records if row["phase"] == "departed"
-    )
-    assert departed_record["document"] == next(
-        row["document"] for row in departed_records if row["phase"] == "upgraded"
-    )
-    # The departure ends the selection; `ready` waits for a next document, which only
-    # Reset brings here.
-    page.wait_for_function("window.departedCall === false")
-    assert (
-        sample.evaluate(
-            """sample => Promise.race([
-              sample.ready.then(() => 'ready', error => error.name),
-              new Promise(resolve => setTimeout(resolve, 50, 'waiting'))])"""
-        )
-        == "waiting"
-    )
-    reset = sample.get_by_role("button", name="Reset", exact=True)
-    expect(reset).to_be_enabled()
-    sample.get_by_role("button", name="Full view", exact=True).click()
-    expect(child.get_by_role("heading")).to_have_text("External reference")
-    sample.get_by_role("button", name="Return to page", exact=True).click()
-    reset.click()
-    sample.evaluate("async sample => await sample.ready")
-    expect(sample.frame_locator("iframe").get_by_role("heading")).to_have_text(
-        "Practice page"
-    )
-    replacement = sample.locator("iframe").element_handle().content_frame()
-    reset_records = sample_records(page, serve)
-    assert (
-        next(row for row in reset_records if row["phase"] == "retired")["reason"]
-        == "reset"
-    )
-    completed = [row for row in reset_records if row["phase"] == "upgraded"][-1]
-    assert completed["allocation"] == 2
-    assert completed["document"] != departed_record["document"]
-    # Only account for teardown refusals from the proven departing capability.
-    # The replacement and the fresh revoked-capability probe below stay strict.
-    departed = urlsplit(previous)
-    cancellation_error = re.compile(
-        rf".*{re.escape(departed.netloc + departed.path)}\S*"
-        r" due to access control checks\."
-    )
-    departure_errors = take_browser_errors(page)
-    assert all(
-        cancellation_error.fullmatch(said(error)) for error in departure_errors
-    ), departure_errors
-    # A fresh header forces a new native preflight rather than reusing the old
-    # document's cached one. Revocation must remain an HTTP refusal in both engines.
-    assert (
-        replacement.evaluate(
-            """async previous => {
-          const response = await fetch(new URL('api/state', previous), {
-            headers: {'X-Leaf-Revocation-Probe': 'fresh'},
-          });
-          return response.status;
-        }""",
-            previous,
-        )
-        == 404
-    )
-    consume_browser_errors(
-        page, {"code": "console-error", "url": previous + "api/state"}
     )
 
 

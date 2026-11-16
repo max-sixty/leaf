@@ -6,11 +6,13 @@
    - Each turn is one MessageView, which shows whether its version is unread and
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
-   - A message says its age only where that age, as displayed, changes from the
-     message shown just above it, and the first message always says it: a thread
-     written in one sitting reads one age, and one spanning days marks each change.
-     The user chose that on 26 October 2026 over an age after every author name,
-     which repeated one age down a thread written at once ("72d ago" four times).
+   - Every message and run's face says when it was said (presence.js, `saidAt`),
+     since each reply says what was true when it was sent ("I'm building it now"). The
+     user asked for that on 15 November 2026, over an age said only where it changed
+     from the message above (26 October 2026), which rounded replies hours apart into
+     one "1d ago" a day later and left the replies under it bare. That had replaced an
+     age after every author name, which repeated one age down a thread written at once
+     ("72d ago" four times); times differ where ages repeat.
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
@@ -47,7 +49,7 @@
 import { counted } from "../words.js";
 import { focusDestination, focused } from "../focus.js";
 import { html, render, nothing, repeat, ref } from "/runtime/framework.js";
-import { MessageView } from "./messages.js";
+import { MessageView, saidTime } from "./messages.js";
 import { offeredAction } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
@@ -61,7 +63,6 @@ import {
 import { scrollThreadIntoView } from "./reply-landing.js";
 import { foldBlock, motionPlays } from "../motion.js";
 import { voiced } from "../voice.js";
-import { agePreview } from "../presence.js";
 
 // The names a reader finds a drawn message by (messages.js), which a folding one gives up.
 const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
@@ -75,22 +76,16 @@ const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 // class, since it is no message: a message head's places (a margin's sticky head, held
 // news) skip it. `controls` stand at its head's end, as a reply's progress disclosure
 // stands at its own.
-/** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null, age: string | null}} working
+/** @param {Pick<import("./thread-card.js").WorkingMessage, "words" | "live" | "condition"> & {who: string | null | undefined, timestamp: string | null}} working
  * @param {unknown} controls
  * @param {((node: Element | undefined) => void) | null} observe */
-function workingView(working, controls = nothing, observe = null) {
+function workingView(working, controls, observe) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
         working.timestamp || working.condition
           ? html`<span class="lf-msg-meta"
-              >${
-                working.timestamp
-                  ? html`<time datetime=${working.timestamp} .lfPreview=${agePreview}
-                      >${working.age}</time
-                    >`
-                  : nothing
-              }${
+              >${saidTime(working.timestamp)}${
                 working.condition
                   ? html`<span>${voiced(working.condition)}</span>`
                   : nothing
@@ -111,7 +106,6 @@ const stepOf = (message) =>
   Object.freeze({
     who: message.by,
     timestamp: message.timestamp,
-    age: message.age,
     words: message.body.plainText.trim().replace(/\.$/, ""),
     live: false,
     condition: null,
@@ -390,28 +384,9 @@ export class Transcript {
     const workingAt = model.working
       ? workingPlace(rangeState, model.working.position)
       : -1;
-    // The messages that say their age: the first, and each whose age, as the reader
-    // reads it, differs from the message shown just above it. A checkpoint or a run's
-    // face between them parts them, so the message after one says its age too.
-    const dated = new Set();
-    let above = null;
-    for (const [at, range] of rangeState.entries()) {
-      const shown =
-        range.kind === "message"
-          ? [range.message]
-          : range.expanded
-            ? range.messages
-            : [];
-      if (range.kind !== "message") above = null;
-      for (const message of shown) {
-        if (message.age !== above) dated.add(message.key);
-        above = message.age;
-      }
-      if (range.summary?.pending || at === workingAt) above = null;
-    }
     for (const message of drawnMessages) {
       const view = message.view;
-      view.present(message.reading, { arrived, dated: dated.has(message.key) });
+      view.present(message.reading, { arrived });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
       keeps(

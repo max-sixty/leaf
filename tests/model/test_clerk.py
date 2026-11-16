@@ -237,7 +237,7 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     rule, *rest = clerk_model.guidance()
     assert rule.startswith("The user's **On Me** list holds everything waiting on them")
     assert rule.endswith("is not an obligation.")
-    assert f"## Leaf's guidance for asking\n\n{rule}\n\n" in prompt
+    assert f"## Leaf's guidance for asking and for threads\n\n{rule}\n\n" in prompt
     assert all(paragraph in prompt for paragraph in rest)
     assert (
         "Started items, which the page shows as under way, each with its line:\n"

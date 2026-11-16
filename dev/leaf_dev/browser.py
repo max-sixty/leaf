@@ -1,7 +1,10 @@
 """The browser, and tabs on a served page, opened and settled the same way by every
-browser check or command that reads or screenshots one."""
+browser check or command that reads or screenshots one.
 
-import os
+A check on a page of millions of elements finds its controls as
+notes/browser-support.md, "Walking every element of a page of millions in Chromium",
+says."""
+
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -52,7 +55,8 @@ WINDOWS = {
     ),
 }
 
-# The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
+# The fixed fontconfig that lays text out in DejaVu faces on Linux
+# (`linux_font_environment`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
 LINUX_FONTS = Path("/usr/share/fonts/truetype/dejavu")
 
@@ -76,14 +80,16 @@ def require_linux_fonts():
                 )
 
 
-def use_linux_fonts():
-    """On Linux, lay text out in the DejaVu faces the fixed fontconfig names, in every
-    browser and leaf this process starts from here on; elsewhere the host's faces
-    serve. The suite does this for its whole run, and so does a command whose readings
-    the suite asserts (`leaf-dev placement pins`), so the two measure the same text."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+def linux_font_environment() -> dict[str, str]:
+    """The environment that lays text out in the DejaVu faces the fixed fontconfig
+    names, in every browser and leaf a process holding it starts; empty off Linux,
+    where the host's faces serve. The suite runs under it, and so does a command whose
+    readings the suite asserts (`leaf-dev placement pins`), so the two measure the same
+    text."""
+    if sys.platform != "linux":
+        return {}
+    require_linux_fonts()
+    return {"FONTCONFIG_FILE": str(LINUX_FONTCONFIG)}
 
 
 @contextmanager
@@ -399,11 +405,16 @@ POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dra
 # everything its shadow root draws. Read inside a shadow root they can disagree: on
 # 2026-11-04 Firefox hovered a radio button's host but not the slot under the pointer.
 # A held button keeps the hover where the press began, and a mouse over a child frame
-# moves where this document can't follow it.
+# moves where this document can't follow it. A subtree hidden under the pointer keeps
+# its hover after the hover moves on, so only drawn elements count: on 2026-11-15
+# Chromium left `.lf-fp-opened` hovered once the panel's view closed under a press,
+# through every later move.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
-  const hovered = [...document.querySelectorAll(":hover")].at(-1);
+  const hovered = [...document.querySelectorAll(":hover")]
+    .filter((node) => node.checkVisibility())
+    .at(-1);
   if (hovered instanceof HTMLIFrameElement) return true;
   const under = document.elementFromPoint(at.x, at.y);
   // A hovered label also hovers the control it labels, which is no hover still to move.
@@ -456,7 +467,7 @@ SCROLL_STILL = """([selector, axis, frames]) => {
 }"""
 
 
-def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
+def scroll_settled(page, scroller=None, axis="y"):
     """Wait for stable scroll position after the caller observes scroll initiation.
 
     The helper cannot distinguish a finished scroll from one not yet issued.
@@ -470,14 +481,14 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:
-        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, frames])
+        page.wait_for_function(SCROLL_STILL, arg=[scroller, axis, SCROLL_STILL_FRAMES])
     except PlaywrightTimeout:
         where = scroller or "the document"
         held = page.evaluate(
             "() => globalThis.__lfScrollStill ?? null",
         )
         raise AssertionError(
-            f"{where} never held one position for {frames} frames: gave up on {held}"
+            f"{where} never held one position for {SCROLL_STILL_FRAMES} frames: gave up on {held}"
         ) from None
 
 

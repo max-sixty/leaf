@@ -210,7 +210,7 @@
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.</pre></lf-draft>"
   },
   "$series": {
-    "description": "The categorical colours this layer paints a chart's series in. The theme defines them as `--series-1` through `--series-N`, and `steps` is N: how many series a chart can tell apart, and the count the palette check holds the tokens to. A project that adds a step raises `steps` here and adds the token in its theme. A chart with more series than steps merges the small ones or splits into several charts, since two series in one colour mislead. The list stops at five because further steps can't stay distinct for users with colour-vision deficiency.",
+    "description": "The categorical colours this layer paints a chart's series in. The theme defines them as `--lf-series-1` through `--lf-series-N`, and `steps` is N: how many series a chart can tell apart, and the count the palette check holds the tokens to. A project that adds a step raises `steps` here and adds the token in its theme. A chart with more series than steps merges the small ones or splits into several charts, since two series in one colour mislead. The list stops at five because further steps can't stay distinct for users with colour-vision deficiency.",
     "steps": 5
   },
   "$reactions": {

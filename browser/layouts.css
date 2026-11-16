@@ -168,7 +168,7 @@
         margin: 0;
         /* Room for a focus ring at its foot, where it scrolls, taken from the list's
          * top (the package theme). */
-        padding: var(--sp-4) 20px var(--focus-ring-room);
+        padding: var(--lf-sp-4) 20px var(--lf-focus-ring-room);
         --lf-parts-title: 1;
       }
     }
@@ -309,11 +309,19 @@
     inherits: false;
     initial-value: box;
   }
-  /* The column is ordinary block flow: a box `--col` wide around the prose, centred by
+  /* The column is ordinary block flow: a box `--lf-col` wide around the prose, centred by
    * auto margins, so its blocks' margins collapse and floats, auto margins and the edge
    * trim behave as on any page. A page's own CSS sizes it as any box, and its text keeps
    * the measure from the box's start edge (base.css). Ordinary boxes contain their
    * children, so a list item, custom grid or frame needs no geometry policing.
+   *
+   * Rejected (15 November 2026): the column as a grid of named lines (`prose`, `wide`,
+   * `full`), each flow in it a subgrid, which placed every breakout where this does
+   * without the room's arithmetic below. A grid item's margins don't collapse, so a
+   * section's box took in its heading's top margin: the ring Leaf draws round a section
+   * stood above the heading and cut the line before it, and the section's landing and
+   * margin entries moved up with it. Restoring them would take a rule for each kind of
+   * block that can open a section.
    *
    * The room past the gutter on each side of the column is what a block declaring a
    * wider space breaks into (Breakouts, below). Only the Layout's box
@@ -330,7 +338,7 @@
    *
    * The column resolves every length in its room on itself, in registered `<length>`
    * properties that don't inherit, so each unit resolves there: the shell's `cqi`, and
-   * a page's `--col` or `--col-pad` stated in `ch` or `em`, in the column's font.
+   * a page's `--lf-col` or `--lf-col-pad` stated in `ch` or `em`, in the column's font.
    * `--lf-room-length` is the column's slot for that length: the shell less the
    * column's gutters for a centred column, and the room the row leaves a body beside a
    * sidebar (below), of which `--lf-room-before` stands before the prose.
@@ -393,14 +401,14 @@
     initial-value: 0px;
   }
   .layout-column {
-    max-inline-size: var(--col);
+    max-inline-size: var(--lf-col);
     margin-inline: auto;
-    padding-inline: var(--col-pad);
+    padding-inline: var(--lf-col-pad);
     /* A page that makes the column a grid keeps one track the column's width. */
     grid-template-columns: minmax(0, 1fr);
-    padding-block: var(--page-pad-start) var(--page-pad-end);
-    --lf-measure: var(--col);
-    --lf-prose-measure: var(--col);
+    padding-block: var(--lf-page-pad-start) var(--lf-page-pad-end);
+    --lf-measure: var(--lf-col);
+    --lf-prose-measure: var(--lf-col);
     --lf-free-start: 0px;
     --lf-free-end: 0px;
   }
@@ -410,7 +418,7 @@
     main > [data-lf-views="parts"] > * > *
   ).layout-column {
     --lf-shell-width: 100cqi;
-    --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--col-pad));
+    --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--lf-col-pad));
     --lf-free-start: max(0px, (var(--lf-room-length) - var(--lf-room-note) - 100%) / 2);
     --lf-free-end: var(--lf-free-start);
     /* An authored note column centers the prose and note together when both fit.
@@ -420,10 +428,13 @@
       margin-inline: max(
           0px,
           (
-              100% - 2 * var(--col-pad) - var(--col) - var(--note) *
+              100% - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note) *
                 clamp(
                   0,
-                  sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1,
+                  sign(
+                      100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)
+                    ) +
+                    1,
                   1
                 )
             ) /
@@ -431,8 +442,12 @@
         )
         auto;
       --lf-room-note: calc(
-        var(--note) *
-          clamp(0, sign(100cqi - 2 * var(--col-pad) - var(--col) - var(--note)) + 1, 1)
+        var(--lf-note) *
+          clamp(
+            0,
+            sign(100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)) + 1,
+            1
+          )
       );
       --lf-free-end: max(0px, var(--lf-room-length) - 100% - var(--lf-free-start));
     }
@@ -499,11 +514,11 @@
   }
   @container style(--lf-measure) {
     [data-lf-space="wide"] {
-      max-inline-size: min(100%, var(--wide));
+      max-inline-size: min(100%, var(--lf-wide));
     }
   }
   /* Breakouts. A `wide` block keeps the prose's start edge and grows into the room
-   * after it, to --wide at most; an `available` one takes the room on both sides, as a
+   * after it, to --lf-wide at most; an `available` one takes the room on both sides, as a
    * sidebar Layout standing in the column's flow does, such as a tab's view. A block
    * that states its width this way overrides the width a box of its own would take (a
    * table, an iframe). One that reaches before the prose starts there by a negative
@@ -530,13 +545,13 @@
    * whose columns this minimum would spread. */
     @container style(--lf-reading-face: 1) {
       :is(.layout-column, .layout-flow, [data-lf-flow]) > table[data-lf-space] {
-        min-inline-size: min(100%, var(--col));
+        min-inline-size: min(100%, var(--lf-col));
       }
     }
     @media screen {
       :is(.layout-column, .layout-flow, [data-lf-flow]) {
         > [data-lf-space="wide"] {
-          inline-size: min(var(--wide), 100% + var(--lf-free-end));
+          inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
@@ -553,7 +568,7 @@
           margin-right: calc(-1 * var(--lf-free-start));
         }
         > table[data-lf-space] {
-          max-inline-size: min(var(--wide), 100% + var(--lf-free-end));
+          max-inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
         }
         /* An available table is as wide as its content and stands on the room's axis:
        * from the room's start, where its margin puts it, its start is moved to the axis
@@ -591,13 +606,13 @@
           var(--lf-free-end)
         );
         &:has(> .layout-note, :is(.layout-flow, [data-lf-flow]) > .layout-note) {
-          --lf-note-reach: calc(var(--col) + var(--note));
+          --lf-note-reach: calc(var(--lf-col) + var(--lf-note));
         }
         &:has(
           > [data-lf-space="wide"],
           :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
         ) {
-          --lf-wide-reach: var(--wide);
+          --lf-wide-reach: var(--lf-wide);
         }
         &:has(
           > :is([data-lf-space="available"], .layout-sidebar),
@@ -636,7 +651,7 @@
     /* A note and the passage it accompanies form one row, as wide as the room after
      * the prose allows. */
     > .layout-note {
-      inline-size: min(var(--col) + var(--note), 100% + var(--lf-free-end));
+      inline-size: min(var(--lf-col) + var(--lf-note), 100% + var(--lf-free-end));
     }
   }
   /* Native wrapping puts the note after its passage when there is no room; the next
@@ -645,20 +660,20 @@
     display: flex;
     flex-wrap: wrap;
     align-items: start;
-    gap: var(--sp-2) var(--sp-4);
-    max-inline-size: calc(var(--col) + var(--note));
-    margin-block-end: var(--sp-4);
+    gap: var(--lf-sp-2) var(--lf-sp-4);
+    max-inline-size: calc(var(--lf-col) + var(--lf-note));
+    margin-block-end: var(--lf-sp-4);
   }
   .layout-note > * {
     margin-block: 0;
-    max-inline-size: var(--col);
+    max-inline-size: var(--lf-col);
   }
   .layout-note > :not(aside) {
-    flex: 1000000 1 var(--col);
-    min-inline-size: min(100%, var(--col));
+    flex: 1000000 1 var(--lf-col);
+    min-inline-size: min(100%, var(--lf-col));
   }
   .layout-note > aside {
-    flex: 1 1 calc(var(--note) - var(--sp-4));
+    flex: 1 1 calc(var(--lf-note) - var(--lf-sp-4));
     min-inline-size: 0;
   }
   /* A sidebar and its body are authored siblings. Their inner track is authored
@@ -667,18 +682,18 @@
   .layout-sidebar {
     box-sizing: border-box;
     inline-size: 100%;
-    padding-inline: clamp(var(--col-pad), 4cqi, 64px);
-    padding-block: var(--page-pad-start) var(--page-pad-end);
-    --lf-measure: var(--col);
+    padding-inline: clamp(var(--lf-col-pad), 4cqi, 64px);
+    padding-block: var(--lf-page-pad-start) var(--lf-page-pad-end);
+    --lf-measure: var(--lf-col);
     --lf-wide-page: 1;
     --lf-holds-edge: 1;
-    --aside: auto;
-    max-width: var(--wide-page-max);
+    --lf-aside: auto;
+    max-width: var(--lf-wide-page-max);
     margin-inline: auto;
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
-    gap: var(--sp-4);
+    gap: var(--lf-sp-4);
     container-type: inline-size;
   }
   .layout-sidebar > * {
@@ -717,20 +732,20 @@
     > aside:where(.layout-sidebar > *):has(~ :not(header, footer, aside)) {
     overflow-anchor: none;
   }
-  @container not style(--aside: auto) {
+  @container not style(--lf-aside: auto) {
     .layout-sidebar > :not(header, footer) {
       flex: 1000000 1 30rem;
     }
     .layout-sidebar > aside {
-      flex: 1 1 var(--aside);
+      flex: 1 1 var(--lf-aside);
     }
   }
   /* A document beside its route spans the window, and its body places the prose
    * (below). */
   .layout-sidebar:has(> .layout-column) {
-    padding-inline: var(--col-pad);
+    padding-inline: var(--lf-col-pad);
     max-inline-size: none;
-    --aside: calc(var(--sidebar) - var(--sp-4));
+    --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
   /* A document's sidebar whose track holds only an element that rests as a spine
    * (`x-spine`, painted `data-lf-spine`), as the contents map does, narrows to that spine
@@ -746,18 +761,18 @@
    * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
    * Rejected (9 November 2026): narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
-   * TODO: `x-spine` and the names it brings (`data-lf-spine`, `--sidebar-spine`,
+   * TODO: `x-spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
    * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
    * automatically needs some declaration, since the aside is a size container and takes
    * no width from its content. Without one, the page would narrow its sidebar with
-   * `--aside`, this rule would let any track narrower than words lay its overflow over
+   * `--lf-aside`, this rule would let any track narrower than words lay its overflow over
    * the body, and the map would take its spine form from its own width, so the spine
    * would be a look each page opts into. */
   @media screen and (hover: hover) and (pointer: fine) {
     .layout-sidebar:has(> aside:only-of-type ~ .layout-column):has(
         > aside > .layout-track:only-child > [data-lf-spine]:only-child
       ) {
-      --aside: var(--sidebar-spine);
+      --lf-aside: var(--lf-sidebar-spine);
       & > aside {
         z-index: 1;
       }
@@ -776,14 +791,14 @@
    * holds the rest of the body's width, the room a breakout grows into. The body is the
    * whole flex item rather than a centred box, so its room is a length. The body's width
    * is what the flex row leaves it: the sidebar's, less the aside and the gap while the
-   * aside stands beside it (the Layout's `--aside` is a length here), and the whole of
+   * aside stands beside it (the Layout's `--lf-aside` is a length here), and the whole of
    * it once the aside wraps. Until 14 November 2026 the prose stood at the body's start edge, as from #4724. Beside an outline column that
    * read as a route and its document, but once the contents map rested as a 56px spine
    * (#5772) it left the prose against the window's edge, half the window empty past it
    * and the panel centred off it. */
   .layout-sidebar > .layout-column {
-    flex: 1000000 1 var(--col);
-    min-inline-size: min(100%, var(--col));
+    flex: 1000000 1 var(--lf-col);
+    min-inline-size: min(100%, var(--lf-col));
     max-inline-size: none;
     box-sizing: border-box;
     margin: 0;
@@ -792,12 +807,12 @@
     /* Lengths throughout, resolved in the column's slots for them (above). */
     --lf-room-length: max(
       0px,
-      100cqi - var(--col) - (var(--aside) + var(--sp-4)) *
-        clamp(0, sign(100cqi - var(--col) - var(--aside) - var(--sp-4)) + 1, 1)
+      100cqi - var(--lf-col) - (var(--lf-aside) + var(--lf-sp-4)) *
+        clamp(0, sign(100cqi - var(--lf-col) - var(--lf-aside) - var(--lf-sp-4)) + 1, 1)
     );
     --lf-room-before: clamp(
       0px,
-      var(--lf-room-length) - (100cqi - var(--col)) / 2,
+      var(--lf-room-length) - (100cqi - var(--lf-col)) / 2,
       var(--lf-room-length)
     );
     --lf-free-start: var(--lf-room-before);
@@ -808,7 +823,7 @@
   /* An aside after the body stands past the prose's end, so the prose centres in the
    * whole Layout, short of the aside. */
   .layout-sidebar:has(> .layout-column ~ aside) > .layout-column {
-    --lf-room-before: clamp(0px, (100cqi - var(--col)) / 2, var(--lf-room-length));
+    --lf-room-before: clamp(0px, (100cqi - var(--lf-col)) / 2, var(--lf-room-length));
   }
   @property --lf-track-parent-width {
     syntax: "<length>";
@@ -842,7 +857,7 @@
     @container not style(--lf-track-scroll-behavior: flow) {
       :is(.layout-track, [data-lf-track]) {
         position: sticky;
-        top: calc(var(--lf-top-outer) + var(--sp-4));
+        top: calc(var(--lf-top-outer) + var(--lf-sp-4));
         --lf-top: 0px;
         --lf-top-covered: 0px;
         --lf-landing-room: 0px;
@@ -853,7 +868,7 @@
         overflow-y: auto;
         --lf-holds-height: 1;
         max-block-size: calc(
-          100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
+          100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--lf-sp-4)
         );
       }
       .layout-track {
@@ -863,14 +878,14 @@
         max-block-size: calc(
           max(
               0px,
-              100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
+              100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--lf-sp-4)
             ) /
             var(--lf-track-beside)
         );
         box-sizing: border-box;
-        padding: var(--focus-region-room);
-        margin-block: calc(-1 * var(--focus-region-room));
-        scroll-padding: var(--focus-region-room);
+        padding: var(--lf-focus-region-room);
+        margin-block: calc(-1 * var(--lf-focus-region-room));
+        scroll-padding: var(--lf-focus-region-room);
       }
     }
   }
@@ -891,7 +906,7 @@
    * How a row wraps is the page's to judge (page-checkpoints.md). */
   .layout-tiles {
     display: grid;
-    gap: var(--sp-4);
+    gap: var(--lf-sp-4);
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   }
   .layout-tiles > * {
@@ -916,7 +931,7 @@
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
     --lf-workspace-gutter: 12px;
     padding-inline: var(--lf-workspace-gutter);
-    padding-block: var(--sp-2) var(--page-pad-end);
+    padding-block: var(--lf-sp-2) var(--lf-page-pad-end);
   }
   /* The root workspace reaches the window's foot. Its last reading region keeps
    * the panel's clearance inside its content; containers that pass the edge to a
@@ -1007,8 +1022,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--sp-1) var(--sp-3);
-    padding-block: 0 var(--sp-2);
+    gap: var(--lf-sp-1) var(--lf-sp-3);
+    padding-block: 0 var(--lf-sp-2);
     --lf-block-frame: 1;
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
@@ -1032,15 +1047,15 @@
       > [data-lf-reading-role="pane"]:not([data-lf-generated])
     ) {
     gap: 1px;
-    border: 1px solid var(--rule);
-    border-radius: var(--r);
+    border: 1px solid var(--lf-rule);
+    border-radius: var(--lf-r);
   }
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
     > :not(header, footer)
     > [data-lf-reading-role="pane"]:not([data-lf-generated]) {
     border: 0;
     border-radius: 0;
-    box-shadow: 0 0 0 1px var(--rule);
+    box-shadow: 0 0 0 1px var(--lf-rule);
   }
   /* Where the window is too small to be the screen, the workspace flows and the page
    * scrolls, and the header sticks at the window's top, so the page's status and its
@@ -1064,11 +1079,11 @@
       --lf-head-inset: 0px;
       top: var(--lf-top);
       z-index: 1;
-      padding-block: var(--sp-2);
-      background: var(--paper);
+      padding-block: var(--lf-sp-2);
+      background: var(--lf-paper);
       box-shadow:
-        calc(-1 * var(--lf-workspace-gutter)) 0 var(--paper),
-        var(--lf-workspace-gutter) 0 var(--paper);
+        calc(-1 * var(--lf-workspace-gutter)) 0 var(--lf-paper),
+        var(--lf-workspace-gutter) 0 var(--lf-paper);
     }
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace
       > :not(header) {
@@ -1118,7 +1133,7 @@
       overflow: auto;
       --lf-top: 0px;
       --lf-holds-height: 1;
-      --lf-ring-at: var(--focus-ring-gap);
+      --lf-ring-at: var(--lf-focus-ring-gap);
     }
     /* A pane (a grid of header, body and footer, base.css) told it has a definite height
      * by its holder may shrink below its content and scrolls its body; a pane not told,

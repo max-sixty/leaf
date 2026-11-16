@@ -118,7 +118,6 @@ from .delivery import (
     batch_refs,
     current_responses,
     deliverable,
-    delivery_path,
     delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
@@ -967,13 +966,8 @@ class AppServerEvents:
 
     @staticmethod
     def final_text(turn: dict) -> str:
-        """Return a completed turn's reply: its final answer, or nothing for a turn
-        with none, whatever its opening said."""
-        return "\n\n".join(_final_answer(turn))
-
-    @staticmethod
-    def reply_so_far(turn: dict) -> str:
-        """Return the reply a still-running turn has written."""
+        """Return the reply a turn, running or completed, has written: its final
+        answer, or nothing for a turn with none, whatever its opening said."""
         return "\n\n".join(_final_answer(turn))
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
@@ -1422,7 +1416,7 @@ class TurnFold:
         elif self.reply_stream is not None:
             # An opening the turn completed while nobody was reading posts now.
             self.reply_stream.open(self.events.said_opening())
-            self.reply_stream.restore(self.events.reply_so_far(turn))
+            self.reply_stream.restore(self.events.final_text(turn))
 
     def absorb(self, message: dict) -> dict | None:
         """Fold one notification into this turn's readings, and put them on the page."""
@@ -2048,14 +2042,11 @@ class PreparedDelivery:
 
 
 def _readdress_record(path: Path) -> Path:
-    """Give a collecting record a fresh identity after a delivery collision."""
-    while True:
-        candidate = new_delivery_id()
-        replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or delivery_path(candidate).exists():
-            continue
-        path.replace(replacement)
-        return replacement
+    """Give a collecting record a fresh identity where its id's envelope already
+    holds other input."""
+    replacement = path.with_name(f"{new_delivery_id()}.json")
+    path.replace(replacement)
+    return replacement
 
 
 @dataclass(frozen=True)
@@ -2145,11 +2136,7 @@ def append_batch(
     """Append fresh events to the task's one collecting record."""
     current = _collecting_record(session_id)
     if current is None:
-        while True:
-            delivery_id = new_delivery_id()
-            path = record_path(session_id, delivery_id)
-            if not path.exists() and not delivery_path(delivery_id).exists():
-                break
+        path = record_path(session_id, new_delivery_id())
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
     else:
@@ -2429,14 +2416,18 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 only_if_unclaimed=False,
                 claimed_session=session_id,
             )
+        # The failed pickup names every input the receipt passes, as every receipt's
+        # pickup does, so input the cursor passed that no pickup names is input a
+        # holder kept from the main thread (`delivery.deliverable`). On an input the
+        # failure answer settled it changes nothing: only an action still owed reads
+        # a failed pickup (`workflows`).
         with (
             PageTransaction(page_dir) as page,
             receive_batch(page, batch, session_id=session_id) as events,
         ):
-            owed = current_responses(page_dir, page.events)
             record_pickup(
                 page,
-                [event for event in events if event["id"] in owed],
+                list(events),
                 phase="failed",
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,

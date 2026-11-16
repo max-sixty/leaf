@@ -8,9 +8,9 @@
     />
     <style>
       :root {
-        --col: 1040px;
-        --wide: 1040px;
-        --accent: #5852b5;
+        --lf-col: 1040px;
+        --lf-wide: 1040px;
+        --lf-accent: #5852b5;
         --feed-color: #5852b5;
         --feed-wash: #efedf9;
         --feed-line: #e5e2db;
@@ -18,7 +18,7 @@
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --accent: #bbb4ff;
+          --lf-accent: #bbb4ff;
           --feed-color: #bbb4ff;
           --feed-wash: #302c44;
           --feed-line: #39362f;
@@ -38,7 +38,7 @@
         gap: 20px;
         min-block-size: var(--feed-header);
         box-sizing: border-box;
-        background: var(--paper);
+        background: var(--lf-paper);
         border-block-end: 1px solid var(--feed-line);
       }
       .masthead h1 {
@@ -46,18 +46,18 @@
         align-items: center;
         gap: 10px;
         margin: 0;
-        font: 720 1.35rem/1 var(--sans);
+        font: 720 1.35rem/1 var(--lf-sans);
         letter-spacing: -0.035em;
       }
       .masthead p {
         margin: 0;
-        font: 0.82rem/1.4 var(--sans);
-        color: var(--muted);
+        font: 0.82rem/1.4 var(--lf-sans);
+        color: var(--lf-muted);
       }
       lf-repo-feed {
         display: block;
         min-block-size: 800px;
-        font-family: var(--sans);
+        font-family: var(--lf-sans);
       }
       .feed-layout {
         display: grid;
@@ -86,12 +86,12 @@
         border: 0;
         border-radius: 10px;
         background: transparent;
-        font: 550 0.9rem/1.4 var(--sans);
-        color: var(--muted);
+        font: 550 0.9rem/1.4 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-distance button:hover {
-        background: color-mix(in srgb, var(--ink) 4%, transparent);
-        color: var(--ink);
+        background: color-mix(in srgb, var(--lf-ink) 4%, transparent);
+        color: var(--lf-ink);
       }
       .feed-distance button[aria-pressed="true"] {
         background: var(--feed-wash);
@@ -110,20 +110,20 @@
       }
       .feed-aside-note {
         margin: 24px 14px 16px;
-        font: 0.78rem/1.7 var(--sans);
-        color: var(--muted);
+        font: 0.78rem/1.7 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-about {
         margin-inline: 14px;
-        font: 0.76rem/1.6 var(--sans);
-        color: var(--muted);
+        font: 0.76rem/1.6 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-about summary {
         display: flex;
         align-items: center;
         min-block-size: 44px;
         cursor: pointer;
-        color: var(--muted);
+        color: var(--lf-muted);
         text-decoration: underline;
         text-underline-offset: 4px;
       }
@@ -142,7 +142,7 @@
         position: sticky;
         top: var(--feed-header);
         z-index: 3;
-        background: var(--paper);
+        background: var(--lf-paper);
         border-block-end: 1px solid var(--feed-line);
         padding: 10px 24px 0;
       }
@@ -155,24 +155,24 @@
       }
       .feed-status h2 {
         margin: 0;
-        font: 700 1.1rem/1.4 var(--sans);
+        font: 700 1.1rem/1.4 var(--lf-sans);
         letter-spacing: -0.02em;
       }
       .feed-news,
       .feed-refresh {
-        min-block-size: max(40px, var(--aim-floor));
+        min-block-size: max(40px, var(--lf-aim-floor));
         background: transparent;
         border: 0;
         padding: 6px 0 6px 10px;
         margin: 0;
-        font: 550 0.76rem/1.4 var(--sans);
+        font: 550 0.76rem/1.4 var(--lf-sans);
         color: var(--feed-color);
       }
       .feed-refresh {
         display: flex;
         align-items: center;
         gap: 6px;
-        color: var(--muted);
+        color: var(--lf-muted);
       }
       .feed-refresh svg {
         inline-size: 15px;
@@ -185,7 +185,7 @@
       }
       .feed-refresh:hover,
       .feed-news:hover {
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       .feed-refresh:disabled {
         opacity: 0.5;
@@ -208,22 +208,22 @@
         border: 0;
         border-block-end: 2px solid transparent;
         border-radius: 0;
-        font: 550 0.75rem/1.4 var(--sans);
-        color: var(--muted);
+        font: 550 0.75rem/1.4 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-topics button[aria-pressed="true"] {
-        color: var(--ink);
+        color: var(--lf-ink);
         border-block-end-color: var(--feed-color);
       }
       .feed-topics button:hover {
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       .feed-live {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        font: 0.75rem/1.3 var(--sans);
-        color: var(--muted);
+        font: 0.75rem/1.3 var(--lf-sans);
+        color: var(--lf-muted);
         white-space: nowrap;
       }
       .feed-live > span {
@@ -258,7 +258,7 @@
         background: var(--story-wash);
         color: var(--story-color);
         border-radius: 9px;
-        font: 680 0.68rem/1 var(--sans);
+        font: 680 0.68rem/1 var(--lf-sans);
         text-decoration: none;
         letter-spacing: -0.025em;
       }
@@ -274,12 +274,12 @@
         align-items: center;
         flex-wrap: wrap;
         gap: 4px 9px;
-        font: 0.75rem/1.5 var(--sans);
-        color: var(--muted);
+        font: 0.75rem/1.5 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-repo {
         font-weight: 650;
-        color: var(--ink);
+        color: var(--lf-ink);
         text-decoration: none;
         overflow-wrap: anywhere;
       }
@@ -294,13 +294,13 @@
       }
       .feed-card h3 {
         margin: 8px 0 9px;
-        font: 680 1.2rem/1.3 var(--sans);
+        font: 680 1.2rem/1.3 var(--lf-sans);
         letter-spacing: -0.025em;
         text-wrap: pretty;
         overflow-wrap: anywhere;
       }
       .feed-card h3 a {
-        color: var(--ink);
+        color: var(--lf-ink);
         text-decoration: none;
       }
       .feed-card h3 a:hover {
@@ -314,8 +314,8 @@
       .feed-commentary {
         margin: 0;
         max-inline-size: 65ch;
-        font: 0.89rem/1.65 var(--sans);
-        color: var(--ink);
+        font: 0.89rem/1.65 var(--lf-sans);
+        color: var(--lf-ink);
         text-wrap: pretty;
       }
       .feed-context {
@@ -323,8 +323,8 @@
         align-items: start;
         gap: 7px;
         margin: 12px 0 0;
-        font: 0.78rem/1.55 var(--sans);
-        color: var(--muted);
+        font: 0.78rem/1.55 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-context svg {
         flex: 0 0 14px;
@@ -349,8 +349,8 @@
         min-block-size: 44px;
         background: transparent;
         border: 0;
-        color: var(--muted);
-        font: 550 0.75rem/1.4 var(--sans);
+        color: var(--lf-muted);
+        font: 550 0.75rem/1.4 var(--lf-sans);
       }
       .feed-ask:hover {
         color: var(--story-color);
@@ -358,7 +358,7 @@
       .feed-source {
         margin: 0;
         padding: 0;
-        font: 0.75rem/1.5 var(--sans);
+        font: 0.75rem/1.5 var(--lf-sans);
       }
       .feed-source summary {
         display: flex;
@@ -368,8 +368,8 @@
         inline-size: fit-content;
         max-inline-size: calc(100% - 112px);
         cursor: pointer;
-        font: 550 0.75rem/1.4 var(--sans);
-        color: var(--muted);
+        font: 550 0.75rem/1.4 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-source summary:hover {
         color: var(--story-color);
@@ -386,7 +386,7 @@
         transform: rotate(180deg);
       }
       .feed-evidence {
-        background: color-mix(in srgb, var(--ink) 3%, var(--paper));
+        background: color-mix(in srgb, var(--lf-ink) 3%, var(--lf-paper));
         border: 1px solid var(--feed-line);
         border-radius: 8px;
         padding: 18px;
@@ -395,18 +395,18 @@
       }
       .feed-source-title {
         margin: 0 0 7px;
-        font: 650 0.84rem/1.45 var(--sans);
+        font: 650 0.84rem/1.45 var(--lf-sans);
       }
       .feed-source-title a {
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       .feed-source-meta {
         margin-block-end: 16px;
-        font: 0.75rem/1.5 var(--sans);
-        color: var(--muted);
+        font: 0.75rem/1.5 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-markdown {
-        font: 0.875rem/1.65 var(--sans);
+        font: 0.875rem/1.65 var(--lf-sans);
         overflow-wrap: anywhere;
       }
       .feed-markdown p,
@@ -416,7 +416,7 @@
         margin-block: 10px;
       }
       .feed-markdown :is(h1, h2, h3, h4, h5, h6) {
-        font: 650 0.9rem/1.4 var(--sans);
+        font: 650 0.9rem/1.4 var(--lf-sans);
         margin-block: 20px 7px;
         letter-spacing: -0.01em;
       }
@@ -448,20 +448,20 @@
         margin-inline: 0;
         padding-inline-start: 12px;
         border-inline-start: 1px solid var(--feed-line);
-        color: var(--muted);
+        color: var(--lf-muted);
       }
       .feed-source-link {
         display: inline-block;
         min-block-size: 30px;
         margin-block-start: 14px;
-        font: 550 0.75rem/1.5 var(--sans);
+        font: 550 0.75rem/1.5 var(--lf-sans);
         color: var(--story-color);
       }
       .feed-end {
         padding: 28px 24px 90px;
         text-align: center;
-        font: 0.78rem/1.6 var(--sans);
-        color: var(--muted);
+        font: 0.78rem/1.6 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-end p {
         font: inherit;
@@ -478,7 +478,7 @@
         border: 1px solid var(--feed-line);
         border-radius: 20px;
         background: transparent;
-        font: 550 0.8rem/1.5 var(--sans);
+        font: 550 0.8rem/1.5 var(--lf-sans);
         color: var(--feed-color);
       }
       .feed-more:hover {
@@ -504,16 +504,16 @@
       }
       .feed-empty {
         padding: 28px 24px;
-        font: 0.9rem/1.7 var(--sans);
-        color: var(--muted);
+        font: 0.9rem/1.7 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .feed-layout :is(button, a, summary, select):focus-visible {
-        outline: var(--focus-ring);
+        outline: var(--lf-focus-ring);
         outline-offset: 3px;
       }
       ::selection {
         background: var(--feed-wash);
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       @media (max-width: 900px) {
         .feed-live {
@@ -552,7 +552,7 @@
           inline-size: auto;
           padding: 8px 10px;
           font-size: 0.77rem;
-          min-block-size: max(42px, var(--aim-floor));
+          min-block-size: max(42px, var(--lf-aim-floor));
           border-radius: 7px;
         }
         .feed-nav-dot,
@@ -579,7 +579,7 @@
         }
         .feed-topics button {
           font-size: 0.71rem;
-          min-block-size: max(42px, var(--aim-floor));
+          min-block-size: max(42px, var(--lf-aim-floor));
         }
         .feed-card {
           padding: 20px 0;

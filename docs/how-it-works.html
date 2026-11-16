@@ -15,7 +15,7 @@
       /* The Ontology tab's tables group their rows under a heading row. */
       #ontology-table th[scope="colgroup"] {
         text-align: start;
-        color: var(--muted);
+        color: var(--lf-muted);
         font-weight: 600;
       }
 
@@ -33,19 +33,19 @@
       .revision-pair {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-4);
-        margin-block: var(--sp-4);
+        gap: var(--lf-sp-4);
+        margin-block: var(--lf-sp-4);
       }
       .revision-pair figure {
         margin: 0;
       }
       .revision-pair figcaption {
-        margin-block-start: var(--sp-2);
-        font: var(--t-5) / 1.5 var(--sans);
-        color: var(--muted);
+        margin-block-start: var(--lf-sp-2);
+        font: var(--lf-t-5) / 1.5 var(--lf-sans);
+        color: var(--lf-muted);
       }
       .revision-pair figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
       }
       .revision-pair svg {
         font-size: 14px;
@@ -53,18 +53,18 @@
         margin-inline: auto;
       }
       .revision-pair .retained {
-        fill: var(--ok-tint);
-        stroke: var(--ok);
+        fill: var(--lf-ok-tint);
+        stroke: var(--lf-ok);
       }
       .revision-pair .decision {
-        fill: var(--ok-ink);
+        fill: var(--lf-ok-ink);
       }
       .revision-pair .changed {
-        fill: var(--accent-tint);
-        stroke: var(--accent);
+        fill: var(--lf-accent-tint);
+        stroke: var(--lf-accent);
       }
       .revision-pair .new-copy {
-        fill: var(--accent);
+        fill: var(--lf-accent);
       }
       @media (width < 720px) {
         .revision-pair {
@@ -74,7 +74,7 @@
       #runtime .runtime-table {
         width: 100%;
         table-layout: fixed;
-        font: 15px/1.5 var(--sans);
+        font: 15px/1.5 var(--lf-sans);
       }
       #runtime .runtime-table :is(th, td) {
         vertical-align: top;
@@ -96,12 +96,12 @@
         margin: 0;
       }
       .panels figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -120,10 +120,10 @@
         text-align: center;
       }
       #data-survives-table .kept {
-        color: var(--ok);
+        color: var(--lf-ok);
       }
       #data-survives-table .lost {
-        color: var(--muted);
+        color: var(--lf-muted);
       }
 
       /* A flag keeps its spelling on one line. */
@@ -3304,15 +3304,17 @@ EOF</code></pre>
               one thread under a disclosure labelled “Earlier discussion” or a label the
               agent chooses, with a summary of their decisions, reasoning, and open
               questions. The original messages stay in the log and unfold from the
-              disclosure. A summary answers nothing and closes nothing.
+              disclosure. A summary answers nothing and closes nothing. Leaf refuses a
+              range that would leave any message but the thread's first in full above a
+              summary, and names a wider range it accepts.
             </p>
             <p id="summaries-hint">
               Once a thread is long, Leaf suggests a range to the agent with the user's
               next message, leaving the newest exchange outside it; the agent decides
               whether to summarize. Editing a message inside a written summary's range
               removes the summary, so an outdated summary cannot hide the correction.
-              Progress messages an agent posts while working fold on their own behind
-              “Show N progress messages” when its next ordinary reply arrives.
+              Progress messages an agent posts while working gather behind the latest
+              one, and disappear once its next ordinary reply arrives.
             </p>
           </section></lf-tab
         ><lf-tab id="keys" label="Keys" class="layout-flow"
@@ -4012,14 +4014,15 @@ flowchart TD
               >
                 <pre>
 flowchart TD
-  accTitle: A changed freshness token triggers a state read
-  accDescr: A finite news request checks freshness. A changed token triggers a state request; an unchanged token keeps the current reading without another state request.
-  News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|token changed| Read["Read current state&lt;br/&gt;GET /api/state"]
+  accTitle: Each changed freshness token triggers a read of what it names
+  accDescr: A finite news request names two readings. A changed page reading triggers a state request; a changed pages reading triggers a request for the list of other live pages alone. An unchanged reading asks for nothing.
+  News["Check freshness&lt;br/&gt;GET /api/news"] --&gt;|page reading changed| Read["Read current state&lt;br/&gt;GET /api/state"]
+  News --&gt;|pages reading changed| Pages["Read other live pages&lt;br/&gt;GET /api/pages"]
 </pre>
               </lf-diagram>
               <figcaption>
-                An unchanged token keeps the current reading. These are finite requests,
-                with no long-lived connection.
+                An unchanged reading asks for nothing. These are finite requests, with
+                no long-lived connection.
               </figcaption>
             </figure>
             <table class="runtime-table" id="runtime-read-policy">
@@ -4033,10 +4036,12 @@ flowchart TD
                 <tr id="browser-news">
                   <th scope="row">Visible tab</th>
                   <td>
-                    Freshness checks run roughly four times a second. The token covers
-                    page-file stamps, session and watcher presence, and neighboring
-                    pages in All pages. The request also records that someone is viewing
-                    the page. Hidden tabs pause checks and catch up when shown.
+                    Freshness checks run roughly four times a second. The page's reading
+                    covers its file stamps and its session and watcher presence. Beside
+                    it, a reading of the other live pages All pages lists moves on its
+                    own, so another page's change re-reads only that list. The request
+                    also records that someone is viewing the page. Hidden tabs pause
+                    checks and catch up when shown.
                   </td>
                 </tr>
                 <tr id="browser-reads">
@@ -4269,14 +4274,16 @@ flowchart LR
           <section id="runtime-export" class="layout-flow">
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
-              <code>leaf page export PAGE -o FILE</code> captures a stamped version, its
-              resources and the decisions recorded on its widgets in one HTML file. The
-              file holds none of the conversation with the agent, on screen or in its
-              source: no threads or their attachments, to-dos, plan or changelogs.
-              Reading controls and page-owned code work offline; new Leaf choices,
-              comments and Undo need the served page. An agent need not be running to
-              record a choice on a live server. Pages containing live samples cannot
-              export.
+              <code>leaf page export PAGE -o FILE</code> captures a stamped version as
+              one HTML file that shows the page as it stands: its content, each widget
+              drawn with the decisions recorded on it, and its images and fonts, with no
+              script. Leaf draws it in the host's browser. With
+              <code>--runtime</code> the file carries Leaf's runtime instead, so reading
+              controls and page-owned code work offline; new Leaf choices, comments and
+              Undo need the served page. An agent need not be running to record a choice
+              on a live server. Either way the file holds none of the conversation with
+              the agent, on screen or in its source: no threads or their attachments,
+              to-dos, plan or changelogs. Pages containing live samples cannot export.
             </p>
           </section></lf-tab
         ></lf-tabs

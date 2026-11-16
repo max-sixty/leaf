@@ -37,7 +37,7 @@ vars:
     in the same thread: "That's right now. I'm done with this page, thanks." Its
     answer is `{kind: reply, writer: agent, ref: "7f20c3da:0:51be90a4"}`.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run in the first turn, through its final message,
     and then each one you would run in the later turn.
 assert:

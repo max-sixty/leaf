@@ -88,6 +88,7 @@ import { setScroll } from "./arrivals.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 import { passErrorsAt, raiseError } from "./errors.js";
 import { notice } from "./notifications.js";
+import { signal } from "./framework.js";
 
 /** @typedef {object} DraftPayload
  * @typedef {{attempt: string, base: string | null}} Generation
@@ -147,8 +148,26 @@ export const PAGE_DRAFT = "general";
 /** @param {string} ctx */
 export const whereDraft = (ctx) => draftStore.where(DRAFT + ctx);
 const DRAFT_NEWS = "lf-drafts";
-/** @type {Map<string, {record: DraftRecord, durable: boolean}>} */
-const draftCache = new Map(); // context -> {record, durable}
+// What a draft holds changes only where this document's cache of it or its sending
+// mask (`sentAttempts`) changes, so each of those maps tells the drafts list of every
+// change it records (`listDraft`).
+/** @template V @extends {Map<string, V>} */
+class ListingMap extends Map {
+  /** @param {string} ctx @param {V} value */
+  set(ctx, value) {
+    super.set(ctx, value);
+    listDraft(ctx);
+    return this;
+  }
+  /** @param {string} ctx */
+  delete(ctx) {
+    const had = super.delete(ctx);
+    listDraft(ctx);
+    return had;
+  }
+}
+/** @type {ListingMap<{record: DraftRecord, durable: boolean}>} */
+const draftCache = new ListingMap(); // context -> {record, durable}
 /** @param {string} ctx @param {string | null} value @param {DraftPayload} [payload] */
 export const tellDraft = (ctx, value, payload = undefined) =>
   document.dispatchEvent(
@@ -229,23 +248,63 @@ const projectDraftRecord = (ctx, record) =>
 /** @param {DraftRecord} branch @param {DraftRecord | null} shared */
 const sharedIsBaseOf = (branch, shared) =>
   branch.base === null ? shared === null : shared?.attempt === branch.base;
-// The drafts a thread holds, named only here: its reply box, under the thread's key
-// (`threadKey`, a first message's attempt until the log names the thread), and a
-// rewrite of one of its messages, under that message's id (thread/message-edit.js).
+// A message draft is kept under what it is written about, and it stays there until it
+// is sent or put away. The contexts below, named only here, say which subject each
+// draft is about. Threads lists the drafts under Drafts (`draftsReading`;
+// floating-panel.js, `draftsListing`), and a press on a row or Resume writing brings the
+// user back to one (`createWritingResume`). Opening another box opens that box's own
+// draft and moves no words into it. Until November 2026 an explicit Comment on
+// another target, or `c` into a thread, moved the unsent words there. Words move only
+// when their box is gone, into the page's draft (`moveToPage`).
+// - `page`: the page's own comment, the floating panel's field (`PAGE_DRAFT`);
+// - `comment`: a comment on a passage or element, under its anchor's key
+//   (composing/selection.js, `anchorKey`), its record holding the anchor;
+// - `seat`: a comment written in the thread seat a widget declares, under the widget's
+//   id (thread/box.js);
+// - `reply`: a thread's reply box, under the thread's key (`threadKey`, a first
+//   message's attempt until the log names the thread);
+// - `rewrite`: a rewrite of a message, under that message's id (thread/message-edit.js).
+// Any other draft, such as a widget's edit, is a value rather than a message.
+/** @typedef {"comment" | "seat" | "reply" | "rewrite"} DraftPart */
+/** @type {Record<DraftPart, string>} */
+const PREFIX = {
+  comment: "composer:",
+  seat: "say:",
+  reply: "reply:",
+  rewrite: "rewrite:",
+};
 /** @param {string} key */
-export const replyContext = (key) => `reply:${key}`;
+export const commentContext = (key) => PREFIX.comment + key;
 /** @param {string} id */
-export const rewriteContext = (id) => `rewrite:${id}`;
+export const seatContext = (id) => PREFIX.seat + id;
+/** @param {string} key */
+export const replyContext = (key) => PREFIX.reply + key;
+/** @param {string} id */
+export const rewriteContext = (id) => PREFIX.rewrite + id;
 
-// Which of them `ctx` is, with the key or id it is under; null for any other draft.
+// Which message draft `ctx` is, with the key or id it is under; null for any other.
+/** @param {string} ctx @returns {{part: DraftPart, name: string} | {part: "page", name: null} | null} */
+function draftSubject(ctx) {
+  if (ctx === PAGE_DRAFT) return { part: "page", name: null };
+  for (const [part, prefix] of /** @type {[DraftPart, string][]} */ (
+    Object.entries(PREFIX)
+  ))
+    if (ctx.startsWith(prefix)) return { part, name: ctx.slice(prefix.length) };
+  return null;
+}
+// The drafts a thread holds: its reply box and a rewrite of one of its messages.
 /** @param {string} ctx @returns {{part: "reply" | "rewrite", name: string} | null} */
 export function threadDraft(ctx) {
-  if (ctx.startsWith("reply:")) return { part: "reply", name: ctx.slice(6) };
-  if (ctx.startsWith("rewrite:")) return { part: "rewrite", name: ctx.slice(8) };
-  return null;
+  const subject = draftSubject(ctx);
+  return subject?.part === "reply" || subject?.part === "rewrite"
+    ? { part: subject.part, name: subject.name }
+    : null;
 }
 /** @param {string} ctx */
 const isReply = (ctx) => threadDraft(ctx)?.part === "reply";
+// What a box that stops showing the user's words says, once, with the address that
+// brings them back.
+export const DRAFT_KEPT = "Draft kept — g i resumes writing";
 
 // A durable cache is a rendering convenience, never a claim that storage still holds
 // that generation. Refresh it immediately before sending or settling. If the
@@ -280,8 +339,8 @@ const refreshDraftRecord = (ctx) => {
 // facts: what a box shows is about this document, and settlement is a claim over every
 // tab. That is what lets a second tab still show and send the same generation, and what
 // brings the words back here on a refusal with nothing to restore them from.
-/** @type {Map<string, string>} */
-const sentAttempts = new Map(); // ctx -> attempt
+/** @type {ListingMap<string>} */
+const sentAttempts = new ListingMap(); // ctx -> attempt
 
 /** @param {string} ctx */
 const unsettledDraftRecord = (ctx) => {
@@ -374,15 +433,14 @@ export const clearDraft = (ctx) => {
   }
   return settleDraft(ctx, current.attempt);
 };
-// The destination owner has chosen its words and payload and found room for them. Store
-// that value durably before settling the exact source generation, so a later source
-// edit is never discarded. A failed destination write keeps its local branch and the
-// persisted source. Every live destination view reads the same transferred draft.
-// This explicit content move also moves Resume writing, with the source's caret, and the
-// reply the source holds (`held`): a reply box opens no thread, so there the reply's
-// words join the moved words.
-/** @param {string} from @param {string} to @param {string} text @param {DraftPayload} [payload] */
-export function transferDraft(from, to, text, payload) {
+// Words whose box is gone move into the page's draft (`moveToPage`), the one move a
+// draft makes. The words are stored durably before the exact source generation
+// settles, so a later source edit is never discarded. A failed destination write keeps
+// its local branch and the persisted source. Every live destination view reads the
+// same moved draft. The move also moves Resume writing, with the source's caret, and
+// the reply the source holds (`held`).
+/** @param {string} from @param {string} to @param {string} text */
+function transferDraft(from, to, text) {
   const source = activeDraftRecord(from);
   if (!source || from === to) return false;
   const editor =
@@ -395,9 +453,7 @@ export function transferDraft(from, to, text, payload) {
   // A destination already holding a reply keeps it, with the source's after it.
   const held =
     [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
-  const durable = isReply(to)
-    ? saveDraft(to, held ? `${text}\n\n${held}` : text, payload, null)
-    : saveDraft(to, text, payload, held);
+  const durable = saveDraft(to, text, undefined, held);
   /** @type {WritingPlace & {selection: Caret}} */
   const place = {
     context: to,
@@ -407,7 +463,7 @@ export function transferDraft(from, to, text, payload) {
   keepWritingPlace(place);
   const settled = durable && settleDraft(from, source.attempt);
   if (settled) projectDraftRecord(from, settled);
-  tellDraft(to, activeDraftRecord(to)?.text ?? text, payload);
+  tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }
 // Put words the user put away back into `ctx`, as a new generation every view shows,
@@ -431,6 +487,71 @@ export const draftContexts = () =>
       .filter((key) => key.startsWith(DRAFT))
       .map((key) => key.slice(DRAFT.length)),
   ]);
+// ---------- the drafts list ----------
+// Every message draft holding words or a drawing, as this document shows it, in no
+// order: a generation it is sending stands on screen as the message, not as a draft.
+// It is the one list every view of drafts reads: Threads' Drafts band and the On Me
+// mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
+// a draft starts or stops holding something or what it is about changes, so a
+// keystroke in a draft already listed costs one comparison and repaints nothing; a
+// view reads the draft's words where it draws them (`loadDraft`).
+/** @typedef {NonNullable<ReturnType<typeof draftSubject>> & {context: string, payload: DraftPayload | undefined}} ListedDraft */
+/** @type {Map<string, ListedDraft>} */
+const listing = new Map();
+const listed = signal(/** @type {readonly ListedDraft[]} */ (Object.freeze([])));
+export const draftsReading = () => listed.value;
+// What a listing shows of a draft's payload: where it is, whether it suggests, what it
+// is about and its drawing. Another tab's write arrives as new objects alike in content.
+const LISTED = ["anchor", "suggest", "about", "drawing"];
+/** @param {DraftPayload | undefined} payload @param {string} key */
+const field = (payload, key) =>
+  /** @type {Record<string, unknown> | undefined} */ (payload)?.[key];
+/** @param {DraftPayload | undefined} was @param {DraftPayload | undefined} now */
+const listsAlike = (was, now) =>
+  LISTED.every((key) => {
+    const [a, b] = [field(was, key), field(now, key)];
+    return a === b || JSON.stringify(a) === JSON.stringify(b);
+  });
+/** @param {string} ctx */
+function listDraft(ctx) {
+  const subject = draftSubject(ctx);
+  if (!subject) return;
+  // The record as this document shows it, short of the log's acceptance, which reaches
+  // the list as the tombstone `settleAcceptedDrafts` writes after each poll: asking the
+  // log here would cost each keystroke a walk of the session's events.
+  const raw = rawDraftRecord(ctx);
+  const record =
+    raw && !raw.settled && sentAttempts.get(ctx) !== raw.attempt ? raw : null;
+  const holds = Boolean(record?.text.trim() || field(record?.payload, "drawing"));
+  const was = listing.get(ctx);
+  if (!holds && !was) return;
+  if (holds && was && listsAlike(was.payload, record?.payload)) return;
+  if (holds) listing.set(ctx, { ...subject, context: ctx, payload: record?.payload });
+  else listing.delete(ctx);
+  listed.value = Object.freeze([...listing.values()]);
+}
+// Where on the page a listed draft is about, as an anchor: a comment's, or the widget
+// a seat's comment is written at. A reply or rewrite has none of its own; it stands
+// where its thread does.
+/** @param {ListedDraft} draft @returns {import('../types/domain.js').Anchor | null} */
+export const draftAnchor = (draft) => {
+  if (draft.part === "seat") return { section: /** @type {string} */ (draft.name) };
+  if (draft.part !== "comment") return null;
+  const anchor = /** @type {import('../types/domain.js').Anchor | undefined} */ (
+    field(draft.payload, "anchor")
+  );
+  return anchor ?? null;
+};
+// What Send makes of a listed draft, the word every view of it ends on.
+/** @param {ListedDraft} draft */
+export const draftSends = (draft) =>
+  ({
+    page: "Comment",
+    comment: field(draft.payload, "suggest") ? "Suggestion" : "Comment",
+    seat: "Comment",
+    reply: "Reply",
+    rewrite: "Edit",
+  })[draft.part];
 
 // The log is authoritative over a stale active storage record. Run after each poll so a
 // remove-resistant record from an accepted send becomes a tombstone in every live tab;
@@ -691,6 +812,13 @@ export function forgetWritingPlace(ctx) {
   }
   storeWritingPlace();
 }
+// The end of a draft's words: its length, which the editor clamps to the end of its
+// words, since any attached images follow them.
+/** @param {string} ctx @returns {Caret} */
+const atEnd = (ctx) => {
+  const end = (activeDraftRecord(ctx)?.text ?? "").length;
+  return [end, end];
+};
 // What a refusal left the user, given every attempt it refused, read once each sender's
 // own answer has returned its words (`standGesture`) and any owner has reopened its box
 // for them.
@@ -713,13 +841,6 @@ export function forgetWritingPlace(ctx) {
 // press on the error over them does (composing/input.js), so Enter sends them.
 /** @param {readonly string[]} attempts */
 export function keepRefusedWords(attempts) {
-  // The draft's length, which the editor clamps to the end of its words, since any
-  // attached images follow them.
-  /** @param {string} ctx @returns {Caret} */
-  const atEnd = (ctx) => {
-    const end = (activeDraftRecord(ctx)?.text ?? "").length;
-    return [end, end];
-  };
   let held = 0;
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
@@ -761,7 +882,7 @@ export function keepRefusedWords(attempts) {
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
-    hidden.length && "Draft kept — g i resumes writing",
+    hidden.length && DRAFT_KEPT,
     held && "Reply kept — it comes back once its comment is saved",
   ].filter(Boolean);
   return {
@@ -837,9 +958,14 @@ function moveToPage(ctx) {
 // `holdsThreadDraft` answers whether the thread or message a thread-held draft is
 // written under still stands; any other draft is held by a route declared for its kind
 // or an editor registered for it, each for its owner's lifetime.
+//
+// The command resumes the writing place; `resumeDraft` resumes the draft a press names,
+// as a row of Threads' Drafts does, at the caret the place last kept for it, else at its
+// words' end. Opening a draft is no content edit, so it leaves the writing place where
+// it was.
 /** @param {{revealInThread: (ctx: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null | undefined>,
  * arriveEditor: ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["arriveEditor"], holdsThreadDraft: (ctx: string) => boolean}} options
- * @returns {import("./keyboard/bindings.js").Command} */
+ * @returns {{command: import("./keyboard/bindings.js").Command, resumeDraft: (ctx: string) => Promise<void>}} */
 export function createWritingResume({
   revealInThread,
   arriveEditor,
@@ -851,9 +977,18 @@ export function createWritingResume({
       ? holdsThreadDraft(ctx)
       : Boolean(writingRoute(ctx)) ||
         [...draftEditors].some((view) => view.ctx === ctx);
-  const resume = async () => {
-    const place = writingPlace;
-    if (!place) return;
+  const resume = () => (writingPlace ? resumeAt(writingPlace) : Promise.resolve());
+  /** @param {string} ctx */
+  const resumeDraft = (ctx) =>
+    resumeAt(
+      [writingPlace, ...earlierPlaces].find((place) => place?.context === ctx) ?? {
+        context: ctx,
+        selection: atEnd(ctx),
+        generation: randomId(),
+      },
+    );
+  /** @param {WritingPlace} place @returns {Promise<void>} */
+  const resumeAt = async (place) => {
     const intent = retainUserIntent();
     let input;
     // A thread view holds its own drafts, which the thread's destination reveals.
@@ -900,14 +1035,17 @@ export function createWritingResume({
     );
   };
   return {
-    id: "writing.resume",
-    keys: ["i"],
-    title: "Resume writing",
-    touch: "Resume writing",
-    menu: "keys",
-    travels: true,
-    when: () => writingPlace !== null,
-    run: resume,
+    command: {
+      id: "writing.resume",
+      keys: ["i"],
+      title: "Resume writing",
+      touch: "Resume writing",
+      menu: "keys",
+      travels: true,
+      when: () => writingPlace !== null,
+      run: resume,
+    },
+    resumeDraft,
   };
 }
 
@@ -1086,3 +1224,7 @@ export function mirrorDraft(
 // used to sweep an unsent reply out of storage — words going missing, where the
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
+
+// The list starts from what the store holds when the page loads; every later change
+// reaches it through the maps.
+for (const ctx of draftContexts()) listDraft(ctx);

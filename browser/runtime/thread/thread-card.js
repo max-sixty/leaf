@@ -77,7 +77,7 @@
    (floating-panel.js, which records it); the margin card gained it on 4 November, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
-import { REOPEN_HINT, REPLY_HINT } from "../words.js";
+import { labelWords, REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -99,6 +99,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
+  HOLDS,
   anchorPlace,
   messageReading,
   threadPassage,
@@ -128,6 +129,7 @@ import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
+import { obligationEnding } from "../obligations/answer.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
@@ -135,10 +137,9 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { leafSays, voiced } from "../voice.js";
+import { agentSays, leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
-import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
@@ -152,12 +153,11 @@ import { addressableLabel } from "../addressable-names.js";
 /** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
 /** @typedef {{who: string, position: number, timestamp: string | null,
- * age: string | null, words: string, feedback: {
+ * words: string, feedback: {
  * input_id?: string, reply_id: string | null, attempt?: string | null,
  * reply_kind: "work" | "progress"} | null,
  * live: boolean, condition: import("../voice.js").Said | null}} WorkingMessage */
 /** @typedef {{key: string, summary: ReturnType<typeof threadSummary>,
- * recency: {short: string, long: string} | null,
  * id: string, attempt: string | null, surface: string, resolved: boolean,
  * attention: ReturnType<typeof threadAttention>, resolvedBy: string,
  * settlement: {kind: "resolve" | "unresolve", word: string, label: string},
@@ -333,7 +333,6 @@ function workingMessage(thread, messages) {
     who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
     position,
     timestamp,
-    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live,
@@ -356,7 +355,24 @@ export function threadReading(thread, surface, commands) {
   const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
-  // thread.
+  // thread. Once the agent ends a question it asked (`task end`), because the user
+  // answered it elsewhere or it no longer applies, a line under the question says how
+  // it ended, in the words On Me's Done uses (`obligationEnding`), followed by the
+  // agent's note on where or why (`end.detail`), one line for each question the message
+  // asked. The thread then no longer reads as asking.
+  /** @type {Map<string | null, import("../voice.js").Words[]>} */
+  const ended = new Map();
+  for (const item of thread.obligations)
+    if (item.end && answeredInWords(item)) {
+      const lines = ended.get(item.message) ?? [];
+      ended.set(item.message, lines);
+      lines.push(
+        [
+          obligationEnding(item),
+          ...(item.end.detail ? [" · ", agentSays(labelWords(item.end.detail))] : []),
+        ].flat(),
+      );
+    }
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -381,21 +397,18 @@ export function threadReading(thread, surface, commands) {
     .map((message) =>
       messageReading(message, {
         // Where a message's widgets stand when several drawings show it (messages.js,
-        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        // `HOLDS`).
+        authoredRank:
+          commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
+        endings: ended.get(message.id) ?? [],
       }),
     );
   const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
     summary,
-    // How long ago the thread last moved, read here with the rest of the reading, so a
-    // card whose reading did not change shows the same age and need not draw again.
-    recency: summary.latest
-      ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
-      : null,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,

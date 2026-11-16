@@ -1,5 +1,5 @@
 """Which passage an unsent comment belongs to as the user selects, retargets, revisits
-or moves to another location, and whose words a transfer carries."""
+or moves to another location, and where Threads lists it."""
 
 import re
 
@@ -10,9 +10,11 @@ from render_harness import (
     LONG_PAGE,
     draft_control,
     draft_key,
+    expect_panel_says,
     hold_selection,
     leaf_page,
     open_page,
+    open_threads,
     select_words,
     selection_field,
     sending,
@@ -23,7 +25,7 @@ from browser.drafts import (
     choose_comment_target,
 )
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -256,7 +258,7 @@ def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
         "<p id='p40'>", '<p id="p40"><a id="later-link" href="#p41">Later item</a> '
     )
     page = open_page(browser, serve(source))
-    words = "Carry these unfinished words to the item I am at now."
+    words = "Unfinished words that stay with the paragraph they are about."
     choose_comment_target(page, "#p3")
     write(page.locator(".lf-fab-input"), words)
     page.keyboard.press("Home")
@@ -293,17 +295,19 @@ def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
     expect(page.locator("#p41")).to_be_focused()
     expect(earlier).not_to_be_in_viewport()
 
+    # Comment at the later item opens that item's own draft; the earlier words stay
+    # with Paragraph 3, where Resume writing still leads.
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", words)
+    expect(field).to_have_js_property("value", "")
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", words)
-    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 41"))
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 3"))
     expect(field).to_have_js_property("selectionStart", 1)
     with sending(page, "comment"):
         page.keyboard.press("Enter")
@@ -313,62 +317,19 @@ def test_comment_follows_a_new_current_location_instead_of_an_earlier_draft(
         if event["kind"] == "comment"
     ]
     assert [(event["text"], event["anchor"]) for event in sent] == [
-        (words, {"section": "p41"})
+        (words, {"section": "p3"})
     ]
-
-
-@pytest.mark.parametrize("destination", ["passage", "reply"])
-def test_a_transfer_keeps_its_persisted_source_when_the_destination_write_fails(
-    browser, serve, destination
-):
-    """A failed larger destination write cannot be followed by a smaller tombstone."""
-    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
-    words = "The only persisted copy must survive the transfer and reload."
-    choose_comment_target(page, "#p3")
-    write(page.locator(".lf-fab-input"), words)
-    page.evaluate(
-        """prefix => {
-          const set = Storage.prototype.setItem;
-          window.lfRefusedTransferWrites = 0;
-          Storage.prototype.setItem = function (key, value) {
-            if (key.startsWith(prefix) && !JSON.parse(value).settled) {
-              window.lfRefusedTransferWrites++;
-              throw new DOMException('full', 'QuotaExceededError');
-            }
-            return set.call(this, key, value);
-          };
-        }""",
-        draft_key(page, ""),
-    )
-    if destination == "passage":
-        page.keyboard.press("Escape")
-        choose_comment_target(page, "#p9")
-        field = page.locator(".lf-fab-input")
-    else:
-        page.keyboard.press("Shift+Tab")
-        page.keyboard.press("t")
-        page.keyboard.press("c")
-        field = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", words)
-    assert page.evaluate("() => window.lfRefusedTransferWrites") > 0
-
-    page.reload()
-    wait_until_ready(page)
-    page.keyboard.press("Escape")
-    choose_comment_target(page, "#p3")
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
 
 
 def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     browser, serve, one_user
 ):
-    """A deliberate retarget carries words only into an empty passage.
+    """A deliberate retarget opens the destination's own draft.
 
     Two passages may already hold independent work. Choosing the second from the first
     tab should therefore reopen the draft at the chosen destination and leave the source
     draft where it was, rather than tombstoning the source and replacing the destination.
-    The target picker is the real explicit gesture whose carry path owns that choice.
+    The target picker is the real explicit gesture.
     """
     url = serve(
         leaf_page(
@@ -406,22 +367,183 @@ def test_an_explicit_target_does_not_overwrite_its_existing_draft(
     expect(first.locator(".lf-fab-input")).to_have_js_property("value", source)
 
 
-def test_an_explicit_target_carries_into_an_emptied_draft(browser, serve):
-    """A cleared destination record holds no work that should outrank a carried draft."""
+def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
+    """Unsent words stay with what they are about. Comment on another target opens
+    that target's own empty draft and says the earlier one is kept, and `c` into a
+    thread opens the thread's reply. Threads lists every such draft under Drafts, in the
+    page's order, each reading its words, what it is about and what Send makes of it,
+    and a press on one resumes it in its own box with the caret after its words."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    field = page.locator(".lf-fab-input")
+    ninth = "About the ninth paragraph."
+    choose_comment_target(page, "#p9")
+    write(field, ninth)
+    page.locator("#p3").scroll_into_view_if_needed()
+    page.locator("#p3").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "")
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 3"))
+    expect_panel_says(page, "Draft kept — g i resumes writing")
+    write(field, "About the third.")
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "")
+    write(reply, "A reply to the anchored thread.")
+    page.keyboard.press("Escape")
+
+    open_threads(page)
+    rows = page.locator(".lf-fp-draft")
+    expect(rows).to_have_count(3)
+    for row, (words, about, kind) in zip(
+        rows.all(),
+        [
+            ("About the third.", "Paragraph 3", "Comment"),
+            (ninth, "Paragraph 9", "Comment"),
+            # A reply names its thread, which the fixture's comment names.
+            ("A reply to the anchored thread.", "About this bit.", "Reply"),
+        ],
+        strict=True,
+    ):
+        expect(row.locator(".lf-row-main")).to_contain_text(words)
+        expect(row.locator(".lf-fp-note")).to_contain_text(about)
+        expect(row.locator(".lf-row-end")).to_have_text(kind)
+
+    rows.nth(1).click()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", ninth)
+    expect(field).to_have_attribute("aria-label", re.compile("Paragraph 9"))
+    expect(field).to_have_js_property("selectionStart", len(ninth))
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
+        "data-lf-open", "threads"
+    )
+
+
+def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
+    """Where no thread has news, a draft the user put away dots the On Me mark grey,
+    and a press on the mark opens Threads, where Drafts lists it."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page.locator(".lf-fab-input")
-
+    mark = page.locator(".lf-fp-on-user")
+    dot = mark.locator(".lf-fp-news")
+    expect(dot).to_be_hidden()
     choose_comment_target(page, "#p9")
-    write(field, "Words the user removes.")
-    write(field, "")
+    write(field, "About the ninth paragraph.")
     page.keyboard.press("Escape")
+    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect(dot).to_be_visible()
+    expect(dot).to_have_attribute("data-lf-drafts", "")
+    expect(mark).to_have_accessible_name(re.compile("1 draft unsent"))
 
-    source = "Words to carry to the later paragraph."
-    choose_comment_target(page, "#p3")
-    write(field, source)
-    page.keyboard.press("Escape")
+    mark.click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute(
+        "data-lf-open", "threads"
+    )
+    expect(page.locator(".lf-fp-draft")).to_have_count(1)
+
+
+def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
+    """A comment draft stands as a dashed margin entry at its passage, and a reply
+    draft beside its thread's entry; a press on one resumes it in its own box."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    field = page.locator(".lf-fab-input")
+    drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    ninth = "About the ninth paragraph."
     choose_comment_target(page, "#p9")
-    expect(field).to_have_js_property("value", source)
+    write(field, ninth)
+    page.keyboard.press("Escape")
+    expect(drafts).to_have_count(1)
+    expect(drafts).to_have_css("border-top-style", "dashed")
+    expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    write(reply, "A reply to the anchored thread.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(drafts).to_have_count(2)
+    thread = page.locator('.lf-margin-face[data-lf-kinds~="comment"]')
+    expect(thread).to_have_attribute("data-lf-kinds", "comment draft")
+
+    drafts.first.click()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", ninth)
+
+
+def test_page_map_reads_a_listed_draft_as_it_now_stands(browser, serve):
+    """Words added to a draft already in the margin reach its Page Map row, though the
+    drafts list publishes no keystroke."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    draft = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    choose_comment_target(page, "#p9")
+    write(field, "About the ninth paragraph.")
+    page.keyboard.press("Escape")
+    draft.click()
+    expect(field).to_be_focused()
+    field.press("End")
+    page.keyboard.type(" More words added later.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    expect(page.locator(".lf-page-map-list")).to_contain_text("More words added later")
+
+
+def test_drafts_stand_by_their_own_passage_and_outlast_a_resolved_thread(
+    browser, serve
+):
+    """Drafts about two passages of one paragraph stand apart, each by its passage,
+    and a reply draft keeps its entry when its thread is resolved."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two passages",
+                '<p id="two">The first passage stands here and the second passage'
+                " stands there.</p>",
+            ),
+            anchored=[("two", "The first passage")],
+        ),
+    )
+    field = page.locator(".lf-fab-input")
+    drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    for words in ("first passage", "second passage"):
+        page.evaluate(
+            """words => {
+              const text = document.getElementById('two').firstChild;
+              const at = text.data.indexOf(words);
+              const range = document.createRange();
+              range.setStart(text, at);
+              range.setEnd(text, at + words.length);
+              getSelection().removeAllRanges();
+              getSelection().addRange(range);
+            }""",
+            words,
+        )
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        write(field, f"About the {words}.")
+        page.keyboard.press("Escape")
+    expect(drafts).to_have_count(2)
+    tops = drafts.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
+    )
+    assert len(set(tops)) == 2
+
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    write(reply, "A reply left unsent.")
+    page.locator(".lf-margin-preview .lf-resolve").click()
+    expect(page.locator('.lf-margin-face[data-lf-kinds~="comment"]')).to_have_count(0)
+    expect(drafts).to_have_count(3)
 
 
 def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):

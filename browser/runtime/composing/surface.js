@@ -85,6 +85,8 @@ import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { covered, placeBox, seenRect } from "../geometry.js";
 import { scrollIntoView } from "../landing-scroll.js";
+import { landGlides, stopGlide } from "../scrolling.js";
+import { carriersOf } from "../scroll-containers.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import { targetElement, targetPlace, targetSegments } from "../resolved-target.js";
 import {
@@ -99,7 +101,6 @@ import {
 
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
-import { replyDraftContext } from "../thread/replies.js";
 import { advertisesKeys } from "../keyboard/bindings.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
@@ -172,7 +173,7 @@ import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
  * @typedef {ReturnType<typeof import("../thread/destination.js").createThreadDestinations>} ThreadDestinations
  * @typedef {Pick<ComposerOptions, "reactionTokens" | "setReact" | "designModeActive" | "openPageThread" | "createComment" | "landSent" | "refreshThread" | "wireInput" | "drawingEdits"> & {
  * rememberSelection: ReturnType<typeof import("./capture.js").createPassageSelection>["remember"],
- * landIn: ReturnType<typeof import("../thread/landing.js").createThreadLanding>["landIn"],
+ * landIn: typeof import("../thread/landing.js").landIn,
  * threadHere: ThreadDestinations["threadHere"], threadAtCurrentLocation: ThreadDestinations["threadAtCurrentLocation"], threadTarget: ThreadDestinations["threadTarget"],
  * currentTarget: ReturnType<typeof import("./current-target.js").createCurrentTarget>,
  * markAt?: ((x: number, y: number) => string | null) | undefined,
@@ -478,6 +479,16 @@ export function createResponseSurface({
     const land = landingFromBar(true);
     closeLayer(() => showFab(null), land);
   }
+  // A send lands the user itself, on the conversation it opens (selection.js, `send`),
+  // so the bar its settlement takes down lands no one. The call it returns lets go of
+  // a user the send landed nowhere, while they still stand in the bar and no other
+  // anchor has taken it.
+  function takeDownFab() {
+    closeLayer(() => showFab(null));
+    return () => {
+      if (!fabAnchor.value && fabBar.contains(fabFocused())) letGo();
+    };
+  }
   // The bar's whole paint for the anchor it stands on, or for none: whether it shows,
   // whether only its target is chosen, which responses it offers, and what it is called.
   // Comment returns from the bar's choice state to this same field. With only a target
@@ -624,8 +635,9 @@ export function createResponseSurface({
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
   // authored anchor; this command owns the one transition from that target into Comment.
-  // Focusing the field drops any older browser selection, and an unsent draft follows the
-  // deliberate move. Escape resolves the same structural parent for every entry route.
+  // Focusing the field drops any older browser selection, and the field opens on the
+  // target's own draft, leaving an earlier one with its passage. Escape resolves the
+  // same structural parent for every entry route.
   /** @param {{anchor: Anchor, element?: Element | null, point?: Element | null}} target */
   function commentOnTarget({ anchor, element = null, point = null }) {
     stopSelectionUpdate();
@@ -633,7 +645,7 @@ export function createResponseSurface({
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
-    openComment(anchor, "", { carry: true, point });
+    openComment(anchor, "", { point });
     setTimeout(() => {
       targetActivation = false;
       // A browser command or touch handle can replace the visual target while its
@@ -1058,6 +1070,7 @@ export function createResponseSurface({
     landFabFocus,
     showFab,
     letGoOfFab,
+    takeDownFab,
     createComment,
     landSent,
     refreshThread,
@@ -1291,10 +1304,16 @@ export function createResponseSurface({
         ? { x: ev.clientX, y: ev.clientY }
         : pointerAt();
       const threadId = markAt?.(point.x, point.y);
-      if (threadId)
-        return void openPageThread(threadId, {
-          travel: false,
-        });
+      if (!threadId) return;
+      // The press picked words where they stood, and the thread opens without travel,
+      // so a glide under way that carries them stops there, as a spatial command stops
+      // one (scrolling.js, `stopGlide`): the card the thread opens moves no scroller of
+      // its own (scroll-containers.js, `scrollersOf`), so its landing would leave a
+      // walk's glide carrying the clicked words out of the window.
+      const clicked =
+        target instanceof Element ? target : (target?.parentElement ?? null);
+      for (const box of carriersOf(clicked)) stopGlide(box);
+      void openPageThread(threadId, { travel: false });
     });
     wireFabInput();
   }
@@ -1372,9 +1391,8 @@ export function createResponseSurface({
       (!here || (target && under(target, heldObligation() ?? here.element)));
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
-    // After the user lands elsewhere, Comment names that new place;
-    // commentOnTarget carries the old words without replacing a destination's
-    // independent draft.
+    // After the user lands elsewhere, Comment names that new place and opens its own
+    // draft, the old words staying with theirs.
     if (
       anchor &&
       (pageSelection() ||
@@ -1395,7 +1413,7 @@ export function createResponseSurface({
         ...commenting("thread"),
         box: said.box,
         go: () => {
-          composer.carryComposerToReply(replyDraftContext(said.box));
+          composer.leaveForThread();
           landIn(said);
         },
       };
@@ -1409,7 +1427,7 @@ export function createResponseSurface({
             travel: false,
           });
           if (!destination) return;
-          composer.carryComposerToReply(replyDraftContext(destination));
+          composer.leaveForThread();
           landIn({ box: destination });
         },
       };
@@ -1418,7 +1436,14 @@ export function createResponseSurface({
         ...commenting(here.anchor.datum ? "item" : addressableWord(here.element)),
         box: fabInput,
         rest: here,
-        go: () => commentOnTarget(here),
+        // The box's placement measures its target where it stands, so the glides under
+        // way land first (scrolling.js, `landGlides`): `c` pressed as `m` sets off
+        // opens the box beside the ask where `m` lands it, where a box placed mid-glide
+        // took the side with room then and ended off screen with focus in it.
+        go: () => {
+          landGlides();
+          commentOnTarget(here);
+        },
       };
     // The page's own box is the floating panel's field.
     return { ...commenting("page"), box: pageComment.box, go: pageComment.open };
@@ -1521,6 +1546,8 @@ export function createResponseSurface({
       const selection = pageSelection();
       const anchor = selection ? selectionAnchor(selection) : null;
       if (hasQuote(anchor)) {
+        // Placed beside the words as they stand, like a target's box below.
+        landGlides();
         commentOnSelection(anchor);
         return;
       }

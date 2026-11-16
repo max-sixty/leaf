@@ -55,9 +55,8 @@
     let dirty = false;
     const inView = new Set();
     const observed = new WeakSet();
-    // A message names its event by `data-mid` or `data-lf-event`, as the reader drawing
-    // it does (thread/messages.js).
-    const message = ".lf-msg[data-lf-author=agent]:is([data-mid], [data-lf-event])";
+    // A message names its event by `data-lf-event` (thread/messages.js).
+    const message = ".lf-msg[data-lf-author=agent][data-lf-event]";
     const selector = `${message}, .lf-thread-news`;
     const note = (table, key, now) => {
       if (table[key] !== undefined) return;
@@ -80,7 +79,7 @@
         if (!node.checkVisibility()) continue;
         if (node.matches(message)) {
           if (node.querySelector(".lf-msg-text")?.textContent.trim())
-            note(found.messages, node.dataset.mid ?? node.dataset.lfEvent, now);
+            note(found.messages, node.dataset.lfEvent, now);
         } else {
           const thread = drawnThread(node);
           if (thread) said[thread] = node.textContent.trim();
@@ -143,13 +142,10 @@
     watchApplied();
   }
 
-  // The thread a node is drawn in: a card's, or the one the panel's view stands for.
-  const drawnThread = (node) => {
-    const thread = node.closest(
-      ".lf-thread[data-id], [data-lf-thread-view][data-lf-thread]",
-    );
-    return thread?.dataset.id ?? thread?.dataset.lfThread ?? null;
-  };
+  // The thread a node is drawn in: a card's, or the one the panel's view stands for
+  // (thread/selectors.js, `THREAD`).
+  const THREAD = ".lf-page-thread, [data-lf-thread-view]";
+  const drawnThread = (node) => node.closest(THREAD)?.dataset.lfThread ?? null;
 
   // When the page first showed the user reply `id` in `thread`, and by which sign: its
   // `message` or its thread's `notice`. A notice shows the reply before its message
@@ -240,11 +236,7 @@
         revision: document.querySelector('meta[name="lf-revision"]')?.content ?? null,
         status: status(),
         // What each drawn thread shows of itself: a card, or the panel's view.
-        threads: [
-          ...document.querySelectorAll(
-            ".lf-thread[data-id], [data-lf-thread-view][data-lf-thread]",
-          ),
-        ].map((node) => ({
+        threads: [...document.querySelectorAll(THREAD)].map((node) => ({
           id: drawnThread(node),
           inPanel: node.matches("[data-lf-thread-view]"),
           visible: node.checkVisibility(),
@@ -253,7 +245,7 @@
         shown: shown(),
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
           classes: [...node.classList],
-          mid: node.dataset.mid ?? node.dataset.lfEvent ?? null,
+          mid: node.dataset.lfEvent ?? null,
           attempt: node.dataset.lfAttempt ?? null,
           busy: node.hasAttribute("aria-busy"),
           hasText: Boolean(node.querySelector(".lf-msg-text")?.textContent.trim()),

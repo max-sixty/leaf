@@ -31,11 +31,13 @@
  * stands the list beside the panels, a queue beside the item it opens, walked up and
  * down as well as across (base.css says where it stacks); a side list is a box even as
  * the root set, which keeps the root's history, and Back or Forward restores the
- * entry's viewport after showing its view. Where a side list fills a height it is
- * given, as a full-height workspace's body (base.css), its list and its open item each
- * scroll on their own. Its panels are reading regions, and so is its list while it
- * scrolls on its own, so reading keys and the user's place follow the list or the item
- * rather than the set.
+ * entry's viewport after showing its view. Its column sticks in the window beside the
+ * item the page scrolls, and scrolls on its own past the window's height, so its list
+ * is pinned as a box's strip is, and a switch made while it is opens the new item at
+ * its start. Where a side list fills a height it is given, as a full-height
+ * workspace's body (base.css), its list and its open item each scroll on their own.
+ * Its panels are reading regions, and so is its list while it scrolls on its own, so
+ * reading keys and the user's place follow the list or the item rather than the set.
  *
  * A page's parts (`lf-parts`, lf-parts.js) are this module's set under their own tag,
  * with `lf-part` members. They stand directly in a `main` that carries no Layout
@@ -78,6 +80,7 @@
  * there is no failSoft. */
 import {
   addressableLabel,
+  afterScript,
   setScroll,
   actionTemplate,
   agentName,
@@ -207,7 +210,6 @@ export class TabSet extends LeafElement {
     const strip = this.#strip;
     strip.setAttribute("role", "tablist");
     strip.toggleAttribute("data-lf-scroll", true);
-    if (down) strip.setAttribute("aria-orientation", "vertical");
     // Group runs are fixed by authored panels. Lit owns every generated child;
     // panel nodes stay outside its render root, with native reading and focus state.
     /** @type {{panel: Element, group: string | null, panels: Element[]} | undefined} */
@@ -239,10 +241,14 @@ export class TabSet extends LeafElement {
     /** @param {HTMLElement | undefined} next */
     const walk = (next) => {
       if (!next) return;
-      // The strip is always on screen; focus scrolling a stuck tab back to its place
-      // in flow would move the view being left before the switch records it.
+      // Native focus scrolling would carry a stuck tab back to its place in flow and
+      // move the view being left before the switch records it. So the tab comes into
+      // the window after the switch (`#showTab`), once the focus paint marks its ring,
+      // as every walk's landing does (walk-position.js, `rowWalk`). Left out of
+      // sight, the tab would lose focus to the next key (keyboard/controller.js).
       focusDestination(next, "move");
       next.click();
+      afterScript(() => this.#showTab(next, null));
       beginWalk("tab", "Tab", () => listWalkPosition(tabs(), focused()));
     };
     // Across the row, back is the way the names run from.
@@ -349,19 +355,21 @@ export class TabSet extends LeafElement {
 
   // A side list's panels are reading regions whatever their posture, as panes are, so
   // the user's place in an item survives the workspace flowing and filling the window
-  // again. Its list is one only while it is a column scrolling on its own, while the
-  // set is told it has a definite height to fill (`--lf-full-height`, base.css):
-  // elsewhere the strip keeps its open tab in view itself (`#showTab`), and observed
-  // as a region there, its own scrolling as it turned into a row ended the size
-  // observers' pass with notifications undelivered. Whether the set is told follows
-  // the window, so the strip's size observer asks again.
+  // again. Its list is one only while it scrolls on its own, which the theme declares
+  // on it (`--lf-holds-height`): a column, sticking beside the item or filling the
+  // height a full-height workspace gives it, or that workspace's stacked row. A row
+  // over the item elsewhere keeps its open tab in view itself (`#showTab`), and
+  // observed as a region there, its own scrolling as it turned into a row ended the
+  // size observers' pass with notifications undelivered. Which it is follows the
+  // window, so the strip's size observer asks again.
   #syncRegions() {
     if (!this.#side || !this.isConnected) return;
-    const told =
-      getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
-    if (told === Boolean(this.#stopList)) return;
+    const holds =
+      getComputedStyle(this.#strip).getPropertyValue("--lf-holds-height").trim() ===
+      "1";
+    if (holds === Boolean(this.#stopList)) return;
     this.#stopList?.();
-    this.#stopList = told
+    this.#stopList = holds
       ? registerReadingRegion({
           id: compoundReadingRegionId(this, "list"),
           host: this.#strip,
@@ -518,7 +526,6 @@ export class TabSet extends LeafElement {
     const pinnedBox =
       previous &&
       !this.#pageFlow &&
-      !this.#side &&
       reason === "ordinary" &&
       this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
     const change = () => {
@@ -674,9 +681,12 @@ export class TabSet extends LeafElement {
   // strip sticks, and scrolling the page to it would move the view being read. It
   // stops clear of the edge's press, which the strip states as its inline
   // `scroll-padding` (the package theme). A row runs past where it holds more names
-  // than it shows. A side list's column runs past only where it scrolls on its own,
-  // in a workspace that fills the window (base.css), and the tab comes into it the
-  // same way, down the column.
+  // than it shows. A side list's column runs past where it scrolls on its own, as it
+  // does wherever it is a column (the package theme), and the tab comes into it the
+  // same way, down the column. Until the column sticks it stands where the page put
+  // it, and can reach past the window's foot, so the walk, which puts focus on the
+  // tab, shows it in the window too (`within` null). A stuck strip's tab already
+  // shows there.
   // Where the strip has room for it, the tab comes in with its run's label, so the
   // name of the group the user opened stays beside it. Down a column that room is
   // the landing's own (`fitsWhole`) and the run from heading to tab lands together.
@@ -688,8 +698,8 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
-  /** @param {HTMLElement | undefined} btn */
-  #showTab(btn) {
+  /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
+  #showTab(btn, within = this.#strip) {
     const strip = this.#strip;
     if (!btn) return;
     const run = btn.parentElement;
@@ -703,7 +713,7 @@ export class TabSet extends LeafElement {
       const apart = size + gap + btn.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
       run.style.setProperty("--lf-tab-group-size", layoutPx(size));
-      scrollIntoView(btn, { block: "nearest", within: strip });
+      scrollIntoView(btn, { block: "nearest", within });
       return;
     }
     const range = label && document.createRange();
@@ -713,7 +723,7 @@ export class TabSet extends LeafElement {
     }
     scrollIntoView(range && fitsWhole(range) ? range : btn, {
       block: "nearest",
-      within: strip,
+      within,
     });
   }
 
@@ -727,7 +737,15 @@ export class TabSet extends LeafElement {
     return stripSize;
   }
 
+  // The tablist says which way its names run, the way the theme lays them
+  // (`--lf-tabstrip-flow`): down a column, and across the row a narrow window stacks a
+  // side list or a page's parts into, as every other strip runs (the tablist default).
   #positionStrip = () => {
+    keeps(
+      this.#strip,
+      "aria-orientation",
+      getComputedStyle(this.#strip).flexDirection === "column" ? "vertical" : null,
+    );
     this.#stopSelectionMotion();
     this.#syncRegions();
     this.#declareHeader();

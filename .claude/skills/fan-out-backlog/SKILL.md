@@ -61,7 +61,7 @@ counts carried across a compaction drift.
 
 Give each PR an independent reviewer in its own worktree, briefed with the PR
 and what to check, not with the author's conclusions, and told to verify by
-running and to weigh what the change adds (`/developing-leaf`, "Weigh what a
+running and to weigh what the change adds (root `AGENTS.md`, "Weigh what a
 change adds"). In one run 22 of 55 PRs had a substantive defect: a regression, a
 false central claim, a red test, or lost input, and reviewers who checked
 correctness alone passed every addition the user later cut.
@@ -102,5 +102,5 @@ to the user on their On Me list, including calls an agent made that they may
 reverse. An agent's report names its calls for a reader who knows the PR, and the
 user hasn't opened it, so each decision says what the user sees today, what the PR
 changes, and what choosing each option leads to, with a picture of each result for a UI
-call (`/developing-leaf`, "Choose what the user reviews"). A campaign that found nothing to
+call (root `AGENTS.md`, "Working on the repository"). A campaign that found nothing to
 change in an item reports that as a result.

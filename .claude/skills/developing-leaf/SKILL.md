@@ -9,12 +9,6 @@ Resolve the repository root three directories above this `SKILL.md`, check that
 `<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
 absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Before writing words the user sees, such as a label, status line or placeholder, or
-naming anything they operate or an identifier for one, read `references/glossary.md`,
-Leaf's canonical vocabulary and guidance for visible text. A control may
-need no words at all (`<root>/browser/AGENTS.md`, "Controls are few and quiet"). Before
-changing anything Leaf draws, read that file's "Leaf's interface".
-
 ## Take a backlog item
 
 Pick an issue labelled `backlog`, assigned to nobody, that no pull request links
@@ -34,30 +28,22 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   browser/registry.json packages/*/registry.json
 ```
 
-A fact both runtimes use has one home (`browser/AGENTS.md`, "Facts both
-runtimes know"). When a change adds a parity fixture, or a test that scans one
-language's source for the other's names, ask why the fact isn't generated.
-
-Before adding tests for developer tooling or benchmarks, or selecting checks for
-them, read `dev/AGENTS.md`, "Tests"; `tests/` holds product behavior.
-
 ## Review a UI change
 
 Record browser API and rendering support gaps in
 [`notes/browser-support.md`](../../../notes/browser-support.md), as its "Recording and
 assessing a gap" section says.
 
-The user judges a UI change by using it and by looking at it, so review both before
-handing it over. Whoever reviews it, you or an independent reviewer, first uses the
+Whoever reviews a UI change, you or an independent reviewer, first uses the
 live candidate cold for the user's task, before reading its code or the author's
 account, reaching each result by every route Leaf gives to it and capturing each state
 those routes leave. A reviewer's brief gives the task and the candidate and asks for
 that pass before any code review. An agent that has driven, measured or read the
 change sees the screen through that work and misses flaws a first look catches; a
 fresh agent given only the captures and the user's request, and asked what looks
-wrong, is one way to get that look. For a theme or shared-control change, also run
-`/ui-sweep` (`../ui-sweep/SKILL.md`), whose "Review a design system" section covers it
-and whose "External review" section says when to use the skills below.
+wrong, is one way to get that look. The `/ui-sweep` pass (`../ui-sweep/SKILL.md`) a
+theme or shared-control change gets follows its "Review a design system" section, and
+its "External review" section says when to use the skills below.
 
 ### External UI skills
 
@@ -75,20 +61,15 @@ an authoring agent.
 
 ## Explore an open design
 
-When the user is to choose among designs for a visual or interaction question, show
-the candidates side by side for them to try and pick from, as
-`references/explore-a-design.md` says.
+To build the side-by-side choice root `AGENTS.md` asks for when the user is to choose
+among designs, follow `references/explore-a-design.md`.
 
 ## Choose what the user reviews
 
 Prefer outputs the user can review quickly. Do the reviews you can do as well as the
 user, and report the results. Choose the decisions the page puts to the user from
-their request, and show visible and interaction changes with the proof below.
-
-A choice about how something looks or moves can't be judged from a description, so
-every UI option you leave to the user carries a picture of its result: a still pair, a
-sketch, a diagram or a live sample. That includes the calls a PR body leaves to the
-user, and the decisions a page relays from it.
+their request, and show visible and interaction changes with the proof below,
+including the picture root `AGENTS.md` asks for with each UI option you leave to them.
 
 ## Prove and hand off a visible change
 
@@ -170,9 +151,8 @@ or serve a scratch page.
 ## Run the agent journey
 
 `uv run --project <root> leaf-dev journey run TARGET` runs one user's journey against a
-real agent. Run it on each harness a change touches, such as a change to how that
-harness runs Leaf's hooks or sandbox; `references/agent-journey.md` names the target
-for each file, and covers benchmarking replies and tracing one message.
+real agent. `references/agent-journey.md` names the target for each file a harness
+change touches, and covers benchmarking replies and tracing one message.
 
 ## Compare checkout versions
 
@@ -180,6 +160,12 @@ for each file, and covers benchmarking replies and tracing one message.
 in the foreground as a preview runs (`references/previews.md`); `--help` lists the flags. Keep
 the default shared source for a runtime change, pass `--authored` when the authored
 content changed, and pass `--user` only when the URLs go to the user.
+
+For a change that can alter browser startup, compare served previews for a runtime
+change, and `leaf-dev site verify website-worker` for site delivery, Worker routing or
+containers. Read the comparison by phase (the document arriving, widgets upgrading,
+the page first showing the server's state), and compare the requests and bytes loaded
+before that last phase directly; elapsed time is only diagnostic.
 
 ## Author or revise a page
 
@@ -211,74 +197,17 @@ review checks whether the user can work it without the author's knowledge.
 
 ## Score an instruction change
 
-Score an instruction change when you can't be sure how an agent will read it: a new
-or reworded rule, a goal that competes with another, or a cut that may have carried a
-behavior. Before changing the instructions an authoring agent follows, or scoring any
-change, read `references/instruction-changes.md`.
+Before changing the instructions an authoring agent follows, or scoring a change as
+root `AGENTS.md` asks, read `references/instruction-changes.md`.
 
-## Weigh what a change adds
+## Measure a removal
 
-Whoever writes or reviews a change asks whether what it adds is worth what later
-changes and users pay for it, by the bar "Regular maintenance" sets for code already
-there. Size says little: a two-line selector can reach every page.
-
-- **What it adds**: a mode, branch or special case; one more member of a set,
-  allowlist or tolerance; a wait, retry or timer; a public option; room reserved for a
-  state that may not come; a reliance on a dependency's internals.
-- **What it repeats**: code the change writes may already exist under another name, in
-  another directory, language or package. Search for the question each new helper,
-  constant, selector, style rule or inline check answers, not for its name. A copy is a
-  second home even when a comment names its source. Where the change couldn't reach
-  the owner, export, move or generate the owner rather than copy it.
-- **What it buys**: a behavior a user sees, a request the maintainer made, or a
-  measured cost. A green test buys what the test protects, so name that.
-- **Where its cost lands**: read the change's reach rather than its claim, such as a
-  selector's or guard's scope against the condition it names, what else inherits from
-  or sits in the box it changes, and how often a guard fires on a correct setup. Then
-  compare who pays with who gains: a cost paid in every state or on every page to fix
-  one transition usually outweighs it.
-- **The cheaper change**: a platform or dependency primitive, the fix in the owner
-  rather than a caller, the stale copy deleted, or the gap left open with an issue.
-  When `git log -L` shows earlier changes compensating for the same gap, ask whether
-  the mechanism is the wrong primitive and the cheaper change its general form.
-
-Keep an addition whose benefit is concrete when no cheaper change buys it, as with a
-fix in a primitive every caller gains from; otherwise make the cheaper change, or ask
-for it in review. When the fix for a finding would add another branch, flag or
-condition, first ask whether the finding is about the approach.
-
-## Regular maintenance
-
-Whenever a survey, a review or the nightly sweep reads a file, look for code that
-makes Leaf harder to develop than it is worth:
-
-- **A mechanism users wouldn't miss.** Ask who would notice it gone and what it costs
-  the changes around it. Code woven into the core runtime, the server or a shared
-  contract costs every nearby change, so it must clear a much higher bar. Signs it
-  doesn't: a hold, carry or special case for one widget or gesture spread across
-  several owners; a public API whose only callers are tests or a single example; a
-  mechanism `git log --follow` shows patched again and again (without `--follow`, a file's
-  history stops at its last move). Code in its own module, such as a
-  package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
-  it only when it is large and unused. Keep anything users would notice losing,
-  including Leaf's interface guarantees. Taking a feature away is the maintainer's
-  call, so propose the removal with what users lose and what it deletes.
-- **Several implementations of one capability.** Consolidate them into one home and
-  move every caller to it (root `AGENTS.md`, "Fix the underlying issue"). The other
-  copies seldom sit beside the file you're reading, so search for them as **What it
-  repeats** says.
-- **A mechanism a dependency or the platform already provides.** Delegate it (root
-  `AGENTS.md`, "Use dependencies").
-
-Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
-gives what it deletes, and a probe or capture of the affected journey shows what users
-lose. A count read off the code overstates the saving.
+Measure a removal or consolidation that root `AGENTS.md`'s "Regular maintenance"
+finds by making the change in a scratch worktree: `git diff --numstat` gives what it
+deletes, and a probe or capture of the affected journey shows what users lose. A count
+read off the code overstates the saving.
 
 ## Land a change
-
-Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
-whether one module owns it; if one does, the rule goes in that module's header (root
-`AGENTS.md`, "Where instructions live").
 
 The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
 (issue #4046, "Resume the thread appearance gate"), so a thread appearance change needs

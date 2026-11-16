@@ -54,7 +54,7 @@
    gestures request that same pass. Mount binds the overlay's mechanical lifecycle. */
 
 import { createThreadPreview } from "./thread-preview.js";
-import { proseRect, windowHoldsRail } from "../content-layout.js";
+import { windowHoldsRail } from "../content-layout.js";
 
 import { signal } from "/runtime/framework.js";
 import { tick } from "../version-signal.js";
@@ -145,7 +145,8 @@ import { paintTrace } from "../target-paint.js";
 import { outlineChange } from "../margin-bars.js";
 
 import { threadNamed } from "../thread/state.js";
-import { threadPreview } from "../thread/messages.js";
+import { draftPreview, threadPreview } from "../thread/messages.js";
+import { draftsReading } from "../drafts.js";
 import { carryingThreadPlace, currentLocationThreadId } from "../thread/focus.js";
 
 import { claimed } from "../thread/surfaces.js";
@@ -255,87 +256,69 @@ export function createMarginProjection({
   let optionsOrdinal = 0;
   /** @type {readonly Entry[]} */
   let pageInventory = [];
-  // The column's size the markers' names were last measured against.
-  /** @type {{width: number, height: number} | null} */
-  let spokenBasis = null;
   // What each cluster was last drawn from: its entry, the same object while nothing in
   // it changes (annotation-inventory.js, `keptEntry`), and what else its projection and
   // its controls' words read. A cluster is drawn again only where one of them changed.
   /** @type {WeakMap<Host, {entry: Entry, expanded: string | boolean, forced: boolean, folded: boolean, agent: string}>} */
   const drawnFrom = new WeakMap();
-  // What each marker was last named from. An entry the marker was already painted from
-  // needs only the name; `renderNow` drops the record when it draws the cluster, whose
-  // new face the marker paints in turn.
-  /** @type {WeakMap<Host, {entry: Entry, index: number, of: number, position: number | null | undefined}>} */
-  const namedFrom = new WeakMap();
+  // Each marker's place in the walk, from the last render, which only a render changes.
+  /** @type {WeakMap<Host, number>} */
+  const walkPlace = new WeakMap();
   // Whether a row has changed since a render last asked: drawn, taken away, moved by a
   // layout pass, or shown or hidden with the annotation layer. What reads the rows as a
   // whole reads them again only then (`renderNow`).
   let rowsChanged = true;
-  // Geometry is one read-only batch after every row has reconciled. Reading a target
-  // between two marker writes forced one full document layout per Page Map entry —
-  // including on the two-second heartbeat. Every name is then written together.
-  /** @param {(number | null)[]} positions */
-  function nameMarkers(positions) {
-    // Each entry's place in the inventory, read once rather than searched for per host.
-    const places = new Map(pageInventory.map((entry, place) => [entry, place]));
-    const placeOf = (/** @type {Entry} */ entry) => places.get(entry) ?? -1;
-    const walked = [...hosts.values()].sort(
-      (a, b) => placeOf(a.lfEntry) - placeOf(b.lfEntry),
-    );
-    walked.forEach((host, index) => {
-      const entry = host.lfEntry;
-      const position = positions[placeOf(entry)];
-      const named = namedFrom.get(host);
-      const painted = named?.entry === entry;
-      if (
-        painted &&
-        named.index === index &&
-        named.of === walked.length &&
-        named.position === position
-      )
-        return;
-      namedFrom.set(host, { entry, index, of: walked.length, position });
-      const name = markerName(entry, index, walked.length, position);
-      if (painted) {
-        keeps(host.marker, "aria-label", name);
-        return;
-      }
-      rowsChanged = true;
-      paintMarker(host.marker, entry, Boolean(host.primary), {
-        suppressed: Boolean(
-          focusedOfferOf(entry, expandedOptionsKey, expandedOptionsOwner),
-        ),
-        accessibleLabel: name,
-      });
-    });
-  }
-  // How far down the column each entry's target stands, in whole percent, which its
-  // marker's name says. A target in skipped content (a tab not chosen) stands nowhere down
-  // the page, and asking would force that content's style and layout (`skipped`). The
-  // column is its prose box, as the margin's layout pass reads it and hands it to
-  // `lf-margin-layout`: names read against another box would change back and forth
-  // between a render and the layout pass after it.
-  /** @param {readonly Entry[]} inventory @param {import("../content-layout.js").ProseBox} [mainRect] @param {number} [mainHeight] */
-  function readSpokenPositions(
-    inventory,
-    mainRect = proseRect(marginColumn()),
-    mainHeight = marginColumn().scrollHeight,
-  ) {
-    spokenBasis = mainRect && { width: mainRect.width, height: mainHeight };
-    return inventory.map((entry) => {
-      const target = targetFor(entry);
-      const place = entryPlace(entry);
-      return target &&
-        place &&
-        !skipped(target) &&
-        !readingRegionFor(target) &&
-        mainHeight
+  // Where a marker stands, as its name says while it holds focus (`markerName`): its place
+  // among the markers and how far down the column its target stands, in whole percent. A
+  // target in skipped content (a tab not chosen) stands nowhere down the page, and asking
+  // would force that content's style and layout (`skipped`). The target and the column
+  // are both read as the window draws them, so a zoom or transform on the column scales
+  // the two alike, and the read costs two boxes however much the column holds.
+  /** @param {Host} host @returns {Place} */
+  function spokenPlace(host) {
+    const entry = host.lfEntry;
+    const target = targetFor(entry);
+    const place = entryPlace(entry);
+    const column = marginColumn().getBoundingClientRect();
+    const position =
+      target && place && !skipped(target) && !readingRegionFor(target) && column.height
         ? Math.round(
-            ((place.getBoundingClientRect().top - mainRect.top) / mainHeight) * 100,
+            ((place.getBoundingClientRect().top - column.top) / column.height) * 100,
           )
         : null;
-    });
+    return { index: walkPlace.get(host) ?? 0, of: hosts.size, position };
+  }
+  // A marker's name, with where it stands while focus is on it.
+  /** @param {Host} host */
+  const spokenName = (host) =>
+    markerName(host.lfEntry, host.marker === focusedRow() ? spokenPlace(host) : null);
+  // Names a marker with where it stands while focus is on it, and leaves that out again
+  // as focus leaves.
+  /** @param {Host} host */
+  function nameMarker(host) {
+    keeps(host.marker, "aria-label", spokenName(host));
+  }
+  // The markers focus came to or left in this script, named once it ends, where focus
+  // stands then: focus passing through a marker on its way elsewhere, as a dialog hands
+  // it back to its opener before the dialog's choice moves it on, renames nothing.
+  /** @type {Set<Host>} */
+  const focusCrossed = new Set();
+  function nameFocusCrossed() {
+    for (const host of focusCrossed) if (host.isConnected) nameMarker(host);
+    focusCrossed.clear();
+  }
+  /** @param {Host} host */
+  function crossedByFocus(host) {
+    focusCrossed.add(host);
+    afterScript(nameFocusCrossed);
+  }
+  // Where the marker focus is on stands changes only with a layout pass after it: a row
+  // joining, leaving or taking another place in the order asks for one
+  // (margin-layout.js, `registerMarginRow`), as does a change in the page's size.
+  function nameFocusedMarker() {
+    const row = focusedRow();
+    const host = row?.lfEntry && hosts.get(row.lfEntry.key);
+    if (host?.marker === row) nameMarker(host);
   }
 
   let transferThreadFocus = false;
@@ -495,8 +478,17 @@ export function createMarginProjection({
     };
   }
 
-  /** @param {Entry} entry @param {number} index @param {number} anchored @param {number | null | undefined} position */
-  function markerName(entry, index, anchored, position) {
+  // A marker's name says what it holds and its subject, and, only while it holds focus,
+  // where it stands (`place`, `spokenPlace`). Where it stands changes for every marker
+  // whenever a marker joins or leaves or the page's height changes, so naming every
+  // marker with it read every target's box on each such change: about 9 ms of a
+  // comment's send on the 1,024-section page `leaf-dev bench` generates, growing with
+  // the page. A listener hears the place as they land on a marker, by any route; one
+  // reading the markers without moving focus hears each one's subject alone (the user's
+  // choice, 2026-11-15).
+  /** @typedef {{index: number, of: number, position: number | null}} Place */
+  /** @param {Entry} entry @param {Place | null} place */
+  function markerName(entry, place) {
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
@@ -509,29 +501,64 @@ export function createMarginProjection({
     const own = choice?.items.length === 1 ? choice.items[0].label : null;
     const said = own && !subject?.includes(own) ? `, ${own}` : "";
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${said}${userContext ? `, ${userContext}` : ""}`;
-    return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
+    const down =
+      place?.position == null
+        ? ""
+        : `, ${Math.max(0, Math.min(100, place.position))} percent down`;
+    const where = place ? `, ${place.index + 1} of ${place.of}${down}` : "";
+    return `${reading}${where}, ${spokenSubject(subject)}`;
   }
 
   // A row hidden with the annotation layer is not one the keyboard can land on either.
+  /** @param {HTMLElement} row */
+  const available = (row) =>
+    !row.hidden &&
+    !standsWithheld(row) &&
+    row.checkVisibility({ visibilityProperty: true });
   function availableRows() {
-    return [...markerRows()].filter(
-      (row) =>
-        !row.hidden &&
-        !standsWithheld(row) &&
-        row.checkVisibility({ visibilityProperty: true }),
-    );
+    return [...markerRows()].filter(available);
   }
 
   // Where a row's marker is painted (margin-layout.js, `paintedBox`).
   /** @param {HTMLElement} row */
   const markerBox = (row) => paintedBox(row, row.closest("leaf-margin-cluster"));
 
-  // The rows in front of the user (`seenRect`): one under the floating panel,
-  // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
-  function visibleRows() {
+  // The rows within a window's height of the window. An IntersectionObserver adds and
+  // removes them as a scroll or a layout carries rows across that band's edge, so a
+  // reading of the rows in view measures these, and a scroll costs what the window shows
+  // rather than every row the margin holds. The observer reports after the frame that
+  // moved a row, so a band no wider than the window left a row a scroll brought into
+  // view out of that frame's reading, and the rail's stop stood below it for a frame or
+  // two; with a window's height either side, the frame that draws a scroll of up to a
+  // window already holds every row it shows. A row crossing the band's edge can change
+  // the rail's way in (`syncRoving`). The observer's root is this document's window,
+  // which `seenRect` cuts by, rather than the top window a framed page stands in.
+  /** @type {Set<HTMLElement>} */
+  const nearRows = new Set();
+  const watchNear = new IntersectionObserver(
+    (entries) => {
+      for (const { target, isIntersecting } of entries) {
+        const row = /** @type {HTMLElement} */ (target);
+        if (isIntersecting) nearRows.add(row);
+        else nearRows.delete(row);
+      }
+      scheduleRoving();
+    },
+    { root: document, rootMargin: "100% 0px" },
+  );
+
+  // Of `rows`, those in front of the user (`seenRect`): one under the floating panel, or
+  // scrolled out of a pane, is no row the walk or the rail's way in may land on.
+  /** @param {Iterable<HTMLElement>} rows */
+  function seenRows(rows) {
     const clips = new Map();
-    return availableRows().filter((row) => seenRect(row, clips, markerBox(row)));
+    return [...rows].filter(
+      (row) => available(row) && seenRect(row, clips, markerBox(row)),
+    );
   }
+  // The rows in view, in the margin's order.
+  const visibleRows = () =>
+    seenRows([...markerRows()].filter((row) => nearRows.has(row)));
 
   /** @param {Element | null | undefined} host */
   function clusterMarginEntries(host) {
@@ -727,15 +754,18 @@ export function createMarginProjection({
   // The rail holds one tab stop: the way in from the page, not the reading position,
   // which the walk, generated go-to hints, and the pointer all reach without it. A
   // status reports a move already made, so the stop passes to the nearest marker that
-  // still offers a press.
+  // still offers a press. A row joins the rail out of the Tab order (`renderNow`), so
+  // moving the stop rewrites the row it leaves and the row it reaches, and no other.
+  /** @type {HTMLElement | null} */
+  let tabStop = null;
   /** @param {HTMLElement | null | undefined} next */
   function holdTabStop(next) {
-    const available = availableRows();
     const acts = (/** @type {HTMLElement} */ row) =>
       contributionEntryRecord(row)?.behavior !== "status";
-    let stop = next;
+    let stop = next ?? null;
     if (stop && !acts(stop)) {
-      const at = available.indexOf(stop);
+      const rows = availableRows();
+      const at = rows.indexOf(stop);
       /** @type {(nearest: {row: HTMLElement, distance: number} | null, row: HTMLElement, index: number) => {row: HTMLElement, distance: number} | null} */
       const nearestActive = (nearest, row, index) => {
         if (!acts(row)) return nearest;
@@ -743,33 +773,40 @@ export function createMarginProjection({
         const distance = Math.abs(index - at);
         return distance < nearest.distance ? { row, distance } : nearest;
       };
-      stop = available.reduce(nearestActive, null)?.row;
+      stop = rows.reduce(nearestActive, null)?.row ?? null;
     }
-    rove(markerRows(), stop);
+    rove(
+      [tabStop, stop].filter((row) => row !== null),
+      stop,
+    );
+    tabStop = stop;
   }
 
   // The row focus stands on, which the stop stays on while it does (`syncRoving`).
   const focusedRow = () => {
     const at = focused();
-    return at?.matches(".lf-margin-marker") ? at : null;
+    return at instanceof HTMLElement && at.matches(".lf-margin-marker") ? at : null;
   };
-  /** @type {Element | null} */
+  /** @type {HTMLElement | null} */
   let rovedRow = null;
   function syncRoving() {
     rovedRow = focusedRow();
-    const available = availableRows();
-    const visible = visibleRows();
-    if (!available.length) {
-      holdTabStop(null);
+    if (rovedRow && available(rovedRow)) {
+      holdTabStop(rovedRow);
       return;
     }
-    const currentLocation = available.find((row) => row === focused());
-    const candidates = visible.length ? visible : available;
     // The stop is the highest row in view, or with none in view the row nearest the
     // window, whatever held it before, so the way in follows from the page as it
     // stands rather than from the widths and scrolls it passed through. A stop kept
     // where it stood while in view moved for good once a narrower width had shown
-    // another row first.
+    // another row first. Only a row near the window can be in view, so while one is, a
+    // scroll measures the rows near it (`nearRows`); while none is, every row.
+    const visible = seenRows(nearRows);
+    const candidates = visible.length ? visible : availableRows();
+    if (!candidates.length) {
+      holdTabStop(null);
+      return;
+    }
     const room = shownWindow();
     /** @param {HTMLElement} row @returns {[number, number, number]} */
     const place = (row) => {
@@ -784,12 +821,11 @@ export function createMarginProjection({
     };
     /** @param {[number, number, number]} a @param {[number, number, number]} b */
     const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-    const nearest = () =>
+    holdTabStop(
       candidates
         .map((row) => ({ row, at: place(row) }))
-        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row;
-    const next = currentLocation ?? nearest();
-    holdTabStop(next);
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row,
+    );
   }
 
   function scheduleRoving() {
@@ -1028,7 +1064,16 @@ export function createMarginProjection({
                     ? spokenContext(choice)
                     : null,
                 )
-            : null,
+            : // A draft's entry previews its words as they stand now, as its row of
+              // Threads does.
+              choice?.kind === "draft"
+              ? () => {
+                  const contexts = new Set(choice.items.map(({ draft }) => draft));
+                  return draftPreview(
+                    draftsReading().filter(({ context }) => contexts.has(context)),
+                  );
+                }
+              : null,
       },
     );
     presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
@@ -1198,6 +1243,8 @@ export function createMarginProjection({
     for (const [key, host] of hosts)
       if (!liveHosts.has(key)) {
         unregisterMarginRow(host);
+        watchNear.unobserve(host.marker);
+        nearRows.delete(host.marker);
         host.clear();
         host.remove();
         hosts.delete(key);
@@ -1226,6 +1273,8 @@ export function createMarginProjection({
     // Each row's place among the rows, which an entry with no row of its own leaves
     // the same (margin-layout.js, `registerMarginRow`).
     let rank = 0;
+    /** @type {Host[]} */
+    const drawnHosts = [];
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let host = hosts.get(entry.key);
@@ -1272,9 +1321,15 @@ export function createMarginProjection({
           },
           { capture: true },
         );
+        // Out of the Tab order until the rail's stop reaches it (`holdTabStop`).
+        created.marker.tabIndex = -1;
+        created.marker.addEventListener("focus", () => crossedByFocus(created));
+        created.marker.addEventListener("blur", () => crossedByFocus(created));
+        watchNear.observe(created.marker);
         hosts.set(entry.key, created);
       }
       const { marker, more } = host;
+      walkPlace.set(host, rank);
       registerMarginRow(host, markerOptions(host, rank++));
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
@@ -1296,7 +1351,7 @@ export function createMarginProjection({
       )
         return;
       drawnFrom.set(host, { entry, expanded, forced, folded: isFolded, agent });
-      namedFrom.delete(host);
+      drawnHosts.push(host);
       rowsChanged = true;
       const focus = {
         focusedPrimary: Boolean(host.primary && currentLocationIn(host.primary)),
@@ -1318,7 +1373,15 @@ export function createMarginProjection({
       }
       presentCluster(host, marker, more, entry, projection, focus);
     });
-    nameMarkers(readSpokenPositions(pageInventory));
+    // Each drawn cluster's marker takes its new face once every row has reconciled, so
+    // focus a paint hands to a marker moves after the clusters that read it.
+    for (const host of drawnHosts)
+      paintMarker(host.marker, host.lfEntry, Boolean(host.primary), {
+        suppressed: Boolean(
+          focusedOfferOf(host.lfEntry, expandedOptionsKey, expandedOptionsOwner),
+        ),
+        accessibleLabel: spokenName(host),
+      });
     keepsHidden(nav, pageInventory.length === 0);
     keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);
     if (selected) {
@@ -1362,9 +1425,10 @@ export function createMarginProjection({
     refreshHighlight();
     // The layout runs a pass where this render changed what a seat reads: a row registered
     // for another target, or a face drawn at another size (margin-layout.js,
-    // `registerMarginRow`, `faces`). The rail's tab stop reads every row, so a render
+    // `registerMarginRow`, `faces`). The rail's tab stop reads the rows, so a render
     // that changed none, with focus still on the same row, leaves it where it stands; the
-    // room moving reads it again by itself (`watchRoom`).
+    // room moving or a row coming near the window or leaving reads it again by itself
+    // (`watchRoom`, `watchNear`).
     if (rowsChanged || focusedRow() !== rovedRow) {
       rowsChanged = false;
       tick(drawnMargin);
@@ -2143,15 +2207,12 @@ export function createMarginProjection({
   function mount() {
     mountMarginLayer(toolbar, nav);
     card.mount(() => closePreview(landOnEntry));
-    document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
+    document.addEventListener("lf-margin-layout", () => {
       rowsChanged = true;
       accompanyShownRow();
       card.place();
-      // A new width or height moves where targets stand down the page, and so what their
-      // markers' names say; whatever else moves a target renders the margin, which names
-      // them anew. Measured against the column this pass read.
-      if (column.width === spokenBasis?.width && height === spokenBasis?.height) return;
-      nameMarkers(readSpokenPositions(pageInventory, column, height));
+      // The pass may have moved the marker focus is on (`nameFocusedMarker`).
+      nameFocusedMarker();
     });
     // A drop is the change's own to put right: the margin follows where the user is.
     onCurrentLocation((node, cause) => {

@@ -462,8 +462,12 @@ const KEEPALIVE_BYTES = 60_000;
 // error report below, which deliberately doesn't — share the request rather than
 // anything about the sending: same path, same method, same encoding, so a door that
 // moved would move for all of them. Whether a send waits on the one before it belongs
-// to the caller.
-/** @param {import("../types/contract.js").BrowserCommand} event */
+// to the caller. The answer's headers decide at once whether the page takes it at all,
+// and the trip ends once its body is read, decoded or not, so `acked` counts a post
+// whose answer the page holds, as `heard` does a read's. A `503`'s plain-text body says
+// nothing the page reads, so its trip ends with its headers.
+/** @param {import("../types/contract.js").BrowserCommand} event
+ * @returns {Promise<{response: Response, decoded: {answer: any} | {error: unknown}} | null>} */
 export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -471,44 +475,54 @@ export const postEvent = async (event, held = heldReading()) => {
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   const body = JSON.stringify(event);
-  let response;
   try {
-    response = await fetch(pageUrl("api/event"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": "application/json",
-        ...heldHeaders(held),
-      }),
-      body,
-      // A gesture sent as the tab closes, such as the edit a playground records on
-      // leaving, still reaches the log: a keepalive request outlives its document,
-      // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
-      // keepalive bodies in flight and the browser refuses a request past that, so a
-      // longer message goes out tied to its document.
-      keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
-    });
+    let response;
+    try {
+      response = await fetch(pageUrl("api/event"), {
+        method: "POST",
+        headers: layerHeaders({
+          "Content-Type": "application/json",
+          ...heldHeaders(held),
+        }),
+        body,
+        // A gesture sent as the tab closes, such as the edit a playground records on
+        // leaving, still reaches the log: a keepalive request outlives its document,
+        // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+        // keepalive bodies in flight and the browser refuses a request past that, so a
+        // longer message goes out tied to its document.
+        keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
+      });
+    } catch (error) {
+      recordInteraction("event_response", {
+        kind: event.kind,
+        attempt: event.attempt ?? null,
+        error: String(error),
+      });
+      throw error;
+    }
     recordInteraction("event_response", {
       kind: event.kind,
       attempt: event.attempt ?? null,
       status: response.status,
     });
-  } catch (error) {
-    recordInteraction("event_response", {
-      kind: event.kind,
-      attempt: event.attempt ?? null,
-      error: String(error),
-    });
-    throw error;
+    if (!admitResponse(response)) return null;
+    // A refused key is no answer to the event: the server read none of it, so the send
+    // failed the way a lost connection fails and is retried as one. The page status
+    // names the link that ends it.
+    if (response.status === KEY_REFUSED)
+      throw new Error("the server refused this page's key");
+    /** @type {{answer: any} | {error: unknown}} */
+    const decoded =
+      response.status === 503
+        ? { error: "503" }
+        : await response.json().then(
+            (answer) => ({ answer }),
+            (error) => ({ error }),
+          );
+    return { response, decoded };
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  // A refused key is no answer to the event: the server read none of it, so the send
-  // failed the way a lost connection fails and is retried as one. The page status names
-  // the link that ends it.
-  if (response.status === KEY_REFUSED)
-    throw new Error("the server refused this page's key");
-  return response;
 };
 
 // Pasted pixels become page content before their Markdown reference enters a draft.

@@ -755,7 +755,7 @@ cli_model.cli()
 
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
-    assert "1 event nobody has picked up" in err
+    assert "1 event nobody has picked up" in out
     assert declared(page_dir)["state"] == "waiting"
 
 

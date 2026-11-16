@@ -61,7 +61,7 @@
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
-import { html, nothing } from "/vendor/lit.js";
+import { html, nothing, render, repeat } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
@@ -87,9 +87,9 @@ import {
   openingView,
   viewMembers,
   quoted,
+  queueTitle,
   readObligations,
-  render,
-  repeat,
+  readQueues,
   scrollBehavior,
   scrollIntoView,
   shownWindow,
@@ -630,25 +630,34 @@ customElements.define(
 
     // The end frame once the pass is over: how many still wait, the step back in (a
     // retained node), and the record of the pass, a row for each card that asks
-    // something. A row's question, as On Me names it (`prompt.text`), links to where
-    // the user answers it (`prompt.target`), so a card with no id of its own opens too.
-    // A widget that asks outside an `lf-ask`, such as a suggestion, has no prompt
-    // words, so its row takes the card's own heading.
+    // something. A row names its question as On Me does, by the runtime's own rule
+    // (`queueTitle` on the question's row there), so the two lists never call one
+    // question two things: a widget that asks outside an `lf-ask` has no prompt words,
+    // and a suggestion, for one, is named there by the words it suggests. The row
+    // links to where the user answers it (`prompt.target`), so a card with no id of
+    // its own opens too.
     /** @param {DeckReadings | null} readings */
     #drawEnd(readings) {
       const left = readings
         ? this.#cards.filter((each) => waitsOn(readings(each))).length
         : 0;
       const asked = readings ? this.#cards.filter((each) => readings(each).length) : [];
+      const queues = readQueues();
+      const listed = new Map(
+        queues.phase === "ready"
+          ? [...queues.on_user, ...queues.on_agent, ...queues.done].map((item) => [
+              item.id,
+              item,
+            ])
+          : [],
+      );
       const row = (/** @type {HTMLElement} */ each) => {
         const held = readings?.(each) ?? [];
         const [first] = held;
         if (!first) return nothing;
         const target = first.prompt.target ?? each.id;
-        const question =
-          first.prompt.text ||
-          each.querySelector("h1, h2, h3, h4, h5, h6")?.textContent?.trim() ||
-          target;
+        const item = listed.get(first.id);
+        const question = (item && queueTitle(item)) || first.prompt.text || target;
         const [words, voice] = this.#ending(held);
         return html`<li>
           <a href=${target ? `#${target}` : nothing}>${question}</a

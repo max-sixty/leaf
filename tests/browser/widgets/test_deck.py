@@ -158,11 +158,9 @@ SUGGESTION_DECK_PAGE = leaf_page(
 )
 
 
-def test_a_recap_row_takes_its_cards_heading_where_the_question_has_no_words(
-    browser, serve
-):
+def test_a_recap_row_names_a_question_with_no_words_as_on_me_does(browser, serve):
     """A suggestion asks outside an `lf-ask`, so its question has no words of its own;
-    its row in the end frame names it by the card's heading."""
+    its row in the end frame names it as On Me does, by the words it suggests."""
     page = open_page(browser, serve(SUGGESTION_DECK_PAGE))
     open_card(page, "note-card")
     page.get_by_role(
@@ -173,7 +171,7 @@ def test_a_recap_row_takes_its_cards_heading_where_the_question_has_no_words(
     answer(page, "store-yes")
     expect(page.locator("lf-deck > [data-lf-deck-open]")).to_have_count(0)
     expect(page.locator("lf-deck .lf-deck-recap > li > a")).to_have_text(
-        ["Tighten the upgrade note?", "Keep Redis?"]
+        ["Clear the cache once after installing.", "Keep Redis?"]
     )
 
 

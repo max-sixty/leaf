@@ -31,7 +31,7 @@ implementation terms keep their exact spelling where the reader needs them.
 | **Starting the agent** | On leaf.page, an update sent while the page's agent has no running container, until the server has it (stage `sending`), in Leaf's italic voice. The agent's container starts for that update, which waits seconds; updates sent after it reach the running container |
 | **On it** | The agent has explicitly started this update or to-do (stage `working`), or a fork of its conversation has taken the update on (`at_work`); page activity alone doesn't mean it has |
 | **Undo** | Taking back the user's latest update that can be taken back, leaving the user at what it changed (`undo.js`) |
-| **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with a dashed entry where it is about |
+| **Threads** | The mark in Leaf's panel and the view it opens, listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply; a **draft** is the words the user has written in one and not sent, kept with what they are about, which Threads lists under **Drafts** and the margin marks with an entry where it is about |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
 The user is talking with the agent, and the page is where that conversation happens,

@@ -308,35 +308,34 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
-    The widget declaration joins the frozen half (its run receipt attribute) to the live
-    half (one x-data input). Invalid attributes stay with widget validation, and an
-    unset source says only that no later run is known, so neither becomes advice here.
+    An x-data input that declares `measured` joins the live half (its source) to the
+    frozen half (the run receipt attribute it names). Invalid attributes stay with
+    widget validation, and an unset source says only that no later run is known, so
+    neither becomes advice here.
     """
     entries = []
     for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
-        measured = entry.get("x-measured")
-        if not measured:
-            continue
-        input_spec = entry.get("x-data", {}).get(measured["input"])
-        if not input_spec:
-            continue  # registry validation owns the malformed declaration
-        source = rec["attrs"].get(input_spec.get("source"))
-        captured = rec["attrs"].get(measured["run"])
-        snapshot = stored["sources"].get(source) if isinstance(source, str) else None
-        current = snapshot.get("run") if isinstance(snapshot, dict) else None
-        if not captured or not current or current == captured:
-            continue
-        entries.append(
-            {
-                "tag": rec["tag"],
-                "widget": rec["attrs"].get("id"),
-                "line": rec["line"],
-                "source": source,
-                "run": captured,
-                "current_run": current,
-            }
-        )
+        for spec in registry.get(rec["tag"], {}).get("x-data", {}).values():
+            if "measured" not in spec:
+                continue
+            source = rec["attrs"].get(spec.get("source"))
+            captured = rec["attrs"].get(spec["measured"])
+            snapshot = (
+                stored["sources"].get(source) if isinstance(source, str) else None
+            )
+            current = snapshot.get("run") if isinstance(snapshot, dict) else None
+            if not captured or not current or current == captured:
+                continue
+            entries.append(
+                {
+                    "tag": rec["tag"],
+                    "widget": rec["attrs"].get("id"),
+                    "line": rec["line"],
+                    "source": source,
+                    "run": captured,
+                    "current_run": current,
+                }
+            )
     return entries
 
 

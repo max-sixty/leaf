@@ -492,8 +492,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
   const size = sizeObserver(visibility);
   size.observe(frame);
   const nativeTransition = () => nextRender(visibility);
-  for (const type of ["beforetoggle"])
-    document.addEventListener(type, nativeTransition, true);
+  document.addEventListener("beforetoggle", nativeTransition, true);
   const unwatch = onFrameVisibility(visibility);
   const undress = registerSampleDress(frame, (dress) =>
     channel?.postMessage({ type: "dress", detail: dress }),
@@ -682,8 +681,7 @@ export function mountSample(frame, { template, source, window: asWindow = false 
       document.removeEventListener("visibilitychange", visibility);
       seen.stop();
       size.disconnect();
-      for (const type of ["beforetoggle"])
-        document.removeEventListener(type, nativeTransition, true);
+      document.removeEventListener("beforetoggle", nativeTransition, true);
       lifetime.disconnect();
       unwatch();
       undress();

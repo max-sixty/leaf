@@ -19,9 +19,6 @@ PACKAGES = [
 ]
 
 KNOWN: dict[str, set[tuple[str, str]]] = {
-    # The screenshot's fitted canvas reads decoded image dimensions, available
-    # space and crop. Reserving only its toolbar would leave the image-height jump.
-    "default": {("lf-shot", "keeps-first-box")},
     # Formatting replaces raw unified-diff header lines with file/hunk rows.
     # Matching that content-derived height before upgrade needs another renderer.
     "diff": {("lf-diff", "keeps-first-box")},

@@ -128,15 +128,13 @@ GRID = (
 )
 # The host's own markup beside the widgets, a row of its own above them so their drawing
 # moves none of it, which portable.css leaves as the host drew it: none of its rules
-# reaches past the widgets, so a host's `data-room`, a Leaf page's attribute idiom, and
-# its own `.button`, `.choice` and `.field`, names Leaf styles nowhere, keep the host's
-# look.
+# reaches past the widgets, so the host's own `.button`, `.choice` and `.field`, names
+# Leaf styles nowhere, keep the host's look.
 HOST = (
     '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
     '<button class="button">Go</button><a class="button" href="#host">Link</a>'
     '<label class="choice"><input type="checkbox"> Pick</label>'
     '<input class="field" value="typed">'
-    '<span data-room="longer words"><span>short</span></span>'
     "<details><summary>More</summary></details><pre>code</pre>"
     "<select><option>One</option></select>"
     '<svg width="20" height="20" viewBox="0 0 10 10"></svg></section>'
@@ -550,13 +548,14 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, relabel, searchField}} =
+  const {{offer, nameAction, generatedElement, keepsText, searchField}} =
     await import("/runtime/portable-api.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
   const label = offer("span");
-  relabel(label, "Evidence", {{says: "echo"}});
+  generatedElement(label, {{says: "echo"}});
+  keepsText(label, "Evidence");
   const search = searchField("host-search", {{name: "files", label: "Find files"}});
   document.querySelector("main").append(button, label, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}

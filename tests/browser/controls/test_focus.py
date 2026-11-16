@@ -379,8 +379,8 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     The reply arrives while the panel is already open, because that is the case with
     exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the
     panel inserts its nodes walks a host whose shadow root is still null, and the panel
-    does not reconcile on a timer to fix it later: `renderPanel` runs on an open, on a
-    fold finishing, and on a new event. Seeding the reply before the page loads gives
+    does not reconcile on a timer to fix it later: it reconciles on an open, on a fold
+    finishing, and on a new event. Seeding the reply before the page loads gives
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
@@ -929,8 +929,8 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, subte
         with subtests.test(native_move=native_move, renderer=renderer):
             page.evaluate(
                 """async ([index, nativeMove, renderer]) => {
-              const {render, repeat, setChildren: orderChildren, move} =
-                await window.__lfWidgetApi();
+              const {setChildren: orderChildren, move} = await window.__lfWidgetApi();
+              const {render, repeat} = await window.__lfVendorImport('lit.js');
               const rows = document.querySelector(`#rows-${index}`);
               if (!nativeMove) Element.prototype.moveBefore = undefined;
               const nodes = ['a', 'b', 'c'].map(id => {

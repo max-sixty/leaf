@@ -64,12 +64,7 @@ def resize_notice_after_last_probe(page):
 
     def with_notice(expression, *args, **kwargs):
         if "requestFrame()" in expression:
-            evaluate(
-                "() => requestAnimationFrame(() => {"
-                "if (matchMedia('(prefers-color-scheme: light)').matches) {"
-                + RESIZE_LOOP_EVENT
-                + "}})"
-            )
+            evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
         return evaluate(expression, *args, **kwargs)
 
     page.evaluate = with_notice
@@ -520,7 +515,6 @@ DRAWING_CONTROL_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }

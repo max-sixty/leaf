@@ -1,18 +1,14 @@
 /* This review packet owns its forge facts and composition. Leaf supplies typed
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
+import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   ago,
   highlightBlocks,
-  html,
   keeps,
-  keyed,
   LeafElement,
   loadMarkdown,
   markdownReady,
-  noChange,
   renderMarkdown,
-  repeat,
-  unsafeHTML,
 } from "/runtime/widget-api.js";
 
 // A check's state is a status, drawn as the page's other statuses are (`.tag`), toned

@@ -704,7 +704,6 @@ function localUpdates(workflows) {
           },
           answer: null,
           status: "open",
-          end: null,
           next_actor: refused ? "user" : "agent",
         });
       return { ...workflow, obligation: id };

@@ -5,7 +5,7 @@ import { keepsText, placeMarginRail, whileConnected } from "/runtime/widget-api.
 const button = /** @type {HTMLButtonElement} */ (
   document.getElementById("bg-rail-side")
 );
-const status = document.querySelector("#bg-rail-side-status > span");
+const status = document.getElementById("bg-rail-side-status");
 
 whileConnected(button, (signal) => {
   /** @type {(() => void) | null} */

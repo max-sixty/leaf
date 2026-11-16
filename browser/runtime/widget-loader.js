@@ -11,7 +11,7 @@ import { watchCodeBlocks } from "./code-copy.js";
 import { watchHeadingLinks } from "./heading-links.js";
 import { watchVideos } from "./video-controls.js";
 import { reachScrollers } from "./reach.js";
-import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
+import { adoptRegistry, registry, tagsDeclaring, upgrades } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
 import {
@@ -84,7 +84,7 @@ export function rememberPassageParts(
   original = (node) => node,
 ) {
   for (const tag of tagsDeclaring(
-    (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
+    (entry, tag) => upgrades(tag) && !entry["x-verbatim"],
   ))
     for (const root of within(scope, tag)) {
       const live = original(root);
@@ -111,7 +111,7 @@ function identifyPreserving(root, owner, original = (node) => node) {
   /** @param {Element} parent */
   const visit = (parent) => {
     for (const child of parent.children) {
-      if (registry[child.localName]?.["x-upgrade"])
+      if (upgrades(child.localName))
         verbatimBoundaryIdentity.set(original(child), {
           owner,
           index: boundaryIndex++,

@@ -1,7 +1,6 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
-from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -212,31 +211,20 @@ def evaluate_probe(page, name: str, *args):
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
 
 
-@contextmanager
-def observe_probe(page, name: str, *args):
-    """Own a probe's native finish closure; fill its records when the scope ends.
-
-    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
-    observation in this document and disconnects it even if the caller's work fails.
-    """
-    _load_probes(page, _timeout(page, None))
-    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
-    records = []
-    try:
-        yield records
-    finally:
-        try:
-            records.extend(handle.evaluate("finish => finish()"))
-        finally:
-            handle.dispose()
-
-
-def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> None:
+def wait_for_probe(
+    page,
+    name: str,
+    *args,
+    timeout_ms: int | None = None,
+    fixed_server: bool = False,
+) -> None:
     """Wait until one named browser probe returns a truthy value.
 
     The default patience suits a reading that arrives once the page settles. A caller
     waiting on work the page is doing on its behalf states its own budget, because the
-    page answers nothing at all while that work holds its main thread.
+    page answers nothing at all while that work holds its main thread. A caller whose
+    server nothing replaces passes `fixed_server`, as `wait_until_ready` takes it: a
+    page that declares it cannot start then raises `PageNotReady` at once.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -244,7 +232,7 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
     _load_probes(page, timeout_ms)
     try:
         page.wait_for_function(
-            _PROBE,
+            _PROBE_OR_REFUSED if fixed_server else _PROBE,
             arg={"name": name, "args": list(args)},
             timeout=timeout_ms,
             polling=PROBE_POLL_MS,
@@ -253,6 +241,8 @@ def wait_for_probe(page, name: str, *args, timeout_ms: int | None = None) -> Non
         raise PlaywrightTimeout(
             f"Leaf wait probe {name} did not become true within {timeout_ms}ms"
         ) from error
+    if fixed_server:
+        _refuse_unstarted(page)
 
 
 def _wait_for_driver(page, fact: str, arg, missing: str) -> None:
@@ -321,6 +311,7 @@ _REFUSED = """() => {
     && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
 }"""
 _READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
+_PROBE_OR_REFUSED = f"call => ({_PROBE})(call) || ({_REFUSED})() !== null"
 # The stage the page has yet to state, or 'ready'. A reader without Playwright's waits,
 # such as the iOS probe's WebDriver, polls this itself (`leaf_dev.ios_safari`).
 OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
@@ -393,8 +384,8 @@ def wait_until_ready(
     except PlaywrightTimeout:
         pass
     else:
-        if fixed_server and (reason := page.evaluate(_REFUSED)) is not None:
-            raise PageNotReady("refused", f"the runtime could not start: {reason}")
+        if fixed_server:
+            _refuse_unstarted(page)
         return
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.
@@ -408,6 +399,13 @@ def wait_until_ready(
         return
     words = UNREADY[stage].format_map(asked["held"] or {})
     raise PageNotReady(stage, f"{words} within {timeout_ms}ms")
+
+
+def _refuse_unstarted(page) -> None:
+    """Raise `PageNotReady` as stage `refused`, with the page's own reason, where the
+    page declared it cannot start."""
+    if (reason := page.evaluate(_REFUSED)) is not None:
+        raise PageNotReady("refused", f"the runtime could not start: {reason}")
 
 
 def start_near_work(page, state: dict | None = None, **ready) -> None:

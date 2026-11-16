@@ -63,6 +63,9 @@ const theme = EditorView.theme({
     background:
       "linear-gradient(to right, var(--lf-accent) 3px, oklch(from var(--lf-accent) l c h / 0.1) 3px)",
   },
+  // Where another writer took whole lines away, a rule in the accent across the gap.
+  ".cm-line.lf-written-gap": { boxShadow: "inset 0 2px var(--lf-accent)" },
+  ".cm-line.lf-written-gap-below": { boxShadow: "inset 0 -2px var(--lf-accent)" },
   ".cm-gutters": {
     backgroundColor: "var(--lf-paper)",
     color: "var(--lf-muted)",
@@ -186,6 +189,10 @@ const fromElsewhere = Annotation.define();
 /** @type {import("@codemirror/state").StateEffectType<import("@codemirror/view").DecorationSet>} */
 const markWritten = StateEffect.define();
 const writtenLine = Decoration.line({ class: "lf-written" });
+// Where it took whole lines away: the line after the gap, or the last line where the
+// gap ends the file.
+const gapAbove = Decoration.line({ class: "lf-written-gap" });
+const gapBelow = Decoration.line({ class: "lf-written-gap-below" });
 const written = StateField.define({
   create: () => Decoration.none,
   update(marks, transaction) {
@@ -207,20 +214,45 @@ const written = StateField.define({
   },
   provide: (field) => EditorView.decorations.from(field),
 });
-// The marks for `changes`, a write from elsewhere, on each line of `doc`, the text
-// after it, that the write put text on or took text from.
-/** @param {ChangeSet} changes @param {import("@codemirror/state").Text} doc */
-const writtenMarks = (changes, doc) => {
-  /** @type {Set<number>} */
-  const starts = new Set();
-  changes.iterChangedRanges((_fromA, _toA, from, to) => {
-    for (let line = doc.lineAt(from); ; line = doc.line(line.number + 1)) {
-      starts.add(line.from);
-      if (line.to >= to || line.number === doc.lines) break;
-    }
+// The marks for `changes`, a write from elsewhere that took `before` to `after`: each
+// line of `after` whose text differs from the line it replaced, and where it took
+// lines away and put none in their place, the gap they leave. A change from the
+// dependency's diff starts and ends wherever the two texts stop agreeing, which can be
+// within a line the write left alone: a line inserted above "three" can arrive as
+// "wo\nt" inserted after the "t" of "three", and one appended below "one" as "\ntwo"
+// after it. So each change is read as the whole lines it touches, before and after,
+// and the lines the two ends of that run share are left unmarked.
+/** @param {ChangeSet} changes @param {import("@codemirror/state").Text} before
+ * @param {import("@codemirror/state").Text} after */
+const writtenMarks = (changes, before, after) => {
+  /** @type {Map<number, Decoration>} */
+  const marks = new Map();
+  /** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to */
+  const linesOf = (doc, from, to) => {
+    const first = doc.lineAt(from).number;
+    const texts = [];
+    for (let n = first; n <= doc.lineAt(to).number; n++) texts.push(doc.line(n).text);
+    return { first, texts };
+  };
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    const old = linesOf(before, fromA, toA).texts;
+    const { first, texts } = linesOf(after, fromB, toB);
+    const shared = Math.min(old.length, texts.length);
+    let lead = 0;
+    while (lead < shared && old[lead] === texts[lead]) lead++;
+    let trail = 0;
+    while (trail < shared - lead && old.at(-1 - trail) === texts.at(-1 - trail))
+      trail++;
+    for (let n = first + lead; n < first + texts.length - trail; n++)
+      marks.set(after.line(n).from, writtenLine);
+    if (lead + trail < texts.length || lead + trail === old.length) return;
+    const at = first + lead;
+    const line = after.line(Math.min(at, after.lines));
+    if (!marks.has(line.from))
+      marks.set(line.from, at > after.lines ? gapBelow : gapAbove);
   });
   return Decoration.set(
-    [...starts].sort((a, b) => a - b).map((at) => writtenLine.range(at)),
+    [...marks].sort(([a], [b]) => a - b).map(([at, mark]) => mark.range(at)),
   );
 };
 // Every editor's undo history, in one compartment the module shares, so a write from
@@ -242,7 +274,9 @@ const writeFromElsewhere = (state, changes, mark = true) => [
     effects: [
       undoHistory.reconfigure([]),
       markWritten.of(
-        mark ? writtenMarks(changes, changes.apply(state.doc)) : Decoration.none,
+        mark
+          ? writtenMarks(changes, state.doc, changes.apply(state.doc))
+          : Decoration.none,
       ),
     ],
     annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],

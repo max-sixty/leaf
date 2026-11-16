@@ -1,5 +1,5 @@
 /* A write from elsewhere into a file the editor holds, open or kept while another is
-   open: what Undo does after it. */
+   open: what Undo does after it, and which lines it marks. */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -69,4 +69,42 @@ test("Undo after a write merged into the open file never corrupts a line the rea
   draft(view);
   assert.ok(editor.merge(saved, "agent\n\nthree\n"));
   assert.deepEqual(undone(view.state), ["agent\n\nthree!\n"]);
+});
+
+/** Each line `state` marks as written elsewhere, as its mark and line number. */
+function marked(state) {
+  const marks = [];
+  for (const set of state.facet(EditorView.decorations)) {
+    if (typeof set === "function") continue;
+    for (const at = set.iter(); at.value; at.next())
+      if (at.value.spec.class?.startsWith("lf-written"))
+        marks.push(`${at.value.spec.class} ${state.doc.lineAt(at.from).number}`);
+  }
+  return marks;
+}
+
+test("A write from elsewhere marks the lines it changed and no line beside them", () => {
+  for (const [before, after, marks] of [
+    // A line put in above one it left alone, as a list item or config key is.
+    ["key: 1\nother: 2\n", "key: 1\nkey: 3\nother: 2\n", ["lf-written 2"]],
+    ["one\ntwo\nthree\n", "new\none\ntwo\nthree\n", ["lf-written 1"]],
+    // The diff inserts "wo\nt" after the "t" of "three".
+    ["one\nthree\n", "one\ntwo\nthree\n", ["lf-written 2"]],
+    // A line added at the end, after a final line break and without one.
+    ["one\n", "one\ntwo\n", ["lf-written 2"]],
+    ["one", "one\ntwo", ["lf-written 2"]],
+    ["", "a\n", ["lf-written 1"]],
+    // A change that ends at a line break, and one within a line.
+    ["one\ntwo\n", "ONE\ntwo\n", ["lf-written 1"]],
+    ["alpha\nbeta\ngamma\n", "alpha\nbeta2\ngamma\n", ["lf-written 2"]],
+    // Lines taken away mark the gap, not the line after it; the diff takes "wo\nt".
+    ["one\ntwo\nthree\n", "one\nthree\n", ["lf-written-gap 2"]],
+    ["one\ntwo\n", "one\n", ["lf-written-gap 2"]],
+    ["one\ntwo", "one", ["lf-written-gap-below 1"]],
+  ]) {
+    const { editor, view } = editorOf(before);
+    editor.follow(after);
+    assert.equal(view.state.doc.toString(), after);
+    assert.deepEqual(marked(view.state), marks, JSON.stringify([before, after]));
+  }
 });

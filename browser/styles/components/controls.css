@@ -852,10 +852,9 @@ wa-copy-button.lf-icon-action {
    (Dictate, Other responses), the accent for the composer's commit (Send), the full
    ink (Resolve), the settled tone for a thread settled (Reopen, drawn done at rest,
    so the press shows on hover as a deeper disc), and the danger tone for a dictation
-   that failed. Reopen's disc is settled as a chosen answer is, an edge in the settled
-   colour on its tint; the tint is the chip, Resolve's disc under the pointer, so the
-   edge keeps a hovered Resolve from looking already done. A press disabled keeps the
-   quiet ink.
+   that failed. Reopen's disc wears a chosen answer's edge on its tint. The tint is the
+   chip, which is also Resolve's disc under the pointer, so the edge is what keeps a
+   hovered Resolve from looking already done. A press disabled keeps the quiet ink.
 
    A disc stands on the ground its holder gives it (`--lf-disc-ground`), none by
    default: a composer whose words run under Send gives its paper, so Send covers the

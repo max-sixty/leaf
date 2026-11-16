@@ -2,7 +2,7 @@
 
 Playwright's WebKit is a desktop build and differs from iOS WebKit beyond its version:
 iOS 26.1 lists adopted stylesheets in `document.styleSheets` and Playwright's WebKit
-26.6 does not.
+26.6 does not, so code that reads that list can break Leaf's chrome on iPhones alone.
 Playwright drives no iOS browser, so this drives the simulator's Safari through
 safaridriver, Apple's WebDriver server, with Selenium as its client.
 

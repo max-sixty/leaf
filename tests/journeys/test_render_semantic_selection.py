@@ -23,6 +23,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -160,7 +161,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
     expect(box).to_be_focused()
     # A press on the marked match takes it as the selection, which the panel's field
-    # then quotes.
+    # then quotes. The live region says the step on a timer of its own, which can
+    # fire before the rendering update that moves the mark onto the match.
+    rendered(page)
     mark = page.locator(".lf-page-search-match").first.bounding_box()
     page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()

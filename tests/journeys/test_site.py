@@ -70,7 +70,7 @@ from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.registry.storage import layer_packages, layer_record, selected
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
@@ -391,8 +391,11 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
         }))"""
     for width in (390, 1200):
         for page in (normal, published):
-            page.set_viewport_size({"width": width, "height": 900})
-            wait_until_ready(page)
+            # The film picks its phone or desktop layout as a size observer hears its
+            # stage, in the rendering update after the resize, which a readiness
+            # reading taken before that update knows nothing of.
+            resized(page, width, 900)
+            rendered(page)
         assert published.evaluate(layout) == normal.evaluate(layout)
 
 
@@ -1191,8 +1194,8 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         for scheme in ("dark", "light"):
             page.emulate_media(color_scheme=scheme)
             assert page.evaluate(paper) == PAPER[scheme], (name, scheme)
-        page.set_viewport_size(PHONE)
-        wait_until_ready(page)
+        resized(page, **PHONE)
+        rendered(page)
         overflow = root_overflow(page)
         assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"
         assert not failed, f"{name}: {failed[:3]}"

@@ -972,8 +972,14 @@ class TextDocument extends LeafElement {
         if (!skipped) this.drawn.add(target);
         const code = this.sourceView?.code;
         if (target.parentElement !== code || !code) return;
-        if (skipped) this.shown.delete(target);
-        else this.shown.add(target);
+        // A run reported skipped while it stands in view stays shown, read off the
+        // boxes as `list` reads them. As a tab opens again, Chromium reports the runs
+        // in view skipped before it draws them, and its report that they draw can
+        // come after the frame that does.
+        if (skipped) {
+          if (runsInView(code).includes(target)) return;
+          this.shown.delete(target);
+        } else this.shown.add(target);
         this.colourShown();
       },
       { capture: true },

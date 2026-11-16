@@ -18,9 +18,11 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
+    _until,
     compare_with,
     consume_browser_errors,
     fetch_whole_state,
+    holding,
     leaf_page,
     nudge,
     open_page,
@@ -835,28 +837,44 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
-    crossed = []
+    asked = []
+    agreed = []
 
     def crossed_state(route):
-        crossed.append(route.request.url)
-        route.fulfill(json=stale)
+        asked.append(route)
+        if len(asked) > 1:
+            route.fulfill(json=stale)
 
-    # One transient freshness observation asks for the crossed read. Then the
-    # origin again advertises the reading the page holds, so the heartbeat ages
-    # the accepted state rather than repeatedly repairing a freshness mismatch.
-    page.route("**/api/state*", crossed_state)
-    with page.expect_response("**/api/state*"):
-        page.route(
-            "**/api/news*",
-            lambda route: route.fulfill(
-                json={
-                    "reading": stale["reading"] if crossed else "crossed-state-reading",
-                    "pages": None,
-                }
-            ),
+    def news(route):
+        if asked:
+            agreed.append(route)
+        route.fulfill(
+            json={
+                "reading": stale["reading"] if asked else "crossed-state-reading",
+                "pages": None,
+                "drafts": 0,
+            }
         )
+
+    # One transient freshness observation asks for the crossed read. Then the origin
+    # again advertises the reading the page holds, so the heartbeat ages the accepted
+    # state rather than repeatedly repairing a freshness mismatch. The shared clock
+    # repairs a mismatch only while no read is out, so the route holds the crossed read
+    # until a look has taken the agreement in, as the next look's request shows.
+    page.route("**/api/state*", crossed_state)
+    page.route("**/api/news*", news)
+    holding(page, asked, 1, "the crossed state read")
+    holding(page, agreed, 2, "a second look after the origin agreed")
+    asked[0].fulfill(json=stale)
+    _until(
+        page,
+        lambda traffic: (
+            traffic.heard == traffic.asked and traffic.applied == traffic.received
+        ),
+        "applied the crossed read",
+    )
     ticked(page)
-    assert len(crossed) == 1
+    assert len(asked) == 1
     expect(timestamp).to_have_text("1h")
     # With no newer state at all, the thread's row still ages by the clock.
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))

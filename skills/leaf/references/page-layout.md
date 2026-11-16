@@ -80,6 +80,12 @@ a workspace part fills the window. Keep the header to the page's title, since it
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
 
+Where text can't say what a list entry should show, such as a file's name in code type
+over a coloured diffstat, open the part, or a tab in any list, with a `<template>`
+holding that markup. The list shows it in place of the label and summary, which stay
+the name and description everything else reads. Keep links and controls out of it,
+since the entry is itself a control.
+
 ## Document flow
 
 A `layout-column` is ordinary block flow at the reading measure, centered, with the

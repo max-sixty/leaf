@@ -241,8 +241,10 @@ DOCUMENT_STEPS = 1024
 WORD = "value"
 # What the inputs on `side_documents`' pages need: its tab list and first document,
 # bound to a source, by the ids the page gives them, which the inputs find the other
-# tabs and documents by.
+# tabs and documents by. Opening a tab (`reveal`) needs only the list and its first
+# tab's content, which `side_tables`' pages hold too.
 DOCUMENTS = "#docs #d0[source]"
+TABS = "#docs #d0"
 
 # Leave nothing focused, put the scroller under the window's centre halfway down, less
 # half of `band`: the page, then any scroller inside it there, as a text document's
@@ -521,6 +523,26 @@ def side_documents(n: int) -> str:
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
 
 
+def side_tables(n: int) -> str:
+    """`side_documents`' list of three tabs, each holding a table of `20 * n` rows in
+    a box that scrolls on its own (`.lf-scroll`), the first tab's shown: at 256, 5,120
+    rows of 15,360 cells, of which the box shows a few dozen. The browser styles and
+    lays out every cell of a table it shows, so opening a tab grows with `n` whatever
+    Leaf adds to it; an arm beside another reads Leaf's share."""
+    rows = "".join(
+        f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td></tr>"
+        for r in range(20 * n)
+    )
+    tabs = "".join(
+        f'<lf-tab id="t{d}" label="Table {d}"><div id="d{d}" class="lf-scroll" '
+        'style="overflow: auto; max-height: 60vh"><table><thead><tr><th>Row</th>'
+        f"<th>Branch</th><th>Age</th></tr></thead><tbody>{rows}</tbody></table></div>"
+        "</lf-tab>"
+        for d in range(3)
+    )
+    return page("Tables", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
 def side_asks(n: int) -> str:
     """A side list of `n` tabs, each holding one section's ask, so each tab marks the
     state of the obligation its panel holds. A click on an option redraws every tab's
@@ -718,6 +740,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "tables": Collection(side_tables),
     "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
@@ -1351,8 +1374,9 @@ def agent_stamp(tab: Tab) -> float:
 
 
 def first_line(d: int) -> str:
-    """Document `d`'s first row (`side_documents`), which a tab's opening draws."""
-    return f"#d{d} .lf-text-document-run > div"
+    """Document `d`'s first row (`side_documents`), or table `d`'s (`side_tables`),
+    which a tab's opening draws."""
+    return f"#d{d} :is(.lf-text-document-run > div, tbody > tr)"
 
 
 def aim_at_tab(tab: Tab) -> Goals:
@@ -1517,7 +1541,7 @@ INPUTS: dict[str, Input] = {
     "status": Input(
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
-    "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
+    "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=TABS),
     "search": Input(
         open_search, ready=aim_at_search, after=400, needs="lf-text-document"
     ),

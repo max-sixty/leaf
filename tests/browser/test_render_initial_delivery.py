@@ -171,6 +171,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
 PROGRESSIVE_WIDGET = """import { html } from '/vendor/lit.js';
 import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-progressive-proof',class extends LeafElement {
+ static lfPatch='members';
  render(){return html`<button class="proof-control">${this.getAttribute('label')}</button><slot></slot>`;}
 });"""
 PROGRESSIVE_REGISTRY = {
@@ -185,7 +186,6 @@ PROGRESSIVE_REGISTRY = {
         "required": ["id"],
         "x-content": "markup",
         "x-shadow": True,
-        "x-patch": "members",
     }
 }
 

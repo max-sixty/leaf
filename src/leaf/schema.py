@@ -389,7 +389,6 @@ EXTENSION_SCHEMA = {
         "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
         "x-measured": MEASURED_SCHEMA,
-        "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -478,9 +477,6 @@ EXTENSION_SCHEMA = {
         "x-measured": ["x-data"],
         "x-shows": ["x-owners", "x-refers"],
     },
-    # A container can retain authored children, native markup included.
-    "if": {"required": ["x-patch"]},
-    "then": {"properties": {"x-content": {"enum": ["members", "markup"]}}},
     "additionalProperties": False,
 }
 # Selector idioms share author-facing extension fields with widgets, but cannot

@@ -266,7 +266,6 @@ role on the page:
 | `x-bound`        | `lf-activity`                                                  |
 | `x-height`       | `lf-chart`                                                     |
 | `x-history`      | `lf-activity`                                                  |
-| `x-patch`        | `lf-tabs`                                                      |
 | `x-views`        | `lf-tabs`                                                      |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module

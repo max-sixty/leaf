@@ -9,7 +9,7 @@ import { render as motionTemplate } from "./motion-view.js";
  *
  * The transport stands beside the authored previews, and the module reads nothing from
  * them but which videos they hold at the moment it asks, so a revision edits inside the
- * study in place (`x-patch: members`): the clock, its playback and the page's
+ * study in place (`lfPatch`): the clock, its playback and the page's
  * `renderFrame` carry on, and the browser's scroll anchoring keeps the reader's place
  * among the previews, which a study replaced whole would lose. A recording a revision
  * adds joins the clock once its metadata loads. A renderer holding nodes the revision
@@ -51,6 +51,7 @@ import {
 const INPUTS = ["pointerdown", "keydown", "input", "wheel", "touchstart", "blur"];
 
 class MotionStudy extends HTMLElement {
+  static lfPatch = "members";
   /** @type {{controls: HTMLDivElement, play: HTMLButtonElement, time: HTMLInputElement, speed: HTMLSelectElement} | undefined} */
   #ui;
   #transport = document.createElement("div");

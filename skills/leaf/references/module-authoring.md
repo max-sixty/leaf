@@ -173,6 +173,18 @@ nodes.
 
 `Promise.race([work, aborted(signal)])` ends work when its signal aborts.
 
+## Revisions
+
+A revision that changes a widget's markup replaces the whole widget, rebuilding what
+the user had open in it. A module that builds beside the widget's direct authored
+children, leaves them where they are and reads only their attributes declares
+`static lfPatch = "members"` on its element's class, and Leaf edits inside those
+children in place. Leaf keeps the widget while a revision keeps what the module read:
+the element's attributes and, where its content is `members` or it declares `x-views`,
+each direct child's tag and attributes in order. The field applies where the content is
+the author's (`x-content` `markup` or `members`); a widget that draws its own content
+is always replaced.
+
 ## Startup and presentation
 
 The authored page shows at once, and `body[data-lf-presented]` is set once the page's
@@ -224,10 +236,6 @@ native disclosures, links and authored content need no such wait.
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- A markup container without `x-views` leaves those children as independent evidence;
-  revisions can change them without rebuilding its generated controls. A renderer that
-  consumes its children's identities or attributes declares structural members or
-  `x-views`, so changing those inputs rebuilds its view.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn.
 - A widget that shows one member at a time declares `x-views: {members: "selector"}`;

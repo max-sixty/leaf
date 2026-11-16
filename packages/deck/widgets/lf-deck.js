@@ -106,6 +106,7 @@ const waitsOn = (held) =>
 customElements.define(
   "lf-deck",
   class extends LeafElement {
+    static lfPatch = "members";
     #bar = offer("div", "lf-deck-bar");
     #status = document.createElement("span");
     #back = offerAction("symbol", "lf-deck-back", "Back", { action: "previous" });

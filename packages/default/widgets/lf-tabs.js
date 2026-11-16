@@ -147,6 +147,7 @@ const soleSubstantiveElement = (owner) => {
 };
 
 export class TabSet extends LeafElement {
+  static lfPatch = "members";
   // Whether the set is a page's parts (lf-parts.js).
   get parts() {
     return false;

@@ -30,8 +30,8 @@
  * patch; changed executable inputs require a fresh document. Prose, styles, and media
  * can change without reloading. Served identity
  * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
- * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
- * patched inside its members instead, while the revision keeps its shell.
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget whose class declares
+ * `static lfPatch = "members"` is patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
@@ -1884,12 +1884,18 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // An x-patch container retains authored markup while the inputs its renderer
+  // A widget's module says how a revision reaches it, as its class's static `lfPatch`
+  // (module-authoring.md, "Revisions"). The module of every widget standing in the
+  // page has run by the time a patch asks: startup awaits each import before the state
+  // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
+  // A `members` container retains authored markup while the inputs its renderer
   // consumes stay the same. A structured member list, or a declared x-views list,
   // consumes its direct members' identities and attributes. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A generated authored body likewise separates that
-  // evidence from the renderer's inputs.
+  // evidence from the renderer's inputs. A widget that draws its content itself
+  // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
+  // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
@@ -1902,10 +1908,16 @@ export function createVersionController({
     /** @type {string | null} */ arrivingRoot,
   ) => {
     const entry = registry[before.localName];
-    if (entry?.["x-patch"] !== "members") return false;
+    const content = entry?.["x-content"];
+    if (
+      !entry ||
+      customElements.get(before.localName)?.lfPatch !== "members" ||
+      (content !== "members" && content !== "markup")
+    )
+      return false;
     const members =
       !authoredBody(sourcePairs.require(before)) &&
-      (entry["x-content"] === "members" || entry["x-views"] !== undefined);
+      (content === "members" || entry["x-views"] !== undefined);
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),

@@ -481,7 +481,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-patch": "members",
     "x-views": { "members": "lf-tab" },
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
@@ -536,7 +535,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-patch": "members",
     "x-views": { "members": "lf-part", "parts": true },
     "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
   },
@@ -630,7 +628,6 @@
     "required": ["id", "label"],
     "additionalProperties": false,
     "x-reading-role": "pane",
-    "x-patch": "members",
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },

@@ -723,7 +723,6 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
             "x-shadow",
             "x-thread-seat",
             "x-history",
-            "x-patch",
         )
         if entry.get(key)
     ] + (["x-visual"] if isinstance(entry.get("x-visual"), dict) else [])

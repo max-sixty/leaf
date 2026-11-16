@@ -515,10 +515,14 @@ dl.lf-facts dd {
     }
     /* A list keeps the browser's markers, at each depth, over a page reset that
        clears them (layer.py, `PAGE_RESET_LAYER`). */
+    /* A list and a figure own the space around them, so they trim what they hold at
+       their edges (base.css): a block standing in a grid column keeps its children's
+       margins in rather than collapsing with them (layouts.css), and the two added up. */
     :is(ul, ol) {
       margin: 10px 0;
       padding-inline-start: var(--lf-list-inset);
       list-style: revert;
+      --lf-block-frame: trim;
     }
     li {
       margin: 6px 0;
@@ -560,6 +564,7 @@ dl.lf-facts dd {
     }
     figure {
       margin: var(--lf-figure-margin-block) 0;
+      --lf-block-frame: trim;
     }
     /* A caption is a sentence read with its figure, so it stands one rung under the
        prose rather than at the apparatus size beside a label or a chip. */

@@ -39,7 +39,7 @@ export {
   coverBoxes,
 } from "./geometry.js";
 export { drawnElements, skipped } from "./shadow-tree.js";
-export { windowHoldsRail } from "./content-layout.js";
+export { proseMeasure, proseRect, windowHoldsRail } from "./content-layout.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export { authoredBody } from "./widget-elements.js";
 export {

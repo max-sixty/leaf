@@ -87,12 +87,25 @@ export function openDocumentLayout({ onRead }) {
 
 // Annotations read the browser's resolved prose, never allocate it. The box that
 // holds the prose declares its measure (`--lf-prose-measure`, layouts.css): the prose
-// starts at that box's content edge and runs the measure, or the content box where it
-// is narrower. A sidebar's body may hold it; otherwise a custom page's actual box is
-// its reading region. The declaration keeps this independent of Layout classes.
+// runs the measure, or the content box where it is narrower, from the box's
+// `prose-start` line, past the tracks the browser sized before it, or from its content
+// edge where it names none. A sidebar's body may hold it; otherwise a custom page's
+// actual box is its reading region. The declaration keeps this independent of Layout
+// classes.
 /** @param {Element} node */
 export const proseMeasure = (node) =>
   parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
+// The tracks before a grid's `prose-start` line, from its resolved template, which
+// lists each track's used size between the names of the lines around it.
+/** @param {string} template */
+const beforeProse = (template) => {
+  let before = 0;
+  for (const [, names, size = "0"] of template.matchAll(/\[([^\]]*)\]|(\S+)px/g)) {
+    if (names === undefined) before += parseFloat(size);
+    else if (names.split(/\s+/).includes("prose-start")) return before;
+  }
+  return 0;
+};
 /** @typedef {NonNullable<ReturnType<typeof union>>} ProseBox */
 /** @overload @param {Element} main @returns {ProseBox} */
 /** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
@@ -111,8 +124,11 @@ export function proseRect(main = layoutBox()) {
     proseMeasure(holder),
     frame.width - edge("Left") - edge("Right"),
   );
+  const before = beforeProse(style.gridTemplateColumns);
   const left =
-    style.direction === "rtl" ? frame.width - edge("Right") - width : edge("Left");
+    style.direction === "rtl"
+      ? frame.width - edge("Right") - before - width
+      : edge("Left") + before;
   const right = left + width;
   /** @param {number} x @param {number} y */
   const corner = (x, y) => {

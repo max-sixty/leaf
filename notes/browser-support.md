@@ -163,31 +163,6 @@ padding; `test_page_fixture_renders[visual-review-gallery]` in
 `tests/journeys/test_render_gate.py` reads the same difference in its resize
 journey.
 
-### A recomputed length less a percentage counts as a change in Chromium
-
-Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered
-`<length-percentage>` whose value mixes a length with a percentage, such as
-`calc(10px - 50%)` or `max(0px, 10px - 50%)`, as changed each time its element
-was restyled, the value unchanged, so every restyle of that element restyled its
-children too, and children that set the property again a level further. A plain
-length, a plain percentage, or the same expression registered `*`, restyled the
-element alone. On 2026-11-10, a class on a column page's `main` that changed
-nothing restyled 246 elements at 10 sections, and 6 with the room set to a
-constant; focus marking `main` as the user landed on a passage did the same.
-
-It holds for a property that doesn't inherit too, where the element also states
-a length in container units: on 2026-11-11, with the column's room in
-non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, a
-`:has()` asked again of `main` as focus moved restyled every element under it:
-7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
-So the column resolves the lengths in its room in registered `<length>`
-properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
-states the room from them, percentage and all, only in `--lf-free-start` and its
-kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
-`--lf-free-start` `<length-percentage>` again:
-`test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
-`tests/browser/test_chrome_contracts.py` fails while the gap stands.
-
 ### A near-grey colour's hue in relative `oklch()` in Chromium
 
 Playwright Chromium 158.0.8127.18 (build 1254) reads the hue of a low-chroma colour as
@@ -636,74 +611,17 @@ Recheck wrapper and row behavior, not just parser support, against
 `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` in
 `tests/browser/test_render_gate.py`.
 
-### Centring a block in block layout in Firefox
-
-Box Alignment lets `justify-self: center` centre a block-level box in a block
-container. On 2026-10-31 Playwright Chromium 156.0.8078.4 and WebKit 27.2 centred a
-200px block in a 600px container with it; Firefox 157 left the block at the start.
-So `browser/layouts.css` centres an `available` table on the column's axis with a
-relative offset and a translate instead. Recheck with that two-box fixture; once
-Firefox centres it, the table can take `justify-self: center` and lose the offset
-and the translate.
-
-### A moved box's place in flow in Firefox's scroll size
-
-Firefox recomputes a block's overflow without laying it out again when a child's
-outline or other painted extent changes, as a focus ring does. That recomputation
-counts each child moved by a relative offset or a translate at its place in flow as
-well as where it is drawn, and the page keeps the larger scroll size until the block
-is laid out again. On 2026-11-03, in Playwright Firefox 157.0 (build 1555), a 1680px
-block moved 480px back by `left: -480px` or `translate: -480px` from a 720px column
-centred in a 1728px window left `document.documentElement.scrollWidth` at 1728 until
-a paragraph beside it took an outline, and at 2184 after that, outline removed or
-not; the same block placed by `margin-left: -480px` left it at 1728. Playwright
-Chromium 156.0.8078.4 kept 1728 throughout. In the user's Firefox 159, closing a
-thread card, which rings the paragraph it leaves the user at, left the page
-scrolling 456px sideways while breakouts were placed by an offset.
-
-So `browser/layouts.css` places an `available` block by a negative start margin, so
-its place in flow is where it is drawn. An `available` table starts at the room's
-start the same way, and its relative offset and translate then centre it on the
-room's axis. Firefox applies the translate to the table's place in flow, so it counts
-the table half its own width before the room's start. A page in the holder's
-direction does not scroll that way, but where the page and the holder differ in
-direction, as in `<main dir="rtl">` on a left-to-right page, a ring still widens the
-page by up to half the table's width (to 2544px for a 1680px table in a 1728px
-window). Centring the table without a translate needs its own width in a margin,
-which CSS can't express, `justify-self` on a block, which Firefox lacks (above), or
-an `available` wrapper the table centres in by `margin-inline: auto`, which would
-change how a page writes an available table.
-
-Mozilla's bugs [1801710](https://bugzilla.mozilla.org/show_bug.cgi?id=1801710) and
-[1820266](https://bugzilla.mozilla.org/show_bug.cgi?id=1820266) report a relatively
-positioned box's place in flow counting toward scroll size on first layout; this
-case, right after layout and wrong after a restyle, is not filed. Recheck with that
-fixture in Firefox: a 720px `main` centred in the window, holding a paragraph and a
-`position: relative; left: -480px; width: calc(100% + 960px)` block. Give the
-paragraph an outline and read the root's `scrollWidth`; once it stays at the
-window's width, a breakout may move by an offset again. In Leaf,
-`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` and
-`test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
-breakouts and fail if the page then scrolls sideways.
-
 ### A non-inheriting property taken with `inherit` in WebKit
 
 A child or `::after` that takes a registered custom property declared
 `inherits: false` with `inherit` keeps its first value in Playwright WebKit 27.2
 when only that property changes on its parent; Chromium 158.0.8127.18 and
 Firefox 159.0 restyle it (2026-11-12, a parent's `--len` set from 10px to 30px
-left a child's and an `::after`'s `height: var(--len)` at 10px). On 2026-10-31
-the same engine kept a child's copy of the column's room through a window resize:
-an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
-windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
-`browser/layouts.css`) inherits, and a box outside the column's flow sets it back
-to zero; and a thread card's fade (`--lf-thread-fade-top`,
-`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
-restyles every element in the thread. Recheck with a page holding that pair of
-rules in `leaf-dev probe --browser webkit`, then with
-`test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
-`tests/browser/test_render_pages.py` under `webkit_browser` after making the
-column's properties non-inheriting and passing them down with `inherit`.
+left a child's and an `::after`'s `height: var(--len)` at 10px). So a thread
+card's fade (`--lf-thread-fade-top`, `--lf-thread-fade-height`,
+`annotation-chrome.css`) inherits, though each write then restyles every element in
+the thread. Recheck with a page holding that pair of rules in
+`leaf-dev probe --browser webkit`.
 
 ### State-preserving content reordering
 

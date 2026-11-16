@@ -2,6 +2,8 @@ import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-ap
 import {
   layoutBox,
   pageDocument,
+  proseMeasure,
+  proseRect,
   inPage,
   readingRegions,
   shownBand,
@@ -51,17 +53,16 @@ export function geometryReading(open) {
 
 // Whether a box that broke out takes words off the column: a text block starts at its
 // holder's edge (base.css), so in a box reaching before the prose it starts there too. A
-// widget arranges its own contents, and a caption belongs to its figure.
+// widget arranges its own contents, and a caption belongs to its figure. The prose
+// stands on the column's lines, which every flow in it shares (`proseRect`).
 /** @param {Element} el */
 function takesItsWords(el) {
   const holder = el.parentElement;
   if (!holder || el.localName.includes("-")) return false;
-  const box = holder.getBoundingClientRect();
-  const style = getComputedStyle(holder);
-  const rtl = style.direction === "rtl";
-  const prose = rtl
-    ? box.right - parseFloat(style.paddingRight)
-    : box.left + parseFloat(style.paddingLeft);
+  const rtl = getComputedStyle(holder).direction === "rtl";
+  const column = proseRect();
+  if (!column) return false;
+  const prose = rtl ? column.right : column.left;
   return [...el.children].some((child) => {
     if (
       child.matches("figcaption") ||
@@ -275,17 +276,14 @@ export function overflowingRegions() {
 function marginReading(main, shellLeft, shellRight) {
   const style = getComputedStyle(main);
   const box = main.getBoundingClientRect();
-  // The column, its content box, sets what stands in the margin. What a block may
-  // reach before it spills is the page's room: where the column has room beside its
-  // prose (`--lf-shell-width`, layouts.css), its shell less a gutter each side.
-  const colLeft = box.left + parseFloat(style.paddingLeft);
-  const colRight = box.right - parseFloat(style.paddingRight);
-  const gutter =
-    (parseFloat(style.getPropertyValue("--lf-shell-width")) || 0) > 0
-      ? parseFloat(style.getPropertyValue("--lf-col-pad")) || 0
-      : null;
-  const left = gutter === null ? colLeft : Math.min(colLeft, shellLeft + gutter);
-  const right = gutter === null ? colRight : Math.max(colRight, shellRight - gutter);
+  // The prose sets what stands in the margin: a column's (`proseRect`), or the Layout
+  // box's content box. What a block may reach before it spills is the Layout box's
+  // content box, the room a column's lines span (layouts.css), within the shell.
+  const left = Math.max(shellLeft, box.left + parseFloat(style.paddingLeft));
+  const right = Math.min(shellRight, box.right - parseFloat(style.paddingRight));
+  const prose = proseMeasure(main) > 0 ? proseRect(main) : null;
+  const colLeft = prose?.left ?? left;
+  const colRight = prose?.right ?? right;
   // Logical floats compute to whichever physical or logical token was written, so
   // resolve them against the element's own direction.
   /** @param {CSSStyleDeclaration} s */
@@ -515,10 +513,13 @@ export function misplacedBoxes() {
   // minimum is still `auto`, so its words can offer `min-width: 0` first. Where that
   // isn't what holds the item out, as in a fixed track or beside a sibling that pushed
   // it, the next check reports it again and the other remedies still stand.
+  // A block standing on a column's lines is no such item: those tracks never follow
+  // what they hold (`--lf-grid-flow`, layouts.css).
   /** @param {Element} el @returns {{item?: string}} */
   const asItem = (el) => {
-    const display = el.parentElement ? getComputedStyle(el.parentElement).display : "";
-    const item = ["flex", "grid"].find((kind) => display.includes(kind));
+    const parent = el.parentElement && getComputedStyle(el.parentElement);
+    if (!parent || parent.getPropertyValue("--lf-grid-flow").trim() === "1") return {};
+    const item = ["flex", "grid"].find((kind) => parent.display.includes(kind));
     return item && getComputedStyle(el).minInlineSize === "auto" ? { item } : {};
   };
   // Each finding is a record (findings.py) carrying its element's place

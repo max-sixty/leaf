@@ -430,9 +430,9 @@ DIAGRAM_ROOM = """() => {
     const svg = holder.querySelector('svg');
     const board = document.getElementById('plan');
     const main = document.querySelector('main'), ms = getComputedStyle(main);
-    // The room an available block takes: the shell's width less a gutter each side.
-    const room = parseFloat(ms.getPropertyValue('--lf-shell-width'))
-        - 2 * parseFloat(ms.getPropertyValue('--lf-col-pad'));
+    // The room an available block takes: the column's content box, which its lines span.
+    const room = main.clientWidth - parseFloat(ms.paddingLeft)
+        - parseFloat(ms.paddingRight);
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,

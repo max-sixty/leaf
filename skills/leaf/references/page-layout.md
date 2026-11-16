@@ -86,9 +86,11 @@ outline.
 
 ## Document flow
 
-A `layout-column` is ordinary block flow at the reading measure, centered, with the
-space on both sides available to exhibits. Its blocks' margins collapse and a float
-stands beside the prose, as on any page. Group a nested section with
+A `layout-column` sets each block on the reading measure, centered, with the space on
+both sides available to exhibits. It is a grid, so the space between two of its blocks is
+the later block's top margin, and a float stands in its own row rather than beside the
+prose; put a figure meant to stand beside its passage in a `layout-note`. Group a nested
+section with
 `class="layout-flow"` when its children should share that space. Ordinary wrappers
 contain their children: a list, callout or custom grid does not grant a nested exhibit
 room outside its own box. The same `data-width` contract applies at every level.

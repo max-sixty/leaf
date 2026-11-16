@@ -17,14 +17,12 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     """The sweep names a fault per element and per unbroken run of widths, with its
     reading at the run's narrowest. Here a spill clears between 1520px and 640px and
     returns below, so it is two runs. A clipped control is read the same way, and the
-    phone widths' second sample, at the phone's height, joins it: a control clipped
-    in either sample of a width is clipped at that width. One clipped in both is one
-    run; one clipped only at the desktop height, or only at the phone's, is a run of
-    its own. A squeezed table is advice wherever the sweep finds it. Two drawings that
-    share a name are told apart by their place."""
-    widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
+    desktop's second sample, as the page loaded, joins it: a control clipped in either
+    sample of a width is clipped at that width. A squeezed table is advice wherever
+    the sweep finds it. Two drawings that share a name are told apart by their place."""
+    widths = sorted(render_gate_readings.SWEEP_WIDTHS, reverse=True)
 
-    def at(width, short=False):
+    def at(width, loaded=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
             {
@@ -62,8 +60,8 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
-                    ("#tall", 520 <= width <= 560 and not short),
-                    ("#short", 400 <= width <= 480 and short),
+                    ("#mid", 520 <= width <= 560),
+                    ("#loaded", loaded),
                 )
                 if clipped
             ],
@@ -86,13 +84,14 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         }
 
     readings = [(width, at(width)) for width in widths]
-    short = [(width, at(width, short=True)) for width in widths if width <= 540]
-    swept = render_gate_readings.swept_faults([*readings, *short])
+    swept = render_gate_readings.swept_faults(
+        [(1280, at(1280, loaded=True)), *readings]
+    )
     assert [(f.code, f.at, f.widths) for f in swept] == [
         ("past-column", "<pre>", (1560, 1600)),
+        ("clipped-control", "<button id=loaded>", (1280, 1280)),
         ("past-column", "<pre>", (360, 600)),
-        ("clipped-control", "<button id=tall>", (520, 560)),
-        ("clipped-control", "<button id=short>", (400, 480)),
+        ("clipped-control", "<button id=mid>", (520, 560)),
         ("clipped-control", "<button id=narrow>", (360, 440)),
     ]
     spill, _, _, _, clipped = swept
@@ -126,19 +125,17 @@ def test_a_finding_is_a_record_its_words_and_json_are_rendered_from():
         "past-column",
         "<div id=wide>",
         {"place": "#wide", "past": 74},
-        scheme="dark",
-        viewports=("540x720",),
+        widths=(360, 400),
     )
     assert str(finding) == (
-        "[dark] <div id=wide> is set 74px past the column, out in the margin"
-        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll" (at 540x720)'
+        "at 360–400px wide, <div id=wide> is set 74px past the column, out in the margin"
+        '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll"'
     )
     assert json.loads(json.dumps(finding.json())) == {
         "code": "past-column",
         "severity": "error",
         "at": "<div id=wide>",
-        "scheme": "dark",
-        "viewports": ["540x720"],
+        "widths": [360, 400],
         "values": {"place": "#wide", "past": 74},
         "text": str(finding),
     }
@@ -208,12 +205,10 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     stand once each, and an incomplete confirmation pardons nothing. Advice is the
     first attempt's. What an attempt hears is the browser's half, read by
     `test_a_recurring_resize_notice_fails_the_render_gate`."""
-    notice = Finding(
-        "resize-loop", values={"text": "ResizeObserver loop completed"}, scheme="light"
-    )
-    error = Finding("console-error", values={"text": "first attempt"}, scheme="light")
-    later = Finding("console-error", values={"text": "later"}, scheme="dark")
-    failed = Finding("probe-failed", values={"error": "probe failed"}, scheme="light")
+    notice = Finding("resize-loop", values={"text": "ResizeObserver loop completed"})
+    error = Finding("console-error", values={"text": "first attempt"})
+    later = Finding("console-error", values={"text": "later"})
+    failed = Finding("probe-failed", values={"error": "probe failed"})
     first = Finding(
         "grows-with-content",
         "<lf-x id=a>",
@@ -253,7 +248,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
     recurring = policy(attempt(notices=[notice]), attempt(notices=[notice])).failures
     assert recurring == [confirmed("recurred")]
     assert str(recurring[0]) == (
-        "[light] console: window error: ResizeObserver loop completed"
+        "window error: ResizeObserver loop completed"
         " (recurred on the confirming render attempt)"
     )
     # A confirmation that did not finish cannot say the notice was transient.

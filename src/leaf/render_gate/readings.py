@@ -1,6 +1,5 @@
-"""Browser probe readings for one settled color scheme, the once-per-version width
-sweep, the advice read from the sweep and from the desktop page, and the finding each
-becomes.
+"""Browser probe readings for the settled page, the width sweep, the advice read from
+the sweep and from the desktop page, and the finding each becomes.
 
 Presentation readings here refuse faults the page author can fix by editing the page.
 A broken output contract also refuses the version, with its producing implementation
@@ -125,9 +124,8 @@ class DevtoolsIssues:
 
 
 @dataclass(frozen=True, slots=True)
-class _SchemeContext:
+class _PageContext:
     page: object
-    light: bool
     errors: list
     registry: dict
     declarations: dict
@@ -175,7 +173,7 @@ def _expected_verbatim(markup, events, registry, here):
     return expected
 
 
-def _verbatim_findings(context: _SchemeContext) -> list[Finding]:
+def _verbatim_findings(context: _PageContext) -> list[Finding]:
     shown = evaluate_probe(context.page, "shownVerbatim", context.declarations)
     if not shown:
         return []
@@ -206,7 +204,7 @@ def _verbatim_findings(context: _SchemeContext) -> list[Finding]:
     return findings
 
 
-def _retired_holders(context: _SchemeContext) -> list[dict]:
+def _retired_holders(context: _PageContext) -> list[dict]:
     """Each settlement holder on the page with the outcome the file's reading gives it
     and the slots that outcome retires, for `retiredSlots` to hold the page to.
 
@@ -241,27 +239,26 @@ def _retired_holders(context: _SchemeContext) -> list[dict]:
     return holders
 
 
-def _scheme_findings(context: _SchemeContext) -> list[Finding]:
-    """Every finding read from one settled scheme, without the scheme it was read in."""
+def _page_findings(context: _PageContext) -> list[Finding]:
+    """Every finding read from the settled page."""
     page = context.page
     unmarkable = evaluate_probe(page, "unmarkableElements")
     retired = []
     # Behind the caught-up wait: the settlement mark is replay's own write, so a
     # reading taken earlier asks after paint the page has not been asked to make
     # yet. Before the widget readings, whose replay is the last.
-    if context.light and context.replayed and (holders := _retired_holders(context)):
+    if context.replayed and (holders := _retired_holders(context)):
         retired = evaluate_probe(page, "retiredSlots", holders)
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
     found += map(Finding.read, retired)
     found += context.unsettled
-    if context.light:
-        found += (
-            Finding.read(block, severity="advice")
-            for block in evaluate_probe(page, "uncolouredCode")
-        )
-        found += _unreduced_motion(page)
+    found += (
+        Finding.read(block, severity="advice")
+        for block in evaluate_probe(page, "uncolouredCode")
+    )
+    found += _unreduced_motion(page)
     return found
 
 
@@ -279,7 +276,7 @@ def _unreduced_motion(page) -> list[Finding]:
     return found
 
 
-def _widget_findings(context: _SchemeContext) -> list[Finding]:
+def _widget_findings(context: _PageContext) -> list[Finding]:
     """The readings of what widgets render, wherever they are drawn: the page, and an
     open thread's messages (`thread_findings`)."""
     page = context.page
@@ -290,20 +287,19 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
-    # x-verbatim promises the words this scheme renders. Source provenance was
+    # x-verbatim promises the words the page renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
     # side is the settled projection, so a page that never applied that projection is
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
-    # Replay is scheme-blind, so one scheme's reading covers both.
     silent = []
     undeclared_attrs = []
     relative = []
     # Behind the caught-up wait: a report moves a declared attribute, so a reading
     # taken any earlier asks after a word the page has not been asked to say yet. A
     # page that never caught up is already reported there and read no further.
-    if context.light and replayed:
+    if replayed:
         silent = evaluate_probe(page, "silentWords", declarations)
         # Behind the same wait, because reconciliation is one of the two writers: a
         # widget's render states one declared fact whole, and a record form is
@@ -330,7 +326,7 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     return found
 
 
-def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Finding]:
+def thread_findings(context: _PageContext, known: list[Finding]) -> list[Finding]:
     """The widget readings of each thread whose messages carry markup, read with that
     thread open, less what `known` already reports.
 
@@ -380,10 +376,9 @@ def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
-# the narrowest phone to a wide desktop window, not only at the gate's fixed viewports. A
-# grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither fixed viewport lands in, and the margin content
-# arrives above the desktop viewport.
+# the narrowest phone to a wide desktop window, not only at the desktop window it loaded
+# at. A grid that stacks at one width can leave its narrow track narrower than what it
+# holds just above it, and the margin content arrives above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
 
@@ -503,8 +498,8 @@ def swept_faults(samples) -> list[Finding]:
     containment, which are advice: the author decides how much clearance to leave and whether a holder
     should share the document's wider tracks.
 
-    `samples` are (width, `geometryReading`) pairs, several at a width where the gate
-    read it more than once (`version._render_version_attempt` says where). A fault any
+    `samples` are (width, `geometryReading`) pairs, two at the desktop's width, read as
+    the page loaded and again in the sweep (`version._render_version_attempt`). A fault any
     of them reads stands at that width, as the first of them to read it says, so a
     fault read at several is one run."""
 
@@ -530,7 +525,7 @@ def swept_faults(samples) -> list[Finding]:
 
 
 # The advice below is read from the sweep, at every swept width, since a narrower window
-# can draw a page worse than either fixed viewport does. Each item names the widths it
+# can draw a page worse than the desktop does. Each item names the widths it
 # spans and what it reads at the narrowest. Which of those widths a page answers for is
 # the author's call, so none of it refuses a version.
 
@@ -539,7 +534,7 @@ def squeezed_advice(readings) -> list[Finding]:
     """Advice naming each table that scrolls sideways with a cell wrapped, and each code
     block that scrolls its lines in too little width to read them.
 
-    The sweep is the reading's only home, and it takes in the fixed viewports' widths.
+    The sweep is the reading's only home, and it takes in the desktop's width.
     Advice rather than a failure because the box still scrolls and every word in it
     stays in reach. For a table, what costs the reader is prose wrapped a word a line
     beside a scroller, and the remedy (a column fewer, shorter words, an identifier in
@@ -595,14 +590,13 @@ def shrunk_label_advice(readings) -> list[Finding]:
     )
 
 
-def drawn_height_advice(page, viewport: str) -> list[Finding]:
+def drawn_height_advice(page) -> list[Finding]:
     """Each drawing whose height differs from the box it showed before drawing
-    (`drawnHeights`), as advice read at one viewport, the user's window
+    (`drawnHeights`), as advice read at the desktop viewport, the user's window
     (`desktop_viewport` in command.py). A drawing laid out for its width, as a diagram
     is, has another height at another width, and the one `data-height` that holds it
-    still holds it at one width, so a reading at a second viewport would advise a
-    second height for the same element. The height is scheme-blind."""
+    still holds it at one width, so it is read only as the page loaded."""
     return [
-        Finding.read(height, severity="advice").but(viewports=(viewport,))
+        Finding.read(height, severity="advice")
         for height in evaluate_probe(page, "drawnHeights")
     ]

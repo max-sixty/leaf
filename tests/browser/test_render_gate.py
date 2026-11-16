@@ -164,7 +164,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_scheme(
+    _, _, completed = render_gate_scheme._render_page(
         browser,
         serve(
             leaf_page(
@@ -184,12 +184,11 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
             layer_registry={"lf-sketch": SKETCH_DECLARATION},
             layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
         ),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
         then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page, "1200x900")
+            render_gate_readings.drawn_height_advice(page)
         ),
     )
     assert completed, findings
@@ -435,13 +434,12 @@ def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, re
 
         page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         primed(browser.unwatched, configure),
         serve(
             leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
             packages=(),
         ),
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -501,10 +499,9 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         ExistingPage(),
         dropped,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -542,17 +539,16 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         controlled,
         refused,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
     )
     assert completed is False
     [failure] = failures
-    assert (failure.code, failure.scheme) == ("probe-failed", "light")
+    assert failure.code == "probe-failed"
     assert {
         "code": "console-error",
         "severity": "error",
@@ -1181,10 +1177,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
         monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_scheme(
+    failures, _notices, completed = render_gate_scheme._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
@@ -1428,7 +1423,8 @@ SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
 def unread_syntax(page):
-    """Code tokens the page paints too faint to read, in each colour scheme."""
+    """Code tokens the page paints too faint to read, each with the colour scheme it
+    was read in."""
     unread = []
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
@@ -1438,7 +1434,7 @@ def unread_syntax(page):
             "(a) => a instanceof CSSTransition && a.finish())"
         )
         unread += [
-            Finding.read(u, scheme=scheme)
+            (scheme, Finding.read(u))
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     return unread
@@ -4141,7 +4137,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    assert len(syntax) == 4, "\n".join(map(str, syntax))
+    assert len(syntax) == 4, syntax
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -4149,10 +4145,10 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
         ("dark", "number"),
     ):
         assert any(
-            finding.scheme == appearance
+            scheme == appearance
             and finding.values["style"].startswith(f"color: var(--lf-syn-{color});")
             and finding.values["ratio"] < 4.5
-            for finding in syntax
+            for scheme, finding in syntax
         ), syntax
 
     page = open_page(browser, serve(CODE_CONTROL_PAGE))
@@ -4647,7 +4643,7 @@ def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, 
     that body while still fitting on screen, so measuring body would invent sideways
     document overflow where the canonical root scrollport has none. Sized in vw, the page
     keeps that contrast at every width the gate reads, so `rootOverflow`, the gate's
-    own reading, is asked at both of its viewports."""
+    own reading, is asked at a desktop width and a narrow one."""
     source = leaf_page(
         "root scrollport width",
         """

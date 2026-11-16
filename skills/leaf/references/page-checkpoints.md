@@ -3,8 +3,7 @@
 ## Pre-handover review
 
 The main skill's "Publish and review" section says when a page takes this review.
-It adds the browser render check, in both colour schemes, to the markup check every
-activation runs:
+It adds the browser render check to the markup check every activation runs:
 
 ```bash
 leaf page check <page> --render

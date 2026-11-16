@@ -134,8 +134,8 @@ THREAD_CARD_PAGE = leaf_page(
 #title-pair {{
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: var(--sp-4);
-  margin-block: var(--sp-4);
+  gap: var(--lf-sp-4);
+  margin-block: var(--lf-sp-4);
   max-width: 54rem;
 }}
 </style>""",
@@ -246,9 +246,9 @@ THREAD_CARD_GEOMETRY = """() => {
     cardBottom: card.bottom, cardWidth: card.width,
     replyWidth: reply.width, innerWidth: window.innerWidth,
     minimum: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
-      .getPropertyValue('--thread-card-min')),
+      .getPropertyValue('--lf-thread-card-min')),
     preferred: parseFloat(getComputedStyle(document.querySelector('.lf-margin-preview'))
-      .getPropertyValue('--thread-card')),
+      .getPropertyValue('--lf-thread-card')),
   };
 }"""
 

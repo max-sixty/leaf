@@ -38,6 +38,22 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 widget whose title is an attribute, as a column's `label` is, declares it with
 `x-name`.
 
+`titledElement(heading)` is the element a heading titles: the outermost element whose
+first heading it is, such as its `hgroup`, the question it opens and a `section`
+wrapping that question; where it titles no element, the heading itself. A `section`,
+`article`, `aside` or `nav` takes its first heading whatever else it holds, past any
+wrapper; any other element only where every other heading inside ranks below it, no
+words stand before it outside a `header` or `hgroup`, and each element between them
+takes it too.
+An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
+inside it. Every element between the two is titled by the heading too. `lf-toc` links
+each heading to one of them, and a heading's link preview counts a thread about any of
+them. The headings that count are those the reading of its document lists, the page's
+or a message's, Leaf's chrome aside, and "first" means first in reading order, which
+the slots of a widget declaring `x-shadow` can reorder. A heading the reading doesn't
+read, such as one among such a widget's children that none of its slots shows, titles
+only itself.
+
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
 
@@ -47,7 +63,7 @@ Read the registry rather than repeating it. `declarationFor(element, key)` retur
 key of the element's entry, and `elementsDeclaring(root, key, {direct})` lists the
 elements under `root`, or only its children, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
-such as an `x-thread-seat`'s. `layerFact(name)` returns a frozen layer-wide `$`
+such as an `x-awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference
@@ -129,7 +145,10 @@ Leaf adds a Copy button to each `pre > code` in the page. A widget block holding
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
-the page, and a page without Leaf shows none. Where the button belongs among the
+the page, and a page without Leaf shows none. A widget that draws marks of its own over
+the block, as `lf-code` draws its notes mark, sets the block's `lfBar` to the
+`.lf-mark-bar` it places and shows over the block, and Leaf stands Copy last in it.
+Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,
@@ -220,8 +239,7 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
+  status: "answered", // open | answered | withdrawn
   next_actor: null,   // user | agent | null
 }
 ```
@@ -239,8 +257,9 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
@@ -259,9 +278,12 @@ does, such as "2 left to answer · 1 on Claude", so every count of a queue reads
 
 `partOver(node)` is the part of the page `node` stands in: the heading over it, else
 the nearest element holding it that its author named, such as a captioned figure, or
-`null`. On me groups its items by it and a link's preview names a place by it, so a
-module that counts items per heading, where no element holds the heading's section,
-climbs it from each item's element to the first heading it counts, as `lf-toc` does.
+`null`. On me groups its items by it and a link's preview names a place by it. A
+question or section stands in the part around it, past its own heading. A module that
+counts items per heading as the reader moves through them, as `lf-toc` does, gives
+each heading the stretch of the page from the element it titles (`titledElement`,
+"Naming elements") to the next heading's, and counts each item in the stretch holding
+its first word, comparing positions with `compareDocumentPosition`.
 
 `obligationActions.open(id)` takes the user to an obligation, resolving to `false` if
 it is gone. `obligationActions.next({within, dir})` steps to the next obligation

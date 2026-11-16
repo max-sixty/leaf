@@ -468,10 +468,9 @@ def send_comment(
     text: str,
     profile: AgentProfile,
     clock: str | None,
-    passage: str | None = None,
 ) -> dict:
     """Write `text` (`write_comment`), send it, and return the admitted comment."""
-    box = write_comment(session, text, passage)
+    box = write_comment(session, text)
     return send_written(session, box, text, profile, clock)
 
 
@@ -597,8 +596,7 @@ def open_news(page: Page, thread: str) -> None:
     does: in the floating panel's view of the thread or on its card at its passage.
     The page times what it then shows, so when this runs changes no reading."""
     news = page.locator(
-        f':is(.lf-thread[data-id="{thread}"],'
-        f' [data-lf-thread-view][data-lf-thread="{thread}"])'
+        f':is(.lf-page-thread, [data-lf-thread-view])[data-lf-thread="{thread}"]'
         " .lf-thread-news"
     )
     if news.count() and news.first.is_visible():
@@ -653,9 +651,11 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     ends (`User.sample`).
 
     The page check finds the release's short hash in the authored board markup:
-    where on the board the agent records it is the agent's call.
+    where on the board the agent records it is the agent's call. The hash is git's
+    seven characters, the length an agent abbreviates a longer one to, so a copy of
+    the asked hash and its own short form of it both contain it.
     """
-    marker = version[:8]
+    marker = version[:7]
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
@@ -1265,7 +1265,7 @@ class BrowserEnd:
                 f"with its status reading ‘{status}’",
             )
             # `inner_text` applies the theme's text-transform, so a release recorded in
-            # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
+            # an uppercase eyebrow or panel heading reads `35B3657`. Compare ignoring case.
             # The page is body less Leaf's own elements (passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"

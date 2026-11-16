@@ -87,10 +87,12 @@
  *   editor covers its words, as at any box (composing/input.js), and the empty field
  *   says the newest one about nothing in its status's place and the danger's ink,
  *   until the user's first edit. An error the field has passed or no box stands for
- *   waits in the leaf's menu, under Errors, with a dot on the leaf until the user
- *   opens the list (`errorsList`). The user chose this on 17
- *   October over errors riding the passing notice, which faded after four seconds and
- *   went unsaid while the user wrote. A draft takes precedence over passing notices,
+ *   waits in the leaf's menu, under Errors, with a dot on the leaf and on Errors until
+ *   the user opens the list (`errorsList`), where each copies with its context. The
+ *   user chose this on 17 October over errors riding the passing notice, which faded
+ *   after four seconds and went unsaid while the user wrote. On 15 November 2026 they
+ *   asked for Errors to show in red that it is what the leaf's dot marks, which its
+ *   count in the accent's ink had left unclear. A draft takes precedence over passing notices,
  *   which still reach the live region. A selected passage is named by the field's
  *   mode chip when a draft hides its placeholder. No transient message adds a row.
  *   The keys that send are Send's hover name, where Return sends with
@@ -215,6 +217,7 @@
  * behind the box widening around it; it replaced revealing everything a change moved
  * by the surface's clip, which hid each part that moved until the clip reached it. */
 import {
+  guard,
   html,
   noChange,
   keyed as keyedBy,
@@ -268,8 +271,11 @@ import {
 import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
 import {
   anchorLabel,
+  draftPreview,
+  draftWords,
   messageReading,
   messageText,
+  PREVIEWED_LINE,
   threadHeading,
   threadName,
   threadPassage,
@@ -278,15 +284,17 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { inPageOrder } from "./thread/placement.js";
+import { inPageOrder, threadPlace } from "./thread/placement.js";
+import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
-  draftHasContent,
+  draftAnchor,
+  draftSends,
+  draftsReading,
   loadDraft,
   mirrorDraft,
   saveDraft,
-  replyContext,
   sendMessage,
   tellDraft,
 } from "./drafts.js";
@@ -377,7 +385,7 @@ import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
-import { renderedUnder, under } from "./shadow.js";
+import { byRenderedOrder, renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import {
@@ -494,7 +502,8 @@ customElements.define("leaf-floating-panel", FloatingPanel);
  * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
  * openThreadSubject: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openThreadSubject"],
  * showsOnPage: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["showsOnPage"],
- * annotationsHidden: () => boolean}} FloatingPanelOptions */
+ * annotationsHidden: () => boolean,
+ * resumeDraft: ReturnType<typeof import("./drafts.js").createWritingResume>["resumeDraft"]}} FloatingPanelOptions */
 /** @param {FloatingPanelOptions} dependencies */
 export function createFloatingPanel({
   wireInput,
@@ -510,6 +519,7 @@ export function createFloatingPanel({
   openThreadSubject,
   showsOnPage,
   annotationsHidden,
+  resumeDraft,
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
@@ -633,6 +643,16 @@ export function createFloatingPanel({
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
+  // While a row's press runs its command (`putAwayThen`), the row's posture keeps what
+  // it shows, and the press draws it once it has finished. The posture is what stands
+  // around the field's occupant and follows it, which no command reads or focuses:
+  // `paintNow` writes it through `posture` and `panelTemplate` draws it through `marks`.
+  // Which editor or search stands in the field stays live, since the command may open
+  // and focus it. Of the posture, `data-lf-offers` decides whether the field or a
+  // seated comment box stands in the row (floating-panel.css), so a command that put
+  // the caret in the page's field before returning would find the field hidden there;
+  // none does today.
+  let rowPress = false;
   // One template owns the panel's shell, views and editor placement. Its detached first
   // drawing establishes the retained nodes that setup wires below. The peek must follow
   // the leaf in the tree so it can anchor to it.
@@ -641,6 +661,9 @@ export function createFloatingPanel({
   // nothing beside it. The corner mark presses the fold command's row, as the menu
   // does, so its press is announced and logged like the key's.
   function panelTemplate(initial = false) {
+    // The row's posture, which a row's press holds (`rowPress`).
+    /** @param {unknown} drawn */
+    const marks = (drawn) => (rowPress ? noChange : drawn);
     const top = initial ? null : (trail.value.at(-1) ?? null);
     const search = initial ? null : activeSearch();
     const searchMode = initial ? "" : searchModeOf(search);
@@ -656,15 +679,7 @@ export function createFloatingPanel({
     const statusModel = initial ? { summary: "Connecting…", tone: "" } : status();
     const onUser = initial ? 0 : onUserCount();
     const news = initial ? 0 : newCount();
-    const sayingNow =
-      initial || noticePressing(input)
-        ? new Set()
-        : new Set(sayable().map((error) => error.id));
-    const unseen =
-      !initial &&
-      errorsReading().some(
-        (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
-      );
+    const unseen = !initial && errorsWaiting(input);
     const exit = initial ? null : fieldExit(search, top, input, reading);
     // A view's Close ends the line its presses stand on: a list's tabs at its foot, or
     // the head line, where a thread's presses stand and every other view's name. A
@@ -673,11 +688,13 @@ export function createFloatingPanel({
     // it keeps its room, so the search press beside it stays under the pointer.
     const closeAtFoot = Boolean(top && viewOf(top).controls);
     // Page search's way out is its stance's, which the repaint frame reads after the
-    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows
-    // rather than stepping aside, which, opened from the menu, would hide it again in
-    // the task that put the menu away and showed it.
+    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows,
+    // rather than stepping aside for that paint and coming back with the way out.
     const quickHidden =
       initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
+    // Drafts are marked only where nothing has news, so the dot stays news's mark, and
+    // only while the mark or the folded leaf shows, so writing never reads them.
+    const kept = news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -688,7 +705,11 @@ export function createFloatingPanel({
       : selection
         ? "Selection"
         : nothing;
-    const newsName = news ? `${counted(news, "thread")} with news` : "";
+    const newsName = news
+      ? `${counted(news, "thread")} with news`
+      : kept
+        ? `${counted(kept, "draft")} unsent`
+        : "";
     const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
       .filter(Boolean)
       .join(", ");
@@ -711,7 +732,11 @@ export function createFloatingPanel({
         exit
           ? nothing
           : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
+              ><span
+                class="lf-fp-news lf-unread-dot"
+                ?hidden=${!news && !kept}
+                ?data-lf-drafts=${!news}
+              ></span>`
       }
     </button>`;
     const viewClose = html`<button
@@ -793,19 +818,25 @@ export function createFloatingPanel({
               .lfPreview=${leafPreview}
               @click=${pressLeaf}
             >
-              <span
-                class="lf-fp-error-dot"
-                aria-hidden="true"
-                ?data-lf-shown=${unseen}
-              ></span>
-              <span class="lf-fp-badge" aria-hidden="true" ?data-lf-shown=${onUser > 0}
-                >${onUser || ""}</span
-              >
-              <span
-                class="lf-fp-news-dot lf-unread-dot"
-                aria-hidden="true"
-                ?data-lf-shown=${news > 0}
-              ></span>
+              ${marks(
+                html`<span
+                    class="lf-fp-error-dot"
+                    aria-hidden="true"
+                    ?data-lf-shown=${unseen}
+                  ></span>
+                  <span
+                    class="lf-fp-badge"
+                    aria-hidden="true"
+                    ?data-lf-shown=${onUser > 0}
+                    >${onUser || ""}</span
+                  >
+                  <span
+                    class="lf-fp-news-dot lf-unread-dot"
+                    aria-hidden="true"
+                    ?data-lf-shown=${news > 0 || kept > 0}
+                    ?data-lf-drafts=${!news}
+                  ></span>`,
+              )}
             </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
@@ -853,7 +884,7 @@ export function createFloatingPanel({
             <div class="lf-fp-row-notice" ?hidden=${!notice}>
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
-            <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
+            ${marks(html`<div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>`)}
           </div>
         </div>
       </div>
@@ -1144,6 +1175,17 @@ export function createFloatingPanel({
   /** @param {Element | null} input */
   function noticePressing(input) {
     return Boolean(passing().press) && input !== focused();
+  }
+  // Whether an error waits unseen in the menu's Errors list: one the user hasn't opened
+  // the list on, which neither the field says now nor stands at its own box. The leaf
+  // and the Errors row wear the same dot for it, so the row a press on the dotted
+  // leaf opens to is the one dotted there.
+  /** @param {Element | null} input */
+  function errorsWaiting(input) {
+    const saying = noticePressing(input) ? [] : sayable();
+    return errorsReading().some(
+      (error) => !error.seen && !saying.includes(error) && !standsAtItsBox(error),
+    );
   }
   // The page field's readings whose words say something other than a press there, so
   // its end says the press: the status, a passing notice, and the words selected on the
@@ -1533,19 +1575,26 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
+  // The drafts Threads lists (`draftsListing`): every message draft but the page's own,
+  // which the field holds.
+  const listedDrafts = () => draftsReading().filter((draft) => draft.part !== "page");
+  // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
+  // grey for these, and the mark opens Threads on them. The user asked for it on 15
+  // November 2026, so a draft put away stays in sight without opening Threads.
+  const keptDrafts = () => listedDrafts().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
   // the On Me mark's dot counts it: the user chose (2026-10-25) that a resolved
-  // thread's unread reply says nothing new. Rows name attention and drafts, and a
-  // resolved thread says so with how long ago, as a Done line says its outcome and age.
+  // thread's unread reply says nothing new. Rows name attention, and a resolved thread
+  // says so with how long ago, as a Done line says its outcome and age. A reply the user
+  // is writing stands under Drafts (`draftsListing`).
   /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
   const threadStatus = (thread) => {
     const word = thread.resolved
       ? RESOLVED
       : threadAttention(thread, agentName())?.word;
-    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}`;
   };
   const rows = () => pageControls();
 
@@ -1598,7 +1647,10 @@ export function createFloatingPanel({
       quiet: () => true,
       draw: () => threadsView(),
       controls: () => threadsControls(),
-      rows: ".lf-fp-thread, .lf-fp-settled",
+      rows: ".lf-fp-draft, .lf-fp-thread, .lf-fp-settled",
+      // It opens on its first thread, so Enter there opens a conversation whether or
+      // not Drafts stands over it.
+      at: ".lf-fp-thread",
       keys: [
         {
           id: "panel.floating.threads.find",
@@ -1730,6 +1782,7 @@ export function createFloatingPanel({
    *     node: Element, at: number, height: number, holds: number, keep: () => void,
    *   } | null,
    *   drawnSections: Map<string, string> | null,
+   *   drawnDrafts: Set<string> | null,
    *   onPageSeat: boolean,
    *   openItem: string | null,
    *   seatHeights: Map<string, number>,
@@ -1745,6 +1798,7 @@ export function createFloatingPanel({
     rewriting: false,
     pressed: null,
     drawnSections: null,
+    drawnDrafts: null,
     onPageSeat: false,
     openItem: null,
     seatHeights: new Map(),
@@ -1886,13 +1940,26 @@ export function createFloatingPanel({
   // before its command runs, so the pressed row going takes no one's focus to the body:
   // a layer the command opens records the leaf as where its close returns (focus.js,
   // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
-  // places the user elsewhere still does.
+  // places the user elsewhere still does. The command runs on the panel the put-away
+  // drew, and may then open a view or fold the panel, as `z` showing a thread does. The
+  // row's posture (`rowPress`) waits for the command to return, so it is written once,
+  // from where the press found the panel to where the command leaves it, rather than for
+  // the empty row in between as well; a view the command opens after an `await` changes
+  // it again. Rejected: drawing the put-away only with the command's own change, which
+  // ran the command with the view still drawn, and Align from the menu then left the
+  // page where it was.
   /** @param {() => unknown} run */
   function putAwayThen(run) {
     const inside = currentLocationIn(host);
-    close();
-    if (inside) focusDestination(leaf, "return");
-    run();
+    rowPress = true;
+    try {
+      close();
+      if (inside) focusDestination(leaf, "return");
+      run();
+    } finally {
+      rowPress = false;
+      paint();
+    }
   }
 
   // ---------- motion: everything follows the box ----------
@@ -2019,9 +2086,13 @@ export function createFloatingPanel({
   // holding its height while the user waited (#2892), which left a short thread's
   // answer behind New reply in a view one message tall. Rejected then and now: holding
   // the answer behind the reader's "1 new reply", which left the reply the user waited
-  // for unseen. Other news in an open thread is still held. A thread's view declares
-  // that it stands on its foot (`data-lf-rises`), which the shift watch credits for
-  // exactly this growth (tests/shift_watch.js, `appendGrowth`).
+  // for unseen. The growth carries Resolve and a message's pencil from under a pointer
+  // resting on one, which the user called secondary and let move on 14 November 2026
+  // (`browser/AGENTS.md`); a hold built for that pointer, which kept the answer behind
+  // the notice while it rested on a control, also held replies that would have moved
+  // nothing and missed a pointer on Copy. Other news in an open thread is still held.
+  // A thread's view declares that it stands on its foot (`data-lf-rises`), which the
+  // shift watch credits for exactly this growth (tests/shift_watch.js, `appendGrowth`).
   // Whether this opening of a thread has shown Show on page (`onPageSeat`), whose seat
   // then stands while the view does, so a revision detaching the thread moves nothing
   // beside it.
@@ -2271,8 +2342,9 @@ export function createFloatingPanel({
   // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
   // Each row standing Threads draws, by its thread's key, with its section
-  // (`drawnSections`); null while no list stands, so the next paint draws every row
-  // where it now belongs (`threadsListing`).
+  // (`drawnSections`), and each draft's row by its key (`drawnDrafts`); null while no
+  // list stands, so the next paint draws every row where it now belongs
+  // (`threadsListing`, `draftsListing`).
   // The keys of the rows a notice's press lands on, while its paint draws them
   // (`showJoined`).
   /** @type {Set<string> | null} */
@@ -2283,6 +2355,7 @@ export function createFloatingPanel({
   function refit() {
     opening.room = null;
     opening.drawnSections = null;
+    opening.drawnDrafts = null;
     viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
     refitting = true;
@@ -2370,6 +2443,11 @@ export function createFloatingPanel({
     // Enter went nowhere seen. A list that declares a row it opens at, such as the
     // version the page shows in Versions, brings that row into view by either route, and
     // a key lands on it, as the user reopening the list from there expects to see it.
+    // A fold's heading (`settledHeading`) is a row the arrows reach and never a landing:
+    // a list holding only what was put away holds focus itself, with no ring
+    // (floating-panel.css, `.lf-fp-view:focus`), and ↓ enters the fold. The user asked
+    // for that on 15 November 2026, after `r` on the last open thread returned them to
+    // Threads with the ring on Resolved, which read as Resolved chosen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2388,11 +2466,10 @@ export function createFloatingPanel({
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
     const declared = viewOf(route).at;
     const at = declared ? view?.querySelector(declared) : null;
-    const target =
-      stoodRow ||
-      (pressLed()
-        ? view
-        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
+    const first =
+      rows.find((row) => !row.matches(".lf-fp-settled")) ??
+      (rows.length ? null : view?.querySelector("button, input"));
+    const target = stoodRow || (pressLed() ? view : (at ?? first ?? view));
     // The row of the thread the user was in takes them back where they came from.
     if (target) focusDestination(target, target === stoodRow ? "return" : "move");
     if (at) scrollIntoView(at, { block: "nearest", within: view });
@@ -2433,6 +2510,24 @@ export function createFloatingPanel({
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
+  // The row that opens the Errors list, which the menu and its search both offer. It
+  // wears the leaf's error dot beside its name while an error waits unseen in the list
+  // (`errorsWaiting`), so a press on the dotted leaf finds the dotted row.
+  /** @param {readonly import("./errors.js").RaisedError[]} errors @param {boolean} [gone] */
+  const errorsRow = (errors, gone = false) =>
+    menuItem(
+      html`Errors<span
+          class="lf-fp-error-dot"
+          aria-hidden="true"
+          ?data-lf-shown=${errorsWaiting(fieldInput())}
+        ></span>`,
+      html`<span class="lf-fp-value">${errors.length}</span>`,
+      () => {
+        open({ view: "errors", errors });
+        seeErrors();
+      },
+      { opens: true, disabled: gone, row: "errors" },
+    );
   // A row's end says its value in words, then its shortcut where a keyboard is there to
   // press it, each press a key as the command reference draws it, so the two never read
   // as one run of text.
@@ -2488,9 +2583,7 @@ export function createFloatingPanel({
     return copy;
   }
   // A row leading to a list of the panel's own opens that list over the menu, whose way
-  // back returns there. Folding takes the menu away with the rest of the panel, as its
-  // key does (`setRest`), so the panel is drawn once, folded, rather than first open
-  // and then folded. Any other row runs its command.
+  // back returns there; any other row runs its command.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
   function rowFor(entry) {
     if (entry.copies) return copyItem(entry);
@@ -2500,7 +2593,6 @@ export function createFloatingPanel({
       rowEnd(entry),
       () => {
         if (route) open(route);
-        else if (entry.key === `command:${FOLD}`) entry.press?.(null);
         else putAwayThen(() => entry.press?.(heldCurrentLocation));
       },
       {
@@ -2508,7 +2600,6 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         row: entry.key,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
-        title: entry.title || null,
       },
     );
   }
@@ -2548,19 +2639,7 @@ export function createFloatingPanel({
     );
     /** @param {unknown} word */
     const kind = (word) => html`<span class="lf-fp-value">${word}</span>`;
-    return html`${
-        errors.length
-          ? menuItem(
-              "Errors",
-              kind(errors.length),
-              () => {
-                open({ view: "errors", errors });
-                seeErrors();
-              },
-              { opens: true, row: "errors" },
-            )
-          : nothing
-      }${lists.map((group) =>
+    return html`${errors.length ? errorsRow(errors) : nothing}${lists.map((group) =>
         menuItem(group.label, nothing, () => open({ view: "group", group }), {
           opens: true,
           row: `group:${group.name}`,
@@ -2652,21 +2731,7 @@ export function createFloatingPanel({
         ? [
             {
               key: "errors",
-              draw: (/** @type {boolean} */ gone) =>
-                menuItem(
-                  "Errors",
-                  html`<span class="lf-fp-value">${errors.length}</span>`,
-                  () => {
-                    open({ view: "errors", errors });
-                    seeErrors();
-                  },
-                  {
-                    opens: true,
-                    urgent: errors.some((error) => !error.seen),
-                    disabled: gone,
-                    row: "errors",
-                  },
-                ),
+              draw: (/** @type {boolean} */ gone) => errorsRow(errors, gone),
             },
           ]
         : []),
@@ -2786,8 +2851,27 @@ export function createFloatingPanel({
     `;
   }
 
+  // What a copied error says, for whoever the user hands it to, a person or an agent:
+  // the error, when, on which revision and from which stack it was raised (errors.js),
+  // then what About this page copies to say which page, Leaf and agent session the page
+  // runs as it is pressed (page-about.js). The page's link stays out, since it grants
+  // access to every page on this machine.
+  /** @param {import("./errors.js").RaisedError} error */
+  const errorReport = (error) =>
+    [
+      [
+        `Leaf error: ${error.message}`,
+        `raised: ${new Date(error.at).toISOString()}`,
+        ...(error.revision === null ? [] : [`revision: ${error.revision}`]),
+        error.stack,
+      ].join("\n"),
+      ...pageControls()
+        .filter((entry) => entry.group === "about" && entry.copies)
+        .map((entry) => entry.copies),
+    ].join("\n\n");
   // The errors the user has met, newest first, each saying what failed and when, with
-  // a press that dismisses it, whose name carries both, since a list's keys reach only
+  // a press that copies it with its context (`errorReport`), where the browser can copy,
+  // and one that dismisses it, whose names carry both, since a list's keys reach only
   // its presses. The list keeps the reading it opened with: new errors wait behind the
   // leaf's dot until reopening. An error whose cause ends
   // clears its words but keeps its space, so the next control stays under the reader.
@@ -2813,7 +2897,7 @@ export function createFloatingPanel({
       if (target) focusDestination(target, "move");
     };
     // An error clearing itself also hands focus off before its control disappears.
-    const currentLocation = focused()?.closest(".lf-fp-error");
+    const currentLocation = focused(document)?.closest(".lf-fp-error");
     const currentLocationId = Number(currentLocation?.getAttribute("data-lf-key"));
     if (currentLocation && !live.has(currentLocationId)) movePast(currentLocationId);
     // The user moves on before the list repaints, so its roving stop lands once.
@@ -2844,6 +2928,26 @@ export function createFloatingPanel({
           <p class="lf-fp-error-words" aria-hidden="true">
             <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
+          ${
+            canCopy()
+              ? guard([error.id], () => {
+                  const copy = copyControl("lf-fp-error-copy", {
+                    label: `Copy with page details: ${error.message}, ${clock(error.at)}`,
+                    success: "Error copied",
+                    error: "Error not copied",
+                    role: "symbol",
+                  });
+                  copy.addEventListener(
+                    "click",
+                    () => {
+                      copy.value = errorReport(error);
+                    },
+                    { capture: true },
+                  );
+                  return copy;
+                })
+              : nothing
+          }
           <button
             type="button"
             ${offeredAction("word", "lf-fp-dismiss")}
@@ -2865,8 +2969,7 @@ export function createFloatingPanel({
   // The rows read in the page's order, the one the `t` walk steps through
   // (thread/placement.js), so each thread stands among its passage's neighbours: the
   // open threads, then the resolved ones folded under Resolved (`settledHeading`), as
-  // what left On Me stands under Done, each unread row marked and a drafted one saying
-  // Draft. The user chose this on 25
+  // what left On Me stands under Done, each unread row marked. The user chose this on 25
   // October, with Threads becoming the On view's tab, over Open, Unread, Drafts and
   // Resolved filters, which a second row of tabs would have had to hold. A search reads
   // every thread's name, its messages and summaries as they read, and the words it is
@@ -2929,12 +3032,15 @@ export function createFloatingPanel({
   }
   // After a paint: what the standing list drew, which the next paint holds to.
   function noteDrawnSections() {
-    opening.drawnSections =
-      showing({ view: "threads" }) && inventoried()
-        ? new Map(
-            threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
-          )
-        : null;
+    const stands = showing({ view: "threads" }) && inventoried();
+    opening.drawnSections = stands
+      ? new Map(
+          threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
+        )
+      : null;
+    opening.drawnDrafts = stands
+      ? new Set(draftsListing().rows.map(({ key }) => key))
+      : null;
   }
   // What the notice says, a fact for each way a row joined.
   /** @param {ReturnType<typeof threadsListing>["joined"]} joined */
@@ -2961,15 +3067,24 @@ export function createFloatingPanel({
   // in the field, leaves focus where it is.
   function showJoined() {
     const { joined } = threadsListing();
-    const keys = new Set(joined.map(({ thread }) => thread.key));
+    const drafts = draftsListing().joined;
+    const keys = new Set([
+      ...drafts.map(({ key }) => key),
+      ...joined.map(({ thread }) => thread.key),
+    ]);
     const carried = focused() === joinedNotice.node || inList();
     // Where only resolved threads joined, the row it lands on stands under Resolved,
     // which unfolds to show it (`settledHeading`).
-    if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+    if (
+      !drafts.length &&
+      joined.every(({ now }) => now === "resolved") &&
+      !unfolded.has("resolved")
+    ) {
       unfolded.add("resolved");
       refit();
     }
     opening.drawnSections = null;
+    opening.drawnDrafts = null;
     // The paint stands the list's walk on the row it lands on: a rove after it would
     // take back the stop the paint first gave another row, a write that changes nothing.
     landingKeys = keys;
@@ -2988,10 +3103,14 @@ export function createFloatingPanel({
   function joinedTemplate() {
     if (!showing({ view: "threads" })) return nothing;
     const { joined } = threadsListing();
-    const facts = joinedFacts(joined);
+    const drafts = draftsListing().joined.length;
+    const facts = [
+      ...(drafts ? [counted(drafts, "new draft")] : []),
+      ...joinedFacts(joined),
+    ];
     if (!facts.length) return nothing;
     joinedNotice.set({
-      text: newsCount(joined.length),
+      text: newsCount(joined.length + drafts),
       label: facts.join(" · "),
       open: showJoined,
     });
@@ -3029,8 +3148,87 @@ export function createFloatingPanel({
       </button>
     </h3>`;
   }
+  // Every message the user has started and not sent stands under Drafts, over the
+  // threads, but the page's own, which the field under the list holds. A draft stays
+  // with what it is about (drafts.js, `draftSubject`), so this is where the user finds
+  // one whose box is out of sight, and a press resumes it in that box: its passage's
+  // comment box, or its thread's reply or rewrite. A row reads the draft's words, then
+  // what it is about, dim, as a menu row's note: the passage or element a comment is
+  // on, or the thread a reply or rewrite is in. Its end says what Send makes of it, and
+  // its preview reads both whole. The rows read in the page's order, each where the
+  // thread it starts or joins stands, and a search reads their subjects and words.
+  // The list reads the drafts list (drafts.js, `draftsReading`), which repaints it when
+  // a draft starts or stops holding words, not per keystroke. While the list stands, a
+  // draft that joins it, as one another tab writes or a refusal hands back, waits
+  // behind the notice that holds new threads (`joinedTemplate`), and its press draws
+  // it. The user asked for Drafts on 15 November 2026, in place of unsent words
+  // following the next Comment to another target, and for its rows to hold still as
+  // Threads' do; Drafts as a filter was rejected on 25 October with the other filters,
+  // which a second row of tabs would have had to hold.
+  function draftsListing() {
+    const words = query.trim().toLowerCase();
+    const rows = listedDrafts().map((draft) => {
+      const inThread = draft.part === "reply" || draft.part === "rewrite";
+      const thread = inThread ? threadByKey(draft.name) : null;
+      const composed =
+        draft.part === "comment" && isComposerDraft(draft.payload)
+          ? draft.payload
+          : null;
+      const anchor = draftAnchor(draft);
+      return {
+        context: draft.context,
+        // A row's key among Threads' rows, which hold focus and land a notice's press
+        // by it, apart from any thread's.
+        key: `draft:${draft.context}`,
+        // A reply or rewrite whose thread the log no longer holds, as an undo takes
+        // one back, says so in Leaf's voice; a press moves its words to the page.
+        gone: inThread && !thread,
+        about: thread
+          ? threadName(thread)
+          : inThread
+            ? "Thread gone"
+            : anchorLabel(anchor, composed?.about) || "The page",
+        kind: draftSends(draft),
+        said: draftWords(draft),
+        listed: draft,
+        place: thread ?? { id: "", anchor },
+      };
+    });
+    const listed = byRenderedOrder(
+      words
+        ? rows.filter((row) => `${row.about} ${row.said}`.toLowerCase().includes(words))
+        : rows,
+      (row) => threadPlace(row.place, placedAt),
+    );
+    const drawn = opening.drawnDrafts;
+    return {
+      rows: drawn ? listed.filter(({ key }) => drawn.has(key)) : listed,
+      joined: drawn ? listed.filter(({ key }) => !drawn.has(key)) : [],
+    };
+  }
+  /** @param {ReturnType<typeof draftsListing>["rows"][number]} draft */
+  const draftRow = (draft) =>
+    html`<button
+      type="button"
+      ${offeredAction("row", "lf-fp-draft")}
+      data-lf-key=${draft.key}
+      data-lf-draft=${draft.context}
+      .lfPreview=${() =>
+        draftPreview([draft.listed], excerptWords(draft.about, PREVIEWED_LINE))}
+      @click=${() => putAwayThen(() => resumeDraft(draft.context))}
+    >
+      <span class="lf-row-lead"></span>
+      <span class="lf-fp-label lf-row-main"
+        >${draft.said}
+        <span class="lf-fp-note"
+          >${draft.gone ? voiced(leafSays(draft.about)) : draft.about}</span
+        ></span
+      >
+      <span class="lf-row-end">${draft.kind}</span>
+    </button>`;
   function threadsView() {
     const { rows, searched } = threadsListing();
+    const drafts = draftsListing().rows;
     const listed = rows
       .filter(({ section }) => section !== "resolved")
       .map(({ thread }) => thread);
@@ -3087,8 +3285,13 @@ export function createFloatingPanel({
       },
     ].filter((group) => group.items.length);
     return html`<div class="lf-fp-list lf-rows">
+      ${bandedGroups(
+        drafts.length ? [{ key: "drafts", title: "Drafts", items: drafts }] : [],
+        (draft) => draft.context,
+        draftRow,
+      )}
       ${
-        listed.length || !inventoried()
+        listed.length || (searched && drafts.length) || !inventoried()
           ? nothing
           : html`<p class="lf-rows-empty">
               ${searched ? "Nothing matches." : `${NO_OPEN_THREADS}. Comment below to start one.`}
@@ -3184,7 +3387,9 @@ export function createFloatingPanel({
     const top = trail.value.at(-1);
     if (top) viewOf(top).nominate?.(top, collection, parts);
   }
-  // On draws each question asked in words as its message, in its card's outlet.
+  // On draws each message its cards ask in, in the card's outlet, aside from the
+  // conversation: a thread the page shows keeps the message's widgets (messages.js,
+  // `HOLDS`).
   /** @param {import("./thread/primary-reader.js").PrimaryCollection} collection @param {import("./thread/primary-reader.js").NominationParts} parts */
   function nominateAsked(collection, parts) {
     /** @type {NodeListOf<HTMLElement>} */
@@ -3392,10 +3597,11 @@ export function createFloatingPanel({
     else open({ view: "queue" });
   }
   // The mark opens On Me, or Threads where nothing waits on the user but a reply they
-  // have not read, as the Threads mark it replaced opened on its Unread filter. It
-  // stands only while no view does, so it never closes one; the seat's ✕ does that.
+  // have not read or a draft they put away, as the Threads mark it replaced opened on
+  // its Unread filter. It stands only while no view does, so it never closes one; the
+  // seat's ✕ does that.
   function pressMark() {
-    if (!onUserCount() && newCount()) {
+    if (!onUserCount() && (newCount() || keptDrafts())) {
       query = "";
       refit();
       open({ view: "threads" });
@@ -3695,13 +3901,21 @@ export function createFloatingPanel({
   // while it is the open item. `says` names what the group's heading already says of
   // it, which the card leaves out where that is its `place`; `leads` whether it is the
   // first item of the walk's stop it stands at, which alone wears the walk's ring.
+  // `drawing` collects the ids of the messages this paint's cards have drawn so far,
+  // so a later card doesn't draw one again (`nominateAsked`).
   /** @param {PanelQueueItem} item @param {PanelQueueList} list
    * @param {{card?: boolean, says?: "place" | "kind" | null, leads?: boolean,
-   * also?: readonly string[] | undefined}} [options] */
+   * also?: readonly string[] | undefined, drawing?: Set<string>}} [options] */
   function onItemCard(
     item,
     list,
-    { card = false, says = null, leads = true, also = item.also } = {},
+    {
+      card = false,
+      says = null,
+      leads = true,
+      also = item.also,
+      drawing = new Set(),
+    } = {},
   ) {
     const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
@@ -3716,18 +3930,46 @@ export function createFloatingPanel({
       inWords && thread
         ? thread.msgs.find((candidate) => candidate.id === record.message)
         : null;
-    const message =
-      asking && thread && presentation?.primary !== false
-        ? { thread, reading: asking }
+    // A widget in an agent's message, such as a choice asked in a thread, is in the
+    // document only while a drawing of that message holds it (thread/messages.js,
+    // `HOLDS`). So its card draws the message too, aside from the conversation. Where
+    // nothing else shows the message, the widget stands in the card: focused, the card
+    // shows the options' digits, and a pick is the same action a pick in the thread
+    // records. Where the page shows the message, as a thread open beside its passage
+    // does, the widget stays there, and the card answers it with its choices
+    // (`choicesOf`), as a page choice's card does. Which drawing holds the widget can
+    // change while the card stands, as a margin card opens or closes, so the card draws
+    // its choices wherever the widget stands, and they give way to the widget while the
+    // card's own drawing of the message holds it (floating-panel.css, `data-lf-holds`). Until 15 November 2026 the card showed
+    // only the widget's words, and while the thread wasn't drawn it offered no options
+    // and took no digits. A view draws a message once, so where it holds several such
+    // widgets the first card draws it and the others answer through their choices. A
+    // line opened into its card keeps the name it has folded. A record's obligation
+    // (`source.unit`), one of many that a widget such as a review asks, draws no
+    // message, since its card is about the one record.
+    const holding =
+      record?.source.kind === "widget" && !record.source.unit && thread
+        ? (thread.msgs.find((candidate) => candidate.id === record.message) ?? null)
         : null;
-    const title = message
-      ? (message.thread.title ??
-        (message.thread.root.id === message.reading.id
-          ? ""
-          : threadName(message.thread)))
-      : asking && thread
-        ? threadName(thread)
-        : queueTitle(item);
+    const key = queueItemKey(item);
+    const opened = opening.openItem === key;
+    const reader = presentation?.primary !== false;
+    const message =
+      asking && thread && reader
+        ? { thread, reading: asking }
+        : holding && thread && reader && (card || opened) && !drawing.has(holding.id)
+          ? { thread, reading: holding }
+          : null;
+    if (message && (card || opened)) drawing.add(message.reading.id);
+    const title =
+      message && (asking || card)
+        ? (message.thread.title ??
+          (message.thread.root.id === message.reading.id
+            ? ""
+            : threadName(message.thread)))
+        : asking && thread
+          ? threadName(thread)
+          : queueTitle(item);
     const said = message
       ? ""
       : asking
@@ -3757,7 +3999,7 @@ export function createFloatingPanel({
       thread && title === threadName(thread) ? threadHeading(thread) : title;
     const answered = record && record.status !== "open";
     const choices =
-      record && !answered && record.source.kind === "widget" && !inWords
+      record && !answered && record.source.kind === "widget"
         ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
@@ -3779,17 +4021,12 @@ export function createFloatingPanel({
     // stood far from the question it shows. The arrival may open a thread in this
     // panel; keep its current route until the destination decides, then close only for
     // page travel.
-    // A card drawing the message it asks (`message`) holds that message's drawing ahead
-    // of the page's (thread/messages.js, `authoredRank`), so an arrival with On Me
-    // standing landed in this card, and the user fell to the page as it closed. Where
-    // the thread stands on the page, On Me goes first and the arrival lands in its card.
     const show = arrivesAt(item)
       ? html`<button
           type="button"
           ${offeredAction("symbol", "lf-fp-show", undefined, { action: "show" })}
           @click=${() => {
             const route = trail.value.at(-1);
-            if (message && placedAt(message.thread.id)?.place) close();
             void queueActions.open(queueItemKey(item)).then((arrived) => {
               if (arrived && trail.value.at(-1) === route) close();
             });
@@ -3902,8 +4139,6 @@ export function createFloatingPanel({
         Reply
       </button>`;
     } else answers = nothing;
-    const key = queueItemKey(item);
-    const opened = opening.openItem === key;
     const stop = queueStop(item);
     const mine = item.owner === "user";
     // A line says what its item is: what waits on the user in the walk's word for it,
@@ -3957,6 +4192,7 @@ export function createFloatingPanel({
           presentation?.primary !== false
             ? html`<div
                 class="lf-fp-asked lf-fp-outlet"
+                data-lf-carried
                 data-lf-thread=${where.key}
                 data-lf-message=${asked.key}
               ></div>`
@@ -4142,6 +4378,8 @@ export function createFloatingPanel({
     ];
     seated = items;
     const seatedKeys = new Set(items.map(queueItemKey));
+    /** @type {Set<string>} */
+    const drawing = new Set();
     /** @param {PanelQueueItem} item @returns {PanelQueueList} */
     const listOf = (item) =>
       lists.you.some((current) => current === item)
@@ -4189,12 +4427,13 @@ export function createFloatingPanel({
         ],
         (item, group) =>
           !("leads" in group)
-            ? onItemCard(item, "done")
+            ? onItemCard(item, "done", { drawing })
             : onItemCard(item, listOf(item), {
                 card: true,
                 says,
                 leads: group.leads.has(item),
                 also: carrying.get(queueItemKey(item)),
+                drawing,
               }),
       ),
     )}`;
@@ -4705,30 +4944,35 @@ export function createFloatingPanel({
     if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
     if (input) syncInput(input);
+    // The row's posture, which a row's press holds (`rowPress`).
+    /** @param {string} name @param {string | null} value */
+    const posture = (name, value) => {
+      if (!rowPress) keeps(host, name, value);
+    };
     // The caret this paint puts in the page's field starts the writing posture in the
     // same paint, so the row draws it once rather than stepping out of it and back
     // when the field takes focus (`onCurrentLocation`).
     const caretLands = caretToField && !replying && !search;
     if (caretLands) writing = true;
-    keeps(host, "data-lf-writing", writing ? "" : null);
+    posture("data-lf-writing", writing ? "" : null);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat (`quickHidden`).
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-lf-drafted", drafted ? "" : null);
+    posture("data-lf-drafted", drafted ? "" : null);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-lf-expanded", expanded ? "" : null);
     const reading = fieldReading(top?.thread ?? null, input);
     // Only the page field competes with the seated annotation composer. An open
     // view already keeps that seat out, regardless of what its reply field says.
-    keeps(host, "data-lf-offers", !top && !search && reading.offers ? "" : null);
+    posture("data-lf-offers", !top && !search && reading.offers ? "" : null);
     // A press standing at the field's end at rest keeps the row's notice aside, as the
     // user's words do, so a notice coming or going on news never moves it from under
     // the user's aim (floating-panel.css).
     const presses = !search && Boolean(reading.offer) && input !== focused() && !words;
-    keeps(host, "data-lf-presses", presses ? "" : null);
+    posture("data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
     // Each moment the leaf answers has a beat of its own (notifications.js), so it plays
@@ -5326,6 +5570,9 @@ export function createFloatingPanel({
       // The view makes room for the agent's answer to the user's last turn itself
       // (the growth under **Opened**), so the reader hands it over at once.
       answersAtOnce: true,
+      // The view's only message parts are On Me's cards, which stand aside from
+      // the conversation (messages.js, `HOLDS`).
+      messagesAside: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they were in the panel, read before the panel's
       // reader, and the message they were on, goes.

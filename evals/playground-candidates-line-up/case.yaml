@@ -8,10 +8,13 @@
 # shared-lines sentence passed 4/4. A wording that named no parts ("line up part
 # for part") let one Claude Code run subgrid the card's own rows and stretch
 # every card to one height, which cards-keep-their-height catches.
+# Now a probe given a page with its packages, it passed Claude Code 0 of 2, Codex 0 of 2
+# (no rows shared across candidates) at b90df8d3a2.
 description: playground-candidates-line-up
 metadata:
   purpose: "Playground: candidates compared side by side line up part for part, whatever
     their labels and notes wrap to."
+  page: [playground]
   tags:
     - playground
 vars:
@@ -49,11 +52,8 @@ vars:
     selector switches between "Heading rewritten", "Paragraph rewritten" and
     "Passage unchanged".
 
-    Write the playground using the installed leaf:leaf skill; read the playground
-    package's instructions at ../../packages/playground/instructions/author.md relative to the
-    leaf skill's base directory. The page directory is not reachable here, so reply
-    with the page's HTML, including its <style>. Show one case's cards; the other
-    cases can be placeholders.
+    Write the playground. Show one case's cards; the other cases can be
+    placeholders.
 assert:
   - type: llm-rubric
     metric: candidates-line-up

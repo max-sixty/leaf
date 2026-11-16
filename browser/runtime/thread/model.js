@@ -167,12 +167,13 @@ export function threadCounts(threads) {
     unread: listed.filter(isNews).length,
   };
 }
-// Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
-// by: an element anchor naming that widget and carrying nothing else. Spelled again here
-// because the server has not seen this message yet, and a thread that seated itself
-// differently for the half-second before it lands would move once it arrived.
-/** @param {Message} message */
-const pendingSeat = (message) =>
+// Which widget's seat a message the server has not seen stands in, a pending thread's
+// root or the comment being written, by the rule `seat_root` reads the log by: an
+// element anchor naming that widget and carrying nothing else. Spelled again here
+// because a thread that seated itself differently for the half-second before it lands
+// would move once it arrived.
+/** @param {{anchor?: import("../../types/domain.js").Anchor | null | undefined, about?: string | null | undefined}} message */
+export const seatOf = (message) =>
   message.about || !message.anchor || Object.keys(message.anchor).length !== 1
     ? null
     : (message.anchor.section ?? null);
@@ -322,7 +323,7 @@ export function foldThreads(threads, gestures) {
         revisions: [],
         resolved: null,
         bare_reaction: reaction,
-        seat: pendingSeat(gesture),
+        seat: seatOf(gesture),
         summaries: [],
         unread: {},
         attention: reaction ? null : sending(gesture),

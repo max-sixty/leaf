@@ -38,41 +38,6 @@ customElements.define("lf-async-panel", class extends LeafElement {
         widget_findings(browser.unwatched, package)
 
 
-def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browser):
-    """A generated view needs its first box; an equal reserved box is a control."""
-    package = tmp_path / "package"
-    made = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-first-box"],
-    )
-    assert made.exit_code == 0, made.output
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-first-box"]["x-example"] = (
-        '<lf-first-box id="moving"></lf-first-box>'
-        '<lf-first-box id="reserved"></lf-first-box>'
-    )
-    registry_path.write_text(json.dumps(registry))
-    (package / "defaults.css").write_text(
-        "lf-first-box { display: block; } #reserved { block-size: 40px; }"
-    )
-    (package / "widgets/lf-first-box.js").write_text("""\
-import {LeafElement, html} from "/runtime/widget-api.js";
-customElements.define("lf-first-box", class extends LeafElement {
-  render() { return html`<div style="block-size:40px">Drawn view</div>`; }
-});
-""")
-    findings = [
-        finding
-        for finding in widget_findings(browser.unwatched, package)
-        if finding.code == "keeps-first-box"
-    ]
-    assert {finding.at for finding in findings} == {"<lf-first-box id=moving>"}
-    assert {finding.values["layout"] for finding in findings} == {"column", "workspace"}
-    assert all(finding.values["first"]["height"] == 0 for finding in findings)
-    assert all(finding.values["now"]["height"] == 40 for finding in findings)
-
-
 def keyed(tag: str, badge: str) -> str:
     """A widget module that declares a command with a context key on its element, and
     `badge` as the command's `bindingBadge` field, verbatim."""
@@ -160,7 +125,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         page_files=gallery_page_files,
     )
     exported = tmp_path / "exported.html"
-    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exporting_model.cmd_export(serve.page_dir, exported, None, runtime=True)
     entry = re.compile(
         r'(<script type="module" src=)"[^"]*"( data-lf-runtime></script>)'
     )

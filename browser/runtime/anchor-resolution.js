@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { labelWords } from "./words.js";
+import { excerptWords, labelWords, lastWords } from "./words.js";
 import { anchorKey, fragmentId, fragmentKey } from "./anchor-coordinate.js";
 import { documentChanged } from "./semantic-state.js";
 import {
@@ -32,6 +32,7 @@ import {
 import {
   blockAt,
   closestAcross,
+  AROUND,
   cut,
   contextAround,
   neighbourhood,
@@ -46,7 +47,7 @@ import {
   spanIn,
   DATUM,
   elementById,
-  elementReading,
+  excerpt,
   findQuote,
   fileModelsPassage,
   inChrome,
@@ -62,6 +63,7 @@ import {
   accessibleName,
   addressableLabel,
   addressableWord,
+  LABEL_WORDS,
   ownName,
 } from "./addressable-names.js";
 
@@ -498,20 +500,47 @@ const namedParts = (owner, name) =>
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
-// Spoken context includes prose and this control's visible face, never a neighbour's
-// label. The shared block prose is read once per inventory; chosen capture stays lazy.
-/** @param {Element} control @param {Map<Element, string>} contexts */
-function controlContext(control, contexts) {
+// What a press in Design mode can take as a part: a control, or a picture.
+const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
+/** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */
+// A control's spoken words: its block's words on each side of it, at most `AROUND`
+// characters a side as every description of what stands around something reads them
+// (`contextAround`), with its own between. Every part's words are left out of its
+// block's, so a neighbour's label never names this one, and a picture says none of its
+// own, since its name describes it: a text document's view is a picture of the whole
+// document, which read all of it twice for every move of the pointer over it in Design
+// mode, 0.3 to 1.7 s on a document of 50,000 lines. Other controls say their own words
+// as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
+// them, as a tab whose words start with its name and go on to a count. A block is read
+// once per inventory, noting where each part stands in it; chosen capture stays lazy.
+/** @param {Element} control @param {Map<Element, BlockWords>} contexts @param {string} part */
+function controlContext(control, contexts, part) {
+  const said = control.matches(genericVisualSelector)
+    ? ""
+    : excerptWords(excerpt(control, { upTo: LABEL_WORDS + 1 }).text, LABEL_WORDS);
+  const own = said.startsWith(`${part} `) ? said.slice(part.length + 1) : said;
   const block = blockAt(control);
-  if (!block) return "";
-  if (!contexts.has(block))
-    contexts.set(
-      block,
-      quoteFrom(
-        textNodesUnder(block).filter(({ node }) => !closestAcross(node, WORKS)),
-      ),
-    );
-  return [contexts.get(block), elementReading(control)].filter(Boolean).join(" ");
+  if (!block || block === control || closestAcross(block, WORKS)) return own;
+  let words = contexts.get(block);
+  if (!words) {
+    /** @type {Map<Element, number>} */
+    const at = new Map();
+    const segments = textNodesUnder(block, "says", (element, count) => {
+      if (!element.matches(DESIGN_PARTS)) return false;
+      at.set(element, count);
+      return true;
+    });
+    contexts.set(block, (words = { segments, at }));
+  }
+  const split = words.at.get(control);
+  if (split === undefined) return own;
+  return [
+    lastWords(quoteFrom(words.segments.slice(0, split)), AROUND),
+    own,
+    excerptWords(quoteFrom(words.segments.slice(split)), AROUND),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 // Keep inline emphasis in one label passage, but never cross the nested field's
 // words or native box to pretend its options are part of the visible label.
@@ -568,7 +597,7 @@ function visiblePassage(segments) {
 }
 
 /** @param {Node | null} node @param {AimOptions["marginTargetAt"]} marginTargetAt
- * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, string>}} [reading] @returns {AimTarget | null} */
+ * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, BlockWords>}} [reading] @returns {AimTarget | null} */
 function designTargetAt(
   node,
   marginTargetAt,
@@ -578,9 +607,7 @@ function designTargetAt(
   let at = node instanceof Element ? node : node?.parentElement;
   if (!at) return null;
   const pressed = designPressAt(at);
-  const control = pressed?.matches(`${WORKS},${genericVisualSelector}`)
-    ? controlIdentity(pressed)
-    : null;
+  const control = pressed?.matches(DESIGN_PARTS) ? controlIdentity(pressed) : null;
   const visual = visualAt(at, { unclaimed: false });
   const declared = declaredVisualSelector();
   if (declared && visual?.element.matches(declared)) at = visual.element;
@@ -622,7 +649,7 @@ function designTargetAt(
   const faces = controlFaces(partElement);
   const detail = [
     ...new Set([
-      controlContext(partElement, contexts),
+      controlContext(partElement, contexts, part),
       ...faces
         .filter((face) => face !== partElement)
         .map((label) =>

@@ -135,13 +135,8 @@ its result, put it on the page, move finished work out of the open work
 (`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
 that asked, linking to the result.
 
-Workers return results to you and leave the page alone. The server, the watcher,
-acknowledgements, replies, starts, status, `index.html`, and stamps stay yours. The
-exceptions are a command hub worker (the `worker` value from
-`leaf page instructions <page>`) and a Codex watcher task
-(`references/codex-watcher.md`). Say so in each brief, since a worker that inherits
-your conversation inherits the page too. Work that needs its own conversation with
-the user belongs in its own session, with its own page.
+Work that needs its own conversation with the user belongs in its own session, with
+its own page.
 
 Decisions built from a worker's report tend to keep the report's shape, and the
 brief sets that shape. When the user will decide on what a worker finds, such as an
@@ -204,23 +199,23 @@ page that still says what has since changed, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
 ask for you, so keep asking by the routes below. What it writes is yours like
-anything you write: the user's reply reaches you as any reply does, and you end one
-that isn't theirs with `leaf task end <page> message:<id> dropped`.
+anything you write: the user's reply reaches you as any reply does, and you resolve
+the thread of one that isn't theirs (below).
 
 On Me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On Me in page order. Each
 press lands where the obligation is answered; on a widget's obligation, its numbered actions
 (`1`–`9`) answer it there, and on a thread message, its thread opens on it. Leaf adds
 no control of its own, such as a Done, to answer an item: on the page, the user answers
-through the widget's own actions or a reply in the thread, and you record an answer
-they give elsewhere, such as in chat, with `leaf task end` (below).
+through the widget's own actions or a reply in the thread, and you end a question
+they answer elsewhere, such as in chat, by resolving its thread (below).
 
-| Request                                                                  | Register it                                                                                                                                                                       | What answers it                                                                                                                            |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                                                                           | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                          |
-| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                                                                | The user's next message there or a settling reaction                                                                                       |
-| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On Me                                                                                                       |
-| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do, asking for a reply only for what the user alone can report or your next step waits on, in a thread on what it concerns or the page | Your `leaf task end … done` once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
+| Request                                                                  | Register it                                                                                                                                                                       | What answers it                                                                                                                           |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                                                                           | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                         |
+| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                                                                | The user's next message there or a settling reaction                                                                                      |
+| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On Me                                                                                                      |
+| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do, asking for a reply only for what the user alone can report or your next step waits on, in a thread on what it concerns or the page | Your resolve of its thread once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
 
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On Me. A message that asks a
@@ -270,16 +265,16 @@ needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
 When the user answers a question your message asked by another route than the one it
-offered, such as in chat, or in words where it offered a choice, use the answer and end
-its obligation with `leaf task end`, using the id from `page state`: `done` records
-where they answered; `dropped` withdraws a question that no longer applies. End a
-step on On Me the same way, with `done`, once you see its effect, `--text` saying what
-you saw; whenever you read the lists, check the effect of each step you can. Neither
-outcome fabricates an answer in the page's history:
+offered, such as in chat, or in words where it offered a choice, use the answer and
+resolve the question's thread, which takes the question off On Me. Resolve it the same
+way once you see the effect of a step you asked for, checking the effect of each step
+you can whenever you read the lists, and when a question no longer applies. Where the
+thread should say how it ended, such as the answer they gave in chat or what you saw,
+reply there first:
 
 ```bash
-leaf task end <page> message:<message> done --text "<where the answer is>"
-leaf task end <page> widget:<widget-id> dropped --text "<why>"
+leaf thread reply <page> <message> --text "<how it ended>"
+leaf thread resolve <page> <message>
 ```
 
 A page widget's obligation ends through its state or an authored withdrawal

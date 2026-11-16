@@ -13,9 +13,11 @@ from pathlib import Path
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
+    active_summaries,
     build_threads,
     note_settlements,
     spoken_turns,
+    summary_range,
     taken_back,
     undo_error,
     unshown,
@@ -42,7 +44,6 @@ from leaf.registry.contract import (
     created_child,
     detail_schema,
     event_spec,
-    matches_when,
     state_specs,
     verb_writer,
     visual_parts,
@@ -265,17 +266,20 @@ def position_record_error(
 
 
 def held_comment_error(event: dict, page_by_id: dict, registry: dict):
-    """Why one comment cannot hold the exact command goal it names."""
+    """Why one comment cannot hold the widget it names.
+
+    A comment holds the widget it is about and nothing inside it: a widget on the
+    page, which its anchor names with no passage, datum or part. Which widgets offer
+    a hold is their modules' to say, on the outlet each returns for itself
+    (`module-annotations.md`, "Widget-local Thread placement"), so the page's
+    vocabulary declares nothing here for admission to read."""
     target = event.get("holds")
     if not target:
         return None
     rec = page_by_id.get(target)
-    thread = (registry.get(rec["tag"]) or {}).get("x-thread-seat") if rec else None
     if (
         rec is None
-        or not thread
-        or not thread.get("hold")
-        or not matches_when(rec["attrs"], thread.get("when"))
+        or not registry.get(rec["tag"])
         or event.get("anchor") != {"section": target}
     ):
         return Finding("hold-target", values={"holds": target})
@@ -694,6 +698,15 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         return Finding("summary-endpoints", values=named)
     if start >= end:
         return Finding("summary-order", values=named)
+    # The summaries in force once this one stands: those it overlaps it replaces whole.
+    candidate = {**event, "seq": events[-1]["seq"] + 1}
+    after = active_summaries([*events, candidate], {thread["id"]: thread})
+    asked = (event["from"], event["through"])
+    if (taken := summary_range(thread, after[thread["id"]], *asked)) != asked:
+        return Finding(
+            "summary-gap",
+            values={**named, "take_from": taken[0], "take_through": taken[1]},
+        )
     return None
 
 
@@ -751,8 +764,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a widget that seats work, an element,
-    or the page. A completing note and `todo_end` share completion authority.
-    A `todo_end` also admits an agent's end of a question an agent message asks; a
+    or the page. A completing note and `todo_end` share completion authority, and a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -903,7 +915,18 @@ def admitted_event(view, events: list, event: dict) -> dict:
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
-        before = AdmissionReadings(view, events, active_registry)
+        # An event made against the newest revision was admitted in the active
+        # vocabulary, so `readings` already reads the log before it in that one.
+        before = (
+            readings
+            if active_registry is registry
+            else AdmissionReadings(view, events, active_registry)
+        )
+        # `after` folds the whole log again for one event more, and the state read
+        # that follows the append folds it a third time. Not yet built: an
+        # incremental fold that carries `before`'s reading forward by the candidate,
+        # and hands that reading on to the state read, so an append folds the log
+        # once.
         after = AdmissionReadings(view, [*events, candidate], active_registry)
         attention = attention_reading(before) != attention_reading(after)
     event = {**event, "attention": attention}

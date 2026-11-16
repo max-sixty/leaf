@@ -27,7 +27,7 @@
    annotations (`o`) hides its bar. The bar marks the block, not its words: its change's
    Change entry opens which words went and came. The user chose the bar on 31 October
    over a wash of the block's own background, which hid whatever the block shades
-   itself, an option's card and the chosen option's green among them, and over leaving
+   itself, an option's card and the chosen option's tint among them, and over leaving
    the Change entry in the right margin as the only mark, which is hard to pick out at a
    glance. A widget names only which of its parts changed (its registry's `record`); how
    the change looks is this owner's, as it is for every annotation, so no widget

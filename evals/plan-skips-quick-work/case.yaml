@@ -17,7 +17,7 @@ vars:
     user just wrote: "Two quick fixes on the rollout page: the lede should say
     token bucket, not leaky bucket, and make the us-east p99 205 ms."
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page for this request.
 assert:
   - type: llm-rubric

@@ -31,7 +31,8 @@ pnpm run eval:view
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
   models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
   `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection. `--model MODEL`
-  selects one Codex author model for every selected condition in that run.
+  selects the author model in place of the harness's pin, for every selected condition
+  in that run, such as `--harness claude-code --model claude-fable-5-2`.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
@@ -458,7 +459,12 @@ for source and reading probes; Claude Code receives a request to use the plugin'
 skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
 read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
 and one that grades what the
-agent would do asks for the commands it would run. The runner tells such a probe
+agent would do asks for the commands it would run. They may also ask the arm's Leaf
+what a page's packages tell an author: Claude Code runs `leaf page instructions` and
+`leaf page vocabulary`, and Codex runs any `leaf` command through the plugin's `leaf`
+tool. A case that declares `metadata.page`, the packages its page takes beside the
+defaults (`[]` for none), gives its probe that page, initialized, and the prompt names
+it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
@@ -494,9 +500,11 @@ transformed images. The judge can read only copied images under the run's
 screenshot tree; the assertion
 supplies authored HTML to identify the references, without the author's trace.
 
-Use authoring cases for media preparation, widget markup and checking or repairing
-rendering. Keep source and reading probes for decisions that need no writable
-artifact. Use complete tasks for revisions, user feedback and delivery rounds.
+Use authoring cases for media preparation and checking or repairing rendering. Keep
+source and reading probes for decisions that need no rendered page: those whose rules
+the skill's references hold, and, with `metadata.page`, widget markup whose rules an
+author reads through `leaf page instructions --use`. Use complete tasks for
+revisions, user feedback and delivery rounds.
 Authoring adds page initialization, tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
 costs separately. Each sample has its own temp directory. Native tool permissions
@@ -504,8 +512,9 @@ match the complete-task executors: Codex allows native tools without approval;
 on macOS, Claude Code's sandbox prevents writes to shared temporary paths while
 allowing its owned directories, as described under **Isolation**.
 
-Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
-"Score an instruction change", owns when to use one. They declare
+Internal instruction cases exercise developing Leaf itself;
+`.claude/skills/developing-leaf/references/instruction-changes.md`, "Score an
+instruction change", owns when to use one. They declare
 `metadata.instructions`, a source path in
 that arm. The agent receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;

@@ -262,7 +262,7 @@ def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monke
         monkeypatch.setattr(
             render_gate_model,
             "_render_version_attempt",
-            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None: (
+            lambda browser, url, desktop, served_timeout_ms=None, implementations=None, declaration_sources=None, page_code=None: (
                 left.pop(0)
             ),
         )

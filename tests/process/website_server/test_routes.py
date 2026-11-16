@@ -722,7 +722,7 @@ def test_the_adapter_serves_a_published_revision_at_its_release_address(
         assert f'data-lf-entry="{release}/leaf.js"'.encode() in document
         current, _ = get(f"{root}/examples/decision/")
         assert (
-            f'data-lf-entry="/examples/decision/revisions/{private.stem}/'.encode()
+            f'data-lf-entry="/examples/decision{revision_root(published, 2)}/'.encode()
             in current
         )
         runtime = serving_runtime().resources({}, {})

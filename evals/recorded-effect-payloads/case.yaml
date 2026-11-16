@@ -22,7 +22,7 @@ vars:
     - lf-lane-board has a user move operation putting an owned card into an owned
       lf-lane at a supplied rank key. Each card's placement is independent.
 
-    Read the shipped package references. Return only each widget's x-state entry
+    Return only each widget's x-state entry
     and one matching event detail object, using note text "Corrected note", news
     "Checks passed", card id "card-1", destination id "archive", and rank key "v".
     Do not implement controls, rendering, or transport. The rest of each widget's

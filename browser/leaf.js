@@ -87,8 +87,10 @@ import { createRewriteRestore } from "./runtime/thread/message-edit.js";
 import { allThreads, threadNamed } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
-  createThreadLanding,
   declareThreadKeys,
+  landIn,
+  landInThread,
+  returnToThread,
   scrollThreadIntoView,
   currentLocationThread,
 } from "./runtime/thread/landing.js";
@@ -323,6 +325,7 @@ async function boot() {
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
+    pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -347,8 +350,7 @@ async function boot() {
       floatingPanel?.clearFor(destination, landed) ?? null,
     announce,
   });
-  const landing = createThreadLanding();
-  declareThreadKeys(landing.landIn, () => app.threadDestinations.threadHere() ?? null);
+  declareThreadKeys(() => app.threadDestinations.threadHere() ?? null);
   const anchorControls = createAnchorControls({
     commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
     openThread: (...args) => app.threadDestinations.openPageThread(...args),
@@ -414,7 +416,7 @@ async function boot() {
     compositionSurface: {
       active: () => {
         const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
-        return anchor ? { anchor } : null;
+        return anchor ? { anchor, about: pendingAbout } : null;
       },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),
@@ -423,8 +425,8 @@ async function boot() {
       restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
       finishPlacement: () => responseSurface?.finishPlacement(),
     },
-    landInThread: (...args) => landing.landInThread(...args),
-    landSent: (...args) => landing.landSent(...args),
+    landInThread,
+    landSent: returnToThread,
     registerReactSurface: (...args) => reactions.registerReactSurface(...args),
     sendReaction,
     createMarginProjection: annotationRenderer?.createMarginProjection,
@@ -440,6 +442,7 @@ async function boot() {
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
       goToObligation: (...args) => items.goToObligation(...args),
+      resumeDraft: (context) => writingResume.resumeDraft(context),
     },
     state: {
       prepareActivation: (state) => version.prepareActivation(state),
@@ -473,10 +476,14 @@ async function boot() {
     annotationFocus: app.overlay?.mapFocusTarget,
   });
 
+  // The control the user sees for `control`: the margin's copy of one it presents.
+  /** @param {Element} control */
+  const presentedControl = (control) =>
+    app.overlay?.presentedControl(control) ?? control;
   // The obligation view is constructed below by its owner factory; all accesses above are inert closures.
   items = createObligationView({
     focusForNavigation,
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
+    presentedControl,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
@@ -492,9 +499,7 @@ async function boot() {
     announce,
   });
   createChangeWalk();
-  const commandHints = createCommandHints({
-    presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
-  });
+  const commandHints = createCommandHints({ presentedControl });
 
   const currentTarget = createCurrentTarget({
     currentLocationIn: items.currentLocationIn,
@@ -515,6 +520,8 @@ async function boot() {
       app.threadDestinations.openThreadSubject(id, options),
     showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
+    // Resume writing is built once the thread destinations it reveals in stand.
+    resumeDraft: (context) => writingResume.resumeDraft(context),
   });
   // The page's general comment box is the floating panel's field.
   const generalComment = floatingPanel.pageComment;
@@ -524,7 +531,7 @@ async function boot() {
   responseSurface = createResponseSurface({
     rememberSelection: passageSelection.remember,
     createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-    landIn: landing.landIn,
+    landIn,
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtCurrentLocation: () => app.threadDestinations.threadAtCurrentLocation(),
     threadTarget: (id) => app.threadDestinations.threadTarget(id),
@@ -551,7 +558,7 @@ async function boot() {
     responseHome: overlaySelected ? chromeRoot : floatingPanel.responseHome,
     revealResponseHome: overlaySelected ? null : floatingPanel.revealResponse,
     createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
-    landSent: landing.landSent,
+    landSent: returnToThread,
     wireInput: inputs.wireInput,
     drawingEdits,
   });
@@ -593,7 +600,7 @@ async function boot() {
     watchHeldDrawings: responseSurface.watchHeldDrawings,
     draftKey: responseSurface.draftKey,
     openAnchoredDrawing: (anchor, drawing) =>
-      responseSurface.openComposer(anchor, "", { carry: true, drawing }),
+      responseSurface.openComposer(anchor, "", { drawing }),
     replaceDrawing,
     setDesignMode: designMode.setActive,
     closeTargetPicker: targets.closeTargetPicker,
@@ -604,6 +611,7 @@ async function boot() {
     repaint,
   });
   regionCapture = createRegionCapture({
+    refreshCrosshair: pageGeometry.refreshCrosshair,
     closeTargetPicker: targets.closeTargetPicker,
     closeReactionMode: () => reactions.setReact(false),
     parent: chromeForeground,
@@ -669,7 +677,7 @@ async function boot() {
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
-      writingResume,
+      writingResume.command,
       rewriteRestore,
       passageSelection.command,
       navigation.alignTop,

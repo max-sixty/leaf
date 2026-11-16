@@ -247,11 +247,11 @@ def codex_app_server(app_server):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaa")
+    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaaaaaaaaaa")
     invalid_pointer = delivery_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY.format,
-        "id": "bbbbbbbb",
+        "id": "bbbbbbbbbbbbbbbb",
         "batches": [],
     }
 
@@ -288,12 +288,20 @@ def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
         "name": "leaf_delivery",
         "output": json.dumps(payload),
     }
-    assert codex_model.app_server_delivery_id(started_turn(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(started_item(said(invalid_pointer))) is None
     )
-    assert codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbb"
-    assert codex_model.app_server_delivery_id(started_item(said(pointer))) == "aaaaaaaa"
+    assert (
+        codex_model.app_server_delivery_id(started_turn(delivery)) == "bbbbbbbbbbbbbbbb"
+    )
+    assert (
+        codex_model.app_server_delivery_id(started_item(said(pointer)))
+        == "aaaaaaaaaaaaaaaa"
+    )
     assert (
         codex_model.app_server_delivery_id(
             started_turn(said(pointer + "\nPlease do this."))
@@ -572,7 +580,7 @@ def test_app_server_events_report_semantic_codex_progress():
     restored.restore_turn({"items": snapshot})
     assert restored.said_opening() == opening["text"]
     assert restored.said_opening() == ""
-    assert events.reply_so_far({"items": snapshot}) == ""
+    assert events.final_text({"items": snapshot}) == ""
     # Narration after a tool call is never the opening, even with no message before it.
     tool = {"type": "commandExecution", "command": "pytest"}
     assert events.final_text({"items": [tool, narration, final]}) == (
@@ -1440,6 +1448,25 @@ def test_a_quiet_stream_is_a_fault_only_once_its_silence_outlasts_its_bound():
     assert codex_model.recv_notification(socket, long_ago, None) is None
     with pytest.raises(TimeoutError):
         codex_model.recv_notification(socket, long_ago, 120.0)
+
+
+def test_a_request_waits_for_its_answer_however_long_it_takes():
+    """A full-history resume of a long task takes tens of seconds on a loaded
+    machine, so a request sets no bound of its own on its answer."""
+
+    class Slow:
+        """Answers later than any bound a reader could set."""
+
+        def send(self, _data):
+            pass
+
+        def recv(self, timeout=None):
+            if timeout is not None:
+                raise TimeoutError
+            return json.dumps({"id": 1, "result": {"thread": {"id": "codex-thread"}}})
+
+    answer = codex_model.app_server_request(Slow(), "thread/resume", 1, {})
+    assert answer == {"thread": {"id": "codex-thread"}}
 
 
 def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):
@@ -2663,6 +2690,39 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
 
     assert observer.working() is False
     assert updates == []
+
+
+def test_a_connection_that_came_up_retries_its_next_drop_promptly(monkeypatch, capsys):
+    """Each drop after a connection came up is a first failure again.
+
+    A provider restart is over by the time anything notices, so the first retry is
+    prompt (`retry_delay`); a long-lived connection that drops a few times over a
+    session waits a second each time and says so, not a growing half-minute.
+    """
+    observer = _observer()
+    observer.started = True
+    waits = []
+
+    class StopAfterThreeDrops:
+        def is_set(self):
+            return len(waits) == 3
+
+        def wait(self, timeout):
+            waits.append(timeout)
+            return len(waits) == 3
+
+    observer.stop_event = cast(threading.Event, StopAfterThreeDrops())
+
+    def connect_then_drop():
+        observer.connected.set()
+        raise ConnectionError("dropped")
+
+    monkeypatch.setattr(observer, "_connect", connect_then_drop)
+
+    observer._run()
+
+    assert waits == [1, 1, 1]
+    assert capsys.readouterr().err.count("Codex App Server stream retry: dropped") == 3
 
 
 def test_an_app_server_failure_cleans_up_its_streams_before_retrying(

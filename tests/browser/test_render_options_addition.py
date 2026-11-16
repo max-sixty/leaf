@@ -118,7 +118,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     expect(add).to_have_attribute("aria-disabled", "false")
     expect(add).to_have_css("opacity", "1")
     aim_floor = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-aim-floor'))"
     )
     form_box = form.bounding_box()
     field_box = field.bounding_box()
@@ -158,21 +158,23 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     # from the shared face. Both rules are the theme's, and this one wins by coming
     # after it; when the face was stated in the adopted sheet instead, it outranked
     # this rule and drew the mark near black.
-    assert face["glyph"] == token_colour(page, "--accent")
-    assert face["glyph"] != token_colour(page, "--ink")
+    assert face["glyph"] == token_colour(page, "--lf-accent")
+    assert face["glyph"] != token_colour(page, "--lf-ink")
     # The disc is clear until the pointer is on it, and it is the whole of what rises:
     # the press still paints nothing of its own, at the size it holds at rest. The
     # pointer leaves again so the coarse reading below is of a press at rest too.
     add.hover()
     hovered = glyph_action_face(add)
     assert hovered["press"] == "rgba(0, 0, 0, 0)"
-    assert hovered["disc"] == token_colour(page, "--accent-tint")
+    assert hovered["disc"] == token_colour(page, "--lf-accent-tint")
     assert hovered["discWidth"] == face["discWidth"]
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
-    page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
+    page.locator("html").evaluate(
+        "el => el.style.setProperty('--lf-aim-floor', '44px')"
+    )
     form_box = form.bounding_box()
     add_aim = add.evaluate(AIM_RECT)
     assert form_box["height"] >= 44
@@ -221,7 +223,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#storage-options .lf-page-thread")).to_have_count(0)
 
     # Enter is not navigation from a checkbox. It neither chooses the option nor enters
     # the add field; the field is an ordinary later stop in the Tab order.
@@ -408,7 +410,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     # first key or press there, and then waits in the leaf's menu.
     cover = form.locator(".lf-compose-error")
     expect(cover).to_have_text("Images can be added to comments, not options")
-    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_hidden()
     cover.click()
     expect(cover).to_be_hidden()
     expect(field).to_be_focused()
@@ -448,7 +450,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     expect(first).to_be_visible()
     expect(first).to_have_js_property("value", draft)
 
@@ -566,7 +568,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     page = open_page(browser, url)
     d = serve.page_dir
 
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {shown(page.lf_errors)}; "

@@ -21,8 +21,8 @@
   margin: 0;
   padding: 0;
   overflow: clip;
-  background: var(--pre-bg);
-  border: 1px solid var(--code-border);
+  background: var(--lf-pre-bg);
+  border: 1px solid var(--lf-code-border);
   border-radius: var(--lf-diff-r-start) var(--lf-diff-r-start) var(--lf-diff-r-end)
     var(--lf-diff-r-end);
 }
@@ -32,9 +32,9 @@
 :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary,
 :host(lf-diff.lf-rendered) .lf-diff-metadata {
   padding: 7px var(--lf-diff-head-inset);
-  font: var(--font-ui);
-  color: var(--code-ink);
-  background: var(--code-chrome);
+  font: var(--lf-font-ui);
+  color: var(--lf-code-ink);
+  background: var(--lf-code-chrome);
 }
 :host(lf-diff.lf-rendered) .lf-diff-fold > .lf-error {
   padding: 10px;
@@ -65,7 +65,7 @@
   > .lf-resolved-threads
   > .lf-resolved-summary::before {
   flex: none;
-  font: var(--font-ui);
+  font: var(--lf-font-ui);
 }
 /* The file's head is a flex row whose gap parts the arrow from the path. */
 :host(lf-diff.lf-rendered) :where(.lf-diff-file) > details > summary::before {
@@ -185,8 +185,8 @@
   margin: 0 0 var(--lf-diff-gap);
 }
 .lf-diff-progress {
-  color: var(--code-muted);
-  font: var(--font-small);
+  color: var(--lf-code-muted);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -211,10 +211,10 @@
 }
 .lf-diff-run-start {
   margin-top: var(--lf-diff-gap);
-  --lf-diff-r-start: var(--r);
+  --lf-diff-r-start: var(--lf-r);
 }
 .lf-diff-run-end {
-  --lf-diff-r-end: var(--r);
+  --lf-diff-r-end: var(--lf-r);
 }
 /* A diff of one file draws no filter (lf-diff.js), so its file opens the drawing, with
    no gap or shared hairline above it to stand off from. */
@@ -242,7 +242,7 @@
   width: fit-content;
   height: var(--lf-diff-action-h);
   margin: var(--lf-diff-action-top) 11px 0 auto;
-  font: var(--font-ui);
+  font: var(--lf-font-ui);
 }
 /* An inline patch without comment controls has no action row to pull over. */
 .lf-diff-file-actions:empty {
@@ -283,11 +283,11 @@
 }
 .lf-diff-line > [data-line-type="change-addition"]::before {
   content: "+";
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 .lf-diff-line > [data-line-type="change-deletion"]::before {
   content: "-";
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 /* A line's numbers, old then new in a cell each, stand over the gutter's width on
    its line, set against the code in the code's muted ink, a press or not. Where they
@@ -301,7 +301,7 @@
   inset-inline-start: 0;
   width: var(--lf-diff-gutter);
   height: 100%;
-  --aim-floor: 0px;
+  --lf-aim-floor: 0px;
   min-width: 0;
   min-height: 0;
   padding: 0 1ch 0 2ch;
@@ -315,7 +315,7 @@
   user-select: none;
 }
 span.lf-diff-line-number {
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
 }
 .lf-diff-line:hover > .lf-diff-line-comment::before {
   opacity: 1;
@@ -342,7 +342,7 @@ span.lf-diff-line-number {
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
 :host(lf-diff.lf-rendered) .lf-diff-file > details > summary {
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -351,7 +351,7 @@ span.lf-diff-line-number {
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
 :host(lf-diff.lf-rendered) .lf-diff-line > [data-line] {
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* The file header pins at the top of what scrolls it while its own rows go past: the name
    of the part you are reading has to be on screen for the whole of it, not only at its
@@ -393,28 +393,28 @@ span.lf-diff-line-number {
 /* The path is evidence — a file's name in the file's own face — and a shadow tree
    inherits no document rule, so its font is named here or it is the UA's. */
 .lf-diff-path {
-  font: var(--font-code);
+  font: var(--lf-font-code);
   overflow-wrap: anywhere;
 }
 .lf-diff-additions {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 .lf-diff-deletions {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 .lf-diff-metadata > .lf-diff-stat {
   white-space: normal;
 }
 .lf-diff-evidence {
   padding: 7px 10px;
-  color: var(--code-muted);
-  font: var(--font-small);
-  background: var(--code-chrome);
+  color: var(--lf-code-muted);
+  font: var(--lf-font-small);
+  background: var(--lf-code-chrome);
 }
 .lf-diff-stat {
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   margin-left: 8px;
-  font: var(--font-small);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -425,11 +425,11 @@ span.lf-diff-line-number {
   margin: 0;
   padding: 0;
   border: none;
-  border-top: 1px solid var(--code-border);
+  border-top: 1px solid var(--lf-code-border);
   border-radius: 0;
   overflow: visible;
-  color: var(--code-ink);
-  background: var(--pre-bg);
+  color: var(--lf-code-ink);
+  background: var(--lf-pre-bg);
 }
 :host(lf-diff.lf-rendered) code[data-code] {
   isolation: isolate;
@@ -438,16 +438,19 @@ span.lf-diff-line-number {
   overscroll-behavior-x: auto;
   container-type: inline-size;
   container-type: inline-size scroll-state;
-  font-family: var(--mono);
-  font-size: var(--code-size);
-  line-height: var(--code-line);
+  font-family: var(--lf-mono);
+  font-size: var(--lf-code-size);
+  line-height: var(--lf-code-line);
   white-space: pre;
   padding: 0;
   border: 0;
   outline: none;
   background: none;
 }
+/* Where a row's code starts, past its numbers and its sign, for the notes docked among
+   the rows to stand at (styles/notes.css). */
 .lf-diff-rows {
+  --lf-diff-code-at: calc(var(--lf-diff-gutter) + 2ch);
   width: max-content;
   min-width: 100%;
 }
@@ -463,21 +466,21 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   background: var(--lf-code-add-fill);
 }
 .lf-diff-line[data-line-type="change-deletion"] > button {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 .lf-diff-line[data-line-type="change-addition"] > button {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 :where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {
-  background: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
+  background: var(--lf-code-del-mark);
 }
 :where(:host(lf-diff)) [data-line-type="change-addition"] [data-diff-span] {
-  background: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
+  background: var(--lf-code-add-mark);
 }
 :where(:host(lf-diff)) :is([data-separator], [data-no-newline]) {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
-  color: var(--code-muted);
-  background: var(--code-chrome);
+  color: var(--lf-code-muted);
+  background: var(--lf-code-chrome);
   white-space: pre-wrap;
 }
 :where(:host(lf-diff)) [data-separator] svg {
@@ -489,8 +492,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    its line box holds only its own face and the row stays one source line tall. */
 :where(:host(lf-diff)) :is([data-separator-wrapper], [data-no-newline] > span) {
   display: block;
-  font: var(--font-small);
-  line-height: var(--code-line);
+  font: var(--lf-font-small);
+  line-height: var(--lf-code-line);
 }
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
@@ -499,12 +502,12 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    its ground (package-themes.md). */
 .lf-diff-thread-outlet {
   min-width: 0;
-  border-block: 1px solid var(--rule);
-  --lf-ground: var(--paper);
+  border-block: 1px solid var(--lf-rule);
+  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
   padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
-  font: var(--font-message);
+  font: var(--lf-font-message);
   contain: inline-size;
 }
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
@@ -516,8 +519,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-file-thread-outlet {
   padding: 0;
   margin-top: 8px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
 }
 /* The boundary has no padding: its disclosure is a full-width row like the file's.
    The disclosure and conversation cards each own their inset once; message layout
@@ -526,7 +529,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */
@@ -534,7 +537,7 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   max-width: 760px;
 }
 .lf-diff-thread-outlet .lf-page-thread {
-  padding: var(--sp-2) 0;
+  padding: var(--lf-sp-2) 0;
 }
 .lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
   padding-inline: var(--lf-diff-head-inset);
@@ -556,13 +559,13 @@ pre[data-overflow="wrap"] .lf-diff-rows {
       .lf-compose-error:not([hidden])
     )
   ) {
-  margin-top: var(--sp-1);
+  margin-top: var(--lf-sp-1);
   > leaf-composition-field > .lf-compose-field {
     border-color: transparent;
     background: transparent;
   }
   > leaf-composition-field > .lf-compose-field > leaf-text {
-    min-height: var(--aim-floor);
+    min-height: var(--lf-aim-floor);
     padding-block: 0;
     cursor: pointer;
   }

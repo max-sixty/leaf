@@ -70,14 +70,23 @@
  * `versionsOffered` controls the destination and the Versions row.
  */
 import {
+  afterSettling,
   cancelRender,
   nextAnimation,
   nextRender,
+  observePreparations,
   renderingState,
   sizeObserver,
 } from "./rendering.js";
 import { frameFor, watchScrollEnds } from "./arrivals.js";
-import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
+import {
+  LIVE_ROOT,
+  PAGE_ROOT,
+  layerRoot,
+  pageUrl,
+  revisionLabel,
+  runtime,
+} from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
@@ -149,7 +158,6 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
@@ -200,7 +208,6 @@ import {
   placeNode,
   placeOffset,
   restorePlace,
-  textBlocks,
 } from "./reading-place.js";
 import { holdingError, raiseError } from "./errors.js";
 import { tick } from "./version-signal.js";
@@ -1558,7 +1565,7 @@ async function loadBase(base, wanted, shown = null) {
     if (runtime.lastEventSeq !== throughSeq) continue;
     // Typed authored state reads the source, which formatting leaves alone: it formats
     // a copy (`paintedSource`), with the renderer loaded here.
-    const baseAuthored = stageAuthoredStates(doc, new Map());
+    const baseAuthored = stageAuthoredStates(doc);
     const source = pageDocument(doc);
     if (!source)
       throw new Error("A comparison revision must contain its authored document");
@@ -1738,7 +1745,7 @@ export function createVersionController({
       readAndApply();
       return;
     }
-    location.href = PAGE_SCOPE || "/";
+    location.href = PAGE_ROOT ?? "/";
   };
 
   // ---------- live revision activation ----------
@@ -2036,7 +2043,7 @@ export function createVersionController({
     // The arriving revision's source is the complete page baseline. Capture it before
     // insertion can connect a custom element and turn authored input into presentation.
     rememberAuthoredParents(source);
-    const sourceAuthored = stageAuthoredStates(source, new Map());
+    const sourceAuthored = stageAuthoredStates(source);
     const sourceDescriptors = stageWidgetDescriptors(source, {
       kind: "page",
       revision: target.revision,
@@ -2314,11 +2321,10 @@ export function createVersionController({
   /** @returns {CapturedView} */
   function captureView() {
     dropGonePlaces();
-    const blocks = textBlocks();
-    const active = activeReadingRegion(readingRegions(), blocks);
+    const active = activeReadingRegion(readingRegions());
     /** @type {CapturedView} */
     const view = {
-      page: capturePlace(null, blocks),
+      page: capturePlace(null),
       revision: runtime.currentRevision,
       activeRegion: active?.id,
       regions: Object.fromEntries(
@@ -2331,7 +2337,7 @@ export function createVersionController({
       if (!shownRegionBounds(region)) continue;
       if (regionScrollBehavior(region) !== "bounded" && region.id !== active?.id)
         continue;
-      const reading = capturePlace(region, blocks);
+      const reading = capturePlace(region);
       if (reading) view.regions[region.id] = reading;
     }
     return view;
@@ -2396,10 +2402,7 @@ export function createVersionController({
   // regions share lands where that one left it. Focus names a region only while it is
   // where the user is (user-place.js, `focusPlace`): a pane the reader scrolled away
   // from, though it keeps their focus, would take them back to it.
-  const activeReadingRegion = (
-    candidates = readingRegions(),
-    blocks = textBlocks(),
-  ) => {
+  const activeReadingRegion = (candidates = readingRegions()) => {
     const focusedRegion = containingReadingRegionFor(focusPlace());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
@@ -2407,7 +2410,7 @@ export function createVersionController({
     if (recent) return recent;
     return candidates
       .flatMap((region) => {
-        const measured = blocksOnScreen(region, blocks).next().value;
+        const measured = blocksOnScreen(region).next().value;
         return measured ? [{ region, rect: measured[1] }] : [];
       })
       .sort((a, b) => a.rect.top - b.rect.top)[0]?.region;
@@ -2503,6 +2506,7 @@ export function createVersionController({
     const acted = box !== undefined && inputSince(box, hold.since);
     if (!moved && !acted && hold.currentIntent()) return hold;
     holds.delete(id);
+    if (!holds.size) stopReapplying();
     // Where the reader acted in the box the restore put them in, that place is theirs,
     // as if recorded before they acted, so whatever their act moves records over it.
     // Where a scroll carried the landmark away, the place it left is that scroll's.
@@ -2709,21 +2713,31 @@ export function createVersionController({
   // Apply each held place again while the shift's layout settles, as a widget drawing
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
-  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
-  // and every region stands where it was last seen (`regionsSettled`), or after
-  // `SETTLING` deliveries or `SETTLING_MS` whatever happens: a widget that keeps
-  // resizing, or a rendering hold that never releases, would otherwise keep reading
-  // every later move as layout's. What moves a place is the page's
-  // own content or its bounded region's, and it lands only in the box it was restored
-  // into.
+  // window closes at the first quiet rendering update after the last widget
+  // preparation lands (rendering.js, `afterSettling`), which includes the layout the
+  // preparation committed and the size changes it made, with every region standing
+  // where it was last seen (`regionsSettled`); or once the last hold ends, or a
+  // revision ends them all. A preparation keeps it open however long a slow device
+  // takes, and its release, not a frame, is what the window waits on. Two caps stand
+  // for a page that never settles, as one whose animated chart keeps redrawing:
+  // `SETTLING` deliveries, and `SETTLING_MS` with no preparation pending, counted from
+  // the window's opening or the last release and closing a rendering update after, so a
+  // release's layout lands first even when frames paused. Without them, every later move
+  // would read as layout's. What moves a place is the page's own content or its bounded
+  // region's, and it lands only in the box it was restored into.
   const SETTLING = 12;
   const SETTLING_MS = 1000;
-  /** @type {number | undefined} */
-  let reapplyTimer;
+  let closeWindow = () => {};
+  // Heard from the controller's start, since a preparation reports its end only to
+  // those who heard it begin, and one a width change sets going can begin before the
+  // shift that opens the window is announced.
+  /** @type {(phase: import("./rendering.js").PreparationPhase) => void} */
+  let preparation = () => {};
+  observePreparations((phase) => preparation(phase));
   const stopReapplying = () => {
     reapply?.disconnect();
-    clearTimeout(reapplyTimer);
     reapply = null;
+    closeWindow();
   };
   const releaseHolds = () => {
     holds.clear();
@@ -2757,15 +2771,37 @@ export function createVersionController({
       again();
     });
     reapply = observer;
-    reapplyTimer = setTimeout(stopReapplying, SETTLING_MS);
-    const settled = () =>
-      nextAnimation(() => {
-        if (reapply !== observer) return;
-        const { updatesSettled, preparationsSettled } = renderingState();
-        if (updatesSettled && preparationsSettled && regionsSettled()) stopReapplying();
-        else settled();
-      });
-    settled();
+    const close = () => reapply === observer && stopReapplying();
+    const prepared = () => renderingState().preparationsSettled;
+    let unwait = () => {};
+    let cap = 0;
+    // The cap's turn: a preparation beginning, a later wait or the window closing ends
+    // it, standing down closing frames an expired cap has already queued.
+    let turn = 0;
+    const standDown = () => {
+      clearTimeout(cap);
+      turn++;
+    };
+    const wait = () => {
+      unwait();
+      standDown();
+      const mine = turn;
+      unwait = afterSettling(() => prepared() && (regionsSettled() ? close() : wait()));
+      cap = setTimeout(
+        () => nextAnimation(() => nextAnimation(() => mine === turn && close())),
+        SETTLING_MS,
+      );
+    };
+    preparation = (phase) => {
+      if (phase === "begin") standDown();
+      else if (prepared()) wait();
+    };
+    closeWindow = () => {
+      closeWindow = preparation = () => {};
+      unwait();
+      standDown();
+    };
+    if (prepared()) wait();
     const page = pageDocument();
     if (page) reapply.observe(page);
     for (const hold of holds.values()) {

@@ -70,7 +70,6 @@ def validate_widget_state_relations(
                 "x-awaits",
                 "x-work",
                 "x-history",
-                "x-thread-seat",
                 "x-thread-surface",
                 "x-data",
                 "x-measured",

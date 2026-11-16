@@ -1,5 +1,38 @@
 # Page authoring
 
+## Show the subject
+
+Before writing a view's words, decide what it shows. Ask what the user would otherwise
+have to picture from a description, and put that thing on the page in its own form:
+
+- An existing interface is a screenshot, cropped or marked so the eye lands on the
+  point, and a visual change between two versions is an `lf-shot` before-and-after
+  pair (`authoring-evidence.md`, "Interactive and visual evidence").
+- A behavior, such as an interaction, a motion or a process over time, runs: in a live
+  sample the user operates (`live-samples.md`), or in `lf-motion` from the `motion`
+  package. An order of events between actors is an `lf-timeline`.
+- A proposal or mechanism nothing can show yet is drawn: where things sit, what
+  contains, calls or feeds what, how a state changes, today beside the proposal, and
+  alternatives in one frame at one scale.
+- Numbers whose shape is the point, such as a trend, a ranking or groups on one scale,
+  are an `lf-chart`, even when they compare the same measures across items. Label the
+  values the argument cites, and put exact values in a table below it when readers
+  need them.
+- Wording the user judges, such as code, a command or a message, is shown as the text
+  itself. When the point is what code does, such as what it draws or which rule wins,
+  show that effect in one of the forms above, with the code beside it.
+
+A table or list whose rows say where things sit, how large they are or what connects
+to what should be a drawing. A drawing or chart makes its point through its geometry:
+where its marks sit, their sizes, and what contains or links them. One that only
+restates the words or numbers beside it, as boxes holding its sentences or a mark or
+bar per counted item, shows nothing. When the user has nothing to picture, as when
+they weigh a refactor's reasons and cost, leave the case in words and draw nothing.
+
+Use a table for looking up values, for mixed units that can't share an axis, or for
+comparisons with text-heavy cells. `authoring-evidence.md` says which element draws
+each kind of evidence, and how to draw a figure of your own.
+
 ## Develop the work
 
 Choose the material from what the reader needs to understand or decide about the
@@ -34,9 +67,6 @@ judge a design before it is implemented or tested; claims about real behavior
 still require evidence. Keep the distinction visible beside the demonstration.
 `authoring-evidence.md` owns evidence and its presentation; `live-samples.md` owns
 operable Leaf examples.
-
-Use a drawing when its arrangement, connections or scale make the subject easier
-to understand.
 
 Compose the page from that material. Explain the conclusion, reasons, costs and
 limits beside the result they concern, and remove descriptions the result makes
@@ -152,13 +182,16 @@ Wrap content with its own design in a themed page in a box that sets
 (`package-themes.md`, "Personal themes").
 
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
-`body`, so Leaf's widgets, threads and panel follow the page: `--paper` and `--ink` for
-ground and text, `--card`, `--muted`, `--rule` and `--accent`, and the faces
-`--serif` for prose, `--sans` for labels and controls and `--mono` for code
-(`package-themes.md`, "Theme colors", lists every input). A palette made for one scheme
-also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take that
-scheme's values. `--col` sets the reading column's width, and the spacing steps
-`--sp-1` to `--sp-5` tighten under `density-working`.
+`body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a
+palette: `--lf-paper` for the ground, `--lf-ink` for text and `--lf-accent` for
+links and focus. Leaf steps the neutral colours of every surface from the first two,
+and the page's own rules read them too: `--lf-card`, `--lf-field`, `--lf-muted`,
+`--lf-rule` and `--lf-border`. The faces are `--lf-serif` for prose, `--lf-sans` for
+labels and controls and `--lf-mono` for code, and `--lf-r` sets every corner
+(`package-themes.md`, "Theme tokens", lists every token). A palette made for one
+scheme also sets `color-scheme: light` or `dark`, so the tokens it leaves alone take
+that scheme's values. `--lf-col` sets the reading column's width, and the spacing
+steps `--lf-sp-1` to `--lf-sp-5` tighten under `density-working`.
 
 The page is `body`. One `main` directly inside it holds the page's content, its title
 included, and carries its Layout. Site furniture around that content, such as a
@@ -168,9 +201,11 @@ the page's CSS lays out what stands beside it (`page-layout.md`, "Layouts").
 
 Leaf pads `body`'s foot by `--lf-foot-room` so the page's end scrolls clear of the
 panel, and its head by `--lf-head-room`, the phone's status bar. Set the page's ground
-in `--paper`; a page that takes no theme paints its ground on `html` and sets
-`--lf-ground` there (`package-themes.md`, "A theme change"), since `body` is a
-container, which keeps its own background off the window below a short page. A reset
+in `--lf-paper`, which the theme paints the window in. A page that takes no theme
+paints its own ground on `html`, since `body` is a container, which keeps its own
+background off the window below a short page. It also sets `--lf-paper` and
+`--lf-ink` to its ground and text colours, so Leaf's panel, thread cards and
+widgets stand on that ground rather than the browser's white. A reset
 that zeroes `body`'s padding, or an app shell whose own box scrolls, puts
 `padding-top: var(--lf-head-room)` and `padding-bottom: var(--lf-foot-room)` on
 whatever scrolls. A box page CSS makes opaque,
@@ -306,9 +341,15 @@ the columns to what fits at the narrowest width the page's readers use.
 ## Stable anchors
 
 Give each section, major block and Leaf element a stable, meaningful `id` on the
-smallest element a user would point at. A code block, table, figure or aside a user
-will point at as a whole needs one too, on itself or its immediate container. Where a
-wrapper holds only one child that fills it, put the id on the child.
+smallest element a user would point at. A user comments on words by selecting them and
+on anything else by pointing at it, and a pointed comment lands on the nearest element
+around the pointer that has an id. So each block they would point at whole, such as a
+picture, a drawing, a code block, a table or an aside, needs an id of its own, on
+itself or on a block that holds only it and its caption, such as its `<figure>` or its
+table cell. An inline wrapper, such as a link around a picture, has only the box of a
+line of text, so there the id goes on the picture. One id around several such blocks,
+as on a table of screenshots, puts a comment aimed at any one of them on the whole
+table. Where a wrapper holds only one child that fills it, put the id on the child.
 
 Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the group.
 When that title starts a section with an id, the `<section>` carries the address

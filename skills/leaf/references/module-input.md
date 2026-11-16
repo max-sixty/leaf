@@ -89,8 +89,9 @@ actual binding that invoked it, including when the command reference selects a r
 A row declares at most one of these handlers. A row without either names a press the
 browser or an outer handler makes, and one that names a `control` is pressed by a
 click on it. `control` is the visible element that activates it. `lands(from)` says
-where the user stands after Leaf runs the row for a key, a command-reference pick or
-a click on its `control`: Leaf calls it right after the run, so it reads the state the
+where a press takes the user, such as a step list's arrow to the new step's row, after
+Leaf runs the row for a key, a command-reference pick or a click on its `control`: Leaf
+calls it right after the run, so it reads the state the
 run left, with the element the press came from (where the user was for a key or a
 pick, the button for a click), and puts the user on the element it returns as a move,
 or leaves them for `null`. A margin entry's activation keeps its own focus handling.
@@ -113,7 +114,10 @@ a widget's state or the threads. For any other state it reads, hold the value in
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+then to the page. A key pressed inside an outlet Leaf fills with a Thread
+(`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
+presentation") skips the widgets around the outlet: it goes to the scopes inside the
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
 naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope. A key other
@@ -207,13 +211,18 @@ it has focus. `{caret: [start, end, direction]}` places a text field's caret. Mo
 focus never scrolls; reveal the destination with `scrollIntoView`
 (`module-scroll-and-motion.md`, "Scrolling to a destination").
 
-Before hiding or replacing nodes the user may be in, as a redraw that rebuilds a row
-does, call `const restore = holdFocus(scope)`, and call `restore?.()` after; `holdFocus`
-returns `null` when the user is outside `scope`. Moving nodes needs no hold
-(`module-authoring.md`, "Retained nodes"). `restore` puts the user back on the same
-node, or on a stand-in passed to it, unless they have gone elsewhere since. For a keyed
-list, `holdFocus(list, { key })` names the attribute holding each item's key, and the
-user lands on the same item, or the nearest survivor.
+Before hiding or replacing nodes the user may be in, as a redraw that rebuilds or
+deletes a row does, call `const restore = holdFocus(scope)`, and call
+`restore?.(...standIns)` after; `holdFocus` returns `null` when the user is outside
+`scope`. Moving nodes needs no hold (`module-authoring.md`, "Retained nodes"). Unless
+the user has gone elsewhere since, `restore` puts them back on the same node, or else on
+the first stand-in that can take focus. For a keyed list, `holdFocus(list, { key })`
+names the attribute holding each item's key. `restore` then tries the same item, then
+the nearest item that survived, and lands on the control there like the one the user
+was on, such as its Remove. It tries the stand-ins last, so a Remove that empties the
+list can hand the user to the list's Add button. A command row whose `run` redraws the
+user's own place holds focus this way, and leaves `lands` to a press that takes the
+user somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
@@ -222,8 +231,9 @@ A live revision moves focus from a generated control to its replacement by a
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
 so focus on a margin entry or in a thread card reads as being at its passage or
 obligation; a module asks it whether the user is on its content from either.
-`whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+`whenLeft(element, leave)` runs `leave` once when focus moves off `element`. Pass the
+focused element itself, or a host whose shadow tree holds focus: `whenLeft` doesn't
+hear focus leave a control among `element`'s children. `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group
@@ -323,8 +333,8 @@ come back the same leave the preview as it is. It returns:
   lists presses the register can't see, each as the steps its chips draw, as a control's
   own activation keys a drag grip names. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
-  declaring element by default: another element, as a message's age stands its preview
-  by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
+  declaring element by default: another element, as a message stands its preview by
+  the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
   beneath it. `about` is the element the preview is about, which Leaf leaves

@@ -20,19 +20,19 @@ import {
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
 import { widgetElement } from "../widget-descriptors.js";
-import {
-  authored,
-  elementById,
-  inChrome,
-  pageQueryAll,
-  renderRetired,
-} from "../passages.js";
-import { isPagePaint, renderQuiet } from "../declared-words.js";
+import { authored, elementById, inChrome, renderRetired } from "../passages.js";
+import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { keeps } from "../keeps.js";
 
-/** @param {import("../../types/domain.js").Projection} projection */
-function paintStateOrigins(projection) {
+// Paint each unit's origin mark, and return every element that wears one or just lost
+// one. `marked` holds the elements the last paint marked with each origin attribute.
+// This region is the attribute's only writer, so a paint takes the mark off the
+// elements it no longer wants from there rather than finding them by a query of the
+// whole page.
+/** @param {import("../../types/domain.js").Projection} projection
+ * @param {Map<string, Set<Element>>} marked */
+function paintStateOrigins(projection, marked) {
   /** @type {Set<Element>} */
   const userOverride = new Set();
   /** @type {Set<Element>} */
@@ -49,14 +49,15 @@ function paintStateOrigins(projection) {
   }
   const touched = new Set();
   for (const [attr, wanted] of marks) {
-    for (const target of pageQueryAll(`[${attr}]`)) {
+    for (const target of marked.get(attr) ?? []) {
       touched.add(target);
-      if (!wanted.has(target)) target.removeAttribute(attr);
+      if (!wanted.has(target)) keeps(target, attr, null);
     }
     for (const target of wanted) {
       touched.add(target);
       keeps(target, attr, "1");
     }
+    marked.set(attr, wanted);
   }
   return touched;
 }
@@ -139,6 +140,8 @@ export function createProjectionPresentation() {
   };
   watchPresentation(updateCoverage);
 
+  /** @type {Map<string, Set<Element>>} */
+  const originMarked = new Map();
   function presentCurrent() {
     const projection = currentProjection();
     // Until the server's first state or the offline fallback arrives, the page cannot
@@ -150,12 +153,20 @@ export function createProjectionPresentation() {
       // widget's paint counts as current.
       return projection;
     }
+    // Every element this paint marks, or takes a mark off, says its marks again quietly.
+    /** @type {Set<Element>} */
+    const marked = new Set();
     for (const entry of projection.classified.values())
-      for (const id of entry.restated ?? [])
-        keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
+      for (const id of entry.restated ?? []) {
+        const target = elementById(id);
+        if (!target) continue;
+        keeps(target, PAGE_PAINT_ATTRIBUTE.restated, "1");
+        marked.add(target);
+      }
     paintSettlements(widgetStates());
-    const originTargets = paintStateOrigins(projection);
-    renderQuiet(document.body, originTargets);
+    for (const target of paintStateOrigins(projection, originMarked))
+      marked.add(target);
+    sayQuietFacts(marked);
     return projection;
   }
 

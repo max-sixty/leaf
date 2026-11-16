@@ -28,7 +28,7 @@ vars:
     table so it shows where everything stands." Its answer is
     `{kind: reply, writer: agent, ref: "7f20c3d9:0:7c41d0e2"}`.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run in this turn, through its final message.
 assert:
   - type: llm-rubric

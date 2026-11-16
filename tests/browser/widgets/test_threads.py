@@ -151,9 +151,9 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
     nothing was ever going to appear. The drags are real ones, so the mouseup guard is
     under test with the button.
 
-    Then two turns of the macrotask queue, because the handler raises the button from a
-    bare `setTimeout` — asserting straight after the drag reads the frame before the
-    decision and passes whatever the decision would have been."""
+    Then the rendering the release queued settles, because the handler raises the
+    button in a later frame — asserting straight after the drag reads the frame before
+    the decision and passes whatever the decision would have been."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(
@@ -207,18 +207,16 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
 
     open_panel_thread(page, "c-store")
     assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
-    # Both turns the handler could have used: it defers with a bare setTimeout, and the
-    # step it queues queues nothing further.
-    for _ in range(2):
-        page.evaluate("() => new Promise((r) => setTimeout(r))")
+    # The release raises the button from the rendering it queues (`nextRender`).
+    rendered(page)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
 def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, serve):
     """What a user and an agent said to each other is not something the page changed.
 
-    A widget declaring x-thread-seat grows a seat on the page, and the layer fills it
-    from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
+    A widget that seats its threads returns an outlet of its own, and the layer fills
+    it from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
     standing inside the widget out in `<main>`. The version diff walks every block the
     page holds and keys each by `wrote`, which is exactly the reading that leaves
     generated words out, so those blocks key to nothing and are skipped.

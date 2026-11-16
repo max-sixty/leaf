@@ -78,8 +78,8 @@ picks depend on each other, such as a limit on how many.
 
 On Me lists only what still needs the user. Retire a question on the document
 once it stops mattering, by removing its widget in a new version or marking it
-`restated` (`authoring-revisions.md`). For a question asked in a thread message, use
-`leaf task end` as "The On lists" describes. A request the user made stays open until you
+`restated` (`authoring-revisions.md`). For a question asked in a thread message,
+resolve its thread as `conversation-loop.md`, "The On lists", describes. A request the user made stays open until you
 answer it or they withdraw it; deciding something else, however related, doesn't
 answer it. To retire one yourself, say what changed to make it unnecessary.
 
@@ -98,10 +98,10 @@ a record or system page, put each question in the part of the page it decides: a
 question about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a question about the whole record comes last.
 
-Where evidence or option pictures need more than the prose's width, set `data-width`
-on the block that holds them, such as the `lf-options`, figure or playground. An
-`lf-ask` takes no width of its own, so the question's words keep the column's edge
-beside it (`page-layout.md`, "Bounds and widths"). Size an option's picture
+Where evidence, option pictures or option cards set across need more than the prose's
+width, set `data-width` on the block that holds them, such as the `lf-options`, figure
+or playground. An `lf-ask` takes no width of its own, so the question's words keep the
+column's edge beside it (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how

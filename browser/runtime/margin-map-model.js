@@ -2,9 +2,11 @@
  * that supply margin clusters. DOM placement, retained controls, activation, search
  * input and focus stay in the dialog adapter. */
 
-import { spokenSubject, visibleContributionEntryLabel } from "./contribution-model.js";
-
-import { contributionItemKey } from "./contribution-model.js";
+import {
+  contributionItemKey,
+  spokenSubject,
+  visibleContributionEntryLabel,
+} from "./contribution-model.js";
 import { annotationItems, entryControls } from "./margin-model.js";
 import { wordsText } from "./voice.js";
 
@@ -33,8 +35,15 @@ const dialogControlId = (entry, offered, record) =>
 /** @template {Offer} O
  * @param {readonly import("./margin-model.js").MarginEntry<O>[]} entries
  * @param {(item: Item) => import("./contribution-model.js").KindFace} faceFor
- * @param {ReadonlyMap<string, string>} searchTextByKey */
-export function marginMapGroups(entries, faceFor, searchTextByKey) {
+ * @param {ReadonlyMap<string, string>} searchTextByKey
+ * @param {(item: Item) => string | null} [saidOf] An item's words as the map opens, where
+ *   the inventory's copy would be stale, as a draft's is. */
+export function marginMapGroups(
+  entries,
+  faceFor,
+  searchTextByKey,
+  saidOf = () => null,
+) {
   return Object.freeze(
     entries.map((entry) => {
       const controls = entryControls(entry);
@@ -44,7 +53,7 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
         ...items.map(
           /** @returns {ItemAction<O>} */ (item) => {
             const face = faceFor(item);
-            const visibleLabel = item.text || entry.title;
+            const visibleLabel = saidOf(item) || item.text || entry.title;
             return {
               kind: "item",
               key: dialogItemKey(entry, item),

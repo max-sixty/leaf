@@ -15,7 +15,7 @@
  * Every surface rides a color token, so the dark palette is exactly one more
  * token block — nothing else in this file (or the runtime, which styles its UI
  * from the same tokens) knows about color schemes. The runtime's chrome takes the
- * UI sans (native .lf-ui-face reads --sans), so "this is not the document" is a
+ * UI sans (native .lf-ui-face reads --lf-sans), so "this is not the document" is a
  * difference you can see.
  *
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
@@ -60,7 +60,7 @@
 
    A spatial element reads the room past the measure declared by `x-space`:
 
-   - `wide` takes the shared capped width (`--wide`) from the prose's start edge;
+   - `wide` takes the shared capped width (`--lf-wide`) from the prose's start edge;
    - `available` takes all room the page can give it.
 
    Delivery paints it as `data-lf-space`, and CSS computes room after chrome strips and
@@ -252,9 +252,11 @@
   syntax: "*";
   inherits: false;
 }
-/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink and the
- * room it reaches past the box. None inherits, so a box inside a marked one is marked
- * only as it is itself. */
+/* What a mark drawn on a box is drawn with (surfaces.css): its gap, band, ink, the
+ * room it reaches past the box and the aim's veil. None inherits, so a box inside a
+ * marked one is marked only as it is itself, and marking a box restyles that box
+ * alone: an inherited veil restyled all 150,000 elements of a long text document each
+ * time ⌥ aimed at it, 370 ms in Firefox. */
 @property --lf-band-gap {
   syntax: "*";
   inherits: false;
@@ -268,6 +270,10 @@
   inherits: false;
 }
 @property --lf-band-room {
+  syntax: "*";
+  inherits: false;
+}
+@property --lf-aim-veil {
   syntax: "*";
   inherits: false;
 }
@@ -402,8 +408,8 @@ body {
    * page's layout. */
   html[data-lf-live][data-lf-sample-block] {
     overflow-y: hidden;
-    --page-pad-start: 24px;
-    --page-pad-end: 24px;
+    --lf-page-pad-start: 24px;
+    --lf-page-pad-end: 24px;
   }
 }
 /* Declared Markdown is the readable first paint, with its exact authored pre
@@ -479,12 +485,12 @@ body {
   display: flex;
   gap: 0.4em;
   align-items: center;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   white-space: nowrap;
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
 }
 /* The room a text field keeps at the end of its lines for the action standing in its
    trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
@@ -594,37 +600,37 @@ body {
 /* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
  * pixels whatever units the theme writes them in. */
-@property --raise-1-drop {
+@property --lf-raise-1-drop {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --raise-1-blur {
+@property --lf-raise-1-blur {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --raise-2-drop {
+@property --lf-raise-2-drop {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --raise-2-blur {
+@property --lf-raise-2-blur {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --raise-3-drop {
+@property --lf-raise-3-drop {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --raise-3-blur {
+@property --lf-raise-3-blur {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --rail-hang {
+@property --lf-rail-hang {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
@@ -657,12 +663,12 @@ body {
 }
 /* Registered so native layout and annotation placement read widths in pixels,
  * whatever unit a page uses. */
-@property --rail {
+@property --lf-rail {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-/* Read in pixels by the runtime (`windowHoldsRail`), while `--col` itself stays
+/* Read in pixels by the runtime (`windowHoldsRail`), while `--lf-col` itself stays
  * unregistered, so a page states its column in any unit and it resolves where the
  * Layout applies it. A column stated as a percentage has no window width of its own,
  * so the room falls back to 0px and cards open at every width. */
@@ -671,17 +677,17 @@ body {
   inherits: true;
   initial-value: 0px;
 }
-@property --sidebar {
+@property --lf-sidebar {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --note {
+@property --lf-note {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-@property --wide {
+@property --lf-wide {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
@@ -714,8 +720,8 @@ body {
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {
   :root {
-    --page-pad-start: 28px;
-    --page-pad-end: 72px;
+    --lf-page-pad-start: 28px;
+    --lf-page-pad-end: 72px;
   }
 }
 /* Working density: the same faces, set for operating a surface rather than reading
@@ -736,31 +742,31 @@ body {
  * it reads any other token, and never asks what holds it. */
 .density-working {
   --lf-density: working;
-  --page-pad-start: 28px;
-  --t-1: 1.375rem;
-  --t-2: 1.125rem;
-  --t-3: 0.96875rem;
-  --t-4: 0.875rem;
-  --t-5: 0.78125rem;
-  --t-6: 0.65625rem;
-  --t-working-label: 0.75rem;
-  --sp-1: 3px;
-  --sp-2: 6px;
-  --sp-3: 10px;
-  --sp-4: 14px;
-  --sp-5: 18px;
-  --code-size: 0.8125rem;
-  --code-line: 1.125rem;
-  --pane-bar-pad-block: 6px;
-  --pane-bar-pad: var(--pane-bar-pad-block) 12px;
-  --pane-inset: 12px;
-  --h2-start: 18px;
-  --h3-start: 12px;
-  --figure-margin-block: 10px;
-  --callout-margin-block: 10px;
-  --hr-margin-block: 14px;
-  --details-margin-block: 10px;
-  font-size: var(--t-4);
+  --lf-page-pad-start: 28px;
+  --lf-t-1: 1.375rem;
+  --lf-t-2: 1.125rem;
+  --lf-t-3: 0.96875rem;
+  --lf-t-4: 0.875rem;
+  --lf-t-5: 0.78125rem;
+  --lf-t-6: 0.65625rem;
+  --lf-t-working-label: 0.75rem;
+  --lf-sp-1: 3px;
+  --lf-sp-2: 6px;
+  --lf-sp-3: 10px;
+  --lf-sp-4: 14px;
+  --lf-sp-5: 18px;
+  --lf-code-size: 0.8125rem;
+  --lf-code-line: 1.125rem;
+  --lf-pane-bar-pad-block: 6px;
+  --lf-pane-bar-pad: var(--lf-pane-bar-pad-block) 12px;
+  --lf-pane-inset: 12px;
+  --lf-h2-start: 18px;
+  --lf-h3-start: 12px;
+  --lf-figure-margin-block: 10px;
+  --lf-callout-margin-block: 10px;
+  --lf-hr-margin-block: 14px;
+  --lf-details-margin-block: 10px;
+  font-size: var(--lf-t-4);
   line-height: 1.45;
 }
 /* Media fits its container on every page, with a Layout or without, and in a thread: an
@@ -793,13 +799,13 @@ img {
  * theme drops it under the words where both don't fit on a line). The user chose the block's name over its raw
  * id on 23 October 2026, reversing the earlier choice to show the id as "what it is". */
 .lf-ref {
-  font: var(--font-small);
-  color: var(--muted);
+  font: var(--lf-font-small);
+  color: var(--lf-muted);
   text-decoration: none;
   white-space: nowrap;
 }
 .lf-ref:hover {
-  color: var(--accent);
+  color: var(--lf-accent);
   text-decoration: underline;
 }
 
@@ -811,20 +817,10 @@ img {
    instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
 .lf-label,
 :where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
-  font: var(--font-label);
+  font: var(--lf-font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
-}
-@media screen {
-  html:root {
-    .lf-thread-seat {
-      display: block;
-    }
-    .lf-say {
-      display: flex;
-    }
-  }
+  color: var(--lf-muted);
 }
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
@@ -858,20 +854,20 @@ lf-suggestion {
 }
 lf-old,
 lf-new {
-  border-radius: var(--r-s);
+  border-radius: var(--lf-r-s);
   padding: 0 3px;
 }
-/* --ink-2, not --muted: the strike and the tint already say retired, and muted on
+/* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
  * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
  * every user-facing word to. The corpus's first inline delete is what surfaced it. */
 lf-old {
-  background: var(--del-tint);
-  color: var(--ink-2);
+  background: var(--lf-del-tint);
+  color: var(--lf-ink-2);
   text-decoration: line-through;
-  text-decoration-color: var(--danger);
+  text-decoration-color: var(--lf-danger);
 }
 lf-new {
-  background: var(--add-tint);
+  background: var(--lf-add-tint);
 }
 /* The words that moved, deepened against the slot's own tint: the module's ranges
  * through the highlight registry (lf-suggestion.js #emphasize), so no node is
@@ -880,11 +876,11 @@ lf-new {
  * whose text is all these ranges paint (AGENTS.md, "Runtime ownership"). */
 lf-old::highlight(lf-sug-del),
 lf-old *::highlight(lf-sug-del) {
-  background-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background-color: color-mix(in srgb, var(--lf-danger) 30%, transparent);
 }
 lf-new::highlight(lf-sug-ins),
 lf-new *::highlight(lf-sug-ins) {
-  background-color: color-mix(in srgb, var(--ok) 26%, transparent);
+  background-color: color-mix(in srgb, var(--lf-ok) 26%, transparent);
 }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any
  * child that is not phrasing content makes the slot a block. Enumerating the block
@@ -1086,15 +1082,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-block-frame: 1;
 }
 :where([data-lf-reading-role="pane"]) {
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  --lf-ground: var(--paper);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
 }
 :where([data-lf-reading-role="pane"]) > header {
-  padding: var(--pane-bar-pad);
-  border-bottom: 1px solid var(--rule);
-  font: var(--font-title);
+  padding: var(--lf-pane-bar-pad);
+  border-bottom: 1px solid var(--lf-rule);
+  font: var(--lf-font-title);
   --lf-block-frame: 1;
 }
 /* A pane is a region of a workspace, so its name takes the label font (`.lf-label`):
@@ -1104,8 +1100,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   margin: 0;
 }
 :where([data-lf-reading-role="pane"]) > footer {
-  padding: var(--pane-bar-pad);
-  border-top: 1px solid var(--rule);
+  padding: var(--lf-pane-bar-pad);
+  border-top: 1px solid var(--lf-rule);
   --lf-block-frame: 1;
 }
 /* A framed box that holds authored content is an inline-size container, so a widget
@@ -1125,9 +1121,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
  * that pads a pane body another way sets `--lf-pane-top` with it. */
 :where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: var(--pane-inset);
-  padding: var(--lf-pane-top) var(--pane-inset)
-    calc(var(--pane-inset) + var(--lf-end-room));
+  --lf-pane-top: var(--lf-pane-inset);
+  padding: var(--lf-pane-top) var(--lf-pane-inset)
+    calc(var(--lf-pane-inset) + var(--lf-end-room));
   scroll-padding-block-end: var(--lf-end-room);
   container-type: inline-size;
   --lf-block-frame: 1;
@@ -1144,7 +1140,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 @container not style(--lf-end-room: 0px) {
   :where([data-lf-reading-role="pane"]) > footer {
     --lf-end-room: inherit;
-    padding-block-end: calc(var(--pane-bar-pad-block) + var(--lf-end-room));
+    padding-block-end: calc(var(--lf-pane-bar-pad-block) + var(--lf-end-room));
   }
 }
 
@@ -1155,10 +1151,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   max-width: 24rem;
   max-height: 3.5rem;
   padding: 12px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--ink);
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
+  color: var(--lf-ink);
   font: inherit;
   overflow: hidden;
   white-space: nowrap;
@@ -1168,5 +1164,5 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 .lf-motion-preview.lf-inhand {
   max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
   opacity: 1;
-  box-shadow: var(--raise-2);
+  box-shadow: var(--lf-raise-2);
 }

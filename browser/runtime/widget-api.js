@@ -30,6 +30,9 @@ export { rankAt } from "./projection/model.js";
 export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
 export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
+// `titledElement(heading)`: the element a heading titles, the outermost one that opens
+// with it, which a count per heading counts under that heading.
+export { titledElement } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
@@ -80,7 +83,6 @@ export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export {
-  threadBox,
   placePageThreads,
   consumeAnnotations,
   registerThreadPresentation,

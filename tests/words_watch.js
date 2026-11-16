@@ -278,11 +278,16 @@
       if (this === local) written.clear();
     };
   }
+  // A store that refuses reads, as a page's storage may, shows no other tab's edit.
   const replacedElsewhere = (words) => {
-    for (const [key, mine] of written) {
-      if (!holds(mine, words)) continue;
-      const now = local.getItem(key);
-      if (now !== mine && !holds(now, words)) return true;
+    try {
+      for (const [key, mine] of written) {
+        if (!holds(mine, words)) continue;
+        const now = local.getItem(key);
+        if (now !== mine && !holds(now, words)) return true;
+      }
+    } catch {
+      // Nothing this document can read credits another tab.
     }
     return false;
   };

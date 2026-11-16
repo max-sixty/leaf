@@ -138,6 +138,60 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
+def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
+    """The picker's map names what the window shows, and a closed tab's panel shows
+    nothing, so the map reads none of the boxes in it: the browser lays the panel out
+    to answer each read, and on a page of thirty 4 MB text documents in tabs the first
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    `shownParts`). Its words take a hint once their tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two">'
+                '<p id="closed-words">Words in the closed tab.</p></lf-tab></lf-tabs>',
+            )
+        ),
+    )
+    closed = page.locator("#closed-words")
+    expect(closed).to_be_hidden()
+    page.evaluate("""() => {
+      window.closedReads = [];
+      for (const name of ['getBoundingClientRect', 'getClientRects']) {
+        const read = Element.prototype[name];
+        Element.prototype[name] = function (...args) {
+          if (this.parentElement?.closest('lf-tab[hidden]'))
+            closedReads.push(`${name} ${this.localName}`);
+          return read.apply(this, args);
+        };
+      }
+    }""")
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).not_to_have_count(0)
+    assert page.evaluate("closedReads") == []
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+
+    page.get_by_role("tab", name="Two", exact=True).click()
+    expect(closed).to_be_visible()
+    page.keyboard.press("s")
+    expect(hints).not_to_have_count(0)
+    # A target's hint stands by its upper-left corner (keyboard/hints.js, `seatHints`).
+    assert page.evaluate(
+        """() => {
+          const words = document.getElementById('closed-words').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-picker-hint')].some((hint) => {
+            const box = hint.getBoundingClientRect();
+            return Math.abs(box.top - words.top) < 40 && Math.abs(box.left - words.left) < 60;
+          });
+        }"""
+    ), "the opened tab's words took no hint"
+
+
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
@@ -255,11 +309,12 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_be_hidden()
 
 
-def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
-    """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
+def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
+    """Keyboard and pointer Comment gestures take the same explicit target: the chosen
+    target's own draft opens, and the words typed about the heading stay with it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     field = page.locator(".lf-fab-input")
-    draft = "Carry these deliberate words."
+    draft = "Words about the heading."
 
     page.locator("h1").click(modifiers=["Alt"])
     expect(field).to_be_focused()
@@ -281,8 +336,11 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     page.keyboard.type(prose_code)
 
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", draft)
+    expect(field).to_have_js_property("value", "")
     assert page.evaluate(DRAFT_MARK) == "prose"
+    page.keyboard.press("Escape")
+    page.locator("h1").click(modifiers=["Alt"])
+    expect(field).to_have_js_property("value", draft)
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):

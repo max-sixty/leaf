@@ -775,7 +775,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         if replaced:
             route.fulfill(response=answer)
             return
-        replaced.append(answer.text())
+        replaced.append(answer.json()["reading"])
         route.fulfill(
             response=answer,
             headers={
@@ -793,7 +793,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         )
     ) as response:
         pass
-    assert response.value.text() == reading
+    assert response.value.json()["reading"] == reading
     # The next poll starts after the runtime admitted the replacement response.
     with page.expect_request("**/api/news"):
         pass
@@ -1259,7 +1259,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:

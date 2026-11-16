@@ -9,8 +9,8 @@
 // driven included, through sampled translation or reflow from size changes.
 // Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the document while it parses, the page before it
-// presents or as it returns from a hidden tab, and runtime regions declared with
-// `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
+// presents or as it returns from a hidden tab, runtime regions declared with
+// `data-lf-reflow`, and a runtime box declared with `data-lf-widens` widening. A script that moves a box by writing its geometry has no credit
 // of its own, however the page means it, so a surface that should follow something
 // stands by a native mechanism that does. A new layout shape therefore needs no rule
 // here: where its motion is native, the general rule already credits it, and where it
@@ -102,6 +102,12 @@
 // that settles it until the loop settles again, so a page script's move in the task
 // after the fit is the input's too; one after the landing settles is reported.
 // Native effects it began retain their sampled displacement within their subtree.
+// An effect a ResizeObserver delivery begins in the frame its rendering first draws,
+// news still unlanded, is one it began, from that moment: a box that follows its own
+// layout starts there, after the frame's tick, as box-motion.js carries a floating
+// box's parts, and a long frame can end that effect, or news land, before the next
+// tick reads it. The runtime holds news that arrives while the gesture is unresolved
+// until that frame paints (state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
 // through the layout path to that box and matches its movement. Its continued
 // lifetime never owns unrelated page movement. A script re-times motion by cancelling
@@ -1184,6 +1190,7 @@
       consumers,
     });
     continueMotion(animation);
+    if (moves(animation)) deliveredBy()?.own.add(animation);
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -1205,6 +1212,7 @@
         beganAt.set(this, { at });
         if (origin) origins.set(this, origin);
         continueMotion(this);
+        if (moves(this)) deliveredBy()?.own.add(this);
       }
       return result;
     };
@@ -1712,6 +1720,7 @@
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         appendTail: !range && node.hasAttribute("data-lf-append-tail"),
         rises: !range && node.hasAttribute("data-lf-rises"),
+        widens: !range && node.hasAttribute("data-lf-widens"),
         appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
@@ -1869,6 +1878,27 @@
   const renderings = [];
   const inputRenderings = new WeakMap();
   let open = null;
+  // Each frame's tick is counted, and the open rendering notes the frame it first
+  // draws in while news has not sealed it (`drawsIn`). A ResizeObserver delivery
+  // follows that tick in the same frame, so the effects it begins are the
+  // rendering's own as they begin (`deliveredBy`).
+  let frameCount = 0;
+  let delivering = 0;
+  const NativeResizeObserver = window.ResizeObserver;
+  window.ResizeObserver = class extends NativeResizeObserver {
+    constructor(callback) {
+      super((entries, observer) => {
+        delivering++;
+        try {
+          return callback(entries, observer);
+        } finally {
+          delivering--;
+        }
+      });
+    }
+  };
+  const deliveredBy = () =>
+    delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
@@ -1972,6 +2002,8 @@
       if (open.last && settled()) end();
       else open.last = settled();
     }
+    frameCount++;
+    if (open?.first && !open.told) open.drawsIn = frameCount;
     for (const rendering of landing) {
       if (!rendering.told)
         for (const animation of begun(rendering.start)) rendering.own.add(animation);
@@ -2523,6 +2555,37 @@
       if (!inside(previousRect) || !inside(currentRect)) return false;
     }
     return true;
+  };
+  // A runtime box that declares it may widen (`data-lf-widens`), as a thread card at its
+  // least width does until a long message arrives (thread-preview.js), may grow at its
+  // inline end, keeping its inline start and top, and carry all it holds as its words
+  // take the new width. It is the one case where news may carry controls sideways,
+  // which the user chose on 14 November 2026 for a card that widens once.
+  const permittedWidening = ({ node, previousRect, currentRect }, around) => {
+    const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
+    if (around.length !== 3) return false;
+    const first = around[0].at,
+      last = around[2].at;
+    const inside = (rect, frame) =>
+      rect.left >= frame.left - 1 &&
+      rect.top >= frame.top - 1 &&
+      rect.right <= frame.right + 1 &&
+      rect.bottom <= frame.bottom + 1;
+    return ancestryAt(element, first).some((owner) => {
+      if (!paintAt(owner, first)?.widens) return false;
+      if (!ancestryAt(owner, first).some((box) => paintAt(box, first)?.runtime))
+        return false;
+      const from = boxAt(owner, first),
+        to = boxAt(owner, last);
+      return (
+        Boolean(from && to) &&
+        Math.abs(to.left - from.left) < 1 &&
+        Math.abs(to.top - from.top) < 1 &&
+        to.right - from.right >= 1 &&
+        inside(previousRect, from) &&
+        inside(currentRect, to)
+      );
+    });
   };
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
@@ -3655,6 +3718,14 @@
             readIn(around[before], node) &&
             readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
+            !permittedWidening(
+              {
+                node,
+                previousRect: fromPaint.painted,
+                currentRect: toPaint.painted,
+              },
+              around,
+            ) &&
             !permittedReflow(
               {
                 node,

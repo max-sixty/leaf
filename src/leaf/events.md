@@ -29,7 +29,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                                   | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
 | <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                              | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                          | what the render check newly found in a version the agent handed over                                                                                                                          |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                                       | opens work the agent owes (`todos.py`)                                                                                                                                                        |
-| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id or a question's obligation id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                   | ends a to-do, or retires a question asked in words without answering it (`todos.py`)                                                                                                          |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                                 | ends a to-do (`todos.py`)                                                                                                                                                                     |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                    | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                                            | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                                        | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -321,14 +321,14 @@ to-do keeps that obligation the agent's even after the thread is resolved
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
 is answered by that message instead, along with every open question before it, or by a reaction whose token
 declares `settles` on the message holding it. Neither answer resolves the thread, and
-the agent's `todo_end` can retire a question unanswered (`obligations.settle_by_words`).
-An agent reply whose `obligation` lists such questions, each by the id the message that
-first asked it set, opens each again whatever ended it: each keeps its id and words and
-stands on the reply until the user's next message or a settling reaction answers it
-(`obligations.question_ids`).
-The agent's `todo_end` also retires a frozen widget's question the user answered in
-words, since no revision can write that widget's state; the delivery of the user's
-reply lists such questions up its thread in `waiting` (`obligations.waiting_in_thread`).
+a `resolve` by either side ends every question asked before it, however the thread
+reopens later, until the resolve is taken back or a message asks one again
+(`obligations`), which is how the agent ends one the user answered elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
+message that first asked it set, opens each again whatever ended it: each keeps its id
+and words and stands on the reply until the user's next message or a settling reaction
+answers it (`obligations.question_ids`).
+The delivery of the user's reply lists a frozen widget's question up its thread in
+`waiting`, since no revision can write that widget's state (`obligations.waiting_in_thread`).
 A message asks by its words or by a widget in its markup, not both: only words answer
 `obligation: true`, so beside a widget it would outlast the user's pick, and
 `thread create` and `thread reply` refuse the pair.
@@ -370,8 +370,15 @@ to-do is made from an obligation.
   single line of plain text no longer than its registry `title` allows
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
 - `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
-  one thread; a reaction may lie inside it but not at an endpoint. `text` may be empty
-  and `label` defaults to “Earlier discussion”. `events.active_summaries` says which
+  one thread; a reaction may lie inside it but not at an endpoint. It replaces the
+  summaries it overlaps whole, and every spoken turn older than the last drawn
+  summary then in force must lie in a summary, apart from the thread's opening
+  message and progress a later reply completed (`events.summary_range`). This holds
+  for a fold without prose too. The refusal names the range admission would take:
+  the requested one widened over every message it would leave. A delivery's
+  `summary_hint` is the range admission takes for the run it suggests, so it may
+  replace a summary in force to close a gap above it. `text` may be empty and
+  `label` defaults to “Earlier discussion”. `events.active_summaries` says which
   summaries stand. A summary answers, resolves, settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,
   `todo`, markup, failure or anchor transition and takes part in no turn, settlement or
@@ -382,7 +389,9 @@ to-do is made from an obligation.
   the browser and transcript then hide it.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
-  thread whose opening comment `holds` a command goal cannot move or detach.
+  thread whose opening comment `holds` a widget cannot move or detach. Such a comment
+  names in `holds` the widget its anchor names and nothing inside it, and the widget
+  is held while the thread is open.
 - A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. A
   widget rides the `markup` field, which only `leaf thread create` and the reply commands

@@ -4,9 +4,9 @@
    returning false: Leaf's own chrome, the floating panel, declines a thread about a
    passage, which opens beside its passage. A message whose widgets the primary holds
    goes there even where it declines (messages.js, `authoredHolders`). A part the
-   primary declined uses the page's nearest drawing of its thread: the exact outlet, or
-   the seat an `x-thread-seat` widget holds it in (surfaces.js, `surfaceFocusTarget`),
-   whose Resolved disclosure opens for a resolved thread; then a page preview. A message
+   primary declined uses the page's nearest drawing of its thread: the outlet a widget
+   seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
+   a resolved thread; then a page preview. A message
    part lands on its message there. Where neither shows it, the primary is asked again
    with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
@@ -74,7 +74,7 @@ import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { discussed } from "./model.js";
+import { deleted, discussed, editable } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { authoredHolder } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -183,9 +183,11 @@ export function createThreadDestinations({
   });
   // Prefer a shown destination in the same order opening asks: the primary reader,
   // then the page's own surfaces. Otherwise return a retained node to reveal; a
-  // hidden primary's retained rows must not mask the page's open card. A route to the
-  // page alone (`page`) lands on the page's drawing, never on the primary's view it is
-  // about to put away, which would leave the user on nothing once it goes.
+  // hidden primary's retained rows must not mask the page's open card. An arrival on
+  // the page (`page`) lands on the page's drawing, never on the primary's view: the
+  // primary declined the thread or is about to put its view away, and its view can
+  // still draw the message, as On Me's card does, closing as the user arrives, which
+  // would leave them on nothing.
   /** @param {string} id @param {{part?: ThreadPart, page?: boolean}} [options] */
   const threadFocusTarget = (id, { part = null, page = false } = {}) => {
     const thread = threadNamed(id);
@@ -324,7 +326,8 @@ export function createThreadDestinations({
         return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
-    // The page's own drawings of the thread: its outlet or seat, a preview.
+    // The page's own drawings of the thread: its outlet or seat, a preview. Its
+    // arrival lands there, never on the primary's view (`threadFocusTarget`'s `page`).
     async function onPage() {
       const mayPresent = () => (focus === false ? intent.available() : intent());
       // A route to a message is an arrival at it, so a seat holding it back shows it.
@@ -403,7 +406,7 @@ export function createThreadDestinations({
             focus !== false &&
             !(await arrive(
               () => {
-                const current = threadFocusTarget(id, { part, page });
+                const current = threadFocusTarget(id, { part, page: true });
                 return (
                   current && {
                     where: current,
@@ -417,7 +420,7 @@ export function createThreadDestinations({
           )
             return null;
         }
-        return threadFocusTarget(id, { part, page });
+        return threadFocusTarget(id, { part, page: true });
       }
       return DECLINED;
     }
@@ -566,11 +569,16 @@ export function createThreadDestinations({
     return card ? openMessageEditIn(card, name) : null;
   }
   // The thread a thread-held draft is written under: the thread a reply is keyed by, or
-  // the one holding the message a rewrite is of; none once it has left the log's reading.
+  // the one holding the message a rewrite is of; none once it has left the log's
+  // reading, and none for a rewrite of a message the user may no longer rewrite, as one
+  // taken back while an answer stands on it, which opens no editor.
   /** @param {string} context */
   function threadHolding(context) {
     const route = threadDraft(context);
-    return route ? threadNamed(route.name) : null;
+    const thread = route ? threadNamed(route.name) : null;
+    if (!thread || route?.part !== "rewrite") return thread;
+    const message = thread.msgs.find(({ id }) => id === route.name);
+    return message && editable(message) && !deleted(message) ? thread : null;
   }
 
   return {

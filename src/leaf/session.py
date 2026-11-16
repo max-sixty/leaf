@@ -17,7 +17,7 @@ from .clerk import QUEUED, waking
 from .detached import StartRefused
 from .file_changes import FileChanges, target_paths
 from .files import file_stamp
-from .findings import Finding, note
+from .findings import Finding, note, with_held
 from .harness import HOOK_TIMEOUT_S, Harness, claim_harness, session_harness
 from .interaction_log import record_command, record_watch
 from .leases import (
@@ -488,17 +488,16 @@ def wait_acknowledgement(
     return acknowledge
 
 
-def delivery_json(reading: PageTick, harness: Harness | None) -> str:
+def delivery_record(reading: PageTick, harness: Harness | None) -> dict:
     """Freeze a watcher reading and present its bounded first part, as `delivery
     read` prints it."""
     from .delivery import batch_data, delivery_reading, freeze_delivery
-    from .event_log import jsonl_line
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         acknowledge=wait_acknowledgement(harness, reading.page_dir),
     )
-    return jsonl_line(delivery_reading(payload))
+    return delivery_reading(payload)
 
 
 def read_watch_pass[DeliveryResult](
@@ -623,10 +622,13 @@ def cmd_wait(page_dir: Path | None = None) -> int:
         cannot prove that a later one will run, so it never delegates its input
         to the next hook. The native between-turn watch owns hook wakes, and a
         wait it has superseded prints nothing, since that watch carries the input.
+        The delivery carries what the wait noted before it (`with_held`).
         """
+        from .event_log import jsonl_line
+
         if not watch.holds():
             return False
-        print(delivery_json(reading, harness), flush=True)
+        print(jsonl_line(with_held(delivery_record(reading, harness))), flush=True)
         return True
 
     try:
@@ -777,13 +779,16 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
 
     def reminders(page: PageTransaction) -> list[dict]:
         from .holding import running_turns
+        from .state import agent_turn_stamps
 
         claim = page.active_claim
         key = (
             len(page.events),
             claim and claim["turn"],
             claim and claim["turn_closed"],
-            frozenset(running_turns(claim)) if claim else frozenset(),
+            frozenset(running_turns(agent_turn_stamps(claim, page.events)))
+            if claim
+            else frozenset(),
         )
         if (kept := owed.get(page.page_dir)) is None or kept[0] != key:
             owed[page.page_dir] = kept = (key, left_owed(page))

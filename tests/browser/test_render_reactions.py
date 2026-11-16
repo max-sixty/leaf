@@ -774,7 +774,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     """The response choice shares the comment field's solid accent focus ring. Read in
     the dark scheme, where a ring stated as a literal value rather than the token would
-    show: `--accent` states both schemes in one `light-dark()`."""
+    show: `--lf-accent` states both schemes in one `light-dark()`."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme="dark")
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -788,12 +788,12 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve):
     expect(suggest).to_be_focused()
     ring = suggest.evaluate("""node => {
       const ink = document.createElement('span');
-      ink.style.color = 'var(--accent)';
+      ink.style.color = 'var(--lf-accent)';
       node.append(ink);
       const accent = getComputedStyle(ink).color;
       ink.remove();
       const band = getComputedStyle(document.documentElement)
-        .getPropertyValue('--focus-ring-w').trim();
+        .getPropertyValue('--lf-focus-ring-w').trim();
       const style = getComputedStyle(node);
       return {outline: style.outlineStyle, color: style.outlineColor,
               width: style.outlineWidth, accent, band};
@@ -1171,14 +1171,16 @@ graph LR
     page.locator("#figure svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
-    write(field, "Carry this explicit draft.")
+    write(field, "Words about the figure.")
     page.evaluate("document.activeElement.blur()")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Carry this explicit draft.")
+    expect(field).to_have_attribute("aria-label", re.compile(r"Start request"))
+    # The part's own draft opens; the figure's words stay with the figure.
+    expect(field).to_have_js_property("value", "")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
@@ -1515,7 +1517,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--accent"), 2)
+    assert_drawn_in(part, token_colour(page, "--lf-accent"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(
@@ -1645,8 +1647,14 @@ def test_a_visual_action_follows_its_own_scroller_even_when_the_target_is_gone(
     start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
     # Narrower than any layout of the flow, so the drawing laid out for it still
-    # scrolls in its box.
+    # scrolls in its box. That drawing wraps the boxes' labels, and their controls keep
+    # the words' spaces.
+    page.evaluate("() => { window.lfDrawn = document.querySelector('#flow svg'); }")
     diagram.evaluate("element => { element.style.width = '100px'; }")
+    page.wait_for_function(
+        "() => document.querySelector('#flow svg') !== window.lfDrawn"
+    )
+    expect(start.locator("tspan")).to_have_count(2)
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
@@ -2487,7 +2495,9 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
     expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
     expect(view).to_be_visible()
     page.keyboard.press("1")
-    page.wait_for_timeout(100)
+    # Whatever the press sent, from its own task or a repaint it queued, has come back.
+    rendered(page)
+    round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
 
 

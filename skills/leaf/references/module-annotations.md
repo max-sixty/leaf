@@ -357,8 +357,10 @@ the place, and the view reads the rest:
   and `view.controlRecord(control)` name and describe one.
 - `view.arriving` is true while focus is on its way to an entry here; release held
   layout so its control can be reached.
-- `view.place(entry, row)` ties a row to its entry's place for commenting and Escape.
-  The row stands inside `owner` by the time `render` returns.
+- `view.place(entry, row, item)` ties a row to its entry's place for commenting and
+  Escape. The row stands inside `owner` by the time `render` returns. The presses in a
+  placed row are the page's margin targets, which Go-to letters (`g m`); pass the
+  `item` a row stands for, and a thread's row is among its Thread controls (`g t`).
 
 Both registrations throw on other pages; register them in `whileConnected`. The
 annotation view's handle has `read()`, `update()`, which asks for `render` again, and

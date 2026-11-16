@@ -113,6 +113,7 @@ import {
   mountAnnotationControls,
   restoreAnnotations,
 } from "./runtime/annotation-layer.js";
+import { placedMarginEntries } from "./runtime/annotation-view.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
@@ -691,7 +692,8 @@ async function boot() {
     ],
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,
-    marginEntries: app.overlay ?? null,
+    // Leaf's own margin's entries, or the rows a page's annotation view placed.
+    marginEntries: app.overlay ?? placedMarginEntries,
     placeThreadEdge,
     stepReading: navigation.stepReading,
   });

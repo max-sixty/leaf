@@ -596,7 +596,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
+    as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

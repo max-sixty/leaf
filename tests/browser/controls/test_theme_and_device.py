@@ -669,7 +669,8 @@ def test_leaf_draws_the_idioms_it_depends_on_wherever_markup_wears_the_face(
     page that takes no theme, in a box that turns the face on, where a drawing's boxes
     were the browser's black while the reading theme held its rules. Outside such a
     box that page's own `.tag` and `.lede` keep their author's look, since each is a
-    class a page could coin, and a tag in an option is a chip anywhere. An idiom
+    class a page could coin, as a tag keeps its own in a box that turns the face off on
+    a themed page. A tag in an option is a chip anywhere. An idiom
     nothing of Leaf's depends on, such as the callout, is the reading look's, and
     comes only with it."""
     idioms = (
@@ -686,6 +687,8 @@ def test_leaf_draws_the_idioms_it_depends_on_wherever_markup_wears_the_face(
         + '<section id="faced" style="--lf-reading-face: 1">'
         + idioms.format("faced")
         + "</section>"
+        '<section style="--lf-reading-face: initial">'
+        '<span class="tag" id="off-tag">theirs</span></section>'
         '<lf-options id="window" choose><lf-option id="short">'
         '<small class="tag" id="option-tag">in budget</small> <strong>30 days</strong>'
         "</lf-option></lf-options>"
@@ -721,3 +724,7 @@ def test_leaf_draws_the_idioms_it_depends_on_wherever_markup_wears_the_face(
     for place, look in themed.evaluate(looks).items():
         assert (look["tag"], look["facts"]) == ("inline-block", "grid"), place
         assert look["callout"] != "rgba(0, 0, 0, 0)", place
+    assert (
+        themed.evaluate("getComputedStyle(document.getElementById('off-tag')).display")
+        == "inline"
+    ), "a box that turns the face off keeps its own tag on a themed page"

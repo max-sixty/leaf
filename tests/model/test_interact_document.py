@@ -857,35 +857,24 @@ def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids
     assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
-def test_option_passages_read_rendered_markdown_words():
-    source = structure_model.SourceDocument(
-        '<main><lf-options id="choices"><lf-option id="leave">'
-        "Can we leave it to the _widget_? <code>Already HTML</code> "
-        "[unsafe label](javascript:alert(1)) "
-        "![unsafe alt](javascript:alert(1))"
-        "</lf-option></lf-options></main>"
-    )
-
-    passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
-    )
-    assert passages.text == (
-        "Can we leave it to the widget? Already HTML unsafe label unsafe alt"
-    )
-
-
 @pytest.mark.parametrize(
     "case",
     json.loads((Path(__file__).parents[1] / "option_markdown_cases.json").read_text()),
 )
-def test_option_markdown_file_words_match_browser_cases(case):
+def test_added_option_file_words_match_browser_cases(case):
+    """An option the user added reads its typed words as the browser draws them, as
+    inline Markdown (body-text.test.mjs reads the same cases), while an authored
+    option's words are its HTML's."""
     source = structure_model.SourceDocument(
-        f'<main><lf-option id="choice">{case["source"]}</lf-option></main>'
+        '<main><lf-options id="choices"><lf-option id="authored">'
+        "Leave it to the _widget_</lf-option></lf-options></main>"
     )
+    registry = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
+    added = {"tag": "lf-option", "id": "added", "text": case["source"]}
     passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+        source, registry, additions={"choices": [added]}
     )
-    assert passages.text == case["words"]
+    assert passages.text == f"Leave it to the _widget_ {case['words']}"
 
 
 def test_markdown_body_passages_preserve_source_state_and_read_visible_words():

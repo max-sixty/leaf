@@ -171,10 +171,6 @@ def markdown_dialect(message: bool):
     return parser
 
 
-def inline_markdown_words(source: str, *, added: bool = False) -> str:
-    return _rendered_words(markdown_dialect(added).renderInline(source))
-
-
 def markdown_markup(source: str) -> str:
     """A Markdown body (`x-text-format: markdown`) as the browser paints it, read as
     a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
@@ -188,13 +184,17 @@ def feed_markdown(parser, source: str) -> None:
         _walk(parser, child)
 
 
+def created_words(words: str) -> str:
+    """A created child's words (`creates`) as the browser shows them: the user typed
+    them, so they read as inline Markdown, as a message does."""
+    return _rendered_words(markdown_dialect(True).renderInline(words))
+
+
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
-    """The words an element's text shows: its entry's `x-text-format` applied, the
-    way an `added` child (one a user created, `data-lf-added`) renders it where
-    `added`. A created child's words are its creating action's, so their readers
-    pass `added=True`."""
-    if entry.get("x-text-format") == "inline-markdown":
-        return inline_markdown_words(words, added=added)
+    """The words an element's text shows: an `added` child's (one a user created,
+    `data-lf-added`) as `created_words`, else its entry's `x-text-format` applied."""
+    if added:
+        return created_words(words)
     if entry.get("x-text-format") == "markdown":
         return _rendered_words(markdown_markup(words))
     return words

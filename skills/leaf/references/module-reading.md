@@ -99,11 +99,10 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
-text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. It reads as a Markdown file,
-as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
-and repaint changing prose with `paintMarkdown(body, source)`.
+A widget whose entry declares `x-text-format: markdown` has its data body arrive
+rendered as block Markdown while the recorded body stays the source. It reads as a
+Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
+`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 

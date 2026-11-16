@@ -347,7 +347,7 @@ EXTENSION_SCHEMA = {
     "properties": {
         "x-awaits": AWAITS_SCHEMA,
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
-        "x-text-format": {"enum": ["inline-markdown", "markdown"]},
+        "x-text-format": {"const": "markdown"},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-output": {
             "type": "object",

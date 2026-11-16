@@ -40,6 +40,24 @@ uploads; look at it before reading the cause off the assertion alone.
 A failure that comes and goes on the same code is a defect. Find whether the product
 races, so a user could hit it, or the test's setup does ("Races"), and fix that cause.
 
+When a change turns a test red, the change and the behavior the test protects
+disagree. Choose the repair by what it keeps of each:
+
+- **The change's intent**: what its author meant it to do, read from the pull
+  request's description, discussion and diff. Undoing part of it reverses a
+  decision someone made.
+- **The interface**: what users see and do, and what callers rely on, such as a
+  gesture's effect, a layout, a command or a file format. A repair that moves it
+  further than the change meant to makes a product decision nobody asked for.
+
+The existing assertion is evidence about both, not authority. Prefer a repair that
+keeps both: update the test whose expectation the change replaced, or fix the code
+so the change's intent holds without moving the interface further. Where no repair
+keeps both, revert the change, or the part of it at fault. When the test itself is
+wrong, validate the intended behavior with corrected or replacement checks, and
+justify removing a test that protects no user behavior rather than claiming it
+passed.
+
 ## Run what the change needs
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm

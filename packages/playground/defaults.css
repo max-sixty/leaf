@@ -1,9 +1,9 @@
 /* A playground is an instrument laid out as a sidebar page's body beside its aside: the
- * real preview is the stage and owns the larger field, and the controls that change all
- * of it stand above the bar of actions that sends the instruction they write, in a rail
- * beside it. A control written inside the preview stands there, beside the item it
- * changes, and the rail then holds only what is left. With all controls inline, presets
- * precede the full-width preview and the bar follows. Its regions are up to three generated panes
+ * real preview is the stage and owns the larger field, and the author's `<aside>`, with
+ * the fields that change all of it, stands above the bar of actions that sends the
+ * instruction they write, in a rail beside it. A field written in the preview stands
+ * there, beside the item it changes. Without an aside, presets precede the full-width
+ * preview and the bar follows. Its regions are up to three generated panes
  * (data-lf-reading-role="pane", the kernel's base.css), whose bodies scroll where a
  * workspace Layout fills the window (layouts.css); here the playground only places the
  * panes and draws them.
@@ -31,8 +31,8 @@ lf-playground:has(> .lf-playground-split) {
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* With shared controls, the preview takes two thirds and the rail the third beside it:
- * the controls at their content's height and the instruction under them. The rail is
+/* With an aside, the preview takes two thirds and the rail the third beside it:
+ * the aside at its content's height and the instruction under them. The rail is
  * the Layout's track (`data-lf-track`, layouts.css), which keeps it in view while a stage
  * taller than the window scrolls past, bounded to the window and scrolling what it holds.
  * Narrower than 43.5rem, a document's column included, a rail would be too narrow for
@@ -99,8 +99,8 @@ lf-playground:has(> .lf-playground-split) {
   }
 
   /* Bounded to the window as a track, which then holds its height
-     (`--lf-holds-height`, layouts.css), the rail gives up the controls' height first:
-     they scroll in their pane and the bar of actions stays whole under them, as in a
+     (`--lf-holds-height`, layouts.css), the rail gives up the aside's height first: it
+     scrolls in its pane and the bar of actions stays whole under it, as in a
      full-height workspace (below). The `fr` row shrinks to the rail's bound, where a
      row sized to its content ran the bar past it, cut off behind the rail's scroll. */
   .lf-playground-rail:has(> .lf-playground-controls-region) {
@@ -113,7 +113,7 @@ lf-playground:has(> .lf-playground-split) {
     gap: var(--lf-sp-4);
   }
   @container lf-playground-rail style(--lf-holds-height: 1) {
-    .lf-playground-controls {
+    .lf-playground-controls-region > aside {
       overflow: auto;
       --lf-holds-height: 1;
     }
@@ -121,9 +121,9 @@ lf-playground:has(> .lf-playground-split) {
 }
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the playground, its split and its rail take that height. In the rail, the controls give
- * up height and scroll while the bar of actions stays whole under them. With all
- * controls inline, the stage is what the reader came to set, so it keeps at least half
+ * the playground, its split and its rail take that height. In the rail, the aside gives
+ * up height and scrolls while the bar of actions stays whole under it. Without an
+ * aside, the stage is what the reader came to set, so it keeps at least half
  * the window and the bar keeps its whole height below it: where both don't fit, the
  * workspace scrolls to the bar rather than squeezing the stage. That reverses an earlier 12rem stage floor, which kept the actions in view
  * down to a 500px window but left a 192px stage at 900x700 (the user's decision,
@@ -146,7 +146,7 @@ lf-playground:has(> .lf-playground-split) {
       scroll-padding-block-end: var(--lf-end-room);
     }
 
-    :is(.lf-playground-preview-body, .lf-playground-controls) {
+    :is(.lf-playground-preview-body, .lf-playground-controls-region > aside) {
       contain: size;
     }
 
@@ -199,7 +199,7 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
 
 /* The well fills the stage however tall the rail beside it stands, and is never held
  * shorter than what it shows: a held stage scrolls instead. */
-.lf-playground-preview-body > lf-playground-preview {
+.lf-playground-preview-body > .lf-playground-stage {
   flex: 1 0 auto;
 }
 
@@ -228,169 +228,66 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   border-bottom: 1px solid var(--lf-rule);
 }
 
-.lf-playground-controls {
+/* The aside is the author's, so these defaults weigh no more than a class against the
+ * page's own rules. As a sidebar's form reads, what it holds stands a row apart, a
+ * field's words stand on the line above it, a range, select or text field fills the
+ * rail's width, and a fieldset's radios and boxes stand one per line, their marks on
+ * the legend's edge (the choice face, controls.css, hangs out by its padding). Each
+ * face fills its line, so the option is one block for a press and for a comment
+ * rather than the width of its words. A fieldset draws no frame in a pane that is
+ * already one. */
+:where(.lf-playground-controls-region > aside) {
   display: grid;
   align-content: start;
   gap: var(--lf-sp-3);
   min-width: 0;
-}
-
-lf-playground-control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--lf-sp-2);
-  min-width: 0;
   color: var(--lf-ink-2);
   font: var(--lf-font-ui);
-}
-
-.lf-playground-control-label {
-  min-width: 0;
-  font-weight: 600;
-}
-
-/* Native fields have their full platform geometry before any component upgrade. */
-lf-playground-control > .lf-playground-input {
-  grid-column: 1 / -1;
-  box-sizing: border-box;
-  inline-size: 100%;
-  font: inherit;
   accent-color: var(--lf-accent);
 }
-lf-playground-control > input[type="color"] {
+:where(
+  .lf-playground-controls-region
+    > aside
+    label:has(> :is(input:not([type="checkbox"], [type="radio"]), select, textarea))
+) {
+  display: grid;
+  gap: var(--lf-sp-1);
+  font-weight: 600;
+}
+:where(
+  .lf-playground-controls-region
+    > aside
+    :is(input:not([type="checkbox"], [type="radio"]), select, textarea)
+) {
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin: 0;
+  min-block-size: var(--lf-aim-floor);
+}
+:where(.lf-playground-controls-region > aside input[type="color"]) {
+  padding: var(--lf-sp-1) var(--lf-sp-2);
   border: 1px solid var(--lf-rule);
   border-radius: var(--lf-r);
   background: var(--lf-card);
-  color: var(--lf-ink);
-  padding: var(--lf-sp-1) var(--lf-sp-2);
-  min-block-size: var(--lf-aim-floor);
 }
-/* A toggle's mark stands alone, its words being the control's label, so it keeps no
-   room for words and stands centred in its target, as wide as a finger's under one. */
-lf-playground-control > .lf-choice {
-  display: inline-grid;
-  place-content: center;
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: end;
-  padding: var(--lf-choice-pad);
-  > input {
-    margin: 0;
-  }
-}
-lf-playground-control > input[type="range"] {
+:where(.lf-playground-controls-region > aside fieldset) {
+  display: grid;
+  min-width: 0;
   margin: 0;
-  min-block-size: var(--lf-aim-floor);
+  padding: 0;
+  border: 0;
 }
-.lf-playground-reading {
-  grid-column: 2;
-  grid-row: 1;
+:where(.lf-playground-controls-region > aside legend) {
+  padding: 0;
+  font-weight: 600;
+}
+:where(.lf-playground-controls-region > aside fieldset) > .lf-choice {
+  justify-self: stretch;
+  margin-inline-start: calc(-1 * var(--lf-choice-pad));
+}
+:where(.lf-playground-controls-region > aside output) {
   color: var(--lf-muted);
   font: var(--lf-font-code);
-}
-/* Label choices stand one per line, so a choice control is as wide as its longest
- * label wherever it stands: a page's own row of controls sized to their content
- * leaves no empty room beside one, and no label breaks while its line has room.
- * Rejected: a row that wraps between whole labels (2026-10-24 to 10-31). A row that
- * wraps stays as wide as the room it was offered rather than its longest line, so in
- * a page's row of three controls it left a 230px empty column, and it broke five
- * choices into rows of 2 and 3, and four thresholds in a 262px card into 2 and 2.
- * Rejected before it: equal grid cells, which wrapped every label longer than its
- * share. Columns the author sets replace the list (below). A focused face draws its
- * ring inside its own padding (`.lf-choice`, controls.css), so lines of faces need no
- * gap between them. Where the control is wider than its longest label, as in the rail,
- * each face fills its line, so the option is one block for a press and for a comment
- * rather than the width of its words. */
-.lf-playground-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 0 var(--lf-focus-ring-room);
-}
-/* A plain choice's label sits on its choices, closer than they stand to each other,
- * and each face hangs out by its padding, so the marks stand on the label's edge. */
-lf-playground-control:not(.lf-playground-candidates):has(> .lf-playground-choices) {
-  row-gap: 0;
-  > .lf-playground-choices > lf-playground-choice > .lf-choice {
-    justify-self: stretch;
-    margin-inline-start: calc(-1 * var(--lf-choice-pad));
-  }
-}
-lf-playground-choice {
-  display: contents;
-}
-/* A rich choice keeps its preview mounted beside its own native radio label. The
- * checked face and card draw from the radio rather than another selection state. */
-.lf-playground-candidates > .lf-playground-choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--lf-sp-3);
-  align-items: start;
-}
-/* `--playground-choice-columns`, set on a choice control or its parent, arranges its
- * choices, plain or rich, in the author's grid columns. Authors set it on a row of
- * threshold choices, saw nothing change, and wrote rules against the generated class
- * instead (13 of 78 pages in 24 configuration samples). A plain face's label wraps
- * only where the column is narrower than its words. No `var()` fallback can turn the
- * plain list's flex box into a
- * grid, so a style query asks the group's parent, the control, whether the property is
- * set; naming the rich control's class weighs as much as the rich default above, and
- * the later rule wins. */
-@container style(--playground-choice-columns) {
-  :is(lf-playground-control, .lf-playground-candidates) > .lf-playground-choices {
-    display: grid;
-    grid-template-columns: var(--playground-choice-columns);
-  }
-}
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice {
-  --lf-ground: var(--lf-card);
-  display: grid;
-  min-inline-size: 0;
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
-  background: var(--lf-ground);
-}
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice:has(> .lf-choice > :checked) {
-  border-color: var(--lf-accent);
-  box-shadow: inset 0 0 0 1px var(--lf-accent);
-}
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice
-  > .lf-choice {
-  --lf-choice-pad: var(--lf-sp-3);
-  justify-self: stretch;
-  padding-block-end: 0;
-  border: 0;
-  border-radius: var(--lf-r);
-  font: var(--lf-font-title);
-}
-/* The card is the choice, so the card wears its radio's focus ring, as an option's row
-   does (options.css): the label's own ring, inside a head with no foot room, ran
-   through its words and doubled the card's border. */
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice
-  > .lf-choice
-  > input {
-  --lf-focus-box: lf-playground-choice;
-}
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice[data-lf-control-focus-visible] {
-  outline: var(--lf-focus-ring);
-}
-:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
-  > lf-playground-choice[data-lf-control-focus] {
-  --lf-wears-ring: 1;
-}
-.lf-playground-choice-preview {
-  min-inline-size: 0;
-  padding: var(--lf-sp-3);
-}
-.lf-playground-choice-heading {
-  margin: 0;
-  padding: var(--lf-sp-3) var(--lf-sp-3) 0;
-  font-weight: 600;
 }
 .lf-playground-presets {
   display: flex;
@@ -415,7 +312,7 @@ lf-playground-setting {
  * stretch it. Artifacts stay at the top so changes in their height or the rail don't
  * move what the reader is working on, and small previews leave no empty well between
  * their evidence and the controls below. */
-lf-playground-preview {
+.lf-playground-stage {
   --lf-ground: var(--lf-field);
   --lf-block-frame: 1;
   display: grid;
@@ -442,8 +339,7 @@ lf-playground-output[data-lf-gen] {
   white-space: pre-wrap;
 }
 
-lf-playground-value {
-  display: inline;
+lf-playground-output output {
   color: var(--lf-ink);
   font-weight: 600;
 }
@@ -499,14 +395,4 @@ lf-playground-value {
   min-block-size: 0;
   padding: 12px 18px 16px;
   overflow-y: auto;
-}
-
-/* A quoted playground is its preview and instruction as authored, without the controls
- * written in either place (initial/lf-playground.js hides them). Candidates that are
- * previews stay, laid side by side. */
-lf-playground.lf-playground-quoted .lf-playground-candidates {
-  grid-template-columns: var(
-    --playground-choice-columns,
-    repeat(auto-fit, minmax(min(100%, 20rem), 1fr))
-  );
 }

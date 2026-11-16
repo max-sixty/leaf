@@ -977,11 +977,6 @@ _TEXT = {
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
-        + " or stand inside its "
-        + " or ".join(f"<{region}>" for region in v["within"])
-        if v["within"]
-        else f"{_line(at, v)}: must be a direct member of "
-        + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
     "content-empty": lambda at, v: (
@@ -1039,10 +1034,6 @@ _TEXT = {
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"
-    ),
-    "unmatched-member": lambda at, v: (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no <{v["member"]}'
-        f' {v["key"]}="{v["target"]}"> in its <{v["scope"]}>'
     ),
     "unknown-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
@@ -1333,17 +1324,6 @@ _TEXT = {
         lambda v: (
             f"x-data input `{v['input']}` names `{v['attr']}` as `measured`:"
             " that attribute must be required and declare a nonempty string"
-        )
-    ),
-    "refers-unknown-member": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names unknown element declaration <{v['member']}>"
-        )
-    ),
-    "refers-unkeyed": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names <{v['member']}> by `{v['key']}`,"
-            f" which <{v['member']}> does not declare in x-unique"
         )
     ),
     "refers-unknown-map": _declared(

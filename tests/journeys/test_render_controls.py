@@ -191,18 +191,19 @@ CONTROL_STABILITY_PAGE = leaf_page(
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview id="stable-playground-preview">
+  <aside>
+    <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
+    <fieldset id="tone"><legend>Tone</legend>
+      <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label class="lf-choice" id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+    </fieldset>
+  </aside>
+  <div id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
-  </lf-playground-preview>
+  </div>
   <lf-playground-output id="stable-playground-instruction">Use a
-    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
-    <lf-playground-value for="tone"></lf-playground-value> tone.
+    <output for="radius"></output>px corner radius and a
+    <output for="tone"></output> tone.
   </lf-playground-output>
 </lf-playground></lf-ask>
 <lf-diff id="stable-diff"><pre>

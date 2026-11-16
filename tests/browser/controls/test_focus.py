@@ -568,12 +568,12 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
-        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
-        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
-        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+        '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
+        '<label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>'
+        '<label class="lf-choice" id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>'
+        "</fieldset></aside>"
+        "<p>Preview</p><lf-playground-output>Use"
+        ' <output for="tone"></output></lf-playground-output>'
         "</lf-playground>"
     ),
     "options": (

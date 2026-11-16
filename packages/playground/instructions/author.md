@@ -1,6 +1,6 @@
 Use `lf-playground` when the user compares candidates, tunes a configuration, or does
-both. A playground can have just one choice: the candidate to build. Put each candidate
-inside an `lf-playground-choice` in the preview, so the user selects the actual example
+both. A playground can have just one choice: the candidate to build. Write each
+candidate in the preview with its own radio, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview. To critique a document or
 source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
@@ -38,9 +38,11 @@ follow from it:
 ## Placement and space
 
 Keep each control within sight of what it changes, so the user watches the effect
-while moving it. A control directly inside `lf-playground` stands in the rail beside
-the preview, above the playground's actions; one inside `lf-playground-preview` stands
-where authored. Both kinds are submitted, and presets and Reset set them.
+while moving it. An `<aside>` directly inside `lf-playground` stands in the rail beside
+the preview, above the playground's actions; everything else the playground holds,
+except its presets and `lf-playground-output`, is the preview, and a field written
+there stands where authored. Fields in both places are submitted, and presets and Reset
+set them.
 
 When tuning against supplied measurements, start with one comparison row per
 independently tuned item. Keep its prior and working settings, their outcomes, and the
@@ -106,42 +108,70 @@ such as hovering a card to show the raised style under review, can be wired on a
 
 ## Controls, samples, and output
 
-A choice control shows radio buttons by default, keeping its option labels visible.
-`appearance="select"` saves space when scanning current settings across many items, at
-the cost of opening a menu to read the other labels. Choose the control within the
-comparison composed under “Placement and space.” The same `lf-playground-choice`
-children provide the select's values and labels; presets, Reset and the submitted
-values work the same.
+The controls are an ordinary form. Each `input`, `select` or `textarea` with a `name`
+in the playground is one field of the configuration, and radios that share a name are
+one field. A range or number input submits a number, a checkbox true or false, and any
+other field its value as a string; a radio group with none checked submits null. Field
+names use lowercase letters, digits and hyphens. A control without a `name`, or one
+that belongs to a `<form>` of its own, is no field. Give each control Leaf's face with
+its classes (`references/page-layout.md`, "Page CSS and Leaf's controls"): a
+`<label class="lf-choice">` around a radio or checkbox, and `class="lf-field"` on a
+text input or select. In the aside, Leaf stacks what you write, sets a field's words
+above it and stands a fieldset's radios one per line; in the preview, lay them out
+yourself.
+
+Radios keep every option's label visible. A `select` saves space when scanning current
+settings across many items, at the cost of opening a menu to read the other labels.
+Choose the control within the comparison composed under “Placement and space”; presets,
+Reset and the submitted values work the same.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
-their own labeled controls, with page-local state outside the playground's submitted
-values, and style them with Leaf's control classes (`references/page-layout.md`, "Page
-CSS and Leaf's controls"). Changing the case keeps the configuration, applying a preset
-keeps the case, and every candidate shows the same case. When editing the data is itself
-the task, the data belongs in the configuration.
+their own labeled controls in a `<form method="dialog">` of their own, so their
+page-local state stays outside the playground's submitted values. Changing the case
+keeps the configuration, applying a preset keeps the case, and every candidate shows
+the same case. When editing the data is itself the task, the data belongs in the
+configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
 further tuning. Choose each preset's values together so they produce a consistent appearance on every
 surface they change, rather than optimizing each control separately. A preset sets every
-control its look depends on, since a control it leaves out keeps the user's last value.
+field its look depends on, since a field it leaves out keeps the user's last value.
 Before handoff, look at each preset in both themes on every surface it changes, and
 rework or drop any you would not ship.
 Name a preset for its outcome: `Status strip`, not `Preset 2`.
 
-In this comparison, `format` names which candidate to build. Each choice contains its
-preview. Pressing its label or noninteractive body selects it; buttons, editors and media remain
-operable without selecting it. Do not put a second `format` control in the rail.
-Rich choices form a responsive grid, and plain label choices stand one per line. When
-the comparison needs a particular arrangement of either, such as short labels in a row,
-set `--playground-choice-columns` on the authored choice control or its parent to a
-grid's columns, such as `repeat(2, minmax(0, 1fr))`.
+In this comparison, the `format` radios name which candidate to build. Each candidate
+holds its own radio, and pressing the noninteractive body of the box that holds that
+radio and no other of its group selects it, as pressing its label does; buttons,
+editors and media inside remain operable without selecting it. Do not put a second
+`format` control in the rail. Draw the candidates' arrangement and the chosen one with
+the page's CSS, such as a grid of cards whose `:has(:checked)` card wears the accent.
 
-Give each control, choice and preset an `id` that names it, such as `format-banner`.
-When the user comments on one of them, the comment records its id, which tells you
-which one they mean.
+Give each field's label or fieldset, each radio's label, each candidate's box and
+each preset an `id` that names it, such as `format-banner`. When the user comments on
+one of them, the comment records its id, which tells you which one they mean.
 
 ```html
+<style>
+  .notification-candidates {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--lf-sp-3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .notification-candidate {
+    padding: var(--lf-sp-3);
+    border: 1px solid var(--lf-rule);
+    border-radius: var(--lf-r);
+    background: var(--lf-card);
+  }
+  .notification-candidate:has(:checked) {
+    border-color: var(--lf-accent);
+  }
+</style>
 <lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
   <lf-playground
@@ -149,66 +179,61 @@ which one they mean.
     submit-label="Create notification"
     data-width="available"
   >
-    <lf-playground-control
-      id="radius"
-      name="radius"
-      label="Corner radius"
-      kind="range"
-      value="10"
-      min="0"
-      max="24"
-      step="1"
-      unit="px"
-    ></lf-playground-control>
-    <lf-playground-control
-      id="compact"
-      name="compact"
-      label="Compact spacing"
-      kind="toggle"
-      value="false"
-    ></lf-playground-control>
+    <aside>
+      <label id="radius"
+        >Corner radius, px
+        <input type="range" name="radius" min="0" max="24" value="10" />
+      </label>
+      <label class="lf-choice" id="compact"
+        ><input type="checkbox" name="compact" /> Compact spacing</label
+      >
+    </aside>
     <lf-playground-preset id="preset-compact" label="Compact">
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
     </lf-playground-preset>
-    <lf-playground-preview>
-      <lf-playground-control
-        id="format"
-        name="format"
-        label="Notification"
-        kind="choice"
-        value="banner"
-      >
-        <lf-playground-choice id="format-banner" value="banner" label="Banner">
-          <article class="notification-candidate">
-            <h3>Checkout deployed</h3>
-            <p>Review the deployment run.</p>
-          </article>
-        </lf-playground-choice>
-        <lf-playground-choice
-          id="format-status-strip"
-          value="status strip"
-          label="Status strip"
+    <fieldset id="format" class="notification-candidates">
+      <legend>Notification</legend>
+      <article id="format-banner" class="notification-candidate">
+        <label class="lf-choice"
+          ><input type="radio" name="format" value="banner" checked /> Banner</label
         >
-          <article class="notification-candidate">
-            Checkout · deployed · 18 checks passed
-          </article>
-        </lf-playground-choice>
-      </lf-playground-control>
-    </lf-playground-preview>
+        <h3>Checkout deployed</h3>
+        <p>Review the deployment run.</p>
+      </article>
+      <article id="format-status-strip" class="notification-candidate">
+        <label class="lf-choice"
+          ><input type="radio" name="format" value="status strip" /> Status strip</label
+        >
+        <p>Checkout · deployed · 18 checks passed</p>
+      </article>
+    </fieldset>
     <lf-playground-output>
-      Build the <lf-playground-value for="format"></lf-playground-value> notification
-      with <lf-playground-value for="radius"></lf-playground-value> corners and compact
-      spacing set to <lf-playground-value for="compact"></lf-playground-value>. Replace
-      the notification component and show its before-and-after comparison and browser
-      test.
+      Build the <output for="format"></output> notification with
+      <output for="radius"></output>px corners and compact spacing set to
+      <output for="compact"></output>. Replace the notification component and show its
+      before-and-after comparison and browser test.
     </lf-playground-output>
   </lf-playground>
 </lf-ask>
 ```
 
-For animation comparisons, compose an `lf-motion` inside `lf-playground-preview` and
-put the choice control in its body. Motion supplies the optional shared
+An `<output for="NAME">` anywhere in the playground shows field NAME's current value,
+such as a range's reading beside its words. A `<label>` names the first control inside
+it, so give a reading its own place beside the label rather than inside it, and place
+it with the page's CSS, such as at the end of the words' line:
+
+```html
+<div class="reading" id="radius">
+  <label
+    >Corner radius, px <input type="range" name="radius" min="0" max="24" value="10"
+  /></label>
+  <output for="radius">10</output>
+</div>
+```
+
+For animation comparisons, compose an `lf-motion` in the playground's preview and put
+the candidates and their radios in its body. Motion supplies the optional shared
 playback, speed and timeline; its toolbar stays visible while the candidates scroll.
 The motion package's author instructions describe recorded video and authored animation
 sources. Playback is inspection state, so it never enters the submitted configuration.
@@ -216,13 +241,14 @@ Keep duration or easing in playground controls only when the user is choosing th
 parameters for the implementation. Show the current interface as a labeled baseline
 beside the selectable alternatives when the decision changes an existing interface.
 
-Apply shared parameters with page CSS. From first paint, Leaf sets each control's value
+Apply shared parameters with page CSS. From first paint, Leaf sets each field's value
 on the `lf-playground` as a custom property, `--playground-NAME`, and an attribute,
-`data-playground-NAME`:
+`data-playground-NAME`. A number reaches CSS bare, so give it its unit there; the words
+typed into a text field reach it as a quoted string, for `content`:
 
 ```css
 .notification-candidate {
-  border-radius: var(--playground-radius);
+  border-radius: calc(var(--playground-radius) * 1px);
 }
 #notification-playground[data-playground-compact="true"] .notification-candidate {
   padding: var(--lf-sp-2);
@@ -251,8 +277,8 @@ Unless the page draws the actions, the user reads it only on
 request, from a button beside the playground's Reset and submit, so whatever the user
 needs to see before submitting, such as the exact values the build will receive, belongs
 on the page where they tune. Use
-`lf-playground-value` only where a selected value makes the task more precise; the
-action sends every control in `detail.values` anyway. After submission, the button reads **Undo choice** while the
+`<output for>` in it only where a selected value makes the task more precise; the
+action sends every field in `detail.values` anyway. After submission, the button reads **Undo choice** while the
 working values and instruction match the saved choice. Editing either restores the
 submit action; Undo withdraws the choice and keeps the working values.
 
@@ -260,13 +286,13 @@ The page keeps the working values before the user submits them, as the playgroun
 `tune` actions, which ask nothing of you. A message in a thread on the playground
 arrives with the `tune` the user was looking at as its `unsent`
 (`references/event-batches.md`), or without one where the controls showed their
-authored values. A value the controls of the message's `revision` can't hold, such as
-a radius past a lowered `max`, showed as that control's authored value.
+authored values. A value the fields of the message's `revision` can't hold, such as
+a radius past a lowered `max`, showed as that field's authored value.
 
 ## After applying a configuration
 
 A playground whose submitted configuration you have applied becomes a record too.
-Author each control at the chosen value, so the preview, Reset and the page's account
+Author each field at the chosen value, so the preview, Reset and the page's account
 of the choice agree, and keep it and its evidence open beside what came of the choice,
 since the user reads the record against that evidence. The user can still explore from
 it. Keep the recorded configuration identifiable when working values change; a
@@ -278,8 +304,8 @@ Reset brings the preview back to the record.
 Write a preview's script as an inline `<script type="module">`, and put the candidates
 in ordinary or custom elements (`references/page-behavior.md`, "A page script").
 
-The playground owns working values. Its immutable `values` aggregate can hold scalar
-controls, contributor slices, or both. Declare a named structured slice with
+The playground owns working values. Its immutable `values` aggregate can hold fields,
+contributor slices, or both. Declare a named structured slice with
 `playground.registerContributor(name, defaults, editor)`.
 Pass the DOM root containing the controls that edit this slice. After using that
 editor, pressing another playground control follows the browser's native focus
@@ -288,7 +314,8 @@ while a control changes the design, so the user can compare focus treatments,
 including an input's.
 The returned handle's `get()` reads its immutable current value; `set(next)` replaces
 that slice. Update it on input, so a later control change or submission sees the edit.
-Names are unique and distinct from control names. Retain the handle rather than a
+Names are unique and distinct from field names, and the editor's own controls carry no
+`name`, which would make them fields too. Retain the handle rather than a
 second configuration object. Reset restores the authored defaults, and settings made in another tab
 load here. Undo withdraws a submitted decision while keeping the current
 working values, including edits made since submission, so the user can adjust and
@@ -331,17 +358,16 @@ structured data only subscribes; one without its own instruction keeps
 </script>
 ```
 
-A preview that declares its configuration as contributor slices needs no
-`lf-playground-control`. Where the preview draws its own instrument, it can draw the
-submission and Reset too: set `actions="page"` on the playground, build two ordinary
-buttons, and pass them in `declare` with
-`playground.registerActions({submit, reset})`. Leaf then draws no rail or bar of
-actions, and the page's CSS styles the buttons. The playground answers their presses and its keys,
-writes the submission's words (`submit-label`, then **Undo choice**), and records the
+A preview that declares its configuration as contributor slices needs no field. Where
+the preview draws its own instrument, it can draw the submission and Reset too: write a
+`<button type="submit">` and a `<button type="reset">` in the playground's markup,
+where the page's script may move them. Leaf then draws no bar of actions, and the
+page's CSS styles the buttons. The playground answers their presses and its keys,
+writes the submission's words (the button's own, then **Undo choice**), and records the
 choice. The instruction stays where `lf-playground-output` is written, so place or
 style it as the page needs.
 
-`lf-playground-preset` sets only `lf-playground-control`s. To offer presets for a
+`lf-playground-preset` sets only fields. To offer presets for a
 contributor slice, draw a button for each inside its editor that passes the preset's
 whole value to the handle's `set`; the playground records the press as one gesture,
 which Undo takes back whole. Set `aria-pressed` on the button whose value matches
@@ -352,7 +378,7 @@ The playground owns recording the working values, presets, Reset, instruction co
 and submission; views draw the values they receive. For a structured configuration, set that
 playground's `contract` attribute to a named `$data.contracts` entry in
 `page/registry.json`. Its `schema` describes the complete `values` object: scalar
-controls and contributor slices, required names and any bounds. Each instance can
+fields and contributor slices, required names and any bounds. Each instance can
 select a different contract. Admission validates that schema before recording a
 submission; an unbound playground uses the package's open values schema.
 The `data-explorer` example shows a scalar limit beside structured filter rows.

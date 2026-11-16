@@ -52,7 +52,21 @@ handoff and save it.
     />
     <style>
       #route-choice {
-        --playground-choice-columns: minmax(0, 1fr);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--lf-sp-3);
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      .route {
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
+      }
+      .route:has(:checked) {
+        border-color: var(--lf-accent);
       }
       .route-frames {
         display: grid;
@@ -148,195 +162,184 @@ handoff and save it.
           data-width="available"
           submit-label="Build this route"
         >
-          <lf-playground-preview>
-            <lf-playground-control
-              id="route-choice"
-              name="format"
-              label="Route into the panel"
-              kind="choice"
-              value="b"
+          <fieldset id="route-choice">
+            <legend>Route into the panel</legend>
+            <div id="format-baseline" class="route">
+              <label class="lf-choice"
+                ><input type="radio" name="format" value="baseline" /> A. Keep Threads
+                as the only way in</label
+              >
+              <p>
+                <small class="tag">no change</small> Close the card, press the Threads
+                mark, then the thread's row: three presses. The view opens at
+                540&#8239;px.
+              </p>
+              <div class="route-frames">
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/start-card.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/start-card.png"
+                      alt="Today's margin card, 444 px wide at the window's right edge, its transcript scrolling, with Resolve and Close in its head."
+                  /></a>
+                  <figcaption>The card a walk opens.</figcaption>
+                </figure>
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/today-panel.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/today-panel.png"
+                      alt="The same thread in the panel's thread view, 540 px wide, centred over the page, still scrolling."
+                  /></a>
+                  <figcaption>After Threads, then the row.</figcaption>
+                </figure>
+              </div>
+            </div>
+            <div id="format-a" class="route">
+              <label class="lf-choice"
+                ><input type="radio" name="format" value="a" /> B. Add Open in panel to
+                the card</label
+              >
+              <p>
+                <small class="tag">one press</small>
+                <small class="tag">today's size</small> The view opens where Threads
+                would open it, 540&#8239;px wide, still scrolling about a quarter of
+                this thread.
+              </p>
+              <div class="route-frames">
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                      alt="The margin card with an expand icon added before Resolve and Close."
+                  /></a>
+                  <figcaption>Open in panel, the expand icon.</figcaption>
+                </figure>
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/panel-panel.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/panel-panel.png"
+                      alt="The thread in the panel's view at 540 px, the card gone."
+                  /></a>
+                  <figcaption>After the press.</figcaption>
+                </figure>
+              </div>
+            </div>
+            <div id="format-b" class="route">
+              <label class="lf-choice"
+                ><input type="radio" name="format" value="b" checked /> C. Add Open in
+                panel, opening at reading size</label
+              >
+              <p>
+                <small class="tag">one press</small>
+                <small class="tag">recommended</small> The view opens at More room to
+                write's 760&#8239;px, and may rise to 24&#8239;px from the window's top
+                rather than 160&#8239;px. This thread fits whole. The panel goes back to
+                its usual size when the view closes.
+              </p>
+              <div class="route-frames">
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/card-with-button.png"
+                      alt="The margin card with an expand icon added before Resolve and Close."
+                  /></a>
+                  <figcaption>Open in panel, as in B.</figcaption>
+                </figure>
+                <figure>
+                  <a
+                    href="evals/decision-options-fit-the-window/captures/reading-panel.png"
+                    ><img
+                      src="evals/decision-options-fit-the-window/captures/reading-panel.png"
+                      alt="The thread in the panel at 760 px wide and nearly the window's height, every message visible with no scrolling."
+                  /></a>
+                  <figcaption>After the press: the whole thread.</figcaption>
+                </figure>
+              </div>
+            </div>
+          </fieldset>
+          <p id="sample-note">
+            Try the selected candidate below: press the comment marker beside "Land
+            lf-diff's rows", or <kbd>t</kbd> inside the window, then the expand icon in
+            the card's head. The window is smaller than yours, so it scrolls sooner.
+          </p>
+          <lf-sample id="route-sample" label="long thread" window>
+            <template
+              id="route-sample-page"
+              data-sample
+              data-sample-events="route-sample-history"
             >
-              <lf-playground-choice
-                id="format-baseline"
-                value="baseline"
-                label="A. Keep Threads as the only way in"
-              >
+              <header id="sample-top">
+                <h1>Issue triage</h1>
+                <p class="lede">A fixture holding one long thread beside a decision.</p>
+              </header>
+              <section id="sample-intro">
+                <h2>Where things stand</h2>
                 <p>
-                  <small class="tag">no change</small> Close the card, press the Threads
-                  mark, then the thread's row: three presses. The view opens at
-                  540&#8239;px.
+                  Three of the open issues wait on a decision. The first is about
+                  whether a diff's rows should be drawn before the page first shows,
+                  which trades a slightly later first paint for no shift once
+                  highlighting arrives.
                 </p>
-                <div class="route-frames">
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/start-card.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/start-card.png"
-                        alt="Today's margin card, 444 px wide at the window's right edge, its transcript scrolling, with Resolve and Close in its head."
-                    /></a>
-                    <figcaption>The card a walk opens.</figcaption>
-                  </figure>
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/today-panel.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/today-panel.png"
-                        alt="The same thread in the panel's thread view, 540 px wide, centred over the page, still scrolling."
-                    /></a>
-                    <figcaption>After Threads, then the row.</figcaption>
-                  </figure>
-                </div>
-              </lf-playground-choice>
-              <lf-playground-choice
-                id="format-a"
-                value="a"
-                label="B. Add Open in panel to the card"
-              >
                 <p>
-                  <small class="tag">one press</small>
-                  <small class="tag">today's size</small> The view opens where Threads
-                  would open it, 540&#8239;px wide, still scrolling about a quarter of
-                  this thread.
+                  The others are smaller. A shortcut to expand everything waiting, and a
+                  URL that opens a specific thread, which the overseer needs before it
+                  can link to one.
                 </p>
-                <div class="route-frames">
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/card-with-button.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/card-with-button.png"
-                        alt="The margin card with an expand icon added before Resolve and Close."
-                    /></a>
-                    <figcaption>Open in panel, the expand icon.</figcaption>
-                  </figure>
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/panel-panel.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/panel-panel.png"
-                        alt="The thread in the panel's view at 540 px, the card gone."
-                    /></a>
-                    <figcaption>After the press.</figcaption>
-                  </figure>
-                </div>
-              </lf-playground-choice>
-              <lf-playground-choice
-                id="format-b"
-                value="b"
-                label="C. Add Open in panel, opening at reading size"
-              >
+              </section>
+              <section id="sample-proto-diff-ask">
+                <h2>Land lf-diff's rows before first paint? (#3174)</h2>
                 <p>
-                  <small class="tag">one press</small>
-                  <small class="tag">recommended</small> The view opens at More room to
-                  write's 760&#8239;px, and may rise to 24&#8239;px from the window's
-                  top rather than 160&#8239;px. This thread fits whole. The panel goes
-                  back to its usual size when the view closes.
+                  Demo: an lf-diff with an inline patch draws its file headers,
+                  separators and plain-text rows before the page first shows, at their
+                  final height, with no data-height. Pierre then colours the lines in
+                  place. Branch proto/3174-diff-first-paint: 10 files, +850 / −445,
+                  mostly in packages/diff, 40 commits behind main.
                 </p>
-                <div class="route-frames">
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/card-with-button.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/card-with-button.png"
-                        alt="The margin card with an expand icon added before Resolve and Close."
-                    /></a>
-                    <figcaption>Open in panel, as in B.</figcaption>
-                  </figure>
-                  <figure>
-                    <a
-                      href="evals/decision-options-fit-the-window/captures/reading-panel.png"
-                      ><img
-                        src="evals/decision-options-fit-the-window/captures/reading-panel.png"
-                        alt="The thread in the panel at 760 px wide and nearly the window's height, every message visible with no scrolling."
-                    /></a>
-                    <figcaption>After the press: the whole thread.</figcaption>
-                  </figure>
-                </div>
-              </lf-playground-choice>
-            </lf-playground-control>
-            <p id="sample-note">
-              Try the selected candidate below: press the comment marker beside "Land
-              lf-diff's rows", or <kbd>t</kbd> inside the window, then the expand icon
-              in the card's head. The window is smaller than yours, so it scrolls
-              sooner.
-            </p>
-            <lf-sample id="route-sample" label="long thread" window>
-              <template
-                id="route-sample-page"
-                data-sample
-                data-sample-events="route-sample-history"
-              >
-                <header id="sample-top">
-                  <h1>Issue triage</h1>
-                  <p class="lede">
-                    A fixture holding one long thread beside a decision.
-                  </p>
-                </header>
-                <section id="sample-intro">
-                  <h2>Where things stand</h2>
-                  <p>
-                    Three of the open issues wait on a decision. The first is about
-                    whether a diff's rows should be drawn before the page first shows,
-                    which trades a slightly later first paint for no shift once
-                    highlighting arrives.
-                  </p>
-                  <p>
-                    The others are smaller. A shortcut to expand everything waiting, and
-                    a URL that opens a specific thread, which the overseer needs before
-                    it can link to one.
-                  </p>
-                </section>
-                <section id="sample-proto-diff-ask">
-                  <h2>Land lf-diff's rows before first paint? (#3174)</h2>
-                  <p>
-                    Demo: an lf-diff with an inline patch draws its file headers,
-                    separators and plain-text rows before the page first shows, at their
-                    final height, with no data-height. Pierre then colours the lines in
-                    place. Branch proto/3174-diff-first-paint: 10 files, +850 / −445,
-                    mostly in packages/diff, 40 commits behind main.
-                  </p>
-                  <p>
-                    Measured against main, the gain is smaller than the issue suggested.
-                    Main doesn't first-paint an empty box. It shows the raw patch in a
-                    plain pre at about the right height, then shifts 10 px when Pierre's
-                    drawing replaces it, and a correct data-height removes even that.
-                    These are medians over several runs on a slow device.
-                  </p>
-                  <p>
-                    The prototype buys the coloured diff about 150 ms sooner and removes
-                    that 10 px. In return every inline-diff page gets 84 KB more
-                    render-blocking document and 15 ms more main-thread work before
-                    first contentful paint.
-                  </p>
-                  <p>
-                    A third option styles the fallback pre to the drawn diff's height in
-                    CSS and retires the height advice for inline diffs. It needs no
-                    script and no second drawing path, and it's a hypothesis until
-                    measured the same way.
-                  </p>
-                  <p>
-                    Recommendation: don't land the prototype. Try the CSS fallback
-                    height, measure it the same way, and land it if it removes the
-                    shift.
-                  </p>
-                </section>
-                <section id="sample-later">
-                  <h2>Later</h2>
-                  <p>
-                    The overseer should wait for a URL that opens a specific thread, its
-                    main gap. The value slice lands after #3929 merges, moving all five
-                    widgets at once.
-                  </p>
-                  <p>Nothing else here waits on you.</p>
-                </section>
-              </template>
-            </lf-sample>
-          </lf-playground-preview>
+                <p>
+                  Measured against main, the gain is smaller than the issue suggested.
+                  Main doesn't first-paint an empty box. It shows the raw patch in a
+                  plain pre at about the right height, then shifts 10 px when Pierre's
+                  drawing replaces it, and a correct data-height removes even that.
+                  These are medians over several runs on a slow device.
+                </p>
+                <p>
+                  The prototype buys the coloured diff about 150 ms sooner and removes
+                  that 10 px. In return every inline-diff page gets 84 KB more
+                  render-blocking document and 15 ms more main-thread work before first
+                  contentful paint.
+                </p>
+                <p>
+                  A third option styles the fallback pre to the drawn diff's height in
+                  CSS and retires the height advice for inline diffs. It needs no script
+                  and no second drawing path, and it's a hypothesis until measured the
+                  same way.
+                </p>
+                <p>
+                  Recommendation: don't land the prototype. Try the CSS fallback height,
+                  measure it the same way, and land it if it removes the shift.
+                </p>
+              </section>
+              <section id="sample-later">
+                <h2>Later</h2>
+                <p>
+                  The overseer should wait for a URL that opens a specific thread, its
+                  main gap. The value slice lands after #3929 merges, moving all five
+                  widgets at once.
+                </p>
+                <p>Nothing else here waits on you.</p>
+              </section>
+            </template>
+          </lf-sample>
           <lf-playground-output>
-            Build route <lf-playground-value for="format"></lf-playground-value> from
-            the thread-expanded-panel prototype into the runtime properly: the card's
-            Open in panel press with a keyboard route, the reply being written carried
-            along as Show on page carries it, and the panel's header comment updated.
-            Show me a before/after still and the journey in Firefox.
+            Build route <output for="format"></output> from the thread-expanded-panel
+            prototype into the runtime properly: the card's Open in panel press with a
+            keyboard route, the reply being written carried along as Show on page
+            carries it, and the panel's header comment updated. Show me a before/after
+            still and the journey in Firefox.
           </lf-playground-output>
         </lf-playground>
       </lf-ask>

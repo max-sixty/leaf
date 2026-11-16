@@ -15,31 +15,70 @@
         container-type: inline-size;
       }
 
+      /* A setting's reading stands at the end of its words' line, above its slider. */
+      #notification-playground .setting {
+        position: relative;
+      }
+
+      #notification-playground .setting > output {
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline-end: 0;
+      }
+
       /* The two formats are lanes down the stage: a stage the window holds taller than
          the burst gives each lane its full height, so the chosen lane's frame reads as
          a column and the room below a short feed is the lane's, not the stage's. */
-      #notification-preview {
+      #notification-playground .lf-playground-stage {
         grid-template-rows: auto 1fr;
         align-content: stretch;
       }
 
       notification-simulator .notification-demo-candidates {
-        --playground-choice-columns: repeat(2, minmax(0, 1fr));
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        font: var(--lf-font-ui);
+        gap: var(--lf-sp-3);
+        align-items: start;
         height: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
       }
 
+      notification-simulator .notification-demo-candidates > legend {
+        padding: 0 0 var(--lf-sp-2);
+        color: var(--lf-ink-2);
+        font: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
+      }
+
+      /* Each format is a card the user selects by pressing it; the chosen one wears the
+         accent. */
       notification-simulator .notification-demo-candidate {
         display: grid;
         grid-template-rows: auto 1fr;
         gap: var(--lf-sp-2);
+        box-sizing: border-box;
+        height: 100%;
         min-width: 0;
         margin: 0;
+        padding: var(--lf-sp-3);
+        border: 1px solid var(--lf-rule);
+        border-radius: var(--lf-r);
+        background: var(--lf-card);
+      }
+
+      notification-simulator .notification-demo-candidate:has(:checked) {
+        border-color: var(--lf-accent);
+        box-shadow: inset 0 0 0 1px var(--lf-accent);
       }
 
       notification-simulator .notification-demo-caption {
         display: flex;
+        flex-wrap: wrap;
         gap: var(--lf-sp-2);
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         color: var(--lf-ink-2);
         font: var(--lf-t-6) / 1.3 var(--lf-sans);
@@ -150,7 +189,7 @@
       @container (max-width: 32rem) {
         /* Stacked, the formats are no longer lanes, and each keeps its own height. */
         notification-simulator .notification-demo-candidates {
-          --playground-choice-columns: minmax(0, 1fr);
+          grid-template-columns: minmax(0, 1fr);
           height: auto;
         }
       }
@@ -325,74 +364,52 @@
           contract="notification-playground-values"
           submit-label="Create notification"
         >
-          <lf-playground-control
-            id="events"
-            name="events"
-            label="Concurrent release events"
-            kind="range"
-            value="2"
-            min="1"
-            max="4"
-            step="1"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="radius"
-            name="radius"
-            label="Corner radius"
-            kind="range"
-            value="10"
-            min="0"
-            max="24"
-            step="1"
-            unit="px"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="compact"
-            name="compact"
-            label="Compact spacing"
-            kind="toggle"
-            value="false"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="tone"
-            name="tone"
-            label="Tone"
-            kind="choice"
-            value="calm"
-          >
-            <lf-playground-choice
-              id="tone-calm"
-              value="calm"
-              label="Calm"
-            ></lf-playground-choice>
-            <lf-playground-choice
-              id="tone-urgent"
-              value="urgent"
-              label="Urgent"
-            ></lf-playground-choice>
-          </lf-playground-control>
-          <lf-playground-control
-            id="show-owner"
-            name="show-owner"
-            label="Show service owner"
-            kind="toggle"
-            value="true"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="accent"
-            name="accent"
-            label="Accent"
-            kind="color"
-            value="#4f766f"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="title"
-            name="title"
-            label="Notification title"
-            kind="text"
-            value="Checkout deployed"
-            placeholder="Notification heading"
-          ></lf-playground-control>
+          <aside>
+            <div class="setting" id="events">
+              <label
+                >Concurrent release events
+                <input type="range" name="events" min="1" max="4" value="2" />
+              </label>
+              <output for="events">2</output>
+            </div>
+            <div class="setting" id="radius">
+              <label
+                >Corner radius, px
+                <input type="range" name="radius" min="0" max="24" value="10" />
+              </label>
+              <output for="radius">10</output>
+            </div>
+            <label class="lf-choice" id="compact"
+              ><input type="checkbox" name="compact" role="switch" /> Compact
+              spacing</label
+            >
+            <fieldset id="tone">
+              <legend>Tone</legend>
+              <label class="lf-choice" id="tone-calm"
+                ><input type="radio" name="tone" value="calm" checked /> Calm</label
+              >
+              <label class="lf-choice" id="tone-urgent"
+                ><input type="radio" name="tone" value="urgent" /> Urgent</label
+              >
+            </fieldset>
+            <label class="lf-choice" id="show-owner"
+              ><input type="checkbox" name="show-owner" role="switch" checked /> Show
+              service owner</label
+            >
+            <label id="accent"
+              >Accent
+              <input type="color" name="accent" value="#4f766f" />
+            </label>
+            <label id="title"
+              >Notification title
+              <input
+                class="lf-field"
+                name="title"
+                value="Checkout deployed"
+                placeholder="Notification heading"
+              />
+            </label>
+          </aside>
 
           <lf-playground-preset id="preset-routine-release" label="Routine release">
             <lf-playground-setting for="events" value="2"></lf-playground-setting>
@@ -407,74 +424,65 @@
             <lf-playground-setting for="accent" value="#b6533c"></lf-playground-setting>
           </lf-playground-preset>
 
-          <lf-playground-preview id="notification-preview">
-            <p>
-              Increase Concurrent release events to compare both formats with more
-              notifications. Both show the same events. Select the format to build
-              beside its preview.
-            </p>
-            <notification-simulator id="notification-simulator">
-              <lf-playground-control
-                id="format"
-                name="format"
-                label="Format"
-                kind="choice"
-                value="banner"
-                class="notification-demo-candidates"
+          <p>
+            Increase Concurrent release events to compare both formats with more
+            notifications. Both show the same events. Select the format to build beside
+            its preview.
+          </p>
+          <notification-simulator id="notification-simulator">
+            <fieldset id="format" class="notification-demo-candidates">
+              <legend>Format</legend>
+              <figure
+                class="notification-demo-candidate"
+                id="format-banner"
+                data-notification-format="banner"
               >
-                <lf-playground-choice id="format-banner" value="banner" label="Banner">
-                  <figure
-                    class="notification-demo-candidate"
-                    data-notification-format="banner"
+                <figcaption class="notification-demo-caption">
+                  <label class="lf-choice"
+                    ><input type="radio" name="format" value="banner" checked />
+                    Banner</label
                   >
-                    <figcaption class="notification-demo-caption">
-                      <span class="notification-demo-metric" aria-live="polite"></span>
-                    </figcaption>
-                    <div class="notification-demo-feed notification-demo-banner"></div>
-                  </figure>
-                </lf-playground-choice>
-                <lf-playground-choice
-                  id="format-status-strip"
-                  value="status strip"
-                  label="Status strip"
-                >
-                  <figure
-                    class="notification-demo-candidate"
-                    data-notification-format="status strip"
+                  <span class="notification-demo-metric" aria-live="polite"></span>
+                </figcaption>
+                <div class="notification-demo-feed notification-demo-banner"></div>
+              </figure>
+              <figure
+                class="notification-demo-candidate"
+                id="format-status-strip"
+                data-notification-format="status strip"
+              >
+                <figcaption class="notification-demo-caption">
+                  <label class="lf-choice"
+                    ><input type="radio" name="format" value="status strip" /> Status
+                    strip</label
                   >
-                    <figcaption class="notification-demo-caption">
-                      <span class="notification-demo-metric" aria-live="polite"></span>
-                    </figcaption>
-                    <div
-                      class="notification-demo-feed notification-demo-status-strip"
-                    ></div>
-                  </figure>
-                </lf-playground-choice>
-              </lf-playground-control>
-            </notification-simulator>
-            <section id="notification-artifact" hidden>
-              <lf-text-document
-                id="notification-artifact-source"
-                source="notification-artifact"
-                language="html"
-              ></lf-text-document>
-            </section>
-          </lf-playground-preview>
+                  <span class="notification-demo-metric" aria-live="polite"></span>
+                </figcaption>
+                <div
+                  class="notification-demo-feed notification-demo-status-strip"
+                ></div>
+              </figure>
+            </fieldset>
+          </notification-simulator>
+          <section id="notification-artifact" hidden>
+            <lf-text-document
+              id="notification-artifact-source"
+              source="notification-artifact"
+              language="html"
+            ></lf-text-document>
+          </section>
 
           <lf-playground-output id="notification-instruction">
             Build the
-            <lf-playground-value for="format"></lf-playground-value> deployment
-            notification as <code>deployment-notification.html</code>. Use
-            <lf-playground-value for="tone"></lf-playground-value> styling,
-            <lf-playground-value for="radius"></lf-playground-value> corners,
-            <lf-playground-value for="accent"></lf-playground-value> accents, compact
-            spacing set to <lf-playground-value for="compact"></lf-playground-value>,
-            owner visibility set to
-            <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-            <lf-playground-value for="title"></lf-playground-value>. Exercise
-            <lf-playground-value for="events"></lf-playground-value> concurrent release
-            events in its browser test, then show me the generated source here for
-            review.
+            <output for="format"></output> deployment notification as
+            <code>deployment-notification.html</code>. Use
+            <output for="tone"></output> styling, <output for="radius"></output>px
+            corners, <output for="accent"></output> accents, compact spacing set to
+            <output for="compact"></output>, owner visibility set to
+            <output for="show-owner"></output>, and title it
+            <output for="title"></output>. Exercise
+            <output for="events"></output> concurrent release events in its browser
+            test, then show me the generated source here for review.
           </lf-playground-output>
         </lf-playground>
       </lf-ask>

@@ -8,7 +8,7 @@ import { layoutChanged } from "./widget-upgrade.js";
 import { layoutBox, layoutParts, pageDocument } from "./passages.js";
 import { pageControlsChanged } from "./page-controls.js";
 import { elementFrame } from "./element-frame.js";
-import { layoutWindow, shellRight } from "./geometry.js";
+import { layoutWindow, shellLeft, shellRight } from "./geometry.js";
 import { union } from "./rect.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -126,17 +126,62 @@ export function proseRect(main = layoutBox()) {
     corner(right, frame.height),
   ]);
 }
-/** @param {Element | null} [main] */
-export const railStands = (main = layoutBox()) => {
+// Where the margin's rail stands, a placement the page's layout makes: the line its rows
+// stand against (`edge`, across the window) and the side of that line they stand on
+// (`side`), or null where no rail stands and every row pins (margin-placement.js,
+// `rowPlacement`). The placement is asked with the room it decides in: the column's
+// prose box (`column`) and the page's box across (`shell`). By default the rail hangs
+// `--lf-rail-hang` past the column's right edge, where the shell leaves the rail's width
+// (`--lf-rail`) beside the column. A page or package whose layout keeps the margin
+// elsewhere, as a page with a strip of its own on the column's left does, says where
+// with `placeMarginRail`; the last placement registered stands until it is withdrawn. A
+// page whose annotations are its own (`data-annotations="page"`), or one that gives its
+// margin to its content (`data-rail="none"`), has no rail whatever is placed.
+/** @typedef {{edge: number, side: "left" | "right"}} Rail
+ * @typedef {{column: ProseBox, shell: {left: number, right: number}}} RailRoom
+ * @typedef {(room: RailRoom) => Rail | null} RailPlacement */
+/** @type {RailPlacement | null} */
+let railPlacement = null;
+/** @param {Element} main @param {RailRoom} room @returns {Rail | null} */
+const besideColumnEnd = (main, { column, shell }) => {
+  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
+  if (shell.right - column.right < width) return null;
+  const root = getComputedStyle(document.documentElement);
+  const hang = parseFloat(root.getPropertyValue("--lf-rail-hang")) || 0;
+  return { edge: column.right + hang, side: "right" };
+};
+/** @param {Element | null} [main] @returns {Rail | null} */
+export function marginRail(main = layoutBox()) {
   if (
     !main ||
     (document.body.dataset.annotations ?? "overlay") !== "overlay" ||
     document.body.dataset.rail === "none"
   )
-    return false;
-  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
-  return shellRight() - proseRect(main).right >= width;
-};
+    return null;
+  const room = {
+    column: proseRect(main),
+    shell: { left: shellLeft(), right: shellRight() },
+  };
+  return railPlacement ? railPlacement(room) : besideColumnEnd(main, room);
+}
+/** @param {Element | null} [main] */
+export const railStands = (main = layoutBox()) => Boolean(marginRail(main));
+// A placement replaces the last, and its withdrawal restores the default. Either moves
+// every rail row, so the margin lays out again (`LAYOUT`).
+/** @param {RailPlacement} place */
+export function placeMarginRail(place) {
+  railPlacement = place;
+  railMoved();
+  return () => {
+    if (railPlacement !== place) return;
+    railPlacement = null;
+    railMoved();
+  };
+}
+function railMoved() {
+  scheduleDocumentLayout();
+  layoutChanged(document.documentElement);
+}
 // Whether the window has room for the rail: as wide as the column with a rail on either
 // side (`--lf-rail-room`, styles/tokens.css), the width at which a column page's rail stands
 // (`railStands`), whatever this page's own Layout or body does with the room. A

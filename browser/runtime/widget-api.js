@@ -115,6 +115,8 @@ export {
   presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
+// Where the margin's rail stands, a placement the page's layout makes (content-layout.js).
+export { placeMarginRail } from "./content-layout.js";
 export {
   inlineMarkdownFragment,
   loadMarkdown,

@@ -21,10 +21,9 @@ import {
 
 const posture = (blockRight, over = {}) =>
   rowPlacement({
-    railStands: true,
+    rail: { edge: 1079, side: "right" },
     besideRail: true,
-    blockRight,
-    railInner: 1079,
+    reach: { left: 337, right: blockRight },
     half: 16,
     ...over,
   });
@@ -39,8 +38,19 @@ test("a row whose block grows past the rail stands on the block as a pin", () =>
   assert.equal(posture(1300), "pin");
 });
 
+test("a rail the page places left of the column takes rows by how far left a block reaches", () => {
+  const left = (blockLeft) =>
+    posture(1033, {
+      rail: { edge: 315, side: "left" },
+      reach: { left: blockLeft, right: 1033 },
+    });
+  assert.equal(left(337), "rail");
+  assert.equal(left(300), "rail");
+  assert.equal(left(120), "pin");
+});
+
 test("without a rail, or in a region the rail is not beside, every row is a pin", () => {
-  assert.equal(posture(700, { railStands: false }), "pin");
+  assert.equal(posture(700, { rail: null }), "pin");
   assert.equal(posture(700, { besideRail: false }), "pin");
 });
 

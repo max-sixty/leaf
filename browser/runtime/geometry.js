@@ -80,6 +80,8 @@ export const visualViewport = nativeViewport;
 // which is what a margin element is placed against and what the response surface may not
 // overhang. The chrome stands over the page and takes none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
+// And where it starts on the left, which a rail placed left of the column stands against.
+export const shellLeft = () => document.body.getBoundingClientRect().left;
 
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic

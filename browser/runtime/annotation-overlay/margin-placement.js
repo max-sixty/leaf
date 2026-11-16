@@ -22,24 +22,20 @@ import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
  * cover: readonly Box[], controls: readonly Box[], bounds: Box,
  * folds: {seats: SeatSet, open: number} | null, folded: boolean, level?: boolean}} Pin */
 
-// A row stands in the rail when the page has one, the rail stands beside the box that
-// scrolls its target (the document, or a bounded block in its flow; never a pane), and
-// its block does not reach into the rail. A block grown past the rail's inner edge by
-// more than half a marker would stand under a rail marker, so its row stands on it as a
-// pin instead: the figure keeps its shape and the comment lands on what it is about. A
-// note hanging in the right margin level with the row holds the rail's strip there, so
-// that row pins too (`noted`).
-/** @param {{railStands: boolean, besideRail: boolean, blockRight: number, railInner: number, half: number, noted: boolean}} reading */
-export function rowPlacement({
-  railStands,
-  besideRail,
-  blockRight,
-  railInner,
-  half,
-  noted,
-}) {
-  if (!railStands || !besideRail || noted) return "pin";
-  return blockRight - half > railInner ? "pin" : "rail";
+// A row stands in the rail when the page has one (`rail`, where the page's layout placed
+// it: content-layout.js, `marginRail`), the rail stands beside the box that scrolls its
+// target (the document, or a bounded block in its flow; never a pane), and its block does
+// not reach into the rail. A block grown past the rail's inner edge (`rail.edge`, on the
+// rail's side) by more than half a marker would stand under a rail marker, so its row
+// stands on it as a pin instead: the figure keeps its shape and the comment lands on
+// what it is about. `reach` is how far across the block reaches each way. A note hanging
+// in the rail's margin level with the row holds the rail's strip there, so that row pins
+// too (`noted`).
+/** @param {{rail: import("../content-layout.js").Rail | null, besideRail: boolean, reach: {left: number, right: number}, half: number, noted: boolean}} reading */
+export function rowPlacement({ rail, besideRail, reach, half, noted }) {
+  if (!rail || !besideRail || noted) return "pin";
+  const into = rail.side === "right" ? reach.right - rail.edge : rail.edge - reach.left;
+  return into > half ? "pin" : "rail";
 }
 
 // The final footprints already placed in the shared seating order, held in order of

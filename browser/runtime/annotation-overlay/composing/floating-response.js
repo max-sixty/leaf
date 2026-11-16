@@ -29,8 +29,9 @@
    nothing. It has no editor yet, so it has no height to fit and no motion to follow.
    It stands only in the room beside what it is about, the margin its rail stands in
    (margin-layout.js, `railStandsBeside`, `railEdge`), whatever rows stand there
-   already. Under or over its target, on its left, beside a target that ends short of
-   the column's edge, slid across a target with no room beside it, or beside a target
+   already. Under or over its target, on the side the rail doesn't stand, beside a
+   target that ends short of the column's edge on the rail's side, slid across a target
+   with no room beside it, or beside a target
    the rail doesn't stand by, as a workspace pane whose neighbour fills the window
    beside it, it would lie on the page's own words and controls, the one just pressed
    among them, and the next press there would open it (browser/AGENTS.md, "Controls
@@ -514,12 +515,15 @@ export function createFloatingResponsePlacement({
       scroller: boundary.scroller,
       coarse: coarsePointer.matches,
     });
+    const rail = response.rests && railStandsBeside(place.element);
     if (
       response.rests &&
-      (!railStandsBeside(place.element) ||
-        seat.side !== "right" ||
+      (!rail ||
+        seat.side !== rail.side ||
         !place.clear ||
-        place.clear.right < railEdge() - 1)
+        (rail.side === "right"
+          ? place.clear.right < railEdge(rail) - 1
+          : place.clear.left > railEdge(rail) + 1))
     ) {
       withholdFab();
       return false;

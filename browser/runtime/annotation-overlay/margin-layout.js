@@ -3,10 +3,12 @@
    Every margin row lives in the chrome's margin layer, in document coordinates, so
    nothing Leaf draws is inserted into the page's content and nothing it
    draws moves that content. A row stands in one of two postures (`margin-placement.js`):
-   in the rail, the strip beside `main` where the room there holds one, or as a pin over the
-   page by its target, on the first seat touching it that covers no words, controls or
-   media, and where none does, over the target itself (`pinSeating`). Hiding annotations
-   reveals what a pin covers. User-held controls retain their seat.
+   in the rail, the strip beside `main` the page's layout places (content-layout.js,
+   `marginRail`), by default right of the column where the room there holds one, against
+   the rail's edge on its side; or as a pin over the page by its target, on the first
+   seat touching it that covers no words, controls or media, and where none does, over
+   the target itself (`pinSeating`). Hiding annotations reveals what a pin covers.
+   User-held controls retain their seat.
    The stylesheet places each row from what this pass writes on it
    (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, and
    its seat, including the push rail packing gives it, as the row's own `margin-left`
@@ -82,6 +84,7 @@ import {
   clippedRect,
   inWindow,
   scrollsContent,
+  shellLeft,
   shellRight,
   shownBand,
   shownExtent,
@@ -119,7 +122,7 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, shifted, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { proseMeasure, proseRect, railStands } from "../content-layout.js";
+import { marginRail, proseMeasure, proseRect } from "../content-layout.js";
 import { layoutPx, inlineStyle } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { offerActionElement } from "../widget-elements.js";
@@ -422,6 +425,9 @@ const laneOf = (box, layer) => {
 };
 // The page's sideways scroll as the last pass placed rows.
 let laidOutScrollX = 0;
+// The rail's side and edge across the document as the last pass placed rows.
+/** @type {string | null} */
+let laidOutRail = null;
 // Where the last pass stood each row it placed, as offsets from what carries it: its
 // carrier's anchor, as the pass measured it (`anchorBox`), on the axes the carrier
 // follows it (`across` where both, the window's left edge otherwise), or, for a row in
@@ -540,15 +546,17 @@ export const flowOf = (scroller) => {
 // rows pin wherever it stands.
 /** @param {Element} scroller */
 const railBeside = (scroller) => flowOf(scroller).flow === pageScroller;
-// Whether the rail stands beside `target`, so its rows stand in the rail rather than
-// as pins: the margin layer is mounted, the rail stands, and `target` flows in the
+// The rail that stands beside `target`, so its rows stand in the rail rather than as
+// pins, or null: the margin layer is mounted, the rail stands, and `target` flows in the
 // column it lies beside.
 /** @param {Element} target */
 export const railStandsBeside = (target) =>
-  Boolean(layer) && railStands(marginColumn()) && railBeside(scrollerFor(target));
-// The column's edge the rail hangs off: the right of `main`'s prose. What stands right
-// of a box ending short of it stands over the column, not in the rail's margin.
-export const railEdge = () => proseRect(marginColumn()).right;
+  (layer && railBeside(scrollerFor(target)) && marginRail(marginColumn())) || null;
+// The column's edge `rail` hangs off: the edge of `main`'s prose on the rail's side.
+// What stands past a box ending short of it stands over the column, not in the rail's
+// margin.
+/** @param {import("../content-layout.js").Rail} rail */
+export const railEdge = (rail) => proseRect(marginColumn())[rail.side];
 // Prospective placement measures the same primitive a first contribution will draw.
 // The native cascade resolves the entry's aim floor and the row's focus clearance,
 // including package or author overrides. No existing entry, cached size, or parsed
@@ -605,8 +613,8 @@ function restingRail(layer) {
 // Where across the page the margin row for a comment on `target` stands, at `point`
 // inside it if a pointing gesture named one (pointed-place.js), or by the `passage` it
 // quotes (a range), each of which stands a row of its own: the row standing there
-// now where one is shown, else where a rail row would stand at rest, `--lf-rail-hang` off
-// `main`'s edge and one entry wide, and nothing where the rail does not stand beside
+// now where one is shown, else where a rail row would stand at rest, against the rail's
+// edge on its side and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. comment-placement.js keeps this
 // row clear when the full preferred message width fits beyond it; otherwise the
 // message takes priority over marker clearance.
@@ -622,13 +630,11 @@ export function marginSpot(target, point = null, passage = null) {
       const { left, right } = row.getBoundingClientRect();
       return { left, right };
     }
-  if (!layer || !railStandsBeside(target)) return null;
-  const hang =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue("--lf-rail-hang"),
-    ) || 0;
-  const left = railEdge() + hang;
-  return { left, right: left + restingRail(layer).row };
+  const rail = railStandsBeside(target);
+  if (!layer || !rail) return null;
+  const width = restingRail(layer).row;
+  const left = rail.side === "right" ? rail.edge : rail.edge - width;
+  return { left, right: left + width };
 }
 
 // The boxes of the words a row's comments quote, where it stands by a passage rather
@@ -929,14 +935,17 @@ const EVERYWHERE = {
   bottom: Infinity,
 };
 
-// How far right the figure a target belongs to reaches: the furthest of its own box and
-// the boxes holding it inside `main`, so a card in a board grown past the rail stands its
-// comment on the board as a figure does. Read off the boxes rather than the declared
-// widths, so a block an agent widened with its own CSS counts too. A scroller cuts what
-// it holds to what it shows: a cell far along a wide table is not a figure past the rail.
-/** @param {Element} anchor @param {Box} box @param {Element} main @param {Map<Element, {right: number, clip: number | null}>} reaches */
+// How far across the figure a target belongs to reaches, each way: the furthest of its
+// own box and the boxes holding it inside `main`, so a card in a board grown past the rail
+// stands its comment on the board as a figure does. Read off the boxes rather than the
+// declared widths, so a block an agent widened with its own CSS counts too. A scroller
+// cuts what it holds to what it shows: a cell far along a wide table is not a figure past
+// the rail.
+/** @param {Element} anchor @param {Box} box @param {Element} main @param {Map<Element, {left: number, right: number, clip: {left: number, right: number} | null}>} reaches */
 function reach(anchor, box, main, reaches) {
-  let right = proseMeasure(anchor) > 0 ? -Infinity : box.right;
+  const flows = proseMeasure(anchor) > 0;
+  let left = flows ? Infinity : box.left;
+  let right = flows ? -Infinity : box.right;
   for (let el = renderedParent(anchor); el && el !== main; el = renderedParent(el)) {
     let edge = reaches.get(el);
     if (edge === undefined) {
@@ -946,19 +955,26 @@ function reach(anchor, box, main, reaches) {
       // flow, not a figure extending into its rail, however wide its box, whether it
       // holds the target or is the target. Any other target's own box and ordinary
       // framed ancestors still count in full.
+      const flow = proseMeasure(el) > 0;
+      const port = b.left + el.clientLeft;
       edge = {
-        right: proseMeasure(el) > 0 ? -Infinity : b.right,
+        left: flow ? Infinity : b.left,
+        right: flow ? -Infinity : b.right,
         clip:
           style.overflowX === "visible"
             ? null
-            : b.left + el.clientLeft + el.clientWidth,
+            : { left: port, right: port + el.clientWidth },
       };
       reaches.set(el, edge);
     }
-    if (edge.clip !== null) right = Math.min(right, edge.clip);
+    if (edge.clip !== null) {
+      left = Math.max(left, edge.clip.left);
+      right = Math.min(right, edge.clip.right);
+    }
+    left = Math.min(left, edge.left);
     right = Math.max(right, edge.right);
   }
-  return right;
+  return { left, right };
 }
 
 // The boxes a pin's target is drawn in: one per line for a run of text, so the room at the
@@ -1522,13 +1538,15 @@ function pinSeating(rows, { bands, shell, pinInset, documentScrolls }) {
 // Seats `entry` among the footprints `occupied` holds, those of the rows seated before
 // it, and answers the footprint it takes. A rail row is pushed down past them; a pin
 // takes the first seat that suits it (`entry.pin`), which becomes its rect.
-/** @param {PlacedRow} entry @param {Footprints} occupied @param {number} shell */
+/** @param {PlacedRow} entry @param {Footprints} occupied @param {{left: number, right: number}} shell */
 function seatEntry(entry, occupied, shell) {
   const { pin } = entry;
   if (!pin) {
-    // A widened rail steps back from the shell before collision solving, so the
+    // A widened rail steps back inside the shell before collision solving, so the
     // occupied rectangle is exactly the one the stylesheet will paint.
-    entry.step = Math.min(0, shell - entry.rect.right);
+    entry.step =
+      Math.min(0, shell.right - entry.rect.right) ||
+      Math.max(0, shell.left - entry.rect.left);
     const rect = shifted(entry.rect, entry.step, 0);
     entry.push = packRow({ ...entry, rect }, GAP, occupied);
     return shifted(rect, 0, entry.push);
@@ -1905,11 +1923,16 @@ function layoutMountedRows(layer) {
   const main = marginColumn();
   const columnRect = proseRect(main);
   const shell = shellRight();
-  const stands = railStands(main);
+  const shellStart = shellLeft();
+  const rail = marginRail(main);
+  const stands = Boolean(rail);
+  // A rail the page's layout now places elsewhere moves every rail row, whatever the
+  // records say (`seatings`): its placement can read boxes no observer here watches.
+  const railAt = rail && `${rail.side} ${rail.edge + windowX}`;
+  if (railAt !== laidOutRail) seatings.clear();
+  laidOutRail = railAt;
   const rootStyle = getComputedStyle(document.documentElement);
-  const hang = parseFloat(rootStyle.getPropertyValue("--lf-rail-hang")) || 0;
   const pinInset = parseFloat(rootStyle.getPropertyValue("--lf-pin-inset")) || 0;
-  const railInner = columnRect.right + hang;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.
   // Read once a row could stand in the rail, since every other row pins whatever the
   // size, and with no rail entry live the reading inserts and removes a measuring
@@ -1924,10 +1947,18 @@ function layoutMountedRows(layer) {
   };
   // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
   // marker level with one would be drawn over it.
-  const notes = [...main.querySelectorAll(".layout-note > aside")]
-    .filter((note) => !skipped(note))
-    .map((note) => note.getBoundingClientRect())
-    .filter((note) => note.width && note.left >= columnRect.right - 1);
+  const notes = !rail
+    ? []
+    : [...main.querySelectorAll(".layout-note > aside")]
+        .filter((note) => !skipped(note))
+        .map((note) => note.getBoundingClientRect())
+        .filter(
+          (note) =>
+            note.width &&
+            (rail.side === "right"
+              ? note.left >= columnRect.right - 1
+              : note.right <= columnRect.left + 1),
+        );
 
   // Every read before any write: a write between two reads forces a layout per row.
   /** @type {import("../geometry.js").ClipCache} */
@@ -2055,10 +2086,9 @@ function layoutMountedRows(layer) {
     const size = stands && besideRail ? railEntrySize() : 0;
     const noted = notedAt(Number(level), size);
     const place = rowPlacement({
-      railStands: stands,
+      rail,
       besideRail,
-      blockRight: reach(anchor, box, main, reaches),
-      railInner,
+      reach: reach(anchor, box, main, reaches),
       half: size / 2,
       noted,
     });
@@ -2130,13 +2160,18 @@ function layoutMountedRows(layer) {
     }
     const box = read.row.getBoundingClientRect();
     seatedFaces.set(read.row, { width: box.width, height: box.height });
+    // A rail row stands against the rail's edge, on the rail's side of it.
+    const left =
+      read.place === "pin" || !rail
+        ? read.extent.right - pinInset - box.width
+        : rail.side === "right"
+          ? rail.edge
+          : rail.edge - box.width;
     return {
       key: read.row,
       rect: {
-        left:
-          read.place === "pin" ? read.extent.right - pinInset - box.width : railInner,
-        right:
-          read.place === "pin" ? read.extent.right - pinInset : railInner + box.width,
+        left,
+        right: left + box.width,
         top: read.top,
         bottom: read.top + box.height,
       },
@@ -2183,7 +2218,7 @@ function layoutMountedRows(layer) {
       entry.fold = seating.fold;
     }
     entry.home = entry.rect;
-    occupied.add(seatEntry(entry, occupied, shell));
+    occupied.add(seatEntry(entry, occupied, { left: shellStart, right: shell }));
   }
   for (const read of reads) {
     if (!read.target || keeping.has(read.row)) continue;
@@ -2226,7 +2261,7 @@ function layoutMountedRows(layer) {
       !regions.has(read.scroller)
     ) {
       const holders = [read.scroller, ...scrollSources(read.scroller)];
-      const rail = stands && railBeside(read.scroller);
+      const beside = rail && railBeside(read.scroller) ? rail.side : null;
       const levels = holders
         .map((holder, i) => {
           const band = clippedRect(
@@ -2249,14 +2284,15 @@ function layoutMountedRows(layer) {
                 ? band
                 : {
                     ...band,
-                    left: band.left - ring,
-                    right: (rail ? shell : band.right) + ring,
+                    left: (beside === "left" ? shellStart : band.left) - ring,
+                    right: (beside === "right" ? shell : band.right) + ring,
                   },
-            axes: rail && i !== 0 ? { ...axes, x: false } : axes,
+            axes: beside && i !== 0 ? { ...axes, x: false } : axes,
           };
         })
         .reverse();
-      if (rail) for (const level of levels.slice(-1)) level.axes = { x: true, y: true };
+      if (beside)
+        for (const level of levels.slice(-1)) level.axes = { x: true, y: true };
       regions.set(read.scroller, levels);
     }
 

@@ -11,11 +11,14 @@
 # Those scores used the historical sentence-count rubric. The revised premise
 # rubric grades useful context and task prominence. Both saved Codex answers passed
 # when regraded for context anywhere on the page rather than repeated in its intro.
-# Now a probe given a page with its packages, it passed Claude Code 1 of 2, Codex 0 of 2
-# (the budget control inside the preview) at b90df8d3a2.
+# The rail for a setting every item shares was a recipe of #2711, which #4991 cut,
+# leaving each control within sight of what it changes. As a probe given a page with its
+# packages, at b90df8d3a2, three of four runs (one on Claude Code, both on Codex) put
+# the budget once in the preview beside the month's page count, and failed a rubric
+# that took only the rail; it now takes either place, and the four runs regraded 4 of 4.
 description: playground-controls-stand-by-their-item
 metadata:
-  purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
+  purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting every item shares stands once, within sight of the total it changes."
   page: [playground]
   tags:
     - playground
@@ -46,11 +49,12 @@ assert:
     value: |
       Pass only if each alert's threshold and route are `lf-playground-control`
       elements written inside `lf-playground-preview`, next to that alert's own replay,
-      and the page budget is an `lf-playground-control` that is a direct child of
-      `lf-playground`, outside the preview. Fail if every control is a direct child of
-      `lf-playground` (so all of them stand together in the rail), if the per-alert
-      settings are hand-built inputs rather than playground controls, or if the budget
-      is repeated beside each alert.
+      and the page budget is one `lf-playground-control`, either a direct child of
+      `lf-playground` in the rail or in the preview beside the month's page count it is
+      compared with. Fail if every control is a direct child of `lf-playground` (so
+      all of them stand together in the rail), if the per-alert settings are
+      hand-built inputs rather than playground controls, or if the budget is repeated
+      beside each alert.
   - type: llm-rubric
     metric: premise-supports-the-task
     value: |

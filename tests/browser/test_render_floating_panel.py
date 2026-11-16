@@ -1930,10 +1930,11 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "The **room** photo.",
+        "The **room** photo.\n\n"
         '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
+        html=True,
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -4861,7 +4862,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "<p>Which week suits?</p>"
+        "Which week suits?\n\n"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
@@ -4906,7 +4907,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "<p>Which week suits?</p>"
+        "Which week suits?\n\n"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
@@ -4989,12 +4990,13 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
+        "Choose the first job.\n\n"
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
+        html=True,
     )
     page = floating(browser, url)
     page.locator("body").focus()

@@ -103,7 +103,7 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         None,
         None,
-        "Choose the next step.",
+        "Choose the next step.\n\n"
         '<lf-ask id="read-decision"><h3>Which way?</h3>'
         '<lf-options id="read-choice" choose>'
         '<lf-option id="read-yes">Yes</lf-option>'
@@ -147,7 +147,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         None,
         None,
-        "Choose this answer.",
+        "Choose this answer.\n\n"
         '<lf-ask id="read-refusal"><h3>Choose</h3>'
         '<lf-options id="read-refusal-options" choose>'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
@@ -409,7 +409,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     url = serve(PANEL_PAGE)
     user = panel_comment(serve.page_dir, "The earlier user thread.")
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Original answer.", None
+        serve.page_dir, None, None, None, "Original answer."
     )
     root = original["id"]
     page = open_page(browser, url)

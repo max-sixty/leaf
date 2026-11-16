@@ -75,23 +75,15 @@
  * both arrangements come out the same and the exhibit's first block is what it lands on.
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
- * nothing. The one such widget shipped is the suggestion, and it is why the block slot
- * asks for its room above rather than around itself (base.css) — which leaves one edge
- * rather than two: a suggestion leading a sample still holds its 10px. Which
- * edge is left follows from the room having to sit on one side, and the other side was
- * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
- * suggestions in a row shut against each other. A box that stands in
- * that position and has one declares the frame itself, one level in, which is the answer
- * `.facts` takes; a suggestion has no box to declare it on. Reaching a level further from
- * out here is the fix that suggests itself, and it
- * trades a silent failure for a worse one: the grandchild whose margin shows is the
- * grandchild of a *boxless* parent, and the same selector over a padded one — a callout
- * leading a sample — closes up that box's own first line, which is the exhibit
- * rendering at less than full fidelity, the one thing a sample promises. So no
- * selector reaches the next boxless widget either, and what holds this is a reading of
- * the painted bar against the exhibit's own boxes over every sample the corpus has
- * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
- * quiet, and what a leading suggestion meets the day one is written. */
+ * nothing. A box that stands in that position and has one declares the frame itself,
+ * one level in, which is the answer `.facts` takes. Reaching a level further from out
+ * here is the fix that suggests itself, and it trades a silent failure for a worse one:
+ * the grandchild whose margin shows is the grandchild of a *boxless* parent, and the
+ * same selector over a padded one — a callout leading a sample — closes up that box's
+ * own first line, which is the exhibit rendering at less than full fidelity, the one
+ * thing a sample promises. So no selector reaches a boxless child's children, and what
+ * holds this is a reading of the painted bar against the exhibit's own boxes over every
+ * sample the corpus has (test_the_gutter_runs_beside_the_exhibit_and_no_further). */
 /* A table box keeps to its content unless given a width, so the sample fills its holder,
  * and an authored width widens it (layouts.css). */
 lf-sample {

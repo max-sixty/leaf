@@ -105,8 +105,8 @@ def _html_block(state, start: int, end: int, silent: bool) -> bool:
     closes it, as CommonMark's `<pre>` does, blank lines included: a widget's body is
     its own, such as code whose blank lines would otherwise end the block and become
     Markdown. Any other block is markdown-it's own. Neither starts on a line indented
-    as code, which the browser's parser refuses even in a message, which reads no
-    indented code, where markdown-it-py asks whether that rule is on."""
+    four spaces or more: the browser's parser refuses one even in a message, which
+    reads no indented code, where markdown-it-py would start one."""
     if state.sCount[start] - state.blkIndent >= 4:
         return False
     at = state.bMarks[start] + state.tShift[start]

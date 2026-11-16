@@ -426,11 +426,10 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
-in Chromium so can a read of the page's selection, such as `rangeCount`. In Chromium a
+in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
-included: `body` is a size container, and once any rule under `@container` has matched,
-as Leaf's style queries do on every page, Chromium finishes the style inside a size
-container during layout.
+included, since `body` is a size container (notes/browser-support.md, "A style read
+lays out a size container's contents in Chromium").
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over

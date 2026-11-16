@@ -67,7 +67,7 @@ import {
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
-import { agePreview, ago, clockTime } from "../presence.js";
+import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
@@ -75,6 +75,7 @@ import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
+import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
@@ -224,7 +225,7 @@ const authorName = (message) => (message.author === "agent" ? message.agent : "M
 
 // The characters of a thread's name or a message's opening line a preview keeps,
 // which wrap within its width.
-const PREVIEWED_LINE = 120;
+export const PREVIEWED_LINE = 120;
 // Where a thread stands, as its preview says it (`threadPreview`): its word
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
@@ -245,6 +246,22 @@ function threadStands(thread, said) {
       .filter((part) => wordsText(part) !== said)
       .flatMap((part, at) => (at ? [" · ", part] : [part])),
   };
+}
+
+// When a message or a run's face was said, in its head (presence.js, `saidAt`): its
+// day, then its clock. A head too narrow for both keeps the day whole and drops the
+// clock onto a line it clips (surfaces.css), so a crowded head still says which day,
+// where an ellipsis cut it to "15 Au…"; the preview reads the time whole.
+/** @param {string | null | undefined} timestamp */
+export function saidTime(timestamp) {
+  const said = saidAt(timestamp);
+  return said
+    ? html`<time datetime=${timestamp} .lfPreview=${agePreview}
+        >${said.day ? html`<span>${said.day}</span> ` : nothing}<span
+          >${said.clock}</span
+        ></time
+      >`
+    : nothing;
 }
 
 /** What pointing at threads reads (preview.js), on a passage mark and on a margin entry
@@ -301,6 +318,43 @@ export function threadPreview(threads, said = null) {
   };
 }
 
+// A listed draft in words, on one line, as it now stands (drafts.js, the drafts list):
+// what its message would say, Drawing for ink alone.
+/** @param {import("../drafts.js").ListedDraft} draft */
+export const draftWords = (draft) => {
+  const payload = /** @type {{suggest?: unknown, drawing?: unknown} | undefined} */ (
+    draft.payload
+  );
+  return messageWords({
+    attempt: `draft:${draft.context}`,
+    text: loadDraft(draft.context)?.text ?? "",
+    suggestion: Boolean(payload?.suggest),
+    drawing: payload?.drawing,
+  });
+};
+// What drafts say when pointed at, on a row of Threads and on a margin entry: each
+// one's words, a line of them, under what it is about where the place pointed at
+// doesn't already say it. What Send makes of it stands beside it on both.
+/** @param {readonly import("../drafts.js").ListedDraft[]} drafts
+ * @param {import("../voice.js").Words | null} [about]
+ * @returns {import("../preview.js").Preview | null} */
+export function draftPreview(drafts, about = null) {
+  /** @param {import("../drafts.js").ListedDraft} draft */
+  const said = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
+  const [only] = drafts;
+  if (!only) return null;
+  if (drafts.length === 1)
+    return { name: about ? voiced(about) : "Draft", detail: [said(only)] };
+  return {
+    name: counted(drafts.length, "draft"),
+    list: {
+      items: drafts.map(said),
+      more: (count) =>
+        voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
+    },
+  };
+}
+
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 /** @typedef {{
@@ -313,6 +367,12 @@ export function threadPreview(threads, said = null) {
  * }} PreparedAuthoredMessage */
 /** @type {Map<string, PreparedAuthoredMessage>} */
 const authoredMessages = new Map();
+// Each element with an id that a prepared message keeps, with its message's document,
+// read once as the message is prepared, so finding one by id (`messageHolding`) costs
+// one read however many messages the page holds. Its ids are the authored ones, which
+// the message keeps for its lifetime.
+/** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
+const keptElements = new Map();
 /** @param {{id: string, attempt?: string, markup?: string}} message @param {string} thread
  * @returns {Promise<PreparedAuthoredMessage>} */
 export function prepareAuthoredMessage(message, thread) {
@@ -348,6 +408,9 @@ export function prepareAuthoredMessage(message, thread) {
       preparation: null,
     };
     authoredMessages.set(key, prepared);
+    for (const element of template.content.querySelectorAll("[id]"))
+      if (!keptElements.has(element.id))
+        keptElements.set(element.id, { element, document: prepared.body.document });
   }
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
@@ -377,17 +440,25 @@ const authoredMessage = (message) => {
 };
 
 // Which drawing of an authored message holds its widgets, the one instance above. A
-// message can stand in several drawings at once (the primary reader's, a margin card,
-// a seat on the page), and the shown one of highest `authoredRank` holds them, the
-// first to draw it among equals. Every other drawing draws only the message's words:
-// the holder is then the one shown, so the widgets already stand in view. A drawing
-// shown as it draws takes them where it should hold them, as does the first to draw
-// them, and after each draw the holder is settled again among the drawings shown, so
-// one hidden in a fold or a closed card gives them to one in view. A drawing not yet
-// placed in the page, as a card draws before its owner places it, is neither shown
-// nor hidden: it waits for that settling to take them, and keeps what it holds.
-// Whichever drawings gain or lose them draw again at once, as their own containers
-// would not.
+// message can stand in several drawings at once (the primary reader's, a margin card, a
+// seat on the page, On Me's card), and the shown one of highest `authoredRank`
+// (`HOLDS`) holds them, the first to draw it among equals. Every other drawing draws
+// only the message's words: the holder is then the one shown, so the widgets already
+// stand in view. A drawing shown as it draws takes them where it should hold them, as
+// does the first to draw them, and after each draw the holder is settled again among
+// the drawings shown, so one hidden in a fold or a closed card gives them to one in
+// view. A drawing not yet placed in the page, as a card draws before its owner places
+// it, is neither shown nor hidden: it waits for that settling to take them, and keeps
+// what it holds. Whichever drawings gain or lose them draw again at once, as their own
+// containers would not.
+// Each drawing's `authoredRank`, highest first: the primary reader's view of the
+// conversation, a margin card, a thread drawn in the page, and a drawing aside from the
+// conversation, as On Me's cards are (primary-reader.js, `messagesAside`). A drawing
+// aside holds the widgets only while no other drawing shows the message, so opening On
+// Me takes no choice out of a thread the user sees, and no arrival lands in it
+// (`authoredHolder`). Until 15 November 2026 On Me's card ranked as the primary
+// reader's view, and opening it emptied a thread on the page of its widgets.
+export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
 /** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
  * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */
 /** @type {Map<string, Set<PresentedMessage>>} */
@@ -436,11 +507,14 @@ export function releaseAuthoredUnder(root) {
   for (const [key, view] of [...authoredHolders])
     if (root.contains(view.node)) releaseAuthored(key, view);
 }
-// The drawn message holding the widgets of the message `id`, if a drawing holds them.
+// The drawn message holding the widgets of the message `id`, if a drawing holds them,
+// where an arrival at the message lands (destination.js). None while a drawing aside
+// holds them, since no thread opens there.
 /** @param {string} id */
 export function authoredHolder(id) {
   for (const view of authoredHolders.values())
-    if (view.model.id === id && shown(view)) return view.node;
+    if (view.model.id === id && view.model.authoredRank !== HOLDS.aside && shown(view))
+      return view.node;
   return null;
 }
 /** @param {MessageRecord} message
@@ -483,7 +557,6 @@ export function messageReading(
     author: message.author,
     by: authorName(message),
     timestamp: message.ts,
-    age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, or a
     // deleted message's, since answers above may have been about those words.
     edited: removal
@@ -553,11 +626,6 @@ export class MessageView {
   #kept = false;
   /** @type {(() => void) | null} */
   #stopKept = null;
-  // Whether the head says the message's age, which a transcript leaves out where the
-  // message above already says it (transcript.js). A presentation that doesn't say,
-  // as a drawing taking back its widgets doesn't, keeps the last answer.
-  #dated = true;
-
   /** @param {MessageCommands} commands */
   constructor(commands) {
     this.#commands = commands;
@@ -565,11 +633,8 @@ export class MessageView {
   }
 
   /** @param {ReturnType<typeof messageReading>} model
-   * @param {{arrived?: boolean, dated?: boolean, headerControls?: unknown}} [options] */
-  present(
-    model,
-    { arrived = false, dated = this.#dated, headerControls = nothing } = {},
-  ) {
+   * @param {{arrived?: boolean, headerControls?: unknown}} [options] */
+  present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     const presentation = (this.#presentation ??= {
       node: this.node,
@@ -577,7 +642,6 @@ export class MessageView {
       present: (reading) => this.present(reading),
     });
     presentation.model = model;
-    this.#dated = dated;
     // A view presents messages of one surface for its whole life, so what the surface
     // makes of the node is written once, on the first presentation.
     if (!prior) {
@@ -588,17 +652,18 @@ export class MessageView {
       this.node.classList.add("lf-ui");
       generatedElement(this.node, { says: false });
       this.node.dataset.lfOffer = "";
-      // A message the keyboard stands on previews when it was said, the clock time its
-      // age says to a pointer or a finger (`agePreview`), beside the age in its head.
-      // Its words preview nothing to a pointer or a finger, since they are what the user
-      // reads.
+      // A message the keyboard stands on previews when it was said, as its time does to
+      // a pointer or a finger (`agePreview`), beside that time in its head. Its words
+      // preview nothing to a pointer or a finger, since they are what the user reads.
       this.node.lfPreview = (/** @type {import("../preview.js").Route} */ route) => {
         const at = route === "focus" ? clockTime(this.#model?.timestamp) : "";
-        // Where the head draws no age, as the second of two messages with one, its
-        // place in the head stands for it.
-        const meta = this.node.querySelector(":scope > .lf-msg-head > .lf-msg-meta");
         return at
-          ? { name: at, at: meta?.querySelector(":scope > time") ?? meta }
+          ? {
+              name: at,
+              at: this.node.querySelector(
+                ":scope > .lf-msg-head > .lf-msg-meta > time",
+              ),
+            }
           : null;
       };
       // A double click on the user's own words opens them for rewriting, as the word
@@ -679,6 +744,9 @@ export class MessageView {
       settleAuthoredSoon(authoredKey);
     }
     const holds = authoredHolders.get(authoredKey) === presentation;
+    // Whether this drawing holds the message's widgets, for a surface whose own
+    // controls give way to them, as On Me's card's choices do (floating-panel.css).
+    keeps(this.node, "data-lf-holds", holds ? "" : null);
     // Lit keeps nodes it already placed, so where another drawing took them since this
     // one drew them, a new key puts them back here.
     if (holds && authored.some((node) => !this.node.contains(node)))
@@ -718,13 +786,7 @@ export class MessageView {
       <div class="lf-msg-head" data-lf-reflow="text">
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          >${
-            dated
-              ? html`<time datetime=${model.timestamp} .lfPreview=${agePreview}
-                  >${model.age}</time
-                >`
-              : nothing
-          }${
+          >${saidTime(model.timestamp)}${
             model.unread
               ? html`<span class="lf-msg-new lf-unread-dot"
                   ><span class="lf-quiet">New</span></span
@@ -929,20 +991,14 @@ export class MessageView {
 // placed in its message (anchor-placement.js), while the message is put away.
 /** @param {string} id */
 export function messageHolding(id) {
-  for (const { nodes, body } of authoredMessages.values())
-    for (const node of nodes) {
-      if (!(node instanceof Element)) continue;
-      const element = node;
-      const kept =
-        element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
-      if (kept) return { element: kept, ...body.document };
-    }
-  return null;
+  const kept = keptElements.get(id);
+  return kept ? { element: kept.element, ...kept.document } : null;
 }
 
-// The element a coordinate names: the page's, else one a message keeps.
+// The element an id names: the page's, else one a message keeps, drawn or not.
 /** @param {string} id */
-const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
+export const addressableAt = (id) =>
+  elementById(id) ?? messageHolding(id)?.element ?? null;
 
 // What a coordinate names besides any words it quotes: a design subject, a datum, a
 // drawing's part or a section. A passage is named by its words alone.

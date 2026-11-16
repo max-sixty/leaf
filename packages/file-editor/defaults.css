@@ -2,7 +2,7 @@
  * presentation belongs to shadow.css, alongside the registered shadow stage.
  * Public host input: --lf-file-editor-height chooses the editing region height; set
  * it on lf-file-editor to override the responsive default. The source takes the
- * theme's code size (--code-size), and colors and focus the shared inherited theme
+ * theme's code size (--lf-code-size), and colors and focus the shared inherited theme
  * inputs, which a page may set on lf-file-editor too. */
 lf-file-editor {
   display: grid;
@@ -10,9 +10,9 @@ lf-file-editor {
   grid-template-rows: auto minmax(0, 1fr) auto;
   block-size: calc(var(--lf-file-editor-height) + 2.5rem);
   margin-block: 1rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  --lf-ground: var(--card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  --lf-ground: var(--lf-card);
   background: var(--lf-ground);
   overflow: clip;
   --lf-file-editor-height: clamp(24rem, 60vh, 42rem);

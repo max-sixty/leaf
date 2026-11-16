@@ -4,7 +4,8 @@ A served reading is the page's file stamp (`page_reading`, or a snapshot's own)
 followed by a fingerprint of who is present (`presence.presence_fingerprint`), which
 moves on its own clock. `/api/state` answers with one, finite `/api/news` reads name
 one without rebuilding state, and the browser compares them whole. `join_reading`
-builds that form; nothing else spells it.
+builds that form; nothing else spells it. Only the page's own inputs move it: the
+machine's other pages have a reading of their own (`presence.pages_reading`).
 
 A page's inputs are declared once, here: `page_input` says which paths inside the
 page directory count, `page_roots` names the directories whose notifications report

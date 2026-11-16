@@ -25,7 +25,8 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     )
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
-import { LeafElement, html } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-async-panel", class extends LeafElement {
   render() { return html`Instrument`; }
   async getUpdateComplete() {
@@ -125,7 +126,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         page_files=gallery_page_files,
     )
     exported = tmp_path / "exported.html"
-    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exporting_model.cmd_export(serve.page_dir, exported, None, runtime=True)
     entry = re.compile(
         r'(<script type="module" src=)"[^"]*"( data-lf-runtime></script>)'
     )

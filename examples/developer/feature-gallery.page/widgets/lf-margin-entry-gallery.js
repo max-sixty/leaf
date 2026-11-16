@@ -1,5 +1,5 @@
 /* The exhibit grid and its contribution controls share one live Lit view. */
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
   contributionEntry,

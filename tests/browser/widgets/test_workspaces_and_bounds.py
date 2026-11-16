@@ -590,7 +590,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_scroll_behavior(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
@@ -629,7 +629,7 @@ def foot_reserve(page, pane="#workspace-pane"):
           const style = getComputedStyle(reader);
           return Math.round(
             parseFloat(style.paddingBlockEnd) -
-              parseFloat(style.getPropertyValue('--pane-inset'))
+              parseFloat(style.getPropertyValue('--lf-pane-inset'))
           );
         }"""
     )
@@ -644,7 +644,6 @@ ZONE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
 }
 
@@ -854,8 +853,8 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             const outer = document.getElementById('outer');
             const style = getComputedStyle(outer ?? document.documentElement);
             const outside = outer ? parseFloat(style.paddingBottom) : 0;
-            const ringRoom = parseFloat(style.getPropertyValue('--focus-region-gap'))
-              + parseFloat(style.getPropertyValue('--focus-ring-w'));
+            const ringRoom = parseFloat(style.getPropertyValue('--lf-focus-region-gap'))
+              + parseFloat(style.getPropertyValue('--lf-focus-ring-w'));
             return {frameBottom: frame.bottom, outside, ringRoom,
                     endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
         }""",
@@ -931,7 +930,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_scroll_behavior(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);

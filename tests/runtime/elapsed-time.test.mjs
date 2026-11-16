@@ -4,11 +4,14 @@ import test from "node:test";
 import {
   ago,
   shortAgo,
+  atClock,
   clockTime,
   clockValue,
+  saidAt,
   tickClock,
 } from "../../browser/runtime/presence.js";
-import { LeafElement, noChange } from "/runtime/widget-api.js";
+import { noChange } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
@@ -91,4 +94,25 @@ test("an age's preview says its clock time in the reader's own zone", (t) => {
     "Sat 15 Aug 2026, 09:05 United Kingdom Time",
   );
   assert.equal(clockTime(null), "");
+});
+
+test("a message says its time, and its day unless that is today", (t) => {
+  const zone = process.env.TZ;
+  t.after(() => {
+    process.env.TZ = zone;
+  });
+  process.env.TZ = "America/Los_Angeles";
+  // Sunday 15 November 2026, 19:20 in Los Angeles.
+  const said = (/** @type {string} */ ts) =>
+    atClock(Date.parse("2026-11-16T03:20:00Z"), () => saidAt(ts));
+  assert.deepEqual(said("2026-11-16T01:52:00Z"), { day: "", clock: "17:52" });
+  assert.deepEqual(said("2026-11-14T23:35:00Z"), { day: "Yesterday", clock: "15:35" });
+  // The day is the reader's: 07:59 UTC on the 15th is still the 14th in Los Angeles.
+  assert.deepEqual(said("2026-11-15T07:59:00Z"), { day: "Yesterday", clock: "23:59" });
+  assert.deepEqual(said("2026-11-13T23:29:00Z"), { day: "13 Nov", clock: "15:29" });
+  assert.deepEqual(said("2025-11-15T23:29:00Z"), {
+    day: "15 Nov 2025",
+    clock: "15:29",
+  });
+  assert.equal(said(""), null);
 });

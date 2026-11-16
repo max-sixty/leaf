@@ -44,6 +44,14 @@ export function excerptWords(value, cap) {
   }
 }
 
+// The last of a value's words, cut as `excerptWords` cuts the first: at most `cap`
+// characters from a word's start, after an ellipsis where it cut.
+/** @param {unknown} value @param {number} cap */
+export const lastWords = (value, cap) =>
+  [...excerptWords([...String(value ?? "")].toReversed().join(""), cap)]
+    .toReversed()
+    .join("");
+
 // Words a notice names something by, cut as `excerptWords` cuts them, in quotes:
 // “Rollout safety”.
 /** @param {unknown} value @param {number} [cap] */

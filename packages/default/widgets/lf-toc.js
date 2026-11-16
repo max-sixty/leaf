@@ -24,9 +24,7 @@ import { sectionMarks } from "./toc-marks.js";
  * a scroll-driven animation: its keyframes are the lens at each scroll position where
  * the map bends, and the browser interpolates between them as the scroller moves, so a
  * scroll writes nothing to the page. New keyframes are set only when the map or the
- * landing band changes. Where the browser has no scroll timeline (Firefox), the same
- * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
- * follows a frame behind the scroll, still writing nothing to the page.
+ * landing band changes.
  * The lens and the current entry follow the scroller of the document the outline
  * covers, not the scroller of the box the widget stands in. A sidebar's sticking track
  * scrolls only its own contents and usually stands at its scroll end, so an outline
@@ -58,6 +56,7 @@ import { sectionMarks } from "./toc-marks.js";
  * restoration; hidden-until-found reveals a disclosure or tab containing the target.
  * On an initial load the shared arrival pass runs after all widgets settle, so it can
  * honor a generated target that did not exist during HTML parsing. */
+import { render } from "/vendor/lit.js";
 import {
   atLayoutPrecision,
   atScrollEnd,
@@ -65,7 +64,6 @@ import {
   frameFor,
   holdFocus,
   inChrome,
-  render,
   keeps,
   landingInsets,
   LAYOUT,
@@ -88,11 +86,6 @@ import {
 
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
-// Firefox lacks ScrollTimeline.
-const SCROLL_TIMELINE = "ScrollTimeline" in globalThis;
-// Without a scroll timeline the lens's animation lasts this many milliseconds over the
-// whole scroll, long enough that no browser's clamped timer precision steps it.
-const LENS_DURATION = 1_000_000;
 
 customElements.define(
   "lf-toc",
@@ -550,9 +543,6 @@ customElements.define(
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
       this.#standLens(clear, this.#scroller);
-      if (!SCROLL_TIMELINE && this.#lensMotion)
-        this.#lensMotion.animation.currentTime =
-          (LENS_DURATION * this.#scroller.scrollTop) / scrollLimit(this.#scroller);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
       const end = atScrollEnd(this.#scroller);
@@ -620,22 +610,13 @@ customElements.define(
       this.#lens.removeAttribute("style");
       if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
       else {
-        const effect = new KeyframeEffect(
-          this.#lens,
-          frames,
-          SCROLL_TIMELINE
-            ? { fill: "both" }
-            : { duration: LENS_DURATION, fill: "both" },
-        );
+        const effect = new KeyframeEffect(this.#lens, frames, { fill: "both" });
         const animation = new Animation(
           effect,
-          SCROLL_TIMELINE
-            ? new globalThis.ScrollTimeline({ source: scroller, axis: "block" })
-            : document.timeline,
+          new ScrollTimeline({ source: scroller, axis: "block" }),
         );
         this.#lensMotion = { effect, animation };
         animation.play();
-        if (!SCROLL_TIMELINE) animation.pause();
       }
     }
   },

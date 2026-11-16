@@ -96,6 +96,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                   id: `tone-${index}`,
                   subject: {kind: 'widget', id: `${tone}-target`},
                   stage,
+                  at_work: stage === 'working',
                   condition: null,
                 } : null
               })]}), activate: () => {}
@@ -175,7 +176,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                 reading["shell"] for reading in ordinary
             ]
             assert [reading["icon"] for reading in picked_up] == [
-                token_colour(page, "--accent"),
+                token_colour(page, "--lf-accent"),
                 ordinary[1]["icon"],
                 ordinary[2]["icon"],
             ]
@@ -185,7 +186,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
                 reading["shell"] for reading in ordinary
             ]
             assert [reading["icon"] for reading in working] == [
-                token_colour(page, "--accent"),
+                token_colour(page, "--lf-accent"),
                 ordinary[1]["icon"],
                 ordinary[2]["icon"],
             ]
@@ -194,6 +195,9 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
             hovered = []
             focused = []
             for button in buttons:
+                # Focus left on the entry above rests the comment box in the rail,
+                # over this one (floating-response.js), so let it go first.
+                page.evaluate(RELEASE_FOCUS)
                 button.hover()
                 hovered.append(button.evaluate(read))
                 page.mouse.move(0, 0)
@@ -250,7 +254,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       const probe = document.createElement('span');
       document.body.append(probe);
       const result = {};
-      for (const name of ['--accent']) {
+      for (const name of ['--lf-accent']) {
         probe.style.color = `var(${name})`;
         result[name] = getComputedStyle(probe).color;
       }
@@ -270,7 +274,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert picked_up == {
         **initial,
-        "icon": colors["--accent"],
+        "icon": colors["--lf-accent"],
     }, "pickup did not color only the Thread icon blue"
     page.evaluate("""() => {
       window.agentArrivals = [];
@@ -307,7 +311,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert working == {
         **initial,
-        "icon": colors["--accent"],
+        "icon": colors["--lf-accent"],
     }, "work did not keep the Thread icon blue on its resting interior"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -383,7 +387,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         "data-lf-icon", "comment"
     )
     expect(working_row.locator(".lf-margin-kind")).to_have_css(
-        "color", colors["--accent"]
+        "color", colors["--lf-accent"]
     )
     working_row.evaluate("node => node.blur()")
     page.mouse.move(0, 0)
@@ -391,7 +395,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     picked_up_row = dialog.locator('[data-lf-agent-workflow="picked_up"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
-        "color", colors["--accent"]
+        "color", colors["--lf-accent"]
     )
     page.keyboard.press("Escape")
     # Two contributed actions fold the Thread control behind More. The visible
@@ -643,8 +647,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
-        "background": token_colour(page, "--turn-wash"),
-        "icon": token_colour(page, "--turn-ink"),
+        "background": token_colour(page, "--lf-turn-wash"),
+        "icon": token_colour(page, "--lf-turn-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
@@ -663,7 +667,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     expect(marker).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     assert _margin_entry_paint(marker) == {
         "background": with_agent["background"],
-        "icon": token_colour(page, "--accent"),
+        "icon": token_colour(page, "--lf-accent"),
     }, "the answered thread lost its blue cue after the obligation handoff"
     append_carried_log_record(
         serve.page_dir,
@@ -772,7 +776,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     assert not any("Your turn" in part for part in preview_parts(marker))
     answered = {
         "background": with_agent["background"],
-        "icon": token_colour(page, "--accent"),
+        "icon": token_colour(page, "--lf-accent"),
     }
     assert _margin_entry_paint(marker) == answered, "the pin kept the user's turn"
     resized(page, 1440, 900)
@@ -1054,11 +1058,11 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             name,
         )
 
-    expected_ink = resolved_color("--ink-2")
-    expected_paper = resolved_color("--paper")
-    expected_rule = resolved_color("--rule")
-    expected_label_ink = resolved_color("--paper")
-    expected_label_background = resolved_color("--ink")
+    expected_ink = resolved_color("--lf-ink-2")
+    expected_paper = resolved_color("--lf-paper")
+    expected_rule = resolved_color("--lf-rule")
+    expected_label_ink = resolved_color("--lf-paper")
+    expected_label_background = resolved_color("--lf-ink")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at
@@ -1080,7 +1084,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         words_still()
         current = face(control)
         expect(control).to_have_attribute("data-lf-state", "idle")
-        pickup_ink = resolved_color("--accent")
+        pickup_ink = resolved_color("--lf-accent")
         assert current == {
             "tag": "SPAN",
             "offer": "",
@@ -1129,7 +1133,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         mark = traced.evaluate(MARK)
         region = page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--focus-region-gap'))"
+            ".getPropertyValue('--lf-focus-region-gap'))"
         )
         leader = page.evaluate(
             "() => getComputedStyle(document.querySelector('.lf-margin-cluster'),"
@@ -1139,7 +1143,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         assert (mark["style"], mark["width"], mark["color"], mark["brackets"]) == (
             "solid",
             2,
-            resolved_color("--target-trace-ink"),
+            resolved_color("--lf-target-trace-ink"),
             True,
         ), mark
         assert leader == "none"
@@ -1330,7 +1334,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
     reaction.click()
     expect(reaction).to_have_attribute("aria-expanded", "true")
-    expect(reaction).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(reaction).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
 
 
 def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
@@ -1366,7 +1370,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     surface = page.locator("#outer-surface")
     expect(surface).to_have_attribute("data-lf-traced", "")
     expect(page.locator("#outer")).not_to_have_attribute("data-lf-traced", "")
-    assert_drawn_in(surface, token_colour(page, "--target-trace-ink"), 2)
+    assert_drawn_in(surface, token_colour(page, "--lf-target-trace-ink"), 2)
 
     page.mouse.move(0, 0)
     expect(page.locator("[data-lf-traced]")).to_have_count(0)

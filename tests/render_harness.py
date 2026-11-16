@@ -107,9 +107,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
-from leaf_dev.thread_snapshot_plugin import (
-    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
-)
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -950,6 +947,32 @@ def long_press(page, point):
     )
 
 
+def cursor_at(page, x, y):
+    """The cursor the user sees at a point of the viewport: the computed cursor of the
+    element a press there lands on, through every open shadow tree it crosses, since
+    the runtime paints a cursor on that element and no other (page-geometry.js)."""
+    return page.evaluate(
+        """([x, y]) => {
+          let at = document.elementFromPoint(x, y);
+          while (at?.shadowRoot) {
+            const inner = at.shadowRoot.elementFromPoint(x, y);
+            if (!inner || inner === at) break;
+            at = inner;
+          }
+          return getComputedStyle(at).cursor;
+        }""",
+        [x, y],
+    )
+
+
+def cursor_over(page, locator):
+    """Rest the pointer over the middle of `locator`, as a hover does, and return the
+    cursor the user sees there (`cursor_at`)."""
+    locator.hover()
+    box = locator.bounding_box()
+    return cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
@@ -1128,7 +1151,7 @@ def plant_quiet_word(page, selector, holding):
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
 # count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
-def told(page, *, until=None):
+def told(page):
     """Wait until the page has taken in everything the server now holds.
 
     Call it after the test writes a version, event, status, or lease behind a live
@@ -1137,25 +1160,20 @@ def told(page, *, until=None):
     the gesture rather than the write. The server's answer is asked through the
     context's request API rather than the page: it carries the same cookie, and it is
     not seen by page routes or by the traffic watcher, so a test that stubs or counts
-    /api/state sees exactly what it did before this call existed. `until` waits for
-    a server fact another page publishes asynchronously before asking this page to
-    adopt that answer."""
+    /api/state sees exactly what it did before this call existed. Another page's
+    change is no part of that answer (`all_pages_offered`)."""
     origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+    assert answer.ok, f"the server would not say what it holds: {answer.status}"
+    wait_until_ready(page, answer.json(), through="state")
 
-    def read():
-        answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
-        assert answer.ok, f"the server would not say what it holds: {answer.status}"
-        return answer.json()
 
-    # A neighboring leaf publishes its row on its own server's next maintenance
-    # pass. A state answer from this page can still carry the previous row just
-    # after a test writes that neighbor's status.
-    state = (
-        wait_for(read, until, failure="the server did not publish the expected state")
-        if until is not None
-        else read()
-    )
-    wait_until_ready(page, state, through="state")
+def all_pages_offered(page):
+    """Wait until the page offers All pages: another page is live, and this one has
+    read the list of them. It reads that list apart from its own state, once a news
+    look names it (live-leaves.js, `hearPages`), so a page that has taken in all its
+    own state may not hold it yet."""
+    wait_for_check_api(page, "(api) => api.leavesOffered()")
 
 
 def nudge(page_dir):
@@ -1444,13 +1462,30 @@ def clean_browser(test=None):
     finally:
         _BROWSER_PROBLEM_LISTS = None
         _TEST = None
-    problems = [
+    problems = _named_problems(captured)
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
+    assert not problems, "\n".join(problems)
+
+
+def _named_problems(captured):
+    return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
     ]
-    if test is not None and (problems or getattr(test, "lf_failed", False)):
-        _picture_pages(test, [page for page, _ in captured])
+
+
+def reject_browser_problems():
+    """Fail now on every problem the watched pages have reported, taking them from the
+    collector, rather than at teardown (`clean_browser`). `conftest.py` calls this as
+    the body of a test marked `xfail` returns, since pytest reads that mark against
+    the call: reported at teardown, the same problems would error the test however
+    it was marked."""
+    captured = _BROWSER_PROBLEM_LISTS or ()
+    problems = _named_problems(captured)
+    for _, problem_list in captured:
+        problem_list.clear()
     assert not problems, "\n".join(problems)
 
 
@@ -2229,7 +2264,7 @@ def expect_error_waits_in_menu(page, message):
     That is where an error waits that the panel's field cannot say (errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
-    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
     panel_menu(page).locator('.lf-fp-item[data-lf-row="errors"]').click()
     errors = page.locator(panel_view("errors"))
     expect(errors.locator(".lf-fp-error-words b").first).to_have_text(message)
@@ -3207,10 +3242,10 @@ def root_overflow(page) -> float:
 
 
 def wide_width(page) -> float:
-    """The page's `--wide` in pixels: the theme derives it from the code size, and a
+    """The page's `--lf-wide` in pixels: the theme derives it from the code size, and a
     page may restate it, so a width check reads it rather than copying the number."""
     return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--wide'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-wide'))"
     )
 
 

@@ -471,11 +471,18 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Scope} root @param {Iterable<Element>} [also] */
-export function renderQuiet(root, also = []) {
+// Say each element's provenance quietly, or take the word away where it has none.
+/** @param {Iterable<Element>} elements */
+export function sayQuietFacts(elements) {
+  for (const el of elements) quietWord(el, quietFacts(el));
+}
+
+// Say the provenance of every element under `root` that wears a mark, as markup arrives:
+// the page at upgrade, a revision's roots, a message.
+/** @param {Scope} root */
+export function renderQuiet(root) {
   // One query a mark: a single attribute's query is answered far faster than one for the
-  // three as a selector list, which tests every element of the page against each, on
-  // every repaint of a page holding long text documents.
+  // three as a selector list, which tests every element against each.
   /** @type {Set<Element>} */
   const targets = new Set();
   for (const mark of [
@@ -484,6 +491,5 @@ export function renderQuiet(root, also = []) {
     PAGE_PAINT_ATTRIBUTE.reported,
   ])
     for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
-  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
-  for (const el of targets) quietWord(el, quietFacts(el));
+  sayQuietFacts(targets);
 }

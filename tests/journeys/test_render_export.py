@@ -23,7 +23,7 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.served_state.service import PageStateService
+from leaf.served_state.service import LivePage
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -34,22 +34,18 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
     neighbor = cleanup_model.state_home() / "pages" / "private-neighbor"
     url = neighbour_page(neighbor, title="Private neighboring page")
-    live = PageStateService(serve.page_dir).page_state(1)
-    assert any(row["url"] == url for row in live["others"])
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
     output = tmp_path / "offline.html"
     result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(output)],
+        ["page", "export", str(serve.page_dir), "--out", str(output), "--runtime"],
     )
     assert result.exit_code == 0, result.output
     exported = output.read_text(encoding="utf-8")
     assert server_model.host_key() not in exported
     assert "Private neighboring page" not in exported
-    assert any(
-        row["url"] == url
-        for row in PageStateService(serve.page_dir).page_state(1)["others"]
-    )
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
 
 def _reachable(url: str) -> bool:
@@ -82,7 +78,8 @@ def requested_documents(page):
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LeafElement {
   #local = 0;
@@ -129,7 +126,6 @@ OFFLINE_REGISTRY = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",
@@ -180,7 +176,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         ),
     )
     exported = tmp_path / "recordings.html"
-    exporting_model.cmd_export(serve.page_dir, exported, None)
+    exporting_model.cmd_export(serve.page_dir, exported, None, runtime=True)
     exported_source = exported.read_text()
     for filename in ("2930ad3df7819c50.mp4", "b5eb956d4548b3b0.mp3"):
         encoded = base64.b64encode(
@@ -300,6 +296,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
             str(serve.page_dir),
             "--out",
             str(interactive_path),
+            "--runtime",
         ],
         env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )

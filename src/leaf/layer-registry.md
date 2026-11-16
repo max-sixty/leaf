@@ -38,8 +38,9 @@ The layer record holds the selection and two identities:
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
   page takes the user's default or else Leaf's bundled `reading`; null records taking
   none.
-  The theme composes right after the default package, before the content packages,
-  so a content package can restate what it declares. Re-running `page init` preserves
+  The reading look and then the theme compose right after the default package,
+  before the content packages (`themes.with_theme`), so a theme restates the look
+  and a content package restates either. Re-running `page init` preserves
   the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
   catalogue changes affect new pages; `themes.py` owns selection and
   `package-themes.md` documents its authoring interface.
@@ -141,7 +142,11 @@ as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would ha
 
 ## Composition stamps
 
-Every composition, `page init`'s layer and a page's own declarations over it, stamps
+Every composition, `page init`'s layer and a page's own declarations over it, writes
+`$modules`, the module each declared element has among the files it composes
+(`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
+`page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
+declaration says so. It then stamps
 the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
 overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
 and the member tags each of its outcomes retires, and `$states`, each verb's writer

@@ -26,7 +26,6 @@ artifact. When a browser test is slow, or fails on timing or geometry outside it
 contract, repair its setup or move its contract to a lower boundary.
 
 Each helper's docstring owns its contract, and code cites the sections below by heading.
-Message delivery has one shared journey, `leaf_dev.thread_journey`.
 
 ## Failing tests
 
@@ -39,6 +38,24 @@ uploads; look at it before reading the cause off the assertion alone.
 
 A failure that comes and goes on the same code is a defect. Find whether the product
 races, so a user could hit it, or the test's setup does ("Races"), and fix that cause.
+
+When a change turns a test red, the change and the behavior the test protects
+disagree. Choose the repair by what it keeps of each:
+
+- **The change's intent**: what its author meant it to do, read from the pull
+  request's description, discussion and diff. Undoing part of it reverses a
+  decision someone made.
+- **The interface**: what users see and do, and what callers rely on, such as a
+  gesture's effect, a layout, a command or a file format. A repair that moves it
+  further than the change meant to makes a product decision nobody asked for.
+
+The existing assertion is evidence about both, not authority. Prefer a repair that
+keeps both: update the test whose expectation the change replaced, or fix the code
+so the change's intent holds without moving the interface further. Where no repair
+keeps both, revert the change, or the part of it at fault. When the test itself is
+wrong, validate the intended behavior with corrected or replacement checks, and
+justify removing a test that protects no user behavior rather than claiming it
+passed.
 
 ## Run what the change needs
 
@@ -279,7 +296,13 @@ one user share `one_user`.
 
 Drag selections with `select`; a synthetic `dispatchEvent` skips the event sequence the
 runtime listens to. `locator.click()` scrolls its target into view, so where a press's
-effect on scroll is the subject, scroll first and read the baseline after.
+effect on scroll is the subject, scroll first and read the baseline after. After a
+scroll, Chromium moves a box that CSS anchor positioning places, such as a popover hung
+from its trigger or a margin card, only at the page's next rendering update. A click
+whose target it first scrolls into view, as it does a target in the root's foot
+padding, can then press where the box stood before the scroll. Scroll the target into
+view and wait for `rendered` before the click (`press_scale` in
+`browser/test_render_playwright_trace.py`).
 Each Playwright tap waits out the page's previous one, so two taps never make a
 double tap (`render_harness.fresh_taps`); a test of a double tap sends raw CDP touches.
 

@@ -94,7 +94,10 @@ MODEL = MODELS[ClaudeCodeHarness.name]
 SESSION_EFFORT = "xhigh"
 
 # The parts of a turn-end answer, with the kinds each holds.
-PARTS = {"asks": ("question",), "findings": ("stale", "settled", "unshown")}
+PARTS = {
+    "asks": ("question",),
+    "findings": ("stale", "settled", "unshown", "overtaken"),
+}
 
 # The fork's settings: a hook that refuses every tool call, keeping the definitions.
 BLOCKED = {

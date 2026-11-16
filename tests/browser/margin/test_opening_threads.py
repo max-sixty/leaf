@@ -561,7 +561,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_count(0)
-    expect(marker).to_have_attribute("aria-label", re.compile(r"Thread, \d+ of"))
+    expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, "))
     expect(marker).not_to_have_attribute("title", re.compile(".+"))
     more = marker.locator("xpath=..").locator(":scope > .lf-margin-more")
     expect(more).to_be_hidden()
@@ -570,7 +570,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
           const needed = item.getBoundingClientRect().width;
           const probe = document.createElement('i');
           probe.style.cssText =
-            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--rail)';
+            'position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-rail)';
           document.querySelector('main').append(probe);
           const rail = probe.getBoundingClientRect().width;
           probe.remove();
@@ -780,8 +780,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     the user where keys act (thread/focus.js, `openingPart`), and the panel shows a
     passage's thread only where the page draws it nowhere.
 
-    Where the card stands belongs to the placement tests beside this one; how a send
-    is delivered belongs to the `margin` case of `test_render_thread_snapshots.py`."""
+    Where the card stands belongs to the placement tests beside this one; what a send
+    leaves in the card belongs to `test_card_reply.py`."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')

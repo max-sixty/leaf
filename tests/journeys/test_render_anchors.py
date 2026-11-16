@@ -535,7 +535,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # inside that floor but beside the face still presses Copy.
     face = touch_button.bounding_box()
     floor = touch.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--aim-floor'))"
+        "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-aim-floor'))"
     )
     assert face
     touch.touchscreen.tap(
@@ -977,9 +977,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     reactions, settlement, and resolved-thread rendering working inside it.
 
     The inline seat and the panel's view of the thread are two views of one thread:
-    the same workflow lines, updated in place, and one draft. How a send from this seat is delivered,
-    and how the seat looks, belong to the `inline` case of
-    `test_render_thread_snapshots.py`."""
+    the same workflow lines, updated in place, and one draft."""
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'

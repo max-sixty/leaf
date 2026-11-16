@@ -15,12 +15,12 @@ import {
 import { at, place, unique } from "./locate.js";
 import { drawnPage, openRoots } from "./open-roots.js";
 
-/** @param {Element} owner @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-const compositionalWords = (owner, declarations) => {
+/** @param {Element} owner @param {readonly string[]} modules the tags a module upgrades */
+const compositionalWords = (owner, modules) => {
   /** @type {{at: number, child: Element}[]} */
   const boundaries = [];
   const segments = textNodesUnder(owner, undefined, (child, at) => {
-    if (!declarations[child.localName]?.["x-upgrade"]) return false;
+    if (!modules.includes(child.localName)) return false;
     boundaries.push({ at, child });
     return true;
   });
@@ -47,8 +47,9 @@ const compositionalWords = (owner, declarations) => {
   return reading;
 };
 
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const shownVerbatim = (declarations) =>
+/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations
+ * @param {readonly string[]} modules the tags a module upgrades */
+export const shownVerbatim = (declarations, modules) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-verbatim"])
     .flatMap(([tag]) =>
@@ -57,7 +58,7 @@ export const shownVerbatim = (declarations) =>
         id: el.id,
         provenance: verbatimOwnerIdentity.get(el) ?? null,
         says: says(el),
-        compositional: compositionalWords(el, declarations),
+        compositional: compositionalWords(el, modules),
       })),
     );
 
@@ -561,7 +562,7 @@ export function silentWords(declarations) {
 }
 
 // The smallest size the drawing idiom sets its labels at, in viewBox units
-// (`--drawing-small-size`). Both the live reading and the gate use this heuristic, and a
+// (`--lf-drawing-small-size`). Both the live reading and the gate use this heuristic, and a
 // reading carries the threshold so its consumer can distinguish it from a failure.
 const SHRUNK_LABEL_THRESHOLD_PX = 10;
 

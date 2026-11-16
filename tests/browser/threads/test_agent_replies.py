@@ -26,7 +26,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    preview_parts,
     resized,
     sending,
     stamp_page,
@@ -1012,12 +1011,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(real.locator(".lf-msg-failure")).to_have_count(0)
 
     # The server settled its turn, and the thread's `attention` still reads
-    # `needs_user` for recovery: the margin and panel name the action owed.
-    margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
-    expect(margin).to_have_attribute("data-lf-turn", "user")
-    assert any("Send it again" in part for part in preview_parts(margin))
-
-    # Threads names the action owed on the thread's row, whole.
+    # `needs_user` for recovery. The task seats the thread, so the margin lists none
+    # for it, and Threads names the action owed on the thread's row, whole.
     status = thread_row(page, unanswered["id"]).locator(".lf-row-end")
     expect(status).to_have_text("Send it again")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
@@ -1041,7 +1036,10 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
     rendered(page)
-    assert any("Send it again" in part for part in preview_parts(margin))
+    # The row says so still, beside the draft the refusal gave back.
+    expect(thread_row(page, unanswered["id"]).locator(".lf-row-end")).to_contain_text(
+        "Send it again"
+    )
 
     # The failed answer remains distinct from the muted clock without a chip face, in
     # the colour of a warning and Leaf's italic.

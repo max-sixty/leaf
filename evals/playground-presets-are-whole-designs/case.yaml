@@ -27,11 +27,14 @@
 # On 945fce2f8 the judge passed 4/4, including the 2 runs whose presets left the
 # candidate choice (`format`) unset; earlier judges failed that same structure,
 # which author.md's own example preset has. Item 2 now says so.
+# Now a probe given a page with its packages, it passed Claude Code 2 of 2, Codex 0 of 2
+# (column labels inside the simulated diff) at b90df8d3a2.
 description: playground-presets-are-whole-designs
 metadata:
   purpose:
     "Playground: controls span every part the user may vary, and each preset is one composed design
     whose settings produce a coherent, predictable treatment."
+  page: [playground]
   tags:
     - playground
 vars:
@@ -45,14 +48,8 @@ vars:
     spectrum from small tweaks (colour, weight, which marks show, how the gutter sign
     and bar sit together) to an overhaul. Put it in a playground I can play with."
 
-    The page was initialized with the `playground` package, whose author instructions
-    `page init` copied into the page; the same file is
-    `../../packages/playground/instructions/author.md` relative to the leaf skill's base directory,
-    the directory that holds its `references/`.
-    Write its playground: the `lf-ask` with its `lf-playground`, and a `<style>`
-    element with the candidates' CSS. The preview can be a short static diff of about
-    six lines. The page directory is not reachable from here, so reply with the HTML
-    rather than writing a file.
+    Write the page's playground: the `lf-ask` with its `lf-playground`, and the
+    candidates' CSS. The preview can be a short static diff of about six lines.
 assert:
   - type: llm-rubric
     metric: realistic-product-copy

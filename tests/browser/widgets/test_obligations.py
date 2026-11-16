@@ -119,7 +119,6 @@ PLATE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-visual": "whole",
-        "x-upgrade": False,
     }
 }
 
@@ -200,7 +199,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
               lefts: [yes, no].map((r) => Math.round(r.left)),
               gap: Math.round(
                 no.top >= yes.bottom ? no.top - yes.bottom : no.left - yes.right),
-              spacing: parseFloat(getComputedStyle(group).getPropertyValue('--sp-3')),
+              spacing: parseFloat(getComputedStyle(group).getPropertyValue('--lf-sp-3')),
               edges: {group: edge(group), options: ['yes', 'no'].map((s) => edge(el(s))),
                       add: edge(group.querySelector(':scope > .lf-another'))},
               pictures: ['yes', 'no'].map((s) =>
@@ -1048,7 +1047,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     )
     gap = submit_box["x"] - badge_box["x"] - badge_box["width"]
     expected_gap = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-sp-2'))"
     )
     assert gap == pytest.approx(expected_gap, abs=0.5)
     expect(

@@ -75,6 +75,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.http import assets_path
 from leaf.obligations import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
@@ -167,10 +168,9 @@ def append_carried_log_record(page_dir, event):
 
 
 def revision_root(page_dir: Path, revision: int) -> str:
-    """Where a page's server answers revision `revision`'s resources: under the
-    identity of the runtime and layer it executes (`http.PageEndpoint._named_root`)."""
-    name = files_model.revision_path(page_dir, revision).stem
-    return f"/revisions/{name}/{execution_identity(read_artifact(page_dir, revision))}"
+    """Where a page's server answers revision `revision`'s resources
+    (`http.assets_path`)."""
+    return assets_path(execution_identity(read_artifact(page_dir, revision)))
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -741,7 +741,6 @@ def declare_data_input(
         "additionalProperties": False,
         "x-content": "empty",
         "x-data": {input_name: {"contract": contract, "source": "source"}},
-        "x-upgrade": False,
     }
 
     def declare(registry):
@@ -865,6 +864,8 @@ def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str
 # (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
 # the schema the browser and the Worker are typed from.
 ROUTE_ANSWERS = {
+    r"/api/news": ("NewsAnswer",),
+    r"/api/pages": ("PagesAnswer",),
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
@@ -1418,8 +1419,11 @@ def _report_without_overruled(registry):
     del registry["lf-test-task"]["properties"]["overruled"]
 
 
-def _report_without_upgrade(registry):
-    registry["lf-test-task"]["x-upgrade"] = False
+def _report_without_module(registry):
+    registry["lf-test-bare"] = {
+        **deepcopy(registry["lf-test-task"]),
+        "x-example": '<lf-test-bare id="bare"></lf-test-bare>',
+    }
 
 
 def _user_verb_text(registry):
@@ -1507,7 +1511,7 @@ def trial_family(root: Path) -> None:
         }
         declarations[tag]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
-    declarations["lf-trial"]["x-withdrawn-as"] = "shelve"
+    declarations["lf-trial"]["x-state"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
@@ -2504,11 +2508,11 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         theme.write(
             f"\n{tag} {{\n"
             "  display: block;\n"
-            "  margin: var(--sp-3) 0;\n"
-            "  padding: var(--sp-3);\n"
-            "  border: 1px solid var(--rule);\n"
-            "  border-radius: var(--r);\n"
-            "  background: var(--card);\n"
+            "  margin: var(--lf-sp-3) 0;\n"
+            "  padding: var(--lf-sp-3);\n"
+            "  border: 1px solid var(--lf-rule);\n"
+            "  border-radius: var(--lf-r);\n"
+            "  background: var(--lf-card);\n"
             "  --lf-block-frame: 1;\n"
             "}\n"
         )
@@ -2534,12 +2538,22 @@ def declared_reading_package(tmp_path, monkeypatch):
     return "./.leaf"
 
 
+def with_modules(registry: dict, *tags: str) -> dict:
+    """`registry` holding a module for each of `tags`, as composing a layer that holds
+    their `widgets/<tag>.js` writes it (`registry.contract.MODULES`)."""
+    registry.setdefault("$modules", {}).update(
+        {tag: f"widgets/{tag}.js" for tag in tags}
+    )
+    return registry
+
+
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
-    """The product's starter declaration for `tag`, or, without `upgrade`, the same
-    markup block with no module behind it."""
+    """The product's starter declaration for `tag` as a composed vocabulary holds it,
+    its defaults written in, or, without `upgrade`, the same markup block with no
+    module behind it."""
     declaration = packages_model.starter_element_declaration(tag)
+    declaration["x-content"] = "markup"
     if not upgrade:
-        declaration["x-upgrade"] = False
         del declaration["x-verbatim"]
     return declaration
 
@@ -2638,16 +2652,18 @@ def words(output: str) -> str:
     return "\n".join(found)
 
 
-def said(stderr: str) -> list[dict]:
-    """What a command said beside its result: each JSON object it printed on stderr
-    (`cli`), its words as `Prose`."""
-    return [
-        {
-            key: Prose(value) if key in ("text", "error") else value
-            for key, value in json.loads(line).items()
-        }
-        for line in stderr.splitlines()
-    ]
+def said(stdout: str) -> dict:
+    """What a command said: the JSON object it printed on stdout (`cli`), with its
+    words, its `error` and each finding's `text`, as `Prose`."""
+    record = json.loads(stdout)
+    if "error" in record:
+        record["error"] = Prose(record["error"])
+    if "findings" in record:
+        record["findings"] = [
+            {key: Prose(value) if key == "text" else value for key, value in f.items()}
+            for f in record["findings"]
+        ]
+    return record
 
 
 def yaml_block(data: dict) -> str:
@@ -3039,7 +3055,7 @@ def _interaction_prompt_evidence(page, value):
         if isinstance(item, str):
             item = item.replace(str(page), "<page>")
             item = re.sub(
-                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r'(<leaf-delivery id=")[0-9a-f]{16}(" operation="delivery read" />)',
                 r"\1<delivery>\2",
                 item,
             )

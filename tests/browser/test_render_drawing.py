@@ -16,6 +16,8 @@ from render_cases_navigation import (
 )
 from render_harness import (
     PANEL,
+    cursor_at,
+    cursor_over,
     delivered,
     field_press,
     leaf_page,
@@ -63,10 +65,11 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     locator.scroll_into_view_if_needed()
     box = locator.bounding_box()
     x, y = points[0]
-    page.mouse.move(box["x"] + box["width"] * x, box["y"] + box["height"] * y)
+    start = (box["x"] + box["width"] * x, box["y"] + box["height"] * y)
+    page.mouse.move(*start)
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert cursor_at(page, *start) == "crosshair"
     expect(page.locator("[data-lf-aimed]")).to_have_count(0)
     return stroke_over(page, locator, steps=steps, points=points)
 
@@ -906,7 +909,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert reply.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    assert cursor_over(page, reply) != "crosshair"
     reply.click()
 
     expect(reply).to_be_focused()
@@ -940,7 +943,7 @@ def test_draw_mode_captures_widget_controls(browser, serve):
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     assert option.get_attribute("chosen") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert cursor_at(page, *point) == "crosshair"
     stroke_over(page, control)
     expect(page.locator(".lf-drawing-mark")).to_have_count(1)
     assert option.get_attribute("chosen") is None
@@ -963,12 +966,12 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         page.keyboard.press(key)
         expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
         edit = draft.get_by_role("button", name="Edit", exact=True)
-        assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+        assert cursor_over(page, edit) != "crosshair"
         edit.click()
         expect(page.locator(".lf-fab-input")).to_be_hidden()
         editor = draft.locator("leaf-text")
         expect(editor).to_be_focused()
-        assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+        assert cursor_over(page, editor) != "crosshair"
         editor.click()
         write(editor, f"Revised words in {mode} mode.")
         with sending(page, f"document edit in {mode} mode"):
@@ -1184,7 +1187,7 @@ CLIPPED_DRAWING_PAGE = leaf_page(
     '<h1 id="title">Inspect a captured detail</h1>'
     '<div id="viewport"><div id="pixels">Captured pixels</div></div>',
     head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
-    "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
+    "#pixels { width: 360px; height: 200px; background: var(--lf-paper); }</style>",
 )
 
 
@@ -1227,7 +1230,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     source = CLIPPED_DRAWING_PAGE.replace(
         '<div id="pixels">Captured pixels</div>',
         '<svg id="pixels" viewBox="0 0 180 100" role="img" aria-label="Sample">'
-        '<rect width="180" height="100" fill="var(--paper)"/></svg>',
+        '<rect width="180" height="100" fill="var(--lf-paper)"/></svg>',
     )
     page = open_page(browser, serve(source))
     target = page.locator("#pixels")

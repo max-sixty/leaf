@@ -35,7 +35,7 @@
 }
 /* The line an option's words stand on, resolved on the group and inherited: the prose
  * line for a card, the row face below. The add field stands on the same line whatever
- * its type (--entry-floor), so the option that replaces it keeps the row's height. */
+ * its type (--lf-entry-floor), so the option that replaces it keeps the row's height. */
 @property --lf-option-line {
   syntax: "<length>";
   inherits: true;
@@ -62,10 +62,10 @@ lf-options {
   }
 }
 lf-options:not(:has(> lf-option > strong)) {
-  font: var(--font-widget);
+  font: var(--lf-font-widget);
 }
 lf-options:has(> lf-option > strong) {
-  --lf-option-pad-min: var(--sp-3);
+  --lf-option-pad-min: var(--lf-sp-3);
 }
 lf-option {
   display: block;
@@ -79,7 +79,7 @@ lf-option > .lf-option-words {
 /* Card dressing belongs to the titled form: a padded box framing the author's blocks
  * everywhere, bordered on its own ground only when not joined. */
 lf-options:has(> lf-option > strong) > lf-option {
-  padding: var(--lf-option-pad-block) var(--sp-3);
+  padding: var(--lf-option-pad-block) var(--lf-sp-3);
   --lf-block-frame: 1;
 }
 /* The add field takes the type its options take, the row's font or, on a card, the
@@ -91,9 +91,9 @@ lf-options > .lf-another {
 }
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option {
-    border: 1px solid var(--rule);
-    border-radius: var(--r);
-    --lf-ground: var(--card);
+    border: 1px solid var(--lf-rule);
+    border-radius: var(--lf-r);
+    --lf-ground: var(--lf-card);
     background: var(--lf-ground);
   }
 }
@@ -144,13 +144,13 @@ lf-options:has(> lf-option > strong) {
   display: block;
   & > lf-option {
     display: flow-root;
-    margin: 0 0 var(--sp-2);
+    margin: 0 0 var(--lf-sp-2);
   }
   & > lf-option:last-child {
     margin-bottom: 0;
   }
   /* The rail docks when the row itself holds the rail (9.5em), its gutter (16px, which
-   * is `--sp-3`; a custom property cannot stand in a container condition) and a measure
+   * is `--lf-sp-3`; a custom property cannot stand in a container condition) and a measure
    * of about 46 characters for the case (20em). Both in the row's `em`, so they follow
    * the option's type; the rail sets its own type on dt and dd so `em` means one thing
    * in the width and the condition. */
@@ -161,7 +161,7 @@ lf-options:has(> lf-option > strong) {
    * collapsing into the option's padding and dropping the rail below the case. */
   & > lf-option > dl.facts {
     display: block;
-    margin: 0 0 var(--sp-2);
+    margin: 0 0 var(--lf-sp-2);
     --lf-block-frame: 1;
   }
   @container (min-width: calc(9.5em + 16px + 20em)) {
@@ -169,29 +169,29 @@ lf-options:has(> lf-option > strong) {
       float: right;
       clear: right;
       width: 9.5em;
-      margin: 0 0 var(--sp-2) var(--sp-3);
+      margin: 0 0 var(--lf-sp-2) var(--lf-sp-3);
     }
   }
   & > lf-option > dl.facts dt {
-    color: var(--muted);
-    font: var(--font-small);
+    color: var(--lf-muted);
+    font: var(--lf-font-small);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-top: 6px;
     padding: 0;
   }
   & > lf-option > dl.facts dd {
-    font: var(--font-widget);
+    font: var(--lf-font-widget);
     margin: 0;
   }
 }
-/* A card standing alone states its pick with the border it has. A row standing alone
- * says it with a wash and a live cell, joined or apart, with its fill (below), each
- * ringed in the same green inside its edge: the tint alone is about 1.15:1 against the
- * card in the dark palette, and a recommended tag wears that green too. */
+/* A card standing alone states its pick with the border it has, in the settled
+ * colour (tokens.css, at `--lf-turn`). A row standing alone says it with a wash and a live
+ * cell, joined or apart, with its fill (below), each ringed in the same colour inside
+ * its edge: the tint alone is about 1.15:1 against the card in the dark palette. */
 @container style(--lf-joined: 0) {
   lf-options:has(> lf-option > strong) > lf-option[chosen] {
-    border-color: var(--ok);
+    border-color: var(--lf-settled);
   }
 }
 /* The pick is the group's gesture (a click lands anywhere in the option), so its
@@ -217,16 +217,16 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] {
 }
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
   position: absolute;
-  left: var(--sp-3);
+  left: var(--lf-sp-3);
   bottom: 9px;
 }
 @media screen {
   lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong) {
     /* The seat below, past the card's inset, and a gap before the words. */
-    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--sp-2));
+    --lf-card-state-room: calc(var(--lf-key-badge-size) + var(--lf-sp-2));
     --lf-card-state-height: 22px;
     & > :is(lf-option, .lf-another) {
-      padding-inline-start: var(--sp-3);
+      padding-inline-start: var(--lf-sp-3);
     }
     & > lf-option {
       padding-bottom: var(--lf-option-pad-block);
@@ -242,7 +242,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
     /* The mark's box is the whole seat the binding badge takes, the mark centred in it,
     * so a margin pin in the card's corner steps below both alike. The mark is the float
     * that reserves the status band, so every chip and title line wraps around the same
-    * rectangle: its margins stand it a `--sp-2` inside the card's padding box, as the
+    * rectangle: its margins stand it a `--lf-sp-2` inside the card's padding box, as the
     * badge's insets stand the badge, and widen its margin box to the band. Floated, it
     * is no positioned box: Chromium's hit test visits every positioned box on every
     * call, wherever the point is. */
@@ -251,16 +251,16 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
       float: inline-end;
       min-width: var(--lf-key-badge-size);
       min-height: var(--lf-key-badge-size);
-      margin-block: calc(var(--sp-2) - var(--lf-option-pad-block))
+      margin-block: calc(var(--lf-sp-2) - var(--lf-option-pad-block))
         calc(
-          var(--lf-card-state-height) + var(--lf-option-pad-block) - var(--sp-2) -
+          var(--lf-card-state-height) + var(--lf-option-pad-block) - var(--lf-sp-2) -
             var(--lf-key-badge-size)
         );
       margin-inline: calc(
-          var(--lf-card-state-room) - var(--lf-key-badge-size) + var(--sp-3) -
-            var(--sp-2)
+          var(--lf-card-state-room) - var(--lf-key-badge-size) + var(--lf-sp-3) -
+            var(--lf-sp-2)
         )
-        calc(var(--sp-2) - var(--sp-3));
+        calc(var(--lf-sp-2) - var(--lf-sp-3));
       justify-content: center;
     }
     /* The card is the badge's containing block only while the badge holds a key. */
@@ -272,14 +272,14 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
     }
     & > lf-option > .lf-key-badge {
       inset-inline-start: auto;
-      inset-inline-end: var(--sp-2);
+      inset-inline-end: var(--lf-sp-2);
     }
     & > lf-option > .lf-key-badge {
-      top: var(--sp-2);
+      top: var(--lf-sp-2);
     }
     & > lf-options-done > .lf-done > .lf-key-badge {
       inset-inline-start: auto;
-      inset-inline-end: var(--sp-2);
+      inset-inline-end: var(--lf-sp-2);
     }
     /* An empty draft's binding badge takes the Add seat while Add is hidden; once the
     * field has words, the write route's badge takes the inner seat. Both seats are
@@ -293,7 +293,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
     }
     & > .lf-another {
       --lf-option-action-room: calc(
-        var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--sp-2)
+        var(--lf-option-write-badge-inset) + var(--lf-key-badge-size) + var(--lf-sp-2)
       );
     }
     & > .lf-another:has(.lf-compose-submit:not([data-lf-empty])) > .lf-key-badge {
@@ -321,7 +321,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
       z-index: auto;
       justify-self: end;
       align-self: end;
-      margin-inline-end: calc(var(--lf-option-add-seat-inset) - var(--sp-3));
+      margin-inline-end: calc(var(--lf-option-add-seat-inset) - var(--lf-sp-3));
       margin-block: calc(-1 * var(--lf-icon-action-hit))
         calc((var(--lf-option-line) - var(--lf-icon-action-face)) / 2);
     }
@@ -344,8 +344,8 @@ lf-option .lf-pick {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font: var(--font-small);
-  color: var(--muted);
+  font: var(--lf-font-small);
+  color: var(--lf-muted);
 }
 /* An 11px box with a 1.5px border. */
 lf-option .lf-pick::before {
@@ -353,7 +353,7 @@ lf-option .lf-pick::before {
   width: 11px;
   height: 11px;
   flex: none;
-  border: 1.5px solid var(--muted);
+  border: 1.5px solid var(--lf-muted);
   display: block;
   box-sizing: border-box;
 }
@@ -365,7 +365,7 @@ lf-options:not([multiple]) > lf-option > .lf-pick::before {
   border-radius: 50%;
 }
 lf-options[multiple] > lf-option > .lf-pick::before {
-  border-radius: var(--r-s);
+  border-radius: var(--lf-r-s);
 }
 /* The hand is on the mark exactly while it can take a selection. */
 lf-option .lf-pick[role="checkbox"] {
@@ -387,19 +387,19 @@ lf-option .lf-pick:not([data-lf-said]) {
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
     > lf-option:not([chosen])
     > .lf-pick[data-lf-focus]::before {
-    border-color: var(--ink-2);
+    border-color: var(--lf-ink-2);
   }
 }
 /* Child combinators, so an inner group's marks do not take the outer option's state. */
 lf-option[chosen] > .lf-pick {
-  color: var(--ok-ink);
+  color: var(--lf-settled-ink);
 }
 /* The pick fills the box and cuts the layer's check out of it (`check`,
  * runtime/icon-paths.js), so the option's ground shows through the check. A ✓ glyph
  * needed a type size of its own, 8px, to stand clear of the ring. */
 lf-option[chosen] > .lf-pick::before {
-  border-color: var(--ok);
-  background: var(--ok);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled);
   mask:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 8.25 3.15 3.15L13 4.75'/%3E%3C/svg%3E")
       center / 9px no-repeat,
@@ -419,12 +419,12 @@ lf-option[chosen] > .lf-pick::before {
 @media print {
   lf-option[chosen]::after {
     content: "✓";
-    color: var(--ok-ink);
+    color: var(--lf-settled-ink);
     font-weight: 600;
   }
 }
 lf-option .lf-pick[data-lf-focus-visible] {
-  border-radius: var(--r-s);
+  border-radius: var(--lf-r-s);
 }
 /* The obligation's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card aligns its digit with its content's top; a row centres it. */
@@ -436,8 +436,8 @@ lf-option > .lf-key-badge {
 lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge {
   top: 8px;
 }
-/* Done completes a multiple-choice obligation; pressed, it wears the commit's ok tone
- * (controls.css). It is the joined control's final cell. */
+/* Done completes a multiple-choice obligation; pressed, it wears the commit's settled
+ * tone (controls.css). It is the joined control's final cell. */
 lf-options > lf-options-done {
   display: grid;
   padding: 0;
@@ -449,7 +449,7 @@ lf-options > lf-options-done {
 lf-options > lf-options-done > .lf-done {
   position: static;
   width: 100%;
-  padding-block: max(4px, (max(var(--lf-line), var(--aim-floor)) - 1lh) / 2 - 1px);
+  padding-block: max(4px, (max(var(--lf-line), var(--lf-aim-floor)) - 1lh) / 2 - 1px);
   &::after {
     content: none;
   }
@@ -480,8 +480,8 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     padding-inline-start: var(--lf-key-badge-col);
   }
   :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
-    padding-block: var(--sp-2);
-    padding-inline-end: var(--sp-3);
+    padding-block: var(--lf-sp-2);
+    padding-inline-end: var(--lf-sp-3);
   }
 }
 @media screen {
@@ -495,7 +495,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     --lf-add-cell-height: calc(
       var(--lf-option-line) + 2 * (var(--lf-option-pad-block) + var(--lf-cell-edge))
     );
-    --lf-done-cell-height: max(var(--lf-line), var(--aim-floor));
+    --lf-done-cell-height: max(var(--lf-line), var(--lf-aim-floor));
     &:has(> lf-option > strong) {
       --lf-add-cell-height: calc(
         max(var(--lf-option-line), var(--lf-card-state-height)) + 2 *
@@ -539,33 +539,34 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     }
     /* Every cell paints its own ground, joined or apart, and its state changes that
      * ground. The add cell states nothing: it opens at the cells' column (the floor
-     * above) and paints the shared `--fill`, so it follows both when they change. A
+     * above) and paints the shared `--lf-fill`, so it follows both when they change. A
      * row stands its ring, and every mark on it, one band inside its edge (base.css,
      * "Where it stands"), so the joined group's clip leaves it whole. */
     & > lf-option {
-      --lf-ring-at: var(--focus-ring-inset);
+      --lf-ring-at: var(--lf-focus-ring-inset);
     }
     & > * {
-      --fill: var(--card);
-      --lf-ground: var(--fill);
+      --lf-fill: var(--lf-card);
+      --lf-ground: var(--lf-fill);
       background-color: var(--lf-ground);
     }
     /* The aim wash: the cell under the pointer or the keyboard deepens toward the ink,
      * which reads in both palettes. The fill is not transitioned, since the tokens
      * change when the palette flips and every cell would animate between them. */
     & > lf-option:is(:hover, [data-lf-control-focus]) {
-      --lf-ground: color-mix(in srgb, var(--fill) 92%, var(--ink));
+      --lf-ground: color-mix(in srgb, var(--lf-fill) 92%, var(--lf-ink));
     }
-    /* The pick fills the cell with the ok tint and rings it in the ok green inside its
-     * edge: the tint alone is about 1.15:1 against the card in the dark palette. */
+    /* The pick fills the cell with the settled tint and rings it in the settled colour
+     * inside its edge: the tint alone is about 1.15:1 against the card in the dark
+     * palette. */
     & > lf-option[chosen] {
-      --fill: var(--ok-tint);
-      box-shadow: inset 0 0 0 2px var(--ok);
+      --lf-fill: var(--lf-settled-tint);
+      box-shadow: inset 0 0 0 2px var(--lf-settled);
     }
     /* An ok chip on the chosen cell stands on the card's ground, or it loses its ground
      * in the cell's tint. */
     & > lf-option[chosen] > .tag.ok {
-      background: var(--card);
+      background: var(--lf-card);
     }
     /* The control owns focus at row scale: the mark's ring stays off and the row draws
      * an inset ring (below). */
@@ -589,15 +590,15 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * last cell's. */
     --lf-cell-gap: 1px;
     --lf-cell-edge: 0px;
-    --lf-ground: var(--card);
-    background: var(--rule);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r);
+    --lf-ground: var(--lf-card);
+    background: var(--lf-rule);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-r);
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
      * header inside an option (a diff's file header) off the window's top. */
     overflow: clip;
     &::after {
-      background: var(--card);
+      background: var(--lf-card);
     }
     /* The joined group draws a frame (--lf-block-frame, base.css), and says its cells
      * are joined for the rules that dress an option standing alone. */
@@ -607,7 +608,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * on them, inside their edges (base.css, "Where it stands"), or the clip cuts
      * them. */
     & .lf-btn {
-      --lf-ring-at: var(--focus-ring-inset);
+      --lf-ring-at: var(--lf-focus-ring-inset);
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the
@@ -624,12 +625,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *):has(
       > lf-option :is(figure, img, svg, table, video, [data-lf-visual]):not(.lf-ui *)
     ) {
-    --lf-cell-gap: var(--sp-3);
+    --lf-cell-gap: var(--lf-sp-3);
     --lf-cell-edge: 1px;
     & > .lf-another,
     &:not(:has(> lf-option > strong)) > lf-option {
-      border: var(--lf-cell-edge) solid var(--rule);
-      border-radius: var(--r);
+      border: var(--lf-cell-edge) solid var(--lf-rule);
+      border-radius: var(--lf-r);
     }
   }
   /* `across` sets a group's titled options in one row where each gets at least 14rem,
@@ -736,7 +737,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option[data-lf-control-focus-visible] {
-    outline: var(--focus-ring);
+    outline: var(--lf-focus-ring);
   }
   lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
     > lf-option[data-lf-control-focus] {
@@ -749,12 +750,12 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   }
   lf-options[choose]:not(:where([data-lf-exhibit]) *)
     > .lf-another[data-lf-control-focus-visible] {
-    outline: var(--focus-ring);
+    outline: var(--lf-focus-ring);
     --lf-wears-ring: 1;
   }
   .lf-another {
-    --lf-ring-at: var(--focus-ring-inset);
-    --lf-option-add-seat-inset: var(--sp-1);
+    --lf-ring-at: var(--lf-focus-ring-inset);
+    --lf-option-add-seat-inset: var(--lf-sp-1);
     /* Centre Add's face on the last text line, using the same inset that sizes its
        row, which holds its reach (below). */
     --lf-option-add-seat-end: calc(
@@ -770,16 +771,16 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         (var(--lf-icon-action-face) - var(--lf-key-badge-size)) / 2
     );
     --lf-option-write-badge-inset: calc(
-      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--sp-2)
+      var(--lf-option-add-seat-inset) + var(--lf-icon-action-hit) + var(--lf-sp-2)
     );
     --lf-option-action-room: var(--lf-option-write-badge-inset);
     position: relative;
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--lf-sp-2);
   }
   .lf-another:not([hidden]) {
-    min-height: var(--aim-floor);
+    min-height: var(--lf-aim-floor);
   }
   .lf-another > .lf-key-badge {
     position: absolute;
@@ -839,7 +840,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       var(--lf-option-pad-min),
       (var(--lf-icon-action-hit) - var(--lf-option-line)) / 2
     );
-    --lf-key-badge-start: var(--sp-2);
+    --lf-key-badge-start: var(--lf-sp-2);
     --lf-key-badge-col: calc(
       var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px
     );
@@ -871,7 +872,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * rule adds to it at a weight that outranks that. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
   --lf-pick-col: 17px;
-  --lf-row-gap: var(--sp-2);
+  --lf-row-gap: var(--lf-sp-2);
   padding-inline-start: var(--lf-pick-col);
 }
 lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
@@ -892,31 +893,31 @@ lf-options:not(:has(> lf-option > strong)) > .lf-another {
  * compact gap to keep the table inside it. */
 @container (max-width: 20rem) {
   lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
-    --lf-row-gap: var(--sp-1);
+    --lf-row-gap: var(--lf-sp-1);
   }
 }
 /* A row standing alone rounds its corners and washes its status; a joined row is a
  * cell and takes neither. */
 @container style(--lf-joined: 0) {
   lf-options:not(:has(> lf-option > strong)) > lf-option {
-    border-radius: var(--r);
+    border-radius: var(--lf-r);
   }
   lf-options:not(:has(> lf-option > strong)) > lf-option[chosen] {
-    --lf-ground: var(--ok-tint);
+    --lf-ground: var(--lf-settled-tint);
     background: var(--lf-ground);
-    box-shadow: inset 0 0 0 2px var(--ok);
+    box-shadow: inset 0 0 0 2px var(--lf-settled);
   }
 }
 /* An opened settled group's option answers the pointer with a wash, without moving its
  * words. A live cell has its own aim wash (above). */
 @media screen {
   lf-options[choose][settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
-    --lf-ground: var(--chip);
+    --lf-ground: var(--lf-chip);
     background: var(--lf-ground);
   }
   lf-options[choose][settled]:not(:where([data-lf-exhibit]) *)
     > lf-option[chosen]:hover {
-    --lf-ground: color-mix(in srgb, var(--ok-tint) 92%, var(--ink));
+    --lf-ground: color-mix(in srgb, var(--lf-settled-tint) 92%, var(--lf-ink));
   }
 }
 /* The reference floats to the end of the words' last line where it fits there and
@@ -960,7 +961,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
  * frame. Open or closed is its aria-expanded. */
 lf-options[settled] > .lf-settled {
   display: none;
-  margin: 0 0 var(--sp-2);
+  margin: 0 0 var(--lf-sp-2);
 }
 lf-options[settled] > .lf-settled[aria-expanded="false"] {
   margin-bottom: 0;

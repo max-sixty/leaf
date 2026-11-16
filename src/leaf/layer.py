@@ -25,7 +25,7 @@ from .locations import first_overlap, located
 from .machine import package_store
 from .page_memory import once
 from .refusals import Refused
-from .registry.contract import is_element_name
+from .registry.contract import MODULES, is_element_name
 from .registry.kernel import kernel_protocol
 from .schema import (
     ASSETS,
@@ -220,6 +220,21 @@ CASCADE_LAYERS = (
     "lf-overrides",
     "lf-state",
 )
+
+# The layer a page's own reset stands in, which the document ranks below every tier of
+# Leaf's. A reset zeroes margins, borders and control faces on every element, Leaf's
+# widgets and chrome among them, and a layer the page names after Leaf's sheet outranks
+# all of Leaf's tiers. Named ahead of them, a reset applies wherever neither Leaf nor
+# the page's theme says anything, as a reset stands under a site's own element rules,
+# and Leaf's faces outrank it on what Leaf draws. Only this name ranks low. A
+# framework's base layer holds its author's element rules beside its reset, as
+# Tailwind's `base` does, and ranked under Leaf's tiers those lost to the theme's (an
+# `h1` an author sized in `@layer base` took the reading look's size), so such a page
+# moves the reset into `reset`. Every other layer of the page's is first named after
+# Leaf's sheet and outranks Leaf's tiers, as its unlayered rules do. A shadow tree takes
+# no page rule, so it names only Leaf's tiers.
+PAGE_RESET_LAYER = "reset"
+DOCUMENT_LAYER_ORDER = f"@layer {', '.join((PAGE_RESET_LAYER, *CASCADE_LAYERS))};\n"
 
 # tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
 # U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
@@ -458,7 +473,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     if not (kernel / "base.css").is_file():
         raise Refused("the incoming layer has no base.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
-    theme = [order]
+    theme = [DOCUMENT_LAYER_ORDER]
     shadow = [order]
     chrome = []
 
@@ -627,6 +642,12 @@ class LayerComposition:
     def fingerprint(self) -> str:
         return layer_fingerprint(self)
 
+    @cached_property
+    def files_digest(self) -> str:
+        """Identify the bytes the layer serves (`files`), which a browser runs,
+        without the instructions `fingerprint` names too."""
+        return files_identity(self.files)
+
     @property
     def files(self) -> dict[str, bytes]:
         """Every file the layer serves, by its rooted page path."""
@@ -640,11 +661,9 @@ class LayerComposition:
         }
 
 
-def selected_layer(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
-) -> LayerComposition:
+def selected_layer(packages: tuple[str, ...], page_dir: Path) -> LayerComposition:
     """The layer this Leaf composes for the page at `page_dir` that selects
-    `packages` and the `theme`, composed before them: its core and
+    `packages`, its theme's among them (`themes.with_theme`): its core and
     bundled packages, the user's installed ones, as this process first read them,
     and the copies the page holds of packages it selects by path.
 
@@ -656,24 +675,20 @@ def selected_layer(
     rather than its spelling, since a page's own copy is another directory in another
     page, and an installed name another snapshot after `package install`; and a
     page's copy by its stamp too, since its next `page init` replaces it in place."""
-    return _composed(*_selection(packages, theme, page_dir))
+    return _composed(*_selection(packages, page_dir))
 
 
-def selected_vocabulary(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
-) -> LayerVocabulary:
+def selected_vocabulary(packages: tuple[str, ...], page_dir: Path) -> LayerVocabulary:
     """The vocabulary of the layer `selected_layer` composes for the same selection,
     without reading the layer's files. Held for the process, as the layer is."""
-    return _vocabulary(*_selection(packages, theme, page_dir))
+    return _vocabulary(*_selection(packages, page_dir))
 
 
 def _selection(
-    packages: tuple[str, ...], theme: str | None, page_dir: Path
+    packages: tuple[str, ...], page_dir: Path
 ) -> tuple[tuple[Path, ...], tuple]:
     """The inputs a selection resolves to, and the stamps of the page's own copies
     among them: what `selected_layer` and `selected_vocabulary` hold a layer by."""
-    if theme is not None:
-        packages = (theme, *(name for name in packages if name != theme))
     inputs = tuple(layer_inputs(packages, page_dir))
     copies = tuple(file_stamp(root) for root in inputs if root.is_relative_to(page_dir))
     return inputs, copies
@@ -930,8 +945,7 @@ def provenance_label(provenance: dict) -> str:
 
 
 def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
-    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`),
-    refusing a registry that marks a widget upgraded whose module no input holds.
+    """Read the vocabulary of the layer checked inputs produce (`LayerVocabulary`).
 
     Its registry is merged and stamped but not validated. `page init` validated the
     selection, and every Leaf that serves, exports or checks the page validates it
@@ -941,17 +955,6 @@ def compose_vocabulary(roots: list[Path]) -> LayerVocabulary:
 
     incoming = stamp_composition(merged_registry(roots)[0])
     widgets = frozenset(composed_dir_files(roots, "widgets"))
-    missing_modules = sorted(
-        tag
-        for tag, entry in incoming.items()
-        if is_element_name(tag) and entry["x-upgrade"] and f"{tag}.js" not in widgets
-    )
-    if missing_modules:
-        raise Refused(
-            "the incoming registry marks widgets as upgraded but their modules "
-            "are missing:\n"
-            + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
-        )
     return LayerVocabulary(incoming, widgets, composed_instructions(roots))
 
 
@@ -987,6 +990,8 @@ def _composition(
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - set(
         PUBLIC_MODULES
     )
+    # Every module path an import in the layer names.
+    imported = set()
     for root in roots:
         if root.resolve() == ASSETS.resolve():
             continue
@@ -1010,11 +1015,33 @@ def _composition(
                 path = "/" + module.relative_to(root).as_posix()
                 for _, _, specifier in javascript_imports(module.read_bytes(), path):
                     dependency = dependency_reference(specifier, path, module=True)
+                    if dependency is not None:
+                        imported.add(dependency[0])
                     if dependency is not None and dependency[0] in private_modules:
                         raise Refused(
                             f"{module} imports private kernel module {specifier!r}; "
                             "use /runtime/widget-api.js"
                         )
+    # A module named as a widget's is loaded because its tag is declared or because
+    # another module imports it, as `lf-options.js` imports `lf-options-settled.js`.
+    # One that neither holds for is a widget's module under the wrong name, a typo or
+    # a tag renamed in the registry alone, and its widget would draw as plain markup
+    # with nothing else to say so.
+    loaded = set(vocabulary.registry[MODULES].values())
+    unloaded = sorted(
+        name
+        for name in vocabulary.widgets
+        if is_element_name(name.removesuffix(".js"))
+        and name.endswith(".js")
+        and f"widgets/{name}" not in loaded
+        and f"/widgets/{name}" not in imported
+    )
+    if unloaded:
+        raise Refused(
+            "nothing loads these modules: no declared tag has the name and no module "
+            "imports them. A widget's module is `widgets/<tag>.js`:\n"
+            + "\n".join(f"  - widgets/{name}" for name in unloaded)
+        )
     directory_sources = {
         sub: composed_dir_files(
             [

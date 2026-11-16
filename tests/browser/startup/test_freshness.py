@@ -134,7 +134,7 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
         ),
     ) as restarted:
         serve.httpd.server_id = "replacement-server"
-    assert restarted.value.text() == reading
+    assert restarted.value.json()["reading"] == reading
     # The page asks its next look only once it has handled the one that heard the new
     # server, so a reload it decided on is under way by then; a document it reloaded
     # into ends the wait at once.
@@ -481,7 +481,9 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
+          const {clockValue} = await window.__lfCheckApi();
           window.probeVersion = 0;
           window.probePaints = 0;
           customElements.define('lf-pending-paint', class extends LeafElement {

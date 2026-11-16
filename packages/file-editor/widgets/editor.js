@@ -49,76 +49,80 @@ import {
 const LeafEditorView = leafEditorView(codemirror);
 
 const theme = EditorView.theme({
-  "&": { color: "var(--ink)", backgroundColor: "var(--card)" },
+  "&": { color: "var(--lf-ink)", backgroundColor: "var(--lf-card)" },
   "&.cm-focused": { outline: "none" },
-  ".cm-scroller": { fontFamily: "var(--mono)", lineHeight: "24px" },
-  ".cm-content": { caretColor: "var(--accent)" },
+  ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
+  ".cm-content": { caretColor: "var(--lf-accent)" },
   ".cm-line": { padding: "0 .85rem" },
   ".cm-gutters": {
-    backgroundColor: "var(--paper)",
-    color: "var(--muted)",
-    borderRight: "1px solid var(--rule)",
+    backgroundColor: "var(--lf-paper)",
+    color: "var(--lf-muted)",
+    borderRight: "1px solid var(--lf-rule)",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     padding: "0 .6rem 0 .8rem",
     minWidth: "2.5rem",
   },
   ".cm-activeLine, .cm-activeLineGutter": {
-    backgroundColor: "color-mix(in srgb, var(--accent) 6%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-accent) 6%, transparent)",
   },
-  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
-  ".cm-placeholder": { color: "var(--quiet)" },
+  ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--lf-accent)" },
+  ".cm-placeholder": { color: "var(--lf-quiet)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
-    { backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)" },
+    { backgroundColor: "color-mix(in srgb, var(--lf-accent) 24%, transparent)" },
   ".cm-matchingBracket": {
-    backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)",
-    outline: "1px solid color-mix(in srgb, var(--accent) 40%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-accent) 18%, transparent)",
+    outline: "1px solid color-mix(in srgb, var(--lf-accent) 40%, transparent)",
   },
   ".cm-tooltip": {
-    backgroundColor: "var(--card)",
-    color: "var(--ink)",
-    border: "1px solid var(--border-2)",
+    backgroundColor: "var(--lf-card)",
+    color: "var(--lf-ink)",
+    border: "1px solid var(--lf-border)",
   },
   ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-    backgroundColor: "var(--accent)",
-    color: "var(--card)",
+    backgroundColor: "var(--lf-accent)",
+    color: "var(--lf-card)",
   },
   "&.cm-merge-b .cm-changedLine, .cm-inlineChangedLine": {
-    backgroundColor: "color-mix(in srgb, var(--ok) 9%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-ok) 9%, transparent)",
   },
   "&.cm-merge-b .cm-changedText": {
-    backgroundColor: "color-mix(in srgb, var(--ok) 23%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-ok) 23%, transparent)",
   },
   ".cm-deletedChunk": {
-    backgroundColor: "color-mix(in srgb, var(--danger) 9%, var(--card))",
+    backgroundColor: "color-mix(in srgb, var(--lf-danger) 9%, var(--lf-card))",
     padding: ".35rem .85rem",
-    borderLeft: "3px solid var(--danger)",
+    borderLeft: "3px solid var(--lf-danger)",
   },
   ".cm-deletedChunk .cm-deletedText": {
-    backgroundColor: "color-mix(in srgb, var(--danger) 19%, transparent)",
+    backgroundColor: "color-mix(in srgb, var(--lf-danger) 19%, transparent)",
   },
   ".cm-deletedChunk .cm-deletedLine": { textDecoration: "none", opacity: ".85" },
   ".cm-deletedText": { textDecoration: "line-through" },
-  ".cm-changedLineGutter": { backgroundColor: "var(--ok)" },
-  ".cm-deletedLineGutter": { backgroundColor: "var(--danger)" },
+  ".cm-changedLineGutter": { backgroundColor: "var(--lf-ok)" },
+  ".cm-deletedLineGutter": { backgroundColor: "var(--lf-danger)" },
 });
 
 // The theme's code tokens, as code blocks and diffs colour the same names (Leaf's
 // token theme, build/entries/syntax/entry.mjs): a key, a type or a tag in
-// `--syn-type`, a comment in italic `--syn-comment`.
+// `--lf-syn-type`, a comment in italic `--lf-syn-comment`.
 const highlighting = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--accent)", fontWeight: "650" },
+  { tag: tags.heading, color: "var(--lf-accent)", fontWeight: "650" },
   { tag: tags.strong, fontWeight: "650" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: [tags.link, tags.url], color: "var(--accent)", textDecoration: "underline" },
-  { tag: [tags.monospace, tags.string], color: "var(--syn-string)" },
-  { tag: [tags.keyword, tags.modifier], color: "var(--syn-keyword)" },
-  { tag: [tags.number, tags.bool], color: "var(--syn-number)" },
-  { tag: tags.comment, color: "var(--syn-comment)", fontStyle: "italic" },
-  { tag: [tags.meta, tags.processingInstruction], color: "var(--syn-comment)" },
+  {
+    tag: [tags.link, tags.url],
+    color: "var(--lf-accent)",
+    textDecoration: "underline",
+  },
+  { tag: [tags.monospace, tags.string], color: "var(--lf-syn-string)" },
+  { tag: [tags.keyword, tags.modifier], color: "var(--lf-syn-keyword)" },
+  { tag: [tags.number, tags.bool], color: "var(--lf-syn-number)" },
+  { tag: tags.comment, color: "var(--lf-syn-comment)", fontStyle: "italic" },
+  { tag: [tags.meta, tags.processingInstruction], color: "var(--lf-syn-comment)" },
   {
     tag: [tags.propertyName, tags.typeName, tags.labelName],
-    color: "var(--syn-type)",
+    color: "var(--lf-syn-type)",
   },
 ]);
 
@@ -137,7 +141,7 @@ const languages = {
     return [
       support,
       syntaxHighlighting(
-        HighlightStyle.define([{ tag: tags.content, color: "var(--syn-string)" }], {
+        HighlightStyle.define([{ tag: tags.content, color: "var(--lf-syn-string)" }], {
           scope: support.language,
         }),
       ),

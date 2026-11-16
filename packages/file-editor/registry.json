@@ -13,7 +13,6 @@
     "required": ["id", "binding"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-shadow": true,
     "x-height": true,
     "x-output": {

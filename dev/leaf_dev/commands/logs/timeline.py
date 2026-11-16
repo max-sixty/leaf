@@ -16,9 +16,8 @@ PAGE is a page directory, or any directory holding a page's `events.jsonl` and
   module asked for forks and was this Leaf's, `leaf.hooks.cmd_pages`); `fork_asked`,
   as Leaf gave a line fork its question; `fork_outcome`, what came of it
   (`leaf.forks`), a working fork's turn and agent among it; `turn_end_check`, the
-  clerk's fork (`leaf.clerk`); `leaf_command`, with the agent that ran it where
-  Leaf's PreToolUse hook named one and the error where Leaf refused it;
-  `command_denied`, an agent's `leaf` call that hook denied; and `watch`
+  clerk's fork (`leaf.clerk`); `leaf_command`, with the agent turn it named
+  (`leaf --turn`) and the error where Leaf refused it; and `watch`
   (`leaf.interaction_log`); and the browser's own `event_submit` and
   `reply_visible`;
 - each Claude Code session the page names: its transcript, from `claude/` in the PAGE
@@ -61,8 +60,8 @@ import click
 
 from leaf.activity import agent_turn_state, running_agent_turns
 from leaf.event_log import read_stored_events
-from leaf.events import is_answer
-from leaf.holding import reading
+from leaf.events import build_threads, is_answer
+from leaf.holding import reading, rounds
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import (
@@ -89,7 +88,6 @@ DIAGNOSTICS = (
     "fork_outcome",
     "turn_end_check",
     "leaf_command",
-    "command_denied",
     "follower",
     "watch",
     "event_submit",
@@ -205,23 +203,13 @@ def page_entries(
                     row["started"],
                     "leaf",
                     f"leaf {row['command']} ({row['durationMs']:.0f} ms)"
-                    + (f" by agent {row['agent']}" if "agent" in row else "")
+                    + in_turn(row.get("turn"), agents)
                     + (
                         f" refused: {clip(row['refused'], 80)}"
                         if "refused" in row
                         else ""
                     ),
                     session=row.get("session"),
-                )
-            )
-        elif kind == "command_denied":
-            out.append(
-                entry(
-                    at,
-                    "leaf",
-                    f"denied agent {row['agent']}'s "
-                    f"`{clip(row['command'], 50)}`: {clip(row['reason'], 70)}",
-                    session=row["session"],
                 )
             )
         elif kind == "follower":
@@ -347,8 +335,8 @@ def event_entry(
 
 
 def in_turn(turn: str | None, agents: dict[str, str]) -> str:
-    """Which turn a pickup, start or reply names: a fork's, by the fork's agent id,
-    or the session's main thread's."""
+    """Which turn a pickup, start, reply or command names: a fork's, by the fork's
+    agent id, or the session's main thread's."""
     if not turn:
         return ""
     if turn in agents:
@@ -401,7 +389,14 @@ def agent_turn_lines(session: str, events: list[dict], thread: str | None) -> li
         True,
         datetime.now().astimezone(),
     )
-    holding = reading(events, session, turns, running, live=session_live(record))
+    holding = reading(
+        events,
+        session,
+        turns,
+        running,
+        live=session_live(record),
+        found=rounds(events, build_threads(events, {})),
+    )
     lines = []
     for turn, held in sorted(turns.items(), key=lambda item: item[1]["opened"]):
         took = sorted(holding.took.get(turn, ()))

@@ -133,6 +133,7 @@ import {
 import {
   alongClimb,
   composedParentNode,
+  eachRenderedElement,
   isElement,
   isShadowRoot,
   isText,
@@ -635,8 +636,9 @@ function contextAt(el, frame) {
 }
 // A whole text node as a segment of the context it stands in. Its block is `blockAt`'s
 // answer, carried.
-/** @param {Text} node @param {ReadingContext} ctx @returns {Segment} */
-const segmentIn = (node, ctx) => ({
+/** @param {Text} node @param {ReadingContext} ctx @param {boolean} breakBefore
+ * @returns {Segment} */
+const segmentIn = (node, ctx, breakBefore) => ({
   node,
   start: 0,
   end: node.data.length,
@@ -644,6 +646,7 @@ const segmentIn = (node, ctx) => ({
   textBlock: ctx.textBlock ?? (ctx.island ? upFrom(ctx.island) : null),
   words: ctx.words,
   gen: ctx.gen,
+  breakBefore,
 });
 // Which text each named reading keeps. `says` skips the runtime's own words and whatever
 // is silenced; `wrote` skips everything an upgrade generated, a declared label included.
@@ -786,14 +789,17 @@ export const readingParent = (node) => {
   const host = slot && shadowHost(slot.getRootNode());
   return host && declaredRoot(host) ? slot : composedParentNode(node);
 };
-// The same step down, element by element, as `walk` takes it: a slot's assigned
-// elements where it stands in a shadow tree, a host's declared tree in place of its
-// children, and an element's own.
+// The same step down, element by element, through the trees `walk` reads: a slot's
+// assigned elements where it stands in a shadow tree, a slot forwarded into it among
+// them, which `walk` passes through to what it is assigned, a host's declared tree in
+// place of its children, and an element's own (`eachRenderedElement`).
 /** @param {Element} element @returns {Element[]} */
-export const readingChildren = (element) =>
-  isHTML(element, "slot") && shadowHost(element.getRootNode())
-    ? /** @type {HTMLSlotElement} */ (element).assignedElements({ flatten: true })
-    : [...(declaredRoot(element) ?? element).children];
+export const readingChildren = (element) => {
+  /** @type {Element[]} */
+  const children = [];
+  eachRenderedElement(element, (child) => void children.push(child), declaredRoot);
+  return children;
+};
 const { order: readingOrder, under: readingUnder } = alongClimb(readingParent);
 // Whether a node is inside another, or is it, in the tree the walk reads: a slot holds
 // what is assigned to it, and a declared root's host what the root holds. Native
@@ -896,9 +902,8 @@ export function textNodesUnder(
         }
       }
       segments.push({
-        ...segmentIn(node, ctx),
+        ...segmentIn(node, ctx, breakBefore),
         end,
-        breakBefore,
         ...(format === "lines" && { lineBefore, whiteSpace }),
       });
       breakBefore = false;
@@ -1907,7 +1912,7 @@ const changesTheReading = (record, reads) => {
 // (`forget`); a change no one document owns, the vocabulary or a settlement, forgets them
 // all. What a reader keeps to know which reading it read is the record's `token`, an
 // empty object, so a key or a kept answer that outlives the reading holds none of it. An
-// answer that holds the page's nodes is kept on the record instead (`keptWithPageReading`),
+// answer that holds a document's nodes is kept on the record instead (`keptWithReading`),
 // so it goes with the reading it was derived from.
 /** @typedef {{token: object, outline: OutlineReading | null, within: WeakMap<Element, PageReading>, kept: Map<object, unknown>}} DocumentReading */
 /** @type {WeakMap<Element, DocumentReading>} */
@@ -2061,14 +2066,18 @@ export function pageReadingVersion() {
   catchUpReading();
   return documentReading(pageDocument()).token;
 }
-/** What a reader derives from the page's reading and keeps while that reading stands,
- * under the reader's own `owner`: made by `make` for each new reading and dropped with
- * the old one, so an answer holding the page's nodes keeps none past a revision that
- * removes them.
- * @template T @param {object} owner @param {() => T} make @returns {T} */
-export function keptWithPageReading(owner, make) {
+/** What a reader derives from the reading of the document `scope` (`authoredScope`) and
+ * keeps while that reading stands, under the reader's own `owner`: made by `make` for
+ * each new reading and dropped with the old one, so an answer holding the document's
+ * nodes keeps none past a change that removes them. A document the watcher doesn't
+ * hear, such as a message body no longer in this document, detached or in another,
+ * is answered afresh each time.
+ * @template T @param {Element} scope @param {object} owner @param {() => T} make
+ * @returns {T} */
+export function keptWithReading(scope, owner, make) {
+  if (!scope.isConnected || scope.ownerDocument !== document) return make();
   catchUpReading();
-  const { kept } = documentReading(pageDocument());
+  const { kept } = documentReading(scope);
   if (!kept.has(owner)) kept.set(owner, make());
   return /** @type {T} */ (kept.get(owner));
 }
@@ -2404,7 +2413,7 @@ function collect(root, marksParts) {
       root,
       (node, ctx) => {
         if (!keeps(ctx)) return;
-        segments.push({ ...segmentIn(node, ctx), breakBefore });
+        segments.push(segmentIn(node, ctx, breakBefore));
         breakBefore = false;
         chains.push(ctx.cells);
       },
@@ -2475,7 +2484,12 @@ function indexed(segments, chains, marks = []) {
       texts.push(spaced ? " " : EDGE);
       length += 1;
     }
-    indexed.push({ ...seg, rawStart: length });
+    // The walk's segment takes its place in `raw` itself, so a reading holds one object
+    // for each of its text nodes rather than two: Chromium's heap held 5 MB less for
+    // each 4.6 MB text document opened.
+    const placed = /** @type {IndexedSegment} */ (seg);
+    placed.rawStart = length;
+    indexed.push(placed);
     positions.set(seg.node, length - seg.start);
     texts.push(seg.node.data);
     length += seg.end - seg.start;
@@ -3543,11 +3557,18 @@ export function* pageMatches(query) {
   for (const mark of marks.slice(m)) yield* inPart(mark);
 }
 
+// How many characters of the words on each side of something a description of it
+// says.
+export const AROUND = 28;
 // Display context completes its outer language-aware word within the local window.
 // Oversized tokens use the existing bounded excerpt; stored anchors retain their exact
 // character windows. Search and Design descriptions share this presentation reading.
 /** @param {PageReading} text @param {readonly Segment[]} segments @param {{before?: number, after?: number}} [options] */
-export function contextAround(text, segments, { before = 28, after = 28 } = {}) {
+export function contextAround(
+  text,
+  segments,
+  { before = AROUND, after = AROUND } = {},
+) {
   const [start, end] = spanIn(text, segments);
   /** @param {number} at @param {number} length @param {boolean} backwards */
   function side(at, length, backwards) {

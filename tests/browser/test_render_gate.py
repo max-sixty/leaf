@@ -627,8 +627,8 @@ RECURSIVE_ROWS_PAGE = leaf_page(
   </div>
 """,
     head="""<style>
-#rows { display: grid; gap: var(--sp-4); }
-#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+#rows { display: grid; gap: var(--lf-sp-4); }
+#lower { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }
 </style>""",
     layout="workspace",
 )
@@ -1221,8 +1221,12 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
         monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
     else:
+        ready = render_gate_scheme.wait_until_ready
 
-        def unready(*_args, **_kwargs):
+        def unready(page, *args, through=None, **kwargs):
+            # The page upgrades, and then stops at the stage held.
+            if through == "upgraded":
+                return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
         monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
@@ -1256,7 +1260,7 @@ def test_a_transition_on_a_hidden_control_leaves_the_page_settled(
                 "a transition in a closed disclosure",
                 "<h1>Settles</h1><details><summary>More</summary>"
                 '<input id="hidden-field" style="transition: color 150ms; '
-                'color: var(--ink)"></details>',
+                'color: var(--lf-ink)"></details>',
             )
         ),
     )
@@ -1438,7 +1442,6 @@ def _author_stateful_verbatim_widget(tmp_path):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
@@ -2405,7 +2408,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
               }))"""
         )
         tokens = page.evaluate(
-            """() => ['--h2-start', '--h3-start', '--callout-margin-block'].map(name =>
+            """() => ['--lf-h2-start', '--lf-h3-start', '--lf-callout-margin-block'].map(name =>
               parseFloat(getComputedStyle(document.querySelector('main'))
                 .getPropertyValue(name)))"""
         )
@@ -2693,9 +2696,7 @@ RESTORE_ADOPTED = """async () => {
 # to follow it there. The rule states both floors; a control that hangs a reach leaves
 # the block floor to it, and one a flex or grid container could squeeze states it as
 # padding.
-AIM_FLOOR_RULE = (
-    "min-width: var(--aim-floor); min-height: var(--lf-face-floor, var(--aim-floor));"
-)
+AIM_FLOOR_RULE = "min-width: var(--lf-aim-floor); min-height: var(--lf-face-floor, var(--lf-aim-floor));"
 
 
 def aim_selectors():
@@ -4177,10 +4178,12 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     )
     syntax = unread_syntax(page)
     page.close()
-    assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
-        population["document"]
-    ), population
-    assert "var(--syn-number)" in population["shadow"], population
+    assert {
+        "var(--lf-syn-comment)",
+        "var(--lf-syn-keyword)",
+        "var(--lf-syn-string)",
+    } <= set(population["document"]), population
+    assert "var(--lf-syn-number)" in population["shadow"], population
     assert population["comment"] == "italic", population
     readable, faint = population["names"]
     assert readable["style"] == faint["style"], population
@@ -4196,7 +4199,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     ):
         assert any(
             finding.scheme == appearance
-            and finding.values["style"].startswith(f"color: var(--syn-{color});")
+            and finding.values["style"].startswith(f"color: var(--lf-syn-{color});")
             and finding.values["ratio"] < 4.5
             for finding in syntax
         ), syntax
@@ -4781,7 +4784,7 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     # Lit's html template creates HTML elements even when its result is rendered
     # into an SVG parent; the svg template is what creates SVG elements.
     page.locator("#drawing").evaluate("""async drawing => {
-      const {html, render} = await window.__lfWidgetApi();
+      const {html, render} = await window.__lfVendorImport('lit.js');
       render(html`<text>HTML template content</text>`, drawing.querySelector('g'));
     }""")
     reading = render_checks_model.evaluate_probe(page, "shrunkLabelReading")

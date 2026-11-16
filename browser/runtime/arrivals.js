@@ -359,8 +359,35 @@ export function setScroll(box, options) {
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
-  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
+  if (box.scrollTop === scrollTop && box.scrollLeft === scrollLeft) return;
+  drawLater();
+  announceScroll(box);
 }
+// A script's scroll write is drawn by the rendering update after it, and a reading of the
+// whole scene waits for that update (`scrollDrawn`): what flows in the box moves with the
+// write, but a box CSS anchors to that content, as a thread card is (css-anchors.js),
+// takes the write only as that update lays the page out (notes/browser-support.md, "A
+// reveal of an anchored fixed box before the next frame in Chromium"), and Chromium can
+// apply one last compositor scroll after a stop (`stopWhereItStands`). Read in between,
+// the card a walk was bringing over its margin entry still stood where the walk had left
+// it, so the Go-to map `g` armed as the walk landed named the entry the card covers, and
+// read again at the scroll's end, which comes before that update, named it again
+// (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
+// writes made before it asks, not for later ones, so a log a stream keeps at its end
+// holds no reading back for as long as it streams.
+/** @type {PromiseWithResolvers<void> | null} */
+let undrawn = null;
+function drawLater() {
+  const write = (undrawn = Promise.withResolvers());
+  nextFrame(() =>
+    nextFrame(() => {
+      write.resolve();
+      if (undrawn === write) undrawn = null;
+    }),
+  );
+}
+// Null where every scroll a script wrote is drawn, else the promise of the latest.
+export const scrollDrawn = () => undrawn?.promise ?? null;
 // Stop the scroll the browser drives in a box, leaving the box where it stands, as a
 // landing does before it places its destination (scrolling.js, `stopBrowserScroll`)
 // and a glide before it takes over a wheel's motion (`glideTo`). It is the one scroll
@@ -379,6 +406,7 @@ export function stopWhereItStands(box) {
   box.scrollTo({ ...at, behavior: "instant" });
   placed.set(box, at);
   heardAt.set(box, standing(box));
+  drawLater();
 }
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
 // stands, once the browser clamps it to the box's range.
@@ -489,10 +517,16 @@ export function watchScrolls(listener) {
 }
 
 // Each box's scroll sequence, from its first scroll until it ends: at its `scrollend`,
-// or, since a scroll restoration that replaces what was scrolling ends without one,
-// after a quiet spell of SETTLE_MS and two rendering updates with no scroll in the box.
-// The spell needs both: Firefox's main thread hears its smooth scroll's frames late,
-// and a busy page delays the updates that carry a scroll's events past any clock.
+// or, where none will come, after a quiet spell of SETTLE_MS and two rendering updates
+// with no scroll in the box. Chromium, Firefox and WebKit send one for every move that
+// lands, a script's, a clamp's and an anchoring adjustment's included, but none for an
+// input that moves nothing, a box that leaves mid-scroll or Chromium's stop of a smooth
+// scroll, nor for Playwright's wheel in Firefox and WebKit (2026-11-15). The spell needs
+// both: Firefox's main thread hears its smooth scroll's frames late, and a busy page
+// delays the updates that carry a scroll's events past any clock. A Firefox starved of
+// CPU outlasts both, applying a key's scroll up to 800 ms after the key and pausing
+// longer than the spell between its frames, so there the spell can end the reader's
+// scroll before or while it moves.
 // WebKit ends a keyboard scroll on each of its frames (notes/browser-support.md), so
 // there one keypress makes several sequences. A script that moves a
 // box a frame at a time, as the runtime's glide does (scrolling.js, `glideTo`), gets a
@@ -547,14 +581,17 @@ function endSequence(box) {
   placed.delete(box);
   for (const listener of endListeners) listener(box);
 }
-// Hold `box`'s sequence open from now until the returned release, after which it ends
-// as a glide's last frame ends it.
-/** @param {Element} box @returns {() => void} */
+// Hold `box`'s sequence open from now until the returned release. A holder that has
+// landed, its last write leaving the box where it stood, as a glide's last frames move
+// it less than a pixel, owes the box no scroll event and no `scrollend`, so its release
+// ends the sequence. Any other release ends it as a glide's last frame would: at the
+// `scrollend` the last write owes, or after the quiet spell.
+/** @param {Element} box @returns {(landed?: boolean) => void} */
 export function holdScroll(box) {
   holds.set(box, (holds.get(box) ?? 0) + 1);
   sequenceIn(box);
   let held = true;
-  return () => {
+  return (landed = false) => {
     if (!held) return;
     held = false;
     const left = (holds.get(box) ?? 1) - 1;
@@ -563,7 +600,8 @@ export function holdScroll(box) {
       return;
     }
     holds.delete(box);
-    inSequence(box);
+    if (landed) endSequence(box);
+    else inSequence(box);
   };
 }
 // Start `box`'s sequence at the reader's input asking the browser to scroll it

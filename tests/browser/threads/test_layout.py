@@ -313,12 +313,15 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-def test_a_message_says_its_age_only_where_it_changes(browser, serve):
-    """A thread says each message's age only where that age, as displayed, differs
-    from the message above, the first always saying it: three messages written on one
-    day three days ago read one age, and a reply written now reads its own."""
+def test_every_message_says_when_it_was_said(browser, serve):
+    """Every message in a thread says when it was said, naming its day unless that is
+    today (presence.js, `saidAt`): replies hours apart three days ago each read their
+    own time, where an age read "3d ago" once over all of them."""
     url = serve(PANEL_PAGE)
-    then = datetime.now().astimezone() - timedelta(days=3)
+    # Local wall times, each with its own offset, so a change of daylight saving
+    # between them moves no clock reading.
+    now = datetime.now()
+    then = (now - timedelta(days=3)).replace(hour=15, minute=29, second=0).astimezone()
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -330,31 +333,36 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve):
             "anchor": {"section": "lede"},
         },
     )["id"]
-    for at, (author, text) in enumerate(
-        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
-    ):
+    for text, at in [
+        ("Yes, three tries; I'm parking it now.", then + timedelta(minutes=6)),
+        ("Parked after the third.", then + timedelta(hours=2, minutes=23)),
+        ("And the backoff doubles.", now.replace(hour=9, minute=10).astimezone()),
+    ]:
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": author,
-                **({"agent": "Claude"} if author == "agent" else {}),
+                "author": "agent",
+                "agent": "Claude",
                 "parent": root,
                 "revision": 1,
                 "text": text,
-                "ts": (then + timedelta(minutes=at)).isoformat(),
+                "ts": at.isoformat(),
             },
         )
-    append_agent_reply(serve.page_dir, root, "Parked after the third.")
     page = open_page(browser, url)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     expect(card).to_be_visible()
-    ages = card.locator(".lf-msg-head")
-    expect(ages).to_have_count(4)
-    assert ages.evaluate_all(
-        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
-    ) == ["3d ago", None, None, "just now"]
+    times = card.locator(".lf-msg-head > .lf-msg-meta > time")
+    expect(times).to_have_count(4)
+    day = f"{then.day} {then:%b}" + ("" if then.year == now.year else f" {then.year}")
+    assert times.all_text_contents() == [
+        f"{day} 15:29",
+        f"{day} 15:35",
+        f"{day} 17:52",
+        "09:10",
+    ]
 
 
 # Where a message's words may run to, and the thread's inset before its words.
@@ -604,7 +612,6 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                     "required": ["id"],
                     "additionalProperties": False,
                     "x-content": "markup",
-                    "x-upgrade": False,
                 }
             }
         )
@@ -694,8 +701,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
     package = tmp_path / "chrome-look"
     package.mkdir()
     (package / "chrome.css").write_text(
-        '[part~="panel"] { font-family: cursive; --r-l: 0px; }'
-        'html & [part~="card"] { --r-l: 5px; }'
+        '[part~="panel"] { font-family: cursive; --lf-r-l: 0px; }'
+        'html & [part~="card"] { --lf-r-l: 5px; }'
         '@media screen { [part~="composer"] { letter-spacing: 3px; } }'
         "p { color: rgb(255, 0, 0); }"
         "body:has(&) { border-top: 9px solid rgb(255, 0, 0); }"
@@ -708,8 +715,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
                     "t",
                     "<h1>t</h1><p>Words.</p>",
                     head='<style>[part~="panel"] { font-family: fantasy;'
-                    " color: rgb(0, 128, 0); --ink: rgb(1, 2, 3); }"
-                    '[part~="composer"] { --sans: monospace; }</style>',
+                    " color: rgb(0, 128, 0); --lf-ink: rgb(1, 2, 3); }"
+                    '[part~="composer"] { --lf-sans: monospace; }</style>',
                 ),
                 packages=(package,),
             )
@@ -724,9 +731,9 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
             corner: cs(panel.querySelector('.lf-fp-card')).borderTopLeftRadius,
             composer: cs(document.querySelector('[part~="composer"]')).letterSpacing,
             font: cs(document.querySelector('[part~="composer"]'))
-                .getPropertyValue('--font-message').trim().split(' ').at(-1),
+                .getPropertyValue('--lf-font-message').trim().split(' ').at(-1),
             card: cs(document.querySelector('.lf-chrome [part~="card"]'))
-                .getPropertyValue('--r-l').trim(),
+                .getPropertyValue('--lf-r-l').trim(),
             parts: [...new Set([...document.querySelectorAll('.lf-chrome [part]')]
                 .flatMap(e => e.getAttribute('part').split(' ')))].sort(),
             prose: cs(document.querySelector('main p')).color,

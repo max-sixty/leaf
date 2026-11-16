@@ -191,17 +191,22 @@ def browser_check(
     desktop = desktop_viewport(page_dir) if render else None
 
     def read(browser, url: str):
-        errors = run_page_code(browser, url) if page_code else None
-        if errors or not render:
-            return errors, None, None
+        if not render:
+            return run_page_code(browser, url) if page_code else None, None, None
         assert desktop is not None
+        # The render's first page takes the page-code reading, so the page loads once
+        # for both.
+        errors = [] if page_code else None
         reading = render_version(
             browser,
             url,
             desktop=desktop.viewport,
             implementations=artifact.implementations,
             declaration_sources=artifact.declaration_sources,
+            page_code=errors,
         )
+        if errors:
+            return errors, None, None
         return (
             errors,
             reading,

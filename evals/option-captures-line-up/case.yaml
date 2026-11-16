@@ -20,8 +20,7 @@ metadata:
 vars:
   prompt: |
     You are writing a Leaf page that asks the user how a row of a list should look
-    across Leaf. Write the ask for this decision, following the skill's references for
-    decisions and for captures.
+    across Leaf. Write the ask for this decision.
 
     Today lists draw a hovered row several ways and the current row several more. You
     captured each candidate on three lists, with the second row hovered and the first

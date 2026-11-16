@@ -217,7 +217,6 @@ ITEMS_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
@@ -232,7 +231,6 @@ ITEMS_LAYER = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-refers": {"for": {}},
-        "x-upgrade": True,
         "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }
@@ -723,6 +721,53 @@ def test_a_reading_after_a_scroll_reads_words_the_browser_skipped_until_then(
         "block": "target",
         "quote": "Words the browser draws once a scroll brings them near.",
     }
+
+
+# Brings line `line` of the text document `#log` to the top of its box's landing band,
+# and says whether the browser draws the document's first line.
+LINE_AT_TOP = """(line) => {
+  const pre = document.querySelector('#log pre');
+  const row = pre.querySelectorAll('.lf-text-document-run > div')[line];
+  return window.__lfCheckApi().then((api) => {
+    pre.scrollTop += row.getBoundingClientRect().top - api.landingBand(pre).top;
+    return pre.querySelector('.lf-text-document-run > div')
+      .checkVisibility({contentVisibilityAuto: true});
+  });
+}"""
+
+
+def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
+    """A reading place in a long text document names the first line drawn at the top of
+    the document's box, with runs of lines the browser skips above it. The place passes
+    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    past a run's end named a line further down."""
+    url = serve(
+        leaf_page(
+            "A long document",
+            '<lf-text-document id="log" source="log-text"></lf-text-document>',
+            head="<style>#log { --lf-bound: 400px; }</style>",
+        )
+    )
+    text = "".join(
+        f"Line {i:04d} names the place a reader stands.\n" for i in range(1500)
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    rendered(page)
+    place = """async () => {
+      const api = await window.__lfCheckApi();
+      return api.capturePlace(api.readingRegionFor(document.querySelector('#log pre')))
+        ?.quote;
+    }"""
+    for line in (300, 512, 700, 1000, 1280):
+        # Twice: the first scroll draws the runs it reaches, which may size them anew.
+        page.evaluate(LINE_AT_TOP, line)
+        scroll_settled(page, "#log pre")
+        assert not page.evaluate(LINE_AT_TOP, line), "the first line is drawn"
+        scroll_settled(page, "#log pre")
+        rendered(page)
+        assert page.evaluate(place).startswith(f"Line {line:04d} "), line
 
 
 def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
@@ -1952,8 +1997,9 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
+    # Nothing is on the user, so the mark opens Threads, where the put-away draft waits.
     page.locator(".lf-fp-on-user").tap()
-    panel_settled(page, view="queue")
+    panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function(

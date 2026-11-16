@@ -80,17 +80,22 @@ export const ago = (ts) => age(ts, false);
 /** @param {string | null | undefined} ts */
 export const shortAgo = (ts) => age(ts, true);
 
-// The clock time behind an age, in the reader's own zone: "Sat 15 Aug 2026, 14:02 PT".
-// An age says how long ago, and a reader checking a message against a commit, a
-// meeting or a log line needs when. The day before its month and a 24-hour clock read
-// one way to every reader, and the zone is the one the reader's browser keeps, named
-// as briefly as the platform names it. The instant is the server's, as written, so no
-// skew applies.
+// The clock time behind an age or a time, in the reader's own zone: "Sat 15 Aug 2026,
+// 14:02 PT". An age says how long ago, and a reader checking a message against a
+// commit, a meeting or a log line needs when. The day before its month and a 24-hour
+// clock read one way to every reader, and the zone is the one the reader's browser
+// keeps, named as briefly as the platform names it. The instant is the server's, as
+// written, so no skew applies.
 /** @param {string | null | undefined} ts */
 export function clockTime(ts) {
   const at = new Date(ts ?? NaN);
   if (Number.isNaN(at.getTime())) return "";
-  const part = Object.fromEntries(
+  const part = clockParts(at);
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute} ${part.timeZoneName}`;
+}
+/** @param {Date} at */
+const clockParts = (at) =>
+  Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
       weekday: "short",
       day: "numeric",
@@ -104,11 +109,41 @@ export function clockTime(ts) {
       .formatToParts(at)
       .map(({ type, value }) => [type, value]),
   );
-  return `${part.weekday} ${part.day} ${part.month} ${part.year}, ${part.hour}:${part.minute} ${part.timeZoneName}`;
+// The reader's calendar day an instant falls on, counted in days, so consecutive days
+// differ by one.
+/** @param {Date} at */
+const dayOf = (at) =>
+  Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / 86400000);
+
+// When a message was said: its clock time in the reader's zone, and its day unless
+// that is today ("17:52", "Yesterday 17:52", "13 Nov 15:29"), which its preview names
+// with the weekday and zone (`clockTime`). A conversation says times, not ages,
+// because each reply says what was true when it was sent ("I'm building it now"), and
+// an age rounds to its unit, so replies hours apart both read "1d ago" a day later.
+// Each time names its own day, so one read alone, in a sticky head or below the first
+// message scrolled away, is never taken for today's.
+/** @param {string | null | undefined} ts
+ * @returns {{day: string, clock: string} | null} */
+export function saidAt(ts) {
+  const at = new Date(ts ?? NaN);
+  if (Number.isNaN(at.getTime())) return null;
+  const clock = [at.getHours(), at.getMinutes()]
+    .map((figure) => String(figure).padStart(2, "0"))
+    .join(":");
+  const day = clockValue((now) => {
+    const today = dayOf(new Date(now));
+    if (dayOf(at) === today) return "";
+    if (dayOf(at) === today - 1) return "Yesterday";
+    const part = clockParts(at);
+    const year =
+      at.getFullYear() === new Date(now).getFullYear() ? "" : ` ${part.year}`;
+    return `${part.day} ${part.month}${year}`;
+  });
+  return { day, clock };
 }
-// What an age previews (preview.js): the clock time of the instant its `<time>` holds,
-// so every age the page draws declares one function and holds its instant once, in
-// `datetime`, where the platform keeps it.
+// What an age or a time previews (preview.js): the clock time, day and zone of the
+// instant its `<time>` holds, so every one the page draws declares one function and
+// holds its instant once, in `datetime`, where the platform keeps it.
 /** @this {Element} @returns {import("./preview.js").Preview | null} */
 export function agePreview() {
   const at = clockTime(this.getAttribute("datetime"));
@@ -134,18 +169,15 @@ export const quietSince = (ts) =>
 // Temporal policy belongs to the server's canonical activity fold. The browser uses
 // its calibrated copy of server time only to ask for the next projection when that
 // fold says an answer can change; it never decides what the new answer is.
-// `activityTransitionAt` is when, on the server's clock, the earliest activity in an
-// answer can next change without any file moving, or Infinity when none is timed.
+// `activityTransitionAt` is when, on the server's clock, the page's activity in an
+// answer can next change without any file moving, or Infinity when none is timed. A
+// neighbour's needs no clock here: its own server republishes its row at its
+// transition, which moves the pages reading the news names (live-leaves.js).
 /** @param {import("../types/contract.js").ServedState | null} state */
-export const activityTransitionAt = (state) =>
-  Math.min(
-    ...[
-      state?.activity,
-      ...(state?.others ?? []).map((entry) => entry?.activity),
-    ].flatMap((activity) =>
-      activity?.next_transition_at ? [Date.parse(activity.next_transition_at)] : [],
-    ),
-  );
+export const activityTransitionAt = (state) => {
+  const at = state?.activity.next_transition_at;
+  return at ? Date.parse(at) : Infinity;
+};
 /** @param {import("../types/contract.js").ServedState | null} state */
 export const activityTransitionDue = (state) =>
   serverNow() >= activityTransitionAt(state);

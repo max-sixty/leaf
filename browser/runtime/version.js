@@ -30,8 +30,8 @@
  * patch; changed executable inputs require a fresh document. Prose, styles, and media
  * can change without reloading. Served identity
  * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
- * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
- * patched inside its members instead, while the revision keeps its shell.
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget whose class declares
+ * `static lfPatch = "members"` is patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
@@ -70,14 +70,23 @@
  * `versionsOffered` controls the destination and the Versions row.
  */
 import {
+  afterSettling,
   cancelRender,
   nextAnimation,
   nextRender,
+  observePreparations,
   renderingState,
   sizeObserver,
 } from "./rendering.js";
 import { frameFor, watchScrollEnds } from "./arrivals.js";
-import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
+import {
+  LIVE_ROOT,
+  PAGE_ROOT,
+  layerRoot,
+  pageUrl,
+  revisionLabel,
+  runtime,
+} from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
@@ -120,7 +129,7 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring, upgrades } from "./registry.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
@@ -149,9 +158,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE } from "./storage.js";
 import { tabStore } from "./tab-store.js";
-import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
@@ -576,11 +583,11 @@ const diffBlockSel = () =>
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring(
-      (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+      (e, tag) => upgrades(tag) && !e["x-verbatim"] && e["x-content"] === "data",
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e["x-data"]),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -1737,7 +1744,7 @@ export function createVersionController({
       readAndApply();
       return;
     }
-    location.href = PAGE_SCOPE || "/";
+    location.href = PAGE_ROOT ?? "/";
   };
 
   // ---------- live revision activation ----------
@@ -1822,8 +1829,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (/** @type {Element} */ element) =>
-    Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (/** @type {Element} */ element) => upgrades(element.localName);
 
   // Every element under a root in document order, including inert template contents.
   /** @param {Element} root @returns {Generator<Element>} */
@@ -1879,12 +1885,17 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // An x-patch container retains authored markup while the inputs its renderer
+  // A widget's module says how a revision reaches it, as its class's static `lfPatch`
+  // (module-authoring.md, "Revisions"). The module of every widget standing in the
+  // page has run by the time a patch asks: startup awaits each import before the state
+  // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
+  // A `members` container retains authored markup while the inputs its renderer
   // consumes stay the same. A structured member list, or a declared x-views list,
   // consumes its direct members' identities and attributes. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
-  // including native attributes. A generated authored body likewise separates that
-  // evidence from the renderer's inputs.
+  // including native attributes. A widget that draws its content itself
+  // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
+  // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
@@ -1897,10 +1908,14 @@ export function createVersionController({
     /** @type {string | null} */ arrivingRoot,
   ) => {
     const entry = registry[before.localName];
-    if (entry?.["x-patch"] !== "members") return false;
-    const members =
-      !authoredBody(sourcePairs.require(before)) &&
-      (entry["x-content"] === "members" || entry["x-views"] !== undefined);
+    const content = entry?.["x-content"];
+    if (
+      !entry ||
+      customElements.get(before.localName)?.lfPatch !== "members" ||
+      (content !== "members" && content !== "markup")
+    )
+      return false;
+    const members = content === "members" || entry["x-views"] !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1922,7 +1937,6 @@ export function createVersionController({
       contains: (node, owner) =>
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
-      body: authoredBody,
       // `main` holds nearly all of a page's content, so a page module that moves or
       // replaces one of its children is patched around, as it was when `main` was the
       // patch root, rather than rebuilding the page beneath the user.
@@ -2498,6 +2512,7 @@ export function createVersionController({
     const acted = box !== undefined && inputSince(box, hold.since);
     if (!moved && !acted && hold.currentIntent()) return hold;
     holds.delete(id);
+    if (!holds.size) stopReapplying();
     // Where the reader acted in the box the restore put them in, that place is theirs,
     // as if recorded before they acted, so whatever their act moves records over it.
     // Where a scroll carried the landmark away, the place it left is that scroll's.
@@ -2704,21 +2719,31 @@ export function createVersionController({
   // Apply each held place again while the shift's layout settles, as a widget drawing
   // a frame late changes it, and only then: re-application exists for that late layout,
   // and outliving it would put back a place under whatever else changes the page. The
-  // window closes when Leaf's rendering reads settled (rendering.js, `renderingState`)
-  // and every region stands where it was last seen (`regionsSettled`), or after
-  // `SETTLING` deliveries or `SETTLING_MS` whatever happens: a widget that keeps
-  // resizing, or a rendering hold that never releases, would otherwise keep reading
-  // every later move as layout's. What moves a place is the page's
-  // own content or its bounded region's, and it lands only in the box it was restored
-  // into.
+  // window closes at the first quiet rendering update after the last widget
+  // preparation lands (rendering.js, `afterSettling`), which includes the layout the
+  // preparation committed and the size changes it made, with every region standing
+  // where it was last seen (`regionsSettled`); or once the last hold ends, or a
+  // revision ends them all. A preparation keeps it open however long a slow device
+  // takes, and its release, not a frame, is what the window waits on. Two caps stand
+  // for a page that never settles, as one whose animated chart keeps redrawing:
+  // `SETTLING` deliveries, and `SETTLING_MS` with no preparation pending, counted from
+  // the window's opening or the last release and closing a rendering update after, so a
+  // release's layout lands first even when frames paused. Without them, every later move
+  // would read as layout's. What moves a place is the page's own content or its bounded
+  // region's, and it lands only in the box it was restored into.
   const SETTLING = 12;
   const SETTLING_MS = 1000;
-  /** @type {number | undefined} */
-  let reapplyTimer;
+  let closeWindow = () => {};
+  // Heard from the controller's start, since a preparation reports its end only to
+  // those who heard it begin, and one a width change sets going can begin before the
+  // shift that opens the window is announced.
+  /** @type {(phase: import("./rendering.js").PreparationPhase) => void} */
+  let preparation = () => {};
+  observePreparations((phase) => preparation(phase));
   const stopReapplying = () => {
     reapply?.disconnect();
-    clearTimeout(reapplyTimer);
     reapply = null;
+    closeWindow();
   };
   const releaseHolds = () => {
     holds.clear();
@@ -2752,15 +2777,37 @@ export function createVersionController({
       again();
     });
     reapply = observer;
-    reapplyTimer = setTimeout(stopReapplying, SETTLING_MS);
-    const settled = () =>
-      nextAnimation(() => {
-        if (reapply !== observer) return;
-        const { updatesSettled, preparationsSettled } = renderingState();
-        if (updatesSettled && preparationsSettled && regionsSettled()) stopReapplying();
-        else settled();
-      });
-    settled();
+    const close = () => reapply === observer && stopReapplying();
+    const prepared = () => renderingState().preparationsSettled;
+    let unwait = () => {};
+    let cap = 0;
+    // The cap's turn: a preparation beginning, a later wait or the window closing ends
+    // it, standing down closing frames an expired cap has already queued.
+    let turn = 0;
+    const standDown = () => {
+      clearTimeout(cap);
+      turn++;
+    };
+    const wait = () => {
+      unwait();
+      standDown();
+      const mine = turn;
+      unwait = afterSettling(() => prepared() && (regionsSettled() ? close() : wait()));
+      cap = setTimeout(
+        () => nextAnimation(() => nextAnimation(() => mine === turn && close())),
+        SETTLING_MS,
+      );
+    };
+    preparation = (phase) => {
+      if (phase === "begin") standDown();
+      else if (prepared()) wait();
+    };
+    closeWindow = () => {
+      closeWindow = preparation = () => {};
+      unwait();
+      standDown();
+    };
+    if (prepared()) wait();
     const page = pageDocument();
     if (page) reapply.observe(page);
     for (const hold of holds.values()) {

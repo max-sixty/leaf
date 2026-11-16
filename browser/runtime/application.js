@@ -45,7 +45,6 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
-import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -60,7 +59,7 @@ import { raiseError } from "./errors.js";
 /** @typedef {Parameters<typeof createThreadPresentation>[0]} ThreadPresentationOptions
  * @typedef {ReturnType<typeof createThreadDestinations>} ThreadDestinations
  * @typedef {{render: import("./thread/primary-reader.js").PrimaryRender, reveal: import("./thread/destination.js").OpenPrimary, answersAtOnce?: boolean}} PresentationSpec
- * @typedef {PresentationSpec & {yielded: () => (() => void) | null}} YieldingSpec
+ * @typedef {PresentationSpec & {yielded: () => (() => void) | null, messagesAside?: boolean}} YieldingSpec
  */
 /** @template {PresentationSpec} [T=PresentationSpec]
  * @typedef {{owner: Element, spec: T, attached: {reader: ReturnType<typeof createPrimaryReader>, detach: () => void} | null}} PresentationEntry */
@@ -84,7 +83,7 @@ import { raiseError } from "./errors.js";
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -341,6 +340,7 @@ function createApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
     goToObligation: dependencies.annotationCommands.goToObligation,
+    resumeDraft: dependencies.annotationCommands.resumeDraft,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -469,7 +469,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
@@ -570,13 +569,6 @@ function createApplication(dependencies) {
     receiveState,
   });
 
-  /** @type {(...args: [Parameters<typeof buildThreadBox>[0], Parameters<typeof buildThreadBox>[1]]) => ReturnType<typeof buildThreadBox>} */
-  const threadBox = (owner, hint) =>
-    buildThreadBox(owner, hint, {
-      createComment: (command) => threadActions.create(command)?.delivery ?? null,
-      onDraftChanged: invalidateDom,
-      wireInput: dependencies.wireInput,
-    });
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
@@ -607,7 +599,7 @@ function createApplication(dependencies) {
       throw error;
     }
   };
-  // The widgets declaring x-thread-surface, registered for as long as they stand, once
+  // The widgets with `threadOutlets`, registered for as long as they stand, once
   // the registry that names them has loaded.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
@@ -626,10 +618,10 @@ function createApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  /** @param {Element} owner @param {PresentationSpec} spec @param {(() => void) | undefined} [onFailure] */
+  /** @param {Element} owner @param {PresentationSpec & {messagesAside?: boolean}} spec @param {(() => void) | undefined} [onFailure] */
   const attachPresentation = (
     owner,
-    { render, reveal, answersAtOnce = false },
+    { render, reveal, answersAtOnce = false, messagesAside = false },
     onFailure = undefined,
   ) => {
     const reader = createPrimaryReader(
@@ -637,7 +629,7 @@ function createApplication(dependencies) {
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce, ...(onFailure ? { onFailure } : {}) },
+      { answersAtOnce, messagesAside, ...(onFailure ? { onFailure } : {}) },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -736,7 +728,6 @@ function createApplication(dependencies) {
   const mounted = {
     withdraw: undo.withdraw,
     midComposition: engagement.midComposition,
-    threadBox,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
@@ -795,8 +786,6 @@ function createApplication(dependencies) {
   return mounted;
 }
 
-/** @type {ReturnType<typeof createApplication>["threadBox"]} */
-export const threadBox = (...args) => app().threadBox(...args);
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */

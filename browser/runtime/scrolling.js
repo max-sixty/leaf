@@ -36,6 +36,7 @@ import {
   browserScrolls,
   holdScroll,
   readerScrolls,
+  scrollDrawn,
   setScroll,
   startReaderScroll,
   stopWhereItStands,
@@ -198,18 +199,14 @@ ended.set(pageScroller, pageScroller.scrollTop);
 // (landing-scroll.js, `readingBandMoves`), so `t` pressed again while the walk still
 // moves lands as typed slowly, where stopping the glide left the page where it stood
 // whenever the destination was already in view there; a return stops it itself.
-// Chromium can deliver one last compositor scroll after that cancellation, so its
-// rendering update must finish before the caller reads geometry and places the new
-// destination. Two callbacks enclose that whole update.
+// Chromium can deliver one last compositor scroll after that cancellation, so the
+// caller reads geometry and places the new destination once the stop is drawn
+// (arrivals.js, `scrollDrawn`).
 /** @param {Iterable<Element>} boxes */
 export function stopBrowserScroll(boxes) {
   const stopped = [...boxes].filter(browserScrolls);
-  if (!stopped.length) return null;
   for (const box of stopped) stopWhereItStands(box);
-  return new Promise(
-    /** @param {(value?: void) => void} resolve */ (resolve) =>
-      nextFrame(() => nextFrame(() => resolve(undefined))),
-  );
+  return stopped.length ? scrollDrawn() : null;
 }
 
 let choices = 0;
@@ -535,7 +532,7 @@ export const reachable = (box, top, from = box.scrollTop) =>
 // stands down too the moment the box moves under any other hand, such as a scrollbar's
 // drag, and a return takes the box from it (history.js).
 const SCROLL_MS = 140;
-/** @typedef {{goal: number, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: () => void}} Glide */
+/** @typedef {{goal: number, wrote: number | null, raf: ReturnType<typeof nextFrame>, release: (landed?: boolean) => void}} Glide */
 // The glide under way in each box, which holds the box's scroll sequence open from its
 // press to its end, so every frame it writes makes one scroll (arrivals.js,
 // `holdScroll`).
@@ -583,14 +580,15 @@ function landGlide(box) {
   stopGlide(box);
 }
 // A spatial command takes the page where it is now, so it stops a glide in the box even
-// where it moves nothing itself.
-/** @param {Element} box */
-export function stopGlide(box) {
+// where it moves nothing itself. A glide stops itself `landed` where its last write left
+// the box where it stood (arrivals.js, `holdScroll`).
+/** @param {Element} box @param {boolean} [landed] */
+export function stopGlide(box, landed = false) {
   const glide = glideIn.get(box);
   if (!glide) return;
   cancelRender(glide.raf);
   glideIn.delete(box);
-  glide.release();
+  glide.release(landed);
 }
 // A glide's claim on its box: it holds only while the box is where the glide last wrote
 // it. The tick asks before every write, and a press asks the same question before
@@ -682,6 +680,7 @@ export function glideTo(box, top) {
     // Firefox's smooth scroll runs on ahead of a busy page, whose next frame is the first
     // to say where the stop left the box.
     if (current.wrote === null) start = box.scrollTop;
+    const from = box.scrollTop;
     setScroll(box, {
       top: goal - (goal - start) * (1 - t) ** 3,
       behavior: "instant",
@@ -691,7 +690,7 @@ export function glideTo(box, top) {
     if (current.wrote !== null || box.scrollTop !== start)
       current.wrote = box.scrollTop;
     if (t < 1) current.raf = nextFrame(tick);
-    else stopGlide(box);
+    else stopGlide(box, box.scrollTop === from);
   };
   glideIn.set(box, {
     goal,

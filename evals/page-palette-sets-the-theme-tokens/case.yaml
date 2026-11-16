@@ -1,0 +1,31 @@
+description: page-palette-sets-the-theme-tokens
+metadata:
+  purpose: "A page recoloured to a palette of its own sets the theme's three colours on
+    the root, so Leaf's widgets, thread cards and panel take the palette with the page."
+  tags:
+    - theme
+vars:
+  prompt: |
+    You are revising a Leaf page for the user: a short report with a heading, three
+    paragraphs, a table and an `lf-ask` whose answer is an
+    `<lf-options id="next-step" choose>` with two options. It takes Leaf's default
+    theme, and its own `<style>` is empty.
+
+    The user commented on the title: "Put this in our house colours for the board
+    pack: off-white #f4f1ea for the background, #17233b for the text, and our teal
+    #0f766e for links and anything highlighted. Light only."
+
+    The page directory is not reachable from here, so reply with the complete `<style>`
+    element the page needs, rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the CSS. Pass only if it sets the three colours through Leaf's theme tokens
+      on the root (`:root` or `html`): `--lf-paper` to the background, `--lf-ink` to
+      the text colour and `--lf-accent` to the teal. `color-scheme: light` beside them,
+      and other `--lf-` tokens, neither help nor hurt. Fail if it colours the page with
+      `background` or `color` rules on `body`, `main` or other elements in place of the
+      tokens, since Leaf's widgets, thread cards and panel would keep the default
+      palette; if it sets the tokens anywhere but the root; or if a token it sets lacks
+      the `--lf-` prefix.

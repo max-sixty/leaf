@@ -405,11 +405,16 @@ POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dra
 # everything its shadow root draws. Read inside a shadow root they can disagree: on
 # 2026-11-04 Firefox hovered a radio button's host but not the slot under the pointer.
 # A held button keeps the hover where the press began, and a mouse over a child frame
-# moves where this document can't follow it.
+# moves where this document can't follow it. A subtree hidden under the pointer keeps
+# its hover after the hover moves on, so only drawn elements count: on 2026-11-15
+# Chromium left `.lf-fp-opened` hovered once the panel's view closed under a press,
+# through every later move.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
-  const hovered = [...document.querySelectorAll(":hover")].at(-1);
+  const hovered = [...document.querySelectorAll(":hover")]
+    .filter((node) => node.checkVisibility())
+    .at(-1);
   if (hovered instanceof HTMLIFrameElement) return true;
   const under = document.elementFromPoint(at.x, at.y);
   // A hovered label also hovers the control it labels, which is no hover still to move.
@@ -591,7 +596,7 @@ def go_to_threads(page: Page, frame: FrameLocator | None = None) -> None:
     """Open the floating panel's Threads view by Go to Threads (`g` then `T`), in
     `frame`'s page where given, a live sample's. The pointer's route to Threads has
     changed between runtimes, so a driver one checkout runs against another's runtime,
-    as `stills`, `bench`, thread snapshots and `site verify` do, takes this
+    as `stills`, `bench` and `site verify` do, takes this
     route, which both share."""
     within = frame or page
     # Completing `g T` again closes the view (keyboard/go-to-sequence.js).

@@ -6,6 +6,11 @@
 # those exports; whether it tells two wordings apart is recorded in that commit.
 # The Lit adoption survey added the immediate receipt to exercise same-turn paint
 # alongside focus continuity; before/after results belong in that change's commit.
+# After command rows gained `lands(from)`, Claude Code authors computed the nearest
+# surviving row in it themselves (9 of 16 passed before this change). module-input.md
+# now says a keyed hold tries its stand-ins last and leaves `lands` to presses that go
+# elsewhere (13 of 13). A native popover Add item opens through popovertarget passes,
+# since Leaf returns the user to that control on closing.
 description: widget-list-keeps-focus
 metadata:
   purpose: A widget paints a removal synchronously, keeps the user in its keyed list, and hands them back when its own popup closes, through the runtime's public primitives.
@@ -25,7 +30,7 @@ vars:
     closing the popup leaves focus nowhere. The user should stay in the list after a
     removal, on the nearest remaining row's Remove, or on Add item when the list is
     empty, and closing the popup should put them back on the Add item button that
-    opened it. Read the public references and show the JavaScript for the remove
+    opened it. Show the JavaScript for the remove
     handler, the list render, and the popup's close.
 assert:
   - type: llm-rubric
@@ -42,7 +47,10 @@ assert:
         restore after rendering with the Add item button as its last stand-in;
       - closes the popup with closeLayer(close, land), where land hands the user back
         to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
-        opens, or handBack naming the button;
+        opens, or handBack naming the button; or makes the popup a native popover that
+        Add item opens through popovertarget and closes it with closeNativeLayer,
+        placing no return focus of its own, since Leaf puts the user on a
+        popovertarget control as its popover opens and closing returns them there;
       - any focus it places itself goes through focusDestination with a cause;
       - the popup's Escape, if shown, is a command row in an element's lfCommands,
         not a listener.

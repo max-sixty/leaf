@@ -16,6 +16,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
     LONG_PAGE,
+    all_pages_offered,
     clocked,
     dwelt,
     leaf_page,
@@ -40,6 +41,7 @@ def test_a_focus_preview_on_a_link_elsewhere_keeps_its_new_tab_description(
     live_leaf("second", "A second leaf")
     live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE))
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")

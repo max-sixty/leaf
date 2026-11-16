@@ -41,7 +41,7 @@ def said_by_marks(scope):
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
         """async (scope) => {
-          const {render} = await window.__lfWidgetApi();
+          const {render} = await window.__lfVendorImport('lit.js');
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
             const said = mark.lfPreview();
@@ -592,7 +592,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     user.close()
     data_model.cmd_data_set(directory, "release-trace", record)
     exported = tmp_path / "recording.html"
-    exporting_model.cmd_export(directory, exported, None)
+    exporting_model.cmd_export(directory, exported, None, runtime=True)
     offline = browser.new_page()
     offline.goto(exported.as_uri(), wait_until="load")
     wait_until_ready(offline)

@@ -76,10 +76,12 @@ Usage: leaf thread summarize [OPTIONS] PAGE
 
   Replace --from through --through in the panel with a Markdown summary.
 
-  Both name messages in one thread, which is the thread summarized. An empty
-  summary, such as `--text ''`, folds them without prose. The original messages
-  remain in the append-only transcript and can always be revealed. A later
-  overlapping summary replaces this one.
+  Both name messages in one thread, which is the thread summarized. No message
+  but the thread's first may stay unsummarized above any summary; a refusal
+  names a wider range that keeps this. An empty summary, such as `--text ''`,
+  folds them without prose. The original messages remain in the append-only
+  transcript and can always be revealed. A later overlapping summary replaces
+  this one.
 
 Options:
   --from MESSAGE     the first message folded  [required]
@@ -205,17 +207,14 @@ Options:
 ## leaf task end --help
 Usage: leaf task end [OPTIONS] PAGE ID {done|failed|dropped}
 
-  End the to-do or conversational obligation named by ID in `page state`.
+  End the to-do named by ID in `page state`.
 
   A to-do ends done, failed or dropped. --text says where the result is, such as
   the version or reply holding it, or why there is none.
 
-  For a message obligation (`message:<id>`) or a question widget answered in
-  words (`widget:<id>`), done records that the user answered elsewhere, or that
-  you saw a step's effect, --text saying where or what you saw; dropped
-  withdraws the question. These outcomes record no answer from the user. A
-  widget answered through its controls ends through its state or an authored
-  withdrawal.
+  A question you asked in a thread is the user's to answer, not a to-do: once
+  they answer it elsewhere, or you see the step it asked for take effect, or it
+  no longer applies, resolve its thread with `leaf thread resolve`.
 
 Options:
   --text TEXT  where the result is, or why there is none

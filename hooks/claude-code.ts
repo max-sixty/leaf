@@ -10,10 +10,11 @@
  * session's model, such as a thread's title or a widget's `generate`
  * (`complete`). Claude Code runs none of this module's hooks for a working fork's
  * tool calls, as a plugin's hooks never see the calls of an agent it spawned
- * (measured at 2.1.322), so `hooks.json`'s PreToolUse marks its `leaf` commands
- * (`hooks.agent_command`). Claude Code loads the module from the installed plugin
- * (measured at 2.1.305). It neither
- * watches nor wakes the session: `hooks.json`'s background Stop registration
+ * (measured at 2.1.322), so `hooks.json`'s PostToolBatch carries the fork's
+ * further input (`hook_transport.carry_agent_turn`), and the fork names its own
+ * turn in its `leaf` commands, as Leaf's prompt tells it (`forks.work_prompt`).
+ * Claude Code loads the module from the installed plugin (measured at 2.1.305).
+ * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
  * an Escape became a cross-session nudge (measured at 2.1.307 with the
@@ -310,6 +311,7 @@ function follow($: EngineInterface, session: string) {
         if (last === undefined || following !== current) continue;
         const listed: Listing = JSON.parse(last);
         show($, listed.pages);
+        void endForks($);
         for (const page of listed.pages)
           for (const kept of page.kept_back ?? []) lineFork($, session, kept);
         for (const asked of listed.completions) complete($, session, asked);
@@ -450,8 +452,8 @@ function request() {
  * its time, its usage, and the main thread's request it resent (`request`).
  *
  * The fork thinks at the session's effort, and Leaf's prompt asks it to answer
- * straight away (`clerk.py` and `forks.py` say what that costs). A fork at another
- * effort reads the conversation from the cache only where Claude Code's per-message
+ * straight away (`clerk.py` and `forks.py` hold what each fork measured at either
+ * effort). A fork at another effort reads the conversation from the cache only where Claude Code's per-message
  * effort reaches the model; elsewhere, as on Vertex, through a proxy that rewrites
  * mid-conversation system messages, or with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`,
  * it writes the conversation to the cache again from the session's first reply on
@@ -543,16 +545,62 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
 // the end of the run reports: the turn by its id, since the run can end before Leaf
 // hears which agent runs it (`forks.started`). `$.state` keeps them, which a reload
 // of this module's code leaves standing, so a fork made before a reload still ends
-// its turn (types/leaf-state.d.ts).
+// its turn (types/leaf-state.d.ts). A fork whose run ended stays, with how it ended,
+// until Leaf has closed its turn (`endFork`).
 const FORKS = { plugin: "leaf", key: "forks" } as const;
-type Fork = { started: number; turn: string };
+type Run = { answer: string } | { failed: string };
+type Fork = { started: number; turn: string; ended?: Run };
 
 // How each run ended, by agent id, of the agents that ended while a spawn was in
 // flight and the module hadn't registered: a fork whose run ends before
 // `$.agent.spawn` returns its id (`workFork`). It holds anything only while a spawn
 // is in flight (`spawning`), so the session's other subagents leave nothing here.
-const endedEarly = new Map<string, { answer: string } | { failed: string }>();
+const endedEarly = new Map<string, Run>();
 let spawning = 0;
+
+// The fork runs whose end is being told to Leaf, by agent id and turn, so a
+// listing that arrives meanwhile doesn't tell it twice at once.
+const ending = new Set<string>();
+
+/** Tell Leaf that the run of the fork `agentId`, kept as `fork`, ended as
+ * `fork.ended` says, which closes its turn (`forks.ended`), and forget that run only
+ * once Leaf has heard: a step that failed, as one past its timeout, leaves it to be
+ * told again (`endForks`), rather than its turn running on unseen until it lapses.
+ * Leaf closes a turn once, so hearing twice changes nothing, and a run the fork was
+ * resumed for since, under the same agent id, stays. */
+async function endFork($: EngineInterface, agentId: string, fork: Fork) {
+  const run = `${agentId} ${fork.turn}`;
+  if (fork.ended === undefined || ending.has(run)) return;
+  ending.add(run);
+  try {
+    const session = await sessionOf($);
+    const now = await $.clock.now();
+    await forkStep($, session, {
+      ended: { agent: agentId, turn: fork.turn, ...fork.ended },
+      elapsed_ms: now - fork.started,
+    });
+    await changeForks($, (forks) => {
+      if (forks[agentId]?.turn !== fork.turn) return forks;
+      const { [agentId]: _ended, ...rest } = forks;
+      return rest;
+    });
+  } catch (error) {
+    $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, { to: "debug" });
+  } finally {
+    ending.delete(run);
+  }
+}
+
+/** Tell Leaf again of each fork's end it hasn't heard of (`endFork`), as a
+ * main-loop turn ends and as the pages follower lists a change to the session's
+ * pages, which it does while the session is idle too: each change the user makes on
+ * a page, when a fork shown working there would mislead them. Untold, the fork's turn
+ * lapses within the working grace of its last renewal, which gives its thread to the
+ * main thread, so no clock of the module's own retries it. */
+async function endForks($: EngineInterface) {
+  for (const [agentId, fork] of Object.entries((await $.state.get(FORKS)).value ?? {}))
+    if (fork.ended !== undefined) void endFork($, agentId, fork);
+}
 
 /** Change the forks kept in `$.state` by `change`, against concurrent changes. */
 async function changeForks(
@@ -574,10 +622,10 @@ async function changeForks(
  * of the conversation and tell Leaf which agent runs that turn (`forks.started`),
  * which tells the main thread the agent id it reaches the fork by. A fork that
  * can't be resumed or fails to start, or a step of this that fails, ends that turn
- * at once, which gives the thread to the main thread (`forks.ended`). The end names
- * the agent wherever one started, so an agent that runs on after Leaf failed to
- * record its start has its `leaf` commands refused rather than run as the main
- * thread's (`state.close_agent_turns`). */
+ * at once, which gives the thread to the main thread (`forks.ended`), and refuses
+ * the fork's later `leaf` commands, which name that turn. The end names the agent
+ * wherever one started, so the main thread hears the id that reaches an agent
+ * that runs on after Leaf failed to record its start (`state.close_agent_turns`). */
 async function workFork(
   $: EngineInterface,
   session: string,
@@ -593,8 +641,13 @@ async function workFork(
   try {
     if (given.resume !== undefined) {
       const failed = await resumeFork($, given.resume, given.prompt, given.turn);
-      if (failed !== undefined)
-        await forkStep($, session, { ended: { agent, turn: given.turn, failed } });
+      await forkStep(
+        $,
+        session,
+        failed === undefined
+          ? { thread: kept, started: { turn: given.turn, agent } }
+          : { ended: { agent, turn: given.turn, failed } },
+      );
       return;
     }
     const spawned = await spawnFork($, given);
@@ -608,8 +661,7 @@ async function workFork(
     );
   } catch (error) {
     // No run of a fork whose start went unrecorded would end its turn, which would
-    // keep the main thread off the thread and ask every agent's `leaf` command to
-    // run again until the turn lapses (`hooks.agent_command`).
+    // keep the main thread off the thread until the turn lapses.
     await forkStep($, session, {
       ended: { agent, turn: given.turn, failed: `Leaf's step failed: ${error}` },
     }).catch(() => undefined);
@@ -807,7 +859,8 @@ export const register: Register = (on) => {
   });
 
   // The run of a fork this module spawned ending, which closes the turn Leaf keeps
-  // for it; any other agent's ends with nothing for Leaf to do.
+  // for it; any other agent's ends with nothing for Leaf to do. A main-loop turn
+  // ending tells Leaf again of each fork's end it hasn't heard of yet (`endForks`).
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) {
@@ -818,21 +871,15 @@ export const register: Register = (on) => {
         if (spawning > 0) endedEarly.set(agentId, run);
         return completed;
       }
-      await changeForks($, ({ [agentId]: _ended, ...forks }) => forks);
-      const session = await sessionOf($);
-      const now = await $.clock.now();
-      void forkStep($, session, {
-        ended: { agent: agentId, turn: fork.turn, ...run },
-        elapsed_ms: now - fork.started,
-      }).catch((error) =>
-        $.ui.log(`Leaf: agent ${agentId}'s turn could not end: ${error}`, {
-          to: "debug",
-        }),
-      );
+      if (fork.ended !== undefined) return completed;
+      const ended = { ...fork, ended: run };
+      await changeForks($, (forks) => ({ ...forks, [agentId]: ended }));
+      void endFork($, agentId, ended);
       return completed;
     }
     const session = await sessionOf($);
     follow($, session);
+    void endForks($);
     // Only a turn the model answered: an interrupted one has no reply to read.
     // Leaf, not the band, says whether the session holds a page: the band may not
     // yet list one the turn's last command claimed, and `--if-claimed` answers a

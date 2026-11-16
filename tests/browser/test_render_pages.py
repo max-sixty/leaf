@@ -16,9 +16,11 @@ from interact_support import (
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    SEAT,
     SEATED_OBLIGATION_LAYER,
     SEATED_OBLIGATION_WIDGETS,
     live_url,
+    open_seat_box,
 )
 from render_cases_layout import (
     MARK,
@@ -378,7 +380,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
 def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     browser, serve, draft
 ):
-    """A rejected inline root gives the authored seat and its focused editor back."""
+    """A rejected inline root gives the widget's seat and the focused comment box in it
+    back."""
     url = serve(
         leaf_page(
             "Inline rollback",
@@ -388,8 +391,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     page = open_page(browser, live_url(url))
-    seat = page.locator("#proposal > .lf-thread-seat")
-    composer = seat.locator(":scope > .lf-say leaf-text")
+    seat, composer = open_seat_box(page, "#proposal")
     words = "keep this first message" if draft else ""
     write(composer, words)
     composer.evaluate(
@@ -449,9 +451,9 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     nudge(serve.page_dir)
     told(page)
     expect(inline.locator(".lf-msg-body")).to_have_text("candidate root")
-    expect(composer).to_have_count(1 if draft else 0)
-    if draft:
-        expect(composer).to_have_js_property("value", words)
+    # The box the user opened is theirs until they put it away, words in it or not.
+    expect(composer).to_be_visible()
+    expect(composer).to_have_js_property("value", words)
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -475,9 +477,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    thread = page.locator(
-        f'#proposal > .lf-thread-seat > [data-lf-thread="{root["id"]}"]'
-    )
+    thread = page.locator(f'#proposal > {SEAT} > [data-lf-thread="{root["id"]}"]')
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
     write(reply, "keep this inline reply")
     reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
@@ -925,7 +925,7 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
                   .map(([, id]) => ({diagram, attribute: attr.name, id}));
               })));
           const probe = document.createElement('i');
-          probe.style.cssText = 'font-family:var(--sans);position:fixed;visibility:hidden';
+          probe.style.cssText = 'font-family:var(--lf-sans);position:fixed;visibility:hidden';
           document.body.append(probe);
           const expectedFont = getComputedStyle(probe).fontFamily;
           probe.remove();
@@ -1059,7 +1059,7 @@ def test_a_diagram_takes_the_room_and_follows_the_scheme_it_is_read_in(
         expected = page.evaluate(
             """() => {
               const probe = document.createElement('i');
-              probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
+              probe.style.cssText = 'color:color-mix(in srgb, var(--lf-accent) 10%, var(--lf-paper))';
               document.body.append(probe);
               const color = getComputedStyle(probe).color;
               probe.remove();
@@ -1828,7 +1828,7 @@ def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
                 "<dd><strong>0.42%</strong></dd><small>Baseline 0.31%</small></dl></div>",
                 head="""<style>
 #custom-metrics { display: grid; grid-template-columns: repeat(2, 1fr); }
-#custom-metrics .metric { padding: 12px; background: var(--card); }
+#custom-metrics .metric { padding: 12px; background: var(--lf-card); }
 #custom-metrics .number { font-size: 29px; }
 </style>""",
             )
@@ -2040,7 +2040,7 @@ def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
     request, serve, layout, engine
 ):
     """A page may state its column in any unit, and the Layout resolves it on the column
-    (base.css, `--col`), so every block that breaks out of the column reaches the same
+    (base.css, `--lf-col`), so every block that breaks out of the column reaches the same
     edges whatever its own font. Resolved in each block's font instead, `2em` of gutter
     and `50ch` of column put a block in a small monospace font at other edges than its
     neighbours, and on a sidebar page past the window's edge."""
@@ -2059,7 +2059,7 @@ def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
     source = leaf_page(
         "Font units",
         body,
-        head="<style>:root { --col: 50ch; --col-pad: 2em; }</style>",
+        head="<style>:root { --lf-col: 50ch; --lf-col-pad: 2em; }</style>",
         layout=layout,
     )
     page = open_page(browser, serve(source))
@@ -2945,7 +2945,7 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
 
 
 def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
-    """A page sizes a sidebar page's `aside` with `--aside` (page-layout.md, "A sidebar
+    """A page sizes a sidebar page's `aside` with `--lf-aside` (page-layout.md, "A sidebar
     page"): beside the body it stands that wide and the body takes the rest of the row,
     and where the body's base no longer fits beside it the two stack, each across the
     row. Authors otherwise read the Layout's flex shares to find a rule to override."""
@@ -2954,7 +2954,7 @@ def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
         "<header><h1>Review</h1></header>"
         "<aside id='track'><div class='layout-track'><p>Summary and contents.</p></div></aside>"
         "<div id='body'>" + "<p>Body paragraph. " * 40 + "</p></div>",
-        head="<style>main { --aside: 16rem; }</style>",
+        head="<style>main { --lf-aside: 16rem; }</style>",
         layout="sidebar",
     )
     page = open_page(browser, serve(source))
@@ -3040,7 +3040,7 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(
         + '</div></aside><div id="body">'
         + "<p>Body paragraph.</p>" * 100
         + '</div><footer id="foot">Reviewed.</footer>',
-        head=f"<style>main {{ --aside:{aside} }}</style>",
+        head=f"<style>main {{ --lf-aside:{aside} }}</style>",
         layout="sidebar",
     )
     page = open_page(browser, serve(source))

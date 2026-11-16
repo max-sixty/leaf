@@ -330,7 +330,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
     its ordinary stamp door and HTTP delivery. Earlier executable resources retain
     their bytes, and a competing preview edit is refused until reconciled.
     """
-    from leaf.files import latest_revision, revision_path
+    from leaf.files import latest_revision
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -352,7 +352,6 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
                     "required": ["id"],
                     "additionalProperties": False,
                     "x-content": "empty",
-                    "x-upgrade": True,
                 }
             }
         )
@@ -382,19 +381,15 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         def at(path):
             return fetch(urlsplit(url)._replace(path=path).geturl(), token=None)
 
-        def resource(revision):
-            # Beneath the runtime the preview's server runs, which its document names.
+        def resource():
+            # Beneath the address the live document names for its resources.
             document = at("/")[1].decode()
-            match = re.search(r'data-lf-runtime-identity="([0-9a-f]+)"', document)
+            match = re.search(r'data-lf-entry="([^"]+)/leaf\.js"', document)
             assert match is not None
-            runtime = match[1]
-            return (
-                f"/revisions/{revision_path(page, revision).stem}/{runtime}"
-                "/page/widgets/lf-reading.js"
-            )
+            return f"{match[1]}/page/widgets/lf-reading.js"
 
         first = latest_revision(page)
-        old_resource = resource(first)
+        old_resource = resource()
         assert at(old_resource) == (200, original)
 
         status, body = fetch(
@@ -417,7 +412,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
         assert second is not None and first is not None
         assert second > first
         assert at("/")[0] == 200
-        assert at(resource(second)) == (200, revised)
+        assert at(resource()) == (200, revised)
         assert at(old_resource) == (200, original)
         assert (page / "events.jsonl").read_bytes().startswith(before)
         assert read_interactions(page, types=("run_context",)) == contexts

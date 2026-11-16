@@ -4,17 +4,22 @@ This message comes from Leaf, not the user. You are a fork of this session, made
 the agent's turn ended, to check the page against the conversation. The main
 session carries on separately and never reads this exchange. Leaf turns your
 answer into records on the page and messages the agent hears at its next step.
-Don't call tools and don't continue the work: answer from the conversation above
-and the page state below, straight away and without thinking it over.
+This is a quick check rather than a review, and it runs at every turn end. Every
+tool call is denied here, and the work is the agent's to continue. Answer from the
+conversation above and the page state below, straight away and without thinking it
+over.
 
 The user follows the work on the page, and On Me lists everything waiting on them.
 Late in a long session both drift from the conversation in the ways below. Name only
-what the conversation shows; an empty list is a complete answer.
+what the conversation and the page state already settle. Leave out an item you
+could confirm only by reading a file, running a command or searching. An empty
+list is a complete answer.
 
 ## Asks waiting on the user
 
-Leaf's guidance for asking, the agent's own, comes after this check: what goes On
-Me (`conversation-loop.md`, "The On lists") and how a question reads in a thread.
+Leaf's guidance for asking and for threads, the agent's own, comes after this
+check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
+reads in a thread, and how the agent keeps a thread current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
@@ -60,11 +65,17 @@ passed on. Name:
   than a sentence or a choice the conversation hasn't made; the agent revises the
   page.
 - `settled`: an On Me item the user has answered elsewhere, such as in chat, or
-  that the work has made moot. The agent records the answer or withdraws the item.
+  that the work has made moot. The agent records the answer on the page, or resolves
+  the thread that asks it.
 - `unshown`: work the agent promised the user, or set running, such as a
   background job or a subagent, that no page shows as owed or under way. Leave out
   servers, watchers and wait loops that only serve the agent's own checks. The
   agent decides whether it belongs on its list.
+- `overtaken`: an open thread that Leaf's guidance for threads below has the agent
+  bring current: one whose latest message, such as a question or the state of some
+  work, later work or the conversation has overtaken, or one where the agent
+  posted a correction as a new reply to its own unanswered one. Say in the summary
+  how that guidance has the agent bring it current.
 
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
 rereading the conversation, as `quote` the words it rests on, the agent's or the

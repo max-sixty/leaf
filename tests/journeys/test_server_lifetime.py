@@ -221,7 +221,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()
-    (project_layer / "overrides.css").write_text(":root { --accent: red; }\n")
+    (project_layer / "overrides.css").write_text(":root { --lf-accent: red; }\n")
     revendored = CliRunner().invoke(
         cli_model.cli,
         [
@@ -441,10 +441,11 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 
     refused = start_server_command(page_dir, "--host", "devbox.corp.example")
     assert refused.returncode != 0
-    assert "already serving at" in refused.stderr
-    assert "server stop" in refused.stderr
-    # Nothing on stdout, so a caller reading the URL there reads no URL.
-    assert not refused.stdout.strip()
+    said = json.loads(refused.stdout)
+    assert "already serving at" in said["error"]
+    assert "server stop" in said["error"]
+    # A refusal, so a caller reading the URL there reads no URL.
+    assert "url" not in said
     assert service_model.page_claim(page_dir) is None
 
 

@@ -13,9 +13,9 @@ carries the records, so a command that reports it reads them from it. So does ev
 note a command gives beside its result, such as why a `leaf wait` ended. Each is
 produced where it is detected, the browser probes and sensors included, which return
 records rather than sentences, and its words are written here and nowhere else. A
-command prints `finding.json()`, its words as `text`, in its result or as a note on
-stderr (`note`), as the event door's refusal answer carries it, and a failing test
-prints the words; every
+command prints `finding.json()`, its words as `text`, in its result's `findings`
+(`note`), as the event door's refusal answer carries it, and a failing test prints
+the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -138,10 +138,44 @@ def _json(value) -> str:
     return json_value(value)
 
 
+# What the running command has noted for the record it prints (`hold`), or None
+# where no record will carry a note.
+_held: list[Finding] | None = None
+
+
+def hold() -> None:
+    """Keep what the running command notes for the record it prints on stdout
+    (`with_held`), from now until that record is printed."""
+    global _held
+    _held = []
+
+
+def release() -> list[Finding]:
+    """Stop keeping notes, so each later one prints on stderr, and return those
+    kept so far."""
+    global _held
+    held, _held = _held or [], None
+    return held
+
+
+def with_held(record: dict) -> dict:
+    """`record` with what the command has noted added to its `findings`, as the
+    command prints it on stdout (`cli`). A note after this prints on stderr, since no
+    record is left to carry it, as one noted by a process that prints no record,
+    such as a hook, a stream or a server, does."""
+    if not (held := release()):
+        return record
+    return record | {
+        "findings": [*record.get("findings", []), *(f.json() for f in held)]
+    }
+
+
 def note(*found: Finding) -> None:
-    """Say each finding beside a command's result, as one JSON line on stderr
-    (`cli`), after whatever the result has printed."""
-    sys.stdout.flush()
+    """Say each finding beside a command's result: in the `findings` of the record
+    it prints (`with_held`), or as a JSON line on stderr where none will print."""
+    if _held is not None:
+        _held.extend(found)
+        return
     for finding in found:
         print(
             json.dumps(finding.json(), ensure_ascii=False), file=sys.stderr, flush=True
@@ -186,8 +220,8 @@ def _fork_holds_thread(holder: dict, answers: bool) -> str:
         else f"{fork} holds this thread; this command acted as the main session"
         " beside it"
     ) + (
-        " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
-        " that begins with `leaf`)"
+        " (a fork's `leaf` command acts as the fork only where it begins with"
+        " `leaf --turn` and the turn Leaf gave the fork)"
     )
 
 
@@ -617,6 +651,11 @@ _TEXT = {
         f"the browser probe module failed: {v['error']}"
         + (" — " + _explained(v["console"]) if v.get("console") else "")
     ),
+    "reading-overran": lambda at, v: (
+        f"the render check gave up on this version after {v['seconds'] // 60} minutes"
+        " without finishing a reading of it; a page script that never stops, such as"
+        " a loop that starts after load, keeps a reading running"
+    ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
@@ -664,10 +703,6 @@ _TEXT = {
     "verbatim": _verbatim,
     "silent-word": lambda at, v: (
         f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
-    ),
-    "missing-thread-seat": lambda at, v: (
-        f"{at} declares x-thread-seat but rendered {v['hosts']} matching hosts; its"
-        " module must place exactly one threadBox"
     ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
@@ -1111,7 +1146,7 @@ _TEXT = {
     ),
     "unpointable-wide": lambda at, v: (
         "unpointable — a comment aimed at a block with no id lands on the whole of"
-        f" the section named: {_blocks(v)}; give each block its own id"
+        f" the element named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1220,15 +1255,8 @@ _TEXT = {
     "invalid-extensions": _declared(
         lambda v: f"registry extensions are invalid: {v['reason']}"
     ),
-    "example-data": _declared(lambda v: f"x-example-data is invalid: {v['reason']}"),
     "invalid-example": _declared(
         lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
-    ),
-    "missing-module": _declared(
-        lambda v: (
-            "is upgraded but its module is missing; expected"
-            f" {v['expected'][0]} or {v['expected'][1]}"
-        )
     ),
     "markdown-needs-data": _declared(
         lambda v: "block Markdown requires x-content: data"
@@ -1247,8 +1275,19 @@ _TEXT = {
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
     ),
-    "needs-upgrade": _declared(
-        lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
+    "unnamed-module": _declared(
+        lambda v: (
+            "no declared tag has the name of "
+            + ", ".join(v["modules"])
+            + "; a page widget's module is page/widgets/<tag>.js, and a helper"
+            " module stands elsewhere under page/"
+        )
+    ),
+    "needs-module": _declared(
+        lambda v: (
+            f"declares {', '.join(v['keys'])}, which a module provides, and has"
+            f" none at {v['module']}"
+        )
     ),
     "unknown-declarations": _declared(
         lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
@@ -1288,19 +1327,17 @@ _TEXT = {
             " be declared a string"
         )
     ),
-    "measured-input": _declared(
-        lambda v: f"x-measured input `{v['input']}` is not one of its x-data inputs"
-    ),
     "measured-source": _declared(
         lambda v: (
-            f"x-measured input `{v['input']}` source attribute `{v['attr']}`"
-            " must be required"
+            f"x-data input `{v['input']}` declares `measured`, so it needs a"
+            " required `source` attribute"
+            + (f", which `{v['attr']}` is not" if v["attr"] else "")
         )
     ),
     "measured-run": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` must be required and"
-            " declare a nonempty string"
+            f"x-data input `{v['input']}` names `{v['attr']}` as `measured`:"
+            " that attribute must be required and declare a nonempty string"
         )
     ),
     "refers-unknown-member": _declared(
@@ -1330,12 +1367,6 @@ _TEXT = {
             " for their anchor"
         )
     ),
-    "visual-upgrade": _declared(
-        lambda v: (
-            "declares addressable visual parts but has no upgraded handler to"
-            " resolve them"
-        )
-    ),
     # Its conditions, read against its own attributes.
     "predicate-attribute": _declared(
         lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
@@ -1347,12 +1378,6 @@ _TEXT = {
             f" {v['reason']}",
         )
     ),
-    "seat-written": _declared(
-        lambda v: (
-            "x-thread-seat predicate attributes are authored and static, but"
-            f" {_json(v['attrs'])} are written by value records"
-        )
-    ),
     "binding-written": _declared(
         lambda v: (
             "x-data binding attributes are authored, but"
@@ -1361,7 +1386,7 @@ _TEXT = {
     ),
     "run-written": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` is an authored source"
+            f"x-data `measured` attribute `{v['attr']}` is an authored source"
             " receipt, but is written by a value record"
         )
     ),
@@ -1577,8 +1602,11 @@ _TEXT = {
         f"{at} attribute `{v['attribute']}` names unknown data contract"
         f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
-    "withdrawn-as": _declared(
-        lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
+    "withdraws-outcome": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` declares `withdraws: {v['outcome']}`,"
+            " which is not a value of its `outcome` field"
+        )
     ),
     "retired-when": _declared(
         lambda v: (
@@ -1833,8 +1861,8 @@ _TEXT = {
         f"datum anchor source {v['source']!r} has never been supplied to this page"
     ),
     "hold-target": lambda at, v: (
-        "comment holds must name its exact-section anchor on a matching x-thread-seat"
-        " hold target"
+        "comment holds must name the widget on the page that its anchor names, with"
+        " no passage, datum or part"
     ),
     "visual-with-passage": lambda at, v: (
         f"visual anchor {v['visual']!r} names a box rather than a passage, so it"
@@ -1868,6 +1896,12 @@ _TEXT = {
     ),
     "summary-order": lambda at, v: (
         "summary must cover at least two messages in thread order"
+    ),
+    "summary-gap": lambda at, v: (
+        "summary would leave messages unsummarized above a summary, and only the"
+        " thread's opening message may stay there; summarize"
+        f" --from {v['take_from']!r} --through {v['take_through']!r}, with prose that"
+        " covers the added messages too"
     ),
     "reanchor-thread": lambda at, v: "reanchor needs an open anchored thread",
     "reanchor-section": lambda at, v: (
@@ -1922,20 +1956,21 @@ _TEXT = {
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task create` gave you"
     ),
-    "widget-obligation": lambda at, v: (
-        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
-    ),
-    "ended-obligation": lambda at, v: (
-        f"obligation {v['todo']!r} is already {v['status']}"
+    "obligation-end": lambda at, v: (
+        f"{v['todo']!r} is the user's to answer, not a to-do; "
+        + (
+            "once they answer it elsewhere or it no longer applies, resolve its thread"
+            f" with `leaf thread resolve <page> {v['message']}`, after a reply saying"
+            " how if the thread should record it"
+            if v["message"]
+            else "record their answer in the widget's state, or withdraw the widget, in"
+            " a revision"
+        )
     ),
     "unasked-obligation": lambda at, v: (
         f"no message in this thread asks the question {v['question']!r}; --obligation"
         " takes an id from the delivery's `settled` or `leaf page state`, and without"
         " an id it asks a new question"
-    ),
-    "failed-question": lambda at, v: (
-        "a question asked in words ends `done` when the user answered it elsewhere,"
-        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (
@@ -1988,6 +2023,14 @@ _TEXT = {
     "stopped-during-init": lambda at, v: (
         f"{v['page']}'s server was stopped while `page init` held it down, so it"
         " stays stopped."
+    ),
+    # `page check`'s advice on a page whose live server runs another Leaf
+    # (`server.another_leaf_serving`).
+    "another-leaf-serving": lambda at, v: (
+        f"{v['page']}'s server runs Leaf {v['server']}, not this Leaf"
+        f" ({v['checked']}), so the user's tab may not draw what this Leaf checked;"
+        f" restart it with `leaf server stop {v['page']}` then"
+        f" `leaf server start {v['page']}`"
     ),
     # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (

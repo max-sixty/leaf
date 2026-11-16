@@ -68,13 +68,13 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-empty')")
 
     # A revision newly declaring an empty property or a `var()` shorthand puts it on.
-    page.evaluate("document.body.style.borderTop = '2px solid var(--ink)'")
+    page.evaluate("document.body.style.borderTop = '2px solid var(--lf-ink)'")
     (serve.page_dir / "index.html").write_text(
         LIVE_V2.replace(
             "<title>Live second</title>", "<title>Live more</title>"
         ).replace(
             empty,
-            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink);"
+            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--lf-ink);"
             " min-width: calc(1px + 1px",
         )
     )
@@ -890,7 +890,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     browser, serve
 ):
     """A tab set's module builds its strip beside the panels and reads only their labels
-    (`x-patch: members`), so a revision that rewrites a sentence in one tab edits that
+    (`lfPatch`), so a revision that rewrites a sentence in one tab edits that
     sentence: the tab set, the tab the user has open and the question in the other tab
     are the elements they were. A revision that adds a tab changes what the strip was
     built from, and the set is rebuilt with a tab for it."""
@@ -939,6 +939,55 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.get_by_role("tab")).to_have_count(3)
     page.get_by_role("tab", name="Notes").click()
     expect(page.locator("#tp-notes")).to_be_visible()
+
+
+DRAWN_DATA = """customElements.define('lf-drawn-data', class extends HTMLElement {
+ static lfPatch = 'members';
+ connectedCallback() {
+  if (this.querySelector('output')) return;
+  const drawn = document.createElement('output');
+  drawn.textContent = this.querySelector('pre').textContent;
+  this.append(drawn);
+ }
+});"""
+
+
+def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serve):
+    """A widget that draws its content itself (`x-content: data`) reads the text a
+    revision edits, so the revision replaces it and the replacement draws the new text,
+    whatever its class declares as `lfPatch`. Edited in place, its `<pre>` held the new
+    text beside a drawing of the old."""
+
+    def source(text):
+        return leaf_page(
+            "Drawn data",
+            f'<h1>Drawn data</h1><lf-drawn-data id="dd"><pre>{text}</pre></lf-drawn-data>',
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("one"),
+                layer_registry={
+                    "lf-drawn-data": {
+                        "description": "Text its module draws once, at upgrade.",
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                        "x-content": "data",
+                    }
+                },
+                layer_widgets={"lf-drawn-data.js": DRAWN_DATA},
+            )
+        ),
+    )
+    expect(page.locator("#dd output")).to_have_text("one")
+
+    stamp_page(serve.page_dir, source("two"), "new data")
+    wait_for_revision(page, 2)
+    expect(page.locator("#dd output")).to_have_text("two")
 
 
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])
@@ -1062,7 +1111,8 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_attribute("aria-label", "On Me")
+    # With nothing on the user, the door names the comment they are writing.
+    expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1093,13 +1143,17 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     # The row offers the latest, without a press that would end the hold.
     expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me, 1 draft unsent"
+    )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me: 1, 1 draft unsent"
+    )
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):

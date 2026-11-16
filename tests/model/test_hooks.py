@@ -1505,10 +1505,10 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
 
 
 def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
-    """A compaction can drop the leaf skill, whose rules, such as putting every
-    question for the user on On Me, the agent follows while it holds a page. The
-    SessionStart after one names the skill to read again; no other start or prompt
-    does."""
+    """A compaction removes the Leaf instructions the agent had read, whose rules,
+    such as putting every question for the user on On Me, it follows while it holds
+    a page. The SessionStart after one names the skill to read again; no other start
+    or prompt does."""
 
     def start_context(source: str) -> str:
         hooks_model.cmd_hook(
@@ -1551,8 +1551,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         result = CliRunner().invoke(cli_model.cli, ["page", "close", str(page)])
         return {
             "exit": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": said(result.stderr),
+            "stdout": said(result.stdout),
         }
 
     # The turn ends over the page, and Leaf watches it from here.

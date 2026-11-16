@@ -16,18 +16,13 @@
  * capture is shown; this module owns only geometry, labels and gestures. Times are
  * milliseconds from the recording's origin.
  */
+import { html, keyed, nothing, render, repeat } from "/vendor/lit.js";
 import {
   setScroll,
-  html,
-  keyed,
-  nothing,
-  render,
-  repeat,
   frameFor,
   sizeObserver,
   whileConnected,
   layoutPx,
-  keeps,
   pressIsKeyboardActivation,
   assignRows,
   axisTicks,
@@ -102,7 +97,6 @@ export class RecordingTimeline {
   /** @type {number | null} */
   #expectedScroll = null;
   #queueRuler;
-  #queueOverview;
   #observer;
   #width = 0;
   // The time at the window's left edge. Width changes rescale the track; this
@@ -125,8 +119,6 @@ export class RecordingTimeline {
     this.#options = options;
     this.#observer = sizeObserver(() => this.#resized());
     this.#queueRuler = frameFor(host, () => this.#drawRuler());
-    // Several geometry steps can run in one task; the overview reads their end.
-    this.#queueOverview = frameFor(host, () => this.#drawOverview());
     whileConnected(host, () => {
       this.#observeScroller();
       return () => this.#observer.disconnect();
@@ -317,9 +309,8 @@ export class RecordingTimeline {
   // back lines equal to those the first drawing took out.
   /** @param {number | null} [left] */
   #applyZoom(left = null) {
-    const track = this.#part(".lf-trace-track");
-    if (!track) return;
-    track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    if (!this.#part(".lf-trace-track")) return;
+    this.#host.style.setProperty("--lf-trace-zoom", String(this.#zoom));
     if (left !== null) this.#scrollTo(left);
     this.#layoutLabels();
   }
@@ -666,6 +657,7 @@ export class RecordingTimeline {
         <div
           class="lf-trace-overview"
           title="Whole recording; drag to move the zoomed window"
+          ?data-lf-zoomed=${this.#zoom > 1}
           @pointerdown=${(/** @type {PointerEvent} */ event) => this.#overviewPress(event)}
         >
           <span class="lf-trace-overview-window"></span>
@@ -673,34 +665,14 @@ export class RecordingTimeline {
         </div>`,
       this.#host,
     );
-    const track = this.#part(".lf-trace-track");
-    track?.style.setProperty("--lf-trace-zoom", String(this.#zoom));
-    track?.style.setProperty("--lf-axis-edge", `${EDGE}px`);
+    // The track's width and the overview window's size follow the zoom (defaults.css).
+    this.#host.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    this.#part(".lf-trace-track")?.style.setProperty("--lf-axis-edge", `${EDGE}px`);
     this.#part(".lf-trace-playhead")?.style.setProperty(
       "--lf-axis-at",
       String(this.#fraction(this.#time)),
     );
     this.#drawRuler();
-  }
-
-  // The overview shows the visible window within the whole recording. Its geometry is
-  // read whole before either edge is written: reading the scroller between the two
-  // writes laid out a window with the new start and the old size, which ran past the
-  // overview's end and scrolled the page under the user's press.
-  #drawOverview() {
-    const scroller = this.scroller;
-    const overview = this.#part(".lf-trace-overview");
-    if (!scroller?.scrollWidth || !overview) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scroller;
-    overview.style.setProperty(
-      "--lf-trace-window-start",
-      String(scrollLeft / scrollWidth),
-    );
-    overview.style.setProperty(
-      "--lf-trace-window-size",
-      String(clientWidth / scrollWidth),
-    );
-    keeps(overview, "data-lf-zoomed", this.#zoom > 1 ? "" : null);
   }
 
   /** @param {PointerEvent} event */
@@ -716,7 +688,6 @@ export class RecordingTimeline {
       const fraction = (moved.clientX - box.left) / box.width;
       this.#options.onUserPan?.();
       this.#scrollTo(fraction * scroller.scrollWidth - scroller.clientWidth / 2);
-      this.#drawOverview();
     };
     pan(event);
     const end = () => {
@@ -732,7 +703,6 @@ export class RecordingTimeline {
   // The ruler draws only ticks near the visible window, so deep zoom stays cheap; the
   // grid below it, a line at each of their major times.
   #drawRuler() {
-    this.#queueOverview();
     const ruler = this.#part(".lf-trace-ruler");
     const grid = this.#part(".lf-trace-grid");
     const scroller = this.scroller;

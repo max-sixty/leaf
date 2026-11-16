@@ -27,7 +27,6 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "data",
-        "x-upgrade": True,
     }
     stage = {**source, "x-content": "markup", "x-shadow": True}
     url = serve(
@@ -288,7 +287,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
       const read = node => Object.fromEntries(
         properties.map(key => [key, getComputedStyle(node)[key]]));
       const reference = document.createElement('span');
-      reference.style.fontFamily = 'var(--sans)';
+      reference.style.fontFamily = 'var(--lf-sans)';
       document.body.append(reference);
       const expected = read(reference);
       reference.remove();
@@ -440,8 +439,10 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         return {cursor: cs.cursor, opacity: cs.opacity, off,
                 face: face(el), armed: off ? armed(el) : null};
       };
+      // The resting comment box stands in for the field it opens and wears that field's
+      // face, its text cursor included (annotation-chrome.css).
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '');
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
       const said = [document.querySelector('#intro > .tag'),
                     document.querySelector('#owner-fact > .tag')];
       return {

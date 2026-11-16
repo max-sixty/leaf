@@ -27,12 +27,12 @@
  * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
+import { nothing } from "/vendor/lit.js";
 import {
   failSoft,
   ensureSyntaxLanguage,
   keeps,
   LeafElement,
-  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,
@@ -525,7 +525,7 @@ function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
 const tokenHighlights = new Map();
 /** @param {{color?: string}} style */
 function tokenHighlight(style) {
-  const colour = style.color?.match(/^var\(--([\w-]+)\)$/)?.[1];
+  const colour = style.color?.match(/^var\(--lf-([\w-]+)\)$/)?.[1];
   if (!colour) return null;
   let highlight = tokenHighlights.get(colour);
   if (!highlight) {

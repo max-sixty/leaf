@@ -34,6 +34,7 @@ from render_harness import (
     PANEL,
     PREVIEW,
     RELEASE_FOCUS,
+    all_pages_offered,
     command_reference_rows,
     expect_obligations_answered,
     expect_open_threads,
@@ -295,6 +296,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     """All pages is a destination of the panel's and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ADDRESSED_PAGE))
+    all_pages_offered(page)
 
     page.keyboard.press("g")
     expect(
@@ -857,6 +859,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(page.locator(".lf-fp-version").filter(has_text="v1")).to_be_visible()
     page.locator(".lf-fp-leaf").click()
 
+    all_pages_offered(page)
     panel_control(page, "leaves", at="navigate").click()
     expect(page.locator("a.lf-fp-page")).to_contain_text("A second Leaf page")
     page.locator(".lf-fp-close").click()
@@ -924,7 +927,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -965,7 +968,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--lf-accent"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-workflow", "working")
         expect(control).to_have_css(
@@ -1004,20 +1007,22 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
     )
     expect(selected).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_css(
-        "color", token_colour(page, "--accent")
+        "color", token_colour(page, "--lf-accent")
     )
 
     interactive = sample("hover or focus")
     interactive.hover()
-    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
-    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive).to_have_css("background-color", token_colour(page, "--lf-chip"))
+    expect(interactive).to_have_css(
+        "border-top-color", token_colour(page, "--lf-accent")
+    )
     expect(page.locator(PREVIEW)).to_be_visible()
     page.mouse.move(0, 0)
     interactive.focus()
@@ -1031,7 +1036,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
     )
     expect(opened).to_have_attribute("aria-expanded", "true")
-    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
     expect(opened_result).to_be_visible()
     opened.click()
     expect(opened).to_have_attribute("aria-expanded", "false")
@@ -1505,7 +1510,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfWidgetApi())
+          (await window.__lfCheckApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )

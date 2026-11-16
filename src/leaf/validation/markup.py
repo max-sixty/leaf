@@ -1,5 +1,6 @@
 """Shared structural and authored-markup validation rules."""
 
+from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -8,8 +9,9 @@ from leaf.passages import markdown_dialect
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
-    POINTABLE_TAGS,
+    SECTION_TAGS,
     SECTIONING_TAGS,
+    WHOLE_BLOCK_TAGS,
     SourceDocument,
     allocation_valid,
     links_with_rel,
@@ -76,23 +78,35 @@ def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
 
     Prose and headings are named only when no enclosing id can receive the aim.
     A section or article is named outright; other whole-block targets below one
-    only where their aim escapes to a sectioning element. The ancestor's tag
-    stands in for tightness — a figure around a table, a card around a pre — which
-    no static read can measure, so a page-wide <div id> also passes for aim enough and the advice
-    stays quiet. Undercounting is the right error for advice: a miss costs one
-    aim landing wide, noise costs the register its authority.
+    where their aim lands wide. It does on a sectioning element, and on any element
+    that takes the aim of two or more of them, so a comment there can't say which
+    it is about, as one id on a table of screenshots leaves each screenshot. A
+    whole block that holds another, or anything with an id, is left to what it
+    holds: a table that only arranges its screenshots is named by them, and a
+    figure whose picture has an id needs none. An element that takes one block's
+    aim is read as tight around it — a figure around a table, a card around a pre —
+    which no static read can measure, so a page-wide <div id> around one block also
+    passes for aim enough and the advice stays quiet. Undercounting is the right
+    error for advice: a miss costs one aim landing wide, noise costs the register
+    its authority.
 
     Each reason is one finding listing its blocks in `values.elements` (tag and line,
     and for a wide aim the enclosing id), so a page with no ids reads one line of
     advice with one fix, not a line per block."""
+    blocks = [block for block in parser.authoring.bare_blocks if not block["holds"]]
+    aims = Counter(
+        block["under"] for block in blocks if block["tag"] in WHOLE_BLOCK_TAGS
+    )
     found: dict[str, list[dict]] = {}
-    for block in parser.authoring.bare_blocks:
+    for block in blocks:
         under = block["under"]
-        if block["tag"] in ("section", "article"):
+        if block["tag"] in SECTION_TAGS:
             code, extra = "unpointable-section", {}
         elif under is None:
             code, extra = "unpointable", {}
-        elif block["tag"] in POINTABLE_TAGS and under[0] in SECTIONING_TAGS:
+        elif block["tag"] in WHOLE_BLOCK_TAGS and (
+            under[0] in SECTIONING_TAGS or aims[under] > 1
+        ):
             code, extra = "unpointable-wide", {"enclosing": under[1]}
         else:
             continue

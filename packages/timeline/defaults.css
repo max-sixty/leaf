@@ -6,18 +6,18 @@
    shows them. Without the runtime they read as a plain list. */
 lf-lane {
   display: block;
-  margin-block: var(--sp-2);
+  margin-block: var(--lf-sp-2);
 }
 :is(lf-lane, lf-run)::before {
   content: attr(label);
   font-weight: 600;
 }
 lf-run > lf-lane {
-  margin-inline-start: var(--list-inset);
+  margin-inline-start: var(--lf-list-inset);
 }
 lf-event {
   display: list-item;
-  margin-inline-start: var(--list-inset);
+  margin-inline-start: var(--lf-list-inset);
 }
 lf-event::before {
   content: attr(at) " ms: " attr(label);
@@ -27,13 +27,13 @@ lf-event::before {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
-  margin-block-end: var(--sp-2);
-  font: var(--font-compact);
+  gap: var(--lf-sp-2);
+  margin-block-end: var(--lf-sp-2);
+  font: var(--lf-font-compact);
 }
 /* The position follows both buttons, so its changing width never moves them. */
 .lf-timeline-position {
-  color: var(--muted);
+  color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -45,12 +45,12 @@ lf-event::before {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   grid-template-rows: var(--lf-timeline-ruler) repeat(var(--lf-timeline-bands, 1), auto);
-  /* The labels are the drawing's references (tokens.css, `--font-status`). Each stands in
+  /* The labels are the drawing's references (tokens.css, `--lf-font-status`). Each stands in
      a row of a stated height, so its line is as tall as its words, as a mark's count
      is. */
-  font: var(--font-status);
+  font: var(--lf-font-status);
   line-height: 1;
-  color: var(--ink);
+  color: var(--lf-ink);
   user-select: none;
   /* Marks and done spans are painted backgrounds, which paper otherwise drops. */
   print-color-adjust: exact;
@@ -61,13 +61,13 @@ lf-event::before {
   grid-column: 1 / -1;
   justify-self: start;
   z-index: 2;
-  padding-block: var(--sp-3) var(--sp-1);
-  padding-inline-end: var(--sp-1);
+  padding-block: var(--lf-sp-3) var(--lf-sp-1);
+  padding-inline-end: var(--lf-sp-1);
   background: var(--lf-timeline-ground);
   white-space: nowrap;
 }
 .lf-timeline-run + .lf-timeline-run {
-  padding-block-start: var(--sp-4);
+  padding-block-start: var(--lf-sp-4);
 }
 .lf-timeline-name {
   grid-column: 1;
@@ -77,9 +77,9 @@ lf-event::before {
   block-size: calc(
     var(--lf-timeline-rows) * var(--lf-timeline-row) + var(--lf-timeline-bar)
   );
-  padding-inline-end: var(--sp-2);
+  padding-inline-end: var(--lf-sp-2);
   padding-block-end: 5px;
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--lf-rule);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -101,7 +101,7 @@ lf-event::before {
   block-size: calc(
     var(--lf-timeline-rows) * var(--lf-timeline-row) + var(--lf-timeline-bar)
   );
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--lf-rule);
 }
 /* One event's label and mark. The group spans its lane so that each part stands at
    the event's time on the axis in the lane's coordinates (controls.css,
@@ -110,13 +110,13 @@ lf-event::before {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  --lf-timeline-tone: var(--ink);
+  --lf-timeline-tone: var(--lf-ink);
 }
 .lf-timeline-event[data-lf-state="current"] {
-  --lf-timeline-tone: var(--accent);
+  --lf-timeline-tone: var(--lf-accent);
 }
 .lf-timeline-event[data-lf-state="future"] {
-  --lf-timeline-tone: var(--muted);
+  --lf-timeline-tone: var(--lf-muted);
 }
 /* Label row 0 sits nearest the bar row. Labels stand in front of the playhead on
    the chart's ground, so the line passes behind words rather than through them. A
@@ -184,7 +184,7 @@ lf-event::before {
 }
 .lf-timeline-event[data-lf-state="future"] .lf-timeline-mark[data-lf-kind="instant"] {
   background: var(--lf-timeline-ground);
-  border-color: var(--muted);
+  border-color: var(--lf-muted);
 }
 .lf-timeline-playhead {
   grid-row: 1 / -1;
@@ -197,7 +197,7 @@ lf-event::before {
   inset-block: 0;
   inline-size: 2px;
   margin-inline-start: -1px;
-  background: var(--accent);
+  background: var(--lf-accent);
 }
 /* Step changes move the retained line to its new time. The shared presentation and
  * reduced-motion guards suppress this transition when the page must appear at rest. */
@@ -209,9 +209,9 @@ lf-event::before {
 
 .lf-timeline-steps {
   list-style: none;
-  margin: var(--sp-3) 0 0;
+  margin: var(--lf-sp-3) 0 0;
   padding: 0;
-  font: var(--font-compact);
+  font: var(--lf-font-compact);
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink (`data-lf-ahead`). */

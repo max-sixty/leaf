@@ -74,6 +74,17 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  html,
+  live,
+  nothing,
+  classMap,
+  styleMap,
+  createRef,
+  ref,
+  render,
+  repeat,
+} from "/vendor/lit.js";
+import {
   alreadyShown,
   generatedElement,
   dragging,
@@ -86,25 +97,16 @@ import {
   focusDestination,
   closeNativeLayer,
   holdFocus,
-  html,
   actionTemplate,
   iconTemplate,
   inBaseLayer,
-  live,
-  nothing,
-  classMap,
-  styleMap,
   offered,
   offeredAction,
   pressIsKeyboardActivation,
-  createRef,
-  ref,
-  render,
-  repeat,
   keeps,
   keepsText,
-  layoutPx,
   LeafElement,
+  move,
   onUserInput,
   signal,
   quoted,
@@ -278,16 +280,6 @@ function streamOrigins(trace) {
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
-// During playback a plain image shows each capture in time; the inspectable
-// Viewer surface takes over again when playback stops. The canvas is the part;
-// the Viewer image names it to assistive tech.
-const playbackLayer = () =>
-  Object.assign(el("img", "lf-trace-playback-image"), {
-    alt: "",
-    ariaHidden: "true",
-    hidden: true,
-  });
-
 // A command row owns each transport button's activation and availability.
 /** @param {import("lit/directives/ref.js").Ref<HTMLButtonElement>} target @param {string} label @param {string} action @param {boolean} disabled */
 const transport = (target, label, action, disabled) =>
@@ -527,7 +519,14 @@ export class Trace extends LeafElement {
   #missingImage = el("p", "lf-trace-missing-image");
   #inputBadge = Object.assign(el("span", "lf-trace-input-badge"), { hidden: true });
   #inputPoint = Object.assign(el("span", "lf-trace-input-point"), { hidden: true });
-  #playbackImage = playbackLayer();
+  // During playback a plain image shows each capture in time; the inspectable
+  // Viewer surface takes over again when playback stops. The canvas is the part;
+  // the Viewer image names it to assistive tech.
+  #playbackImage = Object.assign(el("img", "lf-trace-playback-image"), {
+    alt: "",
+    ariaHidden: "true",
+    hidden: true,
+  });
   #reviewGesture = (/** @type {Event} */ event) => {
     const path = event.composedPath();
     // Native scroller input belongs to the inspector; widget commands own
@@ -583,7 +582,6 @@ export class Trace extends LeafElement {
     this.#picture.resize();
     const image = this.#committedPicture.image;
     this.#applyPictureView(this.#picture, image);
-    this.#placePlayback();
     this.#imageZoom();
     this.#parts.update();
   };
@@ -1676,8 +1674,11 @@ export class Trace extends LeafElement {
         const layer = this.#playbackImage;
         keeps(layer, "src", loader.src);
         this.#playbackId = image.id;
-        this.#placePlayback();
-        keepsHidden(this.#playbackImage, false);
+        // The frame stands inside the committed Viewer's canvas, over its image at
+        // the same place and scale (defaults.css, `--lf-trace-capture`), so a hit on
+        // it reaches the canvas part.
+        move(this.#imageSurface(this.#pictureId).canvas, layer);
+        keepsHidden(layer, false);
         this.#draw();
       },
       () => {
@@ -1685,39 +1686,6 @@ export class Trace extends LeafElement {
       },
     );
     return true;
-  }
-  // The playback image stands inside the committed Viewer's canvas, over its
-  // image at the same place and scale, so a hit on it reaches the canvas part.
-  #placePlayback() {
-    if (this.#playbackId === null || !this.#picture?.viewed) return;
-    const canvas = this.#imageSurface(this.#pictureId).canvas;
-    const raster = this.#picture.image.getBoundingClientRect();
-    const host = canvas.getBoundingClientRect();
-    /** @type {(["left" | "top" | "width" | "height", number])[]} */
-    const dimensions = [
-      ["left", raster.left - host.left - canvas.clientLeft],
-      ["top", raster.top - host.top - canvas.clientTop],
-      ["width", raster.width],
-      ["height", raster.height],
-    ];
-    const place = dimensions.map(([name, value]) => ({ name, value: layoutPx(value) }));
-    let layer = this.#playbackImage;
-    // A new canvas, or a hidden image returning elsewhere, gets a new element:
-    // it appears where it stands rather than travelling there.
-    if (
-      layer.parentElement !== canvas ||
-      (layer.hidden && place.some(({ name, value }) => layer.style[name] !== value))
-    ) {
-      const fresh = Object.assign(playbackLayer(), {
-        hidden: layer.hidden,
-        src: layer.src,
-      });
-      layer.remove();
-      canvas.append(fresh);
-      this.#playbackImage = layer = fresh;
-    }
-    for (const { name, value } of place)
-      if (layer.style[name] !== value) layer.style[name] = value;
   }
   #hidePlayback() {
     this.#playbackWanted = null;
@@ -1895,15 +1863,11 @@ export class Trace extends LeafElement {
           },
           moved: () => {
             this.#rememberPictureView(pending.viewer);
-            this.#placePlayback();
-            this.#drawInput();
             this.#parts.update();
           },
           zoomed: () => {
             this.#rememberPictureView(pending.viewer);
-            this.#placePlayback();
             this.#imageZoom();
-            this.#drawInput();
             this.#parts.update();
           },
         });
@@ -1981,9 +1945,6 @@ export class Trace extends LeafElement {
   }
 
   #drawInput() {
-    // A restored view adjusts zoom and pan together. Viewer emits each
-    // intermediate pose synchronously; draw only after that view is complete.
-    if (this.#applyingPictureView) return;
     const input = this.#currentInput();
     const image = this.#shownImage();
     const imageReady = image && this.#picture?.viewed;
@@ -2015,7 +1976,8 @@ export class Trace extends LeafElement {
         ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input?.selector ? ` · ${action.input?.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
         : null,
     );
-    // The point marks where the input lands in the shown capture's viewport.
+    // The point marks where the input lands in the shown capture's viewport, which
+    // the stylesheet places on the capture as the reader pans and zooms it.
     const coordinate = action?.input?.point;
     const viewport = action?.input?.viewport;
     const visible =
@@ -2026,15 +1988,8 @@ export class Trace extends LeafElement {
       this.#picture?.viewed;
     keepsHidden(this.#inputPoint, !visible);
     if (visible) {
-      const raster = this.#picture.image.getBoundingClientRect();
-      const host = this.#nodes.viewport.getBoundingClientRect();
-      // A capture scales the viewport by its width; a screencast frame may also
-      // crop the viewport's foot, so its height says nothing of the scale.
-      const scale = raster.width / viewport.width;
-      const left = layoutPx(raster.left - host.left + coordinate.x * scale);
-      const top = layoutPx(raster.top - host.top + coordinate.y * scale);
-      if (this.#inputPoint.style.left !== left) this.#inputPoint.style.left = left;
-      if (this.#inputPoint.style.top !== top) this.#inputPoint.style.top = top;
+      keeps(this.#inputPoint, "data-lf-x", String(coordinate.x / viewport.width));
+      keeps(this.#inputPoint, "data-lf-y", String(coordinate.y / viewport.width));
       keeps(this.#inputPoint, "title", this.#inputLabel(action));
     }
   }

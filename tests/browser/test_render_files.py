@@ -133,7 +133,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
 
     page.evaluate("""() => document.querySelector('#change-theme').addEventListener('click', () => {
       const style = document.createElement('style');
-      style.textContent = ':root { --focus-ring: 7px dashed magenta; --focus-ring-w: 7px; --syn-string: rgb(0, 85, 102); } lf-file-editor { --code-size: 30px; }';
+      style.textContent = ':root { --lf-focus-ring: 7px dashed magenta; --lf-focus-ring-w: 7px; --lf-syn-string: rgb(0, 85, 102); } lf-file-editor { --lf-code-size: 30px; }';
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
@@ -267,7 +267,7 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
         "color",
         page.evaluate("""() => {
           const probe = document.body.appendChild(document.createElement("span"));
-          probe.style.color = "var(--syn-type)";
+          probe.style.color = "var(--lf-syn-type)";
           const color = getComputedStyle(probe).color;
           probe.remove();
           return color;

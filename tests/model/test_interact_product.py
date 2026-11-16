@@ -1038,7 +1038,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert json.loads(empty.stderr)["error"] == (
+    assert json.loads(empty.stdout)["error"] == (
         "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
         " any stdin)"
     )
@@ -1140,16 +1140,16 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
         + ["--file", str(reply)],
     )
     assert both.exit_code == 2
-    assert "not both" in json.loads(both.stderr)["error"]
+    assert "not both" in json.loads(both.stdout)["error"]
     renamed = runner.invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
         input="Not the text.",
     )
     assert renamed.exit_code == 0, renamed.output
-    assert [
-        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
-    ] == ["thread_title"]
+    assert [record["kind"] for record in json.loads(renamed.stdout)["records"]] == [
+        "thread_title"
+    ]
 
     planned = runner.invoke(
         cli_model.cli,
@@ -1389,7 +1389,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             ],
         )
         assert result.exit_code == 0, result.output
-        revisions.append(json.loads(result.output))
+        [revision] = json.loads(result.output)["records"]
+        revisions.append(revision)
 
     history_result = CliRunner().invoke(
         cli_model.cli, ["page", "events", str(page_dir)]
@@ -1447,7 +1448,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
     assert foreign.exit_code == 0, foreign.output
-    replacement = json.loads(foreign.output)
+    [replacement] = json.loads(foreign.output)["records"]
     assert replacement["session"] == "worker-2"
     assert replacement["message"] == root["id"]
     before = events_model.read_events(page_dir)
@@ -1481,7 +1482,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     )
     assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert json.loads(unidentified.output)["message"] == sessionless["id"]
+    [unidentified_edit] = json.loads(unidentified.output)["records"]
+    assert unidentified_edit["message"] == sessionless["id"]
 
 
 def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
@@ -2237,7 +2239,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         ],
     )
     assert renamed.exit_code == 0, renamed.output
-    title = json.loads(renamed.output)
+    [title] = json.loads(renamed.output)["records"]
     assert (title["kind"], title["thread"], title["title"]) == (
         "thread_title",
         root["id"],

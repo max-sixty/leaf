@@ -40,8 +40,7 @@ from leaf_dev import browser as dev_browser
 
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     """A draft taller than the field shows no scrollbar, whose overlay flashed with each
-    line; its words fade at whichever edge they run past, read from the field's scroll
-    rather than a scroll timeline, which Firefox lacks."""
+    line; its words fade at whichever edge they run past."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     for line in range(30):
@@ -69,6 +68,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_harness import (
+    all_pages_offered,
     open_threads,
     panel_view,
     sending,
@@ -392,9 +392,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.clock.set_fixed_time(now)
     ticked(page)
     assert peek.inner_text() == words
-    page.evaluate(
-        "async () => (await window.__lfWidgetApi()).notice('Saved for later')"
-    )
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved for later')")
     expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 
@@ -496,10 +494,10 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
     included, and follows the page list while it stands open: a neighbour that closes leaves the count."""
     _, closing_dir = live_leaf("closing", "The closing leaf")
     page = floating(browser, serve(LONG_PAGE))
+    all_pages_offered(page)
     row = panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]')
     expect(row.locator(".lf-fp-value")).to_have_text("3")
     declare(closing_dir, "idle")
-    told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 
 
@@ -618,6 +616,7 @@ def test_all_pages_is_a_view_of_the_panel(browser, serve, other_leaf):
     page, each other one a link that opens it in a tab of its own. `g L` puts it away
     again."""
     page = floating(browser, serve(LONG_PAGE))
+    all_pages_offered(page)
     pages = page.locator(panel_view("leaves"))
     panel_menu(page, "navigate").locator('.lf-fp-item[data-lf-row="leaves"]').click()
     expect(page.locator(".lf-fp-title")).to_have_text("All pages")
@@ -669,7 +668,7 @@ def test_a_finger_reads_a_neighbouring_page_s_whole_account(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
     panel_menu(page, "navigate", touch=True).locator(
         '.lf-fp-item[data-lf-row="leaves"]'
     ).tap()

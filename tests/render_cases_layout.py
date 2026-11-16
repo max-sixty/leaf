@@ -520,7 +520,6 @@ DRAWING_CONTROL_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }
@@ -632,7 +631,7 @@ def ceiling(limit, approvals):
 # line comes first on purpose: a gate that stopped at a color's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
-# other than --pre-bg.
+# other than --lf-pre-bg.
 TINTED_CODE = """<lf-code id="tinted" language="python" hi="2"><pre>
 first = "on the block's own colour"
 second = "on the band"
@@ -664,12 +663,12 @@ SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 CODE_FAULT_PAGE = LONG_PAGE.replace(
     "</head>",
     """<style>
-#shadowed { --syn-number: #1c1b18; }
+#shadowed { --lf-syn-number: #1c1b18; }
 @media (prefers-color-scheme: light) {
-  #snippet { --syn-comment: var(--code-ink); }
-  #snippet { --syn-keyword: #8b8577; }
-  #snippet-faint-name { --syn-name: #8b8577; }
-  #tinted { --hi-tint: #6f6a60; }
+  #snippet { --lf-syn-comment: var(--lf-code-ink); }
+  #snippet { --lf-syn-keyword: #8b8577; }
+  #snippet-faint-name { --lf-syn-name: #8b8577; }
+  #tinted { --lf-hi-tint: #6f6a60; }
 }
 </style>
 </head>""",
@@ -1089,7 +1088,7 @@ def button_radius(page):
     return page.evaluate(
         """() => {
         const probe = document.createElement('span');
-        probe.style.borderRadius = 'var(--r)';
+        probe.style.borderRadius = 'var(--lf-r)';
         document.body.append(probe);
         const seen = getComputedStyle(probe).borderRadius;
         probe.remove();
@@ -1142,7 +1141,7 @@ def mark_edges(page, ident, ink, outset=None):
     padding reported 26 device pixels of "mark" on a side the mark never reached, and
     a marked code block would have counted its identifiers. What follows from that is
     the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
-    nothing else, where ±40 reached both --accent and --syn-name.
+    nothing else, where ±40 reached both --lf-accent and --lf-syn-name.
 
     Three samples a side, returned as a set rather than a majority. A majority is a
     vote for the mark being intact when part of the edge has been painted over, which
@@ -1528,20 +1527,20 @@ RING_CANDIDATES = browser_function(
 # formatting is not part of a ring's identity. Only top-level commas divide the
 # list; commas and whitespace within functions or strings keep their meaning.
 #
-# Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
-# for an outline, `--focus-shadow` for the band cast as a shadow, or the mark a box
+# Only a declaration that draws with the ring's own token is a ring rule: `--lf-focus-ring`
+# for an outline, `--lf-focus-shadow` for the band cast as a shadow, or the mark a box
 # draws round itself (`--lf-band-ink`, surfaces.css), which is the ring wherever it is
 # whole: the location ring, the proxy ring and a comment's focus state. Its brackets,
 # a gesture's mark, are never read as a ring (`bracketed`, focus_rings.js). A contour
-# written out as `2px solid var(--accent)`, such as an element mark's pointer feedback,
+# written out as `2px solid var(--lf-accent)`, such as an element mark's pointer feedback,
 # paints the same pixels and is not one.
 RING_CARRIERS = {
     "outline": ("outline", "outline-style"),
     "box-shadow": ("box-shadow",),
 }
 RING_TOKEN = {
-    "outline": re.compile(r"--(?:focus-ring|lf-band-ink)(?![\w-])"),
-    "box-shadow": re.compile(r"--focus-shadow(?![\w-])"),
+    "outline": re.compile(r"--lf-(?:focus-ring|band-ink)(?![\w-])"),
+    "box-shadow": re.compile(r"--lf-focus-shadow(?![\w-])"),
 }
 _ring_sessions = WeakKeyDictionary()
 

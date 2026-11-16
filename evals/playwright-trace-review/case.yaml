@@ -2,18 +2,23 @@
 # review widget and preserve the full viewer route. The native-video case remains
 # the guardrail for recordings whose input is a video rather than a trace index.
 # Result context was added after a real review offered no useful preset moments.
+# As an authoring case naming nothing to read, at 0e538e29d, 2 of 2 Claude Code authors
+# added the playwright package, read lf-trace's instructions through `leaf page
+# instructions --use` and passed. Now a probe given a page with its packages, it passed
+# Claude Code 2 of 2, Codex 2 of 2 at b90df8d3a2.
 description: playwright-trace-review
 metadata:
   purpose: "Author a commentable imported browser journey with the optional Playwright package."
+  page: [playwright]
   tags:
     - evidence
     - packages
 vars:
   prompt: |
-    Write a Leaf section for reviewing a browser journey recorded by Playwright.
-    The page has the playwright package selected. Its release-journey source
-    already holds an imported playwright-trace value, including a viewerUrl
-    for full diagnostic inspection. The recording has two buttons with the same
+    Write a Leaf page for reviewing a browser journey recorded by Playwright. The
+    trace is being imported into the page's `release-journey` source as a
+    playwright-trace value, including a viewerUrl for full diagnostic inspection,
+    so write the page for that source without importing it yourself. The recording has two buttons with the same
     accessible name. The user needs to step through recorded actions and images,
     comment on a saved button, and return to that exact moment from the thread.
     Two successful expectations have After targets
@@ -21,10 +26,6 @@ vars:
     (documentation is visible) and
     trace-0000000000000000000000000000000000000000000000000000000000000000-phase-api-after
     (API reference is visible).
-
-    The page directory is unavailable. Read the selected package's registry and
-    author instructions under the Leaf skill's base directory, then reply with
-    the section's HTML.
 assert:
   - type: llm-rubric
     metric: keeps-captured-evidence

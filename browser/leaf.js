@@ -325,6 +325,7 @@ async function boot() {
     aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
     pointer: pointerAt,
     designMode,
+    pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     shiftDrawings: drawingPaint.shifted,
     queueLegend: designMode.queueLegend,
@@ -415,7 +416,7 @@ async function boot() {
     compositionSurface: {
       active: () => {
         const anchor = composerOpen ? responseSurface?.fabAnchorAt() : null;
-        return anchor ? { anchor } : null;
+        return anchor ? { anchor, about: pendingAbout } : null;
       },
       node: () => fabBar,
       open: (...args) => responseSurface.commentOnTarget(...args),
@@ -441,6 +442,7 @@ async function boot() {
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
       goToObligation: (...args) => items.goToObligation(...args),
+      resumeDraft: (context) => writingResume.resumeDraft(context),
     },
     state: {
       prepareActivation: (state) => version.prepareActivation(state),
@@ -518,6 +520,8 @@ async function boot() {
       app.threadDestinations.openThreadSubject(id, options),
     showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
     annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
+    // Resume writing is built once the thread destinations it reveals in stand.
+    resumeDraft: (context) => writingResume.resumeDraft(context),
   });
   // The page's general comment box is the floating panel's field.
   const generalComment = floatingPanel.pageComment;
@@ -596,7 +600,7 @@ async function boot() {
     watchHeldDrawings: responseSurface.watchHeldDrawings,
     draftKey: responseSurface.draftKey,
     openAnchoredDrawing: (anchor, drawing) =>
-      responseSurface.openComposer(anchor, "", { carry: true, drawing }),
+      responseSurface.openComposer(anchor, "", { drawing }),
     replaceDrawing,
     setDesignMode: designMode.setActive,
     closeTargetPicker: targets.closeTargetPicker,
@@ -607,6 +611,7 @@ async function boot() {
     repaint,
   });
   regionCapture = createRegionCapture({
+    refreshCrosshair: pageGeometry.refreshCrosshair,
     closeTargetPicker: targets.closeTargetPicker,
     closeReactionMode: () => reactions.setReact(false),
     parent: chromeForeground,
@@ -672,7 +677,7 @@ async function boot() {
     hintChrome,
     openPageMap: (...args) => pageMapDialog.openPageMap(...args),
     directDestinations: () => [
-      writingResume,
+      writingResume.command,
       rewriteRestore,
       passageSelection.command,
       navigation.alignTop,

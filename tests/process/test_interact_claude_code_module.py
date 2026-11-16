@@ -585,8 +585,9 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     """With forks that do the work, a thread the line fork judges `take` goes to a
     fork the module spawns with Leaf's task, unnamed, so its agent id is the one
     address the main thread has for it, and Leaf hears which agent runs the turn it
-    opened for it. As that agent's run ends its turn closes, and the main thread
-    hears what came of the thread."""
+    opened for it, which the task names for the fork's `leaf` commands. As that
+    agent's run ends its turn closes, and the main thread hears what came of the
+    thread."""
     driven = ClaudeCode(
         spawn,
         "cc-work",
@@ -613,11 +614,13 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
     assert spawned["subagentType"] == "fork" and "name" not in spawned, spawned
     assert spawned["prompt"].startswith("<leaf-fork-work>"), spawned["prompt"]
-    wait_for(
+    turn = wait_for(
         lambda: state_model.agent_turn_of("cc-work", "agent-1"),
         bool,
         failure="Leaf never heard which agent runs the fork's turn",
     )
+    # The fork's task names the turn its `leaf` commands act in.
+    assert f"`leaf --turn {turn} thread reply …`" in spawned["prompt"]
 
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
@@ -691,7 +694,7 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
     """A fork the module spawned whose agent Leaf couldn't record, as when Leaf's
     process fails, ends the turn Leaf opened for it, so the main thread gets the
     thread back at once rather than once the turn lapses; the end names the agent,
-    which runs on, so its later `leaf` commands are refused as an ended fork's."""
+    which runs on, so the main thread hears the id that reaches it."""
     driven = ClaudeCode(
         spawn,
         "cc-unrecorded",
@@ -719,13 +722,14 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
     driven.spawned.get(timeout=STATED_TIMEOUT)
     wait_for(
         lambda: clerk_model.queued("cc-unrecorded"),
-        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
+        lambda lines: any(
+            f"Your fork agent-1 gave thread {asked['id']}" in line for line in lines
+        ),
         failure=lambda: (
             f"the main thread never heard: {clerk_model.queued('cc-unrecorded')}"
         ),
     )
     assert state_model.open_agent_turns("cc-unrecorded") == {}
-    assert state_model.agent_known("cc-unrecorded", "agent-1")
     [gave] = [
         note
         for note in read_interactions(page_dir, types=("fork_outcome",))
@@ -740,8 +744,9 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     page_dir, monkeypatch, spawn, sessionless, resumes
 ):
     """The user's later message in a thread a fork answered, once that fork's run has
-    ended, goes to the same fork: the module resumes it with Leaf's message, and Leaf
-    hears that it runs the new turn, which its next end closes. Where Claude Code
+    ended, goes to the same fork: the module resumes it with Leaf's message, and,
+    once the message is delivered, tells Leaf the fork runs the new turn, which
+    confirms its start, and which its next end closes. Where Claude Code
     can't resume the fork, the module ends the turn Leaf opened and spawns nothing,
     which gives the thread to the main thread."""
     driven = ClaudeCode(
@@ -779,9 +784,8 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "pickup"
     )
-    monkeypatch.setenv(state_model.AGENT_ID_VARIABLE, "agent-1")
-    assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
-    monkeypatch.delenv(state_model.AGENT_ID_VARIABLE)
+    with state_model.acting_in(first):
+        assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
     wait_for(
@@ -807,6 +811,15 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
             e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
         ][-1]
         assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
+        wait_for(
+            lambda: [
+                note
+                for note in read_interactions(page_dir, types=("fork_outcome",))
+                if note.get("step") == "start" and note.get("turn") == second
+            ],
+            bool,
+            failure="the module never confirmed the resumed fork's start",
+        )
         driven.emit(
             "turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"}
         )
@@ -853,6 +866,60 @@ def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
     driven.settle()
     assert driven.steps.empty()
+    driven.quit()
+
+
+def test_a_forks_end_leaf_did_not_hear_of_is_told_again_as_the_next_turn_ends(
+    spawn, sessionless
+):
+    """The module forgets a fork only once Leaf has heard its run end: a step that
+    failed, as one past its timeout, leaves the fork in `$.state` with how it ended,
+    and the next main-loop turn's end tells Leaf again, rather than the fork's turn
+    running on unseen until it lapses."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-ends-again",
+        {
+            "state": {"forks": {"agent-7": {"started": 1, "turn": "t7"}}},
+            "forkStepFails": "ended",
+        },
+    )
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
+    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.settle()
+    driven.quit()
+
+
+def test_a_forks_end_leaf_did_not_hear_of_is_told_again_while_the_session_idles(
+    page_dir, monkeypatch, spawn, sessionless
+):
+    """A fork's end whose step failed, which the module keeps in `$.state` as a reload
+    finds it, is told again as the pages follower lists the session's pages, which
+    it does while no main-loop turn runs."""
+    driven = ClaudeCode(
+        spawn,
+        "cc-ends-idle",
+        {
+            "state": {
+                "forks": {
+                    "agent-7": {
+                        "started": 1,
+                        "turn": "t7",
+                        "ended": {"answer": "Done."},
+                    }
+                }
+            },
+            "env": {"LEAF_FORK_REPLIES": "off"},
+        },
+    )
+    holding_page(driven, page_dir, monkeypatch)
+    told = {"agent": "agent-7", "turn": "t7", "answer": "Done."}
+    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    driven.settle()
     driven.quit()
 
 

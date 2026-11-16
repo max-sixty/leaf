@@ -124,11 +124,6 @@ interface HTMLElement {
   lfSample?: LeafSampleBridge;
 }
 
-interface HTMLElement {
-  /** A thread seat's box: the row of its first message (`thread/box.js`). */
-  lfFirstMessage?: HTMLElement;
-}
-
 interface Element {
   readonly updateComplete?: Promise<unknown>;
   cloneNode(deep?: boolean): Element;
@@ -150,6 +145,9 @@ interface Element {
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
   lfCopy?: () => string;
+  /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
+   * the block's Copy as the last mark (`code-copy.js`). */
+  lfBar?: HTMLElement;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
@@ -211,11 +209,8 @@ interface DocumentEventMap {
     description: string;
     travels: boolean;
   }>;
-  /** The reading column's box, once the margin has laid out against it. */
-  "lf-margin-layout": CustomEvent<{
-    column: import("../runtime/content-layout.js").ProseBox;
-    height: number;
-  }>;
+  /** The margin has laid out its rows. */
+  "lf-margin-layout": CustomEvent<null>;
   /** The keyboard owner's call for the keys the bootstrap held while the page loaded;
    * the bootstrap answers in the detail, where it held any (`bootstrap.js`). */
   "lf-held-keys": CustomEvent<
@@ -252,6 +247,10 @@ interface Window {
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** How a revision reaches the widget while it stands in the page: `"members"` has
+   * Leaf edit inside its direct authored children in place (`version.js`,
+   * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
+  lfPatch?: string;
 }
 
 interface ShadowRootEventMap {
@@ -323,6 +322,10 @@ interface Element {
   threadOutlets?(
     ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
   ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+  /** On an outlet a widget returns for itself: the words of the second send the comment
+   * box offers there, whose comment holds the widget while its thread is open
+   * (`composing/surface.js`). */
+  lfHold?: string;
 }
 
 interface Element {

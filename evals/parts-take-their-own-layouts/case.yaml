@@ -4,11 +4,17 @@
 # with arrangements of their own. Claude Code, at the change: base 0/3 (a
 # layout-workspace page of two lf-pane regions, the prose beside the playground),
 # head 3/3.
+# As a probe given a page with its packages, at b90df8d3a2, every run gave each reading
+# part its own contents outline, as page-layout.md asks: Codex as an lf-toc inside a
+# `layout-column` (2 of 2), Claude Code as the `layout-sidebar` page-authoring.md's
+# "Contents navigation" composes (0 of 2 under a rubric that took only a column, 2 of 2
+# regraded once it took that sidebar too).
 description: parts-take-their-own-layouts
 metadata:
   purpose:
     "Parts of one subject that want their own Layouts: a playground to try beside the
     proposal it argues for is a page of parts, each part arranged by its own Layout."
+  page: [playground]
   tags:
     - layout
     - playground
@@ -28,10 +34,8 @@ vars:
     The user reads the proposal and the reasoning after trying the panel, and comes
     back to the playground while they read.
 
-    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
-    directory. The page directory is not reachable here, so reply with the page's
-    complete `<main>` element and any `<style>` it needs; stub the playground's
-    preview content and the long prose with short placeholders.
+    Short placeholders can stand for the playground's preview content, the long
+    prose and the screenshots.
 assert:
   - type: llm-rubric
     metric: parts
@@ -40,9 +44,11 @@ assert:
       class, and holds one `lf-parts` directly, with an `lf-part` for the playground and
       separate ones for the proposal and the reasoning (the two may share one). Each
       `lf-part` has one child carrying a Layout class: the proposal's and reasoning's a
-      reading `layout-column`, the playground's one that gives the playground the room
-      beside or around its controls (a `layout-workspace`, or a `layout-column` whose
-      `lf-playground` takes `data-width="available"`). Anything written before the
+      reading layout, either a `layout-column` or a `layout-sidebar` whose body is a
+      `layout-column` beside that part's contents outline, and the playground's one
+      that gives the playground the room beside or around its controls (a
+      `layout-workspace`, or a `layout-column` whose `lf-playground` takes
+      `data-width="available"`). Anything written before the
       `lf-parts` is a short title. Fail if the playground, the proposal and the reasoning
       share one scrolling page, if a Layout class sits on an `lf-part` itself, or if the
       page writes its own script or CSS to show one part at a time.

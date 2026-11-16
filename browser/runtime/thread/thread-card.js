@@ -99,6 +99,7 @@ import {
 import { randomId } from "../ids.js";
 import { turns, threadKey } from "./model.js";
 import {
+  HOLDS,
   anchorPlace,
   messageReading,
   threadPassage,
@@ -138,7 +139,6 @@ import {
 import { leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
-import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, pinnedReply } from "./reply-landing.js";
 import { threadRewrites } from "./message-edit.js";
@@ -152,12 +152,11 @@ import { addressableLabel } from "../addressable-names.js";
 /** @typedef {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").readThreadRecords>[number]>} ThreadRecord */
 /** @typedef {ReturnType<typeof messageReading>} MessageReading */
 /** @typedef {{who: string, position: number, timestamp: string | null,
- * age: string | null, words: string, feedback: {
+ * words: string, feedback: {
  * input_id?: string, reply_id: string | null, attempt?: string | null,
  * reply_kind: "work" | "progress"} | null,
  * live: boolean, condition: import("../voice.js").Said | null}} WorkingMessage */
 /** @typedef {{key: string, summary: ReturnType<typeof threadSummary>,
- * recency: {short: string, long: string} | null,
  * id: string, attempt: string | null, surface: string, resolved: boolean,
  * attention: ReturnType<typeof threadAttention>, resolvedBy: string,
  * settlement: {kind: "resolve" | "unresolve", word: string, label: string},
@@ -333,7 +332,6 @@ function workingMessage(thread, messages) {
     who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
     position,
     timestamp,
-    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
     live,
@@ -381,8 +379,9 @@ export function threadReading(thread, surface, commands) {
     .map((message) =>
       messageReading(message, {
         // Where a message's widgets stand when several drawings show it (messages.js,
-        // `authoredHolders`): the primary reader's, then a margin card, then a seat.
-        authoredRank: commands.authoredRank ?? (surface === "margin" ? 2 : 1),
+        // `HOLDS`).
+        authoredRank:
+          commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
       }),
@@ -391,11 +390,6 @@ export function threadReading(thread, surface, commands) {
   return Object.freeze({
     key: threadKey(thread),
     summary,
-    // How long ago the thread last moved, read here with the rest of the reading, so a
-    // card whose reading did not change shows the same age and need not draw again.
-    recency: summary.latest
-      ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
-      : null,
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,

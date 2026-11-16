@@ -93,7 +93,7 @@ import {
   HEADING,
   inChrome,
   pageDocument,
-  keptWithPageReading,
+  keptWithReading,
   pageRuns,
   quoteFrom,
   rangeOf,
@@ -271,11 +271,11 @@ const textEnvelope = (block, segments, range) => {
  * @typedef {{key: string, blocks: Set<Element>, holdsBlocks: WeakSet<Element>, holding: WeakSet<Element>}} BlockIndex
  * @typedef {{frames: WeakMap<Element, Frame>, shown: ShownRuns | null, index: BlockIndex | null}} Kept */
 // The layout, the runs shown and their blocks hold the page's nodes, so they are kept with
-// the page's reading (passages.js, `keptWithPageReading`) and go with it: a revision that
+// the page's reading (passages.js, `keptWithReading`) and go with it: a revision that
 // removes a block leaves none of them holding it.
 /** @returns {Kept} */
 const kept = () =>
-  keptWithPageReading(kept, () => ({
+  keptWithReading(pageDocument(), kept, () => ({
     frames: new WeakMap(),
     shown: null,
     index: null,
@@ -355,22 +355,22 @@ const wordsBox = (segments, range) =>
 // content lays it out. `drawn` keeps each parent's answer across the calls sharing it.
 /** @param {Segment[]} segments @param {Range} range @param {Map<Element | null, boolean>} [drawn] @returns {Generator<[Segment, DOMRect[]] | null>} */
 function* drawnSegments(segments, range, drawn = new Map()) {
-  /** @type {Element | null} */
-  let hidden = null;
   // Whether a null already stands for the segments since the last drawn one, so a long
   // run of skipped lines yields once.
   let broken = false;
-  for (const segment of segments) {
+  for (let at = 0; at < segments.length; at++) {
+    const segment = /** @type {Segment} */ (segments[at]);
     const { node, start, end } = segment;
     let rects = null;
-    if (!hidden?.contains(node)) {
-      const parent = renderedParent(node);
-      if (!drawn.has(parent)) drawn.set(parent, drawsText(parent));
-      if (drawn.get(parent)) {
-        range.setStart(node, start);
-        range.setEnd(node, end);
-        rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
-      } else hidden = parent && skipper(parent);
+    const parent = renderedParent(node);
+    if (!drawn.has(parent)) drawn.set(parent, drawsText(parent));
+    if (drawn.get(parent)) {
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      rects = [...range.getClientRects()].filter((rect) => rect.width && rect.height);
+    } else {
+      const hidden = parent && skipper(parent);
+      if (hidden) at = lastHeld(segments, at, hidden);
     }
     if (rects?.length) {
       broken = false;
@@ -380,6 +380,29 @@ function* drawnSegments(segments, range, drawn = new Map()) {
       yield null;
     }
   }
+}
+// The last of `segments` from `at` on that `box` holds. A walk meets what a box holds
+// together, so they are found by doubling a step past `at` and then halving it, and a
+// long text document's skipped lines cost a few questions a run of them rather than one
+// a line: over 96,000 lines, 11,000 rather than 96,000 a scroll rest, and a reading of
+// the document's place took Firefox 3.5 ms rather than 6. A segment `box` draws without
+// holding it, as a slot draws what is assigned to it, can stand among those it holds.
+// The search may stop at it, and `drawnSegments` asks it its own question, or step over
+// it, which gives it the same answer: whatever a skipped box draws is undrawn too.
+/** @param {readonly Segment[]} segments @param {number} at @param {Element} box */
+function lastHeld(segments, at, box) {
+  /** @param {number} i */
+  const holds = (i) => box.contains(/** @type {Segment} */ (segments[i]).node);
+  let low = at;
+  let step = 1;
+  for (; low + step < segments.length && holds(low + step); step *= 2) low += step;
+  let high = Math.min(low + step, segments.length);
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (holds(middle)) low = middle;
+    else high = middle;
+  }
+  return low;
 }
 // The page's runs the user may see, in reading order, with what names that reading of
 // the page: its words and the parts shown, read again only when either changes. A reading

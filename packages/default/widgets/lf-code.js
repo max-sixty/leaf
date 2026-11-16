@@ -29,12 +29,25 @@
  * Until the reader chooses, authored presentation remains the default. Paper wraps
  * complete lines regardless of the screen choice.
  *
+ * A docked note carries its line's indent (`--lf-code-indent`, as the line does), so
+ * the theme stands it under the line's first character. A block with notes offers a
+ * mark in its toolbar, beside Copy, and `n` in its scope: Collapse all's fold hides
+ * them, named Hide notes, and Expand all's shows them again, named Show 8 notes, so a
+ * reader can read the code whole. It is reading state kept as wrapping is, and paper
+ * shows the notes whatever the screen's choice. A hidden note's line keeps its number
+ * in the accent, so the reader sees where the notes were. The maintainer chose the
+ * toolbar, which shows while the pointer or focus is on the block or after a tap,
+ * over a word standing above the block, which kept a strip of room over every block
+ * with notes. The mark is Leaf's control, drawn only where Leaf runs, since only
+ * Leaf's register answers its press.
+ *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
  * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
- * the drawing under way as a `pending-task` event, the wrap key as the element's
- * `lfCommands`, the Copy control from the block's `data-lf-copy`, and the word a
- * listener hears on a highlighted line from its `data-lf-quiet`. */
+ * the drawing under way as a `pending-task` event, the wrap and notes keys as the
+ * element's `lfCommands`, the Copy control from the block's `data-lf-copy`, standing
+ * in the block's toolbar (`lfBar`) where it has one, and the word a listener hears on
+ * a highlighted line from its `data-lf-quiet`. */
 import {
   setScroll,
   PendingTaskEvent,
@@ -42,6 +55,9 @@ import {
   commandsChanged,
   failSoft,
   layoutChanged,
+  nameAction,
+  offer,
+  offerAction,
   once,
   synNodes,
   syntax,
@@ -138,7 +154,9 @@ customElements.define(
       // The code is the <pre>'s and nothing else's; notes are its siblings and say
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
-      const notes = [...this.querySelectorAll(":scope > lf-note")];
+      const notes = /** @type {HTMLElement[]} */ ([
+        ...this.querySelectorAll(":scope > lf-note"),
+      ]);
       const source = bodyText(this);
       try {
         const lang = this.getAttribute("language");
@@ -201,15 +219,46 @@ customElements.define(
           }
           pre.append(line);
           // Moved, not copied: the authored element keeps its text and id.
-          pre.append(...(byLine.get(n) ?? []));
+          for (const note of byLine.get(n) ?? []) {
+            if (indent) note.style.setProperty("--lf-code-indent", String(indent));
+            else note.style.removeProperty("--lf-code-indent");
+            pre.append(note);
+          }
           previous = n;
         });
-        pre.append(...notes.filter((note) => !pre.contains(note)));
+        const foot = notes.filter((note) => !pre.contains(note));
+        for (const note of foot) note.style.removeProperty("--lf-code-indent");
+        pre.append(...foot);
         // Copied as the source the lines were drawn from, never as the lines' text,
         // which carries the notes docked among them.
         pre.dataset.lfCopy = "code";
         pre.lfCopy = () => source;
-        this.replaceChildren(pre);
+        const notesKey = `code-notes:${this.id}`;
+        let notesShown = tabStore.get(notesKey) !== "hidden";
+        const notesToggle =
+          notes.length && document.documentElement.hasAttribute("data-lf-interactive")
+            ? offerAction("mark", "lf-code-notes-toggle", "Hide notes", {
+                action: "collapse-all",
+              })
+            : null;
+        // Copy joins the mark here (`lfBar`), which the theme stands in the block's
+        // corner and shows as it would show a lone Copy.
+        const bar = notesToggle ? offer("div", "lf-code-bar lf-mark-bar") : null;
+        if (bar && notesToggle) bar.append(notesToggle);
+        if (bar) pre.lfBar = bar;
+        // The press says what it will do, and hidden notes say how many wait.
+        const showNotes = `Show ${notes.length} note${notes.length === 1 ? "" : "s"}`;
+        const paintNotes = () => {
+          if (notesShown) this.removeAttribute("data-lf-notes");
+          else this.setAttribute("data-lf-notes", "hidden");
+          if (notesToggle)
+            nameAction(notesToggle, notesShown ? "collapse-all" : "expand-all", {
+              label: notesShown ? "Hide notes" : showNotes,
+              className: "lf-mark-icon",
+            });
+        };
+        paintNotes();
+        this.replaceChildren(pre, ...(bar ? [bar] : []));
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
         const saved = tabStore.get(key);
@@ -236,6 +285,23 @@ customElements.define(
               title: () => (wrapped ? "unwrap lines" : "wrap lines"),
               run: toggleWrap,
             },
+            ...(notesToggle
+              ? [
+                  {
+                    id: "code.notes",
+                    keys: ["n"],
+                    title: () => (notesShown ? "hide notes" : "show notes"),
+                    control: notesToggle,
+                    touch: /** @type {false} */ (false),
+                    run: () => {
+                      notesShown = !notesShown;
+                      tabStore.set(notesKey, notesShown ? "shown" : "hidden");
+                      paintNotes();
+                      layoutChanged(this);
+                    },
+                  },
+                ]
+              : []),
           ],
         };
         commandsChanged(this);

@@ -175,7 +175,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         "els => els.map(el => getComputedStyle(el).backgroundColor)"
     )
     wanted = page.evaluate(
-        """() => ['--chip', '--danger-tint'].map(name => {
+        """() => ['--lf-chip', '--lf-danger-tint'].map(name => {
             const probe = document.createElement('div');
             probe.style.backgroundColor = `var(${name})`;
             document.body.append(probe);
@@ -893,7 +893,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             # And the user's own option is filled the way an option nobody has picked is
             # filled, which is the other half of what says it is one of the answers. A pick
             # colours the cell that holds it and nothing else does, so any other ground here is
-            # a state the group hasn't got: the cell wore --field, a tinted band that in this
+            # a state the group hasn't got: the cell wore --lf-field, a tinted band that in this
             # theme means a detail or a note, and a band under the answers is a footer whatever
             # else is written in it.
             open_option = next(
@@ -909,7 +909,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             )
 
     with subtests.test("a picked cell rings every side alike"):
-        # A pick rings its cell in the ok ink, inside the joined frame. A hairline cast
+        # A pick rings its cell in the settled colour, inside the joined frame. A hairline cast
         # over the next cell lay over the ring's lower edge and left it half as thick as
         # the other three, reading as the grey divider rather than the pick's edge;
         # standing the pick above its neighbours only moved the cut onto the pick above
@@ -922,31 +922,46 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
         rendered(page)
-        ok = page.evaluate(
+        # Painted on a canvas, since the settled colours compute in the oklab their
+        # steps are written in, not as rgb().
+        ok, tint = page.evaluate(
             """() => {
-                 const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--ok)';
-                 const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
-                 probe.remove();
-                 return rgb.map(Number);
+                 const context = document.createElement('canvas')
+                   .getContext('2d', {willReadFrequently: true});
+                 return ['--lf-settled', '--lf-settled-tint'].map(name => {
+                   const probe = document.body.appendChild(document.createElement('i'));
+                   probe.style.color = `var(${name})`;
+                   context.fillStyle = getComputedStyle(probe).color;
+                   context.fillRect(0, 0, 1, 1);
+                   probe.remove();
+                   return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+                 });
                }"""
         )
 
+        def distance(px, colour):
+            return sum(abs(a - b) for a, b in zip(px, colour, strict=True))
+
         def ok_run(clip):
             shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            # A pixel is the ring's where it stands nearer the ring than half the way to
+            # the cell's ground, so the edge pixel the ring mostly covers counts.
             inked = [
-                sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
-                for px in rgb_pixels(shot)
+                distance(px, ok) < distance(tint, ok) / 2 for px in rgb_pixels(shot)
             ]
-            # The ring's two edges along this line: from the middle outward, the first run
-            # of ink each way, so a picked neighbour's edge past the hairline is its own.
-            half = len(inked) // 2
 
-            def first_run(line):
-                run = list(itertools.dropwhile(lambda inked: not inked, line))
-                return len(list(itertools.takewhile(bool, run)))
+            # The ring's two edges along this line: from each of the cell's edges, which
+            # stand 4px in from the clip's ends, inward, allowing the pixel an edge falls
+            # in. So a picked neighbour's ring past the hairline stays its own, and the
+            # cell's words, which the ring's colour now matches, stay inside the count.
+            def edge_run(line):
+                inward = line[3:]
+                start = next((i for i, ink in enumerate(inward[:3]) if ink), None)
+                if start is None:
+                    return 0
+                return len(list(itertools.takewhile(bool, inward[start:])))
 
-            return first_run(inked[half::-1]), first_run(inked[half:])
+            return edge_run(inked), edge_run(inked[::-1])
 
         for option in ("#c-redis", "#r-drill", "#r-rotate"):
             box = page.locator(option).bounding_box()
@@ -1259,7 +1274,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # Both forms anyway, and the second is not the first repeated: a row has a wash rule of
     # its own with its own exclusion, outranked by the joined group's wherever that one
     # applies, so it is the quoted read that answers for it. Withdraw its exclusion and the
-    # quoted row takes --chip where it wore nothing.
+    # quoted row takes --lf-chip where it wore nothing.
     #
     # The live twin goes first, and is both the control and the edge the quoted read is
     # anchored on. Its rest value is read while the pointer is on the other one, and the
@@ -2246,7 +2261,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                     "additionalProperties": False,
                     "x-content": "markup",
                     "x-work": True,
-                    "x-upgrade": False,
                 }
             }
         )

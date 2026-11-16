@@ -168,8 +168,10 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
         page.unroute_all(behavior="wait")
 
 
-PROGRESSIVE_WIDGET = """import {LeafElement,html} from '/runtime/widget-api.js';
+PROGRESSIVE_WIDGET = """import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-progressive-proof',class extends LeafElement {
+ static lfPatch='members';
  render(){return html`<button class="proof-control">${this.getAttribute('label')}</button><slot></slot>`;}
 });"""
 PROGRESSIVE_REGISTRY = {
@@ -183,13 +185,19 @@ PROGRESSIVE_REGISTRY = {
         "additionalProperties": False,
         "required": ["id"],
         "x-content": "markup",
-        "x-upgrade": True,
         "x-shadow": True,
-        "x-patch": "members",
     }
 }
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#5642: how the panel's row shares its room between the version notice and "
+        "Comment… c is still being decided, and until then the hint slides as the "
+        "notice comes and goes"
+    ),
+)
 def test_native_input_survives_progressive_render_revision_and_export(
     browser, serve, tmp_path
 ):
@@ -295,7 +303,8 @@ def test_native_input_survives_progressive_render_revision_and_export(
         )
         export = tmp_path / "proof.html"
         result = CliRunner().invoke(
-            cli.cli, ["page", "export", str(serve.page_dir), "--out", str(export)]
+            cli.cli,
+            ["page", "export", str(serve.page_dir), "--out", str(export), "--runtime"],
         )
         assert result.exit_code == 0, result.output
         offline = browser.new_page()

@@ -207,6 +207,44 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         assert not preview.is_visible(), preview.inner_text()
 
 
+# Option cards whose picks Done completes.
+FEEDERS = """<lf-ask id="ask"><h2>Which feeders should we refill?</h2>
+<lf-options id="feeders" choose multiple>
+<lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
+</lf-option>
+<lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
+</lf-options></lf-ask>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, serve):
+    """An option's pick mark previews nothing, to a resting pointer or to Tab: its
+    corner says one or any, the option's words stand beside it, and the digit drawn on
+    its card says its key. Done previews its label, which says more than its face,
+    without the digit the hints draw on it."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(leaf_page("Feeders", FEEDERS)),
+    )
+    preview = page.locator(PREVIEW)
+    mark = page.locator("#feeder-porch > .lf-pick")
+    mark.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(mark)
+    rendered(page)
+    expect(page.locator("#feeder-porch > .lf-key-badge")).to_have_text("1")
+    assert not preview.is_visible(), preview.inner_text()
+
+    done = page.locator("#feeders .lf-done")
+    tab_onto(done)
+    expect(preview.locator(".lf-preview-word")).to_have_text(
+        done.get_attribute("aria-label")
+    )
+    expect(done.locator(".lf-key-badge")).to_have_text(re.compile(r"^\d$"))
+    expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
     """The image viewer is a modal dialog, and its Close previews inside it. While the

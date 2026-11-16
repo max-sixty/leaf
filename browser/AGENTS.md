@@ -311,8 +311,8 @@ Each treatment draws the eye, so each marks hierarchy or state, and a difference
 reader sees always means something (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 - **Contours are solid.** A dotted or dashed line marks a distinct state, such as a
-  draft or a drag placeholder. One contour shows one control state, and a segmented group
-  shares one-pixel seams. A box edged on one side is never rounded: mark a state with a
+  drag placeholder. One contour shows one control state, and a segmented group shares
+  one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
@@ -715,6 +715,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
 | When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                            |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |

@@ -254,7 +254,7 @@ to-do's record in `todos` holds its `title` and the start `running` on it.
 `activity.obligations` lists each answer you owe as its record's `id` beside the
 `answer` that settles it: the reply to write, with the `ref` its delivery gave where
 you can still use it, or the action a stamped version must record. Recover what you
-owe there when no delivery is at hand. Unsent browser drafts and tabs on older versions
+owe there when no delivery is at hand. The user's unsent drafts and tabs on older versions
 are not in this reading.
 Check `source` for an invalid or missing `index.html` before taking an empty list as a
 clean handoff.

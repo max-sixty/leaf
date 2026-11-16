@@ -1900,13 +1900,51 @@
       "required": ["page_key", "url", "title", "session_cwd", "activity"]
     },
     "NewsAnswer": {
-      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): two readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again.",
+      "description": "The answer `GET /api/news` gives (`http.PageEndpoint._news`): three readings the tab follows apart. `reading` names the page's own reading, the one an `/api/state` answer carries; `pages` names the list `/api/pages` answers (`presence.pages_reading`), or is null while no other page is live, and moves on its own, so another page's change never asks the tab to read this page's state again; `drafts` is the version of the user's drafts `/api/drafts` answers (`drafts.py`), which a keystroke moves without moving the page's reading.",
       "type": "object",
       "properties": {
         "reading": { "type": "string" },
-        "pages": { "type": ["string", "null"] }
+        "pages": { "type": ["string", "null"] },
+        "drafts": { "type": "integer", "minimum": 0 }
       },
-      "required": ["reading", "pages"],
+      "required": ["reading", "pages", "drafts"],
+      "additionalProperties": false
+    },
+    "Draft": {
+      "description": "One draft the user is writing, the generation its last write made (`drafts.py`): its attempt, words and what its send depends on beside them, with the store's version at that write.",
+      "type": "object",
+      "properties": {
+        "attempt": { "type": "string" },
+        "text": { "type": "string" },
+        "payload": { "type": "object" },
+        "held": { "type": "string" },
+        "version": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["attempt", "text", "version"],
+      "additionalProperties": false
+    },
+    "DraftsAnswer": {
+      "description": "The answer `GET /api/drafts` gives, and what a served document carries of it (`lf-drafts`): every draft the user is writing on the page, by its context, with the store's version. A sent or put-away draft is absent.",
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 0 },
+        "drafts": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/Draft" }
+        }
+      },
+      "required": ["version", "drafts"],
+      "additionalProperties": false
+    },
+    "DraftWriteAnswer": {
+      "description": "The answer `POST /api/draft` gives: the context's generation as the store now holds it, null where a send or Cancel settled it, and whether that is what the write asked for. A write names the generation it replaces, so another tab's or device's later words come back in place of this tab's.",
+      "type": "object",
+      "properties": {
+        "written": { "type": "boolean" },
+        "version": { "type": "integer", "minimum": 0 },
+        "record": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/Draft" }] }
+      },
+      "required": ["written", "version", "record"],
       "additionalProperties": false
     },
     "PagesAnswer": {

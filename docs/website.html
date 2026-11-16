@@ -223,9 +223,10 @@ sequenceDiagram
         <p id="state-restart">
           A replacement container restores saved content before accepting the next
           mutation. Container replacement does not force an open page to reload. Unsent
-          drafts remain in the browser's own draft store, which also preserves them
-          across reloads and closing the tab. Running agent turns belong to the
-          container process, so saving page content does not preserve a running turn.
+          drafts are saved with the page content each time the visitor sends something;
+          a tab still holding words typed since then gives them back to the new
+          container. Running agent turns belong to the container process, so saving
+          page content does not preserve a running turn.
         </p>
         <p id="state-records">
           The site counts accepted events in Analytics Engine without their content,

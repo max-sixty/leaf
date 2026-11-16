@@ -280,11 +280,14 @@ def test_interaction_trace_does_not_change_page_readings(page_dir):
     assert served_reading.source_readings(page_dir)[0] != sources[0]
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", [*schema_model.SESSION_FILES, schema_model.DRAFTS_FILE]
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
-    """Declaring status or taking a wait writes a session file, and the next state read holds the activation it had rather than validating
-    the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the panel."""
+    """Declaring status or taking a wait writes a session file, and a tab saving a
+    draft writes the drafts, and the next state read holds the activation it had rather
+    than validating the whole page again: on a large page that re-validation was most
+    of the time a status took to reach the panel, and a draft is saved as it is typed."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):

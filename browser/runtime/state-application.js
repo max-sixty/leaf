@@ -22,7 +22,6 @@ import { afterOwedFrame } from "./rendering.js";
 import { countTraffic } from "./traffic.js";
 import { holdUserPlace } from "./user-place.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
-import { settleAcceptedDrafts } from "./drafts.js";
 import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
@@ -213,7 +212,6 @@ export function createStateApplication({
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
       try {
-        settleAcceptedDrafts();
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
         // region for this epoch, and frozen

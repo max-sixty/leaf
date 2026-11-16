@@ -127,7 +127,7 @@ for the generated types and the producer's tests, outside the comparison.
 
 The number is also the only version of what Leaf keeps outside a page's log and
 document: every JSON record in a page directory or the state home (`state.Record`),
-the layer record among them, and the composer's draft in browser storage
+the layer record among them, and the composer's draft in the page's drafts (`drafts.py`)
 (`$events.draft`). Each carries `leaf-<kind>/<since>` in its `format`, where `since`
 is the protocol at which that record's own shape last changed, so a bump for another
 change leaves claims, deliveries and ports readable. A new record kind starts at the

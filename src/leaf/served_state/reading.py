@@ -28,6 +28,8 @@ from ..file_bindings import bound_paths
 from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
+    DRAFTS_FILE,
+    DRAFTS_LOCK,
     INTERACTIONS_FILE,
     LAYER_FILE,
     PACKAGES_DIR,
@@ -43,7 +45,11 @@ from ..state import AGENT_TURNS, EVENTS_FILE, SESSION_SUFFIX, flocked, session_f
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
 # request it answers; counting either would make a read say it changed itself, and
 # waking on either would rouse every watcher of a page a tab is merely looking at.
-UNWATCHED = frozenset({INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
+# `drafts.json` is the user's typing, which tabs hear on their own (`drafts.py`) and
+# the agent never reads.
+UNWATCHED = frozenset(
+    {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK, DRAFTS_FILE, DRAFTS_LOCK}
+)
 # The page's trees stamped entry by entry: the authored `page/` tree and `data/`.
 TREES = ("page", DATA_DIR)
 

@@ -97,8 +97,8 @@ outside it.
   in a record kept outside a page. A change to the runtime, the served state, the
   bundled widgets and their registry entries, the theme or the public package API
   (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
-  Leaf's only version, so a record kept outside a page, such as a browser draft,
-  carries the protocol at which its own shape last changed (`layer-registry.md`,
+  Leaf's only version, so a record kept outside a page's log and document, such as
+  its drafts, carries the protocol at which its own shape last changed (`layer-registry.md`,
   "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
   commits. Once Leaf is released, only a bump may break an existing page.
 - **A page's own code**, its widgets and scripts, and an installed package's
@@ -311,11 +311,13 @@ thread the user opens, the user's own reply and its wait for an answer, and the
 resend a refused send leaves. A refusal restores the
 server's state.
 
-Focus, scroll, selection, open disclosures, a draft being typed, a drag and
-layout stay with the browser until a gesture makes them part of the page's
-state. The log doesn't record them, so they live only as long as their DOM node:
-code that replaces a node carries that state to the new node, matched by the key
-the replacement already uses.
+Focus, scroll, selection, open disclosures, a drag and layout stay with the
+browser until a gesture makes them part of the page's state. The log doesn't
+record them, so they live only as long as their DOM node: code that replaces a
+node carries that state to the new node, matched by the key the replacement
+already uses. A draft being typed stays out of the log too, until Send, but
+outlives its node: the page's server keeps it for every tab and device
+(`src/leaf/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands: `activity.py` for the whole page,
 read by the Leaf panel, and `workflows.py` for each update

@@ -9,7 +9,6 @@ from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
     LONG_PAGE,
     draft_control,
-    draft_key,
     expect_panel_says,
     hold_selection,
     leaf_page,
@@ -18,6 +17,7 @@ from render_harness import (
     select_words,
     selection_field,
     sending,
+    stored_drafts,
     write,
 )
 
@@ -221,14 +221,10 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
     select_words(page, "#p2")
     expect(field).to_have_js_property("value", "")
     expect(field).not_to_be_focused()
-    assert (
-        page.evaluate(
-            """prefix => Object.keys(localStorage)
-          .filter(key => key.startsWith(prefix)).length""",
-            draft_key(page, "composer:"),
-        )
-        == 1
-    )
+    composed = [
+        context for context in stored_drafts(page) if context.startswith("composer:")
+    ]
+    assert len(composed) == 1
 
     select_words(page, "#p1")
     expect(field).to_have_js_property("value", original)

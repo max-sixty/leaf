@@ -9,10 +9,12 @@ are neither events nor state: nothing here enters the log, a reading of the page
 what the agent reads, because sending is when the user says them.
 
 A record is a generation, `{attempt, text, payload?, held?}`, which the edit that made
-it minted, and a send carries its attempt into the log. Each write names the generation
-it replaces (`expect`), and the store takes it only over that one or over none: a tab
-whose words another tab or device has since replaced hears the current record back and
-adopts it, rather than overwriting it. A send or a Cancel settles a generation, which
+it minted, and a send carries its attempt into the log. Each write names the
+generations it may replace (`expect`), and the store takes it only over one of those or
+over none: a tab whose words another tab or device has since replaced hears the current
+record back and adopts it, rather than overwriting it. A write names more than one
+where it can't know which the store holds, as a page going away does after leaving
+cancelled an earlier write of its own that the store may already have taken. A send or a Cancel settles a generation, which
 removes it (`{attempt, settled}` names the one to remove), so the store holds only what
 the user is writing; words a tab types over a generation settled elsewhere start the
 draft again, since they are the user's newer words. Admission settles the generation an
@@ -93,7 +95,7 @@ _WRITE = {
     "type": "object",
     "properties": {
         "context": {"type": "string", "minLength": 1},
-        "expect": {"anyOf": [{"type": "null"}, _ATTEMPT]},
+        "expect": {"type": "array", "items": _ATTEMPT},
         "record": {
             "anyOf": [
                 {**_ACTIVE, "additionalProperties": False},
@@ -122,7 +124,7 @@ def read_drafts(page_dir: Path) -> dict:
 
 
 def write_draft(page_dir: Path, payload: dict) -> dict:
-    """Take a tab's generation where it replaces the one it names, and answer with
+    """Take a tab's generation where it replaces one it names, and answer with
     the context's record as the store now holds it: `written` says whether that is
     the tab's. ValueError for a write of the wrong shape."""
     if error := schema_error(_WRITE, payload):
@@ -133,7 +135,7 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
         if record["attempt"] in stored.get("sent", []):
             record = {"attempt": record["attempt"], "settled": True}
         current = stored["drafts"].get(context)
-        written = current is None or current["attempt"] == expect
+        written = current is None or current["attempt"] in expect
         if written:
             stored["version"] += 1
             if record.get("settled"):

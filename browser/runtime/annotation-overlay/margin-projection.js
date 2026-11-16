@@ -547,13 +547,21 @@ export function createMarginProjection({
     { root: document, rootMargin: "100% 0px" },
   );
 
-  // Of `rows`, those in front of the user (`seenRect`): one under the floating panel, or
-  // scrolled out of a pane, is no row the walk or the rail's way in may land on.
+  // Of `rows`, those shown whole in front of the user, the rows the walk and the rail's
+  // way in may land on: none under the floating panel or scrolled out of a pane
+  // (`seenRect`), and none half past an edge, which a landing would move
+  // (landing-scroll.js, `alreadyShown`, measured out to the ring's room the row wears
+  // once focused). The walk lands without moving the page, so on a cut row it left the
+  // ring off screen; and Tab onto one moved the page, since the browser reveals a
+  // focused box it counts out of view by centring it, 400 px in a 900 px window.
   /** @param {Iterable<HTMLElement>} rows */
   function seenRows(rows) {
     const clips = new Map();
     return [...rows].filter(
-      (row) => available(row) && seenRect(row, clips, markerBox(row)),
+      (row) =>
+        available(row) &&
+        seenRect(row, clips, markerBox(row)) &&
+        alreadyShown(row, { ringed: true }),
     );
   }
   // The rows in view, in the margin's order.
@@ -795,17 +803,12 @@ export function createMarginProjection({
       holdTabStop(rovedRow);
       return;
     }
-    // The stop is the highest row a Tab's arrival leaves where it stands
-    // (landing-scroll.js, `alreadyShown`, measured out to the ring's room it wears once
-    // focused), so a Tab into the rail keeps the page still: a row half past the
-    // window's edge is in view, but the browser reveals a focused box it counts out of
-    // view by centring it. With no such row it is the highest row in view, and with
-    // none in view the row nearest the window, whatever held it before, so the way in
-    // follows from the page as it stands rather than from the widths and scrolls it
-    // passed through. A stop kept where it stood while in view moved for good once a
-    // narrower width had shown another row first. Only a row near the window can be in
-    // view, so while one is, a scroll measures the rows near it (`nearRows`); while none
-    // is, every row.
+    // The stop is the highest row shown whole (`seenRows`), or with none the row nearest
+    // the window, whatever held it before, so the way in follows from the page as it
+    // stands rather than from the widths and scrolls it passed through. A stop kept
+    // where it stood while in view moved for good once a narrower width had shown
+    // another row first. Only a row near the window can be in view, so while one is, a
+    // scroll measures the rows near it (`nearRows`); while none is, every row.
     const visible = seenRows(nearRows);
     const candidates = visible.length ? visible : availableRows();
     if (!candidates.length) {
@@ -826,17 +829,10 @@ export function createMarginProjection({
     };
     /** @param {[number, number, number]} a @param {[number, number, number]} b */
     const before = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-    const placed = candidates.map((row) => ({ row, at: place(row) }));
-    const shown = visible.length
-      ? placed
-          .toSorted((a, b) => before(a.at, b.at))
-          .find(({ row }) => alreadyShown(row, { ringed: true }))
-      : undefined;
     holdTabStop(
-      (
-        shown ??
-        placed.reduce((best, next) => (before(next.at, best.at) < 0 ? next : best))
-      ).row,
+      candidates
+        .map((row) => ({ row, at: place(row) }))
+        .reduce((best, next) => (before(next.at, best.at) < 0 ? next : best)).row,
     );
   }
 
@@ -937,6 +933,12 @@ export function createMarginProjection({
     if (!node) return;
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
+  });
+  // Leaving the rail reads its stop again at once. While focus stood on a row the stop
+  // stayed there (`syncRoving`), and a scroll may have carried that row half past an
+  // edge since, where a Shift+Tab straight back would land on it.
+  onCurrentLocation((node, cause, left) => {
+    if (left && under(left, nav) && !(node && under(node, nav))) syncRoving();
   });
   // Leaving a cluster folds what it unfolded, unless the user went into a surface that
   // keeps its context (`inRetainedContext`). A node hidden under the user leaves it too,

@@ -299,7 +299,7 @@ const ringed = (where) =>
   where instanceof Element && where.matches(":focus-within, [data-lf-focus-within]");
 
 // `ringed` measures it out to its ring's room before the user is on it, for a choice of
-// where a Tab will land made before focus arrives (margin-projection.js, `syncRoving`).
+// where focus will land made before it arrives (margin-projection.js, `seenRows`).
 /** @param {Destination} where @param {{block?: ScrollLogicalPosition, ringed?: boolean}} [options] */
 export function alreadyShown(
   where,

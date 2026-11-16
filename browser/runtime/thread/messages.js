@@ -210,21 +210,26 @@ export const threadHeading = (thread) =>
 
 // A thread as a mark standing for it says it, on any surface: its name, when it last
 // moved, and the margin's own reading of where it stands (margin-model.js,
-// `threadMarks`), read when asked. `status` is the word of whose turn it is or where
-// the agent's work on it has got to, else what it holds unread, said by whoever says
-// it (voice.js), or null; `progress` is the face a mark paints while the agent has the
-// thread (workflow.js, `progressFace`). The margin says a workflow's word on the
-// receipt it paints and every other word on its line, so `status` is whichever it says.
+// `threadMarks`), read when asked. `line` is the margin's line for it: the word of
+// whose turn it is or where the agent's work on it has got to, else what it holds
+// unread, said by whoever says it (voice.js), or null. The margin says a workflow's
+// word on the receipt it paints and every other word on the line itself, so `line` is
+// whichever it says. `progress` is the face a mark paints while the agent has the
+// thread (workflow.js, `progressFace`), and `unread` counts the agent's messages the
+// user hasn't read, which a mark shows as its dot whatever its line says.
 /** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0] & Parameters<typeof threadMarks>[0]} thread */
 export const threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread),
-  get status() {
+  get line() {
     const { context, workflowReceipt } = threadMarks(thread, agentName());
     return context ?? workflowWord(workflowReceipt, agentName());
   },
   get progress() {
     return progressFace(threadMarks(thread, agentName()).workflowReceipt);
+  },
+  get unread() {
+    return threadMarks(thread, agentName()).unread;
   },
 });
 

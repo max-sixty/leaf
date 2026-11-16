@@ -93,10 +93,10 @@ that calls it redraws when it changes. A thread the user just started is there a
 only `phase === "ready"` means every saved thread is. `threadTurns(thread)` returns a
 Thread's turns, and `threadSummary(thread)` its `topic`, its name in words, and its
 `latest` activity. The summary also holds what a mark standing for the thread says, as
-Leaf's margin says it. `status` is `{text, voice}` or `null`, one line: whose turn it is
-("Your turn"), what it holds unread ("2 unread"), or where the agent's work on it
-stands ("Queued for Claude", "On it"). `voice` is who says the word, `agent` or
-`leaf`; a `span` carrying it as `data-lf-voice` wears that speaker's face. `progress` is
+Leaf's margin says it. `line` is `{text, voice}` or `null`: whose turn it is ("Your
+turn"), what it holds unread ("2 unread"), or where the agent's work on it stands
+("Queued for Claude", "On it"). `voice` is who says the word, `agent` or `leaf`; a
+`span` carrying it as `data-lf-voice` wears that speaker's face. `progress` is
 `"picked_up"` once the user's update has been delivered into the agent's turn,
 `"working"` while the agent is at work on it, and otherwise `null`.
 

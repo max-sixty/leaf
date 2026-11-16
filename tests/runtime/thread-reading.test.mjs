@@ -325,6 +325,50 @@ test("attention names the outstanding question rather than the latest message", 
   assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);
 });
 
+test("a thread's summary says what a mark standing for it shows", () => {
+  // A page drawing its own marks reads these three, as Leaf's margin reads
+  // `threadMarks`: the line, the face of the agent's progress, and what is unread.
+  const question = agent("question", { kind: "comment", author: "user" });
+  const answer = agent("answer", { seq: 2 });
+  const summary = (changes, workflows = []) =>
+    threadSummary(
+      readThreadRecords(
+        [servedThread([question, answer], changes)],
+        NO_DOCUMENT,
+        new Map(),
+        workflows,
+      )[0],
+    );
+  const quiet = summary({});
+  assert.deepEqual([quiet.line, quiet.progress, quiet.unread], [null, null, 0]);
+  const unread = summary({ unread: { answer: "answer" } });
+  assert.deepEqual(
+    [unread.line, unread.progress, unread.unread],
+    [{ text: "1 unread", voice: "leaf" }, null, 1],
+  );
+  const asked = summary({
+    attention: { kind: "needs_user", reason: "obligation", workflow: null },
+    unread: { answer: "answer" },
+  });
+  assert.deepEqual(asked.line, { text: "Your turn", voice: "agent" });
+  assert.equal(asked.unread, 1);
+  // The agent at work says its word on the line, and the mark wears the working face.
+  const working = summary(
+    { attention: { kind: "waiting", reason: "workflow", workflow: "work" } },
+    [
+      servedWorkflow({
+        id: "work",
+        subject: { kind: "thread", id: "question" },
+        thread: "question",
+        stage: "working",
+        at_work: true,
+      }),
+    ],
+  );
+  assert.deepEqual(working.line, { text: "On it", voice: "agent" });
+  assert.equal(working.progress, "working");
+});
+
 test("superseding a blocked primary destination completes its prior navigation", async () => {
   const { applicationState } = await import("/runtime/semantic-state.js");
   const { readThreads } = await import("/runtime/thread/state.js");

@@ -462,16 +462,16 @@ STRIP_PAGE = leaf_page(
 STRIP_RAIL = """
 import { layoutChanged, placeMarginRail } from "/runtime/widget-api.js";
 
-const strip = document.getElementById("notes-strip");
+const strip = () => document.getElementById("notes-strip");
 const withdraw = placeMarginRail((room) => {
   window.railRoom = room;
-  const box = strip.getBoundingClientRect();
+  const box = strip().getBoundingClientRect();
   return box.width ? { edge: box.right, side: "left" } : null;
 });
 Object.assign(window, {
   moveStrip() {
-    strip.dataset.at = "moved";
-    layoutChanged(strip);
+    strip().dataset.at = "moved";
+    layoutChanged(strip());
   },
   withdrawRail: withdraw,
 });

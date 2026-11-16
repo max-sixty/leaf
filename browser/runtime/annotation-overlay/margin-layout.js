@@ -1970,16 +1970,6 @@ function layoutMountedRows(layer) {
     );
     return (railEntry ??= nativeEntry?.offsetWidth || restingRail(layer).entry);
   };
-  // The room a rail row keeps for a focus ring, as a resting row measures it.
-  /** @type {number | undefined} */
-  let ringRead;
-  const ringRoom = () => {
-    if (ringRead === undefined) {
-      const { row, entry } = restingRail(layer);
-      ringRead = row - entry;
-    }
-    return ringRead;
-  };
   // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
   // marker level with one would be drawn over it.
   const notes = !rail
@@ -2198,7 +2188,9 @@ function layoutMountedRows(layer) {
     const left =
       read.place === "pin" || !rail
         ? read.extent.right - pinInset - box.width
-        : railLeft(rail, box.width, ringRoom);
+        : railLeft(rail, box.width, () =>
+            parseFloat(getComputedStyle(read.row).paddingRight),
+          );
     return {
       key: read.row,
       rect: {

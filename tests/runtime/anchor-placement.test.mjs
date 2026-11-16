@@ -246,7 +246,8 @@ test("placement keeps a range over a passage's words, a thread's and the draft's
   assert.equal(placement.placedAt("t").ranges[0], placed);
   assert.equal(placement.pendingAt().ranges[0], drafted);
   // Words taken out of the passage itself leave nothing to place.
-  /** @type {Text} */ (document.getElementById("b")?.firstChild).data = "Both exports run.";
+  const words = /** @type {Text} */ (document.querySelector("#b")?.firstChild);
+  words.data = "Both exports run.";
   assert.equal(placement.pendingAt(), null);
   document.body.replaceChildren();
 });

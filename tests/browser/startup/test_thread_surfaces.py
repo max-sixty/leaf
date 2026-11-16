@@ -10,12 +10,14 @@ from render_cases_interaction import live_url
 from render_harness import (
     PANEL,
     ROOT,
+    close_panel_menu,
     comment_note,
     consume_browser_errors,
     expect_preview_words,
     holding,
     leaf_page,
     open_page,
+    panel_control,
     panel_field,
     primed,
     round_trip,
@@ -551,8 +553,8 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     asks its `reveal`, Leaf places the outlet it then returns and lands the user in it,
     and the panel stays shut. Awaiting the handle's `update()` waits for the placement.
     A presentation that declines leaves the thread to Leaf's panel, and one that draws
-    nothing over the page offers no command to hide annotations. A thread with no place
-    is never handed over, so no route asks the page for it."""
+    nothing over the page leaves the command that hides annotations disabled. A thread
+    with no place is never handed over, so no route asks the page for it."""
     events = [
         {
             "id": f"{i:032x}",
@@ -601,6 +603,7 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
           place: placement.place.id,
           words: (placement.ranges ?? []).map(String),
         }));
+        window.ranges = targets.flatMap(({placement}) => placement.ranges ?? []);
         if (!targets.some(({thread}) => thread?.key === window.shown)) outlet.remove();
         return targets.map(({thread}) => {
           if (thread?.key !== window.shown) return null;
@@ -637,12 +640,26 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
             "words": [],
         },
     ]
+    # A passage's ranges are live: a script writing words ahead of the passage moves
+    # them with it, and the next pass hands over the same ranges.
+    assert page.evaluate("""async () => {
+      const [before] = window.ranges;
+      document.querySelector('#subject').firstChild.insertData(0, 'Since Monday, ');
+      await pageSurface.update();
+      return [window.ranges[0] === before, String(before)];
+    }""") == [True, "one file per tenant"]
     drawn = page.locator("#review .lf-page-thread")
     expect(drawn).to_have_count(0)
-    # Nothing here joined the annotation layer, so `o` hides nothing.
+    # Nothing here joined the annotation layer, so `o` hides nothing and its row in the
+    # leaf's menu stands disabled.
     page.locator("#title").click()
     page.keyboard.press("o")
     expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
+    expect(
+        panel_control(page, "command:annotations.toggle", at="annotate")
+    ).to_be_disabled()
+    close_panel_menu(page)
+    page.locator("#title").click()
 
     page.keyboard.press("t")
     expect(drawn).to_have_count(1)
@@ -683,35 +700,102 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     assert page.evaluate("asked") == []
 
 
+def test_a_page_presentation_s_update_places_its_threads_while_state_is_applied(
+    browser, serve
+):
+    """The page handle's `update()` settles once its threads are placed, also while Leaf
+    is applying a server reading, whose own pass a route may be waiting inside, as a
+    revision's landing in a reply is. Asked of the document's pass, which an application
+    holds back until it ends, the update answered at once with nothing placed."""
+    url = serve(
+        leaf_page(
+            "Page presentation under a reading",
+            """
+      <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review"></aside>
+    """,
+        ).replace("<body>", '<body data-annotations="page">'),
+        anchored=[("subject", "one file per tenant")],
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {placePageThreads} = await window.__lfWidgetApi();
+      const rail = document.querySelector('#review');
+      const outlet = document.createElement('div');
+      outlet.dataset.lfGen = '1';
+      window.pageSurface = placePageThreads(rail, (targets) =>
+        targets.map(({thread}) => {
+          if (!window.shows || !thread) return null;
+          if (!outlet.isConnected) rail.append(outlet);
+          return outlet;
+        }));
+      await pageSurface.update();
+    }""")
+    drawn = page.locator("#review .lf-page-thread")
+    expect(drawn).to_have_count(0)
+    # A required reader holds the pass of the next reading, so its application stands
+    # open while the page asks for its threads to be placed.
+    _hold_required_thread_reader(page)
+    page.evaluate("window.holdPanel = true")
+    [root] = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "reply", "author": "agent", "parent": root, "text": "Noted."},
+    )
+    page.wait_for_function('typeof releasePanel === "function"')
+    page.evaluate("""() => {
+      window.shows = true;
+      void pageSurface.update().then(() => {
+        window.placedAtUpdate =
+          document.querySelectorAll('#review .lf-page-thread').length;
+      });
+      releasePanel();
+    }""")
+    page.wait_for_function("window.placedAtUpdate !== undefined")
+    assert page.evaluate("placedAtUpdate") == 1
+    expect(drawn).to_contain_text("Noted.")
+
+
 def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, serve):
     """`lf-x-margin`, the feature gallery's worked example, is a margin built on the
-    public package interface alone. On a page that draws its own annotations it marks
-    each commented passage and each obligation, opens a thread's card from its mark, its
-    words or `t`, closes it on Escape from inside the card, follows its words through a
-    box's scroll with no script answering the scroll, previews a thread from its words,
-    and goes while the user hides annotations."""
+    public package interface alone. On a page that draws its own annotations, in a window
+    with no room beside the column, it pins a mark for each commented passage, each
+    obligation and each contributed action, saying whose turn a thread is and what it
+    holds unread; opens a thread's card from its mark or `t`, and closes it on Escape
+    from inside the card or a press elsewhere, keeping the words typed there; follows
+    its words through a box's scroll with no script answering the scroll; seats the
+    comment box by the words; is Go-to's margin; and goes while annotations are hidden,
+    its contributed controls working once they return."""
     companion = ROOT / "examples/developer/feature-gallery.page"
     events = [
         {
-            "id": f"{i:032x}",
+            "id": f"{1:032x}",
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": text,
-            "anchor": anchor,
-        }
-        for i, text, anchor in [
-            (
-                1,
-                "About the passage",
-                {"section": "subject", "quote": "one file per tenant"},
-            ),
-            (
-                2,
-                "About the window",
-                {"section": "note-3", "quote": "the nightly window"},
-            ),
-        ]
+            "text": "About the passage",
+            "anchor": {"section": "subject", "quote": "one file per tenant"},
+        },
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": f"{1:032x}",
+            "responds": f"{1:032x}",
+            "revision": 1,
+            "text": "It does.",
+        },
+        {
+            "id": f"{2:032x}",
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the window",
+            "anchor": {"section": "note-3", "quote": "the nightly window"},
+        },
     ]
     page = open_page(
         browser,
@@ -729,6 +813,9 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
         <p id="note-4">The fourth note.</p><p id="note-5">The fifth note.</p>
         <p id="note-6">The sixth note.</p>
       </div>
+      <p id="wording">It is switched off <lf-suggestion id="suggestion"
+        ><lf-old>at the end</lf-old><lf-new>a week later</lf-new></lf-suggestion>.</p>
+      <p id="tail">Until then both exports run side by side.</p>
       <lf-x-margin id="margin"></lf-x-margin>
     """,
             ).replace("<body>", '<body data-annotations="page">'),
@@ -744,28 +831,76 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
         ),
     )
     margin = page.locator("lf-x-margin")
-    passage = margin.get_by_role("button", name="Thread: About the passage", exact=True)
-    window = margin.get_by_role("button", name="Thread: About the window", exact=True)
+    # A window with no room for the marks beside the column.
+    page.set_viewport_size({"width": 920, "height": 780})
+    expect(margin).to_have_attribute("data-pinned", "")
+    passage = margin.get_by_role("button", name="Thread: About the passage, 1 unread")
+    window = margin.get_by_role("button", name="Thread: About the window")
     owed = margin.get_by_role("button", name="Waiting on me: Which route?", exact=True)
+    accept = margin.get_by_role("button", name="Accept the suggested change")
     card = margin.locator(".lf-page-thread")
-    for mark in (passage, window, owed):
+    for mark in (passage, window, owed, accept):
         expect(mark).to_be_visible()
+    # The tint paints from the ranges Leaf hands over, under a rule naming the elements
+    # that hold the words.
     tinted = "[...CSS.highlights.get('lf-x-margin-passage')].map(String)"
     assert page.evaluate(tinted) == ["one file per tenant", "the nightly window"]
+    assert page.evaluate(
+        "[...document.querySelectorAll('[data-lf-marked-words]')].map((node) => node.id)"
+    ) == ["subject", "note-3"]
+
+    # A pin has no room for its words, so its face and its preview say them: a dot for
+    # what is unread, the turn's colour on what waits on the user, and its line on Tab.
+    assert margin.evaluate("""(margin) => [...margin.querySelectorAll('.xm-mark')].map(
+      (mark) => [mark.hasAttribute('data-unread'), mark.hasAttribute('data-turn'),
+        Boolean(mark.querySelector('.xm-word')?.checkVisibility())])""") == [
+        [True, False, False],
+        [False, True, False],
+        [False, False, False],
+        [False, False, False],
+    ]
+    expect_preview_words(passage, "1 unread")
+    # Tab reads the margin down the page.
+    page.locator("#title").click()
+    reached = []
+    for _ in range(16):
+        page.keyboard.press("Tab")
+        name = page.evaluate(
+            "document.activeElement.closest('lf-x-margin')"
+            " ? document.activeElement.getAttribute('aria-label') : null"
+        )
+        if name:
+            reached.append(name.split(":")[0].split(" the ")[0])
+        elif reached:
+            break
+    assert reached == ["Thread", "Waiting on me", "Thread", "Accept", "Reject"]
 
     # A press opens the thread's card, and Escape from inside it returns to the mark:
     # Leaf's step out of the reply first, then the card's own, declared on its outlet.
     passage.click()
     expect(card).to_contain_text("About the passage")
-    expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_have_count(0)
-    expect(passage).to_be_focused()
+    expect(
+        margin.get_by_role("button", name="Thread: About the passage")
+    ).to_be_focused()
+
+    # A press elsewhere puts the card away, and Leaf keeps the words typed in it.
+    opener = margin.get_by_role("button", name="Thread: About the passage")
+    opener.click()
+    write(reply, "Does the archive too?")
+    page.locator("#tail").click()
+    expect(card).to_have_count(0)
+    opener.click()
+    expect(reply).to_have_js_property("value", "Does the archive too?")
+    page.locator("#title").click()
+    expect(card).to_have_count(0)
 
     # `t` reaches the page's own card, and Leaf's panel stays shut.
-    page.locator("#title").click()
     page.keyboard.press("t")
     expect(card).to_contain_text("About the passage")
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
@@ -777,7 +912,7 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
     # put it there.
     assert page.evaluate("""async () => {
       const mark = [...document.querySelectorAll('lf-x-margin .xm-mark')].find((node) =>
-        node.querySelector('button').getAttribute('aria-label').endsWith('the window'));
+        node.querySelector('button').getAttribute('aria-label').includes('the window'));
       const words = [...CSS.highlights.get('lf-x-margin-passage')].find((range) =>
         String(range) === 'the nightly window');
       const gap = () =>
@@ -795,34 +930,55 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
       return {before, after: gap(), writes};
     }""") == {"before": 0, "after": 0, "writes": 0}
 
-    # Pointing at commented words reads their thread, and a press there opens it.
-    words = page.evaluate("""() => {
-      const range = [...CSS.highlights.get('lf-x-margin-passage')][0];
-      const box = range.getClientRects()[0];
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
-    }""")
-    page.mouse.move(words["x"], words["y"] - 40)
-    page.mouse.move(words["x"], words["y"], steps=3)
-    expect(page.locator(".lf-preview")).to_contain_text("About the passage")
-    page.mouse.click(words["x"], words["y"])
-    expect(card).to_contain_text("About the passage")
+    # Go-to letters the page's marks as it letters Leaf's own margin: all of them as
+    # margin targets, and the threads' as Thread controls.
+    chips = page.locator(".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]:visible")
+    page.locator("#title").click()
+    page.keyboard.press("g")
+    page.keyboard.press("m")
+    expect(chips).to_have_count(5)
+    page.keyboard.press("Escape")
+    page.keyboard.press("t")
+    expect(chips).to_have_count(2)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(card).to_have_count(0)
+    expect(chips).to_have_count(0)
+
+    # The comment box opens in the page's own outlet, by the words, and no empty outlet
+    # stands before or after it.
+    page.locator("#tail").select_text()
+    page.keyboard.press("c")
+    box = margin.get_by_role("textbox")
+    expect(box).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(box).to_have_count(0)
+    assert (
+        margin.locator(".xm-card").evaluate_all(
+            "(cards) => cards.filter((card) => card.checkVisibility()).length"
+        )
+        == 0
+    )
 
     # An obligation's mark goes to its question.
     owed.click()
     page.wait_for_function("!!document.activeElement?.closest('#route')")
 
-    # The margin joined the annotation layer, so `o` hides and shows all of it.
+    # The margin joined the annotation layer, so `o` hides its pins and tints, and they
+    # come back with their controls working.
     page.locator("#title").click()
     page.keyboard.press("o")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(margin.locator(".xm-mark")).to_have_count(0)
     assert page.evaluate(tinted) == []
+    assert (
+        page.evaluate("document.querySelectorAll('[data-lf-marked-words]').length") == 0
+    )
     page.keyboard.press("o")
-    expect(passage).to_be_visible()
+    expect(opener).to_be_visible()
     assert page.evaluate(tinted) == ["one file per tenant", "the nightly window"]
+    expect(accept).to_be_enabled()
+    accept.click()
+    expect(page.locator("#suggestion")).to_have_attribute("data-lf-state", "accept")
 
 
 def _hold_required_thread_reader(page):

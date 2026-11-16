@@ -210,7 +210,14 @@ coordinates: `{left, top}`, with `right` and `bottom` too where it should take t
 size. Leaf writes the box fixed there with CSS anchor positioning, against the anchor
 its own marks use, so the browser carries the box with `context` through every scroll,
 the document's or a box's around it, and no scroll listener runs. Call it again when
-layout changes where the box belongs, as on a resize, never on a scroll.
+layout changes where the box belongs, as on a resize. A scroll needs no call, except
+inside a box a transform scales: there Firefox and WebKit carry an anchored box by the
+scroll's layout pixels, not the distance the words move on screen, so place the box
+again at that scroller's `scrollend`.
+
+The box is not cut where `context` passes a scroller's edge or goes under a sticky
+header, as Leaf's own margin rows are: it shows whole or, by its `position-visibility`,
+not at all.
 
 The box comes after `context` in the document, since the browser lays an anchor out
 before what it positions; one that comes before stays where `at` put it and follows

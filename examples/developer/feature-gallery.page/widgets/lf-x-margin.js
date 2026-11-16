@@ -9,8 +9,15 @@
 
    It takes no room in the page: every box it draws is fixed and anchored to the words
    it stands by, so the browser carries it with them through each scroll. Where the
-   window has no room right of the reading column, each mark stands as a pin at the
-   window's edge, its symbol alone, and a card stands under its passage. */
+   window has room right of the reading column the marks stand there with their words,
+   covering nothing, and a card stands beside them. Where it has none, each mark is a
+   pin at the window's edge, its symbol alone, and a card stands under its passage, as
+   far into what room the margin has as it goes. While the user hides annotations (`o`)
+   the pins, tints and cards go, and marks standing clear of the column stay.
+
+   Commented words are tinted and nothing more: pointing at them reads no preview and a
+   press on them opens no thread, both of which Leaf's own margin does from an index of
+   every passage that no public call reaches. */
 import {
   LeafElement,
   PAGE_INTERFACE,
@@ -22,31 +29,36 @@ import {
   focusDestination,
   focused,
   frameFor,
+  isNativeLayer,
   keeps,
   keepsHidden,
   keepsText,
   nameAction,
   offer,
   offerAction,
+  onPressAway,
   placePageThreads,
-  plainPress,
-  previewChanged,
   setChildren,
+  shownWindow,
   sizeObserver,
   threadActions,
   threadSummary,
   under,
   watchAnnotationLayer,
   whileConnected,
-  worksInside,
 } from "/runtime/widget-api.js";
 import { computePosition, flip, offset, shift } from "/vendor/floating-ui.esm.js";
 
 const TINT = "lf-x-margin-passage";
+// The mark Leaf's own passage highlights put on each element holding marked words,
+// which a highlight's rule names (module-annotations.md).
+const WORDS = "data-lf-marked-words";
 const GAP = 12; // between the reading column and the marks
 const RAIL = 184; // the room a mark with its words takes right of the column
 const STACK = 4; // between two marks beside one line
 const CARD_GAP = 40; // a card stands right of the marks
+const CARD_MIN = 256; // the least width a card beside the column reads at
+const EDGE = 8; // a card keeps this far from the window's edge and Leaf's panel
 
 const STYLE = `
 @layer lf-base {
@@ -57,10 +69,20 @@ const STYLE = `
     position: fixed; position-visibility: var(--lf-anchor-visible);
     display: flex; align-items: center; gap: var(--lf-sp-1);
     inline-size: max-content; z-index: 2;
-    color: var(--lf-thread); font: var(--lf-t-6)/1.3 var(--lf-sans);
+    color: var(--lf-ink-2); font: var(--lf-t-6)/1.3 var(--lf-sans);
   }
-  lf-x-margin .xm-mark[data-turn] { color: var(--lf-turn-ink); }
-  lf-x-margin .xm-mark[data-progress="working"] { color: var(--lf-work); }
+  /* A mark's colour says one thing, as on Leaf's own marks: a thread, the user's turn
+     or the agent at work. Its dot says the thread holds something unread. A pin keeps
+     both, where it has no room for its words. */
+  lf-x-margin .xm-press { color: var(--lf-thread); }
+  lf-x-margin .xm-mark[data-progress="working"] > .xm-press { color: var(--lf-work); }
+  lf-x-margin .xm-mark[data-turn] > .xm-press { color: var(--lf-turn-ink); }
+  lf-x-margin .xm-dot {
+    position: absolute; inset-block-start: 2px; inset-inline-start: 19px;
+    inline-size: 7px; block-size: 7px; border-radius: 50%;
+    background: var(--lf-news); pointer-events: none;
+  }
+  lf-x-margin .xm-mark:not([data-unread]) > .xm-dot { display: none; }
   lf-x-margin .xm-word {
     max-inline-size: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
@@ -71,18 +93,25 @@ const STYLE = `
   }
   lf-x-margin[data-pinned] .xm-word { display: none; }
   /* A card is where the user writes, so it stays drawn while its words scroll out of
-     a box, where a mark goes with them. */
+     a box, where a mark goes with them. Beside the column it takes the room right of
+     the marks. Under its words it takes the width Leaf's thread needs to say a
+     message's line whole beside its controls. */
   lf-x-margin .xm-card {
     position: fixed; z-index: 3; position-visibility: always;
-    inline-size: min(18rem, calc(100vw - 16px)); max-block-size: 70vh; overflow: auto;
+    inline-size: min(var(--xm-room, 22rem), 22rem);
+    max-inline-size: calc(100vw - 16px); max-block-size: 70vh; overflow: auto;
     --lf-ground: var(--lf-card);
     padding: var(--lf-sp-2); border: 1px solid var(--lf-border);
-    border-radius: var(--lf-r); background: var(--lf-ground); color: var(--lf-ink);
+    border-radius: var(--lf-r-l); background: var(--lf-ground); color: var(--lf-ink);
     box-shadow: var(--lf-raise-2);
   }
-  /* A wash of the theme's thread colour. The rule matches each element holding the
-     words, since Firefox resolves a highlight's style from that element's rules alone. */
-  ::highlight(${TINT}) {
+  lf-x-margin[data-under] .xm-card { inline-size: 26rem; }
+  /* An outlet Leaf has yet to fill, or left to its panel, shows nothing. */
+  lf-x-margin .xm-card:empty { display: none; }
+  /* A wash of the theme's thread colour over the commented words. The rule names the
+     elements holding them: one naming none would restyle every element on the page,
+     and Firefox paints a highlight only from a rule matching the words' own element. */
+  [${WORDS}]::highlight(${TINT}) {
     background-color: oklch(from var(--lf-thread) l c h / 0.16);
   }
 }`;
@@ -97,28 +126,40 @@ function standing({ place, ranges }) {
     : { lines: [place.getBoundingClientRect()], context: place };
 }
 
+// A mark: a press wearing one of Leaf's symbols, the words beside it, and the dot it
+// wears while it holds something unread.
+function mark(action, run) {
+  const press = offerAction("symbol", "xm-press", "", { action });
+  press.addEventListener("click", run);
+  const word = offer("span", "xm-word");
+  const node = offer("div", "xm-mark");
+  node.append(press, word, offer("span", "xm-dot"));
+  return { node, press, word };
+}
+
 customElements.define(
   "lf-x-margin",
   class extends LeafElement {
-    #marks = offer("div", "xm-marks");
-    #cards = offer("div", "xm-cards");
+    #layer = offer("div", "xm-layer");
     #surface = null;
     #view = null;
+    #sizes = null;
     #activate = null; // runs an inventory item, from the view Leaf last painted with
     #targets = [];
-    #threadMarks = new Map(); // thread key -> {node, press, word, placement}
-    #rows = new Map(); // inventory entry key -> {node, items, placement}
+    #threadMarks = new Map(); // thread key -> {node, press, word, thread, placement}
+    #owedMarks = new Map(); // On Me item key -> {node, press, word, item, placement}
+    #rows = new Map(); // inventory entry key -> {node, placement}, its contributed controls
+    #order = []; // the marks in page order, as the last layout read them
     #outlets = new Map(); // thread key -> outlet
     #composer = null; // the comment box's outlet, while Leaf asks for one
     #composing = null; // the comment box's placement
+    #standing = new Set(); // the outlets in the document, until a pass retires them
     #open = null; // the key of the thread whose card is open
-    #hidden = false;
-    #tinted = new Map(); // tinted range -> thread key
-    #previewed = new Set(); // the elements given a preview of their commented words
-    #pointer = null; // the pointer's last move or press
-    #aimed = null; // the commented words under it: {key, place, line}
+    #hidden = false; // whether the user has hidden the annotation layer
+    #pinned = false; // whether the marks stand as pins over the page
+    #room = null; // the width a card has right of the marks, or null under its words
+    #tinted = new Set(); // the elements holding tinted words
     #schedule = frameFor(this, () => this.#layout());
-    #aim = frameFor(this, () => this.#readAim());
     // A key pressed in a thread goes to the scopes on its outlet, then to the page
     // (module-input.md, "How scopes compose"), so the card's Escape is declared on each
     // outlet. Leaf's own steps inside the thread come first.
@@ -138,8 +179,10 @@ customElements.define(
     setup() {
       const style = document.createElement("style");
       style.textContent = STYLE;
-      this.append(style, this.#marks, this.#cards);
+      this.append(style, this.#layer);
       whileConnected(this, (signal) => {
+        this.#sizes = sizeObserver(this.#schedule);
+        this.#sizes.observe(this.#column());
         this.#surface = placePageThreads(
           this,
           (targets, context) => this.#placeThreads(targets, context),
@@ -149,38 +192,37 @@ customElements.define(
           this.#placeEntries(entries, view),
         );
         const stopHiding = watchAnnotationLayer((hidden) => this.#hide(hidden));
+        // A press away from the open card puts it away, as it does Leaf's own. Leaf
+        // keeps the words of a reply being written there as its draft.
+        const stopPresses = onPressAway(
+          (path) => this.#pressedAway(path),
+          () => this.#close(),
+        );
         addEventListener("resize", this.#schedule, { signal });
         document.addEventListener(PAGE_INTERFACE, this.#schedule, { signal });
-        document.addEventListener("click", (event) => this.#pressWords(event), {
-          signal,
-        });
-        for (const type of ["pointermove", "pointerdown"])
-          document.addEventListener(
-            type,
-            (event) => {
-              this.#pointer = event;
-              this.#aim();
-            },
-            { signal, passive: true },
-          );
-        const sizes = sizeObserver(this.#schedule);
-        sizes.observe(this.#column());
-        sizes.observe(this.#cards);
         return () => {
           stopHiding();
-          sizes.disconnect();
+          stopPresses();
+          this.#sizes.disconnect();
           this.#surface.unregister();
           this.#view.unregister();
-          this.#surface = this.#view = null;
+          this.#surface = this.#view = this.#sizes = null;
           CSS.highlights.delete(TINT);
-          for (const place of this.#previewed) delete place.lfPreview;
-          this.#previewed.clear();
+          this.#tint([]);
         };
       });
     }
 
+    // The page's reading column. No public call names it, so this reads the page's
+    // content frame, `main`, as a page written for this margin has one.
     #column() {
       return this.closest("main") ?? document.body;
+    }
+
+    // Whether the marks themselves are hidden: pins stand over the page's words, which
+    // the user hid annotations to read.
+    #gone() {
+      return this.#hidden && this.#pinned;
     }
 
     // Leaf hands over every thread that has a place and the open comment box, and
@@ -191,124 +233,154 @@ customElements.define(
       if (!targets.some(({ thread }) => thread?.key === this.#open)) this.#open = null;
       this.#composing = null;
       const outlets = targets.map(({ thread, placement }) => {
+        // Hidden, a card and the comment box are Leaf's panel's.
         if (this.#hidden) return null;
         if (thread === null) {
           this.#composing = placement;
-          return (this.#composer ??= offer("div", "xm-card"));
+          return (this.#composer ??= this.#outlet());
         }
-        return thread.key === this.#open ? this.#outletFor(thread.key) : null;
+        if (thread.key !== this.#open) return null;
+        if (!this.#outlets.has(thread.key)) {
+          const outlet = this.#outlet();
+          outlet.lfCommands = this.#cardKeys;
+          commandsChanged(outlet);
+          this.#outlets.set(thread.key, outlet);
+        }
+        return this.#outlets.get(thread.key);
       });
       const drawn = new Set(outlets.filter(Boolean));
-      setChildren(this.#cards, [...drawn]);
+      for (const outlet of drawn) this.#standing.add(outlet);
       this.#drawThreadMarks();
       // An outlet no longer returned may still hold the comment box until this pass
-      // takes effect, so it is forgotten only then.
+      // takes effect, so it leaves only then.
       onCommit(() => {
+        for (const outlet of this.#standing)
+          if (!drawn.has(outlet)) {
+            this.#standing.delete(outlet);
+            this.#sizes.unobserve(outlet);
+          }
         for (const [key, outlet] of this.#outlets)
           if (!drawn.has(outlet)) this.#outlets.delete(key);
         if (!drawn.has(this.#composer)) this.#composer = null;
+        this.#arrange();
         this.#layout();
       });
       return outlets;
     }
 
-    #outletFor(key) {
-      let outlet = this.#outlets.get(key);
-      if (!outlet) {
-        outlet = offer("div", "xm-card");
-        outlet.lfCommands = this.#cardKeys;
-        commandsChanged(outlet);
-        this.#outlets.set(key, outlet);
-      }
+    // An outlet's size is Leaf's to change, as a thread gains a message.
+    #outlet() {
+      const outlet = offer("div", "xm-card");
+      this.#sizes.observe(outlet);
       return outlet;
     }
 
-    // One mark for each open thread, saying what Leaf's own margin says of it:
-    // whose turn it is, where the agent's work on it stands, or what it holds unread.
+    // One mark for each open thread, saying what Leaf's own margin says of it: by its
+    // colour whose turn it is, by its dot that it holds something unread, and in words
+    // its line, such as where the agent's work on it stands.
     #drawThreadMarks() {
       const next = new Map();
-      for (const { thread, placement } of this.#hidden ? [] : this.#targets) {
+      for (const { thread, placement } of this.#gone() ? [] : this.#targets) {
         if (!thread || (thread.resolved && thread.key !== this.#open)) continue;
-        let mark = this.#threadMarks.get(thread.key);
-        if (!mark) {
-          const press = offerAction("symbol", "", "", { action: "comment" });
-          press.addEventListener("click", () => this.#press(thread.key));
-          const word = offer("span", "xm-word");
-          const node = offer("div", "xm-mark");
-          node.append(press, word);
-          mark = { node, press, word };
-        }
-        const { topic, status, progress } = threadSummary(thread);
-        nameAction(mark.press, "comment", { label: `Thread: ${topic}` });
-        keeps(mark.press, "aria-expanded", String(thread.key === this.#open));
-        keepsText(mark.word, status?.text ?? "");
-        keeps(mark.word, "data-lf-voice", status?.voice ?? null);
+        const { key } = thread;
+        const drawn =
+          this.#threadMarks.get(key) ?? mark("comment", () => this.#press(key));
+        const { topic, line, progress, unread } = threadSummary(thread);
+        nameAction(drawn.press, "comment", {
+          label: [`Thread: ${topic}`, line?.text].filter(Boolean).join(", "),
+        });
+        keeps(drawn.press, "aria-expanded", String(key === this.#open));
+        // Pointing at the mark reads the thread's name, and its line where the mark is
+        // a pin with no room to show it. An open thread is in front of the user.
+        drawn.press.lfPreview = () =>
+          key === this.#open
+            ? null
+            : { name: topic, detail: this.#pinned ? [line?.text] : [] };
+        keepsText(drawn.word, line?.text ?? "");
+        keeps(drawn.word, "data-lf-voice", line?.voice ?? null);
         keeps(
-          mark.node,
+          drawn.node,
           "data-turn",
-          thread.attention?.kind === "needs_user" ? "user" : null,
+          thread.attention?.kind === "needs_user" ? "" : null,
         );
-        keeps(mark.node, "data-progress", progress);
-        this.#previewWords(placement.place);
-        next.set(thread.key, { ...mark, thread, placement });
+        keeps(drawn.node, "data-progress", progress);
+        keeps(drawn.node, "data-unread", unread ? "" : null);
+        next.set(key, { ...drawn, thread, placement });
       }
       this.#threadMarks = next;
-      this.#drawMarks();
+      this.#arrange();
+      this.#schedule();
     }
 
-    // The page's other annotations: for each place Leaf lists, its On Me items as
-    // marks, and the real controls of whatever a widget contributed there.
+    // The page's other annotations, one entry for each place Leaf lists: its On Me
+    // items as marks, and the real controls of whatever a widget contributed there.
+    // Each row is tied to its entry, and a mark to the item it stands for, so the user
+    // comments from it on its place, and Go-to finds it among the margin's targets and
+    // a thread's mark among the Thread controls. A thread no card holds is listed here
+    // too, so its mark, drawn above from where its words stand, is tied here.
     #placeEntries(entries, view) {
       this.#activate = view.activate;
-      const next = new Map();
-      for (const entry of this.#hidden ? [] : entries) {
-        const owed = view.items(entry).filter((item) => item.kind === "on-me");
-        const controls = view.controls(entry);
-        if (!owed.length && !controls.length) continue;
-        const last = this.#rows.get(entry.key);
-        const node = last?.node ?? offer("div", "xm-mark");
-        const items = new Map();
-        for (const item of owed) {
-          const key = contributionItemKey(item);
-          const mark = last?.items.get(key) ?? this.#owedMark(entry.key, key);
-          nameAction(mark.press, "show", {
-            label: [item.text, item.label].filter(Boolean).join(": "),
-          });
-          keepsText(mark.word, item.text);
-          items.set(key, { ...mark, item });
+      const owed = new Map();
+      const rows = new Map();
+      for (const entry of this.#gone() ? [] : entries) {
+        const placement = { place: view.target(entry) };
+        for (const item of view.items(entry)) {
+          if (item.kind === "comment") {
+            const drawn = this.#threadMarks.get(item.thread.key);
+            if (drawn) view.place(entry, drawn.node, item);
+          } else if (item.kind === "on-me") {
+            const key = contributionItemKey(item);
+            // The press runs the item its mark last drew, which a later reading may
+            // have replaced under the same key.
+            const drawn =
+              this.#owedMarks.get(key) ??
+              mark("show", () => this.#activate(this.#owedMarks.get(key).item));
+            nameAction(drawn.press, "show", {
+              label: [item.text, item.label].filter(Boolean).join(": "),
+            });
+            keepsText(drawn.word, item.text);
+            keeps(drawn.node, "data-turn", "");
+            view.place(entry, drawn.node, item);
+            owed.set(key, { ...drawn, item, placement });
+          }
         }
-        setChildren(node, [
-          ...[...items.values()].flatMap(({ press, word }) => [press, word]),
-          ...controls,
-        ]);
-        keeps(node, "data-turn", owed.length ? "user" : null);
-        // Ties the row to the entry's place, so a comment or Escape from a control in
-        // it acts on what the row is about.
+        const controls = view.controls(entry);
+        if (!controls.length) continue;
+        const node = this.#rows.get(entry.key)?.node ?? offer("div", "xm-mark");
+        setChildren(node, controls);
         view.place(entry, node);
-        next.set(entry.key, { node, items, placement: { place: view.target(entry) } });
+        rows.set(entry.key, { node, placement });
       }
-      this.#rows = next;
-      this.#drawMarks();
-    }
-
-    // An On Me mark: a press that shows the question, and Leaf's words for it. The
-    // press runs the item its row last drew, which a later reading may have replaced
-    // under the same key.
-    #owedMark(entry, key) {
-      const press = offerAction("symbol", "", "", { action: "show" });
-      press.addEventListener("click", () => {
-        const item = this.#rows.get(entry)?.items.get(key)?.item;
-        if (item) this.#activate(item);
-      });
-      return { press, word: offer("span", "xm-word") };
-    }
-
-    #drawMarks() {
-      setChildren(this.#marks, [
-        ...[...this.#threadMarks.values()].map(({ node }) => node),
-        ...[...this.#rows.values()].map(({ node }) => node),
-      ]);
+      this.#owedMarks = owed;
+      this.#rows = rows;
+      this.#arrange();
       this.#schedule();
+    }
+
+    #marks() {
+      return [
+        ...this.#threadMarks.values(),
+        ...this.#owedMarks.values(),
+        ...this.#rows.values(),
+      ];
+    }
+
+    // The marks in page order, each thread's card after its mark, so Tab reads the
+    // margin down the page and steps from a mark into its card.
+    #arrange() {
+      const marks = this.#marks().map(({ node }) => node);
+      const card = this.#outlets.get(this.#open);
+      const opener = this.#threadMarks.get(this.#open)?.node;
+      const ordered = [
+        ...this.#order.filter((node) => marks.includes(node)),
+        ...marks.filter((node) => !this.#order.includes(node)),
+      ].flatMap((node) =>
+        node === opener && this.#standing.has(card) ? [node, card] : [node],
+      );
+      setChildren(this.#layer, [
+        ...ordered,
+        ...[...this.#standing].filter((outlet) => !ordered.includes(outlet)),
+      ]);
     }
 
     #press(key) {
@@ -318,108 +390,106 @@ customElements.define(
       void threadActions.open(key, { travel: false });
     }
 
-    // Any route to a thread no card shows comes here: this press, `t`, a row of
-    // Threads, a link. The pass that follows places the outlet `#placeThreads` gives.
+    // Any route to a thread no card shows comes here: a press on its mark, `t`, Show
+    // on page in Leaf's panel. The pass that follows places the outlet `#placeThreads`
+    // gives. Declining, while annotations are hidden, leaves the thread to the panel.
     #reveal(key) {
-      if (this.#hidden || !this.#targets.some(({ thread }) => thread?.key === key))
-        return false;
+      if (this.#hidden) return false;
       this.#open = key;
     }
 
     #close() {
-      const mark = this.#threadMarks.get(this.#open)?.press;
+      const card = this.#outlets.get(this.#open);
+      const opener = this.#threadMarks.get(this.#open)?.press;
       this.#open = null;
-      // The user leaves the card for its mark before the pass takes the card down.
-      if (under(focused(), this) && mark?.isConnected) focusDestination(mark, "return");
-      void this.#surface?.update();
+      // A user in the card leaves it for its mark before the pass takes the card down.
+      if (card && under(focused(), card) && opener?.isConnected)
+        focusDestination(opener, "return");
+      void this.#surface.update();
     }
 
-    // The user hid or showed the annotation layer (`o`). Everything here stands over
-    // the page, so all of it goes, and the user with it to the words they were at.
+    // Whether a press began and ended away from the open card: outside the card, its
+    // mark, the block its words stand in, and anything the card opened over the page.
+    #pressedAway(path) {
+      const opener = this.#threadMarks.get(this.#open);
+      if (!opener) return false;
+      const kept = [this.#outlets.get(this.#open), opener.node, opener.placement.place];
+      return !path.some((node) => kept.includes(node) || isNativeLayer(node));
+    }
+
+    // The user hid or showed annotations (`o`): what stands over the page's words
+    // goes, and a user on any of it goes to the words it stood by.
     #hide(hidden) {
       if (hidden === this.#hidden) return;
       this.#hidden = hidden;
       if (hidden) {
-        const place = this.#threadMarks.get(this.#open)?.placement.place;
-        if (under(focused(), this) && place?.isConnected)
-          focusDestination(place, "return");
+        const at = focused();
+        const card = this.#outlets.get(this.#open);
+        const from =
+          card && under(at, card)
+            ? this.#threadMarks.get(this.#open)
+            : this.#pinned && this.#marks().find(({ node }) => under(at, node));
+        if (from) focusDestination(from.placement.place, "return");
         this.#open = null;
       }
-      void this.#surface?.update();
-      void this.#view?.update();
+      this.#redraw();
     }
 
-    // The commented words under a pointer event, as the browser's own hit test of the
-    // tint's ranges says, where the event reached the page's words and no control in
-    // them: the thread, the element holding the words and the line pointed at.
-    #wordsAt(event) {
-      const column = this.#column();
-      const { target, clientX: x, clientY: y } = event;
-      if (!under(target, column) || under(target, this) || worksInside(target, column))
-        return null;
-      const tint = CSS.highlights.get(TINT);
-      const [range] =
-        CSS.highlights
-          .highlightsFromPoint?.(x, y)
-          .find(({ highlight }) => highlight === tint)?.ranges ?? [];
-      const mark = this.#threadMarks.get(this.#tinted.get(range));
-      if (!mark) return null;
-      const line = [...range.getClientRects()].find(
-        (rect) =>
-          y >= rect.top && y <= rect.bottom && x >= rect.left && x <= rect.right,
+    #redraw() {
+      void this.#surface.update();
+      void this.#view.update();
+      this.#schedule();
+    }
+
+    // Tint the words `ranges` cover, with the platform's highlights, and mark the
+    // elements holding them for the highlight's rule to name: each end's parent, or
+    // the host of a shadow tree holding the words directly.
+    #tint(ranges) {
+      CSS.highlights.set(TINT, new Highlight(...ranges));
+      const holding = new Set(
+        ranges.flatMap(({ startContainer, endContainer }) =>
+          [startContainer, endContainer].map(
+            (node) => node.parentElement ?? node.parentNode?.host,
+          ),
+        ),
       );
-      return line ? { key: mark.thread.key, place: mark.placement.place, line } : null;
-    }
-
-    // A press on commented words opens their thread, as a press on its mark does,
-    // unless it selected words.
-    #pressWords(event) {
-      if (!plainPress(event) || event.defaultPrevented || !getSelection().isCollapsed)
-        return;
-      const key = this.#wordsAt(event)?.key;
-      if (key && key !== this.#open) void threadActions.open(key, { travel: false });
-    }
-
-    // Pointing at commented words reads their thread, as pointing at its mark does.
-    // Leaf shows every preview and asks the element under the pointer what to say, so
-    // the element holding the words answers for them, while it declares nothing of its
-    // own, and says when the pointer reaches or leaves them.
-    #previewWords(place) {
-      if (this.#previewed.has(place) || typeof place.lfPreview === "function") return;
-      this.#previewed.add(place);
-      place.lfPreview = (route) => {
-        const aimed = this.#aimed;
-        const thread = this.#threadMarks.get(aimed?.key)?.thread;
-        if (route === "focus" || aimed?.place !== place || !thread) return null;
-        const { topic, status } = threadSummary(thread);
-        return { name: topic, detail: [status?.text], at: aimed.line };
-      };
-    }
-
-    #readAim() {
-      const was = this.#aimed;
-      const now = this.#hidden || !this.#pointer ? null : this.#wordsAt(this.#pointer);
-      if (was?.key === now?.key && was?.line.top === now?.line.top) return;
-      this.#aimed = now;
-      for (const place of new Set([was?.place, now?.place]))
-        if (place?.isConnected) previewChanged(place, { aim: Boolean(now) });
+      holding.delete(undefined);
+      for (const element of this.#tinted)
+        if (!holding.has(element)) element.removeAttribute(WORDS);
+      for (const element of holding) keeps(element, WORDS, "");
+      this.#tinted = holding;
     }
 
     #layout() {
       const column = this.#column().getBoundingClientRect();
-      const pinned = innerWidth - column.right < GAP + RAIL;
-      keeps(this, "data-pinned", pinned ? "" : null);
+      // The window, and the part of it clear of Leaf's panel, which a card keeps inside.
+      const page = shownWindow();
+      const edge = shownWindow({ gap: EDGE });
+      const pinned = page.right - column.right < GAP + RAIL;
+      if (pinned !== this.#pinned) {
+        this.#pinned = pinned;
+        keeps(this, "data-pinned", pinned ? "" : null);
+        // Pins go with hidden annotations, and marks clear of the column come back.
+        if (this.#hidden) this.#redraw();
+      }
+      // A card stands beside the column where the margin has the room for one.
+      const free = Math.round(edge.right - column.right - CARD_GAP);
+      const room = free >= CARD_MIN ? free : null;
+      if (room !== this.#room) {
+        this.#room = room;
+        keeps(this, "data-under", room === null ? "" : null);
+        if (room === null) this.style.removeProperty("--xm-room");
+        else this.style.setProperty("--xm-room", `${room}px`);
+      }
       // Read every box before writing any, so the pass lays the page out once.
-      const marks = [...this.#threadMarks.values(), ...this.#rows.values()].map(
-        ({ node, placement }) => {
-          const at = standing(placement);
-          const shown = at.lines.some((line) => line.width || line.height);
-          keepsHidden(node, !shown);
-          return { node, shown, ...at };
-        },
-      );
-      const shown = marks.filter((mark) => mark.shown);
-      for (const mark of shown) mark.size = mark.node.getBoundingClientRect();
+      const marks = this.#marks().map(({ node, placement }) => {
+        const at = standing(placement);
+        const shown = at.lines.some((line) => line.width || line.height);
+        keepsHidden(node, !shown);
+        return { node, shown, ...at };
+      });
+      const shown = marks.filter(({ shown }) => shown);
+      for (const drawn of shown) drawn.size = drawn.node.getBoundingClientRect();
       const card = this.#outlets.get(this.#open);
       const floats = [
         ...(card
@@ -428,53 +498,73 @@ customElements.define(
         ...(this.#composer && this.#composing
           ? [{ node: this.#composer, ...standing(this.#composing) }]
           : []),
-      ];
+      ].map((float) => ({ ...float, width: float.node.offsetWidth }));
 
       // Marks beside one line stack down the margin in page order: right of the
       // column, or as pins at the window's edge.
+      shown.sort((a, b) => a.lines[0].top - b.lines[0].top);
       let floor = -Infinity;
-      for (const mark of shown.sort((a, b) => a.lines[0].top - b.lines[0].top)) {
-        const top = Math.max(mark.lines[0].top, floor);
-        const left = pinned ? innerWidth - mark.size.width - 4 : column.right + GAP;
-        anchorTo(mark.node, mark.context, { left, top });
-        floor = top + mark.size.height + STACK;
+      for (const drawn of shown) {
+        const top = Math.max(drawn.lines[0].top, floor);
+        const left = pinned ? page.right - drawn.size.width - 4 : column.right + GAP;
+        anchorTo(drawn.node, drawn.context, { left, top });
+        floor = top + drawn.size.height + STACK;
       }
+      const order = shown.map(({ node }) => node);
+      if (order.some((node, at) => node !== this.#order[at])) {
+        this.#order = order;
+        this.#arrange();
+      }
+
       // A card stands right of the marks, beside the line its words start on. Where
-      // the window has no room there it stands under its words, so it covers none of
-      // them. Either way it stays inside the window.
-      for (const { node, lines, context } of floats) {
+      // the margin lacks the room it stands under its words instead, so it covers none
+      // of them, as far into the margin as the window lets it. Either way it keeps
+      // clear of Leaf's panel, where Leaf would not seat the comment box.
+      const beside = room !== null;
+      for (const { node, lines, context, width } of floats) {
+        if (!width) continue;
         const [first] = lines;
         const last = lines.at(-1);
-        const beside = innerWidth - column.right >= node.offsetWidth + CARD_GAP;
+        const left = beside
+          ? column.right + CARD_GAP
+          : Math.max(edge.left, edge.right - width);
+        const clear = shownWindow({ gap: EDGE, across: { left, right: left + width } });
+        const rootBoundary = {
+          x: clear.x,
+          y: clear.y,
+          width: clear.width,
+          height: clear.height,
+        };
         const reference = {
           getBoundingClientRect: () =>
             beside
-              ? new DOMRect(column.right, first.top, 0, first.height)
-              : new DOMRect(last.left, first.top, last.width, last.bottom - first.top),
+              ? new DOMRect(left, first.top, 0, first.height)
+              : new DOMRect(left, first.top, width, last.bottom - first.top),
         };
         void computePosition(reference, node, {
           strategy: "fixed",
           placement: beside ? "right-start" : "bottom-start",
           middleware: [
-            offset(beside ? CARD_GAP : STACK),
-            flip(),
-            shift({ padding: 8 }),
+            offset(beside ? 0 : STACK),
+            ...(beside ? [] : [flip({ rootBoundary })]),
+            shift({ rootBoundary }),
           ],
         }).then(({ x, y }) => {
           if (node.isConnected) anchorTo(node, context, { left: x, top: y });
         });
       }
 
-      // The commented words, and the words the comment box is about, tinted with the
-      // platform's highlights from the ranges Leaf keeps of each passage.
-      this.#tinted = new Map(
-        [...this.#threadMarks].flatMap(([key, { placement }]) =>
-          (placement.ranges ?? []).map((range) => [range, key]),
-        ),
-      );
-      CSS.highlights.set(
-        TINT,
-        new Highlight(...this.#tinted.keys(), ...(this.#composing?.ranges ?? [])),
+      // The commented words, and the words the comment box is about, from the ranges
+      // Leaf keeps of each passage. Hidden, no words are tinted.
+      this.#tint(
+        this.#hidden
+          ? []
+          : [
+              ...[...this.#threadMarks.values()].flatMap(
+                ({ placement }) => placement.ranges ?? [],
+              ),
+              ...(this.#composing?.ranges ?? []),
+            ],
       );
     }
   },

@@ -98,7 +98,8 @@ turn"), what it holds unread ("2 unread"), or where the agent's work on it stand
 ("Queued for Claude", "On it"). `voice` is who says the word, `agent` or `leaf`; a
 `span` carrying it as `data-lf-voice` wears that speaker's face. `progress` is
 `"picked_up"` once the user's update has been delivered into the agent's turn,
-`"working"` while the agent is at work on it, and otherwise `null`.
+`"working"` while the agent is at work on it, and otherwise `null`. `unread` counts the
+agent's messages the user hasn't read, which a mark shows whatever its line says.
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
 is the name obligations and workflows use. `root` is its opening message, and
@@ -315,22 +316,38 @@ says where it stands:
   datum commented on.
 - `ranges` holds, for a passage, a live `Range` over each run of its words. Measure
   them for the lines the words stand on, and paint them with the CSS Custom Highlight
-  API, whose `CSS.highlights.highlightsFromPoint(x, y)` says which range lies under a
-  pointer. Leaf keeps the same ranges while the passage stands still, and replaces them
-  when a revision or a script moves its words. To preview a thread as the pointer rests
-  on its words, declare `lfPreview` on `place`, answering with `at` set to the line
-  pointed at, and call `previewChanged(place, {aim: true})` as the pointer reaches the
-  words (`module-input.md`, "Previews").
-- `status` is `exact`, or `fallback` or `outdated` where Leaf can no longer place the
-  anchor's own subject, such as a named control or data since replaced, and `place` is
-  the nearest element still standing.
+  API. They stay the same ranges while they cover the passage: the browser moves a live
+  range with words written ahead of it, and Leaf hands over new ones only once the
+  words they cover change. A highlight's rule names the elements holding its words,
+  since a rule naming none restyles every element on the page and Firefox paints a
+  highlight only from a rule matching the words' own element: set
+  `data-lf-marked-words`, the mark Leaf's own passage highlights use, on the parent
+  element of each range's start and end, and write the rule as
+  `[data-lf-marked-words]::highlight(name)`.
+- `status` is `exact`, or `fallback` or `outdated` where Leaf can't place the anchor's
+  own subject, such as a named control or data since replaced, and `place` is the
+  nearest element still standing. A comment on a widget's datum also reads `fallback`
+  until the widget has drawn its data, so a target can turn from `fallback` to `exact`
+  as the page starts.
+
+Leaf reads no pointing or pressing on a passage's words on such a page, where its own
+margin previews and opens a thread from them. A thread is reached by what the element
+draws for it.
 
 A presentation may draw every thread at once, as a rail of conversations does, or only
 the one the user asked for, as a margin draws a card. A thread it returns `null` for is
 drawn nowhere on the page, and a route to it, such as `t`, Show on page in Leaf's panel
 or `threadActions.open`, calls `reveal(key)`. Record the thread as open and return; Leaf
 runs `render` again, fills the outlet it now returns, and lands the user in it. Return
-`false` to leave the thread to Leaf's panel.
+`false` to leave the thread to Leaf's panel. `reveal` is asked only for a thread among
+the targets.
+
+Leaf seats the comment box in its outlet unless Leaf's panel covers where the outlet
+stands, where the user couldn't see what they type; the box then stays in the panel's
+field and the outlet stays empty. An outlet with no box of its own, as one hidden until
+it is filled, is judged by the nearest box around it. So stand an outlet in the part
+of the window clear of the panel, which `shownWindow` gives
+(`module-scroll-and-motion.md`), and show nothing for an outlet that is empty.
 
 The returned handle has `read()`, the collection `readThreads()` returns; `update()`,
 which asks for `render` again after a change of the element's own, such as a card

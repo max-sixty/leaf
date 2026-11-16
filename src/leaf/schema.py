@@ -337,23 +337,15 @@ DATA_INPUTS_SCHEMA = {
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+            # The widget attribute holding the receipt of the source's run that
+            # produced the value written in the element's content.
+            "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
         "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
         "additionalProperties": False,
     },
-}
-MEASURED_SCHEMA = {
-    "type": "object",
-    "properties": {
-        # The x-data input whose source receipt identifies the current run.
-        "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source write's opaque receipt.
-        "run": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    },
-    "required": ["input", "run"],
-    "additionalProperties": False,
 }
 
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
@@ -403,7 +395,6 @@ EXTENSION_SCHEMA = {
         "x-encloses": {"const": True},
         "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-measured": MEASURED_SCHEMA,
         "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -486,7 +477,6 @@ EXTENSION_SCHEMA = {
     },
     "dependentRequired": {
         "x-within": ["x-owners"],
-        "x-measured": ["x-data"],
         "x-shows": ["x-owners", "x-refers"],
     },
     "additionalProperties": False,

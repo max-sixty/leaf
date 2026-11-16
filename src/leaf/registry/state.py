@@ -75,7 +75,6 @@ def validate_widget_state_relations(
                 "x-history",
                 "x-thread-seat",
                 "x-data",
-                "x-measured",
             )
             owned = [key for key in owner_keys if child.get(key)]
             if isinstance(child.get("x-visual"), dict):

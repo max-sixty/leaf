@@ -112,14 +112,11 @@
     "x-data": {
       "measurement": {
         "contract": "measured-scalar",
-        "source": "source"
+        "source": "source",
+        "measured": "run"
       }
     },
     "x-inline": true,
-    "x-measured": {
-      "input": "measurement",
-      "run": "run"
-    },
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {

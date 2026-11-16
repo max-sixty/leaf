@@ -178,16 +178,17 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
-    if measured := entry.get("x-measured"):
-        input_name = measured["input"]
-        if input_name not in entry.get("x-data", {}):
-            raise registry_error("measured-input", path, tag, input=input_name)
-        source_attr = entry["x-data"][input_name].get("source")
+    # A measured input joins the source's current run to the receipt the authored
+    # value was written with, so every element names both.
+    for input_name, spec in entry.get("x-data", {}).items():
+        run_attr = spec.get("measured")
+        if run_attr is None:
+            continue
+        source_attr = spec.get("source")
         if source_attr not in entry.get("required", []):
             raise registry_error(
                 "measured-source", path, tag, input=input_name, attr=source_attr
             )
-        run_attr = measured["run"]
         run_schema = properties.get(run_attr)
         if not (
             run_attr in entry.get("required", [])
@@ -195,7 +196,9 @@ def _validate_widget_structure(
             and run_schema.get("type") == "string"
             and run_schema.get("minLength", 0) >= 1
         ):
-            raise registry_error("measured-run", path, tag, attr=run_attr)
+            raise registry_error(
+                "measured-run", path, tag, input=input_name, attr=run_attr
+            )
     said = set(entry.get("x-says", {}))
     for role in ("x-awaits", "x-thread-seat"):
         if entry.get(role) is not None and not _typed(properties, "id", "string"):
@@ -321,8 +324,9 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     }
     if dynamic := sorted(data_bindings & mutable_values):
         raise registry_error("binding-written", path, tag, attrs=dynamic)
-    if (measured := entry.get("x-measured")) and measured["run"] in mutable_values:
-        raise registry_error("run-written", path, tag, attr=measured["run"])
+    for spec in entry.get("x-data", {}).values():
+        if (run_attr := spec.get("measured")) in mutable_values:
+            raise registry_error("run-written", path, tag, attr=run_attr)
     return awaits
 
 

@@ -1326,19 +1326,17 @@ _TEXT = {
             " be declared a string"
         )
     ),
-    "measured-input": _declared(
-        lambda v: f"x-measured input `{v['input']}` is not one of its x-data inputs"
-    ),
     "measured-source": _declared(
         lambda v: (
-            f"x-measured input `{v['input']}` source attribute `{v['attr']}`"
-            " must be required"
+            f"x-data input `{v['input']}` declares `measured`, so it needs a"
+            " required `source` attribute"
+            + (f", which `{v['attr']}` is not" if v["attr"] else "")
         )
     ),
     "measured-run": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` must be required and"
-            " declare a nonempty string"
+            f"x-data input `{v['input']}` names `{v['attr']}` as `measured`:"
+            " that attribute must be required and declare a nonempty string"
         )
     ),
     "refers-unknown-member": _declared(
@@ -1393,7 +1391,7 @@ _TEXT = {
     ),
     "run-written": _declared(
         lambda v: (
-            f"x-measured run attribute `{v['attr']}` is an authored source"
+            f"x-data `measured` attribute `{v['attr']}` is an authored source"
             " receipt, but is written by a value record"
         )
     ),

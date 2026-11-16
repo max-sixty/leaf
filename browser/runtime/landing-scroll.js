@@ -176,23 +176,31 @@ function shownFor(where) {
   const room = roomAround(ring, where);
   return box.height <= room.height && box.width <= room.width ? ring : where;
 }
-// The part of `where` a landing has to show: its box, less the window's foot band
-// where it is a region keeping room at its end for the floating panel (`--lf-end-room`,
-// layouts.css), since it lays its content out to clear that band. Measured whole,
-// every region of a held workspace was taller than its room by the panel's band, so a
-// link to one, or a file opened in an editor filling one, scrolled the page to put the
-// region's opening at the band's top, wherever something after `main` gave the page
-// room to scroll its header away.
+// The part of `where` a landing has to show: its box, less what a region reaching the
+// window's foot reserves there for the floating panel. The region states that room
+// (`--lf-end-room`, layouts.css) and lays its last content out that far above its foot,
+// so the band at the foot that holds none of its content is that room and the margin
+// the band keeps above the panel (the root's `--lf-landing-room`), never more of the
+// band than that: a panel opened higher, over the region's content, still has a landing
+// bring that content clear of it. Measured whole, every region of a held workspace was
+// taller than its room by the panel's resting band, so a link to one, or a file opened
+// in an editor filling one, scrolled the page to put the region's opening at the band's
+// top, wherever something after `main` gave the page room to scroll its header away.
 /** @param {Destination} where */
 const destinationBox = (where) => {
   const shown = shownFor(where);
   const box = placeBox(shown);
-  if (
-    !(shown instanceof Element) ||
-    !(Number.parseFloat(getComputedStyle(shown).getPropertyValue("--lf-end-room")) > 0)
-  )
-    return box;
-  const foot = landingInsets(document.documentElement).bottom;
+  const reserved =
+    shown instanceof Element
+      ? Number.parseFloat(getComputedStyle(shown).getPropertyValue("--lf-end-room")) ||
+        0
+      : 0;
+  if (reserved <= 0) return box;
+  const root = document.documentElement;
+  const margin =
+    Number.parseFloat(getComputedStyle(root).getPropertyValue("--lf-landing-room")) ||
+    0;
+  const foot = Math.min(landingInsets(root).bottom, reserved + margin);
   return new DOMRect(box.x, box.y, box.width, Math.max(0, box.height - foot));
 };
 /** @param {Destination} where */

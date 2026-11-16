@@ -1014,18 +1014,18 @@ def _update_agent_turns(session_id: str, change) -> bool:
         return bool(changed)
 
 
-def acting_agent_turn(session: str) -> str | None:
+def acting_agent_turn(session: str | None) -> str | None:
     """The agent turn of `session` a command acts in: the one it names
     (`TURN_VARIABLE`); None for a command that names none, which acts as the main
     thread. A command naming a turn that isn't one of the session's open agent
     turns, as a fork's command run after its turn closed does, or one naming the
-    main thread's turn or an id the session never opened, is refused
-    (`refusals.Refused`): it acts neither in a closed turn nor with the main
-    thread's authority."""
+    main thread's turn, an id the session never opened, or any turn where no
+    session runs the command, is refused (`refusals.Refused`): it acts neither in a
+    closed turn nor with the main thread's authority."""
     turn = os.environ.get(TURN_VARIABLE)
     if not turn:
         return None
-    if turn not in open_agent_turns(session):
+    if session is None or turn not in open_agent_turns(session):
         from .refusals import Refused
 
         raise Refused(

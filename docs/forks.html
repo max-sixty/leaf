@@ -575,9 +575,11 @@ flowchart TD
             A fork's commands act in its turn from its first one: the turn has its id
             from the moment Leaf opens it, while the fork's agent id comes only once
             Claude Code has spawned the fork. A resumed fork's message names its new
-            turn in place of the one its transcript names, and a command naming the old
-            one is refused, as is every command a fork still running after its turn
-            ended runs.
+            turn in place of the one its transcript names. A command naming a turn that
+            has ended, the old one among them, is refused. A command Leaf prints for the
+            fork to run next, such as the answer to an owed update or a delivery's
+            acknowledgement, begins with the same <code>--turn</code> as the fork's
+            command that printed it.
           </p>
           <p id="acting-beside">
             A command that names no turn acts as the main thread on a thread a running

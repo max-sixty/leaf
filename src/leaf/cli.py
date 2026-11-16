@@ -302,21 +302,21 @@ class LeafGroup(click.Group):
 
 def _refuse_a_turn_not_open() -> None:
     """Refuse a command naming a turn that isn't one of its session's open agent
-    turns, whatever the command (`state.acting_agent_turn`), so a fork resumed or
-    running late acts neither in its closed turn nor as the main thread. The command
-    names no page yet, so its refused record goes to each page the session holds."""
+    turns, or run where no session is, whatever the command
+    (`state.acting_agent_turn`), so a fork resumed or running late acts neither in
+    its closed turn nor as the main thread. The command names no page yet, so its
+    refused record goes to each page the session holds."""
     from leaf.harness import session_harness
     from leaf.interaction_log import acting_on
     from leaf.refusals import Refused
     from leaf.service import owned_pages
     from leaf.state import acting_agent_turn
 
-    if (harness := session_harness()) is None:
-        return
+    session = harness.session if (harness := session_harness()) else None
     try:
-        acting_agent_turn(harness.session)
+        acting_agent_turn(session)
     except Refused:
-        for page_dir in owned_pages(harness.session):
+        for page_dir in owned_pages(session) if session else []:
             acting_on(page_dir)
         raise
 

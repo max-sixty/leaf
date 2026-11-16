@@ -54,6 +54,7 @@ from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.events import build_threads
+from leaf.findings import Rejected
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
 from leaf.served_state.context import read_page
@@ -428,6 +429,35 @@ def test_a_forks_leaf_command_acts_in_the_turn_it_names(claimed, lane):
     assert state_model.TURN_VARIABLE not in os.environ
     [command] = read_interactions(claimed, types=("leaf_command",))
     assert (command["command"], command["turn"]) == ("task start", turn)
+
+
+def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane, monkeypatch):
+    """Where Leaf tells a fork's command which command answers an owed message, as
+    its refusal of a message that answers nothing in a thread that owes one does,
+    that command names the fork's turn, so the fork that runs it as printed answers
+    in its own turn rather than taking the thread for the main thread. A command
+    that names no turn is told the plain command."""
+    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
+    turn = taken["turn"]
+
+    def told() -> str:
+        with pytest.raises(Rejected) as refused:
+            thread_model.post_reply(claimed, {"parent": asked["id"]}, "Reading it.")
+        [finding] = refused.value.findings
+        return finding.values["answer"]
+
+    plain = told()
+    monkeypatch.setenv(state_model.TURN_VARIABLE, turn)
+    answer = told()
+    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    assert answer == plain.replace("`leaf ", f"`leaf --turn {turn} ", 1), answer
+    [command] = re.findall(r"`(leaf [^`]+)`", answer)
+    ran = CliRunner().invoke(
+        cli_model.cli, [*shlex.split(command)[1:], "--done", "--text", "3.12."]
+    )
+    assert ran.exit_code == 0, ran.output
+    [reply] = [e for e in events_model.read_events(claimed) if e.get("text") == "3.12."]
+    assert reply["turn"] == turn
 
 
 def taken_over(claimed, capsys) -> tuple[dict, dict]:
@@ -1810,12 +1840,14 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
         assert forks_model.page_holding(page).of(more["id"]) == held
 
 
-def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(claimed, lane, capsys):
+def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(
+    claimed, lane, capsys, monkeypatch
+):
     """A command naming a fork's turn that has ended, as a fork's command run late
     does, is refused, whatever it is: its reply, its start, its acknowledgement, a
     to-do or a thread of its own each say the turn isn't open, rather than acting
-    with the main thread's authority. So is one naming the main thread's turn, or a
-    turn the session never opened."""
+    with the main thread's authority. So is one naming the main thread's turn, a
+    turn the session never opened, or any turn where no session runs it."""
     asked, taken = taken_by_a_fork(claimed, "Does the autocomplete service cache?")
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
@@ -1850,6 +1882,19 @@ def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(claimed, lane, 
     commands = read_interactions(claimed, types=("leaf_command",))
     assert len(commands) == 7
     assert all("is not an open agent turn" in c["refused"] for c in commands)
+
+    other, running = taken_by_a_fork(claimed, "Which Python does it need?")
+    for name in harness_model.IDENTITY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    ran = CliRunner().invoke(
+        cli_model.cli,
+        ["--turn", running["turn"], "thread", "reply", answer_ref(claimed, other["id"])]
+        + ["--done", "--text", "3.12."],
+    )
+    assert f"turn {running['turn']} is not an open agent turn" in ran.output
+    assert not [
+        e for e in events_model.read_events(claimed) if e.get("text") == "3.12."
+    ]
 
 
 def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(

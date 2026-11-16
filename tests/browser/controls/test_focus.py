@@ -1,8 +1,6 @@
 """Where keyboard focus goes and returns: scroll boxes' Tab stops, keyboard scrolling,
 hand-back as layers close, focus kept through moves, and the frame audit."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout

@@ -54,9 +54,8 @@ function currentLocationOn(name, title, sel, rows) {
     at,
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the reference promising a press nothing makes. The user
-    // standing on one answers it at once, which is the only time the dispatcher asks,
-    // so a key costs no walk of the page.
+    // not see one would leave the reference promising a press nothing makes. It is asked
+    // on every key, so the user standing on one answers it before any walk of the page.
     when: () => at() || pageQueryAll(sel).some((el) => !inChrome(el)),
     rows,
   });

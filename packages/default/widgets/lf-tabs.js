@@ -86,6 +86,7 @@ import {
   actionTemplate,
   agentName,
   PRESS,
+  obligationsByRegion,
   obligationsIn,
   answerWords,
   under,
@@ -380,6 +381,11 @@ export class TabSet extends LeafElement {
   // once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
+    // Every panel's obligations in one pass, read once the first panel asks for them.
+    /** @type {ReturnType<typeof obligationsByRegion> | undefined} */
+    let byPanel;
+    const held = (/** @type {Element} */ panel) =>
+      (byPanel ??= obligationsByRegion(this.#panels)).get(panel) ?? [];
     return html`${this.#edge("start")}${
         this.#side
           ? repeat(
@@ -400,14 +406,14 @@ export class TabSet extends LeafElement {
                   ${repeat(
                     run.panels,
                     (panel) => panel,
-                    (panel) => this.#tab(panel),
+                    (panel) => this.#tab(panel, held),
                   )}
                 </div>`,
             )
           : repeat(
               this.#panels,
               (panel) => panel,
-              (panel) => this.#tab(panel),
+              (panel) => this.#tab(panel, held),
             )
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
@@ -417,11 +423,11 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel */
-  #tab(panel) {
+  /** @param {Element} panel @param {(panel: Element) => ReturnType<typeof obligationsIn>} held */
+  #tab(panel, held) {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
-    const items = hasAnswer ? obligationsIn(panel) : [];
+    const items = hasAnswer ? held(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");
     const answered = items.length > 0 && done.length === items.length;
